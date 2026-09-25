@@ -12,10 +12,14 @@ use super::layer::{Shape, blend};
 use super::shaders::Shaders;
 use super::terrain::Terrain;
 
-pub(super) const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len() * 2;
+pub const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len() * 2;
 
-const fn slot(layer: Pass, shape: Shape, wireframe: bool) -> usize {
+pub const fn terrain_slot(layer: Pass, shape: Shape, wireframe: bool) -> usize {
     (layer as usize * Shape::ALL.len() + shape as usize) * 2 + wireframe as usize
+}
+
+pub fn stream_slot(stream: u32, wireframe: bool) -> usize {
+    terrain_slot(stream_pass(stream), Shape::of_stream(stream), wireframe)
 }
 
 pub fn common(
@@ -117,60 +121,19 @@ impl Pipelines {
         for layer in Pass::ALL {
             for shape in Shape::ALL {
                 for wireframe in [false, true] {
-                    terrain[slot(layer, shape, wireframe)] =
-                        self.queue_terrain(layer, shape, wireframe, binds, view, pipeline_cache);
+                    terrain[terrain_slot(layer, shape, wireframe)] = pipeline_cache
+                        .queue_render_pipeline(terrain_descriptor(
+                            binds,
+                            &self.shaders,
+                            layer,
+                            shape,
+                            wireframe,
+                            view,
+                        ));
                 }
             }
         }
         self.terrain = Some(terrain);
-    }
-
-    fn queue_terrain(
-        &self,
-        layer: Pass,
-        shape: Shape,
-        wireframe: bool,
-        binds: &Bindings,
-        view: &ExtractedView,
-        pipeline_cache: &PipelineCache,
-    ) -> CachedRenderPipelineId {
-        let mut descriptor = RenderPipelineDescriptor {
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
-                front_face: FrontFace::Ccw,
-                cull_mode: layer.writes_depth().then_some(Face::Back),
-                ..default()
-            },
-            depth_stencil: Some(DepthStencilState {
-                format: CORE_3D_DEPTH_FORMAT,
-                depth_write_enabled: Some(layer.writes_depth()),
-                depth_compare: Some(super::DEPTH_COMPARE),
-                stencil: default(),
-                bias: model_depth_bias(layer, shape),
-            }),
-            ..common(
-                format!(
-                    "terrain {} {}{}",
-                    layer.label(),
-                    shape.label(),
-                    if wireframe { " wireframe" } else { "" }
-                ),
-                vec![binds.view_layout.clone(), binds.draw_layout.clone()],
-                self.shaders.shape(shape),
-                format!("vertex_{}", shape.label()),
-                format!("fragment_{}_{}", shape.label(), layer.label()),
-                view,
-                blend(layer),
-            )
-        };
-        if wireframe {
-            let fragment = descriptor
-                .fragment
-                .as_mut()
-                .expect("common sets a fragment");
-            fragment.shader_defs.push("WIREFRAME".into());
-        }
-        pipeline_cache.queue_render_pipeline(descriptor)
     }
 
     pub fn terrain<'cache>(
@@ -179,9 +142,55 @@ impl Pipelines {
         wireframe: bool,
         pipeline_cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        let slot = slot(stream_pass(stream), Shape::of_stream(stream), wireframe);
-        pipeline_cache.get_render_pipeline(self.terrain?[slot])
+        pipeline_cache.get_render_pipeline(self.terrain?[stream_slot(stream, wireframe)])
     }
+}
+
+pub(crate) fn terrain_descriptor(
+    binds: &Bindings,
+    shaders: &Shaders,
+    layer: Pass,
+    shape: Shape,
+    wireframe: bool,
+    view: &ExtractedView,
+) -> RenderPipelineDescriptor {
+    let mut descriptor = RenderPipelineDescriptor {
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            front_face: FrontFace::Ccw,
+            cull_mode: layer.writes_depth().then_some(Face::Back),
+            ..default()
+        },
+        depth_stencil: Some(DepthStencilState {
+            format: CORE_3D_DEPTH_FORMAT,
+            depth_write_enabled: Some(layer.writes_depth()),
+            depth_compare: Some(super::DEPTH_COMPARE),
+            stencil: default(),
+            bias: model_depth_bias(layer, shape),
+        }),
+        ..common(
+            format!(
+                "terrain {} {}{}",
+                layer.label(),
+                shape.label(),
+                if wireframe { " wireframe" } else { "" }
+            ),
+            vec![binds.view_layout.clone(), binds.draw_layout.clone()],
+            shaders.shape(shape),
+            format!("vertex_{}", shape.label()),
+            format!("fragment_{}_{}", shape.label(), layer.label()),
+            view,
+            blend(layer),
+        )
+    };
+    if wireframe {
+        let fragment = descriptor
+            .fragment
+            .as_mut()
+            .expect("common sets a fragment");
+        fragment.shader_defs.push("WIREFRAME".into());
+    }
+    descriptor
 }
 
 // Model quads sit flush against the greedy faces behind them, so without a nudge the two
@@ -228,7 +237,7 @@ mod tests {
             .iter()
             .flat_map(|&layer| {
                 Shape::ALL.iter().flat_map(move |&shape| {
-                    [false, true].map(|wireframe| slot(layer, shape, wireframe))
+                    [false, true].map(|wireframe| terrain_slot(layer, shape, wireframe))
                 })
             })
             .collect();

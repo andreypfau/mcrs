@@ -149,3 +149,135 @@ fn fragment_greedy_cutout(in: GreedyOut) -> @location(0) vec4<f32> {
 fn fragment_greedy_translucent(in: GreedyOut) -> @location(0) vec4<f32> {
     return finish_translucent(shade_surface(greedy_surface(in)), in.quad_uv);
 }
+
+#ifdef DEFERRED
+struct GreedyDeferredOut {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) quad_uv: vec2<f32>,
+    @location(1) world_xz: vec2<f32>,
+    @location(2) @interpolate(flat) face_base: u32,
+    @location(3) @interpolate(flat) face_span: vec2<u32>,
+    @location(4) @interpolate(flat) directional: f32,
+    @location(5) @interpolate(flat) face: u32,
+};
+
+// WGSL cannot call an entry point, so this repeats `vertex_greedy` and adds the face.
+@vertex
+fn vertex_greedy_deferred(@builtin(vertex_index) vertex: u32) -> GreedyDeferredOut {
+    var out: GreedyDeferredOut;
+    let entry = visible[visible_slot(quad_of(vertex))];
+    let quad = entry.x * QUAD_WORDS;
+
+    let desc = sections[entry.y];
+    let scale = f32(desc.scale);
+    let local = vec3<f32>(
+        f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
+        f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
+        f32(quad_field(quad, QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS)),
+    );
+    let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
+    let span = vec2<u32>(
+        quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
+        quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
+    );
+    let size = vec2<f32>(span);
+
+    let drop = f32(quad_field(quad, QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
+    var quad_uv = corner_uv(corner_index(vertex));
+    if (face >= 2u) {
+        quad_uv.y = max(quad_uv.y, drop / size.y);
+    }
+    let c = quad_uv * size;
+    let u_dir = face_u_dir(face);
+    let v_dir = face_v_dir(face);
+    var world = section_origin(desc) + (local + u_dir * c.x + v_dir * c.y) * scale;
+    if (face == 1u) {
+        world.y -= drop;
+    }
+    let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
+    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
+
+    out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
+    out.quad_uv = quad_uv;
+    out.world_xz = world.xz;
+    out.face_base = desc.face_base
+        + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
+    out.face_span = span;
+    out.directional = face_shade(face);
+    out.face = face;
+    return out;
+}
+
+fn classic_varyings(in: GreedyDeferredOut) -> GreedyOut {
+    var out: GreedyOut;
+    out.clip_position = in.clip_position;
+    out.quad_uv = in.quad_uv;
+    out.world_xz = in.world_xz;
+    out.face_base = in.face_base;
+    out.face_span = in.face_span;
+    out.directional = in.directional;
+    return out;
+}
+
+/// `corner_color` before the lightmap: the occlusion byte over 255 and the light in sixteenths.
+fn corner_light(ao: u32, block: u32, sky: u32, corner: u32, directional: f32) -> vec3<f32> {
+    let ao_mask = (1u << FACE_AO_CORNER_BITS) - 1u;
+    let light_mask = (1u << FACE_LIGHT_CORNER_BITS) - 1u;
+    let code = (ao >> (corner * FACE_AO_CORNER_BITS)) & ao_mask;
+    let byte = floor(f32(255u - 51u * code) * directional);
+    let block_units = f32(((block >> (corner * FACE_LIGHT_CORNER_BITS)) & light_mask) * 4u);
+    let sky_units = f32(((sky >> (corner * FACE_LIGHT_CORNER_BITS)) & light_mask) * 4u);
+    return vec3<f32>(byte / 255.0, block_units, sky_units);
+}
+
+fn greedy_light(in: GreedyOut) -> vec3<f32> {
+    let uv = in.quad_uv * vec2<f32>(in.face_span);
+    let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
+    let attr = (in.face_base + cell.y * in.face_span.x + cell.x) * FACE_WORDS;
+    let ao = face_field(attr, FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS);
+    let block = face_field(attr, FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS);
+    let sky = face_field(attr, FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS);
+    var corners: array<vec3<f32>, 4>;
+    for (var k = 0u; k < 4u; k++) {
+        corners[k] = corner_light(ao, block, sky, k, in.directional);
+    }
+    let f = uv - vec2<f32>(cell);
+    if (f.y > f.x) {
+        return corners[0] + (corners[2] - corners[1]) * f.x + (corners[1] - corners[0]) * f.y;
+    }
+    return corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
+}
+
+fn greedy_albedo(in: GreedyOut) -> vec4<f32> {
+    var s = greedy_surface(in);
+    s.shade = vec3<f32>(1.0);
+    return shade_surface(s);
+}
+
+fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>, face: u32) -> mcrs_minecraft_client::deferred::GBuffer {
+    let light = greedy_light(in);
+    return mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(face), light.y, light.z);
+}
+
+@fragment
+fn fragment_greedy_solid_deferred(in: GreedyDeferredOut) -> mcrs_minecraft_client::deferred::GBuffer {
+    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let classic = classic_varyings(in);
+    let color = greedy_albedo(classic);
+    if (wireframe_discards) {
+        discard;
+    }
+    return greedy_gbuffer(classic, color.rgb, in.face);
+}
+
+@fragment
+fn fragment_greedy_cutout_deferred(in: GreedyDeferredOut) -> mcrs_minecraft_client::deferred::GBuffer {
+    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let classic = classic_varyings(in);
+    let color = greedy_albedo(classic);
+    if (color.a < 0.5 || wireframe_discards) {
+        discard;
+    }
+    return greedy_gbuffer(classic, color.rgb, in.face);
+}
+#endif

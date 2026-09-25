@@ -11,7 +11,7 @@ pub const fn blend(pass: Pass) -> Option<BlendState> {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub(crate) enum LayerGroup {
+pub enum LayerGroup {
     Opaque,
     Translucent,
 }
@@ -31,7 +31,7 @@ impl LayerGroup {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub(super) enum Shape {
+pub enum Shape {
     Greedy,
     Model,
 }

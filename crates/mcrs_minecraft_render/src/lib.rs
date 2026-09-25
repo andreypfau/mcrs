@@ -37,6 +37,9 @@ use crate::probe::{CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::CameraOrigin;
+pub use layer::{LayerGroup, Shape};
+pub use pass::{draw_layer_group, restrict_to_raster};
+pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};

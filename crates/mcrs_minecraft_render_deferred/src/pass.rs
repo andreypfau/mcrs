@@ -1,9 +1,14 @@
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, ViewQuery};
-use bevy::render::view::{ViewDepthTexture, ViewTarget, ViewUniformOffset};
-use mcrs_minecraft_render::Terrain;
+use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 use mcrs_minecraft_render::sky::SkyDraws;
+use mcrs_minecraft_render::{
+    FrameCounts, LayerGroup, Raster, Streams, Terrain, draw_layer_group, restrict_to_raster,
+    stream_slot,
+};
+use std::sync::atomic::Ordering;
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
@@ -11,22 +16,33 @@ use crate::pipelines::DeferredPipelines;
 type WorldView = (
     &'static ViewTarget,
     &'static ViewDepthTexture,
+    &'static ExtractedView,
     &'static ViewUniformOffset,
 );
+
+#[derive(SystemParam)]
+pub(crate) struct GBufferParams<'w> {
+    terrain: Option<Res<'w, Terrain>>,
+    frame: Option<Res<'w, DeferredFrame>>,
+    pipelines: Res<'w, DeferredPipelines>,
+    cache: Res<'w, PipelineCache>,
+    streams: Res<'w, Streams>,
+    raster: Res<'w, Raster>,
+    counts: Res<'w, FrameCounts>,
+}
 
 /// The sky is drawn into the view target first, in a pass of its own: its pipelines draw finite
 /// geometry with no depth test, so it cannot go behind the lit terrain later.
 pub(crate) fn draw_gbuffer(
     view: ViewQuery<WorldView>,
-    frame: Option<Res<DeferredFrame>>,
-    cache: Res<PipelineCache>,
+    params: GBufferParams,
     sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
-    let Some(frame) = frame else {
+    let Some(frame) = params.frame.as_deref() else {
         return;
     };
-    let (target, depth, view_offset) = view.into_inner();
+    let (target, depth, extracted, view_offset) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("sky"),
@@ -36,7 +52,7 @@ pub(crate) fn draw_gbuffer(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    sky.draw_sky(&mut pass, view_offset.offset, &cache);
+    sky.draw_sky(&mut pass, view_offset.offset, &params.cache);
     drop(pass);
 
     let color_attachments = frame.targets.each_ref().map(|view| {
@@ -50,7 +66,7 @@ pub(crate) fn draw_gbuffer(
             },
         })
     });
-    ctx.begin_tracked_render_pass(RenderPassDescriptor {
+    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("gbuffer"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
@@ -65,6 +81,26 @@ pub(crate) fn draw_gbuffer(
         occlusion_query_set: None,
         multiview_mask: None,
     });
+    let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) else {
+        return;
+    };
+    restrict_to_raster(&mut pass, &params.raster, extracted);
+    let draws = draw_layer_group(
+        &mut pass,
+        terrain,
+        LayerGroup::Opaque,
+        0,
+        &params.streams,
+        |stream| {
+            params
+                .pipelines
+                .gbuffer(stream_slot(stream, false), &params.cache)
+        },
+    );
+    params
+        .counts
+        .terrain_draws
+        .fetch_add(draws, Ordering::Relaxed);
 }
 
 /// Not restricted to the raster viewport: the fragment leaves every pixel at depth 0 alone, which
@@ -86,7 +122,7 @@ pub(crate) fn draw_lighting(
     else {
         return;
     };
-    let (target, _, _) = view.into_inner();
+    let (target, _, _, _) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("lighting"),

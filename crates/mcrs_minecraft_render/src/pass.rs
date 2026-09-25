@@ -143,7 +143,7 @@ type WorldView = (
 );
 
 fn ready(terrain: Option<&Terrain>) -> Option<&Terrain> {
-    terrain.filter(|terrain| terrain.pipelines.ready())
+    terrain.filter(|terrain| terrain.ready())
 }
 
 fn second_cull<'a>(
@@ -151,16 +151,10 @@ fn second_cull<'a>(
     occlusion: &Occlusion,
     pipeline_cache: &PipelineCache,
 ) -> Option<&'a Terrain> {
-    ready(terrain).filter(|terrain| {
-        occlusion.0
-            && terrain.list.visible_entries != 0
-            && pipeline_cache
-                .get_compute_pipeline(terrain.pipelines.cull_second)
-                .is_some()
-    })
+    terrain.filter(|terrain| terrain.second_pass(occlusion, pipeline_cache))
 }
 
-fn restrict_to_raster(pass: &mut TrackedRenderPass, raster: &Raster, view: &ExtractedView) {
+pub fn restrict_to_raster(pass: &mut TrackedRenderPass, raster: &Raster, view: &ExtractedView) {
     if raster.0 < 1.0 {
         let size = view.viewport.zw().as_vec2() * raster.0;
         pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
@@ -254,9 +248,12 @@ pub(super) fn draw_opaque(
             terrain,
             LayerGroup::Opaque,
             0,
-            &frame.pipeline_cache,
             &frame.streams,
-            frame.wireframe.0,
+            |stream| {
+                terrain
+                    .pipelines
+                    .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+            },
         );
         frame
             .counts
@@ -353,9 +350,12 @@ pub(super) fn draw_opaque_second(
         terrain,
         LayerGroup::Opaque,
         1,
-        &frame.pipeline_cache,
         &frame.streams,
-        frame.wireframe.0,
+        |stream| {
+            terrain
+                .pipelines
+                .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+        },
     );
     frame
         .counts
@@ -406,9 +406,12 @@ pub(super) fn draw_forward(
             terrain,
             LayerGroup::Translucent,
             phase,
-            &frame.pipeline_cache,
             &frame.streams,
-            frame.wireframe.0,
+            |stream| {
+                terrain
+                    .pipelines
+                    .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+            },
         );
     }
     frame
@@ -418,24 +421,21 @@ pub(super) fn draw_forward(
     span.end(&mut pass);
 }
 
-/// `phase` picks the first pass's args or the second's, which follow them.
-fn draw_layer_group<'pass>(
+/// `phase` picks the first pass's args or the second's, which follow them. A stream `pipeline_of`
+/// has no pipeline for is skipped.
+pub fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
     group: LayerGroup,
     phase: u64,
-    pipeline_cache: &'pass PipelineCache,
     streams: &Streams,
-    wireframe: bool,
+    pipeline_of: impl Fn(u32) -> Option<&'pass RenderPipeline>,
 ) -> u32 {
     pass.set_bind_group(1, &terrain.binds.draw, &[]);
     let mut open = None;
     let mut draws = 0;
     for (index, draw) in terrain.list.drawn(group, streams) {
-        let Some(pipeline) = terrain
-            .pipelines
-            .terrain(draw.stream, wireframe, pipeline_cache)
-        else {
+        let Some(pipeline) = pipeline_of(draw.stream) else {
             continue;
         };
         if open != Some(draw.stream) {
