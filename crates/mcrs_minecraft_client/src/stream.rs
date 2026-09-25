@@ -287,6 +287,20 @@ impl Loader {
             .to_array()
     }
 
+    fn look_from(&mut self, eye: Vec3) {
+        let was = self.camera_section();
+        self.camera = eye;
+        if self.camera_section() == was {
+            return;
+        }
+        for (index, stream) in self.streams.iter_mut().enumerate() {
+            if blended(index) && stream.live() != 0 {
+                stream.rebuild = true;
+                self.dirty = true;
+            }
+        }
+    }
+
     fn enqueue(&mut self, at: [i32; 3]) {
         let camera = self.camera_section();
         self.sections.enqueue(at, camera);
@@ -571,7 +585,7 @@ impl Loader {
                 stream.groups.extend_from_slice(&placed[first..first + run]);
                 ranges[index] = (at, run as u32);
                 stream.touched.push((at, at + run as u32));
-                if stream.groups.len() > stream.block.capacity() {
+                if blended(index) || stream.groups.len() > stream.block.capacity() {
                     stream.rebuild = true;
                 }
             }
@@ -741,9 +755,11 @@ impl Loader {
         }
     }
 
-    /// Packs a stream's live records into the block it holds, keeping their order and telling
-    /// each resident section where its records went.
+    /// Packs a stream's live records into the block it holds, keeping their order, or for a
+    /// blended stream putting the farthest section first, and telling each resident section
+    /// where its records went.
     fn pack_stream(&mut self, index: usize) {
+        let camera = IVec3::from_array(self.camera_section());
         let Self {
             streams,
             owners,
@@ -752,22 +768,31 @@ impl Loader {
         } = self;
         let stream = &mut streams[index];
         let live = stream.live();
-        let old = std::mem::take(&mut stream.groups);
-        let mut packed = Vec::with_capacity(live);
+        let mut packed: Vec<Group> = std::mem::take(&mut stream.groups)
+            .into_iter()
+            .filter(|group| group.quad_count != 0)
+            .collect();
+        if blended(index) {
+            // Ties go by position so the order never depends on which section landed first.
+            packed.sort_by_key(|group| {
+                let at = IVec3::from_array(owners[group.section as usize]);
+                let distance = (at - camera).as_i64vec3().length_squared();
+                (std::cmp::Reverse(distance), at.to_array())
+            });
+        }
         let mut quads = 0u32;
         let mut last_slot = NO_SLOT;
-        for mut group in old.into_iter().filter(|group| group.quad_count != 0) {
+        for (at, group) in packed.iter_mut().enumerate() {
             let owner = owners[group.section as usize];
             if let Some(resident) = sections.resident_mut(owner) {
                 if group.section != last_slot {
-                    resident.groups[index] = (packed.len() as u32, 0);
+                    resident.groups[index] = (at as u32, 0);
                 }
                 resident.groups[index].1 += 1;
             }
             last_slot = group.section;
             group.quad_prefix = quads;
             quads += group.quad_count;
-            packed.push(group);
         }
         stream.groups = packed;
         stream.quads_end = quads;
@@ -1269,6 +1294,10 @@ fn heap_key(camera_section: [i32; 3], section: [i32; 3]) -> u32 {
     distance_from(middle, section).to_bits()
 }
 
+fn blended(stream: usize) -> bool {
+    mesh::stream_pass(stream as u32).translucent()
+}
+
 fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
     let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
     let max = min + Vec3::splat(SECTION_SIZE as f32);
@@ -1285,7 +1314,7 @@ fn follow_camera(
     camera: Single<&GlobalTransform, With<Camera3d>>,
 ) {
     let loader = &mut *loader;
-    loader.camera = camera.translation();
+    loader.look_from(camera.translation());
     loader.follow(&mut cave);
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
         loader.anchor = loader.camera;
@@ -1616,6 +1645,54 @@ mod tests {
         assert_eq!(
             flushed.groups[0].1[0].quad_prefix, 0,
             "what the evicted section held is given back, not left as a hole"
+        );
+    }
+
+    fn blended_sections(loader: &Loader, stream: usize) -> Vec<[i32; 3]> {
+        loader.streams[stream]
+            .groups
+            .iter()
+            .filter(|group| group.quad_count != 0)
+            .map(|group| loader.owners[group.section as usize])
+            .collect()
+    }
+
+    #[test]
+    fn blended_records_run_from_the_farthest_section_whatever_order_they_landed_in() {
+        let blended_stream = (0..STREAMS).find(|&index| blended(index)).unwrap();
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8);
+        loader.look_from(Vec3::splat(8.0));
+
+        let landed = [[1, 0, 0], [-3, 0, 0], [0, 0, 2], [3, 0, 0], [0, 1, 0]];
+        for (slot, at) in landed.into_iter().enumerate() {
+            let mut mesh = one_greedy_group(at, slot as u32, 1);
+            mesh.spans.swap(0, blended_stream);
+            loader
+                .place(mesh, slot as u32, &mut cave)
+                .unwrap_or_else(|_| panic!("the arena has room"));
+        }
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0]],
+            "farthest first, and a tie in distance goes by position"
+        );
+
+        loader.look_from(Vec3::new(4.0 * 16.0 + 8.0, 8.0, 8.0));
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0], [3, 0, 0]],
+            "a camera in another section orders them again"
+        );
+
+        loader.evict([0, 1, 0], &mut cave);
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [0, 0, 2], [1, 0, 0], [3, 0, 0]],
+            "an evicted section takes its own records with it and nobody else's"
         );
     }
 
