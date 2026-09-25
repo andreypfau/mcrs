@@ -112,6 +112,9 @@ struct ModelDeferredOut {
     @location(6) sky_light: f32,
     @location(7) shade: f32,
     @location(8) @interpolate(flat) normal: vec3<f32>,
+#ifdef PARITY_MASK
+    @location(9) @interpolate(flat) uniform_corners: u32,
+#endif
 };
 
 // WGSL cannot call an entry point, so this repeats `vertex_model`, keeping the light levels and
@@ -147,6 +150,9 @@ fn vertex_model_deferred(@builtin(vertex_index) vertex: u32) -> ModelDeferredOut
     out.sky_light = sky_light;
     out.shade = shade;
     out.normal = model_quad_normal(entry.x);
+#ifdef PARITY_MASK
+    out.uniform_corners = model_uniform(entry.x);
+#endif
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS)
         | model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)
@@ -173,6 +179,26 @@ fn model_quad_normal(quad: u32) -> vec3<f32> {
     return normalize(cross(p2 - p1, p0 - p1));
 }
 
+#ifdef PARITY_MASK
+fn model_corner_light(quad: u32, corner: u32) -> vec3<u32> {
+    let base = (quad * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
+    return vec3<u32>(
+        model_field(base, MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS),
+        model_field(base, MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS),
+        model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS),
+    );
+}
+
+fn model_uniform(quad: u32) -> u32 {
+    let first = model_corner_light(quad, 0u);
+    var equal = true;
+    for (var k = 1u; k < CORNERS_PER_QUAD; k++) {
+        equal = equal && all(model_corner_light(quad, k) == first);
+    }
+    return u32(equal);
+}
+#endif
+
 fn model_albedo(in: ModelDeferredOut) -> vec4<f32> {
     var classic: ModelOut;
     classic.clip_position = in.clip_position;
@@ -187,7 +213,11 @@ fn model_albedo(in: ModelDeferredOut) -> vec4<f32> {
 }
 
 fn model_gbuffer(in: ModelDeferredOut, albedo: vec3<f32>) -> mcrs_minecraft_client::deferred::GBuffer {
-    return mcrs_minecraft_client::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
+    var out = mcrs_minecraft_client::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
+#ifdef PARITY_MASK
+    out.light.a = f32(in.uniform_corners);
+#endif
+    return out;
 }
 
 @fragment
@@ -217,7 +247,14 @@ fn fragment_model_translucent_deferred(in: ModelDeferredOut) -> @location(0) vec
     if (wireframe_discards) {
         discard;
     }
+#ifdef PARITY_MASK
+    if (in.uniform_corners != 0u) {
+        discard;
+    }
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+#else
     let lit = mcrs_minecraft_client::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
     return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+#endif
 }
 #endif

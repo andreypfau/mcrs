@@ -13,6 +13,7 @@ use mcrs_minecraft_render::{
     draw_layer_group, stream_slot,
 };
 
+use crate::ParityMask;
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
 use crate::views::{DeferredViews, Display, Lighting};
@@ -215,6 +216,7 @@ pub(crate) fn draw_forward_deferred(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
     sky: SkyDraws,
+    mask: Res<ParityMask>,
     mut ctx: RenderContext,
 ) {
     let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) else {
@@ -239,7 +241,12 @@ pub(crate) fn draw_forward_deferred(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "forward");
-    let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &params.cache);
+    // Clouds carry no corner light, so in the parity mask they would only hide faces.
+    let mut draws = if mask.0 {
+        0
+    } else {
+        sky.draw_clouds(&mut pass, view_offset.offset, &params.cache)
+    };
     for &phase in phases {
         draws += draw_layer_group(
             &mut pass,

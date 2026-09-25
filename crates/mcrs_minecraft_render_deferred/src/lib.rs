@@ -14,7 +14,12 @@ use bevy::prelude::*;
 use bevy::render::{Render, RenderApp, RenderSystems};
 use mcrs_minecraft_render::{DebugViews, EffectivePath, Occlusion, RenderPath, WorldPass};
 
-pub struct DeferredPlugin;
+pub struct DeferredPlugin {
+    pub parity_mask: bool,
+}
+
+#[derive(Resource, Clone, Copy)]
+pub(crate) struct ParityMask(pub bool);
 
 impl Plugin for DeferredPlugin {
     fn build(&self, app: &mut App) {
@@ -24,6 +29,7 @@ impl Plugin for DeferredPlugin {
             return;
         };
         render_app
+            .insert_resource(ParityMask(self.parity_mask))
             .init_resource::<pipelines::DeferredPipelines>()
             .add_systems(
                 Render,

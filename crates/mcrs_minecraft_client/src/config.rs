@@ -355,6 +355,12 @@ pub fn occlusion() -> Occlusion {
     Occlusion(flag("OCCLUSION", true))
 }
 
+/// `PARITY_MASK=1` makes the deferred path capture white where a face's four corners share light
+/// and AO and black elsewhere, for comparing the render paths.
+pub fn parity_mask() -> bool {
+    flag("PARITY_MASK", false)
+}
+
 /// `RENDER_PATH=deferred` starts on the deferred path.
 pub fn render_path() -> RenderPath {
     let value = knob("RENDER_PATH");

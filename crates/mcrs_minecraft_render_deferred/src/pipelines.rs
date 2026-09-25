@@ -7,6 +7,7 @@ use mcrs_minecraft_render::{
     RenderPath, Shape, TERRAIN_PIPELINES, Terrain, pipeline_descriptor, terrain_slot,
 };
 
+use crate::ParityMask;
 use crate::gbuffer::{GBUFFER_FORMATS, gbuffer_layout};
 use crate::views::Variant;
 
@@ -57,6 +58,7 @@ impl DeferredPipelines {
 pub(crate) fn prepare_deferred_pipelines(
     mut pipelines: ResMut<DeferredPipelines>,
     requested: Res<RenderPath>,
+    mask: Res<ParityMask>,
     terrain: Option<Res<Terrain>>,
     views: Query<&ExtractedView, With<Camera3d>>,
     fullscreen: Res<FullscreenShader>,
@@ -99,7 +101,7 @@ pub(crate) fn prepare_deferred_pipelines(
         "deferred lighting",
         &lighting,
         "lighting",
-        "",
+        if mask.0 { "PARITY_MASK" } else { "" },
     ));
     for variant in Variant::ALL {
         let (shader, entry, def, label) = match variant {
@@ -120,7 +122,7 @@ pub(crate) fn prepare_deferred_pipelines(
         ));
     }
     for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
-        let descriptor = deferred_descriptor(&terrain, layer, shape, wireframe, view);
+        let descriptor = deferred_descriptor(&terrain, layer, shape, wireframe, view, mask.0);
         pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
             Some(cache.queue_render_pipeline(descriptor));
     }
@@ -147,6 +149,7 @@ fn deferred_descriptor(
     shape: Shape,
     wireframe: bool,
     view: &ExtractedView,
+    parity_mask: bool,
 ) -> RenderPipelineDescriptor {
     let mut descriptor = terrain.pipeline_descriptor(layer, shape, wireframe, view);
     descriptor.label = descriptor
@@ -157,14 +160,24 @@ fn deferred_descriptor(
     if writes_gbuffer || shape == Shape::Model {
         descriptor.vertex.entry_point = Some(format!("vertex_{}_deferred", shape.label()).into());
     }
-    descriptor.vertex.shader_defs.push("DEFERRED".into());
+    let defs: &[&str] = if parity_mask {
+        &["DEFERRED", "PARITY_MASK"]
+    } else {
+        &["DEFERRED"]
+    };
+    descriptor
+        .vertex
+        .shader_defs
+        .extend(defs.iter().map(|&def| def.into()));
     let fragment = descriptor
         .fragment
         .as_mut()
         .expect("terrain pipelines have a fragment stage");
     fragment.entry_point =
         Some(format!("fragment_{}_{}_deferred", shape.label(), layer.label()).into());
-    fragment.shader_defs.push("DEFERRED".into());
+    fragment
+        .shader_defs
+        .extend(defs.iter().map(|&def| def.into()));
     if writes_gbuffer {
         fragment.targets = GBUFFER_FORMATS
             .map(|format| {

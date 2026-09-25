@@ -79,7 +79,9 @@ impl Plugin for ClientTerrainPlugin {
             heat: config::gpu_hot(),
             timestamps: config::pass_timestamps(),
         })
-        .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin)
+        .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin {
+            parity_mask: config::parity_mask(),
+        })
         .add_plugins(render::GuiItemsPlugin)
         .add_plugins(render::RasterPlugin)
         .insert_resource(config::render_path())

@@ -10,6 +10,11 @@
 @fragment
 fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(in.position.xy);
+#ifdef PARITY_MASK
+    let sky = textureLoad(depth, pixel, 0) == 0.0;
+    let uniform_corners = textureLoad(light, pixel, 0).a > 0.5;
+    return vec4<f32>(vec3<f32>(f32(sky || uniform_corners)), 1.0);
+#else
     if (textureLoad(depth, pixel, 0) == 0.0) {
         discard;
     }
@@ -24,5 +29,6 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let albedo = a.rgb;
 #endif
     return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
+#endif
 #endif
 }

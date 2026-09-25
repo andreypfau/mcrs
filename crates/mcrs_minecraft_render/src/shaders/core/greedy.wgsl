@@ -254,9 +254,37 @@ fn greedy_albedo(in: GreedyOut) -> vec4<f32> {
     return shade_surface(s);
 }
 
+#ifdef PARITY_MASK
+fn corners_equal(packed: u32, bits: u32) -> bool {
+    let mask = (1u << bits) - 1u;
+    let first = packed & mask;
+    var equal = true;
+    for (var k = 1u; k < 4u; k++) {
+        equal = equal && ((packed >> (k * bits)) & mask) == first;
+    }
+    return equal;
+}
+
+fn greedy_uniform(in: GreedyOut) -> bool {
+    let uv = in.quad_uv * vec2<f32>(in.face_span);
+    let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
+    let attr = (in.face_base + cell.y * in.face_span.x + cell.x) * FACE_WORDS;
+    let ao = face_field(attr, FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS);
+    let block = face_field(attr, FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS);
+    let sky = face_field(attr, FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS);
+    return corners_equal(ao, FACE_AO_CORNER_BITS)
+        && corners_equal(block, FACE_LIGHT_CORNER_BITS)
+        && corners_equal(sky, FACE_LIGHT_CORNER_BITS);
+}
+#endif
+
 fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>, face: u32) -> mcrs_minecraft_client::deferred::GBuffer {
     let light = greedy_light(in);
-    return mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(face), light.y, light.z);
+    var out = mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(face), light.y, light.z);
+#ifdef PARITY_MASK
+    out.light.a = f32(greedy_uniform(in));
+#endif
+    return out;
 }
 
 @fragment
@@ -288,8 +316,15 @@ fn fragment_greedy_translucent_deferred(in: GreedyOut) -> @location(0) vec4<f32>
     if (wireframe_discards) {
         discard;
     }
+#ifdef PARITY_MASK
+    if (greedy_uniform(in)) {
+        discard;
+    }
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+#else
     let light = greedy_light(in);
     let lit = mcrs_minecraft_client::deferred::shade(color.rgb, light.x, light.y, light.z);
     return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+#endif
 }
 #endif
