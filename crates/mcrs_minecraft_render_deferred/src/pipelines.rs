@@ -8,6 +8,7 @@ use mcrs_minecraft_render::{
 };
 
 use crate::gbuffer::{GBUFFER_FORMATS, gbuffer_layout};
+use crate::views::Variant;
 
 /// Queued once, on the first frame the deferred path is asked for, and never dropped: the
 /// pipeline cache neither deduplicates nor evicts, so queuing again would leak a set.
@@ -15,13 +16,26 @@ use crate::gbuffer::{GBUFFER_FORMATS, gbuffer_layout};
 pub(crate) struct DeferredPipelines {
     pub lighting: Option<CachedRenderPipelineId>,
     pub terrain: [Option<CachedRenderPipelineId>; TERRAIN_PIPELINES],
+    variants: [Option<CachedRenderPipelineId>; Variant::ALL.len()],
 }
 
 impl DeferredPipelines {
-    pub fn ids(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
+    fn gated(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
         self.lighting
             .into_iter()
             .chain(self.terrain.iter().copied().flatten())
+    }
+
+    pub fn ids(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
+        self.gated().chain(self.variants.iter().copied().flatten())
+    }
+
+    pub fn variant<'cache>(
+        &self,
+        variant: Variant,
+        cache: &'cache PipelineCache,
+    ) -> Option<&'cache RenderPipeline> {
+        cache.get_render_pipeline(self.variants[variant as usize]?)
     }
 
     pub fn terrain<'cache>(
@@ -33,7 +47,10 @@ impl DeferredPipelines {
     }
 
     pub fn ready(&self, cache: &PipelineCache) -> bool {
-        self.lighting.is_some() && self.ids().all(|id| cache.get_render_pipeline(id).is_some())
+        self.lighting.is_some()
+            && self
+                .gated()
+                .all(|id| cache.get_render_pipeline(id).is_some())
     }
 }
 
@@ -52,25 +69,55 @@ pub(crate) fn prepare_deferred_pipelines(
     let (Some(terrain), Some(view)) = (terrain, views.iter().next()) else {
         return;
     };
-    let shader =
+    let lighting =
         asset_server.load("embedded://mcrs_minecraft_render_deferred/shaders/lighting.wgsl");
-    let lighting = RenderPipelineDescriptor {
-        vertex: fullscreen.to_vertex_state(),
-        ..pipeline_descriptor(
-            "deferred lighting".into(),
-            vec![
-                terrain.view_layout().clone(),
-                terrain.draw_layout().clone(),
-                gbuffer_layout(),
-            ],
-            &shader,
-            String::new(),
-            "lighting".into(),
-            view,
-            None,
-        )
+    let show = asset_server.load("embedded://mcrs_minecraft_render_deferred/shaders/show.wgsl");
+    let fullscreen_pipeline = |label: &str, shader: &Handle<Shader>, entry: &str, def: &str| {
+        let mut descriptor = RenderPipelineDescriptor {
+            vertex: fullscreen.to_vertex_state(),
+            ..pipeline_descriptor(
+                label.into(),
+                vec![
+                    terrain.view_layout().clone(),
+                    terrain.draw_layout().clone(),
+                    gbuffer_layout(),
+                ],
+                shader,
+                String::new(),
+                entry.into(),
+                view,
+                None,
+            )
+        };
+        if !def.is_empty() {
+            let fragment = descriptor.fragment.as_mut().expect("a fullscreen fragment");
+            fragment.shader_defs.push(def.into());
+        }
+        cache.queue_render_pipeline(descriptor)
     };
-    pipelines.lighting = Some(cache.queue_render_pipeline(lighting));
+    pipelines.lighting = Some(fullscreen_pipeline(
+        "deferred lighting",
+        &lighting,
+        "lighting",
+        "",
+    ));
+    for variant in Variant::ALL {
+        let (shader, entry, def, label) = match variant {
+            Variant::LightingTerm => (&lighting, "lighting", "LIGHTING_TERM", "lighting term"),
+            Variant::Unlit => (&lighting, "lighting", "UNLIT", "unlit"),
+            Variant::Albedo => (&show, "show", "SHOW_ALBEDO", "albedo"),
+            Variant::Ao => (&show, "show", "SHOW_AO", "AO"),
+            Variant::Normals => (&show, "show", "SHOW_NORMAL", "normals"),
+            Variant::BlockLight => (&show, "show", "SHOW_BLOCK_LIGHT", "block light"),
+            Variant::SkyLight => (&show, "show", "SHOW_SKY_LIGHT", "sky light"),
+        };
+        pipelines.variants[variant as usize] = Some(fullscreen_pipeline(
+            &format!("deferred {label}"),
+            shader,
+            entry,
+            def,
+        ));
+    }
     for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
         let descriptor = deferred_descriptor(&terrain, layer, shape, wireframe, view);
         pipelines.terrain[terrain_slot(layer, shape, wireframe)] =

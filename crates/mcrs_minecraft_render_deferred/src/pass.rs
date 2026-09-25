@@ -5,16 +5,17 @@ use bevy::prelude::*;
 use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, ViewQuery};
+use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 use mcrs_minecraft_render::sky::SkyDraws;
 use mcrs_minecraft_render::{
-    FrameCounts, LayerGroup, Occlusion, Raster, Streams, Terrain, draw_layer_group,
-    restrict_to_raster, stream_slot,
+    DepthDisplay, DepthSource, FrameCounts, LayerGroup, Occlusion, Raster, SelectedView, Streams,
+    Terrain, draw_layer_group, restrict_to_raster, stream_slot,
 };
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
+use crate::views::{DeferredViews, Display, Lighting};
 
 type WorldView = (
     &'static ViewTarget,
@@ -33,9 +34,24 @@ pub(crate) struct DeferredParams<'w> {
     raster: Res<'w, Raster>,
     occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
+    views: Res<'w, DeferredViews>,
+    selected: Res<'w, SelectedView>,
 }
 
 impl DeferredParams<'_> {
+    /// A view whose program is still compiling shows final shading.
+    fn display(&self) -> Display {
+        let display = self.views.display(*self.selected);
+        match display.lighting {
+            Lighting::Variant(variant)
+                if self.pipelines.variant(variant, &self.cache).is_none() =>
+            {
+                Display::FINAL
+            }
+            _ => display,
+        }
+    }
+
     fn draw_opaque<'pass>(
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
@@ -44,6 +60,7 @@ impl DeferredParams<'_> {
         phase: u64,
     ) {
         restrict_to_raster(pass, &self.raster, view);
+        let wireframe = self.display().wireframe;
         let draws = draw_layer_group(
             pass,
             terrain,
@@ -52,7 +69,7 @@ impl DeferredParams<'_> {
             &self.streams,
             |stream| {
                 self.pipelines
-                    .terrain(stream_slot(stream, false), &self.cache)
+                    .terrain(stream_slot(stream, wireframe), &self.cache)
             },
         );
         self.counts
@@ -150,22 +167,33 @@ pub(crate) fn draw_gbuffer_second(
 /// is the sky and everything outside the viewport.
 pub(crate) fn draw_lighting(
     view: ViewQuery<WorldView>,
-    terrain: Option<Res<Terrain>>,
-    frame: Option<Res<DeferredFrame>>,
-    pipelines: Res<DeferredPipelines>,
-    cache: Res<PipelineCache>,
+    params: DeferredParams,
+    display: Res<DepthDisplay>,
+    device: Res<RenderDevice>,
     mut ctx: RenderContext,
 ) {
-    let (Some(terrain), Some(frame)) = (terrain, frame) else {
+    let (Some(terrain), Some(frame)) = (params.terrain.as_deref(), params.frame.as_deref()) else {
         return;
     };
-    let Some(pipeline) = pipelines
-        .lighting
-        .and_then(|id| cache.get_render_pipeline(id))
-    else {
+    let (target, depth, _, _) = view.into_inner();
+    let pipeline = match params.display().lighting {
+        Lighting::Depth => {
+            let source = DepthSource::Depth(depth);
+            return display.draw(&mut ctx, target, source, &params.cache, &device);
+        }
+        Lighting::Pyramid => {
+            let source = DepthSource::Pyramid(terrain);
+            return display.draw(&mut ctx, target, source, &params.cache, &device);
+        }
+        Lighting::Variant(variant) => params.pipelines.variant(variant, &params.cache),
+        Lighting::Lit => params
+            .pipelines
+            .lighting
+            .and_then(|id| params.cache.get_render_pipeline(id)),
+    };
+    let Some(pipeline) = pipeline else {
         return;
     };
-    let (target, _, _, _) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("lighting"),
@@ -180,6 +208,10 @@ pub(crate) fn draw_lighting(
     pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
     pass.set_bind_group(2, &frame.bind_group, &[]);
     pass.draw(0..3, 0..1);
+}
+
+pub(crate) fn draws_forward(params: DeferredParams) -> bool {
+    params.display().forward
 }
 
 /// Drawn over the lit frame the way the classic path draws it, with the lighting pass's shading.

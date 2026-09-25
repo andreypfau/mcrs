@@ -6,17 +6,19 @@ mod gbuffer;
 mod pass;
 mod path;
 mod pipelines;
+mod views;
 
 use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
 use bevy::render::{Render, RenderApp, RenderSystems};
-use mcrs_minecraft_render::{EffectivePath, RenderPath, WorldPass};
+use mcrs_minecraft_render::{DebugViews, EffectivePath, Occlusion, RenderPath, WorldPass};
 
 pub struct DeferredPlugin;
 
 impl Plugin for DeferredPlugin {
     fn build(&self, app: &mut App) {
         bevy::asset::embedded_asset!(app, "shaders/lighting.wgsl");
+        bevy::asset::embedded_asset!(app, "shaders/show.wgsl");
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -45,8 +47,18 @@ impl Plugin for DeferredPlugin {
                         .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
                     pass::draw_forward_deferred
                         .in_set(WorldPass::Forward)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
+                        .run_if(resource_equals(EffectivePath(RenderPath::Deferred)))
+                        .run_if(pass::draws_forward),
                 ),
             );
+    }
+
+    fn finish(&self, app: &mut App) {
+        let occlusion = app.world().resource::<Occlusion>().0;
+        let mut views = app.world_mut().resource_mut::<DebugViews>();
+        let deferred = views::DeferredViews::register(&mut views, occlusion);
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.insert_resource(deferred);
+        }
     }
 }

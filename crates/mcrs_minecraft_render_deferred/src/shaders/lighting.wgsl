@@ -13,7 +13,16 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (textureLoad(depth, pixel, 0) == 0.0) {
         discard;
     }
+#ifdef UNLIT
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+#else
     let a = textureLoad(albedo_ao, pixel, 0);
     let l = textureLoad(light, pixel, 0);
-    return vec4<f32>(to_target(shade(a.rgb, a.a, l.g, l.b)), 1.0);
+#ifdef LIGHTING_TERM
+    let albedo = vec3<f32>(1.0);
+#else
+    let albedo = a.rgb;
+#endif
+    return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
+#endif
 }
