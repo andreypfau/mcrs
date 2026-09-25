@@ -257,11 +257,42 @@ fn spawn_overlay(mut commands: Commands) {
     ));
 }
 
+#[derive(Default)]
+struct Rate {
+    at: f64,
+    done: u64,
+    bytes_per_second: f64,
+}
+
+impl Rate {
+    const INTERVAL: f64 = 0.5;
+
+    fn sample(&mut self, now: f64, done: u64) {
+        if self.at == 0.0 {
+            (self.at, self.done) = (now, done);
+            return;
+        }
+        let elapsed = now - self.at;
+        if elapsed < Self::INTERVAL {
+            return;
+        }
+        let rate = done.saturating_sub(self.done) as f64 / elapsed;
+        self.bytes_per_second = if self.bytes_per_second == 0.0 {
+            rate
+        } else {
+            0.7 * self.bytes_per_second + 0.3 * rate
+        };
+        (self.at, self.done) = (now, done);
+    }
+}
+
 fn draw_progress(
     fetch: Res<Fetch>,
     font: Option<Res<LoadingFont>>,
+    time: Res<Time<Real>>,
     fill: Single<&mut Node, With<ProgressFill>>,
     lines: Query<(Entity, &Line)>,
+    mut rate: Local<Rate>,
     mut shown: Local<[String; 2]>,
     mut commands: Commands,
 ) {
@@ -269,6 +300,7 @@ fn draw_progress(
         fetch.progress.done.load(Ordering::Relaxed),
         fetch.progress.total.load(Ordering::Relaxed),
     );
+    rate.sample(time.elapsed_secs_f64(), done);
     let fraction = if total == 0 {
         0.0
     } else {
@@ -282,15 +314,22 @@ fn draw_progress(
     };
     for (entity, &line) in &lines {
         let (text, color) = match line {
-            Line::Amount => (
-                format!(
+            Line::Amount => {
+                let mut text = format!(
                     "{:.1} / {:.1} MB  {:.0}%",
                     done as f64 / 1e6,
                     total as f64 / 1e6,
                     100.0 * fraction
-                ),
-                WHITE,
-            ),
+                );
+                if rate.bytes_per_second > 0.0 {
+                    text += &format!(
+                        "  {:.1} MB/s  {:.0} s left",
+                        rate.bytes_per_second / 1e6,
+                        total.saturating_sub(done) as f64 / rate.bytes_per_second
+                    );
+                }
+                (text, WHITE)
+            }
             Line::Status => (fetch.progress.status.lock().unwrap().clone(), GRAY),
         };
         if shown[line as usize] == text {
