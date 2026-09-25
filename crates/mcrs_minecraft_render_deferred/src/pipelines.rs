@@ -110,6 +110,7 @@ pub(crate) fn prepare_deferred_pipelines(
             Variant::Normals => (&show, "show", "SHOW_NORMAL", "normals"),
             Variant::BlockLight => (&show, "show", "SHOW_BLOCK_LIGHT", "block light"),
             Variant::SkyLight => (&show, "show", "SHOW_SKY_LIGHT", "sky light"),
+            Variant::Grid => (&show, "show", "SHOW_GRID", "block grid"),
         };
         pipelines.variants[variant as usize] = Some(fullscreen_pipeline(
             &format!("deferred {label}"),

@@ -39,7 +39,7 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use crate::probe::{CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
-pub use frame::CameraOrigin;
+pub use frame::{CameraOrigin, clip_from_relative};
 pub use layer::{LayerGroup, Shape};
 pub use pass::{draw_layer_group, restrict_to_raster};
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};

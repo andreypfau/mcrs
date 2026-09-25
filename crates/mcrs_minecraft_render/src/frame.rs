@@ -118,7 +118,7 @@ impl Frame {
     }
 }
 
-fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) -> Mat4 {
+pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) -> Mat4 {
     clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
 }
 

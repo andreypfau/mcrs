@@ -6,6 +6,7 @@ mod gbuffer;
 mod pass;
 mod path;
 mod pipelines;
+mod reconstruct;
 mod views;
 
 use bevy::core_pipeline::schedule::Core3d;
@@ -28,7 +29,11 @@ impl Plugin for DeferredPlugin {
                 Render,
                 (
                     pipelines::prepare_deferred_pipelines.in_set(RenderSystems::Prepare),
-                    (gbuffer::fit_deferred_frame, path::derive_effective_path)
+                    (
+                        gbuffer::fit_deferred_frame,
+                        reconstruct::write_lighting_uniform,
+                        path::derive_effective_path,
+                    )
                         .chain()
                         .in_set(RenderSystems::PrepareBindGroups),
                 ),

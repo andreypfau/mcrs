@@ -1,9 +1,15 @@
+use std::num::NonZeroU64;
+
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{texture_2d, texture_depth_2d};
+use bevy::render::render_resource::binding_types::{
+    texture_2d, texture_depth_2d, uniform_buffer_sized,
+};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthTexture;
-use mcrs_minecraft_render::RenderPath;
+use mcrs_minecraft_render::{RenderPath, uniform_buffer};
+
+use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
 
 /// Albedo and occlusion, normal and motion, then emissive, block light, sky light and roughness.
 /// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
@@ -24,16 +30,18 @@ pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
                 texture_2d(TextureSampleType::Float { filterable: false }),
                 texture_2d(TextureSampleType::Float { filterable: false }),
                 texture_depth_2d(),
+                uniform_buffer_sized(false, NonZeroU64::new(LIGHTING_UNIFORM_SIZE)),
             ),
         ),
     )
 }
 
-/// Everything the deferred path allocates per pixel. Nothing else may hold a clone of these
+/// Everything the deferred path allocates. Nothing else may hold a clone of these
 /// textures or the bind group, or switching back to classic would not free them.
 #[derive(Resource)]
 pub(crate) struct DeferredFrame {
     pub targets: [TextureView; 3],
+    pub lighting: Buffer,
     pub bind_group: BindGroup,
     size: UVec2,
     depth: TextureId,
@@ -43,9 +51,11 @@ impl DeferredFrame {
     fn new(depth: &ViewDepthTexture, device: &RenderDevice, cache: &PipelineCache) -> Self {
         let size = size_of(depth);
         let targets = targets(size, device);
-        let bind_group = bind_group(&targets, depth, device, cache);
+        let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
+        let bind_group = bind_group(&targets, &lighting, depth, device, cache);
         Self {
             targets,
+            lighting,
             bind_group,
             size,
             depth: depth.texture.id(),
@@ -61,7 +71,7 @@ impl DeferredFrame {
         }
         if rebuilt || self.depth != depth.texture.id() {
             self.depth = depth.texture.id();
-            self.bind_group = bind_group(&self.targets, depth, device, cache);
+            self.bind_group = bind_group(&self.targets, &self.lighting, depth, device, cache);
         }
     }
 }
@@ -93,6 +103,7 @@ fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
 
 fn bind_group(
     targets: &[TextureView; 3],
+    lighting: &Buffer,
     depth: &ViewDepthTexture,
     device: &RenderDevice,
     cache: &PipelineCache,
@@ -105,7 +116,13 @@ fn bind_group(
     device.create_bind_group(
         "deferred gbuffer",
         &cache.get_bind_group_layout(&gbuffer_layout()),
-        &BindGroupEntries::sequential((&targets[0], &targets[1], &targets[2], &depth_view)),
+        &BindGroupEntries::sequential((
+            &targets[0],
+            &targets[1],
+            &targets[2],
+            &depth_view,
+            lighting.as_entire_binding(),
+        )),
     )
 }
 

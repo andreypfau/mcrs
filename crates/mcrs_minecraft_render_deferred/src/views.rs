@@ -11,10 +11,11 @@ pub(crate) enum Variant {
     Normals,
     BlockLight,
     SkyLight,
+    Grid,
 }
 
 impl Variant {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::LightingTerm,
         Self::Unlit,
         Self::Albedo,
@@ -22,6 +23,7 @@ impl Variant {
         Self::Normals,
         Self::BlockLight,
         Self::SkyLight,
+        Self::Grid,
     ];
 }
 
@@ -66,6 +68,7 @@ pub(crate) struct DeferredViews {
     block_light: DebugView,
     sky_light: DebugView,
     depth: DebugView,
+    block_grid: DebugView,
     hiz: Option<DebugView>,
     lighting_term: DebugView,
     forward: DebugView,
@@ -83,6 +86,7 @@ impl DeferredViews {
             block_light: register("block GI"),
             sky_light: register("sky GI"),
             depth: register("depth"),
+            block_grid: register("block grid"),
             hiz: occlusion.then(|| register("Hi-Z")),
             lighting_term: register("lighting term"),
             forward: register("forward translucents"),
@@ -111,6 +115,8 @@ impl DeferredViews {
             variant(Variant::SkyLight)
         } else if view == self.depth {
             Display::lighting(Lighting::Depth)
+        } else if view == self.block_grid {
+            variant(Variant::Grid)
         } else if Some(view) == self.hiz {
             Display::lighting(Lighting::Pyramid)
         } else if view == self.lighting_term {
@@ -155,6 +161,7 @@ mod tests {
                 "block GI",
                 "sky GI",
                 "depth",
+                "block grid",
                 "Hi-Z",
                 "lighting term",
                 "forward translucents",
