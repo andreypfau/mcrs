@@ -4,8 +4,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 use super::DebugScreenDisplayer;
-use crate::probe::{self, CpuTimings, GpuTimings};
-use crate::render::FrameCounts;
+use mcrs_minecraft_render::FrameCounts;
+use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
 
 pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("mcrs:frame");
 

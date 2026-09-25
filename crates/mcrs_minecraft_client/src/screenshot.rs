@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 
-use crate::probe::{self, CpuTimings, GpuTimings};
+use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
 
 const DIR_VAR: &str = "MCRS_SCREENSHOT_DIR";
 

@@ -5,7 +5,7 @@ use mcrs_minecraft_dimension::dimension_type::Skybox;
 use mcrs_minecraft_dimension::environment::{EnvironmentAttributes, EnvironmentContext};
 use mcrs_minecraft_environment::attribute::AttributeValue;
 
-use crate::sky_render::SkyEffects;
+use mcrs_minecraft_render::sky::SkyEffects;
 
 /// A visual attribute the renderer carries as GPU state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

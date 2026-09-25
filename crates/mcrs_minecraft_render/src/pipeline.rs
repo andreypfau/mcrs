@@ -18,7 +18,7 @@ const fn slot(layer: Pass, shape: Shape, wireframe: bool) -> usize {
     (layer as usize * Shape::ALL.len() + shape as usize) * 2 + wireframe as usize
 }
 
-pub(crate) fn common(
+pub fn common(
     label: String,
     layout: Vec<BindGroupLayoutDescriptor>,
     shader: &Handle<Shader>,

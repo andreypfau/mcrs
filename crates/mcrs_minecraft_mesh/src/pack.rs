@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_client/src/render/shaders/include/fields.wgsl");
+            .join("../mcrs_minecraft_render/src/shaders/include/fields.wgsl");
         let generated = wgsl_fields();
         if std::env::var("MCRS_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");

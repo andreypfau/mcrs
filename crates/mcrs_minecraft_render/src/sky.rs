@@ -18,7 +18,7 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use bitflags::bitflags;
 
-use crate::render::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
+use crate::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
 
 /// The per-frame GPU block, in the linear space the render target expects.
 #[repr(C)]
@@ -225,7 +225,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
                 ),
             ),
         ),
-        shader: asset_server.load("embedded://mcrs_minecraft_client/shaders/sky.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/sky.wgsl"),
         uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
         pipelines: None,
         textures: None,

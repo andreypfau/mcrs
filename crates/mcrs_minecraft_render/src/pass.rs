@@ -10,7 +10,7 @@ use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 
 use crate::probe::{self, GpuTimings, Queries};
-use crate::sky_render::SkyDraws;
+use crate::sky::SkyDraws;
 use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 
 use super::draws::PARAMS_STRIDE;

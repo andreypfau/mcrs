@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
-use crate::sky_render::SkyUniform;
+use crate::sky::SkyUniform;
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
 use super::{AtlasUpdate, Budget};
@@ -13,7 +13,7 @@ const LIGHT_LEVELS: u32 = 16;
 
 /// One texture array, filled from layer zero up, so a layer written once never moves; only a
 /// regrow copies.
-pub(super) struct AtlasSlot {
+pub struct AtlasSlot {
     pub texture: Texture,
     pub view: TextureView,
     pub size: u32,

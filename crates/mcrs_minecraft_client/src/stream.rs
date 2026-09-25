@@ -18,15 +18,15 @@ use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
-use crate::render::{
-    Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
-    SpriteUpload, Upload, Uploads,
-};
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
+use mcrs_minecraft_render::{
+    Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
+    SpriteUpload, Upload, Uploads,
+};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 

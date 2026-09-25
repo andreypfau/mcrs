@@ -59,8 +59,7 @@ impl Hiz {
                 ),
             ),
         );
-        let shader =
-            asset_server.load("embedded://mcrs_minecraft_client/render/shaders/core/hiz.wgsl");
+        let shader = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/hiz.wgsl");
         let pipeline = |label: &str, layout: &BindGroupLayoutDescriptor, entry: &str| {
             pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(label.to_owned().into()),

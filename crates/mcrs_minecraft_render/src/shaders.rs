@@ -27,7 +27,5 @@ impl Shaders {
 }
 
 fn load(asset_server: &AssetServer, name: &str) -> Handle<Shader> {
-    asset_server.load(format!(
-        "embedded://mcrs_minecraft_client/render/shaders/{name}"
-    ))
+    asset_server.load(format!("embedded://mcrs_minecraft_render/shaders/{name}"))
 }

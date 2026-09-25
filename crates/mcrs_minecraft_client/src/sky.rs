@@ -21,8 +21,8 @@ use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
-use crate::sky_render::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 use crate::vanilla::{self, VanillaAssets};
+use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 

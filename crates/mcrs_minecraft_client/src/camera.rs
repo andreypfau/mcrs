@@ -5,7 +5,7 @@ use mcrs_minecraft_level::entity::physics::{OldTransform, Transform as PhysicsTr
 
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::player::{EYE_HEIGHT, Player, PlayerCamera, pitch_rotation, yaw_rotation};
-use crate::render::CameraOrigin;
+use mcrs_minecraft_render::CameraOrigin;
 
 /// Vanilla's `Options` default. `fovEffectScale` stays at its default 1.0, which collapses
 /// `Mth.lerp(scale, 1.0, modifier)` to `modifier`.

@@ -33,7 +33,7 @@ use mcrs_minecraft_client::config::TerrainLimits;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
     ClientPlugins, ClientTerrainPlugin, asset_corpus, config, gui, local_player, player, sky,
-    sky_render, vanilla,
+    vanilla,
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -184,7 +184,7 @@ fn main() -> AppExit {
     );
 
     if let Some(only) = config::sky_draws_only() {
-        app.insert_resource(sky_render::SkyDrawsOnly(only));
+        app.insert_resource(mcrs_minecraft_render::sky::SkyDrawsOnly(only));
     }
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its

@@ -48,7 +48,7 @@ pub(super) fn init_heat(
     let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("gpu heat".into()),
         layout: vec![layout],
-        shader: asset_server.load("embedded://mcrs_minecraft_client/render/shaders/core/heat.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/heat.wgsl"),
         shader_defs: vec![ShaderDefVal::UInt("HEAT_THREADS".into(), HEAT_THREADS)],
         entry_point: Some("heat".into()),
         ..default()

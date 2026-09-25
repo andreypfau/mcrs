@@ -5,7 +5,7 @@ use bevy::window::{PresentMode, PrimaryWindow};
 use mcrs_minecraft_core::VERSION_NAME;
 
 use super::DebugScreenDisplayer;
-use crate::probe::{CPU_WINDOW, WINDOW_SECS};
+use mcrs_minecraft_render::probe::{CPU_WINDOW, WINDOW_SECS};
 
 /// Room for a second of frames at the rate being aimed for.
 pub const HISTORY: usize = CPU_WINDOW;

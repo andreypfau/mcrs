@@ -31,13 +31,10 @@ pub mod light_guard;
 pub mod local_player;
 pub mod model;
 pub mod player;
-pub mod probe;
-pub mod readback;
 pub mod render;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
-pub mod sky_render;
 pub mod sky_state;
 pub mod stream;
 pub mod vanilla;
@@ -76,15 +73,16 @@ pub struct ClientTerrainPlugin(pub config::TerrainLimits);
 impl Plugin for ClientTerrainPlugin {
     fn build(&self, app: &mut App) {
         let (budget, uploads, cave) = config::terrain(self.0);
-        app.add_plugins(render::TerrainPlugin {
+        app.add_plugins(mcrs_minecraft_render::TerrainPlugin {
             budget: budget.clone(),
             uploads: uploads.clone(),
             heat: config::gpu_hot(),
             timestamps: config::pass_timestamps(),
         })
+        .add_plugins(render::GuiItemsPlugin)
         .insert_resource(config::wireframe())
         .insert_resource(config::occlusion())
-        .insert_resource(render::Brightness(config::brightness()))
+        .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
         .add_plugins(stream::StreamPlugin::new(budget, uploads))
@@ -103,7 +101,7 @@ impl Plugin for ClientTerrainPlugin {
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
         );
         if let Some(tick) = config::frozen_time() {
-            app.insert_resource(render::PinnedTick(tick));
+            app.insert_resource(mcrs_minecraft_render::PinnedTick(tick));
         }
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.add_systems(ExtractSchedule, cave::extract_cave_visibility);
@@ -111,7 +109,10 @@ impl Plugin for ClientTerrainPlugin {
     }
 }
 
-fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<render::Wireframe>) {
+fn toggle_wireframe(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut wireframe: ResMut<mcrs_minecraft_render::Wireframe>,
+) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;
     }

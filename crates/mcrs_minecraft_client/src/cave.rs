@@ -5,8 +5,8 @@ use bevy::render::renderer::RenderQueue;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::columns::SECTION_SIZE;
-use crate::render::Terrain;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
+use mcrs_minecraft_render::Terrain;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     mcrs_minecraft_mesh::face_normal(0),

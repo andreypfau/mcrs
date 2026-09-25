@@ -6,6 +6,7 @@ edition.workspace = true
 
 [dependencies]
 mcrs_minecraft_mesh.workspace = true
+mcrs_minecraft_render.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
@@ -39,7 +40,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "default_font",
 ] }
 bytemuck = { version = "1", features = ["derive"] }
-bitflags = "2"
 flate2.workspace = true
 anyhow.workspace = true
 serde.workspace = true

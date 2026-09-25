@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::cave::CaveCull;
-use crate::render::{
+use mcrs_minecraft_mesh::STREAMS;
+use mcrs_minecraft_render::sky::SkyEffects;
+use mcrs_minecraft_render::{
     Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
 };
-use crate::sky_render::SkyEffects;
-use mcrs_minecraft_mesh::STREAMS;
 
 #[cfg(not(target_family = "wasm"))]
 const QUAD_MB_PER_FILE: usize = 192;

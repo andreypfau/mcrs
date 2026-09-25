@@ -12,9 +12,7 @@ use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
 use crate::config::TerrainLimits;
-use crate::{
-    ClientPlugins, ClientTerrainPlugin, config, local_player, player, sky, sky_render, vanilla,
-};
+use crate::{ClientPlugins, ClientTerrainPlugin, config, local_player, player, sky, vanilla};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -124,7 +122,7 @@ pub fn run() {
     }
 
     if let Some(only) = sky_only {
-        app.insert_resource(sky_render::SkyDrawsOnly(only));
+        app.insert_resource(mcrs_minecraft_render::sky::SkyDrawsOnly(only));
     }
 
     app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));

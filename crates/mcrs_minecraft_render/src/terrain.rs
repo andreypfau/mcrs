@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::PipelineCache;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
-use crate::sky_render::ExtractedSky;
+use crate::sky::ExtractedSky;
 
 use super::Brightness;
 use super::arenas::Arenas;
@@ -23,7 +23,7 @@ pub struct Terrain {
     pub(super) budget: Arc<Budget>,
     pub(super) arenas: Arenas,
     pub(super) frame: Frame,
-    pub(super) sprites: Sprites,
+    pub sprites: Sprites,
     pub(super) binds: Bindings,
     pub(super) pipelines: Pipelines,
     pub(super) list: DrawList,

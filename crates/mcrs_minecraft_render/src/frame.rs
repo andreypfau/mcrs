@@ -71,7 +71,7 @@ pub(super) struct Frame {
     pub args_readback: Buffer,
 }
 
-pub(crate) fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
+pub fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some(label),
         size,

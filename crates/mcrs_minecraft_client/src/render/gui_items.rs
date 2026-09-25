@@ -1,6 +1,7 @@
 use std::num::NonZeroU64;
 
-use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
+use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
+use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{
@@ -9,11 +10,39 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
+use mcrs_minecraft_render::{
+    DEPTH_COMPARE, Terrain, WorldPass, pipeline_descriptor, uniform_buffer,
+};
 
-use super::terrain::Terrain;
-use super::{DEPTH_COMPARE, pipeline_descriptor, uniform_buffer};
 use crate::gui::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
+
+pub struct GuiItemsPlugin;
+
+impl Plugin for GuiItemsPlugin {
+    fn build(&self, app: &mut App) {
+        bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+        render_app
+            .add_systems(RenderStartup, init_gui_pass)
+            .add_systems(
+                Render,
+                (prepare_gui_pass, write_gui_buffers)
+                    .chain()
+                    .in_set(RenderSystems::Prepare),
+            )
+            .add_systems(
+                Core3d,
+                draw_gui
+                    .after(WorldPass::Forward)
+                    .before(main_transparent_pass_3d)
+                    .in_set(Core3dSystems::MainPass),
+            );
+    }
+}
 
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]

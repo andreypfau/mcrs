@@ -46,7 +46,7 @@ impl Animation {
     }
 }
 
-pub(super) struct Sprites {
+pub struct Sprites {
     pub atlases: Vec<AtlasSlot>,
     staging: Buffer,
     pub atlas_sampler: Sampler,
