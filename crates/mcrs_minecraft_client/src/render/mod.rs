@@ -21,7 +21,7 @@ use bevy::core_pipeline::core_3d::{
     CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d, main_transparent_pass_3d,
 };
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
-use bevy::ecs::schedule::ScheduleCleanupPolicy;
+use bevy::ecs::schedule::{InternedSystemSet, ScheduleCleanupPolicy, ScheduleConfigs};
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{CompareFunction, TextureFormat};
@@ -186,6 +186,36 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
 }
 
+/// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
+/// stage run in no fixed order unless they order themselves.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WorldPass {
+    Upload,
+    Cull,
+    Opaque,
+    Occlusion,
+    OpaqueSecond,
+    Lighting,
+    Forward,
+}
+
+impl WorldPass {
+    pub fn order() -> ScheduleConfigs<InternedSystemSet> {
+        (
+            Self::Upload,
+            Self::Cull,
+            Self::Opaque,
+            Self::Occlusion,
+            Self::OpaqueSecond,
+            Self::Lighting,
+            Self::Forward,
+        )
+            .chain()
+            .in_set(Core3dSystems::MainPass)
+            .before(main_transparent_pass_3d)
+    }
+}
+
 pub struct TerrainPlugin {
     pub budget: Arc<Budget>,
     pub uploads: Uploads,
@@ -270,12 +300,21 @@ impl Plugin for TerrainPlugin {
                     upload::recall_staging.in_set(RenderSystems::Cleanup),
                 ),
             )
+            .configure_sets(Core3d, WorldPass::order())
             .add_systems(
                 Core3d,
-                (pass::draw_frame, gui_items::draw_gui)
-                    .chain()
-                    .before(main_transparent_pass_3d)
-                    .in_set(Core3dSystems::MainPass),
+                (
+                    pass::upload_frame.in_set(WorldPass::Upload),
+                    pass::cull_frame.in_set(WorldPass::Cull),
+                    pass::draw_opaque.in_set(WorldPass::Opaque),
+                    pass::build_occlusion.in_set(WorldPass::Occlusion),
+                    pass::draw_opaque_second.in_set(WorldPass::OpaqueSecond),
+                    pass::draw_forward.in_set(WorldPass::Forward),
+                    gui_items::draw_gui
+                        .after(WorldPass::Forward)
+                        .before(main_transparent_pass_3d)
+                        .in_set(Core3dSystems::MainPass),
+                ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
         // which the world pass then loads back; without it the world pass does the clear.
