@@ -11,21 +11,21 @@ pub const fn blend(pass: Pass) -> Option<BlendState> {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub(super) enum LayerGroup {
+pub enum LayerGroup {
     Opaque,
     Translucent,
 }
 
 impl LayerGroup {
-    pub const ALL: [LayerGroup; 2] = [LayerGroup::Opaque, LayerGroup::Translucent];
+    pub(crate) const ALL: [LayerGroup; 2] = [LayerGroup::Opaque, LayerGroup::Translucent];
 
     // Blending is not commutative, so translucent draws have to reach the rasteriser in the order
     // the list holds them; opaque ones may be compacted.
-    pub const fn culls_in_order(self) -> bool {
+    pub(crate) const fn culls_in_order(self) -> bool {
         matches!(self, LayerGroup::Translucent)
     }
 
-    pub fn holds(self, stream: u32) -> bool {
+    pub(crate) fn holds(self, stream: u32) -> bool {
         stream_pass(stream).translucent() == matches!(self, LayerGroup::Translucent)
     }
 }

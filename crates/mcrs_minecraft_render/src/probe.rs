@@ -13,13 +13,13 @@ use wgpu::{
 
 use crate::readback::{self, Gate, Reader};
 
-pub const CULL: usize = 0;
-pub const WORLD: usize = 1;
-pub const HEAT: usize = 2;
-pub const HIZ: usize = 3;
-pub const CULL_SECOND: usize = 4;
-pub const WORLD_SECOND: usize = 5;
-pub const FORWARD: usize = 6;
+pub(crate) const CULL: usize = 0;
+pub(crate) const WORLD: usize = 1;
+pub(crate) const HEAT: usize = 2;
+pub(crate) const HIZ: usize = 3;
+pub(crate) const CULL_SECOND: usize = 4;
+pub(crate) const WORLD_SECOND: usize = 5;
+pub(crate) const FORWARD: usize = 6;
 pub const NAMES: [&str; 7] = [
     "cull",
     "world",
@@ -29,7 +29,7 @@ pub const NAMES: [&str; 7] = [
     "world second",
     "forward",
 ];
-pub const SLOTS: usize = NAMES.len();
+pub(crate) const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
 
@@ -173,7 +173,7 @@ pub const ENGINE: usize = 6;
 pub const CPU_NAMES: [&str; 7] = [
     "main", "extract", "prepare", "render", "cleanup", "acquire", "engine",
 ];
-pub const CPU_SLOTS: usize = CPU_NAMES.len();
+pub(crate) const CPU_SLOTS: usize = CPU_NAMES.len();
 
 /// Room for a second of frames at the rate being aimed for.
 pub const CPU_WINDOW: usize = 4096;
@@ -289,7 +289,7 @@ impl CpuTimings {
     }
 }
 
-pub fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
+pub(crate) fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     if let Ok(mut marks) = cpu.0.marks.lock() {
         marks[FRAME_START] = time.last_update();
     }
@@ -300,35 +300,35 @@ pub fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
     }
 }
 
-pub fn main_ended(cpu: Res<CpuTimings>) {
+pub(crate) fn main_ended(cpu: Res<CpuTimings>) {
     cpu.lap(FRAME_START, MAIN_END, MAIN);
 }
 
-pub fn extracted(cpu: Res<CpuTimings>) {
+pub(crate) fn extracted(cpu: Res<CpuTimings>) {
     cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
 }
 
-pub fn prepared(cpu: Res<CpuTimings>) {
+pub(crate) fn prepared(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
 }
 
 /// The swapchain acquire blocks until the display hands a drawable back, so on a machine whose
 /// presentation is throttled this is the wait that hides inside the prepare stage.
-pub fn acquiring(cpu: Res<CpuTimings>) {
+pub(crate) fn acquiring(cpu: Res<CpuTimings>) {
     if let Ok(mut marks) = cpu.0.marks.lock() {
         marks[ACQUIRE_START] = Some(Instant::now());
     }
 }
 
-pub fn acquired(cpu: Res<CpuTimings>) {
+pub(crate) fn acquired(cpu: Res<CpuTimings>) {
     cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
 }
 
-pub fn rendered(cpu: Res<CpuTimings>) {
+pub(crate) fn rendered(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
 }
 
-pub fn cleaned(cpu: Res<CpuTimings>) {
+pub(crate) fn cleaned(cpu: Res<CpuTimings>) {
     cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
     if let Ok(mut samples) = cpu.0.samples.lock() {
         let engine = [MAIN, EXTRACT, PREPARE, RENDER, CLEANUP]
@@ -342,7 +342,7 @@ pub fn cleaned(cpu: Res<CpuTimings>) {
 
 /// Every system dispatched costs something whether or not it finds work, so the count per
 /// schedule is a number the frame budget has to know.
-pub fn log_system_counts(world: &mut World) {
+pub(crate) fn log_system_counts(world: &mut World) {
     let schedules = world.resource::<Schedules>();
     let mut counts: Vec<(String, usize)> = schedules
         .iter()
@@ -355,7 +355,7 @@ pub fn log_system_counts(world: &mut World) {
 }
 
 #[derive(Resource)]
-pub struct Queries {
+pub(crate) struct Queries {
     set: QuerySet,
     resolve: Buffer,
     readback: Buffer,
@@ -385,9 +385,9 @@ const TIMESTAMP_BYTES: u64 = 8;
 const RESOLVE_BYTES: u64 = QUERY_RESOLVE_BUFFER_ALIGNMENT;
 
 #[derive(Resource)]
-pub struct PassTimestamps(pub bool);
+pub(crate) struct PassTimestamps(pub bool);
 
-pub fn init(
+pub(crate) fn init(
     mut commands: Commands,
     enabled: Res<PassTimestamps>,
     device: Res<RenderDevice>,
@@ -444,7 +444,11 @@ pub fn init(
     });
 }
 
-pub fn resolve(queries: Option<&Queries>, timings: &GpuTimings, encoder: &mut CommandEncoder) {
+pub(crate) fn resolve(
+    queries: Option<&Queries>,
+    timings: &GpuTimings,
+    encoder: &mut CommandEncoder,
+) {
     let Some(queries) = queries else {
         return;
     };
@@ -462,7 +466,7 @@ pub fn resolve(queries: Option<&Queries>, timings: &GpuTimings, encoder: &mut Co
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
-pub fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
+pub(crate) fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
     let Some(queries) = queries else {
         return;
     };

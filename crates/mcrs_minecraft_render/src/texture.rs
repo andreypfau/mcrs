@@ -16,9 +16,9 @@ const LIGHT_LEVELS: u32 = 16;
 pub struct AtlasSlot {
     pub texture: Texture,
     pub view: TextureView,
-    pub size: u32,
-    pub capacity: u32,
-    pub layers: u32,
+    pub(crate) size: u32,
+    pub(crate) capacity: u32,
+    pub(crate) layers: u32,
 }
 
 const FIRST_CAPACITY: u32 = 64;

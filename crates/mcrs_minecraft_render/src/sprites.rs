@@ -50,12 +50,12 @@ pub struct Sprites {
     pub atlases: Vec<AtlasSlot>,
     staging: Buffer,
     pub atlas_sampler: Sampler,
-    pub tints: Texture,
-    pub tints_view: TextureView,
-    pub tint_sampler: Sampler,
-    pub lightmap: Texture,
-    pub lightmap_view: TextureView,
-    pub lightmap_sampler: Sampler,
+    pub(crate) tints: Texture,
+    pub(crate) tints_view: TextureView,
+    pub(crate) tint_sampler: Sampler,
+    pub(crate) lightmap: Texture,
+    pub(crate) lightmap_view: TextureView,
+    pub(crate) lightmap_sampler: Sampler,
     pub frames: Buffer,
     pub table: Buffer,
     animations: Vec<Animation>,
@@ -63,7 +63,7 @@ pub struct Sprites {
 }
 
 impl Sprites {
-    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
+    pub(crate) fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let (tints, tint_sampler) = create_tints(budget, device);
         let (lightmap, lightmap_sampler) = create_lightmap(device);
         Self {
@@ -88,7 +88,7 @@ impl Sprites {
     /// Takes the layers and sprites the bake added and the animation table as it now stands.
     /// Returns the bytes staged and whether a texture was replaced, which is when the bind
     /// groups follow.
-    pub fn update(
+    pub(crate) fn update(
         &mut self,
         upload: &SpriteUpload,
         device: &RenderDevice,

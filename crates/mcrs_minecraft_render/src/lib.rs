@@ -12,7 +12,7 @@ mod layer;
 mod pass;
 mod pipeline;
 pub mod probe;
-pub mod readback;
+mod readback;
 mod shaders;
 pub mod sky;
 mod sprites;
@@ -37,6 +37,8 @@ use crate::probe::{CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::CameraOrigin;
+pub use layer::LayerGroup;
+pub use pass::draw_layer_group;
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};
@@ -52,7 +54,7 @@ const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float
 pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
-pub const SECTION_BYTES: usize = size_of::<SectionDesc>();
+pub(crate) const SECTION_BYTES: usize = size_of::<SectionDesc>();
 const VISIBLE_BYTES: usize = 8;
 
 pub struct Budget {
@@ -120,7 +122,7 @@ pub struct SpriteEntry {
 pub struct Streams(pub u32);
 
 impl Streams {
-    pub const ALL: u32 = (1 << STREAMS) - 1;
+    pub(crate) const ALL: u32 = (1 << STREAMS) - 1;
 
     fn drawn(&self, stream: u32) -> bool {
         self.0 & (1 << stream) != 0

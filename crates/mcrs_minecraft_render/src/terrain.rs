@@ -39,7 +39,7 @@ impl Terrain {
     /// Sizes the visible list to the draws as they stand and restates the
     /// per-draw parameters, so a world that has grown is drawn whole rather
     /// than up to a share of a fixed list.
-    pub fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
+    pub(crate) fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
         self.list.rebuild();
         if self.arenas.grow_visible(self.list.visible_entries, device) {
             self.binds.rebuild_cull(

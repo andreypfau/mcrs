@@ -430,7 +430,7 @@ pub(super) fn draw_forward(
 
 /// `phase` picks the first pass's args or the second's, which follow them. Groups are drawn in
 /// slice order, which blending depends on.
-fn draw_layer_group<'pass>(
+pub fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
     groups: &[LayerGroup],
