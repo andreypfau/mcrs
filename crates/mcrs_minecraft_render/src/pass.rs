@@ -16,6 +16,7 @@ use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 use super::draws::PARAMS_STRIDE;
 use super::heat::Heat;
 use super::layer::LayerGroup;
+use super::show::{DepthDisplay, DepthSource};
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::upload::{UploadParams, apply_uploads};
@@ -370,6 +371,37 @@ pub(super) fn draw_opaque_second(
         .terrain_draws
         .fetch_add(draws, Ordering::Relaxed);
     span.end(&mut pass);
+}
+
+pub(super) fn show_classic_view(
+    view: ViewQuery<WorldView>,
+    terrain: Option<Res<Terrain>>,
+    frame: FrameParams,
+    display: Res<DepthDisplay>,
+    mut ctx: RenderContext,
+) {
+    let (target, depth, _, _) = view.into_inner();
+    let views = &frame.classic_views;
+    let source = if frame.selected.0 == Some(views.depth) {
+        DepthSource::Depth(depth)
+    } else if let Some(terrain) = ready(terrain.as_deref())
+        && views.hiz.is_some_and(|hiz| frame.selected.0 == Some(hiz))
+    {
+        DepthSource::Pyramid(terrain)
+    } else {
+        return;
+    };
+    display.draw(
+        &mut ctx,
+        target,
+        source,
+        &frame.pipeline_cache,
+        &frame.device,
+    );
+}
+
+pub(super) fn shows_final_colour(selected: Res<SelectedView>, views: Res<ClassicViews>) -> bool {
+    !views.displays_texture(*selected)
 }
 
 pub(super) fn draw_forward(

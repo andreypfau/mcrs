@@ -56,6 +56,16 @@ pub struct SelectedView(pub Option<DebugView>);
 #[derive(Resource)]
 pub(crate) struct ClassicViews {
     pub wireframe: DebugView,
+    pub depth: DebugView,
+    pub hiz: Option<DebugView>,
+}
+
+impl ClassicViews {
+    pub fn displays_texture(&self, selected: SelectedView) -> bool {
+        selected
+            .0
+            .is_some_and(|view| view == self.depth || Some(view) == self.hiz)
+    }
 }
 
 #[cfg(test)]

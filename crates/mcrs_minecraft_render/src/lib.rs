@@ -14,6 +14,7 @@ mod pipeline;
 pub mod probe;
 mod readback;
 mod shaders;
+mod show;
 pub mod sky;
 mod sprites;
 mod stats;
@@ -42,6 +43,7 @@ pub use frame::CameraOrigin;
 pub use layer::{LayerGroup, Shape};
 pub use pass::{draw_layer_group, restrict_to_raster};
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
+pub use show::{DepthDisplay, DepthSource};
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};
@@ -233,6 +235,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/show.wgsl");
 }
 
 /// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
@@ -325,6 +328,7 @@ impl Plugin for TerrainPlugin {
                 (
                     terrain::init_terrain,
                     heat::init_heat.after(terrain::init_terrain),
+                    show::init_depth_display,
                     probe::init,
                     probe::log_system_counts,
                 ),
@@ -343,6 +347,7 @@ impl Plugin for TerrainPlugin {
                         .before(RenderSystems::Cleanup),
                     probe::cleaned.in_set(RenderSystems::PostCleanup),
                     pipeline::prepare_pipelines.in_set(RenderSystems::Prepare),
+                    show::prepare_depth_display.in_set(RenderSystems::Prepare),
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
@@ -365,9 +370,13 @@ impl Plugin for TerrainPlugin {
                     pass::draw_opaque_second
                         .in_set(WorldPass::OpaqueSecond)
                         .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
+                    pass::show_classic_view
+                        .in_set(WorldPass::Lighting)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
                     pass::draw_forward
                         .in_set(WorldPass::Forward)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
+                        .run_if(resource_equals(EffectivePath(RenderPath::Classic)))
+                        .run_if(pass::shows_final_colour),
                 ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
@@ -385,9 +394,16 @@ impl Plugin for TerrainPlugin {
     }
 
     fn finish(&self, app: &mut App) {
+        let occlusion = app.world().resource::<Occlusion>().0;
         let mut views = app.world_mut().resource_mut::<DebugViews>();
         let classic = views::ClassicViews {
             wireframe: views.register(RenderPath::Classic, "wireframe"),
+            depth: views.register(RenderPath::Classic, "depth"),
+            hiz: if occlusion {
+                Some(views.register(RenderPath::Classic, "Hi-Z"))
+            } else {
+                None
+            },
         };
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.insert_resource(classic);
