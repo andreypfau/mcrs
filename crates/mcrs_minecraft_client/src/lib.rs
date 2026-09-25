@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use bevy::app::PluginGroupBuilder;
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::prelude::*;
+use bevy::render::{ExtractSchedule, RenderApp};
 
 pub mod anim;
 #[cfg(target_os = "macos")]
@@ -103,6 +104,9 @@ impl Plugin for ClientTerrainPlugin {
         );
         if let Some(tick) = config::frozen_time() {
             app.insert_resource(render::PinnedTick(tick));
+        }
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.add_systems(ExtractSchedule, cave::extract_cave_visibility);
         }
     }
 }

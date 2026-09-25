@@ -25,13 +25,14 @@ use bevy::ecs::schedule::ScheduleCleanupPolicy;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{CompareFunction, TextureFormat};
-use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
+use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::CameraOrigin;
 pub use stats::{DrawnTriangles, FrameCounts};
+pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};
 
 pub(crate) use frame::uniform as uniform_buffer;
@@ -243,7 +244,6 @@ impl Plugin for TerrainPlugin {
                     probe::log_system_counts,
                 ),
             )
-            .add_systems(ExtractSchedule, pass::extract_cave_visibility)
             .add_systems(
                 Render,
                 (

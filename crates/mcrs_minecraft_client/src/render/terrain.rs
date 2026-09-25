@@ -19,19 +19,23 @@ use super::texture;
 use super::{Budget, TerrainBudget};
 
 #[derive(Resource)]
-pub(super) struct Terrain {
-    pub budget: Arc<Budget>,
-    pub arenas: Arenas,
-    pub frame: Frame,
-    pub sprites: Sprites,
-    pub binds: Bindings,
-    pub pipelines: Pipelines,
-    pub list: DrawList,
-    pub cull_grid: u32,
-    pub hiz: Hiz,
+pub struct Terrain {
+    pub(super) budget: Arc<Budget>,
+    pub(super) arenas: Arenas,
+    pub(super) frame: Frame,
+    pub(super) sprites: Sprites,
+    pub(super) binds: Bindings,
+    pub(super) pipelines: Pipelines,
+    pub(super) list: DrawList,
+    pub(super) cull_grid: u32,
+    pub(super) hiz: Hiz,
 }
 
 impl Terrain {
+    pub fn write_cave_visibility(&self, queue: &RenderQueue, bits: &[u32]) {
+        queue.write_buffer(&self.frame.cave, 0, bytemuck::cast_slice(bits));
+    }
+
     /// Sizes the visible list to the draws as they stand and restates the
     /// per-draw parameters, so a world that has grown is drawn whole rather
     /// than up to a share of a fixed list.

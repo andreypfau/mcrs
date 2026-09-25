@@ -3,11 +3,10 @@ use std::sync::atomic::Ordering;
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use bevy::render::Extract;
 use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::render_phase::{TrackedRenderPass, ViewBinnedRenderPhases};
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 
 use crate::probe::{self, GpuTimings, Queries};
@@ -21,22 +20,6 @@ use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::upload::{UploadParams, apply_uploads};
 use super::{Occlusion, Raster, Streams, Wireframe};
-
-pub(super) fn extract_cave_visibility(
-    cave: Extract<Res<crate::cave::CaveCull>>,
-    terrain: Option<Res<Terrain>>,
-    queue: Res<RenderQueue>,
-    mut uploaded: Local<Option<u32>>,
-) {
-    let Some(terrain) = terrain else {
-        return;
-    };
-    if *uploaded == Some(cave.generation) {
-        return;
-    }
-    *uploaded = Some(cave.generation);
-    queue.write_buffer(&terrain.frame.cave, 0, bytemuck::cast_slice(&cave.bits[..]));
-}
 
 fn cull_terrain(
     terrain: &Terrain,

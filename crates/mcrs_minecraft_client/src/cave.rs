@@ -1,8 +1,11 @@
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
+use bevy::render::Extract;
+use bevy::render::renderer::RenderQueue;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::columns::SECTION_SIZE;
+use crate::render::Terrain;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
@@ -476,6 +479,22 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
     if keys.just_pressed(KeyCode::KeyC) {
         cave.enabled = !cave.enabled;
     }
+}
+
+pub fn extract_cave_visibility(
+    cave: Extract<Res<CaveCull>>,
+    terrain: Option<Res<Terrain>>,
+    queue: Res<RenderQueue>,
+    mut uploaded: Local<Option<u32>>,
+) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    if *uploaded == Some(cave.generation) {
+        return;
+    }
+    *uploaded = Some(cave.generation);
+    terrain.write_cave_visibility(&queue, &cave.bits);
 }
 
 #[cfg(test)]
