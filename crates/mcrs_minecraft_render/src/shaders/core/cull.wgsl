@@ -128,9 +128,9 @@ fn behind_terrain(mn: vec3<f32>, mx: vec3<f32>) -> bool {
 }
 
 /// Loads this lane's group of the batch starting at `first` and answers whether it is drawn.
-/// When `occludable`, a group the last frame's depth alone hides is left to the second pass and
-/// counted against the draw's counter.
-fn load(first: u32, local: u32, occludable: bool) -> bool {
+/// A group the last frame's depth alone hides is left to the second pass, and counted against
+/// the draw's counter when asked.
+fn load(first: u32, local: u32, tally: bool) -> bool {
     let slot = first + local;
     if (slot >= params.group_count) {
         return false;
@@ -141,14 +141,13 @@ fn load(first: u32, local: u32, occludable: bool) -> bool {
     if (g.quad_count == 0u || !survives(g)) {
         return false;
     }
-    if (!occludable) {
-        return true;
-    }
     let desc = sections[g.section];
     let origin = section_origin(desc);
     if (behind_terrain(origin, origin + section_span(desc))) {
         candidates[params.group_base + slot] = 1u;
-        atomicAdd(&args[params.counter].vertex_count, g.quad_count);
+        if (tally) {
+            atomicAdd(&args[params.counter].vertex_count, g.quad_count);
+        }
         return false;
     }
     return true;
@@ -270,9 +269,6 @@ fn cull(
     }
 }
 
-/// Blended geometry is never left to the second pass: drawn after the first pass's survivors, a
-/// revived group would blend out of list order, and which groups revive depends on past frames.
-///
 /// Blended geometry keeps the back-to-front order the blend depends on, so its survivors are
 /// packed by a prefix sum over the batches rather than by an atomic: `count_ordered` writes each
 /// batch's surviving quads, `scan_ordered` turns them into where each batch starts, and
@@ -289,7 +285,7 @@ fn count_ordered(
         if (first >= params.group_count) {
             break;
         }
-        let lives = load(first, local, false);
+        let lives = load(first, local, true);
         counts[local] = select(0u, batch[local].quad_count, lives);
         workgroupBarrier();
         if (local == 0u) {

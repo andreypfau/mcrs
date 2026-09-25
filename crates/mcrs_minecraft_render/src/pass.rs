@@ -51,15 +51,29 @@ fn cull_terrain(
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
     for group in LayerGroup::ALL {
         if group.culls_in_order() {
-            cull_group(&mut pass, terrain, group, count, streams);
+            cull_group(&mut pass, terrain, group, count, streams, terrain.cull_grid);
             pass.set_pipeline(scan);
             for (index, _) in terrain.list.drawn(group, streams) {
                 pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
                 pass.dispatch_workgroups(1, 1, 1);
             }
-            cull_group(&mut pass, terrain, group, scatter, streams);
+            cull_group(
+                &mut pass,
+                terrain,
+                group,
+                scatter,
+                streams,
+                terrain.cull_grid,
+            );
         } else {
-            cull_group(&mut pass, terrain, group, compacting, streams);
+            cull_group(
+                &mut pass,
+                terrain,
+                group,
+                compacting,
+                streams,
+                terrain.cull_grid,
+            );
         }
     }
 }
@@ -87,6 +101,7 @@ fn cull_group<'pass>(
     group: LayerGroup,
     pipeline: &'pass ComputePipeline,
     streams: &Streams,
+    grid: u32,
 ) {
     pass.set_pipeline(pipeline);
     let mut open = None;
@@ -99,13 +114,7 @@ fn cull_group<'pass>(
             open = Some(draw.stream);
         }
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-        pass.dispatch_workgroups(
-            draw.group_count
-                .div_ceil(CULL_THREADS)
-                .min(terrain.cull_grid),
-            1,
-            1,
-        );
+        pass.dispatch_workgroups(draw.group_count.div_ceil(CULL_THREADS).min(grid), 1, 1);
     }
     if open.is_some() {
         pass.pop_debug_group();
@@ -300,13 +309,15 @@ pub(super) fn build_occlusion(
             timestamp_writes: timestamps,
         });
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
-    cull_group(
-        &mut pass,
-        terrain,
-        LayerGroup::Opaque,
-        second,
-        &frame.streams,
-    );
+    for group in LayerGroup::ALL {
+        // Blending is not commutative; a single workgroup reserves slots in list order.
+        let grid = if group.culls_in_order() {
+            1
+        } else {
+            terrain.cull_grid
+        };
+        cull_group(&mut pass, terrain, group, second, &frame.streams, grid);
+    }
 }
 
 pub(super) fn draw_opaque_second(
@@ -375,6 +386,12 @@ pub(super) fn draw_forward(
     sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
+    let phases: &[u64] =
+        if second_cull(terrain.as_deref(), &frame.occlusion, &frame.pipeline_cache).is_some() {
+            &[0, 1]
+        } else {
+            &[0]
+        };
     let Some(terrain) = ready(terrain.as_deref()) else {
         return;
     };
@@ -398,15 +415,17 @@ pub(super) fn draw_forward(
     let span = diagnostics.pass_span(&mut pass, "forward");
     restrict_to_raster(&mut pass, &frame.raster, extracted);
     let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
-    draws += draw_layer_group(
-        &mut pass,
-        terrain,
-        LayerGroup::Translucent,
-        0,
-        &frame.pipeline_cache,
-        &frame.streams,
-        frame.wireframe.0,
-    );
+    for &phase in phases {
+        draws += draw_layer_group(
+            &mut pass,
+            terrain,
+            LayerGroup::Translucent,
+            phase,
+            &frame.pipeline_cache,
+            &frame.streams,
+            frame.wireframe.0,
+        );
+    }
     frame
         .counts
         .terrain_draws
