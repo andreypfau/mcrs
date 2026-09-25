@@ -71,16 +71,20 @@ pub(crate) fn prepare_deferred_pipelines(
         )
     };
     pipelines.lighting = Some(cache.queue_render_pipeline(lighting));
-    for layer in [Pass::Solid, Pass::Cutout] {
-        for shape in [Shape::Greedy] {
-            for wireframe in [false, true] {
-                let descriptor = gbuffer_descriptor(&terrain, layer, shape, wireframe, view);
-                pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
-                    Some(cache.queue_render_pipeline(descriptor));
-            }
-        }
+    for (layer, shape, wireframe) in gbuffer_slots() {
+        let descriptor = gbuffer_descriptor(&terrain, layer, shape, wireframe, view);
+        pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
+            Some(cache.queue_render_pipeline(descriptor));
     }
     info!("queued the deferred pipelines");
+}
+
+fn gbuffer_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
+    [Pass::Solid, Pass::Cutout].into_iter().flat_map(|layer| {
+        Shape::ALL
+            .into_iter()
+            .flat_map(move |shape| [false, true].map(move |wireframe| (layer, shape, wireframe)))
+    })
 }
 
 fn gbuffer_descriptor(
@@ -113,4 +117,20 @@ fn gbuffer_descriptor(
         })
         .into();
     descriptor
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_deferred_table_holds_one_gbuffer_pipeline_per_opaque_layer_shape_and_wireframe() {
+        let mut slots: Vec<usize> = gbuffer_slots()
+            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
+            .collect();
+        slots.sort_unstable();
+        slots.dedup();
+        assert_eq!(slots.len(), 8);
+        assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
+    }
 }

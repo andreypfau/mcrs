@@ -1,14 +1,16 @@
+use std::sync::atomic::Ordering;
+
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
 use mcrs_minecraft_render::sky::SkyDraws;
 use mcrs_minecraft_render::{
-    FrameCounts, LayerGroup, Raster, Streams, Terrain, draw_layer_group, restrict_to_raster,
-    stream_slot,
+    FrameCounts, LayerGroup, Occlusion, Raster, Streams, Terrain, draw_layer_group,
+    restrict_to_raster, stream_slot,
 };
-use std::sync::atomic::Ordering;
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
@@ -28,7 +30,73 @@ pub(crate) struct GBufferParams<'w> {
     cache: Res<'w, PipelineCache>,
     streams: Res<'w, Streams>,
     raster: Res<'w, Raster>,
+    occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
+}
+
+impl GBufferParams<'_> {
+    fn draw_opaque<'pass>(
+        &'pass self,
+        pass: &mut TrackedRenderPass<'pass>,
+        terrain: &'pass Terrain,
+        view: &ExtractedView,
+        phase: u64,
+    ) {
+        restrict_to_raster(pass, &self.raster, view);
+        let draws = draw_layer_group(
+            pass,
+            terrain,
+            LayerGroup::Opaque,
+            phase,
+            &self.streams,
+            |stream| {
+                self.pipelines
+                    .gbuffer(stream_slot(stream, false), &self.cache)
+            },
+        );
+        self.counts
+            .terrain_draws
+            .fetch_add(draws, Ordering::Relaxed);
+    }
+}
+
+fn gbuffer_pass<'a>(
+    ctx: &'a mut RenderContext,
+    label: &'static str,
+    frame: &DeferredFrame,
+    depth: &ViewDepthTexture,
+    clear: bool,
+) -> TrackedRenderPass<'a> {
+    let color_attachments = frame.targets.each_ref().map(|view| {
+        Some(RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: Operations {
+                load: if clear {
+                    LoadOp::Clear(default())
+                } else {
+                    LoadOp::Load
+                },
+                store: StoreOp::Store,
+            },
+        })
+    });
+    ctx.begin_tracked_render_pass(RenderPassDescriptor {
+        label: Some(label),
+        color_attachments: &color_attachments,
+        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+            view: depth.view(),
+            depth_ops: Some(Operations {
+                load: LoadOp::Load,
+                store: StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    })
 }
 
 /// The sky is drawn into the view target first, in a pass of its own: its pipelines draw finite
@@ -55,52 +123,26 @@ pub(crate) fn draw_gbuffer(
     sky.draw_sky(&mut pass, view_offset.offset, &params.cache);
     drop(pass);
 
-    let color_attachments = frame.targets.each_ref().map(|view| {
-        Some(RenderPassColorAttachment {
-            view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: Operations {
-                load: LoadOp::Clear(default()),
-                store: StoreOp::Store,
-            },
-        })
-    });
-    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
-        label: Some("gbuffer"),
-        color_attachments: &color_attachments,
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: depth.view(),
-            depth_ops: Some(Operations {
-                load: LoadOp::Load,
-                store: StoreOp::Store,
-            }),
-            stencil_ops: None,
-        }),
-        timestamp_writes: None,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) else {
+    let mut pass = gbuffer_pass(&mut ctx, "gbuffer", frame, depth, true);
+    if let Some(terrain) = params.terrain.as_deref().filter(|terrain| terrain.ready()) {
+        params.draw_opaque(&mut pass, terrain, extracted, 0);
+    }
+}
+
+pub(crate) fn draw_gbuffer_second(
+    view: ViewQuery<WorldView>,
+    params: GBufferParams,
+    mut ctx: RenderContext,
+) {
+    let (Some(frame), Some(terrain)) = (params.frame.as_deref(), params.terrain.as_deref()) else {
         return;
     };
-    restrict_to_raster(&mut pass, &params.raster, extracted);
-    let draws = draw_layer_group(
-        &mut pass,
-        terrain,
-        LayerGroup::Opaque,
-        0,
-        &params.streams,
-        |stream| {
-            params
-                .pipelines
-                .gbuffer(stream_slot(stream, false), &params.cache)
-        },
-    );
-    params
-        .counts
-        .terrain_draws
-        .fetch_add(draws, Ordering::Relaxed);
+    if !terrain.second_pass(&params.occlusion, &params.cache) {
+        return;
+    }
+    let (_, depth, extracted, _) = view.into_inner();
+    let mut pass = gbuffer_pass(&mut ctx, "gbuffer second", frame, depth, false);
+    params.draw_opaque(&mut pass, terrain, extracted, 1);
 }
 
 /// Not restricted to the raster viewport: the fragment leaves every pixel at depth 0 alone, which

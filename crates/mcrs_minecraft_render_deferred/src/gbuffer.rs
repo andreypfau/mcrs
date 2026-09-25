@@ -140,7 +140,11 @@ mod tests {
     fn the_gbuffer_fits_the_attachment_budget() {
         let bytes: u32 = GBUFFER_FORMATS
             .iter()
-            .map(|format| format.target_pixel_byte_cost().expect("colour formats have a cost"))
+            .map(|format| {
+                format
+                    .target_pixel_byte_cost()
+                    .expect("colour formats have a cost")
+            })
             .sum();
         assert_eq!(bytes, 24);
         assert!(bytes <= WgpuLimits::default().max_color_attachment_bytes_per_sample);

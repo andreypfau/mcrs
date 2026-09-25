@@ -37,6 +37,9 @@ impl Plugin for DeferredPlugin {
                     pass::draw_gbuffer
                         .in_set(WorldPass::Opaque)
                         .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
+                    pass::draw_gbuffer_second
+                        .in_set(WorldPass::OpaqueSecond)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
                     pass::draw_lighting
                         .in_set(WorldPass::Lighting)
                         .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),

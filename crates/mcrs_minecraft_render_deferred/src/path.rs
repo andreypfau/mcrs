@@ -31,7 +31,8 @@ pub(crate) fn derive_effective_path(
         if let CachedPipelineState::Err(error) = cache.get_render_pipeline_state(id)
             && !matches!(
                 error,
-                ShaderCacheError::ShaderNotLoaded(_) | ShaderCacheError::ShaderImportNotYetAvailable
+                ShaderCacheError::ShaderNotLoaded(_)
+                    | ShaderCacheError::ShaderImportNotYetAvailable
             )
             && failed.insert(id)
         {
