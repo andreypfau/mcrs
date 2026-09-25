@@ -367,7 +367,11 @@ impl Loader {
 
     fn victim(&mut self, candidate: f32) -> Option<[i32; 3]> {
         let camera = self.camera_section();
-        if self.farthest.as_ref().is_none_or(|(built, _)| *built != camera) {
+        if self
+            .farthest
+            .as_ref()
+            .is_none_or(|(built, _)| *built != camera)
+        {
             let heap = self
                 .sections
                 .residents()
@@ -378,7 +382,10 @@ impl Loader {
         let eye = self.camera;
         let (_, heap) = self.farthest.as_mut()?;
         while let Some(&(_, at)) = heap.peek() {
-            if !matches!(self.sections.states.get(&at), Some(SectionState::Resident(_))) {
+            if !matches!(
+                self.sections.states.get(&at),
+                Some(SectionState::Resident(_))
+            ) {
                 heap.pop();
                 continue;
             }

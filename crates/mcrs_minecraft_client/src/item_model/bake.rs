@@ -5,16 +5,16 @@ use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::generator;
-use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
-use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
-use crate::blocks::load_colormap;
-use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
+use super::generator;
 use super::transform::compose;
+use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
+use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
+use crate::blocks::load_colormap;
+use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {
