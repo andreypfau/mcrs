@@ -55,7 +55,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPositi
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_world::entity::minecraft::PLAYER;
 use movement::TeleportState;
-use tracing::debug;
+use tracing::{debug, info};
 
 pub mod ability;
 mod chat;
@@ -217,6 +217,10 @@ fn consume_inbound_player_spawn(
             .filter_map(|s| ResourceLocation::parse_cow(s.clone()).ok())
             .collect();
 
+        info!(
+            "{} logged in with entity id {wire_id} in {dim_name} at ({:.2}, {:.2}, {:.2})",
+            spawn.snapshot.username, spawn_pos.x, spawn_pos.y, spawn_pos.z
+        );
         debug!(
             target: "mcrs_minecraft_server::player",
             player = wire_id,
