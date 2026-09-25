@@ -89,12 +89,31 @@ CARGO_TARGET_DIR=$root/target/parity-base cargo build --release -p mcrs_minecraf
     --manifest-path "$tmp/base-src/Cargo.toml"
 cp "$root/target/parity-base/release/mcrs_minecraft_client" "$tmp/base"
 
+# The saved player position decides what the server loads before the first teleport, so
+# every capture starts where its scene stands rather than where the world was last left.
+place_players() {
+    python3 - "$1" "$2" <<'EOF'
+import glob, gzip, struct, sys
+pos = [float(v) for v in sys.argv[2].split(',')]
+for path in glob.glob(f'{sys.argv[1]}/players/data/*.dat'):
+    data = bytearray(gzip.decompress(open(path, 'rb').read()))
+    at = data.find(b'\x09\x00\x03Pos\x06\x00\x00\x00\x03')
+    if at < 0:
+        sys.exit(f'no Pos list in {path}')
+    struct.pack_into('>3d', data, at + 11, *pos)
+    open(path, 'wb').write(gzip.compress(bytes(data)))
+EOF
+}
+
 run() {
     local side=$1 scene=$2 knobs=()
     read -r -a knobs <<< "$3"
     rm -rf "$tmp/run"
     mkdir -p "$tmp/run" "$out/$scene"
     cp -R "$world" "$tmp/run/world"
+    for knob in ${knobs[@]+"${knobs[@]}"}; do
+        case $knob in MCRS_POS=*) place_players "$tmp/run/world" "${knob#MCRS_POS=}" ;; esac
+    done
     echo "scene $scene: $side" >&2
     if ! (cd "$tmp/run" && env MCRS_RESOLUTION=1280x720 MCRS_VIEW=10 MCRS_HOT=1 \
         ${knobs[@]+"${knobs[@]}"} MCRS_CAPTURE="$out/$scene/$side.png" \
