@@ -434,6 +434,7 @@ impl Loader {
         }
         cave.forget(section);
         self.evicted += 1;
+        self.requeue_deferred();
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -473,9 +474,6 @@ impl Loader {
                         self.sections.depart(at);
                         self.evict(at, cave);
                     }
-                    // Only a departure frees room nothing else claims: evicting to place a
-                    // nearer mesh or to remesh a relit one hands that room straight back.
-                    self.requeue_deferred();
                 }
                 ColumnChange::Arrived(pos, column) => {
                     self.trace
