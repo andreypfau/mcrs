@@ -1,7 +1,6 @@
 use std::num::NonZeroU64;
 use std::sync::atomic::Ordering;
 
-use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
 use bevy::ecs::system::SystemParam;
@@ -15,12 +14,55 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::GpuImage;
 use bevy::render::view::{ExtractedView, ViewUniform, ViewUniforms};
-use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
+use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use bitflags::bitflags;
 
 use crate::render::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
-use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
+
+/// The per-frame GPU block, in the linear space the render target expects.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct SkyUniform {
+    pub disc: [f32; 4],
+    pub sunrise: [f32; 4],
+    pub angles: [f32; 4],
+    pub moon: [f32; 4],
+    pub fog: [f32; 4],
+    pub cloud_color: [f32; 4],
+    pub cloud: [f32; 4],
+    pub sky_light: [f32; 4],
+    pub block_light: [f32; 4],
+    pub ambient: [f32; 4],
+}
+
+bitflags! {
+    /// Which of the sky draws exist at all. A draw whose effect is off is not
+    /// skipped at runtime — its pipeline is never built.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct SkyEffects: u8 {
+        const DISC = 1;
+        const TWILIGHT = 1 << 1;
+        const CELESTIAL = 1 << 2;
+        const STARS = 1 << 3;
+        const CLOUDS = 1 << 4;
+    }
+}
+
+impl SkyEffects {
+    /// Parses the comma-separated draw list a profiling run uses to leave
+    /// individual passes out, e.g. `disc,twilight,celestial,stars`.
+    pub fn parse(list: &str) -> Result<Self, String> {
+        list.split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .try_fold(Self::empty(), |effects, name| {
+                Self::from_name(&name.to_ascii_uppercase())
+                    .map(|bit| effects | bit)
+                    .ok_or_else(|| format!("no sky draw is called {name}"))
+            })
+    }
+}
 
 const STAR_COUNT: u32 = 1500;
 
@@ -117,16 +159,13 @@ impl Plugin for SkyRenderPlugin {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-        render_app
-            .add_systems(RenderStartup, init_sky)
-            .add_systems(ExtractSchedule, extract_sky)
-            .add_systems(
-                Render,
-                (
-                    (prepare_sky, write_sky).in_set(RenderSystems::Prepare),
-                    prepare_sky_bind_groups.in_set(RenderSystems::PrepareBindGroups),
-                ),
-            );
+        render_app.add_systems(RenderStartup, init_sky).add_systems(
+            Render,
+            (
+                (prepare_sky, write_sky).in_set(RenderSystems::Prepare),
+                prepare_sky_bind_groups.in_set(RenderSystems::PrepareBindGroups),
+            ),
+        );
     }
 }
 
@@ -136,7 +175,10 @@ pub(crate) struct Sky {
     texture_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
     uniform: Buffer,
-    pipelines: Option<(SkyKey, [Option<CachedRenderPipelineId>; SKY_DRAWS.len()])>,
+    pipelines: Option<(
+        SkyEffects,
+        [Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
+    )>,
     textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
     view: Option<(BufferId, BindGroup)>,
 }
@@ -147,11 +189,11 @@ pub(crate) struct Sky {
 pub struct SkyDrawsOnly(pub SkyEffects);
 
 #[derive(Resource)]
-pub(crate) struct ExtractedSky {
+pub struct ExtractedSky {
     pub uniform: SkyUniform,
-    key: SkyKey,
-    celestials: AssetId<Image>,
-    clouds: AssetId<Image>,
+    pub effects: SkyEffects,
+    pub celestials: AssetId<Image>,
+    pub clouds: AssetId<Image>,
 }
 
 #[derive(Resource)]
@@ -191,29 +233,6 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
     });
 }
 
-fn extract_sky(
-    mut commands: Commands,
-    environment: Extract<Option<Res<SkyEnvironment>>>,
-    textures: Extract<Option<Res<SkyTextures>>>,
-    frame: Extract<Res<SkyFrame>>,
-    clocks: Extract<Res<WorldClocks>>,
-    only: Extract<Option<Res<SkyDrawsOnly>>>,
-) {
-    let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
-        return;
-    };
-    let mut key = environment.key();
-    if let Some(only) = only.as_ref() {
-        key.effects &= only.0;
-    }
-    commands.insert_resource(ExtractedSky {
-        uniform: environment.uniform(&frame, environment.drift(&clocks)),
-        key,
-        celestials: textures.celestials.id(),
-        clouds: textures.clouds.id(),
-    });
-}
-
 fn write_sky(sky: Option<Res<Sky>>, extracted: Option<Res<ExtractedSky>>, queue: Res<RenderQueue>) {
     let (Some(sky), Some(extracted)) = (sky, extracted) else {
         return;
@@ -233,7 +252,7 @@ fn prepare_sky(
     if sky
         .pipelines
         .as_ref()
-        .is_some_and(|(key, _)| *key == extracted.key)
+        .is_some_and(|(effects, _)| *effects == extracted.effects)
     {
         return;
     }
@@ -242,7 +261,7 @@ fn prepare_sky(
     };
     let layout = vec![sky.view_layout.clone(), sky.texture_layout.clone()];
     let queued = SKY_DRAWS.each_ref().map(|draw| {
-        extracted.key.effects.contains(draw.effect).then(|| {
+        extracted.effects.contains(draw.effect).then(|| {
             pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
                 primitive: PrimitiveState {
                     topology: PrimitiveTopology::TriangleList,
@@ -273,8 +292,12 @@ fn prepare_sky(
             })
         })
     });
-    info!(?extracted.key, draws = extracted.key.draws(), "queued the sky pipelines");
-    sky.pipelines = Some((extracted.key, queued));
+    info!(
+        ?extracted.effects,
+        draws = extracted.effects.bits().count_ones(),
+        "queued the sky pipelines"
+    );
+    sky.pipelines = Some((extracted.effects, queued));
 }
 
 fn prepare_sky_bind_groups(

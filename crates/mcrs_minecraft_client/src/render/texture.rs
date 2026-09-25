@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
-use crate::sky::SkyUniform;
+use crate::sky_render::SkyUniform;
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
 
 use super::{AtlasUpdate, Budget};

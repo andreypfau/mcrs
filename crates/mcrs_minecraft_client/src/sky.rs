@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension,
 };
+use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
@@ -20,6 +21,7 @@ use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
+use crate::sky_render::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 use crate::vanilla::{self, VanillaAssets};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
@@ -63,7 +65,7 @@ pub struct SkyPlugin;
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SkyFrame>()
-            .add_plugins(crate::sky_render::SkyRenderPlugin)
+            .add_plugins(SkyRenderPlugin)
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
                 Update,
@@ -76,6 +78,9 @@ impl Plugin for SkyPlugin {
                     .after(TransformSystems::Propagate)
                     .run_if(resource_exists::<SkyEnvironment>),
             );
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.add_systems(ExtractSchedule, extract_sky);
+        }
     }
 }
 
@@ -279,20 +284,27 @@ fn evaluate_sky(
     clear.0 = environment.fog_color(&frame);
 }
 
-/// The per-frame GPU block, in the linear space the render target expects.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SkyUniform {
-    pub disc: [f32; 4],
-    pub sunrise: [f32; 4],
-    pub angles: [f32; 4],
-    pub moon: [f32; 4],
-    pub fog: [f32; 4],
-    pub cloud_color: [f32; 4],
-    pub cloud: [f32; 4],
-    pub sky_light: [f32; 4],
-    pub block_light: [f32; 4],
-    pub ambient: [f32; 4],
+fn extract_sky(
+    mut commands: Commands,
+    environment: Extract<Option<Res<SkyEnvironment>>>,
+    textures: Extract<Option<Res<SkyTextures>>>,
+    frame: Extract<Res<SkyFrame>>,
+    clocks: Extract<Res<WorldClocks>>,
+    only: Extract<Option<Res<SkyDrawsOnly>>>,
+) {
+    let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
+        return;
+    };
+    let mut effects = environment.key().effects;
+    if let Some(only) = only.as_ref() {
+        effects &= only.0;
+    }
+    commands.insert_resource(ExtractedSky {
+        uniform: environment.uniform(&frame, environment.drift(&clocks)),
+        effects,
+        celestials: textures.celestials.id(),
+        clouds: textures.clouds.id(),
+    });
 }
 
 fn cloud_drift(ticks: f64) -> f32 {

@@ -5,7 +5,7 @@ use crate::cave::CaveCull;
 use crate::render::{
     Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, Streams, Uploads, Wireframe,
 };
-use crate::sky_state::SkyEffects;
+use crate::sky_render::SkyEffects;
 use mcrs_minecraft_mesh::STREAMS;
 
 #[cfg(not(target_family = "wasm"))]

@@ -1,10 +1,11 @@
 use bevy::prelude::*;
-use bitflags::bitflags;
 use serde_json::Value;
 
 use mcrs_minecraft_dimension::dimension_type::Skybox;
 use mcrs_minecraft_dimension::environment::{EnvironmentAttributes, EnvironmentContext};
 use mcrs_minecraft_environment::attribute::AttributeValue;
+
+use crate::sky_render::SkyEffects;
 
 /// A visual attribute the renderer carries as GPU state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -126,34 +127,6 @@ fn sky_value(value: &AttributeValue) -> SkyValue {
                 .unwrap_or(0) as f32,
         ),
         _ => SkyValue::Scalar(0.0),
-    }
-}
-
-bitflags! {
-    /// Which of the sky draws exist at all. A draw whose effect is off is not
-    /// skipped at runtime — its pipeline is never built.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct SkyEffects: u8 {
-        const DISC = 1;
-        const TWILIGHT = 1 << 1;
-        const CELESTIAL = 1 << 2;
-        const STARS = 1 << 3;
-        const CLOUDS = 1 << 4;
-    }
-}
-
-impl SkyEffects {
-    /// Parses the comma-separated draw list a profiling run uses to leave
-    /// individual passes out, e.g. `disc,twilight,celestial,stars`.
-    pub fn parse(list: &str) -> Result<Self, String> {
-        list.split(',')
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .try_fold(Self::empty(), |effects, name| {
-                Self::from_name(&name.to_ascii_uppercase())
-                    .map(|bit| effects | bit)
-                    .ok_or_else(|| format!("no sky draw is called {name}"))
-            })
     }
 }
 
