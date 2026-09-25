@@ -6,7 +6,6 @@ use mcrs_minecraft_mesh::STREAMS;
 use mcrs_minecraft_render::sky::SkyEffects;
 use mcrs_minecraft_render::{
     Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Raster, RenderPath, Streams, Uploads,
-    Wireframe,
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -347,10 +346,6 @@ pub fn brightness() -> f32 {
         "a brightness from 0 to 1",
     )
     .unwrap_or(0.5)
-}
-
-pub fn wireframe() -> Wireframe {
-    Wireframe(knob("WIREFRAME").is_some_and(|on| on != "0"))
 }
 
 /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth

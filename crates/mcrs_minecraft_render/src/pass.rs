@@ -19,7 +19,8 @@ use super::layer::LayerGroup;
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::upload::{UploadParams, apply_uploads};
-use super::{Occlusion, Raster, Streams, Wireframe};
+use super::views::ClassicViews;
+use super::{Occlusion, Raster, SelectedView, Streams};
 
 fn cull_terrain(
     terrain: &Terrain,
@@ -128,11 +129,18 @@ pub(super) struct FrameParams<'w> {
     queries: Option<Res<'w, Queries>>,
     timings: Res<'w, GpuTimings>,
     streams: Res<'w, Streams>,
-    wireframe: Res<'w, Wireframe>,
+    selected: Res<'w, SelectedView>,
+    classic_views: Res<'w, ClassicViews>,
     raster: Res<'w, Raster>,
     occlusion: Res<'w, Occlusion>,
     counts: Res<'w, FrameCounts>,
     heat: Option<Res<'w, Heat>>,
+}
+
+impl FrameParams<'_> {
+    fn wireframe(&self) -> bool {
+        self.selected.0 == Some(self.classic_views.wireframe)
+    }
 }
 
 type WorldView = (
@@ -252,7 +260,7 @@ pub(super) fn draw_opaque(
             |stream| {
                 terrain
                     .pipelines
-                    .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+                    .terrain(stream, frame.wireframe(), &frame.pipeline_cache)
             },
         );
         frame
@@ -354,7 +362,7 @@ pub(super) fn draw_opaque_second(
         |stream| {
             terrain
                 .pipelines
-                .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+                .terrain(stream, frame.wireframe(), &frame.pipeline_cache)
         },
     );
     frame
@@ -410,7 +418,7 @@ pub(super) fn draw_forward(
             |stream| {
                 terrain
                     .pipelines
-                    .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
+                    .terrain(stream, frame.wireframe(), &frame.pipeline_cache)
             },
         );
     }

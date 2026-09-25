@@ -4,7 +4,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
-use mcrs_minecraft_render::{DrawnTriangles, RenderPath, ShownPath};
+use mcrs_minecraft_render::{DebugViews, DrawnTriangles, RenderPath, SelectedView, ShownPath};
 
 pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:terrain");
 
@@ -15,6 +15,8 @@ pub fn display(
     streaming: Streaming,
     requested: Res<RenderPath>,
     shown: Res<ShownPath>,
+    views: Res<DebugViews>,
+    selected: Res<SelectedView>,
 ) {
     let status = streaming.status();
     let mut lines = vec![
@@ -44,6 +46,10 @@ pub fn display(
             (true, Some(ms)) => format!("Sight lines: {} sections in {ms:.3} ms", cave.reached()),
         },
         render_line(shown.get(), *requested),
+        format!(
+            "View: {}",
+            selected.0.map_or("final", |view| views.name(view))
+        ),
     ];
     lines.extend(gpu_memory_line());
     displayer.add_to_group(GROUP, lines);

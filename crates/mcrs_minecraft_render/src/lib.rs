@@ -20,6 +20,7 @@ mod stats;
 mod terrain;
 mod texture;
 mod upload;
+mod views;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -44,6 +45,7 @@ pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};
+pub use views::{DebugView, DebugViews, SelectedView};
 
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
@@ -145,9 +147,6 @@ impl Default for Raster {
         Self(1.0)
     }
 }
-
-#[derive(Resource, Clone, Copy, Default, ExtractResource)]
-pub struct Wireframe(pub bool);
 
 /// Whether terrain is tested against the last frame's depth pyramid; off, every group the
 /// frustum and the cave graph keep is drawn and the second pass does not exist.
@@ -284,14 +283,15 @@ impl Plugin for TerrainPlugin {
         let counts = FrameCounts::default();
         let shown = ShownPath::default();
         app.init_resource::<CameraOrigin>()
-            .init_resource::<Wireframe>()
             .init_resource::<Occlusion>()
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
             .init_resource::<Raster>()
             .init_resource::<RenderPath>()
+            .init_resource::<DebugViews>()
+            .init_resource::<SelectedView>()
             .add_plugins(ExtractResourcePlugin::<RenderPath>::default())
-            .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
+            .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
@@ -381,6 +381,16 @@ impl Plugin for TerrainPlugin {
             .expect("the 3d core pipeline adds its opaque pass");
         if let Some(workgroups) = self.heat {
             render_app.insert_resource(heat::HeatWorkgroups(workgroups));
+        }
+    }
+
+    fn finish(&self, app: &mut App) {
+        let mut views = app.world_mut().resource_mut::<DebugViews>();
+        let classic = views::ClassicViews {
+            wireframe: views.register(RenderPath::Classic, "wireframe"),
+        };
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.insert_resource(classic);
         }
     }
 }
