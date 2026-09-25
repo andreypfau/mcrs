@@ -19,7 +19,6 @@ fn a_system_from_another_crate_runs_in_its_stage() {
             .after(WorldPass::Forward)
             .in_set(Core3dSystems::MainPass),
         record(4).in_set(WorldPass::Forward),
-        record(3).in_set(WorldPass::Lighting),
         record(2).in_set(WorldPass::Opaque),
         record(1).in_set(WorldPass::Upload),
     ));
@@ -29,5 +28,5 @@ fn a_system_from_another_crate_runs_in_its_stage() {
     world.init_resource::<Ran>();
     schedule.run(&mut world);
 
-    assert_eq!(world.resource::<Ran>().0, [0, 1, 2, 3, 4, 5, 6]);
+    assert_eq!(world.resource::<Ran>().0, [0, 1, 2, 4, 5, 6]);
 }

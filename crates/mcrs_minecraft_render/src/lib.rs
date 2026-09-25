@@ -37,8 +37,6 @@ use crate::probe::{CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::CameraOrigin;
-pub use layer::LayerGroup;
-pub use pass::draw_layer_group;
 pub use stats::{DrawnTriangles, FrameCounts};
 pub use terrain::Terrain;
 pub use upload::{Placement, Upload, Uploads};
@@ -202,7 +200,6 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
-    Lighting,
     Forward,
 }
 
@@ -214,7 +211,6 @@ impl WorldPass {
             Self::Opaque,
             Self::Occlusion,
             Self::OpaqueSecond,
-            Self::Lighting,
             Self::Forward,
         )
             .chain()

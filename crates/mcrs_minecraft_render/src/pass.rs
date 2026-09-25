@@ -254,14 +254,11 @@ pub(super) fn draw_opaque(
         let draws = draw_layer_group(
             &mut pass,
             terrain,
-            &[LayerGroup::Opaque],
+            LayerGroup::Opaque,
             0,
+            &frame.pipeline_cache,
             &frame.streams,
-            |stream| {
-                terrain
-                    .pipelines
-                    .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
-            },
+            frame.wireframe.0,
         );
         frame
             .counts
@@ -354,14 +351,11 @@ pub(super) fn draw_opaque_second(
     let draws = draw_layer_group(
         &mut pass,
         terrain,
-        &[LayerGroup::Opaque],
+        LayerGroup::Opaque,
         1,
+        &frame.pipeline_cache,
         &frame.streams,
-        |stream| {
-            terrain
-                .pipelines
-                .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
-        },
+        frame.wireframe.0,
     );
     frame
         .counts
@@ -406,19 +400,15 @@ pub(super) fn draw_forward(
     let span = diagnostics.pass_span(&mut pass, "forward");
     restrict_to_raster(&mut pass, &frame.raster, extracted);
     let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
-    let pipeline_of = |stream| {
-        terrain
-            .pipelines
-            .terrain(stream, frame.wireframe.0, &frame.pipeline_cache)
-    };
     for &phase in phases {
         draws += draw_layer_group(
             &mut pass,
             terrain,
-            &[LayerGroup::Translucent],
+            LayerGroup::Translucent,
             phase,
+            &frame.pipeline_cache,
             &frame.streams,
-            pipeline_of,
+            frame.wireframe.0,
         );
     }
     frame
@@ -428,42 +418,43 @@ pub(super) fn draw_forward(
     span.end(&mut pass);
 }
 
-/// `phase` picks the first pass's args or the second's, which follow them. Groups are drawn in
-/// slice order, which blending depends on.
-pub fn draw_layer_group<'pass>(
+/// `phase` picks the first pass's args or the second's, which follow them.
+fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
-    groups: &[LayerGroup],
+    group: LayerGroup,
     phase: u64,
+    pipeline_cache: &'pass PipelineCache,
     streams: &Streams,
-    pipeline_of: impl Fn(u32) -> Option<&'pass RenderPipeline>,
+    wireframe: bool,
 ) -> u32 {
+    pass.set_bind_group(1, &terrain.binds.draw, &[]);
+    let mut open = None;
     let mut draws = 0;
-    for &group in groups {
-        pass.set_bind_group(1, &terrain.binds.draw, &[]);
-        let mut open = None;
-        for (index, draw) in terrain.list.drawn(group, streams) {
-            let Some(pipeline) = pipeline_of(draw.stream) else {
-                continue;
-            };
-            if open != Some(draw.stream) {
-                if open.is_some() {
-                    pass.pop_debug_group();
-                }
-                pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
-                open = Some(draw.stream);
+    for (index, draw) in terrain.list.drawn(group, streams) {
+        let Some(pipeline) = terrain
+            .pipelines
+            .terrain(draw.stream, wireframe, pipeline_cache)
+        else {
+            continue;
+        };
+        if open != Some(draw.stream) {
+            if open.is_some() {
+                pass.pop_debug_group();
             }
-            pass.set_render_pipeline(pipeline);
-            pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
-            pass.draw_indirect(
-                &terrain.frame.args,
-                (phase * STREAMS as u64 + index as u64) * DRAW_ARGS_SIZE,
-            );
-            draws += 1;
+            pass.push_debug_group(STREAM_NAMES[draw.stream as usize]);
+            open = Some(draw.stream);
         }
-        if open.is_some() {
-            pass.pop_debug_group();
-        }
+        pass.set_render_pipeline(pipeline);
+        pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
+        pass.draw_indirect(
+            &terrain.frame.args,
+            (phase * STREAMS as u64 + index as u64) * DRAW_ARGS_SIZE,
+        );
+        draws += 1;
+    }
+    if open.is_some() {
+        pass.pop_debug_group();
     }
     draws
 }

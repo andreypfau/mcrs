@@ -40,8 +40,7 @@ pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CameraOrigin>()
-            .add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
+        app.add_systems(FixedUpdate, tick_fov.after(LocalPlayerTick))
             .add_systems(
                 Update,
                 (

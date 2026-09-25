@@ -46,13 +46,7 @@ impl GpuTimings {
     }
 
     pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
-        let [median, p95] = self
-            .0
-            .samples
-            .lock()
-            .ok()?
-            .percentiles(slot, last, &[0.5, 0.95])?;
-        Some((median, p95))
+        self.0.samples.lock().ok()?.median_and_p95(slot, last)
     }
 
     fn writing(&self) -> u32 {
@@ -136,6 +130,11 @@ impl<const N: usize, const W: usize> Samples<N, W> {
 
     fn median(&self, slot: usize) -> Option<f32> {
         self.percentiles(slot, W, &[0.5]).map(|p| p[0])
+    }
+
+    fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
+        let [median, p95] = self.percentiles(slot, last, &[0.5, 0.95])?;
+        Some((median, p95))
     }
 
     /// Quantiles over the newest `last` samples, each clamped to the last sample held.
@@ -251,13 +250,7 @@ impl CpuTimings {
     }
 
     pub fn median_and_p95(&self, slot: usize, last: usize) -> Option<(f32, f32)> {
-        let [median, p95] = self
-            .0
-            .samples
-            .lock()
-            .ok()?
-            .percentiles(slot, last, &[0.5, 0.95])?;
-        Some((median, p95))
+        self.0.samples.lock().ok()?.median_and_p95(slot, last)
     }
 
     pub fn spread(&self, slot: usize) -> Option<Spread> {
