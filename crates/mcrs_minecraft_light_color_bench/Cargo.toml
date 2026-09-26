@@ -18,6 +18,9 @@ serde.workspace = true
 serde_json.workspace = true
 flate2.workspace = true
 png = "0.18"
+wgpu = { version = "29", default-features = false, features = ["std", "metal", "wgsl"] }
+futures-lite = "2"
+bytemuck = "1"
 mcrs_minecraft_block = { workspace = true, optional = true }
 mcrs_minecraft_item = { workspace = true, optional = true }
 mcrs_minecraft_assets = { workspace = true, optional = true }

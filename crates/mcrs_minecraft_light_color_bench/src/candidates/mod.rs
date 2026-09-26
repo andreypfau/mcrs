@@ -8,6 +8,7 @@ use crate::fixture::{Scene, output_positions};
 
 pub mod bfs;
 pub mod block;
+pub mod gpu;
 pub mod gradient;
 pub mod hybrid;
 pub mod planar;

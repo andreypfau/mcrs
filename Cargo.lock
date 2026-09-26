@@ -3771,7 +3771,9 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_math",
+ "bytemuck",
  "flate2",
+ "futures-lite",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
@@ -3785,6 +3787,7 @@ dependencies = [
  "png",
  "serde",
  "serde_json",
+ "wgpu",
 ]
 
 [[package]]
