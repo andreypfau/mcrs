@@ -11,7 +11,9 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
 use mcrs_minecraft_light_color_bench::candidates::{CANDIDATES, Outcome, Stages, mismatch};
-use mcrs_minecraft_light_color_bench::fixture::{Scene, oracle, relaxed_block_light, scenes};
+use mcrs_minecraft_light_color_bench::fixture::{
+    Scene, oracle, output_positions, relaxed_block_light, scenes,
+};
 use mcrs_minecraft_light_color_bench::shade::{final_rgb, hue, hue_difference};
 
 struct Counting;
@@ -77,6 +79,7 @@ const UNLIT: [u8; 4] = [0, 0, 0, 255];
 struct Measured {
     lit: usize,
     lanes: bool,
+    undetermined: usize,
     mismatch: Option<String>,
     samples: Vec<Stages>,
     peak: usize,
@@ -101,9 +104,14 @@ fn main() {
          |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let mut notes = String::new();
+    let mut undetermined: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
 
     for scene in scenes() {
         let measured = measure(&scene, &out);
+        let lit_cells = lit_output_cells(&scene);
+        for (counts, m) in undetermined.iter_mut().zip(&measured) {
+            counts.push(format!("{} {} of {lit_cells}", scene.name, m.undetermined));
+        }
         let sections = (scene.bounds.max_section_y - scene.bounds.min_section_y + 1) as f64;
         for (candidate, m) in CANDIDATES.iter().zip(&measured) {
             let stage = |pick: fn(&Stages) -> Duration| {
@@ -145,6 +153,25 @@ fn main() {
         writeln!(notes, "- {}", saved_light_note(&scene)).unwrap();
     }
 
+    let mut candidate_notes = String::new();
+    for (candidate, counts) in CANDIDATES.iter().zip(&undetermined) {
+        write!(
+            candidate_notes,
+            "- `{}`: {}",
+            candidate.name, candidate.note
+        )
+        .unwrap();
+        if !candidate.exact {
+            write!(
+                candidate_notes,
+                " Undetermined lit output cells: {}.",
+                counts.join(", ")
+            )
+            .unwrap();
+        }
+        candidate_notes.push('\n');
+    }
+
     let report = format!(
         "# Light colour propagation\n\n\
          Native release build, single process. Each lit inner section runs once to warm up and \
@@ -157,9 +184,11 @@ fn main() {
          times on dense emitters use several threads; every other stage runs on one.\n\n\
          {table}\n\
          Server level against relax over every light type on the 27 inner sections:\n\n\
-         {notes}"
+         {notes}\n\
+         ## Candidates\n\n\
+         {candidate_notes}"
     );
-    print!("{table}\n{notes}");
+    print!("{table}\n{notes}\n{candidate_notes}");
     let path = out.join("report.md");
     std::fs::write(&path, report).expect("the report is writable");
     println!("report: {}", path.display());
@@ -197,6 +226,7 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
         let reference = outcomes[0].as_ref().map(|o| &o.texels[..]);
         for (outcome, m) in outcomes.iter().zip(&mut measured) {
             m.lit += outcome.is_some() as usize;
+            m.undetermined += outcome.as_ref().map_or(0, |o| o.undetermined);
             if let Some(lanes) = outcome.as_ref().and_then(|o| o.lanes.as_ref()) {
                 m.lanes = true;
                 if m.mismatch.is_none() {
@@ -248,6 +278,17 @@ fn has_emitters(scene: &Scene, section: SectionPos) -> bool {
     !Palette::of(&region, &scene.registry, &scene.colours)
         .types
         .is_empty()
+}
+
+/// Output cells the server lights, over every inner section a light source
+/// reaches.
+fn lit_output_cells(scene: &Scene) -> usize {
+    scene
+        .inner()
+        .filter(|&s| has_emitters(scene, s))
+        .flat_map(output_positions)
+        .filter(|&pos| scene.server_level(pos) > 0)
+        .count()
 }
 
 fn output_index(section: SectionPos, pos: BlockPos) -> usize {

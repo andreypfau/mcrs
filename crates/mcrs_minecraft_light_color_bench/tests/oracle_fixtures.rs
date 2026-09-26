@@ -3,7 +3,7 @@ use mcrs_minecraft_light_color_bench::fixture::{oracle, scene};
 
 fn assert_candidates_match_relax(name: &str) {
     let scene = scene(name);
-    for candidate in CANDIDATES {
+    for candidate in CANDIDATES.iter().filter(|c| c.exact) {
         let mut lit = 0;
         for section in scene.inner() {
             let Some(outcome) = (candidate.run)(&scene, section, &mut Stages::default()) else {

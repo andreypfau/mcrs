@@ -68,5 +68,6 @@ pub fn run(scene: &Scene, section: SectionPos, stages: &mut Stages) -> Option<Ou
     Some(Outcome {
         texels: section_texels.into_boxed_slice(),
         lanes: Some(lanes),
+        undetermined: 0,
     })
 }

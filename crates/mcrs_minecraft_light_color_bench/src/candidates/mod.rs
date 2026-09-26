@@ -8,6 +8,7 @@ use crate::fixture::{Scene, output_positions};
 
 pub mod bfs;
 pub mod block;
+pub mod gradient;
 pub mod planar;
 pub mod reference;
 
@@ -30,10 +31,15 @@ impl Stages {
 pub struct Outcome {
     pub texels: Box<[[u8; 4]]>,
     pub lanes: Option<Vec<(LightType, Vec<u8>)>>,
+    /// Lit output cells whose colour the candidate could not tell and guessed.
+    pub undetermined: usize,
 }
 
 pub struct Candidate {
     pub name: &'static str,
+    /// Whether every lane is claimed to equal the server's relax per type.
+    pub exact: bool,
+    pub note: &'static str,
     /// Cells propagated per output cell.
     pub redundancy: f64,
     /// `None` for a section no light source reaches.
@@ -43,23 +49,49 @@ pub struct Candidate {
 pub const CANDIDATES: &[Candidate] = &[
     Candidate {
         name: "reference",
+        exact: true,
+        note: "Exact by construction: one byte lane per light type, relaxed over the whole \
+               region until nothing changes. Reads only the blocks.",
         redundancy: cube(46.0) / cube(18.0),
         run: reference::run,
     },
     Candidate {
         name: "bfs",
+        exact: true,
+        note: "Exact: the server's relax, once per light type. Reads only the blocks.",
         redundancy: cube(48.0) / cube(18.0),
         run: bfs::run,
     },
     Candidate {
         name: "planar",
+        exact: true,
+        note: "Exact: the reference's waves over one byte plane per light type. Reads only the \
+               blocks.",
         redundancy: cube(46.0) / cube(18.0),
         run: planar::run,
     },
     Candidate {
         name: "block",
+        exact: true,
+        note: "Exact: the reference kernel over one region per 3×3×3 block of sections, charged \
+               a 27th to each. Reads only the blocks, but needs the whole block and its ring \
+               present, so colour work is scheduled in blocks.",
         redundancy: cube(78.0) / cube(50.0),
         run: block::run,
+    },
+    Candidate {
+        name: "gradient_strict",
+        exact: false,
+        note: "Approximate: colours each cell from the server's light levels, as the mean of \
+               the brighter neighbours whose light arrives at exactly its level, and of its own \
+               colour when it emits at that level. It reads the server's light levels, so \
+               colour must be recomputed whenever the light changes. That reverses the rule of \
+               recolouring only when a chunk arrives or a block changes, and changes when \
+               colour work is scheduled. Borders between colours are sharp, because only ties \
+               blend. Undetermined cells are lit cells with no such neighbour, left at the \
+               default tint.",
+        redundancy: cube(46.0) / cube(18.0),
+        run: gradient::strict,
     },
 ];
 

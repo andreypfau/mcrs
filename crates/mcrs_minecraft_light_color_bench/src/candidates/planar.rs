@@ -175,5 +175,6 @@ pub fn run(scene: &Scene, section: SectionPos, stages: &mut Stages) -> Option<Ou
     Some(Outcome {
         texels,
         lanes: Some(palette.types.iter().copied().zip(lanes).collect()),
+        undetermined: 0,
     })
 }
