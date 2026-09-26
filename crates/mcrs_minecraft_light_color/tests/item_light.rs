@@ -7,7 +7,7 @@ use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
-use mcrs_minecraft_light_color::item::{ItemLight, ItemLightError, ItemLights};
+use mcrs_minecraft_light_color::item::{ItemLight, ItemLightError, ItemLightFile, ItemLights};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
@@ -305,6 +305,41 @@ fn an_item_in_two_files_fails() {
         matches!(error, ItemLightError::DuplicateItem { .. }),
         "{error}"
     );
+}
+
+#[test]
+fn an_item_mapped_twice_in_one_file_fails() {
+    let (path, bytes) = shipped_files().remove(0);
+    let text = String::from_utf8(bytes).unwrap().replacen(
+        '{',
+        r#"{ "minecraft:torch": "minecraft:soul_torch","#,
+        1,
+    );
+    let error = load(vec![(path.clone(), text.into_bytes())]).unwrap_err();
+    match error {
+        ItemLightError::Parse {
+            path: failed,
+            source,
+        } => {
+            assert_eq!(failed, path);
+            assert!(
+                source
+                    .to_string()
+                    .contains("`minecraft:torch` is mapped twice"),
+                "{source}"
+            );
+        }
+        other => panic!("{other}"),
+    }
+}
+
+#[test]
+fn the_shipped_item_map_round_trips_unchanged() {
+    let text =
+        std::fs::read_to_string(assets_dir().join("mcrs/item_light/minecraft.json")).unwrap();
+    let parsed: ItemLightFile = serde_json::from_str(&text).unwrap();
+    let written = serde_json::to_string_pretty(&parsed).unwrap() + "\n";
+    assert_eq!(written, text);
 }
 
 #[test]

@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
+use std::fmt;
 use std::sync::Arc;
 
 use bevy_asset::AssetServer;
@@ -12,7 +14,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, TaggedRegistry, rl};
 use mcrs_minecraft_item::{Item, ItemDefinitions};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
 use crate::colors::{LightColors, LightType};
@@ -22,9 +24,45 @@ pub const WATER_SENSITIVE: TagKey<Item> = TagKey::new(rl!("mcrs:water_sensitive_
 pub const WATER: TagKey<Fluid> = TagKey::new(rl!("minecraft:water"));
 
 /// A bare block id stands for the block's default state.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct ItemLightFile(pub BTreeMap<ResourceLocation<Arc<str>>, BlockStateRef>);
+
+impl<'de> Deserialize<'de> for ItemLightFile {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_map(ItemLightFileVisitor)
+    }
+}
+
+struct ItemLightFileVisitor;
+
+impl<'de> de::Visitor<'de> for ItemLightFileVisitor {
+    type Value = ItemLightFile;
+
+    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("a map from item id to block state")
+    }
+
+    fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut items = BTreeMap::new();
+        while let Some((item, state)) =
+            map.next_entry::<ResourceLocation<Arc<str>>, BlockStateRef>()?
+        {
+            match items.entry(item) {
+                Entry::Vacant(slot) => {
+                    slot.insert(state);
+                }
+                Entry::Occupied(slot) => {
+                    return Err(de::Error::custom(format!(
+                        "`{}` is mapped twice",
+                        slot.key()
+                    )));
+                }
+            }
+        }
+        Ok(ItemLightFile(items))
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ItemLight {
