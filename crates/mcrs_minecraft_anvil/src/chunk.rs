@@ -74,6 +74,10 @@ impl Chunk {
         if previous != state {
             self.is_light_on = false;
             self.heightmaps.clear();
+            for section in &mut self.sections {
+                section.block_light = None;
+                section.sky_light = None;
+            }
         }
         Ok(previous)
     }

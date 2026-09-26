@@ -1380,6 +1380,36 @@ mod write {
     }
 
     #[test]
+    fn an_edited_chunk_drops_its_saved_light_and_heightmaps() {
+        let (src, dst) = (Fixture::new("stale_src"), Fixture::new("stale_dst"));
+        let region = fixture_region(&src, 8);
+        let lit = region
+            .present()
+            .find(|&pos| {
+                let n = read_named(&region, pos);
+                !n.chunk.heightmaps.is_empty()
+                    && n.chunk.sections.iter().any(|s| s.block_light.is_some())
+            })
+            .expect("a fixture chunk carries light and heightmaps");
+        let mut edited = read_named(&region, lit);
+        let torch = edited
+            .blocks
+            .intern("minecraft:torch", std::iter::empty())
+            .unwrap();
+        let at = BlockPos::new(lit.x * 16 + 3, 64, lit.z * 16 + 4);
+        edited.chunk.set_block(at, torch).unwrap();
+        let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
+        assert!(root(&nbt).get("Heightmaps").is_none());
+
+        let read = read_named(&rewrite(&region, &[(lit, nbt)], &dst.dir), lit);
+        assert!(read.chunk.heightmaps.is_empty());
+        for section in &read.chunk.sections {
+            assert!(section.block_light.is_none(), "section {}", section.y);
+            assert!(section.sky_light.is_none(), "section {}", section.y);
+        }
+    }
+
+    #[test]
     fn a_chunk_needing_256_sectors_goes_to_an_external_file() {
         let (src, dst) = (Fixture::new("external_src"), Fixture::new("external_dst"));
         let root_in = chunk_nbt(
