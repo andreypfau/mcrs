@@ -22,6 +22,7 @@ crates=(
     mcrs_minecraft_worldgen_structure
     mcrs_minecraft_worldgen
     mcrs_minecraft_light
+    mcrs_minecraft_light_color
     mcrs_minecraft_network
     mcrs_minecraft_mesh
     mcrs_minecraft_client_jar

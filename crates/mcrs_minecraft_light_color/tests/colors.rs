@@ -9,7 +9,9 @@ use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_light_color::colors::{LightColors, LightType};
+use mcrs_minecraft_light_color::asset::LightColorFile;
+use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
+use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 fn shipped() -> &'static LightColors {
     static COLORS: OnceLock<LightColors> = OnceLock::new();
@@ -257,5 +259,148 @@ fn only_the_bare_copper_lantern_is_green() {
             Some(rgb(0xe8c398)),
             "{id}"
         );
+    }
+}
+
+fn load(files: &[(&str, &str)]) -> Result<LightColors, LightColorError> {
+    let files = files
+        .iter()
+        .map(|(path, text)| (path.to_string(), text.as_bytes().to_vec()));
+    LightColors::from_files(files, blocks(), block_tags())
+}
+
+fn file(entries: &[&str]) -> String {
+    serde_json::json!({ "color": "#36d9e6", "blocks": entries }).to_string()
+}
+
+fn fails(files: &[(&str, &str)]) -> (LightColorError, String) {
+    let error = load(files).expect_err("the files load");
+    let message = error.to_string();
+    (error, message)
+}
+
+#[test]
+fn an_unknown_block_fails_naming_the_file() {
+    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:glowing_stone"]))]);
+    assert!(
+        matches!(error, LightColorError::UnknownBlock { .. }),
+        "{error:?}"
+    );
+    assert!(message.contains("pack/glow.json"), "{message}");
+    assert!(message.contains("minecraft:glowing_stone"), "{message}");
+}
+
+#[test]
+fn an_unknown_tag_fails() {
+    let (error, message) = fails(&[("pack/glow.json", &file(&["#minecraft:glowing"]))]);
+    assert!(
+        matches!(error, LightColorError::UnknownTag { .. }),
+        "{error:?}"
+    );
+    assert!(message.contains("pack/glow.json"), "{message}");
+}
+
+#[test]
+fn an_undeclared_property_fails() {
+    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:torch[lit=true]"]))]);
+    assert!(
+        matches!(error, LightColorError::UnknownProperty { .. }),
+        "{error:?}"
+    );
+    assert!(message.contains("pack/glow.json"), "{message}");
+}
+
+#[test]
+fn an_undeclared_value_fails() {
+    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:candle[lit=maybe]"]))]);
+    assert!(
+        matches!(error, LightColorError::UnknownValue { .. }),
+        "{error:?}"
+    );
+    assert!(message.contains("pack/glow.json"), "{message}");
+}
+
+#[test]
+fn a_malformed_colour_fails() {
+    let text = r##"{ "color": "#+6d9e6", "blocks": ["minecraft:torch"] }"##;
+    let (error, message) = fails(&[("pack/glow.json", text)]);
+    assert!(matches!(error, LightColorError::Parse { .. }), "{error:?}");
+    assert!(message.contains("pack/glow.json"), "{message}");
+}
+
+#[test]
+fn a_malformed_predicate_fails() {
+    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:candle[lit]"]))]);
+    assert!(matches!(error, LightColorError::Parse { .. }), "{error:?}");
+    assert!(message.contains("pack/glow.json"), "{message}");
+}
+
+#[test]
+fn an_entry_with_no_emitting_state_fails() {
+    for entry in ["minecraft:stone", "minecraft:candle[lit=false]"] {
+        let (error, message) = fails(&[("pack/glow.json", &file(&[entry]))]);
+        assert!(
+            matches!(error, LightColorError::NoEmittingState { .. }),
+            "{error:?}"
+        );
+        assert!(message.contains("pack/glow.json"), "{message}");
+        assert!(message.contains(entry), "{message}");
+    }
+}
+
+#[test]
+fn a_candle_predicate_colours_only_the_lit_states() {
+    let colours = load(&[("pack/glow.json", &file(&["minecraft:candle[lit=true]"]))]).unwrap();
+    let candle = block("minecraft:candle");
+    for state in states(candle) {
+        let lit = candle
+            .value_of(state.into(), "lit")
+            .unwrap()
+            .renders_to("true");
+        assert_eq!(
+            colours.light_type(state) != LightType::DEFAULT,
+            lit,
+            "state {}",
+            state.0
+        );
+    }
+}
+
+#[test]
+fn a_state_claimed_twice_fails_naming_both_files() {
+    let (error, message) = fails(&[
+        ("pack/candles.json", &file(&["#minecraft:candles"])),
+        ("pack/lit.json", &file(&["minecraft:candle[lit=true]"])),
+    ]);
+    assert!(
+        matches!(error, LightColorError::TwoColours { .. }),
+        "{error:?}"
+    );
+    assert!(message.contains("pack/candles.json"), "{message}");
+    assert!(message.contains("pack/lit.json"), "{message}");
+}
+
+#[test]
+fn more_than_255_colours_fail() {
+    let empty = r##"{ "color": "#36d9e6", "blocks": [] }"##;
+    let paths: Vec<String> = (0..256).map(|i| format!("pack/{i:03}.json")).collect();
+    let files: Vec<(&str, &str)> = paths.iter().map(|path| (path.as_str(), empty)).collect();
+    let (error, _) = fails(&files);
+    assert!(
+        matches!(error, LightColorError::TooManyColours { count: 256 }),
+        "{error:?}"
+    );
+    assert_eq!(load(&files[..255]).unwrap().type_count(), 256);
+}
+
+#[test]
+fn every_shipped_file_round_trips_unchanged() {
+    let files = json_files(&assets_dir().join("mcrs/light_color"));
+    assert_eq!(files.len(), 13);
+    for path in files {
+        let text = std::fs::read_to_string(&path).unwrap();
+        let parsed: LightColorFile = serde_json::from_str(&text).unwrap();
+        let written = serde_json::to_string_pretty(&parsed).unwrap() + "\n";
+        assert_eq!(written, text, "{}", path.display());
     }
 }

@@ -80,6 +80,8 @@ mod load {
         NoAssetSource,
         #[error(transparent)]
         Corpus(#[from] CorpusReadError),
+        #[error("{count} light colour files, but at most 255 fit a light type")]
+        TooManyColours { count: usize },
         #[error("`{path}` read as zero bytes")]
         Empty { path: String },
         #[error("failed to parse `{path}`: {source}")]
@@ -89,6 +91,28 @@ mod load {
         },
         #[error("`{path}`: `{entry}` names a block the corpus lacks")]
         UnknownBlock { path: String, entry: String },
+        #[error("`{path}`: `{entry}` names a block tag that does not exist")]
+        UnknownTag { path: String, entry: String },
+        #[error("`{path}`: `{entry}` states a property `{block}` does not declare")]
+        UnknownProperty {
+            path: String,
+            entry: String,
+            block: String,
+        },
+        #[error("`{path}`: `{entry}` states a value `{block}` does not declare")]
+        UnknownValue {
+            path: String,
+            entry: String,
+            block: String,
+        },
+        #[error("`{path}`: `{entry}` matches no state that emits light")]
+        NoEmittingState { path: String, entry: String },
+        #[error("`{state}` is coloured by both {first} and {second}")]
+        TwoColours {
+            state: String,
+            first: String,
+            second: String,
+        },
     }
 
     impl LightColors {
@@ -110,8 +134,14 @@ mod load {
             blocks: &BlockDefinitions,
             tags: &DynTagRegistry<Block>,
         ) -> Result<Self, LightColorError> {
-            let mut colours = Vec::new();
+            let files: Vec<_> = files.into_iter().collect();
+            if files.len() > u8::MAX as usize {
+                return Err(LightColorError::TooManyColours { count: files.len() });
+            }
+            let mut colours = Vec::with_capacity(files.len());
             let mut types = vec![LightType::DEFAULT; blocks.state_count()];
+            let mut claimants: Vec<String> = Vec::new();
+            let mut claimed_by: Vec<Option<usize>> = vec![None; blocks.state_count()];
             for (path, bytes) in files {
                 if bytes.is_empty() {
                     return Err(LightColorError::Empty { path });
@@ -124,12 +154,31 @@ mod load {
                 colours.push(file.color.0);
                 let light_type = LightType(colours.len() as u8);
                 for entry in &file.blocks {
-                    for block in members(entry, blocks, tags, &path)? {
-                        for id in states(block) {
-                            if matches(block, id, entry) {
-                                types[id.0 as usize] = light_type;
+                    let members = members(entry, blocks, tags, &path)?;
+                    check_predicate(entry, &members, &path)?;
+                    let claimant = claimants.len();
+                    claimants.push(format!("`{entry}` in `{path}`"));
+                    let mut emits = false;
+                    for block in members {
+                        for id in states(block).filter(|&id| matches(block, id, entry)) {
+                            let slot = id.0 as usize;
+                            if let Some(first) = claimed_by[slot] {
+                                return Err(LightColorError::TwoColours {
+                                    state: describe(block, id),
+                                    first: claimants[first].clone(),
+                                    second: claimants[claimant].clone(),
+                                });
                             }
+                            claimed_by[slot] = Some(claimant);
+                            types[slot] = light_type;
+                            emits |= blocks.state(id).light_emission > 0;
                         }
+                    }
+                    if !emits {
+                        return Err(LightColorError::NoEmittingState {
+                            path,
+                            entry: entry.to_string(),
+                        });
                     }
                 }
             }
@@ -151,11 +200,44 @@ mod load {
                     path: path.to_owned(),
                     entry: entry.to_string(),
                 }),
-            StateTarget::Tag(id) => Ok(tags
+            StateTarget::Tag(id) => tags
                 .get(&TagKey::<Block, _>::from_location(id.clone()))
                 .map(|set| set.iter().map(|i| &blocks.blocks()[i as usize]).collect())
-                .unwrap_or_default()),
+                .ok_or_else(|| LightColorError::UnknownTag {
+                    path: path.to_owned(),
+                    entry: entry.to_string(),
+                }),
         }
+    }
+
+    fn check_predicate(
+        entry: &BlockStateRef,
+        members: &[&BlockEntry],
+        path: &str,
+    ) -> Result<(), LightColorError> {
+        for block in members {
+            for (name, text) in &entry.properties {
+                let Some(index) = block.properties.index_of(name) else {
+                    return Err(LightColorError::UnknownProperty {
+                        path: path.to_owned(),
+                        entry: entry.to_string(),
+                        block: block.identifier.to_string(),
+                    });
+                };
+                if !block.properties.0[index]
+                    .values
+                    .iter()
+                    .any(|value| value.renders_to(text))
+                {
+                    return Err(LightColorError::UnknownValue {
+                        path: path.to_owned(),
+                        entry: entry.to_string(),
+                        block: block.identifier.to_string(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     fn states(block: &BlockEntry) -> impl Iterator<Item = BlockStateId> + '_ {
@@ -168,5 +250,25 @@ mod load {
                 .value_of(id, name)
                 .is_some_and(|value| value.renders_to(text))
         })
+    }
+
+    fn describe(block: &BlockEntry, id: BlockStateId) -> String {
+        let values: Vec<String> = block
+            .properties
+            .0
+            .iter()
+            .filter_map(|p| {
+                Some(format!(
+                    "{}={}",
+                    p.name,
+                    block.value_of(id, &p.name)?.to_text()
+                ))
+            })
+            .collect();
+        if values.is_empty() {
+            block.identifier.to_string()
+        } else {
+            format!("{}[{}]", block.identifier, values.join(","))
+        }
     }
 }
