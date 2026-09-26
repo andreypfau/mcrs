@@ -30,6 +30,9 @@ mcrs_minecraft_worldgen_testing = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 
+[dev-dependencies]
+proptest = "1.11.0"
+
 [features]
 corpus = [
     "dep:mcrs_minecraft_block",

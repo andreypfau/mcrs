@@ -11,7 +11,10 @@ use mcrs_minecraft_light::prelude::*;
 use mcrs_minecraft_light::relax;
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_light_color::propagate::{Lanes, propagate};
-use mcrs_minecraft_light_color::region::{EdgeCosts, Palette, Region, section_output};
+use mcrs_minecraft_light_color::region::{
+    EdgeCosts, Palette, Region, Seed, section_bricks, section_output,
+};
+use proptest::prelude::*;
 
 pub const AIR: VoxelId = VoxelId(0);
 pub const STONE: VoxelId = VoxelId(1);
@@ -212,6 +215,179 @@ pub fn output_positions(centre: SectionPos) -> impl Iterator<Item = BlockPos> {
             (0..size).map(move |x| BlockPos::new(min.x + x, min.y + y, min.z + z))
         })
     })
+}
+
+/// The first cell where a brick of a section around `centre` differs from the
+/// edge costs or sources of the centre's region. Costs are compared where the
+/// cell and its six neighbours lie inside the region, sources wherever the
+/// cell does.
+pub fn brick_mismatch<'a>(
+    centre: SectionPos,
+    bounds: LightBounds,
+    registry: &LightRegistry,
+    colours: &LightColors,
+    cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+) -> Option<String> {
+    let (min, size) = section_output(centre);
+    let region = Region::new(min, size, bounds, registry, &cells);
+    let costs = EdgeCosts::new(&region, registry);
+    let width = SectionPos::SIZE as i32;
+    neighbours(centre).find_map(|section| {
+        let bricks = section_bricks(section, bounds, registry, colours, &cells);
+        LocalPos::all().find_map(|local| {
+            let at = [
+                section.x * width + local.x() as i32 - region.min.x,
+                section.y * width + local.y() as i32 - region.min.y,
+                section.z * width + local.z() as i32 - region.min.z,
+            ];
+            if at.iter().any(|&d| d < 0 || d >= region.size) {
+                return None;
+            }
+            let (i, cell) = (local.index(), region.index(at[0], at[1], at[2]));
+            let id = region.blocks[cell];
+            let emission = registry.emission(id);
+            let seed = match emission.is_zero() {
+                true => Seed::default(),
+                false => Seed {
+                    light_type: colours.light_type(id),
+                    emission: emission.get(),
+                },
+            };
+            let interior = at.iter().all(|&d| d > 0 && d + 1 < region.size);
+            let got = (bricks.entry[i], bricks.veto[i]);
+            let want = (costs.entry[cell], costs.veto[cell]);
+            (bricks.seeds[i] != seed || interior && got != want).then(|| {
+                format!(
+                    "{section:?} cell {i}: brick {got:?} {:?}, region {want:?} {seed:?}",
+                    bricks.seeds[i]
+                )
+            })
+        })
+    })
+}
+
+pub fn torch_on_a_floor(centre: SectionPos) -> Neighbourhood {
+    let mut world = Neighbourhood::air(centre);
+    let floor = centre.y * 16 + 2;
+    for z in -16..32 {
+        for x in -16..32 {
+            world.set(BlockPos::new(x, floor, z), STONE);
+        }
+    }
+    world.set(BlockPos::new(5, floor + 1, 5), TORCH);
+    world.set(BlockPos::new(6, floor + 1, 5), GLASS);
+    world
+}
+
+pub fn many_types(centre: SectionPos, count: u16) -> Neighbourhood {
+    let mut world = Neighbourhood::air(centre);
+    let base = centre.y * 16;
+    for x in -16..32 {
+        for z in -16..32 {
+            world.set(BlockPos::new(x, base + 3, z), STONE);
+        }
+        world.set(BlockPos::new(x, base + 8, 6), WATER);
+        world.set(BlockPos::new(x, base + 8, 7), LEAVES);
+    }
+    for i in 0..count {
+        let (x, z) = ((i % 7) as i32 * 2 + 1, (i / 7) as i32 * 2 + 1);
+        world.set(
+            BlockPos::new(x, base + 4 + (i % 3) as i32, z),
+            palette_block(i),
+        );
+    }
+    world
+}
+
+pub fn soul_and_lava_by_a_wall(centre: SectionPos) -> Neighbourhood {
+    let mut world = Neighbourhood::air(centre);
+    let base = centre.y * 16;
+    for y in base..base + 16 {
+        for z in -16..32 {
+            world.set(BlockPos::new(7, y, z), STONE);
+        }
+    }
+    world.set(BlockPos::new(7, base + 5, 5), BOTTOM_SLAB);
+    world.set(BlockPos::new(3, base + 5, 5), SOUL);
+    world.set(BlockPos::new(12, base + 2, 9), LAVA);
+    world
+}
+
+pub fn glowstone_among_torches(centre: SectionPos) -> (Neighbourhood, BlockPos) {
+    let mut world = Neighbourhood::air(centre);
+    let glowstone = BlockPos::new(8, centre.y * 16 + 8, 8);
+    world.set(glowstone, GLOWSTONE);
+    for dir in mcrs_minecraft_core::Direction::all() {
+        world.set(glowstone + dir.normal(), TORCH);
+    }
+    (world, glowstone)
+}
+
+pub fn unknown_blocks_by_a_torch(centre: SectionPos) -> (Neighbourhood, BlockPos) {
+    let mut world = torch_on_a_floor(centre);
+    let unknown = VoxelId(u16::MAX - 1);
+    let torch = BlockPos::new(5, centre.y * 16 + 3, 5);
+    let beside = BlockPos::new(4, torch.y, 5);
+    world.set(beside, unknown);
+    world.set(BlockPos::new(5, torch.y + 1, 5), unknown);
+    (world, beside)
+}
+
+fn placed_block() -> impl Strategy<Value = VoxelId> {
+    let weighted = [
+        (AIR, 10),
+        (STONE, 10),
+        (GLASS, 10),
+        (WATER, 10),
+        (LEAVES, 10),
+        (BOTTOM_SLAB, 10),
+        (TOP_SLAB, 10),
+        (STAIRS, 10),
+        (GLOWSTONE, 1),
+        (TORCH, 1),
+        (SOUL, 1),
+        (REDSTONE, 1),
+        (LAVA, 1),
+    ];
+    let pool: Vec<VoxelId> = weighted
+        .iter()
+        .flat_map(|&(block, weight)| std::iter::repeat_n(block, weight))
+        .collect();
+    prop::sample::select(pool)
+}
+
+/// Where the world's bounds cut the neighbourhood, the base fill of the centre
+/// and of each of the other 26 sections, and the blocks placed over it.
+pub type WorldParts = (u8, u8, Vec<u8>, Vec<(i32, i32, i32, VoxelId)>);
+
+pub fn world_parts() -> impl Strategy<Value = WorldParts> {
+    (
+        0..3u8,
+        0..4u8,
+        prop::collection::vec(0..5u8, 26),
+        prop::collection::vec((0..48i32, 0..48i32, 0..48i32, placed_block()), 0..=1500),
+    )
+}
+
+pub fn random_world(centre: SectionPos, parts: WorldParts) -> Neighbourhood {
+    let (place, centre_fill, fills, placements) = parts;
+    let bounds = match place {
+        0 => LightBounds::new(centre.y, centre.y + 6),
+        1 => LightBounds::new(centre.y - 6, centre.y),
+        _ => LightBounds::new(centre.y - 6, centre.y + 6),
+    };
+    let mut kinds = fills;
+    kinds.insert(13, centre_fill);
+    let mut world = Neighbourhood::filled(centre, bounds, |pos| {
+        let d = pos.0 - centre.0 + 1;
+        [Some(AIR), Some(STONE), Some(WATER), Some(LEAVES), None]
+            [kinds[(d.x + 3 * d.z + 9 * d.y) as usize] as usize]
+    });
+    let min = world.block_min();
+    for (x, y, z, block) in placements {
+        world.set(BlockPos::new(min.x + x, min.y + y, min.z + z), block);
+    }
+    world
 }
 
 /// Light of type `t` on the centre section's output, from the server's relax

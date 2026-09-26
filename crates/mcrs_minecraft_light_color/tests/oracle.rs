@@ -1,9 +1,7 @@
 mod common;
 
 use common::*;
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
-use mcrs_minecraft_light::level::LightBounds;
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::propagate::{Lanes, colour_section};
 use mcrs_minecraft_light_color::region::{Palette, Region, lane_bytes};
@@ -12,22 +10,9 @@ use proptest::prelude::*;
 
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
 
-fn torch_on_a_floor() -> Neighbourhood {
-    let mut world = Neighbourhood::air(CENTRE);
-    let floor = CENTRE.y * 16 + 2;
-    for z in -16..32 {
-        for x in -16..32 {
-            world.set(BlockPos::new(x, floor, z), STONE);
-        }
-    }
-    world.set(BlockPos::new(5, floor + 1, 5), TORCH);
-    world.set(BlockPos::new(6, floor + 1, 5), GLASS);
-    world
-}
-
 #[test]
 fn a_torch_lane_matches_the_server_rule() {
-    let world = torch_on_a_floor();
+    let world = torch_on_a_floor(CENTRE);
     let computed = compute(&world);
     assert_eq!(computed.palette.types, vec![TORCH_TYPE]);
     assert_eq!(lane_mismatch(&world, &computed, TORCH_TYPE), None);
@@ -35,7 +20,7 @@ fn a_torch_lane_matches_the_server_rule() {
 
 #[test]
 fn a_lone_torch_resolves_to_its_colour_and_dark_cells_to_the_default_weight() {
-    let world = torch_on_a_floor();
+    let world = torch_on_a_floor(CENTRE);
     let registry = registry();
     let texels = colour_section(CENTRE, world.bounds, &registry, &colours(), world.cells())
         .expect("a torch gives the section colour");
@@ -71,30 +56,10 @@ fn lane_bytes_follow_the_palette_size() {
     }
 }
 
-fn many_types(count: u16) -> Neighbourhood {
-    let mut world = Neighbourhood::air(CENTRE);
-    let base = CENTRE.y * 16;
-    for x in -16..32 {
-        for z in -16..32 {
-            world.set(BlockPos::new(x, base + 3, z), STONE);
-        }
-        world.set(BlockPos::new(x, base + 8, 6), WATER);
-        world.set(BlockPos::new(x, base + 8, 7), LEAVES);
-    }
-    for i in 0..count {
-        let (x, z) = ((i % 7) as i32 * 2 + 1, (i / 7) as i32 * 2 + 1);
-        world.set(
-            BlockPos::new(x, base + 4 + (i % 3) as i32, z),
-            palette_block(i),
-        );
-    }
-    world
-}
-
 #[test]
 fn sixteen_seventeen_and_forty_types_each_match_the_server_rule() {
     for (count, bytes) in [(16, 16), (17, 24), (40, 40)] {
-        let world = many_types(count);
+        let world = many_types(CENTRE, count);
         let computed = assert_lanes_match(&world);
         assert_eq!(computed.palette.types.len(), count as usize);
         assert_eq!(computed.lanes.bytes, bytes, "{count} types");
@@ -111,12 +76,7 @@ fn an_empty_region_has_no_colour() {
 
 #[test]
 fn opaque_emitters_keep_their_own_light() {
-    let mut world = Neighbourhood::air(CENTRE);
-    let glowstone = BlockPos::new(8, CENTRE.y * 16 + 8, 8);
-    world.set(glowstone, GLOWSTONE);
-    for dir in mcrs_minecraft_core::Direction::all() {
-        world.set(glowstone + dir.normal(), TORCH);
-    }
+    let (world, glowstone) = glowstone_among_torches(CENTRE);
     let computed = assert_lanes_match(&world);
     assert_eq!(computed.palette.types, vec![LightType::DEFAULT, TORCH_TYPE]);
     assert_eq!(computed.lanes.bytes, 2);
@@ -180,23 +140,9 @@ fn resolve_mixes_known_colours_by_the_light_weight() {
     assert_eq!(resolve_one(&[]), [0, 0, 0, 255]);
 }
 
-fn soul_and_lava_by_a_wall() -> Neighbourhood {
-    let mut world = Neighbourhood::air(CENTRE);
-    let base = CENTRE.y * 16;
-    for y in base..base + 16 {
-        for z in -16..32 {
-            world.set(BlockPos::new(7, y, z), STONE);
-        }
-    }
-    world.set(BlockPos::new(7, base + 5, 5), BOTTOM_SLAB);
-    world.set(BlockPos::new(3, base + 5, 5), SOUL);
-    world.set(BlockPos::new(12, base + 2, 9), LAVA);
-    world
-}
-
 #[test]
 fn nothing_is_retained_between_recomputes() {
-    let (a, b) = (torch_on_a_floor(), soul_and_lava_by_a_wall());
+    let (a, b) = (torch_on_a_floor(CENTRE), soul_and_lava_by_a_wall(CENTRE));
     let (registry, colours) = (registry(), colours());
     let run = |world: &Neighbourhood| {
         colour_section(CENTRE, world.bounds, &registry, &colours, world.cells()).unwrap()
@@ -210,12 +156,7 @@ fn nothing_is_retained_between_recomputes() {
 
 #[test]
 fn a_block_id_past_the_registry_is_opaque_and_uncoloured() {
-    let mut world = torch_on_a_floor();
-    let unknown = VoxelId(u16::MAX - 1);
-    let torch = BlockPos::new(5, CENTRE.y * 16 + 3, 5);
-    let beside = BlockPos::new(4, torch.y, 5);
-    world.set(beside, unknown);
-    world.set(BlockPos::new(5, torch.y + 1, 5), unknown);
+    let (world, beside) = unknown_blocks_by_a_torch(CENTRE);
     let computed = assert_lanes_match(&world);
     assert_eq!(computed.palette.types, vec![TORCH_TYPE]);
     let region = &computed.region;
@@ -228,62 +169,32 @@ fn a_block_id_past_the_registry_is_opaque_and_uncoloured() {
     assert!(colour_section(CENTRE, world.bounds, &registry(), &colours(), world.cells()).is_some());
 }
 
-fn placed_block() -> impl Strategy<Value = VoxelId> {
-    let weighted = [
-        (AIR, 10),
-        (STONE, 10),
-        (GLASS, 10),
-        (WATER, 10),
-        (LEAVES, 10),
-        (BOTTOM_SLAB, 10),
-        (TOP_SLAB, 10),
-        (STAIRS, 10),
-        (GLOWSTONE, 1),
-        (TORCH, 1),
-        (SOUL, 1),
-        (REDSTONE, 1),
-        (LAVA, 1),
+#[test]
+fn every_brick_matches_the_region_edge_costs() {
+    let worlds = [
+        torch_on_a_floor(CENTRE),
+        soul_and_lava_by_a_wall(CENTRE),
+        many_types(CENTRE, 40),
+        glowstone_among_torches(CENTRE).0,
+        unknown_blocks_by_a_torch(CENTRE).0,
+        Neighbourhood::air(CENTRE),
     ];
-    let pool: Vec<VoxelId> = weighted
-        .iter()
-        .flat_map(|&(block, weight)| std::iter::repeat_n(block, weight))
-        .collect();
-    prop::sample::select(pool)
-}
-
-fn base_fill(kind: u8) -> Option<VoxelId> {
-    [Some(AIR), Some(STONE), Some(WATER), Some(LEAVES), None][kind as usize]
-}
-
-fn world_bounds(place: u8) -> LightBounds {
-    match place {
-        0 => LightBounds::new(CENTRE.y, CENTRE.y + 6),
-        1 => LightBounds::new(CENTRE.y - 6, CENTRE.y),
-        _ => LightBounds::new(CENTRE.y - 6, CENTRE.y + 6),
+    let (registry, colours) = (registry(), colours());
+    for world in &worlds {
+        let found = brick_mismatch(CENTRE, world.bounds, &registry, &colours, world.cells());
+        assert_eq!(found, None);
     }
 }
 
 proptest! {
     #[test]
-    fn every_lane_matches_the_server_rule_on_random_regions(
-        place in 0..3u8,
-        centre_fill in 0..4u8,
-        fills in prop::collection::vec(0..5u8, 26),
-        placements in prop::collection::vec((0..48i32, 0..48i32, 0..48i32, placed_block()), 0..=1500),
-    ) {
-        let mut kinds = fills;
-        kinds.insert(13, centre_fill);
-        let mut world = Neighbourhood::filled(CENTRE, world_bounds(place), |pos| {
-            let d = pos.0 - CENTRE.0 + 1;
-            base_fill(kinds[(d.x + 3 * d.z + 9 * d.y) as usize])
-        });
-        let min = world.block_min();
-        for (x, y, z, block) in placements {
-            world.set(BlockPos::new(min.x + x, min.y + y, min.z + z), block);
-        }
+    fn every_lane_matches_the_server_rule_on_random_regions(parts in world_parts()) {
+        let world = random_world(CENTRE, parts);
         let computed = compute(&world);
         for &t in &computed.palette.types {
             prop_assert_eq!(lane_mismatch(&world, &computed, t), None);
         }
+        let found = brick_mismatch(CENTRE, world.bounds, &registry(), &colours(), world.cells());
+        prop_assert_eq!(found, None);
     }
 }

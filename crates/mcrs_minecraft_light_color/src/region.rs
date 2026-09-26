@@ -45,7 +45,16 @@ impl Region {
             output_min.y - REACH,
             output_min.z - REACH,
         );
-        let size = output_size + 2 * REACH;
+        Region::covering(min, output_size + 2 * REACH, bounds, registry, cells)
+    }
+
+    pub fn covering<'a>(
+        min: BlockPos,
+        size: i32,
+        bounds: LightBounds,
+        registry: &LightRegistry,
+        cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+    ) -> Region {
         let max = BlockPos::new(min.x + size - 1, min.y + size - 1, min.z + size - 1);
         let mut region = Region {
             min,
@@ -192,4 +201,51 @@ pub fn lane_bytes(types: usize) -> usize {
         3..=4 => 4,
         _ => types.div_ceil(8) * 8,
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Seed {
+    pub light_type: LightType,
+    pub emission: u8,
+}
+
+/// One section's cells, x fastest then z then y. Where a region's cell and its
+/// six neighbours all lie inside it, these equal that region's `EdgeCosts`, so
+/// a region can be assembled from the bricks of the sections it covers.
+pub struct SectionBricks {
+    pub entry: Box<[u8]>,
+    pub veto: Box<[u8]>,
+    pub seeds: Box<[Seed]>,
+}
+
+pub fn section_bricks<'a>(
+    section: SectionPos,
+    bounds: LightBounds,
+    registry: &LightRegistry,
+    colours: &LightColors,
+    cells: impl Fn(SectionPos) -> Option<&'a [u16; SectionPos::VOLUME]>,
+) -> SectionBricks {
+    let (min, size) = section_output(section);
+    let region = Region::covering(min, size, bounds, registry, cells);
+    let costs = EdgeCosts::new(&region, registry);
+    let mut bricks = SectionBricks {
+        entry: vec![0; SectionPos::VOLUME].into_boxed_slice(),
+        veto: vec![0; SectionPos::VOLUME].into_boxed_slice(),
+        seeds: vec![Seed::default(); SectionPos::VOLUME].into_boxed_slice(),
+    };
+    for local in 0..SectionPos::VOLUME {
+        let (x, z, y) = (local & 15, local >> 4 & 15, local >> 8);
+        let cell = region.index(1 + x as i32, 1 + y as i32, 1 + z as i32);
+        let id = region.blocks[cell];
+        bricks.entry[local] = costs.entry[cell];
+        bricks.veto[local] = costs.veto[cell];
+        let emission = registry.emission(id);
+        if !emission.is_zero() {
+            bricks.seeds[local] = Seed {
+                light_type: colours.light_type(id),
+                emission: emission.get(),
+            };
+        }
+    }
+    bricks
 }

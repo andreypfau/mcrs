@@ -1,13 +1,13 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use bevy_math::IVec3;
 use futures_lite::future::block_on;
-use mcrs_minecraft_core::{BlockPos, SectionPos};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::propagate::Lanes;
-use mcrs_minecraft_light_color::region::{EdgeCosts, Palette, REACH, Region, section_output};
+use mcrs_minecraft_light_color::region::{Palette, REACH, Region, section_bricks, section_output};
 use mcrs_minecraft_light_color::resolve::resolve;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
@@ -34,7 +34,7 @@ pub struct Gpu {
     cut: wgpu::ComputePipeline,
     timestamps: Mutex<wgpu::QuerySet>,
     period_ns: f64,
-    uploaded: Mutex<HashMap<String, wgpu::Buffer>>,
+    uploaded: Mutex<Option<(Vec<u32>, wgpu::Buffer)>>,
 }
 
 pub fn gpu() -> &'static Gpu {
@@ -61,39 +61,27 @@ pub struct Bricks {
 
 impl Bricks {
     pub fn new(scene: &Scene) -> Bricks {
-        let (registry, colours) = (&scene.registry, &scene.colours);
-        let scene_min = scene.origin.0 * WIDTH;
-        let region = Region::new(
-            BlockPos::new(
-                scene_min.x + REACH,
-                scene_min.y + REACH,
-                scene_min.z + REACH,
-            ),
-            SIDE * WIDTH - 2 * REACH,
-            scene.bounds,
-            registry,
-            scene.cells(),
-        );
-        let costs = EdgeCosts::new(&region, registry);
-
         let mut cells = vec![0u32; SECTIONS * BRICK];
         let mut zones = vec![BTreeMap::new(); SECTIONS];
         for (slot, zones) in zones.iter_mut().enumerate() {
-            let base = (scene.section_at(slot).0 - scene.origin.0) * WIDTH;
+            let bricks = section_bricks(
+                scene.section_at(slot),
+                scene.bounds,
+                &scene.registry,
+                &scene.colours,
+                scene.cells(),
+            );
             for local in 0..BRICK {
-                let (x, z, y) = (local & 15, (local >> 4) & 15, local >> 8);
-                let cell = region.index(base.x + x as i32, base.y + y as i32, base.z + z as i32);
-                let id = region.blocks[cell];
-                let entry = costs.entry[cell];
-                assert!(entry <= 15, "entering {id:?} costs {entry}, past four bits");
-                let emission = registry.emission(id).get();
-                let t = colours.light_type(id);
+                let (entry, seed) = (bricks.entry[local], bricks.seeds[local]);
+                assert!(entry <= 15, "entering a cell costs {entry}, past four bits");
                 cells[slot * BRICK + local] = entry as u32
-                    | (costs.veto[cell] as u32) << 4
-                    | (emission as u32) << 8
-                    | (t.0 as u32) << 16;
-                if emission > 0 {
-                    *zones.entry(t).or_default() |= 1 << (zone(x) + 3 * zone(z) + 9 * zone(y));
+                    | (bricks.veto[local] as u32) << 4
+                    | (seed.emission as u32) << 8
+                    | (seed.light_type.0 as u32) << 16;
+                if seed.emission > 0 {
+                    let (x, z, y) = (local & 15, (local >> 4) & 15, local >> 8);
+                    *zones.entry(seed.light_type).or_default() |=
+                        1 << (zone(x) + 3 * zone(z) + 9 * zone(y));
                 }
             }
         }
@@ -245,19 +233,21 @@ impl Gpu {
             return None;
         }
 
-        let uploaded = self
-            .uploaded
-            .lock()
-            .unwrap()
-            .entry(scene.name.clone())
-            .or_insert_with(|| {
-                self.device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("bricks"),
-                    contents: bytemuck::cast_slice(&bricks.cells),
-                    usage: wgpu::BufferUsages::STORAGE,
-                })
-            })
-            .clone();
+        let uploaded = {
+            let mut uploaded = self.uploaded.lock().unwrap();
+            match &*uploaded {
+                Some((cells, buffer)) if *cells == bricks.cells => buffer.clone(),
+                _ => {
+                    let buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+                        label: Some("bricks"),
+                        contents: bytemuck::cast_slice(&bricks.cells),
+                        usage: wgpu::BufferUsages::STORAGE,
+                    });
+                    *uploaded = Some((bricks.cells, buffer.clone()));
+                    buffer
+                }
+            }
+        };
         let words = palette.types.len().div_ceil(4);
         let base = (section.0 - scene.origin.0) * WIDTH - (REACH + 1);
         let (min, size) = section_output(section);
