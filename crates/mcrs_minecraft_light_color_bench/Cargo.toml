@@ -50,6 +50,10 @@ corpus = [
 name = "cut_fixture"
 required-features = ["corpus"]
 
+[[bin]]
+name = "scene"
+required-features = ["corpus"]
+
 [[test]]
 name = "corpus"
 required-features = ["corpus"]

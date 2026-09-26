@@ -3,6 +3,7 @@ mod chunk;
 pub mod fixture;
 mod palette;
 mod region;
+mod write;
 
 #[cfg(test)]
 mod tests;
@@ -10,6 +11,7 @@ mod tests;
 pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
+pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;
 
@@ -130,4 +132,20 @@ pub enum ErrorKind {
         field: &'static str,
         found: usize,
     },
+    #[error("block {x},{y},{z} is not in chunk {chunk_x},{chunk_z}")]
+    BlockOutsideChunk {
+        x: i32,
+        y: i32,
+        z: i32,
+        chunk_x: i32,
+        chunk_z: i32,
+    },
+    #[error("chunk {x},{z} holds no block states for section {section_y}")]
+    NoBlockStates { x: i32, z: i32, section_y: i32 },
+    #[error("section {y}: `{field}` holds id {id}, which the palette names never handed out")]
+    UnnamedPaletteId { y: i8, field: &'static str, id: u16 },
+    #[error("region {x},{z} cannot be written under another region's file name")]
+    OtherRegionName { x: i32, z: i32 },
+    #[error("refusing to replace {source_path}, the file the region was read from")]
+    WriteOntoSource { source_path: PathBuf },
 }
