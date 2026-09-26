@@ -12,10 +12,15 @@ use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::Items;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 pub fn blocks() -> &'static Blocks {
     &mcrs_minecraft_item::definition::test_corpus().0
+}
+
+pub fn items() -> &'static Items {
+    &mcrs_minecraft_item::definition::test_corpus().1
 }
 
 pub fn asset_server() -> &'static AssetServer {
