@@ -190,8 +190,9 @@ fn main() {
          block-light RGB against the server's relax per light type, resolved the same way, over \
          cells whose server level is above 0. The join estimate is the mean per lit section \
          times the lit share of the 27 inner sections, times 65² columns, times the dimension's \
-         section count. `gpu`'s propagation is GPU time from timestamp queries, its costs are \
-         part of its bricks, and its peak memory is the device buffers one section holds.\n\n\
+         section count. `gpu`'s propagation is GPU time from timestamp queries and includes its \
+         resolve, its costs are part of its bricks, and its peak memory is the device buffers \
+         and atlas one section holds.\n\n\
          {table}\n\
          Server level against relax over every light type on the 27 inner sections:\n\n\
          {notes}\n\

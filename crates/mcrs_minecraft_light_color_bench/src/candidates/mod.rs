@@ -44,16 +44,19 @@ pub struct Candidate {
 
 pub const CANDIDATES: &[Candidate] = &[Candidate {
     name: "gpu",
-    note: "Exact: waves over byte lanes on the GPU, four lanes to a 32-bit word. Each section's \
-           16³ brick holds, per cell, the entry cost and the three face vetoes from the region's \
-           edge costs, and the emission and light type. A gather dispatch assembles a section's \
-           46³ region from the 27 bricks around it, 15 wave dispatches propagate it, and a cut \
-           dispatch leaves the 18³ output, which is read back and resolved on the CPU. Snapshot \
-           is the CPU brick build for the scene charged a 125th per section, plus the section's \
-           palette; costs are part of the bricks; propagation is GPU time from timestamp queries \
-           around the one compute pass. Peak memory is the device buffers one section holds, its \
-           brick included. Reads only the blocks. The production form would live in the deferred \
-           renderer; the browser's cost is not measured here.",
+    note: "Exact: the deferred renderer's colour kernel, waves over byte lanes on the GPU, four \
+           lanes to a 32-bit word. Each section's 16³ brick holds, per cell, the entry cost and \
+           the three face vetoes from the region's edge costs, and the emission and light type. \
+           A section that is not loaded or lies above the world has no brick and reads as a \
+           sentinel slot; one below the world has a brick of its own. A gather dispatch assembles \
+           a section's 46³ region from the 27 slots around it, 15 wave dispatches propagate it, \
+           and a resolve dispatch mixes the lanes of the 18³ output into Rgba8Unorm texels in a \
+           3D atlas slot, with no CPU resolve. The palette holds only the light types whose \
+           emitters can reach the output. Snapshot is the CPU brick build for the scene charged \
+           a 125th per section, plus the section's palette and job record; costs are part of the \
+           bricks; propagation is GPU time from timestamp queries around the one compute pass, \
+           resolve included. Peak memory is the device buffers and atlas one section holds, its \
+           brick included. Reads only the blocks. The browser's cost is not measured here.",
     redundancy: cube(46.0) / cube(18.0),
     run: gpu::run,
 }];

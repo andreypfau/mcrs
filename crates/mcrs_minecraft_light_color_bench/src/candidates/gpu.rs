@@ -46,6 +46,10 @@ pub fn run(scene: &Scene, section: SectionPos, stages: &mut Stages) -> Option<Ou
     gpu().run(scene, section, stages)
 }
 
+pub fn run_batch(scene: &Scene, sections: &[SectionPos]) -> Vec<Option<Outcome>> {
+    gpu().run_batch(scene, sections)
+}
+
 /// The scene's sections as the renderer holds them: a brick per loaded section
 /// and per section below the world, and a sentinel slot for the rest.
 pub struct Pool {
@@ -348,6 +352,20 @@ impl Gpu {
         stages.device_memory = dispatched.device_memory + BRICK_BYTES;
         stages.round_trip = dispatched.round_trip;
         Some(dispatched.outcome(&jobs.list[job]))
+    }
+
+    /// Every section some light reaches as one job of a single dispatch per stage.
+    pub fn run_batch(&self, scene: &Scene, sections: &[SectionPos]) -> Vec<Option<Outcome>> {
+        let pool = Pool::new(scene);
+        let jobs = Jobs::plan(&pool, scene, sections);
+        if jobs.list.is_empty() {
+            return sections.iter().map(|_| None).collect();
+        }
+        let dispatched = self.dispatch(&self.upload(pool.words), &jobs);
+        jobs.of_section
+            .iter()
+            .map(|job| job.map(|job| dispatched.outcome(&jobs.list[job])))
+            .collect()
     }
 
     fn upload(&self, words: Vec<u32>) -> wgpu::Buffer {

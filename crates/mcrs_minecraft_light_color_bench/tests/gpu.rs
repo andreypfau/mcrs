@@ -9,7 +9,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
-use mcrs_minecraft_light_color_bench::candidates::gpu::run;
+use mcrs_minecraft_light_color_bench::candidates::gpu::{run, run_batch};
 use mcrs_minecraft_light_color_bench::candidates::{Outcome, Stages, mismatch};
 use mcrs_minecraft_light_color_bench::fixture::{
     Fixture, SECTIONS, Scene, fixtures_dir, oracle, scene,
@@ -109,6 +109,39 @@ fn every_gpu_texel_is_within_one_of_the_cpu_resolve_on_every_scene() {
         println!(
             "{name}: {differ} of {texels} texels differ from the CPU resolve, by at most {largest}"
         );
+    }
+}
+
+#[test]
+fn merged_dispatches_equal_single_ones_on_every_scene() {
+    for name in ["nether_lava", "caves", "overlap"] {
+        let scene = scene(name);
+        let sections: Vec<SectionPos> = scene.inner().collect();
+        let merged = run_batch(&scene, &sections);
+        assert_eq!(merged.len(), sections.len());
+        let mut lit = 0;
+        for (&section, merged) in sections.iter().zip(merged) {
+            match (run(&scene, section, &mut Stages::default()), merged) {
+                (None, None) => {}
+                (Some(single), Some(merged)) => {
+                    lit += 1;
+                    assert!(
+                        single.lanes == merged.lanes,
+                        "{name}: {section:?} lanes differ"
+                    );
+                    assert!(
+                        single.texels == merged.texels,
+                        "{name}: {section:?} texels differ"
+                    );
+                }
+                (single, merged) => panic!(
+                    "{name}: {section:?} is lit alone: {}, merged: {}",
+                    single.is_some(),
+                    merged.is_some()
+                ),
+            }
+        }
+        assert!(lit > 1, "{name} merges fewer than two jobs");
     }
 }
 
