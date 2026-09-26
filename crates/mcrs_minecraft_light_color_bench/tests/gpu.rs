@@ -6,8 +6,9 @@ use std::time::Duration;
 use bevy_math::IVec3;
 use common::{Neighbourhood, TORCH_TYPE};
 use mcrs_minecraft_core::{BlockPos, SectionPos};
-use mcrs_minecraft_light_color::colors::LightType;
+use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
+use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use mcrs_minecraft_light_color_bench::candidates::gpu::run;
 use mcrs_minecraft_light_color_bench::candidates::{Outcome, Stages, mismatch};
 use mcrs_minecraft_light_color_bench::fixture::{
@@ -60,16 +61,18 @@ fn every_gpu_lane_matches_the_server_rule_on_every_scene() {
             let types = Palette::of(&region, &scene.registry, &scene.colours).types;
             let mut stages = Stages::default();
             let Some(outcome) = run(&scene, section, &mut stages) else {
-                assert!(
-                    types.is_empty(),
-                    "{name}: {section:?} has light but no outcome"
-                );
+                if let Some(problem) = reach_breach(&[], &types, |t| oracle(&scene, section, t)) {
+                    panic!("{name}: {section:?} has no outcome, but {problem}");
+                }
                 continue;
             };
             lit += 1;
             let lanes = outcome.lanes.expect("the GPU keeps its lanes");
             let lane_types: Vec<LightType> = lanes.iter().map(|(t, _)| *t).collect();
-            assert_eq!(lane_types, types, "{name}: {section:?} has another palette");
+            if let Some(problem) = reach_breach(&lane_types, &types, |t| oracle(&scene, section, t))
+            {
+                panic!("{name}: {section:?}: {problem}");
+            }
             if let Some(first) = mismatch(section, &lanes, |t| oracle(&scene, section, t)) {
                 panic!("{name}: section, cell, type, lane, relax: {first}");
             }
@@ -80,6 +83,110 @@ fn every_gpu_lane_matches_the_server_rule_on_every_scene() {
         }
         assert!(lit > 0, "{name} has no section the GPU lights");
     }
+}
+
+#[test]
+fn every_gpu_texel_is_within_one_of_the_cpu_resolve_on_every_scene() {
+    for name in ["nether_lava", "caves", "overlap"] {
+        let scene = scene(name);
+        let (mut lit, mut texels, mut differ, mut largest) = (0, 0, 0, 0);
+        for section in scene.inner() {
+            let Some(outcome) = run(&scene, section, &mut Stages::default()) else {
+                continue;
+            };
+            lit += 1;
+            let found = texel_mismatch(section, &outcome, &scene.colours, |t| {
+                oracle(&scene, section, t)
+            });
+            if let Some(first) = found.first {
+                panic!("{name}: {first}");
+            }
+            texels += outcome.texels.len();
+            differ += found.differ;
+            largest = largest.max(found.largest);
+        }
+        assert!(lit > 0, "{name} has no section the GPU lights");
+        println!(
+            "{name}: {differ} of {texels} texels differ from the CPU resolve, by at most {largest}"
+        );
+    }
+}
+
+/// Where the job's palette breaks the reach contract: a type in it that no
+/// emitter in the region has, or a type left out that lights the output.
+fn reach_breach(
+    lane_types: &[LightType],
+    region_types: &[LightType],
+    want: impl Fn(LightType) -> Vec<u8>,
+) -> Option<String> {
+    if let Some(t) = lane_types.iter().find(|t| !region_types.contains(t)) {
+        return Some(format!(
+            "type {} has a lane but no emitter in the region",
+            t.0
+        ));
+    }
+    region_types
+        .iter()
+        .filter(|t| !lane_types.contains(t))
+        .find(|&&t| want(t).iter().any(|&level| level > 0))
+        .map(|t| format!("type {} lights the output but has no lane", t.0))
+}
+
+struct TexelMismatch {
+    first: Option<String>,
+    differ: usize,
+    largest: u8,
+}
+
+/// The GPU's texels against the CPU resolve of the server's levels over the
+/// job's palette: every channel within 1, and every unlit cell exactly unlit.
+fn texel_mismatch(
+    section: SectionPos,
+    outcome: &Outcome,
+    colours: &LightColors,
+    want: impl Fn(LightType) -> Vec<u8>,
+) -> TexelMismatch {
+    let types: Vec<LightType> = outcome.lanes.iter().flatten().map(|(t, _)| *t).collect();
+    let (min, size) = section_output(section);
+    let levels: Vec<Vec<u8>> = types.iter().map(|&t| want(t)).collect();
+    let lanes = Lanes {
+        bytes: types.len(),
+        levels: (0..size.pow(3) as usize)
+            .flat_map(|cell| levels.iter().map(move |lane| lane[cell]))
+            .collect(),
+    };
+    let output = Region {
+        min,
+        size,
+        blocks: Box::default(),
+    };
+    let cpu = resolve(&output, &lanes, &Palette { types }, colours, min, size);
+    let mut found = TexelMismatch {
+        first: None,
+        differ: 0,
+        largest: 0,
+    };
+    for (cell, ((pos, got), want)) in common::output_positions(section)
+        .zip(outcome.texels.iter())
+        .zip(cpu.iter())
+        .enumerate()
+    {
+        let unlit = levels.iter().all(|lane| lane[cell] == 0);
+        let delta = got
+            .iter()
+            .zip(want)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap();
+        found.differ += (delta > 0) as usize;
+        found.largest = found.largest.max(delta);
+        if found.first.is_none() && (delta > 1 || unlit && *got != [0, 0, 0, 255]) {
+            found.first = Some(format!(
+                "at {pos} the GPU texel is {got:?}, the CPU's {want:?}"
+            ));
+        }
+    }
+    found
 }
 
 fn scene_of(world: &Neighbourhood) -> Scene {
@@ -98,8 +205,8 @@ fn scene_of(world: &Neighbourhood) -> Scene {
     scene
 }
 
-/// The GPU's outcome for the world's centre section, once its palette and
-/// every lane are checked against the server's relax.
+/// The GPU's outcome for the world's centre section, once its palette, every
+/// lane and every texel are checked against the server's relax.
 fn gpu_matches_relax(world: &Neighbourhood) -> Option<Outcome> {
     let scene = scene_of(world);
     let (min, size) = section_output(world.centre);
@@ -110,9 +217,19 @@ fn gpu_matches_relax(world: &Neighbourhood) -> Option<Outcome> {
         o.lanes.as_deref().expect("the GPU keeps its lanes")
     });
     let lane_types: Vec<LightType> = lanes.iter().map(|(t, _)| *t).collect();
-    assert_eq!(lane_types, types);
+    if let Some(problem) = reach_breach(&lane_types, &types, |t| common::oracle(world, t)) {
+        panic!("{problem}");
+    }
     if let Some(first) = mismatch(world.centre, lanes, |t| common::oracle(world, t)) {
         panic!("section, cell, type, lane, relax: {first}");
+    }
+    if let Some(outcome) = &outcome {
+        let found = texel_mismatch(world.centre, outcome, &scene.colours, |t| {
+            common::oracle(world, t)
+        });
+        if let Some(first) = found.first {
+            panic!("{first}");
+        }
     }
     outcome
 }
