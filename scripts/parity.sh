@@ -33,6 +33,8 @@ scenes_file=${2:-$root/scripts/parity-scenes.txt}
 
 token_re='^MCRS_[A-Z0-9_]+=[A-Za-z0-9_.,+-]*$'
 dimension_re='^[a-z_]+$'
+scene_re='^[a-z0-9_]+$'
+uses_scenes=0
 names=()
 settings=()
 while IFS= read -r line || [ -n "$line" ]; do
@@ -46,9 +48,14 @@ while IFS= read -r line || [ -n "$line" ]; do
     for token in "${words[@]:1}"; do
         if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]] ||
             { [[ $token == MCRS_DIMENSION=* ]] && ! [[ ${token#MCRS_DIMENSION=} =~ $dimension_re ]]; } ||
+            { [[ $token == MCRS_SCENE=* ]] && { ! [[ ${token#MCRS_SCENE=} =~ $scene_re ]] ||
+                [ ! -f "$root/scripts/scenes/${token#MCRS_SCENE=}.json" ]; }; } ||
             { [ $paths -eq 1 ] && [[ $token == MCRS_RENDER_PATH=* || $token == MCRS_PARITY_MASK=* ]]; }; then
             echo "scene $name: rejected token $token" >&2
             exit 1
+        fi
+        if [[ $token == MCRS_SCENE=* ]]; then
+            uses_scenes=1
         fi
     done
     names+=("$name")
@@ -84,6 +91,11 @@ echo "building head from the working tree" >&2
 CARGO_TARGET_DIR=$root/target cargo build --release -p mcrs_minecraft_client \
     --manifest-path "$root/Cargo.toml"
 cp "$root/target/release/mcrs_minecraft_client" "$tmp/head"
+if [ $uses_scenes -eq 1 ]; then
+    CARGO_TARGET_DIR=$root/target cargo build --release -p mcrs_minecraft_light_color_bench \
+        --features corpus --bin scene --manifest-path "$root/Cargo.toml"
+    cp "$root/target/release/scene" "$tmp/scene"
+fi
 
 if [ $paths -eq 0 ]; then
     echo "building base $base" >&2
@@ -135,14 +147,20 @@ run() {
     rm -rf "$tmp/run"
     mkdir -p "$tmp/run" "$out/$scene"
     cp -R "$world" "$tmp/run/world"
-    local dimension=overworld
+    local dimension=overworld scene_file=
     for knob in ${knobs[@]+"${knobs[@]}"}; do
         case $knob in
             MCRS_POS=*) place_players "$tmp/run/world" "${knob#MCRS_POS=}" ;;
             MCRS_DIMENSION=*) dimension=${knob#MCRS_DIMENSION=} ;;
+            MCRS_SCENE=*) scene_file=$root/scripts/scenes/${knob#MCRS_SCENE=}.json ;;
         esac
     done
     place_dimension "$tmp/run/world" "$dimension"
+    if [ -n "$scene_file" ] && ! "$tmp/scene" apply "$scene_file" "$world" "$tmp/run/world" \
+        > "$out/$scene/$side.scene.log" 2>&1; then
+        echo "scene $scene: building the $side world failed, see $out/$scene/$side.scene.log" >&2
+        return
+    fi
     echo "scene $scene: $side" >&2
     if ! (cd "$tmp/run" && env MCRS_RESOLUTION=1280x720 MCRS_VIEW=10 MCRS_HOT=1 \
         ${knobs[@]+"${knobs[@]}"} "$@" MCRS_CAPTURE="$out/$scene/$side.png" \
