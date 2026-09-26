@@ -38,6 +38,7 @@ bevy = [
 
 [dev-dependencies]
 bevy_math.workspace = true
+proptest = "1.11.0"
 serde_json.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

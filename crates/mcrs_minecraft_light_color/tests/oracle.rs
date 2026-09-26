@@ -1,11 +1,14 @@
 mod common;
 
 use common::*;
+use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
+use mcrs_minecraft_light::level::LightBounds;
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::propagate::{Lanes, colour_section};
 use mcrs_minecraft_light_color::region::{Palette, Region, lane_bytes};
 use mcrs_minecraft_light_color::resolve::{light_weight, resolve};
+use proptest::prelude::*;
 
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
 
@@ -208,7 +211,7 @@ fn nothing_is_retained_between_recomputes() {
 #[test]
 fn a_block_id_past_the_registry_is_opaque_and_uncoloured() {
     let mut world = torch_on_a_floor();
-    let unknown = mcrs_minecraft_chunk::VoxelId(u16::MAX - 1);
+    let unknown = VoxelId(u16::MAX - 1);
     let torch = BlockPos::new(5, CENTRE.y * 16 + 3, 5);
     let beside = BlockPos::new(4, torch.y, 5);
     world.set(beside, unknown);
@@ -223,4 +226,64 @@ fn a_block_id_past_the_registry_is_opaque_and_uncoloured() {
     );
     assert_eq!(computed.lanes.level(cell, 0), 0);
     assert!(colour_section(CENTRE, world.bounds, &registry(), &colours(), world.cells()).is_some());
+}
+
+fn placed_block() -> impl Strategy<Value = VoxelId> {
+    let weighted = [
+        (AIR, 10),
+        (STONE, 10),
+        (GLASS, 10),
+        (WATER, 10),
+        (LEAVES, 10),
+        (BOTTOM_SLAB, 10),
+        (TOP_SLAB, 10),
+        (STAIRS, 10),
+        (GLOWSTONE, 1),
+        (TORCH, 1),
+        (SOUL, 1),
+        (REDSTONE, 1),
+        (LAVA, 1),
+    ];
+    let pool: Vec<VoxelId> = weighted
+        .iter()
+        .flat_map(|&(block, weight)| std::iter::repeat_n(block, weight))
+        .collect();
+    prop::sample::select(pool)
+}
+
+fn base_fill(kind: u8) -> Option<VoxelId> {
+    [Some(AIR), Some(STONE), Some(WATER), Some(LEAVES), None][kind as usize]
+}
+
+fn world_bounds(place: u8) -> LightBounds {
+    match place {
+        0 => LightBounds::new(CENTRE.y, CENTRE.y + 6),
+        1 => LightBounds::new(CENTRE.y - 6, CENTRE.y),
+        _ => LightBounds::new(CENTRE.y - 6, CENTRE.y + 6),
+    }
+}
+
+proptest! {
+    #[test]
+    fn every_lane_matches_the_server_rule_on_random_regions(
+        place in 0..3u8,
+        centre_fill in 0..4u8,
+        fills in prop::collection::vec(0..5u8, 26),
+        placements in prop::collection::vec((0..48i32, 0..48i32, 0..48i32, placed_block()), 0..=1500),
+    ) {
+        let mut kinds = fills;
+        kinds.insert(13, centre_fill);
+        let mut world = Neighbourhood::filled(CENTRE, world_bounds(place), |pos| {
+            let d = pos.0 - CENTRE.0 + 1;
+            base_fill(kinds[(d.x + 3 * d.z + 9 * d.y) as usize])
+        });
+        let min = world.block_min();
+        for (x, y, z, block) in placements {
+            world.set(BlockPos::new(min.x + x, min.y + y, min.z + z), block);
+        }
+        let computed = compute(&world);
+        for &t in &computed.palette.types {
+            prop_assert_eq!(lane_mismatch(&world, &computed, t), None);
+        }
+    }
 }
