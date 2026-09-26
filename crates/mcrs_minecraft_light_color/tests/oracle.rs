@@ -2,7 +2,10 @@ mod common;
 
 use common::*;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
-use mcrs_minecraft_light_color::propagate::colour_section;
+use mcrs_minecraft_light_color::colors::LightType;
+use mcrs_minecraft_light_color::propagate::{Lanes, colour_section};
+use mcrs_minecraft_light_color::region::{Palette, Region, lane_bytes};
+use mcrs_minecraft_light_color::resolve::{light_weight, resolve};
 
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
 
@@ -44,4 +47,180 @@ fn a_lone_torch_resolves_to_its_colour_and_dark_cells_to_the_default_weight() {
         };
         assert_eq!(*texel, expected, "at {pos} with level {level}");
     }
+}
+
+#[test]
+fn lane_bytes_follow_the_palette_size() {
+    let widths = [
+        (0, 0),
+        (1, 1),
+        (2, 2),
+        (3, 4),
+        (5, 8),
+        (8, 8),
+        (9, 16),
+        (16, 16),
+        (17, 24),
+        (40, 40),
+    ];
+    for (types, bytes) in widths {
+        assert_eq!(lane_bytes(types), bytes, "{types} types");
+    }
+}
+
+fn many_types(count: u16) -> Neighbourhood {
+    let mut world = Neighbourhood::air(CENTRE);
+    let base = CENTRE.y * 16;
+    for x in -16..32 {
+        for z in -16..32 {
+            world.set(BlockPos::new(x, base + 3, z), STONE);
+        }
+        world.set(BlockPos::new(x, base + 8, 6), WATER);
+        world.set(BlockPos::new(x, base + 8, 7), LEAVES);
+    }
+    for i in 0..count {
+        let (x, z) = ((i % 7) as i32 * 2 + 1, (i / 7) as i32 * 2 + 1);
+        world.set(
+            BlockPos::new(x, base + 4 + (i % 3) as i32, z),
+            palette_block(i),
+        );
+    }
+    world
+}
+
+#[test]
+fn sixteen_seventeen_and_forty_types_each_match_the_server_rule() {
+    for (count, bytes) in [(16, 16), (17, 24), (40, 40)] {
+        let world = many_types(count);
+        let computed = assert_lanes_match(&world);
+        assert_eq!(computed.palette.types.len(), count as usize);
+        assert_eq!(computed.lanes.bytes, bytes, "{count} types");
+    }
+}
+
+#[test]
+fn an_empty_region_has_no_colour() {
+    let world = Neighbourhood::air(CENTRE);
+    let colour = colour_section(CENTRE, world.bounds, &registry(), &colours(), world.cells());
+    assert!(colour.is_none());
+    assert_eq!(compute(&world).lanes.bytes, 0);
+}
+
+#[test]
+fn opaque_emitters_keep_their_own_light() {
+    let mut world = Neighbourhood::air(CENTRE);
+    let glowstone = BlockPos::new(8, CENTRE.y * 16 + 8, 8);
+    world.set(glowstone, GLOWSTONE);
+    for dir in mcrs_minecraft_core::Direction::all() {
+        world.set(glowstone + dir.normal(), TORCH);
+    }
+    let computed = assert_lanes_match(&world);
+    assert_eq!(computed.palette.types, vec![LightType::DEFAULT, TORCH_TYPE]);
+    assert_eq!(computed.lanes.bytes, 2);
+    let region = &computed.region;
+    let cell = region.index(
+        glowstone.x - region.min.x,
+        glowstone.y - region.min.y,
+        glowstone.z - region.min.z,
+    );
+    let default = computed.palette.lane(LightType::DEFAULT).unwrap();
+    let torch = computed.palette.lane(TORCH_TYPE).unwrap();
+    assert_eq!(computed.lanes.level(cell, default), 15);
+    assert_eq!(computed.lanes.level(cell, torch), 0);
+}
+
+fn resolve_one(levels: &[(LightType, u8)]) -> [u8; 4] {
+    let region = Region {
+        min: BlockPos::new(0, 0, 0),
+        size: 1,
+        blocks: Box::new([common::AIR]),
+    };
+    let palette = Palette {
+        types: levels.iter().map(|&(t, _)| t).collect(),
+    };
+    let lanes = Lanes {
+        bytes: levels.len(),
+        levels: levels.iter().map(|&(_, level)| level).collect(),
+    };
+    resolve(&region, &lanes, &palette, &colours(), region.min, 1)[0]
+}
+
+fn assert_near(got: [u8; 3], want: [f32; 3]) {
+    for (g, w) in got.iter().zip(want) {
+        assert!((*g as f32 - w).abs() <= 1.0, "{got:?} is not {want:?}");
+    }
+}
+
+#[test]
+fn resolve_mixes_known_colours_by_the_light_weight() {
+    let (torch, soul) = (colour(TORCH_TYPE), colour(SOUL_TYPE));
+    let mixed = resolve_one(&[(TORCH_TYPE, 10), (SOUL_TYPE, 10)]);
+    let mean = [0, 1, 2].map(|i| (torch[i] as f32 + soul[i] as f32) / 2.0);
+    assert_near([mixed[0], mixed[1], mixed[2]], mean);
+    assert_eq!(mixed[3], 0);
+
+    assert_eq!(resolve_one(&[(LightType::DEFAULT, 12)]), [0, 0, 0, 255]);
+
+    let half = resolve_one(&[(LightType::DEFAULT, 9), (TORCH_TYPE, 9)]);
+    assert!(half[3] == 127 || half[3] == 128, "{half:?}");
+    assert_near([half[0], half[1], half[2]], torch.map(|c| c as f32 / 2.0));
+
+    let brighter = resolve_one(&[(TORCH_TYPE, 15), (SOUL_TYPE, 5)]);
+    let (w15, w5) = (light_weight(15), light_weight(5));
+    let weighted = [0, 1, 2].map(|i| (torch[i] as f32 * w15 + soul[i] as f32 * w5) / (w15 + w5));
+    assert_near([brighter[0], brighter[1], brighter[2]], weighted);
+
+    assert_eq!(
+        resolve_one(&[(TORCH_TYPE, 0), (LightType::DEFAULT, 0)]),
+        [0, 0, 0, 255]
+    );
+    assert_eq!(resolve_one(&[]), [0, 0, 0, 255]);
+}
+
+fn soul_and_lava_by_a_wall() -> Neighbourhood {
+    let mut world = Neighbourhood::air(CENTRE);
+    let base = CENTRE.y * 16;
+    for y in base..base + 16 {
+        for z in -16..32 {
+            world.set(BlockPos::new(7, y, z), STONE);
+        }
+    }
+    world.set(BlockPos::new(7, base + 5, 5), BOTTOM_SLAB);
+    world.set(BlockPos::new(3, base + 5, 5), SOUL);
+    world.set(BlockPos::new(12, base + 2, 9), LAVA);
+    world
+}
+
+#[test]
+fn nothing_is_retained_between_recomputes() {
+    let (a, b) = (torch_on_a_floor(), soul_and_lava_by_a_wall());
+    let (registry, colours) = (registry(), colours());
+    let run = |world: &Neighbourhood| {
+        colour_section(CENTRE, world.bounds, &registry, &colours, world.cells()).unwrap()
+    };
+    let (a_first, b_second) = (run(&a), run(&b));
+    let (b_first, a_second) = (run(&b), run(&a));
+    assert!(a_first == a_second);
+    assert!(b_first == b_second);
+    assert!(a_first != b_first);
+}
+
+#[test]
+fn a_block_id_past_the_registry_is_opaque_and_uncoloured() {
+    let mut world = torch_on_a_floor();
+    let unknown = mcrs_minecraft_chunk::VoxelId(u16::MAX - 1);
+    let torch = BlockPos::new(5, CENTRE.y * 16 + 3, 5);
+    let beside = BlockPos::new(4, torch.y, 5);
+    world.set(beside, unknown);
+    world.set(BlockPos::new(5, torch.y + 1, 5), unknown);
+    let computed = assert_lanes_match(&world);
+    assert_eq!(computed.palette.types, vec![TORCH_TYPE]);
+    let region = &computed.region;
+    let cell = region.index(
+        beside.x - region.min.x,
+        beside.y - region.min.y,
+        beside.z - region.min.z,
+    );
+    assert_eq!(computed.lanes.level(cell, 0), 0);
+    assert!(colour_section(CENTRE, world.bounds, &registry(), &colours(), world.cells()).is_some());
 }

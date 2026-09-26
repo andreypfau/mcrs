@@ -183,3 +183,7 @@ impl Palette {
         self.types.binary_search(&t).ok()
     }
 }
+
+pub fn lane_bytes(types: usize) -> usize {
+    types
+}
