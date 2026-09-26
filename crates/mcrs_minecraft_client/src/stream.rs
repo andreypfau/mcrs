@@ -68,6 +68,13 @@ impl Plugin for StreamPlugin {
                     .chain()
                     .in_set(ClientTerrainSet::Build)
                     .run_if(can_stream),
+            )
+            .add_systems(
+                Update,
+                collect_column_changes
+                    .in_set(ClientTerrainSet::Build)
+                    .before(adopt_columns)
+                    .run_if(resource_exists::<ColumnStore>),
             );
     }
 }
@@ -1322,22 +1329,23 @@ fn follow_camera(
     }
 }
 
+fn collect_column_changes(mut changes: MessageReader<ColumnChange>, mut loader: ResMut<Loader>) {
+    loader.changes.extend(changes.read().cloned());
+}
+
 fn adopt_columns(
     mut loader: ResMut<Loader>,
     mut catalog: ResMut<BlockCatalog>,
     mut tints: ResMut<ColumnTints>,
     mut cave: ResMut<CaveCull>,
-    mut store: ResMut<ColumnStore>,
+    store: Res<ColumnStore>,
     definitions: Res<Blocks>,
 ) {
-    let loader = &mut *loader;
-    let store = store.bypass_change_detection();
-    store.drain_changes(&mut loader.changes);
     if loader.changes.is_empty() {
         return;
     }
     let _adopting = info_span!("stream adopt").entered();
-    loader.adopt(store, &definitions, &mut catalog, &mut tints, &mut cave);
+    loader.adopt(&store, &definitions, &mut catalog, &mut tints, &mut cave);
 }
 
 fn bake_catalog(

@@ -5,7 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
-use bevy::ecs::prelude::{IntoScheduleConfigs, On, Query, ResMut, Resource, Single};
+use bevy::ecs::message::{Message, MessageWriter};
+use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, ResMut, Resource, Single};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
@@ -65,7 +66,8 @@ pub struct Column {
 
 /// A column the server sent or took back, in the order it happened. A column sent again
 /// departs and arrives in that order, and one dropped by a change of extent departs too.
-#[derive(Clone)]
+/// The store stays the truth: a reader that keeps state decides from what it finds there.
+#[derive(Message, Clone)]
 pub enum ColumnChange {
     Arrived(ColumnPos, Arc<Column>),
     Departed(ColumnPos, Arc<Column>),
@@ -415,6 +417,7 @@ impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ColumnStore>();
         app.init_resource::<Arrivals>();
+        app.add_message::<ColumnChange>();
         app.add_observer(receive_column_packets);
         app.configure_sets(
             Update,
@@ -561,6 +564,8 @@ fn receive_column_packets(
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
+    mut changes: MessageWriter<ColumnChange>,
+    mut drained: Local<Vec<ColumnChange>>,
     connection: Option<Single<&mut ClientConnection>>,
 ) {
     let mut connection = connection.map(Single::into_inner);
@@ -589,6 +594,8 @@ fn settle_columns(
             },
         }
     }
+    store.bypass_change_detection().drain_changes(&mut drained);
+    changes.write_batch(drained.drain(..));
 }
 
 #[cfg(test)]
@@ -899,6 +906,84 @@ mod tests {
             "the resident column is untouched"
         );
         assert!(store.holds(pos));
+    }
+
+    #[derive(Resource, Default)]
+    struct Seen<const READER: usize>(Vec<(&'static str, ColumnPos, Vec<i32>)>);
+
+    fn observed(change: &ColumnChange) -> (&'static str, ColumnPos, Vec<i32>) {
+        match change {
+            ColumnChange::Arrived(pos, _) => ("arrived", *pos, Vec::new()),
+            ColumnChange::Departed(pos, _) => ("departed", *pos, Vec::new()),
+            ColumnChange::Relit(pos, rows) => ("relit", *pos, rows.clone()),
+        }
+    }
+
+    fn read_into<const READER: usize>(
+        mut changes: bevy::ecs::message::MessageReader<ColumnChange>,
+        mut seen: ResMut<Seen<READER>>,
+    ) {
+        seen.0.extend(changes.read().map(observed));
+    }
+
+    #[test]
+    fn two_readers_each_see_every_change_in_order() {
+        use bevy::ecs::change_detection::DetectChanges;
+
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .init_resource::<Arrivals>()
+            .init_resource::<Seen<0>>()
+            .init_resource::<Seen<1>>()
+            .add_message::<ColumnChange>()
+            .add_systems(
+                Update,
+                (
+                    settle_columns,
+                    (read_into::<0>, read_into::<1>).after(settle_columns),
+                ),
+            );
+        let pos = ColumnPos::new(4, -7);
+        let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
+
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(pos, column());
+        app.update();
+
+        let rows = EXTENT.sections + 2;
+        let mut sky: Vec<RowLight> = (0..rows).map(|_| RowLight::Unchanged).collect();
+        sky[1] = RowLight::Filled(one_lit_cell(0, 15));
+        let block = (0..rows).map(|_| RowLight::Unchanged).collect();
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        store.relight(pos, &ColumnLight { sky, block });
+        store.insert(pos, column());
+        store.remove(pos);
+        app.update();
+
+        let expected = vec![
+            ("arrived", pos, Vec::new()),
+            ("relit", pos, vec![-1]),
+            ("departed", pos, Vec::new()),
+            ("arrived", pos, Vec::new()),
+            ("departed", pos, Vec::new()),
+        ];
+        assert_eq!(app.world().resource::<Seen<0>>().0, expected);
+        assert_eq!(app.world().resource::<Seen<1>>().0, expected);
+
+        let changed = app.world().resource_ref::<ColumnStore>().last_changed();
+        app.update();
+        assert_eq!(
+            app.world().resource::<Seen<0>>().0,
+            expected,
+            "a frame where nothing lands writes nothing"
+        );
+        assert_eq!(app.world().resource::<Seen<1>>().0, expected);
+        assert_eq!(
+            app.world().resource_ref::<ColumnStore>().last_changed(),
+            changed,
+            "settling nothing leaves the store's change tick where it was"
+        );
     }
 
     #[test]
