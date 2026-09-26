@@ -204,6 +204,11 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_light"]
 opt-level = 3
 
+# The colour kernel sweeps about a hundred thousand cells per section in every
+# oracle case.
+[profile.dev.package."mcrs_minecraft_light_color"]
+opt-level = 3
+
 [profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 

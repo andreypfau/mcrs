@@ -37,6 +37,7 @@ bevy = [
 ]
 
 [dev-dependencies]
+bevy_math.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
