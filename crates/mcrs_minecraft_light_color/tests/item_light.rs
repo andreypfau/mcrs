@@ -2,7 +2,7 @@ mod corpus;
 
 use std::sync::OnceLock;
 
-use corpus::{asset_server, block_tags, blocks, item_tags, items};
+use corpus::{asset_server, block_tags, blocks, fluid_tags, item_tags, items};
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
@@ -22,7 +22,8 @@ fn colours() -> &'static LightColors {
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items()).unwrap_or_else(|e| panic!("{e}"))
+        ItemLights::load(asset_server(), blocks(), items(), item_tags(), fluid_tags())
+            .unwrap_or_else(|e| panic!("{e}"))
     })
 }
 
@@ -244,7 +245,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items())
+    ItemLights::from_files(files, blocks(), items(), item_tags(), fluid_tags())
 }
 
 #[test]
@@ -304,4 +305,38 @@ fn an_item_in_two_files_fails() {
         matches!(error, ItemLightError::DuplicateItem { .. }),
         "{error}"
     );
+}
+
+#[test]
+fn a_missing_water_tag_fails() {
+    let error = ItemLights::from_files(
+        shipped_files(),
+        blocks(),
+        items(),
+        &Default::default(),
+        fluid_tags(),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, ItemLightError::MissingTag { tag } if tag == "mcrs:water_sensitive_light"),
+        "{error}"
+    );
+}
+
+#[test]
+fn an_unknown_block_property_or_value_fails() {
+    for (target, expected) in [
+        ("minecraft:no_such_block", "UnknownBlock"),
+        ("minecraft:torch[lit=true]", "UnknownProperty"),
+        ("minecraft:candle[lit=maybe]", "UnknownValue"),
+    ] {
+        let error = load(edited(|map| {
+            map.insert("minecraft:candle".into(), target.into());
+        }))
+        .unwrap_err();
+        assert!(
+            format!("{error:?}").starts_with(expected),
+            "{target}: {error}"
+        );
+    }
 }

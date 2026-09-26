@@ -24,6 +24,8 @@ fn the_colour_table_and_item_lights_are_resources_after_worldgen_freeze() {
     app.insert_resource(corpus::blocks().clone());
     app.insert_resource(corpus::block_tags().clone());
     app.insert_resource(corpus::items().clone());
+    app.insert_resource(corpus::item_tags().clone());
+    app.insert_resource(corpus::fluid_tags().clone());
     app.add_plugins(LightColorPlugin);
     app.world_mut()
         .resource_mut::<NextState<AppState>>()

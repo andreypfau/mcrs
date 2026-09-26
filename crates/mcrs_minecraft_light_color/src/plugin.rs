@@ -4,10 +4,10 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagPhase};
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::{Item, Items};
 
 use crate::colors::{LightColors, LightType};
 use crate::item::ItemLights;
@@ -46,8 +46,11 @@ fn insert_item_lights(
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
     items: Res<Items>,
+    item_tags: Res<DynTagRegistry<Item>>,
+    fluid_tags: Res<DynTagRegistry<Fluid>>,
 ) {
-    let lights = ItemLights::load(&asset_server, &blocks, &items).unwrap_or_else(|e| panic!("{e}"));
+    let lights = ItemLights::load(&asset_server, &blocks, &items, &item_tags, &fluid_tags)
+        .unwrap_or_else(|e| panic!("{e}"));
     tracing::info!(items = lights.mapped_count(), "loaded item lights");
     commands.insert_resource(lights);
 }

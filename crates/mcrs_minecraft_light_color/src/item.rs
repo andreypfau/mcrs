@@ -5,10 +5,12 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
+use mcrs_minecraft_assets::tag::DynTagRegistry;
+use mcrs_minecraft_block::Fluid;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::ItemDefinitions;
+use mcrs_minecraft_core::{ResourceLocation, TagKey, TaggedRegistry, rl};
+use mcrs_minecraft_item::{Item, ItemDefinitions};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +18,8 @@ use crate::asset::{BlockStateRef, StateTarget};
 use crate::colors::{LightColors, LightType};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
+pub const WATER_SENSITIVE: TagKey<Item> = TagKey::new(rl!("mcrs:water_sensitive_light"));
+pub const WATER: TagKey<Fluid> = TagKey::new(rl!("minecraft:water"));
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +36,8 @@ pub struct ItemLight {
 #[derive(Clone, Debug, Resource)]
 pub struct ItemLights {
     mapped: Arc<[Option<BlockStateId>]>,
+    water_sensitive: Arc<[bool]>,
+    water: Arc<[bool]>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -67,6 +73,8 @@ pub enum ItemLightError {
     NoEmittingState { path: String, item: String },
     #[error("items that place a light-emitting block have no mapping: {}", items.join(", "))]
     Missing { items: Vec<String> },
+    #[error("the tag `#{tag}` does not exist")]
+    MissingTag { tag: String },
 }
 
 impl ItemLights {
@@ -74,18 +82,22 @@ impl ItemLights {
         asset_server: &AssetServer,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
+        item_tags: &DynTagRegistry<Item>,
+        fluid_tags: &DynTagRegistry<Fluid>,
     ) -> Result<Self, ItemLightError> {
         let source = asset_server
             .get_source(AssetSourceId::Default)
             .map_err(|_| ItemLightError::NoAssetSource)?;
         let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-        Self::from_files(files, blocks, items)
+        Self::from_files(files, blocks, items, item_tags, fluid_tags)
     }
 
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
+        item_tags: &DynTagRegistry<Item>,
+        fluid_tags: &DynTagRegistry<Fluid>,
     ) -> Result<Self, ItemLightError> {
         let mut mapped: Vec<Option<BlockStateId>> = vec![None; items.len()];
         let mut mapped_in: Vec<Option<String>> = vec![None; items.len()];
@@ -132,6 +144,8 @@ impl ItemLights {
         }
         Ok(ItemLights {
             mapped: mapped.into(),
+            water_sensitive: members(item_tags, &WATER_SENSITIVE, items.len())?,
+            water: members(fluid_tags, &WATER, blocks.fluid_count())?,
         })
     }
 
@@ -140,16 +154,22 @@ impl ItemLights {
     }
 
     /// Unknown properties and values in `stack_state` are skipped, as the
-    /// server skips them when it places the block.
+    /// server skips them when it places the block. `origin` is the state of the
+    /// cell the light comes from; water there puts out water-sensitive items.
     pub fn light<'a>(
         &self,
         blocks: &BlockDefinitions,
         colours: &LightColors,
         item: ItemId,
         stack_state: impl IntoIterator<Item = (&'a str, &'a str)>,
-        _origin: BlockStateId,
+        origin: BlockStateId,
     ) -> Option<ItemLight> {
         let mapped = self.mapped.get(item.0 as usize).copied().flatten()?;
+        if self.water_sensitive.get(item.0 as usize) == Some(&true)
+            && self.holds_water(blocks, origin)
+        {
+            return None;
+        }
         let owner = blocks.owner(mapped);
         let state = stack_state.into_iter().fold(mapped, |id, (name, value)| {
             owner.with_text(id, name, value).unwrap_or(id)
@@ -161,6 +181,27 @@ impl ItemLights {
             state,
         })
     }
+}
+
+impl ItemLights {
+    fn holds_water(&self, blocks: &BlockDefinitions, state: BlockStateId) -> bool {
+        (state.0 as usize) < blocks.state_count()
+            && blocks
+                .state(state)
+                .fluid
+                .is_some_and(|f| self.water.get(f.fluid.0 as usize) == Some(&true))
+    }
+}
+
+fn members<T: TaggedRegistry>(
+    tags: &DynTagRegistry<T>,
+    tag: &TagKey<T>,
+    len: usize,
+) -> Result<Arc<[bool]>, ItemLightError> {
+    let set = tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
+        tag: tag.as_str().to_owned(),
+    })?;
+    Ok((0..len).map(|id| set.contains(id as u32)).collect())
 }
 
 fn resolve(
