@@ -6,9 +6,8 @@ use bevy_math::IVec3;
 use futures_lite::future::block_on;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_light_color::colors::LightType;
-use mcrs_minecraft_light_color::propagate::Lanes;
 use mcrs_minecraft_light_color::region::{Palette, REACH, Region, section_bricks, section_output};
-use mcrs_minecraft_light_color::resolve::resolve;
+use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use super::{Outcome, Stages};
@@ -282,7 +281,6 @@ impl Gpu {
         Some(Outcome {
             texels,
             lanes: Some(lanes),
-            undetermined: 0,
         })
     }
 

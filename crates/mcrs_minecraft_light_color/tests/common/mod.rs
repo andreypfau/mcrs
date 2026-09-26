@@ -10,10 +10,7 @@ use mcrs_minecraft_light::field::{BlockSnapshot, FieldLayout, LightField, Sectio
 use mcrs_minecraft_light::prelude::*;
 use mcrs_minecraft_light::relax;
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
-use mcrs_minecraft_light_color::propagate::{Lanes, propagate};
-use mcrs_minecraft_light_color::region::{
-    EdgeCosts, Palette, Region, Seed, section_bricks, section_output,
-};
+use mcrs_minecraft_light_color::region::{EdgeCosts, Region, Seed, section_bricks, section_output};
 use proptest::prelude::*;
 
 pub const AIR: VoxelId = VoxelId(0);
@@ -445,69 +442,4 @@ pub fn oracle(neighbourhood: &Neighbourhood, t: LightType) -> Vec<u8> {
             field.get(base | LocalPos::from(pos).index() as u32).get()
         })
         .collect()
-}
-
-pub struct Computed {
-    pub region: Region,
-    pub palette: Palette,
-    pub lanes: Lanes,
-}
-
-pub fn compute(neighbourhood: &Neighbourhood) -> Computed {
-    compute_with(neighbourhood, None)
-}
-
-/// Runs the colour propagation, optionally restricted to a smaller palette
-/// than the region's own.
-pub fn compute_with(neighbourhood: &Neighbourhood, palette: Option<Palette>) -> Computed {
-    let registry = registry();
-    let colours = colours();
-    let (min, size) = section_output(neighbourhood.centre);
-    let region = Region::new(
-        min,
-        size,
-        neighbourhood.bounds,
-        &registry,
-        neighbourhood.cells(),
-    );
-    let palette = palette.unwrap_or_else(|| Palette::of(&region, &registry, &colours));
-    let costs = EdgeCosts::new(&region, &registry);
-    let lanes = propagate(&region, &costs, &palette, &registry, &colours);
-    Computed {
-        region,
-        palette,
-        lanes,
-    }
-}
-
-/// The first output cell where a lane differs from the oracle.
-pub fn lane_mismatch(
-    neighbourhood: &Neighbourhood,
-    computed: &Computed,
-    t: LightType,
-) -> Option<String> {
-    let lane = computed.palette.lane(t)?;
-    let expected = oracle(neighbourhood, t);
-    let region = &computed.region;
-    output_positions(neighbourhood.centre)
-        .zip(expected)
-        .find_map(|(pos, want)| {
-            let cell = region.index(
-                pos.x - region.min.x,
-                pos.y - region.min.y,
-                pos.z - region.min.z,
-            );
-            let got = computed.lanes.level(cell, lane);
-            (got != want).then(|| format!("type {} at {pos}: colour lane {got}, relax {want}", t.0))
-        })
-}
-
-pub fn assert_lanes_match(neighbourhood: &Neighbourhood) -> Computed {
-    let computed = compute(neighbourhood);
-    for &t in &computed.palette.types {
-        if let Some(mismatch) = lane_mismatch(neighbourhood, &computed, t) {
-            panic!("{mismatch}");
-        }
-    }
-    computed
 }

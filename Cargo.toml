@@ -204,8 +204,8 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_light"]
 opt-level = 3
 
-# The colour kernel sweeps about a hundred thousand cells per section in every
-# oracle case.
+# Edge costs sweep about a hundred thousand cells per region in every oracle
+# case, and the GPU bench builds bricks for every section of a fixture.
 [profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
 

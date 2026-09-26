@@ -1,8 +1,20 @@
 use mcrs_minecraft_core::BlockPos;
 
 use crate::colors::LightColors;
-use crate::propagate::Lanes;
 use crate::region::{Palette, Region};
+
+/// Light per cell and palette lane: cell `c`, lane `l` is `levels[c * bytes + l]`.
+pub struct Lanes {
+    pub bytes: usize,
+    pub levels: Box<[u8]>,
+}
+
+impl Lanes {
+    #[inline]
+    pub fn level(&self, cell: usize, lane: usize) -> u8 {
+        self.levels[cell * self.bytes + lane]
+    }
+}
 
 /// The vanilla light curve, so a type counts in a mix as much as it brightens.
 pub fn light_weight(level: u8) -> f32 {

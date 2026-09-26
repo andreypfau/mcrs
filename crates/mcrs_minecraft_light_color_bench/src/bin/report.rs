@@ -10,11 +10,10 @@ use std::time::Duration;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
+use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use mcrs_minecraft_light_color_bench::candidates::gpu::{BRICK_BYTES, PARAMS_BYTES, gpu};
 use mcrs_minecraft_light_color_bench::candidates::{CANDIDATES, Outcome, Stages, mismatch};
-use mcrs_minecraft_light_color_bench::fixture::{
-    Scene, oracle, output_positions, relaxed_block_light, scenes,
-};
+use mcrs_minecraft_light_color_bench::fixture::{Scene, oracle, relaxed_block_light, scenes};
 use mcrs_minecraft_light_color_bench::shade::{final_rgb, hue, hue_difference};
 
 struct Counting;
@@ -80,7 +79,6 @@ const UNLIT: [u8; 4] = [0, 0, 0, 255];
 struct Measured {
     lit: usize,
     lanes: bool,
-    undetermined: usize,
     mismatch: Option<String>,
     samples: Vec<Stages>,
     peak: usize,
@@ -106,16 +104,10 @@ fn main() {
          |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let mut notes = String::new();
-    let mut undetermined: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
-    let mut one_type = Vec::new();
     let mut walls: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
 
     for scene in scenes() {
         let measured = measure(&scene, &out);
-        let lit_cells = lit_output_cells(&scene);
-        for (counts, m) in undetermined.iter_mut().zip(&measured) {
-            counts.push(format!("{} {} of {lit_cells}", scene.name, m.undetermined));
-        }
         for (walls, m) in walls.iter_mut().zip(&measured) {
             let mut wall: Vec<Duration> = m.samples.iter().map(|s| s.round_trip).collect();
             let median = percentile(&mut wall, 0.5);
@@ -172,41 +164,22 @@ fn main() {
             .unwrap();
         }
         writeln!(notes, "- {}", saved_light_note(&scene)).unwrap();
-        one_type.push(one_type_note(&scene));
     }
 
     let mut candidate_notes = String::new();
-    for ((candidate, counts), walls) in CANDIDATES.iter().zip(&undetermined).zip(&walls) {
-        write!(
+    for (candidate, walls) in CANDIDATES.iter().zip(&walls) {
+        writeln!(
             candidate_notes,
-            "- `{}`: {}",
-            candidate.name, candidate.note
+            "- `{}`: {} Measured on {}. Uploads {BRICK_BYTES} bytes of brick per section, once \
+             per scene here, and {PARAMS_BYTES} bytes of parameters and palette per region. CPU \
+             wall clock per section for creating its device buffers, submitting, and waiting for \
+             the readback, which the timestamps leave out: {}.",
+            candidate.name,
+            candidate.note,
+            gpu().adapter,
+            walls.join("; ")
         )
         .unwrap();
-        if !candidate.exact {
-            write!(
-                candidate_notes,
-                " Undetermined lit output cells: {}.",
-                counts.join(", ")
-            )
-            .unwrap();
-        }
-        if candidate.name == "single" {
-            write!(candidate_notes, " Coverage: {}.", one_type.join("; ")).unwrap();
-        }
-        if candidate.name == "gpu" {
-            write!(
-                candidate_notes,
-                " Measured on {}. Uploads {BRICK_BYTES} bytes of brick per section, once per \
-                 scene here, and {PARAMS_BYTES} bytes of parameters and palette per region. CPU \
-                 wall clock per section for creating its device buffers, submitting, and waiting \
-                 for the readback, which the timestamps leave out: {}.",
-                gpu().adapter,
-                walls.join("; ")
-            )
-            .unwrap();
-        }
-        candidate_notes.push('\n');
     }
 
     let report = format!(
@@ -214,13 +187,11 @@ fn main() {
          Native release build, single process. Each lit inner section runs once to warm up and \
          to measure memory, then {REPETITIONS} times with the candidates interleaved. Stage \
          columns are medians; median, p99 and mean are of the total per section. Deltas are the final \
-         block-light RGB against the reference over cells whose server level is above 0. The \
-         join estimate is the mean per lit section times the lit share of the 27 inner \
-         sections, times 65² columns, times the dimension's section count. `bfs` is the server's \
-         relax, which spreads any round of 4096 or more cells over the rayon pool, so its \
-         times on dense emitters use several threads; every other stage runs on one. `gpu`'s \
-         propagation is GPU time from timestamp queries, its costs are part of its bricks, and \
-         its peak memory is the device buffers one section holds.\n\n\
+         block-light RGB against the server's relax per light type, resolved the same way, over \
+         cells whose server level is above 0. The join estimate is the mean per lit section \
+         times the lit share of the 27 inner sections, times 65² columns, times the dimension's \
+         section count. `gpu`'s propagation is GPU time from timestamp queries, its costs are \
+         part of its bricks, and its peak memory is the device buffers one section holds.\n\n\
          {table}\n\
          Server level against relax over every light type on the 27 inner sections:\n\n\
          {notes}\n\
@@ -236,6 +207,7 @@ fn main() {
 fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
     let mut measured: Vec<Measured> = CANDIDATES.iter().map(|_| Measured::default()).collect();
 
+    let mut references = HashMap::new();
     let lit: Vec<SectionPos> = scene.inner().filter(|&s| has_emitters(scene, s)).collect();
     for &section in &lit {
         let outcomes: Vec<Option<Outcome>> = CANDIDATES
@@ -254,20 +226,23 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
             })
             .collect();
 
+        let (min, size) = section_output(section);
+        let region = Region::new(min, size, scene.bounds, &scene.registry, scene.cells());
+        let palette = Palette::of(&region, &scene.registry, &scene.colours);
         let types: BTreeSet<LightType> = outcomes
             .iter()
             .flatten()
             .flat_map(|o| o.lanes.iter().flatten().map(|(t, _)| *t))
+            .chain(palette.types.iter().copied())
             .collect();
         let want: HashMap<LightType, Vec<u8>> = types
             .into_iter()
             .map(|t| (t, oracle(scene, section, t)))
             .collect();
+        let relaxed = relaxed_texels(scene, section, &palette, &want);
 
-        let reference = outcomes[0].as_ref().map(|o| &o.texels[..]);
         for (outcome, m) in outcomes.iter().zip(&mut measured) {
             m.lit += outcome.is_some() as usize;
-            m.undetermined += outcome.as_ref().map_or(0, |o| o.undetermined);
             if let Some(lanes) = outcome.as_ref().and_then(|o| o.lanes.as_ref()) {
                 m.lanes = true;
                 if m.mismatch.is_none() {
@@ -275,12 +250,15 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
                 }
             }
             let texels = outcome.as_ref().map(|o| &o.texels[..]);
-            compare(scene, section, reference, texels, m);
+            compare(scene, section, relaxed.as_deref(), texels, m);
             if let Some(outcome) = outcome {
                 m.texels.insert(section, outcome.texels.clone());
             }
         }
         drop(outcomes);
+        if let Some(relaxed) = relaxed {
+            references.insert(section, relaxed);
+        }
 
         for _ in 0..REPETITIONS {
             for (candidate, m) in CANDIDATES.iter().zip(&mut measured) {
@@ -292,8 +270,8 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
         }
     }
 
-    let layer = most_varied_layer(scene, &measured[0].texels);
-    let reference = slice(scene, layer, &measured[0].texels);
+    let layer = most_varied_layer(scene, &references);
+    let reference = slice(scene, layer, &references);
     for (candidate, m) in CANDIDATES.iter().zip(&measured) {
         let image = slice(scene, layer, &m.texels);
         write_png(
@@ -313,25 +291,30 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
     measured
 }
 
-/// Of the lit inner sections, how many have one light type in reach, and how
-/// many of those have only the default type, which needs no colour data at
-/// all because A is 1 everywhere.
-fn one_type_note(scene: &Scene) -> String {
-    let (mut lit, mut one, mut default) = (0, 0, 0);
-    for section in scene.inner() {
-        let (min, size) = section_output(section);
-        let region = Region::new(min, size, scene.bounds, &scene.registry, scene.cells());
-        let palette = Palette::of(&region, &scene.registry, &scene.colours);
-        lit += !palette.types.is_empty() as usize;
-        if let [only] = palette.types[..] {
-            one += 1;
-            default += (only == LightType::DEFAULT) as usize;
-        }
+/// The section's output coloured from the server's relax per light type.
+fn relaxed_texels(
+    scene: &Scene,
+    section: SectionPos,
+    palette: &Palette,
+    want: &HashMap<LightType, Vec<u8>>,
+) -> Option<Box<[[u8; 4]]>> {
+    if palette.types.is_empty() {
+        return None;
     }
-    format!(
-        "{} {one} of {lit} lit sections hold one light type, {default} of them only the default",
-        scene.name
-    )
+    let (min, size) = section_output(section);
+    let levels: Vec<&Vec<u8>> = palette.types.iter().map(|t| &want[t]).collect();
+    let lanes = Lanes {
+        bytes: levels.len(),
+        levels: (0..size.pow(3) as usize)
+            .flat_map(|cell| levels.iter().map(move |lane| lane[cell]))
+            .collect(),
+    };
+    let output = Region {
+        min,
+        size,
+        blocks: Box::default(),
+    };
+    Some(resolve(&output, &lanes, palette, &scene.colours, min, size))
 }
 
 fn has_emitters(scene: &Scene, section: SectionPos) -> bool {
@@ -340,17 +323,6 @@ fn has_emitters(scene: &Scene, section: SectionPos) -> bool {
     !Palette::of(&region, &scene.registry, &scene.colours)
         .types
         .is_empty()
-}
-
-/// Output cells the server lights, over every inner section a light source
-/// reaches.
-fn lit_output_cells(scene: &Scene) -> usize {
-    scene
-        .inner()
-        .filter(|&s| has_emitters(scene, s))
-        .flat_map(output_positions)
-        .filter(|&pos| scene.server_level(pos) > 0)
-        .count()
 }
 
 fn output_index(section: SectionPos, pos: BlockPos) -> usize {

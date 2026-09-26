@@ -11,14 +11,14 @@ fn assert_candidates_match_relax(name: &str) {
         let found = common::brick_mismatch(section, scene.bounds, registry, colours, scene.cells());
         assert_eq!(found, None, "{name}");
     }
-    for candidate in CANDIDATES.iter().filter(|c| c.exact) {
+    for candidate in CANDIDATES {
         let mut lit = 0;
         for section in scene.inner() {
             let Some(outcome) = (candidate.run)(&scene, section, &mut Stages::default()) else {
                 continue;
             };
             lit += 1;
-            let lanes = outcome.lanes.expect("an exact candidate keeps its lanes");
+            let lanes = outcome.lanes.expect("the candidate keeps its lanes");
             if let Some(first) = mismatch(section, &lanes, |t| oracle(&scene, section, t)) {
                 panic!(
                     "{name}, {}: section, cell, type, lane, relax: {first}",
