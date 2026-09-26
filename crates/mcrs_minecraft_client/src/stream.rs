@@ -2104,6 +2104,27 @@ mod tests {
         assert_eq!(tints.corner(ColumnPos::new(-1, -33)), [496, 496]);
         assert_eq!(tints.corner(ColumnPos::new(1_000_000, 0)), [0, 0]);
     }
+
+    #[test]
+    fn a_column_that_arrives_before_the_camera_is_kept_for_the_mesher() {
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .insert_resource(loader())
+            .add_message::<ColumnChange>()
+            .add_systems(Update, collect_column_changes);
+        let pos = ColumnPos::new(2, 3);
+        app.world_mut().write_message(ColumnChange::Arrived(
+            pos,
+            Arc::new(crate::columns::Column::unlit(0, Vec::new())),
+        ));
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let changes = &app.world().resource::<Loader>().changes;
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(changes[0], ColumnChange::Arrived(at, _) if at == pos));
+    }
 }
 
 #[cfg(test)]

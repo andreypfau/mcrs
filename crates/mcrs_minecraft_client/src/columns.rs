@@ -14,10 +14,11 @@ use mcrs_minecraft_chunk::PalettedContainer;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
+use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
-    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
@@ -45,6 +46,22 @@ const OPEN_SKY: u8 = 0x0f;
 pub struct Extent {
     pub min_section_y: i32,
     pub sections: usize,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Dimension {
+    pub name: String,
+    pub extent: Extent,
+}
+
+#[cfg(test)]
+impl From<Extent> for Dimension {
+    fn from(extent: Extent) -> Self {
+        Dimension {
+            name: String::new(),
+            extent,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -79,20 +96,22 @@ pub enum ColumnChange {
 /// nobody has drained yet.
 #[derive(Resource, Default, Clone)]
 pub struct ColumnStore {
-    extent: Option<Extent>,
+    dimension: Option<Dimension>,
     columns: HashMap<ColumnPos, Arc<Column>>,
     changes: Vec<ColumnChange>,
 }
 
 impl ColumnStore {
-    /// A column placed against one extent cannot be read against another, so
-    /// entering a dimension of a different shape drops what is resident.
-    pub fn enter(&mut self, extent: Extent) {
-        if self.extent != Some(extent) {
+    /// A column placed against one extent cannot be read against another, and a column of one
+    /// dimension is not a column of another, so entering any other dimension drops what is
+    /// resident.
+    pub fn enter(&mut self, dimension: impl Into<Dimension>) {
+        let dimension = dimension.into();
+        if self.dimension.as_ref() != Some(&dimension) {
             for (pos, column) in self.columns.drain() {
                 self.changes.push(ColumnChange::Departed(pos, column));
             }
-            self.extent = Some(extent);
+            self.dimension = Some(dimension);
         }
     }
 
@@ -130,7 +149,7 @@ impl ColumnStore {
     /// across their edges.
     pub fn around(&self, origin: ColumnPos) -> Neighbourhood {
         Neighbourhood {
-            extent: self.extent,
+            extent: self.extent(),
             origin,
             columns: std::array::from_fn(|index| {
                 let (dx, dz) = (index as i32 % 3 - 1, index as i32 / 3 - 1);
@@ -168,7 +187,7 @@ impl ColumnStore {
 
 impl BlockSource for ColumnStore {
     fn extent(&self) -> Option<Extent> {
-        self.extent
+        self.dimension.as_ref().map(|dimension| dimension.extent)
     }
 
     #[inline]
@@ -457,7 +476,7 @@ impl Default for Arrivals {
 }
 
 enum Arrival {
-    Enter(Extent),
+    Enter(Dimension),
     Column(Task<Result<(ColumnPos, Column)>>),
     Light(ColumnPos, ColumnLight),
     Forget(ColumnPos),
@@ -480,6 +499,23 @@ const NANOS_PER_TICK_ON_COLUMNS: f64 = 35_000_000.0;
 impl Arrivals {
     pub fn pending(&self) -> usize {
         self.queue.len()
+    }
+
+    fn enter(&mut self, registries: &[ReceivedRegistry], spawn: &PlayerSpawnInfo) {
+        let dimension_type = spawn.dimension_type_id.0;
+        match extent_of(registries, dimension_type) {
+            Some(extent) => {
+                self.extent = Some(extent);
+                self.queue.push_back(Arrival::Enter(Dimension {
+                    name: spawn.dimension.to_string(),
+                    extent,
+                }));
+            }
+            None => error!(
+                "dimension type {dimension_type} carries no min_y and height: \
+                 columns have nowhere to sit"
+            ),
+        }
     }
 
     /// Folds a finished batch into the running average and answers with the columns a tick it
@@ -512,17 +548,9 @@ fn receive_column_packets(
     }
 
     if let Some(login) = event.decode::<ClientboundLogin>() {
-        let dimension_type = login.player_spawn_info.dimension_type_id.0;
-        match extent_of(&registries.0, dimension_type) {
-            Some(extent) => {
-                arrivals.extent = Some(extent);
-                arrivals.queue.push_back(Arrival::Enter(extent));
-            }
-            None => error!(
-                "dimension type {dimension_type} carries no min_y and height: \
-                 columns have nowhere to sit"
-            ),
-        }
+        arrivals.enter(&registries.0, &login.player_spawn_info);
+    } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
+        arrivals.enter(&registries.0, &respawn.player_spawn_info);
     } else if event.id == ClientboundLevelChunkWithLight::ID {
         let Some(extent) = arrivals.extent else {
             return;
@@ -572,7 +600,7 @@ fn settle_columns(
     let arrivals = arrivals.bypass_change_detection();
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
-            Arrival::Enter(extent) => store.enter(extent),
+            Arrival::Enter(dimension) => store.enter(dimension),
             Arrival::Forget(pos) => store.remove(pos),
             Arrival::Light(pos, light) => store.relight(pos, &light),
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
@@ -984,6 +1012,39 @@ mod tests {
             changed,
             "settling nothing leaves the store's change tick where it was"
         );
+    }
+
+    #[test]
+    fn a_new_dimension_of_the_same_height_departs_every_column() {
+        let dimension = |name: &str| Dimension {
+            name: name.to_owned(),
+            extent: EXTENT,
+        };
+        let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
+        let (a, b) = (ColumnPos::new(0, 0), ColumnPos::new(1, 0));
+        let mut store = ColumnStore::default();
+        store.enter(dimension("minecraft:overworld"));
+        store.insert(a, column());
+        store.insert(b, column());
+        drained(&mut store);
+
+        store.enter(dimension("minecraft:the_nether"));
+        let mut changes: Vec<_> = drained(&mut store).iter().map(observed).collect();
+        changes.sort_by_key(|(_, pos, _)| *pos);
+        assert_eq!(
+            changes,
+            vec![("departed", a, Vec::new()), ("departed", b, Vec::new())]
+        );
+        assert!(store.is_empty());
+
+        store.insert(a, column());
+        drained(&mut store);
+        store.enter(dimension("minecraft:the_nether"));
+        assert!(
+            drained(&mut store).is_empty(),
+            "a respawn into the same dimension keeps its columns"
+        );
+        assert!(store.holds(a));
     }
 
     #[test]
