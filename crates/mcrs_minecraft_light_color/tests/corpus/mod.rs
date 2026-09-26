@@ -9,10 +9,10 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
-use mcrs_minecraft_block::Block;
-use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_block::definition::{Blocks, Fluids};
+use mcrs_minecraft_block::{Block, Fluid};
+use mcrs_minecraft_core::{ResourceLocation, TaggedRegistry};
+use mcrs_minecraft_item::{Item, Items};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 pub fn blocks() -> &'static Blocks {
@@ -38,46 +38,64 @@ pub fn asset_server() -> &'static AssetServer {
     })
 }
 
-/// Every block tag of every namespace, expanded off the files themselves.
 pub fn block_tags() -> &'static DynTagRegistry<Block> {
     static TAGS: OnceLock<DynTagRegistry<Block>> = OnceLock::new();
-    TAGS.get_or_init(|| {
-        let blocks = blocks();
-        let mut loader = TagLoader::<Block, u32>::default();
-        for namespace in std::fs::read_dir(assets_dir()).unwrap() {
-            let namespace = namespace.unwrap().path();
-            let dir = namespace.join("tags/block");
-            if !dir.is_dir() {
-                continue;
-            }
-            let namespace = namespace
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .into_owned();
-            for path in json_files(&dir) {
-                let name = path.strip_prefix(&dir).unwrap().with_extension("");
-                let name = format!("{namespace}:{}", name.to_string_lossy().replace('\\', "/"));
-                let mut members = HashSet::new();
-                collect(blocks, &name, &mut members);
-                loader.insert(ResourceLocation::read(&name).unwrap(), members);
-            }
-        }
-        loader.freeze(blocks)
-    })
+    TAGS.get_or_init(|| every_tag(blocks()))
 }
 
-fn collect(blocks: &Blocks, name: &str, into: &mut HashSet<u32>) {
+pub fn item_tags() -> &'static DynTagRegistry<Item> {
+    static TAGS: OnceLock<DynTagRegistry<Item>> = OnceLock::new();
+    TAGS.get_or_init(|| every_tag(items()))
+}
+
+pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
+    static TAGS: OnceLock<DynTagRegistry<Fluid>> = OnceLock::new();
+    TAGS.get_or_init(|| every_tag(&Fluids(blocks().0.clone())))
+}
+
+/// Every tag of one registry in every namespace, expanded off the files
+/// themselves.
+pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
+    let mut loader = TagLoader::<T, u32>::default();
+    for namespace in std::fs::read_dir(assets_dir()).unwrap() {
+        let namespace = namespace.unwrap().path();
+        let dir = namespace.join("tags").join(T::REGISTRY_PATH);
+        if !dir.is_dir() {
+            continue;
+        }
+        let namespace = namespace
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for path in json_files(&dir) {
+            let name = path.strip_prefix(&dir).unwrap().with_extension("");
+            let name = format!("{namespace}:{}", name.to_string_lossy().replace('\\', "/"));
+            let mut members = HashSet::new();
+            collect(T::REGISTRY_PATH, source, &name, &mut members);
+            loader.insert(ResourceLocation::read(&name).unwrap(), members);
+        }
+    }
+    loader.freeze(source)
+}
+
+fn collect<S: TagSource<Id = u32>>(
+    registry: &str,
+    source: &S,
+    name: &str,
+    into: &mut HashSet<u32>,
+) {
     let location = ResourceLocation::read(name).unwrap();
     let path = assets_dir()
         .join(location.namespace())
-        .join("tags/block")
+        .join("tags")
+        .join(registry)
         .join(format!("{}.json", location.path()));
     let file: SerializedTagFile = read(&path);
     for entry in file.values {
         if entry.id.is_tag {
-            collect(blocks, entry.id.loc.as_str(), into);
-        } else if let Some(index) = blocks.id_of(entry.id.loc.as_str()) {
+            collect(registry, source, entry.id.loc.as_str(), into);
+        } else if let Some(index) = source.id_of(entry.id.loc.as_str()) {
             into.insert(index);
         }
     }

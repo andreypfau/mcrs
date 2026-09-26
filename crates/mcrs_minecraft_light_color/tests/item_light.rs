@@ -2,12 +2,15 @@ mod corpus;
 
 use std::sync::OnceLock;
 
-use corpus::{asset_server, block_tags, blocks, items};
+use corpus::{asset_server, block_tags, blocks, item_tags, items};
+use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_item::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
-use mcrs_minecraft_light_color::item::{ItemLight, ItemLights};
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_light_color::item::{ItemLight, ItemLightError, ItemLights};
+use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use mcrs_minecraft_worldgen_testing::assets_dir;
+use proptest::prelude::*;
 
 fn colours() -> &'static LightColors {
     static COLOURS: OnceLock<LightColors> = OnceLock::new();
@@ -28,6 +31,17 @@ fn state(block: &str) -> BlockStateId {
         .block(block)
         .unwrap_or_else(|| panic!("{block}"))
         .default_state_id
+}
+
+fn state_with(block: &str, properties: &[(&str, &str)]) -> BlockStateId {
+    let entry = blocks().block(block).unwrap_or_else(|| panic!("{block}"));
+    properties
+        .iter()
+        .fold(entry.default_state_id, |id, (name, value)| {
+            entry
+                .with_text(id, name, value)
+                .unwrap_or_else(|| panic!("{block}[{name}={value}]"))
+        })
 }
 
 fn light_in(item: &str, stack: &[(&str, &str)], origin: BlockStateId) -> Option<ItemLight> {
@@ -101,4 +115,193 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
 #[test]
 fn the_shipped_map_covers_every_emitting_block_item() {
     assert_eq!(shipped().mapped_count(), 82);
+}
+
+const WATER_SENSITIVE: [&str; 8] = [
+    "minecraft:torch",
+    "minecraft:soul_torch",
+    "minecraft:copper_torch",
+    "minecraft:redstone_torch",
+    "minecraft:campfire",
+    "minecraft:soul_campfire",
+    "minecraft:lava_bucket",
+    "minecraft:fire_charge",
+];
+
+fn water_origins() -> [(&'static str, BlockStateId); 4] {
+    [
+        ("water source", state("minecraft:water")),
+        (
+            "flowing water",
+            state_with("minecraft:water", &[("level", "3")]),
+        ),
+        (
+            "waterlogged slab",
+            state_with("minecraft:oak_slab", &[("waterlogged", "true")]),
+        ),
+        ("bubble column", state("minecraft:bubble_column")),
+    ]
+}
+
+#[test]
+fn the_water_sensitive_tag_holds_exactly_the_agreed_items() {
+    let tag = TagKey::<Item, _>::new(mcrs_minecraft_core::rl!("mcrs:water_sensitive_light"));
+    let members = item_tags().get(&tag).expect("the water-sensitive item tag");
+    let mut found: Vec<ItemId> = members.iter().map(|i| ItemId(i as u16)).collect();
+    let mut expected: Vec<ItemId> = WATER_SENSITIVE
+        .iter()
+        .map(|item| items().id_of(item).unwrap())
+        .collect();
+    found.sort();
+    expected.sort();
+    assert_eq!(found, expected);
+}
+
+#[test]
+fn water_sensitive_items_go_dark_with_water_at_the_origin() {
+    for item in WATER_SENSITIVE {
+        assert!(light(item, &[]).is_some(), "{item} in air");
+        for (origin, id) in water_origins() {
+            assert_eq!(light_in(item, &[], id), None, "{item} in {origin}");
+        }
+    }
+}
+
+#[test]
+fn other_items_keep_their_light_in_water() {
+    for item in ["minecraft:lantern", "minecraft:glowstone"] {
+        let dry = light(item, &[]).expect(item);
+        for (origin, id) in water_origins() {
+            assert_eq!(light_in(item, &[], id), Some(dry), "{item} in {origin}");
+        }
+    }
+}
+
+#[test]
+fn an_unknown_stack_property_or_value_is_ignored() {
+    assert_eq!(
+        light("minecraft:torch", &[("bogus", "x")]).map(|l| l.emission),
+        Some(14)
+    );
+    assert_eq!(light("minecraft:candle", &[("lit", "maybe")]), None);
+}
+
+fn stack_text() -> impl Strategy<Value = String> {
+    prop_oneof![
+        prop::sample::select(vec![
+            "lit",
+            "candles",
+            "level",
+            "berries",
+            "waterlogged",
+            "facing",
+            "true",
+            "false",
+            "0",
+            "4",
+            "15",
+            "north",
+        ])
+        .prop_map(String::from),
+        "\\PC{0,8}",
+    ]
+}
+
+proptest! {
+    #[test]
+    fn arbitrary_input_never_panics(
+        item in 0..=u16::MAX,
+        stack in prop::collection::vec((stack_text(), stack_text()), 0..=8),
+        origin in 0..=u16::MAX,
+    ) {
+        let light = shipped().light(
+            blocks(),
+            colours(),
+            ItemId(item),
+            stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+            BlockStateId(origin),
+        );
+        prop_assert!(light.is_none_or(|l| l.emission > 0));
+    }
+}
+
+fn shipped_files() -> Vec<(String, Vec<u8>)> {
+    let path = "mcrs/item_light/minecraft.json";
+    vec![(
+        path.to_owned(),
+        std::fs::read(assets_dir().join(path)).unwrap(),
+    )]
+}
+
+fn edited(
+    edit: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+) -> Vec<(String, Vec<u8>)> {
+    let (path, bytes) = shipped_files().remove(0);
+    let mut map: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(&bytes).unwrap();
+    edit(&mut map);
+    vec![(path, serde_json::to_vec(&map).unwrap())]
+}
+
+fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
+    ItemLights::from_files(files, blocks(), items())
+}
+
+#[test]
+fn a_missing_emitting_item_fails_listing_it() {
+    let error = load(edited(|map| {
+        map.remove("minecraft:torch");
+    }))
+    .unwrap_err();
+    match error {
+        ItemLightError::Missing { items } => assert_eq!(items, ["minecraft:torch"]),
+        other => panic!("{other}"),
+    }
+}
+
+#[test]
+fn a_mapping_to_a_block_that_never_emits_fails() {
+    let error = load(edited(|map| {
+        map.insert("minecraft:torch".into(), "minecraft:stone".into());
+    }))
+    .unwrap_err();
+    assert!(
+        matches!(&error, ItemLightError::NoEmittingState { item, .. } if item == "minecraft:torch"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_tag_target_fails() {
+    let error = load(edited(|map| {
+        map.insert("minecraft:candle".into(), "#minecraft:candles".into());
+    }))
+    .unwrap_err();
+    assert!(matches!(error, ItemLightError::TagTarget { .. }), "{error}");
+}
+
+#[test]
+fn an_unknown_item_fails() {
+    let error = load(edited(|map| {
+        map.insert("minecraft:no_such_item".into(), "minecraft:torch".into());
+    }))
+    .unwrap_err();
+    assert!(
+        matches!(error, ItemLightError::UnknownItem { .. }),
+        "{error}"
+    );
+}
+
+#[test]
+fn an_item_in_two_files_fails() {
+    let mut files = shipped_files();
+    files.push((
+        "mcrs/item_light/extra.json".to_owned(),
+        br#"{ "minecraft:torch": "minecraft:torch" }"#.to_vec(),
+    ));
+    let error = load(files).unwrap_err();
+    assert!(
+        matches!(error, ItemLightError::DuplicateItem { .. }),
+        "{error}"
+    );
 }
