@@ -2,6 +2,7 @@ pub mod asset;
 pub mod colors;
 #[cfg(feature = "bevy")]
 pub mod item;
+pub mod layout;
 #[cfg(feature = "bevy")]
 pub mod plugin;
 pub mod region;

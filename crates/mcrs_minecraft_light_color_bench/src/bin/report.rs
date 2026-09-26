@@ -11,7 +11,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
 use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
-use mcrs_minecraft_light_color_bench::candidates::gpu::{BRICK_BYTES, PARAMS_BYTES, gpu};
+use mcrs_minecraft_light_color_bench::candidates::gpu::{BRICK_BYTES, JOB_BYTES, gpu};
 use mcrs_minecraft_light_color_bench::candidates::{CANDIDATES, Outcome, Stages, mismatch};
 use mcrs_minecraft_light_color_bench::fixture::{Scene, oracle, relaxed_block_light, scenes};
 use mcrs_minecraft_light_color_bench::shade::{final_rgb, hue, hue_difference};
@@ -171,7 +171,7 @@ fn main() {
         writeln!(
             candidate_notes,
             "- `{}`: {} Measured on {}. Uploads {BRICK_BYTES} bytes of brick per section, once \
-             per scene here, and {PARAMS_BYTES} bytes of parameters and palette per region. CPU \
+             per scene here, and a {JOB_BYTES}-byte job record per region. CPU \
              wall clock per section for creating its device buffers, submitting, and waiting for \
              the readback, which the timestamps leave out: {}.",
             candidate.name,
