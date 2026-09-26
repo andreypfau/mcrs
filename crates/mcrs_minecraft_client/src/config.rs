@@ -116,7 +116,7 @@ pub fn view_distance() -> u8 {
 pub fn color_radius() -> u8 {
     parsed(
         "COLOR_RADIUS",
-        |columns| *columns <= MAX_VIEW_DISTANCE,
+        colour_radius_fits,
         format_args!("expected a colour radius from 0 to {MAX_VIEW_DISTANCE} columns"),
     )
     .unwrap_or(COLOR_RADIUS)
@@ -126,7 +126,7 @@ pub fn color_radius() -> u8 {
 pub fn color_sections() -> u32 {
     parsed(
         "COLOR_SECTIONS",
-        |sections| *sections >= 1,
+        at_least_one,
         "expected at least one section a frame",
     )
     .unwrap_or(COLOR_SECTIONS)
@@ -136,10 +136,18 @@ pub fn color_sections() -> u32 {
 pub fn color_bricks() -> usize {
     parsed(
         "COLOR_BRICKS",
-        |bricks| *bricks >= 1,
+        at_least_one,
         "expected at least one brick a frame",
     )
     .unwrap_or(COLOR_BRICKS)
+}
+
+fn colour_radius_fits(columns: &u8) -> bool {
+    *columns <= MAX_VIEW_DISTANCE
+}
+
+fn at_least_one<T: PartialOrd + From<u8>>(count: &T) -> bool {
+    *count >= T::from(1)
 }
 
 pub fn upload_budget() -> usize {
@@ -453,10 +461,11 @@ fn parsed<T: std::str::FromStr>(
     expected: impl std::fmt::Display,
 ) -> Option<T> {
     let spec = knob(name)?;
-    match spec.trim().parse() {
-        Ok(value) if check(&value) => Some(value),
-        _ => reject(name, &spec, expected),
-    }
+    accepts(&spec, check).or_else(|| reject(name, &spec, expected))
+}
+
+fn accepts<T: std::str::FromStr>(spec: &str, check: impl FnOnce(&T) -> bool) -> Option<T> {
+    spec.trim().parse().ok().filter(check)
 }
 
 fn pair<T: std::str::FromStr>(name: &str, separator: char, expected: &str) -> Option<(T, T)> {
@@ -575,5 +584,33 @@ mod tests {
         for value in ["", "Deferred", "forward", "deferred "] {
             assert!(parse_render_path(Some(value)).is_err(), "{value:?} was accepted");
         }
+    }
+
+    #[test]
+    fn colour_knobs_accept_their_ranges_only() {
+        let radius = |spec: &str| accepts(spec, colour_radius_fits);
+        assert_eq!(radius("0"), Some(0));
+        assert_eq!(radius("10"), Some(10));
+        assert_eq!(
+            radius(&MAX_VIEW_DISTANCE.to_string()),
+            Some(MAX_VIEW_DISTANCE)
+        );
+        for spec in ["97", "255", "-1", "ten", ""] {
+            assert_eq!(radius(spec), None, "{spec:?} was accepted as a radius");
+        }
+        for spec in ["0", "-1", "", "eight"] {
+            assert_eq!(
+                accepts::<u32>(spec, at_least_one),
+                None,
+                "{spec:?} sections"
+            );
+            assert_eq!(
+                accepts::<usize>(spec, at_least_one),
+                None,
+                "{spec:?} bricks"
+            );
+        }
+        assert_eq!(accepts::<u32>("1", at_least_one), Some(1));
+        assert_eq!(accepts::<usize>(" 512 ", at_least_one), Some(512));
     }
 }

@@ -805,3 +805,249 @@ pub(crate) fn write_volume_terms(
     queue.write_buffer(&volume.terms, 0, bytemuck::bytes_of(&terms));
     volume.terms_written = Some(terms);
 }
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_light_color::colors::LightType;
+
+    use super::*;
+
+    /// What the shader reads out of a page texel.
+    fn read(texel: [u32; 2]) -> PageEntry {
+        let bits = texel[0];
+        PageEntry {
+            slot: bits & 0xffff,
+            tier: if (bits >> 16) & 0xf == Tier::Full as u32 {
+                Tier::Full
+            } else {
+                Tier::None
+            },
+            pending: bits & PENDING != 0,
+        }
+    }
+
+    fn lanes_of(types: u8) -> Vec<Lane> {
+        (1..=types)
+            .map(|t| Lane {
+                light_type: LightType(t),
+                colour: Some([t, 0, 0]),
+            })
+            .collect()
+    }
+
+    fn book(radius: u8) -> VolumeBook {
+        VolumeBook::new(64, AtlasGrid::holding(atlas_slots(radius), 2048), 8)
+    }
+
+    #[test]
+    fn page_indices_wrap_negative_sections_and_hold_at_the_world_edge() {
+        let view = 96;
+        let pages = Pages::new(view, -4, 24);
+        assert_eq!(pages.width, 256);
+        let edge = 30_000_000 / 16;
+        for x in [-1, 0, edge - 1, edge, -edge] {
+            let at = pages
+                .index(IVec3::new(x, 0, -x))
+                .expect("a row of the dimension");
+            assert!(at.x < pages.width && at.z < pages.width, "{x}: {at}");
+        }
+        for camera in [IVec3::ZERO, IVec3::new(edge - 2, 5, -edge + 3)] {
+            let mut seen = HashSet::new();
+            let reach = view as i32;
+            for dz in -reach..=reach {
+                for dx in -reach..=reach {
+                    let at = pages.index(camera + IVec3::new(dx, 0, dz)).unwrap();
+                    assert!(seen.insert(at), "{camera} + ({dx}, {dz}) shares {at}");
+                }
+            }
+        }
+        let width = pages.width as i32;
+        assert_eq!(
+            pages.index(IVec3::new(edge, 3, -1)),
+            pages.index(IVec3::new(edge - width, 3, -1 + width))
+        );
+        assert_eq!(pages.index(IVec3::new(0, -5, 0)), None);
+        assert_eq!(pages.index(IVec3::new(0, 20, 0)), None);
+        assert_eq!(pages.index(IVec3::new(0, 19, 0)).map(|at| at.y), Some(23));
+    }
+
+    #[test]
+    fn a_page_entry_holds_its_slot_tier_and_pending_bit() {
+        for slot in [0, 1, 4351, 0xffff] {
+            for tier in [Tier::None, Tier::Full] {
+                for pending in [false, true] {
+                    let entry = PageEntry {
+                        slot,
+                        tier,
+                        pending,
+                    };
+                    let texel = entry.texel();
+                    assert_eq!(texel[1], 0, "{entry:?}");
+                    assert_eq!(read(texel), entry);
+                }
+            }
+        }
+        let neutral = PageEntry {
+            slot: 0,
+            tier: Tier::None,
+            pending: false,
+        };
+        assert_eq!(neutral.texel(), [0, 0], "a zeroed page table is neutral");
+
+        let mut book = book(2);
+        book.reset(0, 4);
+        let section = IVec3::new(0, 1, 0);
+        book.dirty(section, lanes_of(1));
+        assert_eq!(
+            book.entry(section),
+            PageEntry {
+                slot: 0,
+                tier: Tier::None,
+                pending: true
+            }
+        );
+    }
+
+    #[test]
+    fn atlas_slots_tile_inside_the_3d_limit() {
+        for radius in [6, 10, 11] {
+            let side = 2 * radius as u32 + 1;
+            let wanted = atlas_slots(radius);
+            assert!(wanted > side * side * 19 / 2, "{radius}");
+            let grid = AtlasGrid::holding(wanted, 2048);
+            assert!(grid.capacity() >= wanted, "{radius}: {grid:?}");
+            let extent = grid.extent();
+            assert!(extent.max_element() <= 2048, "{radius}: {extent}");
+            let mut origins = HashSet::new();
+            for slot in 0..grid.capacity() {
+                let origin = grid.origin(slot);
+                assert!(
+                    (origin + BRICK_SIDE).cmple(extent).all(),
+                    "{slot}: {origin}"
+                );
+                assert!(origins.insert(origin), "{slot} shares {origin}");
+            }
+        }
+        let off = AtlasGrid::holding(atlas_slots(0), 2048);
+        assert_eq!(off.capacity(), 1, "only the neutral slot");
+        assert_eq!(off.extent(), UVec3::splat(BRICK_SIDE));
+        let narrow = AtlasGrid::holding(atlas_slots(10), 256);
+        assert!(narrow.extent().max_element() <= 256);
+    }
+
+    #[test]
+    fn the_radius_is_clamped_to_what_the_pool_binding_holds() {
+        let binding = 128 << 20;
+        assert_eq!(fit_radius(10, binding), 10);
+        assert_eq!(fit_radius(11, binding), 11);
+        assert_eq!(fit_radius(12, binding), 11);
+        assert_eq!(fit_radius(96, binding), 11);
+        assert_eq!(fit_radius(0, binding), 0);
+        assert_eq!(fit_radius(4, BRICK_BYTES), 0);
+    }
+
+    #[test]
+    fn a_job_names_the_pool_slot_the_unloaded_and_the_above_sentinels() {
+        let mut book = book(4);
+        book.reset(0, 4);
+        let top = IVec3::new(5, 3, -7);
+        let built = [
+            top,
+            top + IVec3::X,
+            top - IVec3::Y,
+            top + IVec3::new(-1, -1, 1),
+        ];
+        let pool: Vec<u32> = built.iter().map(|&s| book.brick(s).unwrap()).collect();
+        let lanes = lanes_of(2);
+        book.dirty(top, lanes.clone());
+        let jobs = book.take_jobs(top, 4, 8, 64);
+        assert_eq!(jobs.records.len(), 1);
+
+        let index = |d: IVec3| ((d.x + 1) + 3 * ((d.z + 1) + 3 * (d.y + 1))) as usize;
+        let mut slots = [SLOT_UNLOADED; 27];
+        slots[18..].fill(SLOT_ABOVE);
+        slots[index(IVec3::ZERO)] = pool[0];
+        slots[index(IVec3::X)] = pool[1];
+        slots[index(-IVec3::Y)] = pool[2];
+        slots[index(IVec3::new(-1, -1, 1))] = pool[3];
+        assert_eq!(slots[index(-IVec3::X)], SLOT_UNLOADED);
+        let origin = book.grid.origin(1).to_array();
+        assert_eq!(jobs.records[0], job_words(&lanes, slots, 0, origin));
+        assert_eq!(
+            book.entry(top),
+            PageEntry {
+                slot: 1,
+                tier: Tier::Full,
+                pending: false
+            }
+        );
+    }
+
+    #[test]
+    fn the_nearest_pending_sections_run_first() {
+        let mut book = book(8);
+        book.reset(0, 8);
+        let camera = IVec3::new(100, 2, -40);
+        for offset in [
+            IVec3::new(3, 0, 0),
+            IVec3::new(0, 0, 1),
+            IVec3::new(-5, 1, 2),
+            IVec3::new(1, 1, 1),
+            IVec3::new(0, 4, -6),
+            IVec3::new(9, 0, 0),
+        ] {
+            book.dirty(camera + offset, lanes_of(1));
+        }
+        assert_eq!(book.take_jobs(camera, 8, 2, 64).records.len(), 2);
+        let coloured: HashSet<IVec3> = book.atlas.keys().copied().collect();
+        let nearest = [camera + IVec3::new(0, 0, 1), camera + IVec3::new(1, 1, 1)];
+        assert_eq!(coloured, HashSet::from(nearest));
+        assert_eq!(book.take_jobs(camera, 8, 8, 64).records.len(), 3);
+        assert_eq!(book.pending_len(), 1, "the section past the radius waits");
+    }
+
+    #[test]
+    fn a_frame_packs_jobs_until_their_lane_words_fill_the_scratch() {
+        let mut book = book(4);
+        book.reset(0, 4);
+        for x in 0..3 {
+            book.dirty(IVec3::new(x, 0, 0), lanes_of(5));
+        }
+        let jobs = book.take_jobs(IVec3::ZERO, 4, 8, 4);
+        assert_eq!((jobs.records.len(), jobs.lane_words), (2, 4));
+        let jobs = book.take_jobs(IVec3::ZERO, 4, 8, 1);
+        assert_eq!(
+            (jobs.records.len(), jobs.lane_words, jobs.widest),
+            (1, 2, 2),
+            "a job wider than the scratch runs alone"
+        );
+    }
+
+    #[test]
+    fn an_empty_palette_publishes_the_neutral_entry_without_a_job() {
+        let mut book = book(4);
+        book.reset(-4, 8);
+        let section = IVec3::new(-1, -4, -1);
+        book.dirty(section, lanes_of(1));
+        assert_eq!(book.take_jobs(section, 4, 8, 64).records.len(), 1);
+        book.take_touched();
+
+        book.dirty(section, Vec::new());
+        assert!(book.take_jobs(section, 4, 8, 64).records.is_empty());
+        assert_eq!(
+            book.entry(section),
+            PageEntry {
+                slot: 0,
+                tier: Tier::None,
+                pending: false
+            }
+        );
+        let page = book.pages.unwrap().index(section).unwrap();
+        assert_eq!(book.take_touched(), [(page, [0, 0])]);
+
+        let other = section + IVec3::X;
+        book.dirty(other, lanes_of(1));
+        book.take_jobs(section, 4, 8, 64);
+        assert_eq!(book.entry(other).slot, 1, "the freed slot is taken again");
+    }
+}
