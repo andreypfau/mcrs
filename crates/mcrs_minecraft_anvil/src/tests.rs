@@ -1095,3 +1095,417 @@ fn the_index_formulas_match_the_reference() {
     assert_eq!(Biomes::index(3, 3, 3), 63);
     assert_eq!(Biomes::ENTRY_COUNT, 64);
 }
+
+mod write {
+    use std::collections::HashMap;
+    use std::io::Cursor;
+    use std::path::Path;
+
+    use mcrs_minecraft_chunk::PalettedContainer;
+    use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+
+    use super::*;
+    use crate::fixture::{self, region_chunks};
+    use crate::{Chunk, PaletteId, PaletteNames, write_chunk};
+
+    struct Named {
+        chunk: Chunk,
+        blocks: PaletteNames<VoxelId>,
+        biomes: PaletteNames<u8>,
+    }
+
+    fn read_named(region: &RegionFile, pos: ColumnPos) -> Named {
+        let (blocks, biomes) = (PaletteNames::new(), PaletteNames::new());
+        let chunk = region.read_chunk(pos, &blocks, &biomes).unwrap().unwrap();
+        Named {
+            chunk,
+            blocks,
+            biomes,
+        }
+    }
+
+    fn fixture_region(fixture: &Fixture, chunks: usize) -> RegionFile {
+        let slots: Vec<_> = region_chunks()
+            .into_iter()
+            .take(chunks)
+            .enumerate()
+            .map(|(i, nbt)| {
+                let version = [GZIP, ZLIB, NONE, LZ4][i % 4];
+                (
+                    i as i32 % 32,
+                    i as i32 / 32,
+                    version,
+                    compress(version, &nbt),
+                )
+            })
+            .collect();
+        RegionFile::open(fixture.region(0, 0, &slots)).unwrap()
+    }
+
+    fn root(nbt: &[u8]) -> NbtCompound {
+        mcrs_minecraft_nbt::Nbt::read(&mut NbtReadHelper::new(Cursor::new(nbt)))
+            .unwrap()
+            .root_tag
+    }
+
+    /// Where each id of `from` sits in `into`, interning by the entry's text.
+    fn translation<V: PaletteId>(from: &PaletteNames<V>, into: &PaletteNames<V>) -> Vec<V> {
+        (0..from.len())
+            .map(|index| {
+                let (name, properties) = from.entry(V::from_index(index).unwrap()).unwrap();
+                let properties = properties.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+                into.intern(&name, properties).unwrap()
+            })
+            .collect()
+    }
+
+    fn cells<V: Copy + Eq + std::hash::Hash + Default, const DIM: usize>(
+        container: &PalettedContainer<V, DIM>,
+    ) -> Vec<V> {
+        match container {
+            PalettedContainer::Homogeneous(value) => vec![*value; DIM * DIM * DIM],
+            PalettedContainer::Heterogeneous(data) => {
+                data.cube.as_flattened().as_flattened().to_vec()
+            }
+        }
+    }
+
+    fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
+        let blocks = translation(&read.blocks, &original.blocks);
+        let biomes = translation(&read.biomes, &original.biomes);
+        let (a, b) = (&read.chunk, &original.chunk);
+        assert_eq!(
+            (a.pos, a.min_section_y, &a.status, a.is_light_on),
+            (b.pos, b.min_section_y, &b.status, b.is_light_on),
+            "{what}"
+        );
+        assert_eq!(
+            (
+                a.inhabited_time,
+                a.last_update,
+                &a.heightmaps,
+                &a.block_entities
+            ),
+            (
+                b.inhabited_time,
+                b.last_update,
+                &b.heightmaps,
+                &b.block_entities
+            ),
+            "{what}"
+        );
+        assert_eq!(a.sections.len(), b.sections.len(), "{what}");
+        for (sa, sb) in a.sections.iter().zip(&b.sections) {
+            assert_eq!(sa.y, sb.y, "{what}");
+            let block_cells = |s: &crate::Section, table: Option<&[VoxelId]>| {
+                s.block_states.as_ref().map(|c| {
+                    cells(c)
+                        .into_iter()
+                        .map(|v| table.map_or(v, |t| t[v.index()]))
+                        .collect::<Vec<_>>()
+                })
+            };
+            assert_eq!(
+                block_cells(sa, Some(&blocks)),
+                block_cells(sb, None),
+                "{what}, section {}",
+                sa.y
+            );
+            let biome_cells = |s: &crate::Section, table: Option<&[u8]>| {
+                s.biomes.as_ref().map(|c| {
+                    cells(c)
+                        .into_iter()
+                        .map(|v| table.map_or(v, |t| t[v.index()]))
+                        .collect::<Vec<_>>()
+                })
+            };
+            assert_eq!(
+                biome_cells(sa, Some(&biomes)),
+                biome_cells(sb, None),
+                "{what}, section {}",
+                sa.y
+            );
+            assert_eq!(sa.block_light, sb.block_light, "{what}, section {}", sa.y);
+            assert_eq!(sa.sky_light, sb.sky_light, "{what}, section {}", sa.y);
+        }
+    }
+
+    /// Slot index to the record's sectors and its timestamp.
+    fn records(bytes: &[u8]) -> HashMap<usize, (&[u8], i32)> {
+        (0..1024)
+            .filter_map(|slot| {
+                let entry = u32::from_be_bytes(bytes[slot * 4..slot * 4 + 4].try_into().unwrap());
+                let (sector, count) = ((entry >> 8) as usize, (entry & 0xff) as usize);
+                let at = SECTOR_BYTES + slot * 4;
+                let timestamp = i32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+                (entry != 0).then(|| {
+                    let span = &bytes[sector * SECTOR_BYTES..(sector + count) * SECTOR_BYTES];
+                    (slot, (span, timestamp))
+                })
+            })
+            .collect()
+    }
+
+    fn rewrite(region: &RegionFile, replaced: &[(ColumnPos, Vec<u8>)], dir: &Path) -> RegionFile {
+        let out = dir.join(region.path().file_name().unwrap());
+        region.write(replaced, &out).unwrap();
+        RegionFile::open(out).unwrap()
+    }
+
+    #[test]
+    fn a_region_read_and_written_back_reads_equal() {
+        let (src, dst) = (Fixture::new("write_src"), Fixture::new("write_dst"));
+        let region = fixture_region(&src, fixture::CHUNKS);
+        let originals: Vec<(ColumnPos, Named)> = region
+            .present()
+            .map(|pos| (pos, read_named(&region, pos)))
+            .collect();
+        assert_eq!(originals.len(), fixture::CHUNKS);
+        let replaced: Vec<(ColumnPos, Vec<u8>)> = originals
+            .iter()
+            .map(|(pos, n)| (*pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap()))
+            .collect();
+
+        let mut arrays = 0;
+        for (pos, nbt) in &replaced {
+            let root = root(nbt);
+            for section in root.get_list("sections").unwrap() {
+                let NbtTag::Compound(section) = section else {
+                    panic!("chunk {pos:?}: a section is not a compound");
+                };
+                for field in ["block_states", "biomes"] {
+                    let container = section.get_compound(field).unwrap();
+                    if let Some(data) = container.get("data") {
+                        assert!(
+                            matches!(data, NbtTag::LongArray(_)),
+                            "{field} data: {data:?}"
+                        );
+                        arrays += 1;
+                    }
+                }
+                for field in ["BlockLight", "SkyLight"] {
+                    if let Some(light) = section.get(field) {
+                        assert!(matches!(light, NbtTag::ByteArray(_)), "{field}: {light:?}");
+                        arrays += 1;
+                    }
+                }
+            }
+        }
+        assert!(arrays > 0, "no packed data or light was written");
+
+        let written = rewrite(&region, &replaced, &dst.dir);
+        for (pos, original) in &originals {
+            let entries_before = (original.blocks.len(), original.biomes.len());
+            let read = read_named(&written, *pos);
+            assert_same_chunk(&read, original, &format!("chunk {pos:?}"));
+            assert_eq!(
+                (original.blocks.len(), original.biomes.len()),
+                entries_before,
+                "chunk {pos:?}: a written palette entry differs in text from every original one"
+            );
+        }
+    }
+
+    #[test]
+    fn a_block_set_by_name_reads_back() {
+        let (src, dst) = (Fixture::new("set_block_src"), Fixture::new("set_block_dst"));
+        let region = fixture_region(&src, 1);
+        let pos = ColumnPos::new(0, 0);
+        let mut original = read_named(&region, pos);
+        let untouched = read_named(&region, pos);
+        let torch = original
+            .blocks
+            .intern("minecraft:torch", std::iter::empty())
+            .unwrap();
+        let at = BlockPos::new(5, 70, 9);
+        original.chunk.set_block(at, torch).unwrap();
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+
+        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        let section = read.chunk.sections.iter().find(|s| s.y == 70 >> 4).unwrap();
+        let id = section.block_states.as_ref().unwrap().get(5, 70 & 15, 9);
+        assert_eq!(
+            read.blocks.entry(id),
+            Some(("minecraft:torch".to_string(), vec![]))
+        );
+
+        let table = translation(&read.blocks, &untouched.blocks);
+        let torch_in_untouched = untouched
+            .blocks
+            .intern("minecraft:torch", std::iter::empty())
+            .unwrap();
+        for (sa, sb) in read.chunk.sections.iter().zip(&untouched.chunk.sections) {
+            let a: Vec<VoxelId> = cells(sa.block_states.as_ref().unwrap())
+                .into_iter()
+                .map(|v| table[v.index()])
+                .collect();
+            let mut b = cells(sb.block_states.as_ref().unwrap());
+            if sb.y == 70 >> 4 {
+                b[Blocks::index(5, 70 & 15, 9)] = torch_in_untouched;
+            }
+            assert_eq!(a, b, "section {}", sa.y);
+        }
+    }
+
+    #[test]
+    fn a_written_chunk_carries_the_current_data_version_and_asks_for_light() {
+        let (src, dst) = (Fixture::new("version_src"), Fixture::new("version_dst"));
+        let root_in = chunk_nbt_versioned(
+            0,
+            0,
+            vec![NbtTag::Compound(section(
+                0,
+                container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+            ))],
+            OLDEST_DATA_VERSION,
+        );
+        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let mut edited = read_named(&region, pos);
+        assert!(edited.chunk.is_light_on);
+        let glowstone = edited
+            .blocks
+            .intern("minecraft:glowstone", std::iter::empty())
+            .unwrap();
+        edited
+            .chunk
+            .set_block(BlockPos::new(1, 2, 3), glowstone)
+            .unwrap();
+        let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
+
+        assert_eq!(root(&nbt).get_int("DataVersion"), Some(DATA_VERSION));
+        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        assert!(!read.chunk.is_light_on);
+    }
+
+    #[test]
+    fn a_chunk_needing_256_sectors_goes_to_an_external_file() {
+        let (src, dst) = (Fixture::new("external_src"), Fixture::new("external_dst"));
+        let root_in = chunk_nbt(
+            33,
+            2,
+            vec![NbtTag::Compound(section(
+                1,
+                container(vec![NbtTag::Compound(block("minecraft:deepslate"))], None),
+            ))],
+        );
+        let region = RegionFile::open(src.region(
+            1,
+            0,
+            &[(33, 2, ZLIB, compress(ZLIB, &nbt_bytes(&root_in)))],
+        ))
+        .unwrap();
+        let pos = ColumnPos::new(33, 2);
+        let mut original = read_named(&region, pos);
+
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let noise: Box<[u8]> = (0..(1 << 20) + (1 << 17))
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state as u8
+            })
+            .collect();
+        let mut chest = NbtCompound::new();
+        chest.put_string("id", "minecraft:chest".to_string());
+        chest.put_int("x", 33 * 16);
+        chest.put_int("y", 20);
+        chest.put_int("z", 2 * 16);
+        chest.put("noise", NbtTag::ByteArray(noise));
+        original.chunk.block_entities.push(chest);
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+
+        let written = rewrite(&region, &[(pos, nbt)], &dst.dir);
+        let bytes = std::fs::read(written.path()).unwrap();
+        let (record, _) = records(&bytes)[&(2 * 32 + 1)];
+        assert_eq!(record.len(), SECTOR_BYTES, "the stub takes one sector");
+        assert_eq!(&record[..5], &[0, 0, 0, 1, ZLIB | EXTERNAL]);
+        assert!(dst.dir.join("c.33.2.mcc").is_file());
+
+        let read = read_named(&written, pos);
+        assert_same_chunk(&read, &original, "external chunk");
+    }
+
+    #[test]
+    fn writing_onto_the_file_it_was_read_from_is_refused() {
+        let fixture = Fixture::new("refuse");
+        let region = fixture_region(&fixture, 2);
+        let before = std::fs::read(region.path()).unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let n = read_named(&region, pos);
+        let replaced = [(pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap())];
+
+        let same = region.path().to_path_buf();
+        let spelled_otherwise = fixture.dir.join(".").join("r.0.0.mca");
+        for out in [same, spelled_otherwise] {
+            let err = region.write(&replaced, &out).unwrap_err();
+            assert!(
+                matches!(err.kind, ErrorKind::WriteOntoSource { .. }),
+                "{}: {err}",
+                out.display()
+            );
+        }
+        assert_eq!(std::fs::read(region.path()).unwrap(), before);
+    }
+
+    #[test]
+    fn a_state_without_properties_is_written_as_a_bare_name() {
+        let fixture = Fixture::new("bare_names");
+        let root_in = chunk_nbt(
+            0,
+            0,
+            vec![NbtTag::Compound(section(
+                0,
+                container(
+                    vec![
+                        NbtTag::String("minecraft:stone".to_string()),
+                        NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
+                    ],
+                    Some(pack(&[0, 1].repeat(2048), 4)),
+                ),
+            ))],
+        );
+        let region = RegionFile::open(fixture.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let n = read_named(&region, ColumnPos::new(0, 0));
+        let root = root(&write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap());
+        let NbtTag::Compound(section) = &root.get_list("sections").unwrap()[0] else {
+            panic!("a section is not a compound");
+        };
+        let palette = section
+            .get_compound("block_states")
+            .unwrap()
+            .get_list("palette")
+            .unwrap();
+        assert_eq!(palette[0], NbtTag::String("minecraft:stone".to_string()));
+        assert_eq!(
+            palette[1],
+            NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y"))
+        );
+    }
+
+    #[test]
+    fn untouched_chunks_are_copied_byte_for_byte() {
+        let (src, dst) = (Fixture::new("verbatim_src"), Fixture::new("verbatim_dst"));
+        let region = fixture_region(&src, 40);
+        let pos = ColumnPos::new(5, 0);
+        let n = read_named(&region, pos);
+        let replaced = [(pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap())];
+
+        let written = rewrite(&region, &replaced, &dst.dir);
+        let (before, after) = (
+            std::fs::read(region.path()).unwrap(),
+            std::fs::read(written.path()).unwrap(),
+        );
+        let (before, after) = (records(&before), records(&after));
+        assert_eq!(before.len(), 40);
+        assert_eq!(after.len(), 40);
+        for (slot, record) in &before {
+            if *slot == 5 {
+                continue;
+            }
+            assert_eq!(after.get(slot), Some(record), "slot {slot}");
+        }
+    }
+}
