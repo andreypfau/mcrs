@@ -17,6 +17,7 @@ use crate::ParityMask;
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
 use crate::views::{DeferredViews, Display, Lighting};
+use crate::volume::Volume;
 
 type WorldView = (
     &'static ViewTarget,
@@ -29,6 +30,7 @@ type WorldView = (
 pub(crate) struct DeferredParams<'w> {
     terrain: Option<Res<'w, Terrain>>,
     frame: Option<Res<'w, DeferredFrame>>,
+    volume: Option<Res<'w, Volume>>,
     pipelines: Res<'w, DeferredPipelines>,
     cache: Res<'w, PipelineCache>,
     streams: Res<'w, Streams>,
@@ -169,7 +171,11 @@ pub(crate) fn draw_lighting(
     device: Res<RenderDevice>,
     mut ctx: RenderContext,
 ) {
-    let (Some(terrain), Some(frame)) = (params.terrain.as_deref(), params.frame.as_deref()) else {
+    let (Some(terrain), Some(frame), Some(volume)) = (
+        params.terrain.as_deref(),
+        params.frame.as_deref(),
+        params.volume.as_deref(),
+    ) else {
         return;
     };
     let (target, depth, _, _) = view.into_inner();
@@ -204,6 +210,7 @@ pub(crate) fn draw_lighting(
     pass.set_bind_group(0, terrain.view_bind_group(), &[0]);
     pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
     pass.set_bind_group(2, &frame.bind_group, &[]);
+    pass.set_bind_group(3, &volume.bind_group, &[]);
     pass.draw(0..3, 0..1);
 }
 

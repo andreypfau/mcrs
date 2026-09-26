@@ -7,6 +7,7 @@ use mcrs_minecraft_render::{EffectivePath, RenderPath, ShownPath};
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipelines::DeferredPipelines;
+use crate::volume::Volume;
 
 fn effective(requested: RenderPath, frame_exists: bool, pipelines_ready: bool) -> EffectivePath {
     EffectivePath(
@@ -21,6 +22,7 @@ fn effective(requested: RenderPath, frame_exists: bool, pipelines_ready: bool) -
 pub(crate) fn derive_effective_path(
     requested: Res<RenderPath>,
     frame: Option<Res<DeferredFrame>>,
+    volume: Option<Res<Volume>>,
     pipelines: Res<DeferredPipelines>,
     cache: Res<PipelineCache>,
     mut effective_path: ResMut<EffectivePath>,
@@ -41,7 +43,8 @@ pub(crate) fn derive_effective_path(
             error!(?label, "a deferred pipeline cannot be built: {error}");
         }
     }
-    let next = effective(*requested, frame.is_some(), pipelines.ready(&cache));
+    let allocated = frame.is_some() && volume.is_some();
+    let next = effective(*requested, allocated, pipelines.ready(&cache));
     if next.0 == RenderPath::Deferred && effective_path.0 == RenderPath::Classic {
         let (since, frames) = waiting.take().unwrap_or((Instant::now(), 0));
         let ms = since.elapsed().as_millis();

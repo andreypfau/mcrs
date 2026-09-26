@@ -10,6 +10,7 @@ use mcrs_minecraft_render::{
 use crate::ParityMask;
 use crate::gbuffer::{GBUFFER_FORMATS, gbuffer_layout};
 use crate::views::Variant;
+use crate::volume::volume_layout;
 
 /// Queued once, on the first frame the deferred path is asked for, and never dropped: the
 /// pipeline cache neither deduplicates nor evicts, so queuing again would leak a set.
@@ -83,6 +84,7 @@ pub(crate) fn prepare_deferred_pipelines(
                     terrain.view_layout().clone(),
                     terrain.draw_layout().clone(),
                     gbuffer_layout(),
+                    volume_layout(),
                 ],
                 shader,
                 String::new(),

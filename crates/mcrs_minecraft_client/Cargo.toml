@@ -19,6 +19,7 @@ mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_item_component.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_light.workspace = true
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [

@@ -3544,6 +3544,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_component",
  "mcrs_minecraft_level",
+ "mcrs_minecraft_light",
  "mcrs_minecraft_light_color",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
@@ -3924,6 +3925,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bytemuck",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_light_color",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_render",
 ]

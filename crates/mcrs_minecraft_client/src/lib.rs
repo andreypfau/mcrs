@@ -28,6 +28,7 @@ pub mod input;
 pub mod inventory;
 pub mod item_model;
 pub mod light_guard;
+pub mod light_volume;
 pub mod local_player;
 pub mod model;
 pub mod player;
@@ -90,7 +91,13 @@ impl Plugin for ClientTerrainPlugin {
         .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
+        .insert_resource(mcrs_minecraft_render_deferred::VolumeSettings {
+            radius: config::color_radius(),
+            view_distance: config::view_distance(),
+            sections_per_frame: config::color_sections(),
+        })
         .add_plugins(stream::StreamPlugin::new(budget, uploads))
+        .add_plugins(light_volume::LightVolumePlugin)
         .insert_resource(cave)
         .add_systems(
             Update,

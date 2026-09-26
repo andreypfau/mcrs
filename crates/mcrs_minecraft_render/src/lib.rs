@@ -221,6 +221,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/surface.wgsl");
     load_shader_library!(app, "shaders/include/finish.wgsl");
     load_shader_library!(app, "shaders/include/deferred.wgsl");
+    load_shader_library!(app, "shaders/include/volume.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");

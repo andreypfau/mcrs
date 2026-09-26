@@ -53,6 +53,19 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
+#[cfg(not(target_family = "wasm"))]
+const COLOR_RADIUS: u8 = 10;
+#[cfg(not(target_family = "wasm"))]
+const COLOR_SECTIONS: u32 = 8;
+#[cfg(not(target_family = "wasm"))]
+const COLOR_BRICKS: usize = 512;
+#[cfg(target_family = "wasm")]
+const COLOR_RADIUS: u8 = 6;
+#[cfg(target_family = "wasm")]
+const COLOR_SECTIONS: u32 = 2;
+#[cfg(target_family = "wasm")]
+const COLOR_BRICKS: usize = 16;
+
 const VIEW_DISTANCE: u8 = 96;
 pub const MAX_VIEW_DISTANCE: u8 = 96;
 
@@ -97,6 +110,36 @@ pub fn view_distance() -> u8 {
         format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
     )
     .unwrap_or(VIEW_DISTANCE)
+}
+
+/// `COLOR_RADIUS=<columns>` colours block light that many columns around the camera; 0 is off.
+pub fn color_radius() -> u8 {
+    parsed(
+        "COLOR_RADIUS",
+        |columns| *columns <= MAX_VIEW_DISTANCE,
+        format_args!("expected a colour radius from 0 to {MAX_VIEW_DISTANCE} columns"),
+    )
+    .unwrap_or(COLOR_RADIUS)
+}
+
+/// `COLOR_SECTIONS=<sections>` is how many sections the GPU colours in one frame.
+pub fn color_sections() -> u32 {
+    parsed(
+        "COLOR_SECTIONS",
+        |sections| *sections >= 1,
+        "expected at least one section a frame",
+    )
+    .unwrap_or(COLOR_SECTIONS)
+}
+
+/// `COLOR_BRICKS=<bricks>` is how many section bricks may start building in one frame.
+pub fn color_bricks() -> usize {
+    parsed(
+        "COLOR_BRICKS",
+        |bricks| *bricks >= 1,
+        "expected at least one brick a frame",
+    )
+    .unwrap_or(COLOR_BRICKS)
 }
 
 pub fn upload_budget() -> usize {

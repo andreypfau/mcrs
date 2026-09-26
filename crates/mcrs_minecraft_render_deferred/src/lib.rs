@@ -2,17 +2,22 @@
 // `#[derive(Resource)]` walks all of it.
 #![recursion_limit = "256"]
 
+mod colour;
 mod gbuffer;
 mod pass;
 mod path;
 mod pipelines;
 mod reconstruct;
 mod views;
+mod volume;
 
 use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
+use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::{Render, RenderApp, RenderSystems};
 use mcrs_minecraft_render::{DebugViews, EffectivePath, Occlusion, RenderPath, WorldPass};
+
+pub use volume::{VolumeCommand, VolumeQueue, VolumeSettings};
 
 pub struct DeferredPlugin {
     pub parity_mask: bool,
@@ -25,18 +30,30 @@ impl Plugin for DeferredPlugin {
     fn build(&self, app: &mut App) {
         bevy::asset::embedded_asset!(app, "shaders/lighting.wgsl");
         bevy::asset::embedded_asset!(app, "shaders/show.wgsl");
+        bevy::asset::embedded_asset!(app, "shaders/colour.wgsl");
+        let queue = VolumeQueue::default();
+        app.init_resource::<VolumeSettings>()
+            .insert_resource(queue.clone())
+            .add_plugins(ExtractResourcePlugin::<VolumeSettings>::default());
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
             .insert_resource(ParityMask(self.parity_mask))
+            .insert_resource(queue)
             .init_resource::<pipelines::DeferredPipelines>()
+            .init_resource::<colour::ColourPipelines>()
             .add_systems(
                 Render,
                 (
                     pipelines::prepare_deferred_pipelines.in_set(RenderSystems::Prepare),
+                    colour::prepare_colour_pipelines.in_set(RenderSystems::Prepare),
+                    (volume::apply_volume_commands, volume::write_volume_terms)
+                        .chain()
+                        .in_set(RenderSystems::Prepare),
                     (
                         gbuffer::fit_deferred_frame,
+                        volume::fit_volume,
                         reconstruct::write_lighting_uniform,
                         path::derive_effective_path,
                     )
@@ -47,6 +64,9 @@ impl Plugin for DeferredPlugin {
             .add_systems(
                 Core3d,
                 (
+                    colour::propagate_colour
+                        .in_set(WorldPass::Upload)
+                        .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
                     pass::draw_gbuffer
                         .in_set(WorldPass::Opaque)
                         .run_if(resource_equals(EffectivePath(RenderPath::Deferred))),
