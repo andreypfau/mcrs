@@ -3544,6 +3544,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_component",
  "mcrs_minecraft_level",
+ "mcrs_minecraft_light_color",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -3758,6 +3759,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

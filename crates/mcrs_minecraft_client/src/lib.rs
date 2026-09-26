@@ -57,6 +57,7 @@ impl PluginGroup for ClientPlugins {
             .add(vanilla::VanillaAssetsPlugin)
             .add(mcrs_minecraft_assets::MinecraftCorePlugin)
             .add(mcrs_minecraft_world::MinecraftWorldPlugin)
+            .add(mcrs_minecraft_light_color::plugin::LightColorPlugin)
             .add(player::PlayerPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)

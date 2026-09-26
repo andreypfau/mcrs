@@ -1,0 +1,8 @@
+{
+  "color": "#86ca59",
+  "blocks": [
+    "minecraft:copper_torch",
+    "minecraft:copper_wall_torch",
+    "minecraft:copper_lantern"
+  ]
+}

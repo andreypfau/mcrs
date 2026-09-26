@@ -1,0 +1,7 @@
+{
+  "color": "#6c70b2",
+  "blocks": [
+    "minecraft:end_gateway",
+    "minecraft:end_portal"
+  ]
+}
