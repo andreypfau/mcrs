@@ -7,6 +7,8 @@ use mcrs_minecraft_light_color::region::Region;
 use crate::fixture::{Scene, output_positions};
 
 pub mod bfs;
+pub mod block;
+pub mod planar;
 pub mod reference;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -48,6 +50,16 @@ pub const CANDIDATES: &[Candidate] = &[
         name: "bfs",
         redundancy: cube(48.0) / cube(18.0),
         run: bfs::run,
+    },
+    Candidate {
+        name: "planar",
+        redundancy: cube(46.0) / cube(18.0),
+        run: planar::run,
+    },
+    Candidate {
+        name: "block",
+        redundancy: cube(78.0) / cube(50.0),
+        run: block::run,
     },
 ];
 
