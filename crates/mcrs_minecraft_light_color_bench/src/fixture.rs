@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -299,8 +300,9 @@ pub fn output_positions(section: SectionPos) -> impl Iterator<Item = BlockPos> {
 pub fn oracle(scene: &Scene, section: SectionPos, t: LightType) -> Vec<u8> {
     let area = BoundingBox::of_section(section).inflated(SectionPos::SIZE as i32);
     let (layout, field) = relaxed(scene, area, |seed| seed == t);
+    let cell = cell_index(&layout);
     output_positions(section)
-        .map(|pos| field.get(cell(&layout, pos)).get())
+        .map(|pos| field.get(cell(pos)).get())
         .collect()
 }
 
@@ -309,10 +311,11 @@ pub fn relaxed_block_light(scene: &Scene) -> Vec<Option<Box<[u8; VOLUME]>>> {
     let centre = SectionPos(scene.origin.0 + IVec3::splat(SIDE / 2));
     let area = BoundingBox::of_section(centre).inflated(SIDE / 2 * SectionPos::SIZE as i32);
     let (layout, field) = relaxed(scene, area, |_| true);
+    let cell = cell_index(&layout);
     (0..SECTIONS)
         .map(|slot| {
             scene.blocks[slot].as_ref()?;
-            let base = BlockPos::from(scene.section_at(slot).0 * SectionPos::SIZE as i32);
+            let base = scene.section_at(slot).0 * SectionPos::SIZE as i32;
             Some(Box::new(std::array::from_fn(|i| {
                 let local = LocalPos::from_index(i);
                 let pos = BlockPos::new(
@@ -320,28 +323,24 @@ pub fn relaxed_block_light(scene: &Scene) -> Vec<Option<Box<[u8; VOLUME]>>> {
                     base.y + local.y() as i32,
                     base.z + local.z() as i32,
                 );
-                field.get(cell(&layout, pos)).get()
+                field.get(cell(pos)).get()
             })))
         })
         .collect()
 }
 
-fn cell(layout: &FieldLayout, pos: BlockPos) -> u32 {
-    let section = SectionPos::from(pos);
-    let (index, _) = layout
+pub fn cell_index(layout: &FieldLayout) -> impl Fn(BlockPos) -> u32 + use<> {
+    let bases: HashMap<SectionPos, u32> = layout
         .sections()
-        .find(|&(_, p)| p == section)
-        .expect("a cell outside the relaxed layout");
-    layout.section_base(index) | LocalPos::from(pos).index() as u32
+        .map(|(i, pos)| (pos, layout.section_base(i)))
+        .collect();
+    move |pos| bases[&SectionPos::from(pos)] | LocalPos::from(pos).index() as u32
 }
 
-fn relaxed(
-    scene: &Scene,
-    area: BoundingBox,
-    keep: impl Fn(LightType) -> bool,
-) -> (FieldLayout, LightField) {
+/// The scene as the server's relax reads it, with the fillers `Region::new`
+/// uses: open space outside the world, opaque space the fixture lacks.
+pub fn snapshot(scene: &Scene, layout: &FieldLayout) -> BlockSnapshot {
     let registry = &scene.registry;
-    let layout = FieldLayout::covering(area);
     let sources = layout
         .sections()
         .map(|(_, pos)| match scene.section(pos) {
@@ -355,22 +354,45 @@ fn relaxed(
             None => SectionSource::Absent(registry.unloaded()),
         })
         .collect();
-    let blocks = BlockSnapshot::new(&layout, sources);
-    let field = LightField::new(layout.clone());
+    BlockSnapshot::new(layout, sources)
+}
 
-    let mut seeds = Vec::new();
+/// Every emitting cell of the snapshot with its light type and level.
+pub fn emitters(
+    scene: &Scene,
+    layout: &FieldLayout,
+    blocks: &BlockSnapshot,
+) -> Vec<(u32, LightType, LightLevel)> {
+    let mut found = Vec::new();
     for (section, _) in layout.sections() {
         let base = layout.section_base(section);
         for local in LocalPos::all() {
             let index = base | local.index() as u32;
             let id = blocks.get(index);
-            let emission = registry.emission(id);
-            if !emission.is_zero() && keep(scene.colours.light_type(id)) {
-                field.set(index, emission);
-                seeds.push(index);
+            let emission = scene.registry.emission(id);
+            if !emission.is_zero() {
+                found.push((index, scene.colours.light_type(id), emission));
             }
         }
     }
-    relax(&field, &blocks, registry, seeds);
+    found
+}
+
+fn relaxed(
+    scene: &Scene,
+    area: BoundingBox,
+    keep: impl Fn(LightType) -> bool,
+) -> (FieldLayout, LightField) {
+    let layout = FieldLayout::covering(area);
+    let blocks = snapshot(scene, &layout);
+    let field = LightField::new(layout.clone());
+    let mut seeds = Vec::new();
+    for (index, t, emission) in emitters(scene, &layout, &blocks) {
+        if keep(t) {
+            field.set(index, emission);
+            seeds.push(index);
+        }
+    }
+    relax(&field, &blocks, &scene.registry, seeds);
     (layout, field)
 }

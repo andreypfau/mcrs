@@ -43,3 +43,7 @@ corpus = [
 [[bin]]
 name = "cut_fixture"
 required-features = ["corpus"]
+
+[[test]]
+name = "corpus"
+required-features = ["corpus"]

@@ -152,7 +152,9 @@ fn main() {
          columns are medians; median and p99 are of the total per section. Deltas are the final \
          block-light RGB against the reference over cells whose server level is above 0. The \
          join estimate is the median per lit section times the lit share of the 27 inner \
-         sections, times 65² columns, times the dimension's section count, on one thread.\n\n\
+         sections, times 65² columns, times the dimension's section count. `bfs` is the server's \
+         relax, which spreads any round of 4096 or more cells over the rayon pool, so its \
+         times on dense emitters use several threads; every other stage runs on one.\n\n\
          {table}\n\
          Server level against relax over every light type on the 27 inner sections:\n\n\
          {notes}"

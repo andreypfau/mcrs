@@ -5,13 +5,16 @@ use mcrs_minecraft_anvil::{Chunk, PaletteLookup, Properties, RegionFile};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{ColumnPos, RegionPos, SectionPos};
 use mcrs_minecraft_light_color_bench::corpus::Corpus;
-use mcrs_minecraft_light_color_bench::fixture::{Fixture, FixtureSection, SECTIONS, SIDE};
+use mcrs_minecraft_light_color_bench::fixture::{
+    Fixture, FixtureSection, SECTIONS, SIDE, relaxed_block_light,
+};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use serde::Deserialize;
 
 const USAGE: &str = "\
 usage: cut_fixture scan <world> <dimension> [--max-y Y] [--by types|emitters]
-       cut_fixture cut <world> <dimension> <x> <y> <z> <out>";
+       cut_fixture cut <world> <dimension> <x> <y> <z> <out>
+       cut_fixture overlap <out>";
 
 const FULL_STATUS: &str = "minecraft:full";
 const WIDTH: usize = SectionPos::SIZE;
@@ -37,6 +40,7 @@ fn main() {
             let centre = SectionPos::new(number(x), number(y), number(z));
             cut(Path::new(world), dimension, centre, Path::new(out));
         }
+        ["overlap", out] => overlap(Path::new(out)),
         _ => usage(),
     }
 }
@@ -358,5 +362,97 @@ fn cut(world: &Path, dimension: &str, centre: SectionPos, out: &Path) {
         centre.z,
         fixture.palette.len(),
         types
+    );
+}
+
+const OVERLAP_LIGHTS: [&str; 5] = [
+    "minecraft:torch",
+    "minecraft:soul_lantern",
+    "minecraft:redstone_torch",
+    "minecraft:amethyst_cluster",
+    "minecraft:copper_lantern",
+];
+
+/// Five differently coloured lights on a ring of radius 4 on a stone floor
+/// in open air, so every pair's light overlaps. The block light stored is the
+/// server's relax over all of them together.
+fn overlap(out: &Path) {
+    let corpus = Corpus::get();
+    let state = |name: &str| corpus.resolve(&name.parse().expect("a well-formed state"));
+    let mut used = vec![state("minecraft:air"), state("minecraft:stone")];
+    used.extend(OVERLAP_LIGHTS.map(state));
+    let (colours, palette) = corpus.bake(&used);
+
+    let centre = SectionPos::new(0, 4, 0);
+    let origin = SectionPos::new(
+        centre.x - SIDE / 2,
+        centre.y - SIDE / 2,
+        centre.z - SIDE / 2,
+    );
+    let floor_y = centre.y * WIDTH as i32;
+    let middle = centre.x * WIDTH as i32 + WIDTH as i32 / 2;
+    let ring: Vec<(i32, i32)> = (0..OVERLAP_LIGHTS.len())
+        .map(|i| {
+            let angle = std::f32::consts::TAU * i as f32 / OVERLAP_LIGHTS.len() as f32;
+            (
+                middle + (4.0 * angle.cos()).round() as i32,
+                middle + (4.0 * angle.sin()).round() as i32,
+            )
+        })
+        .collect();
+    let inner = (origin.x + 1) * WIDTH as i32..(origin.x + SIDE - 1) * WIDTH as i32;
+
+    let sections = (0..SECTIONS as i32)
+        .map(|slot| {
+            let pos = SectionPos::new(
+                origin.x + slot % SIDE,
+                origin.y + slot / (SIDE * SIDE),
+                origin.z + slot / SIDE % SIDE,
+            );
+            let mut blocks = vec![0u16; SectionPos::VOLUME];
+            for (i, block) in blocks.iter_mut().enumerate() {
+                let x = pos.x * WIDTH as i32 + (i % WIDTH) as i32;
+                let z = pos.z * WIDTH as i32 + (i / WIDTH % WIDTH) as i32;
+                let y = pos.y * WIDTH as i32 + (i / (WIDTH * WIDTH)) as i32;
+                if y == floor_y && inner.contains(&x) && inner.contains(&z) {
+                    *block = 1;
+                } else if y == floor_y + 1
+                    && let Some(light) = ring.iter().position(|&(rx, rz)| (rx, rz) == (x, z))
+                {
+                    *block = 2 + light as u16;
+                }
+            }
+            Some(FixtureSection {
+                blocks,
+                block_light: None,
+            })
+        })
+        .collect();
+
+    let extent = Extent::of("minecraft:overworld");
+    let mut fixture = Fixture {
+        dimension: "minecraft:overworld".to_owned(),
+        min_section_y: extent.min_section_y(),
+        section_count: extent.sections() as u32,
+        origin: [origin.x, origin.y, origin.z],
+        colours,
+        palette,
+        sections,
+    };
+    let light = relaxed_block_light(&fixture.scene("overlap"));
+    for (section, light) in fixture.sections.iter_mut().zip(light) {
+        let (Some(section), Some(light)) = (section, light) else {
+            continue;
+        };
+        let mut packed = vec![0u8; SectionPos::VOLUME / 2];
+        for (i, &level) in light.iter().enumerate() {
+            packed[i >> 1] |= level << ((i & 1) * 4);
+        }
+        section.block_light = Some(packed);
+    }
+    fixture.write(out);
+    println!(
+        "{}: lights at {ring:?}, floor at y {floor_y}",
+        out.display()
     );
 }

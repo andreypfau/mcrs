@@ -6,6 +6,7 @@ use mcrs_minecraft_light_color::region::Region;
 
 use crate::fixture::{Scene, output_positions};
 
+pub mod bfs;
 pub mod reference;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -37,11 +38,18 @@ pub struct Candidate {
     pub run: fn(&Scene, SectionPos, &mut Stages) -> Option<Outcome>,
 }
 
-pub const CANDIDATES: &[Candidate] = &[Candidate {
-    name: "reference",
-    redundancy: cube(46.0) / cube(18.0),
-    run: reference::run,
-}];
+pub const CANDIDATES: &[Candidate] = &[
+    Candidate {
+        name: "reference",
+        redundancy: cube(46.0) / cube(18.0),
+        run: reference::run,
+    },
+    Candidate {
+        name: "bfs",
+        redundancy: cube(48.0) / cube(18.0),
+        run: bfs::run,
+    },
+];
 
 const fn cube(side: f64) -> f64 {
     side * side * side

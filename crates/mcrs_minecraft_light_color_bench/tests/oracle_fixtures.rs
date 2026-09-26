@@ -21,3 +21,13 @@ fn assert_reference_matches_relax(name: &str) {
 fn the_nether_fixture_matches_the_server_rule() {
     assert_reference_matches_relax("nether_lava");
 }
+
+#[test]
+fn the_caves_fixture_matches_the_server_rule() {
+    assert_reference_matches_relax("caves");
+}
+
+#[test]
+fn the_overlap_scene_matches_the_server_rule() {
+    assert_reference_matches_relax("overlap");
+}
