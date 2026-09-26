@@ -130,7 +130,7 @@ impl Default for VillagerData {
 
 /// Every entity id the shipped templates carry; any other id fails the
 /// freeze.
-// ponytail: only the villager pair, which the igloo places, keeps its data.
+// chisle: only the villager pair, which the igloo places, keeps its data.
 // The jigsaw kinds are never placed, so a cat drops its variant and a piglin
 // its sword; the upgrade is a data-carrying variant per kind that gets placed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

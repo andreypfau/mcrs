@@ -48,7 +48,7 @@ use smallvec::SmallVec;
 
 /// `clientTrackingRange` of the spawned kinds, in blocks: eight chunks, the
 /// range of every monster; the guardian, shulker, frame and villager see ten.
-// ponytail: one range for every kind; put the per-kind range on the entity type table if a
+// chisle: one range for every kind; put the per-kind range on the entity type table if a
 // player is meant to see a villager two chunks before a witch.
 const TRACKING_RANGE_SQ: f64 = (8.0 * 16.0) * (8.0 * 16.0);
 
@@ -83,7 +83,7 @@ pub fn spawn_generated_entities(
     for entity in entities {
         let section_y = (entity.pos[1].floor() as i32).div_euclid(16);
         let Some(&(section, _)) = sections.iter().find(|(_, pos)| pos.y == section_y) else {
-            // ponytail: an entity of a section the column delivered without is dropped, as a
+            // chisle: an entity of a section the column delivered without is dropped, as a
             // block entity is; keep them in the store per section if a late section must
             // carry them.
             tracing::debug!(pos = ?entity.pos, id = entity.kind.id(), "an entity outside the delivered sections");
@@ -545,7 +545,7 @@ fn remove(entity: Entity) -> PacketPayload {
 
 /// A player sees a mob when it holds the mob's column and stands within the
 /// tracking range of it, horizontally, as the reference decides it.
-// ponytail: every mob is re-evaluated whenever any transform or observer set changes; index
+// chisle: every mob is re-evaluated whenever any transform or observer set changes; index
 // mobs per column when their count makes that a cost.
 #[allow(clippy::type_complexity)]
 pub fn update_mob_tracked_by(

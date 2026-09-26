@@ -161,7 +161,7 @@ fn receive_inventory_packets(
             );
             return;
         };
-        // ponytail: body and saddle (41, 42) are dropped until the player holds those cells.
+        // chisle: body and saddle (41, 42) are dropped until the player holds those cells.
         let Some(cell) = inventory_index_to_cell(packet.slot.0) else {
             warn!("set_player_inventory {}: no such cell", packet.slot.0);
             return;

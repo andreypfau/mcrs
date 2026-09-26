@@ -114,7 +114,7 @@ pub fn register_source(app: &mut App, root: Dir) {
     );
 }
 
-// ponytail: the resource half is held twice, here and again in `Pack`; have `Pack` hold the
+// chisle: the resource half is held twice, here and again in `Pack`; have `Pack` hold the
 // `Dir`'s `Arc<Vec<u8>>` values instead if the memory matters.
 pub fn fill(root: &Dir, files: Files) {
     for (path, bytes) in files {

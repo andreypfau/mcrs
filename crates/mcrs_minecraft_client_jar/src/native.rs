@@ -16,7 +16,7 @@ use crate::{Artifact, Directory, Files, Progress, RELEASE, Release, font_files, 
 const INSTALLED_JAR: &str = "versions/26.3/26.3.jar";
 const CHUNK: u64 = 1 << 20;
 const READ: usize = 64 << 10;
-// ponytail: a fixed pool; make it adaptive only if measurements show four connections are wrong.
+// chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
 pub const WORKERS: usize = 4;
 const MIN_BACKOFF: Duration = if cfg!(test) {
     Duration::from_millis(10)

@@ -1,4 +1,4 @@
-// ponytail: data components, item components, skull profiles, pot sherds,
+// chisle: data components, item components, skull profiles, pot sherds,
 // trial-spawner configs and vault runtime state pass through as raw NBT. The
 // ceiling is that nothing can read them typed; the upgrade is a typed
 // DataComponentMap once something does.
@@ -712,7 +712,7 @@ impl GeneratedBlockEntity {
             .is_some_and(|id| Self::LOOT_SEEDED_IDS.contains(&id))
     }
 
-    // ponytail: the compound is written to bytes and read back through the
+    // chisle: the compound is written to bytes and read back through the
     // serde deserializer; the upgrade is a Deserializer over NbtTag itself.
     pub fn from_compound(compound: &NbtCompound) -> Result<Self, mcrs_minecraft_nbt::Error> {
         let bytes = Nbt::new(String::new(), compound.clone()).write_unnamed();

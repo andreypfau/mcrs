@@ -74,7 +74,7 @@ impl Sample for BucketEntityData {
     }
 }
 
-/// ponytail: the persistent codec carries no registry, so an unknown
+/// chisle: the persistent codec carries no registry, so an unknown
 /// decoration type id is accepted here where vanilla fails the load; a
 /// `DeserializeSeed` holding the lookup is the upgrade path.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -122,7 +122,7 @@ impl Sample for MapDecorations {
     }
 }
 
-/// ponytail: the block id and the property name are accepted as any strings
+/// chisle: the block id and the property name are accepted as any strings
 /// until a registry and block state definitions reach the persistent codec;
 /// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]

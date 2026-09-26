@@ -103,7 +103,7 @@ impl RegistrySnapshotErased {
 // A client that knows the vanilla core pack loads such entries from its own jar, so
 // only files the jar actually ships may claim it. The corpus is the vanilla jar plus
 // the beta worldgen set, and nothing else.
-// ponytail: name prefix stands in for a manifest of the jar's data files.
+// chisle: name prefix stands in for a manifest of the jar's data files.
 fn is_local_addition(location: &ResourceLocation<Arc<str>>) -> bool {
     location
         .path()

@@ -79,7 +79,7 @@ fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&
 
 /// `BlockState.rotate` for a rotation about Y, over the property names the
 /// block overrides act on.
-// ponytail: every placed block looks its properties up by name; the upgrade is
+// chisle: every placed block looks its properties up by name; the upgrade is
 // a per-block table built once from `layouts`, as `tree/provider.rs` does.
 pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> VoxelId {
     if rotation == Rotation::None || world.unrotated.contains(state.0 as usize) {
@@ -565,7 +565,7 @@ fn compile_processor_rule(
     let modifier = match &rule.block_entity_modifier {
         None | Some(RuleBlockEntityModifier::Passthrough) => None,
         Some(RuleBlockEntityModifier::AppendLoot { loot_table }) => {
-            // ponytail: the entity id comes from the output block's name, which
+            // chisle: the entity id comes from the output block's name, which
             // holds for brushable blocks and the modelled kinds that share a
             // name with their entity; a container output under another name
             // needs a name-to-kind arm.
@@ -830,7 +830,7 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
 /// drawn. The template's entities land in `spawns`, clipped by their block
 /// position and never finalized.
-// ponytail: only the villager pair is placed, and only unfinalized, which is
+// chisle: only the villager pair is placed, and only unfinalized, which is
 // what the igloo asks for. A jigsaw piece finalizes what it places, so the
 // jigsaw kinds (village villagers and animals, cushions, golems, piglins, the
 // hoglin, outpost allays) are frozen but stay unplaced; the upgrade is a

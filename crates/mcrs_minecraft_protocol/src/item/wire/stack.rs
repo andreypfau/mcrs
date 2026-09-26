@@ -153,7 +153,7 @@ impl<'a> DecodeCtx<'a> for ProtoStack {
     }
 }
 
-// ponytail: every stack is parsed twice, once to measure and once to resolve; fine at inventory
+// chisle: every stack is parsed twice, once to measure and once to resolve; fine at inventory
 // sizes, replace with a macro-generated skip when it shows up in a profile.
 pub type RawStack = Raw<ProtoStack>;
 

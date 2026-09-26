@@ -512,7 +512,7 @@ fn handle_game_packet(
         });
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
         if !position.flags.is_empty() {
-            // ponytail: every relative flag is treated as absolute. Our server
+            // chisle: every relative flag is treated as absolute. Our server
             // only ever sends absolute teleports; the upgrade is vanilla's
             // `PositionMoveRotation.calculateAbsolute`.
             warn!(

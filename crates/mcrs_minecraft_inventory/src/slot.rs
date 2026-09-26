@@ -110,7 +110,7 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
 fn admits_player(equippable: &Equippable) -> bool {
     match &equippable.allowed_entities {
         None => true,
-        // ponytail: the entity-type tags live outside this crate, so a tag admits
+        // chisle: the entity-type tags live outside this crate, so a tag admits
         // nobody; resolve it against the tag registry once a player-wearable item sets one.
         Some(HolderSet::Tag(_)) => false,
         Some(set) => set
@@ -201,7 +201,7 @@ impl MenuSnapshot {
     /// How many of the stack the slot may hold, `None` when it may not hold
     /// it at all.
     /// The armour slots hold one stack the player may wear there.
-    /// ponytail: a container with its own limit (a chest's 64) caps here when it exists.
+    /// chisle: a container with its own limit (a chest's 64) caps here when it exists.
     pub fn slot_max(&self, slot: Slot, view: &StackView) -> Option<u8> {
         if slot.holder != self.player {
             if self.shulker_box_slots && !view.fits_inside_container_items {

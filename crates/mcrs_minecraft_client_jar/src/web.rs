@@ -13,7 +13,7 @@ use web_sys::{
 use crate::schedule::{self, Queue, Source};
 use crate::{Files, Progress, RELEASE};
 
-// ponytail: a fixed pool; make it adaptive only if measurements show four connections are wrong.
+// chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
 const STALL_MS: i32 = 30_000;

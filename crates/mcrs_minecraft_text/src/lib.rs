@@ -715,7 +715,7 @@ pub enum ClickEvent {
 }
 
 /// A registry id, or the dialog written inline.
-// ponytail: an inline dialog is carried as its compound and not validated; give it the typed
+// chisle: an inline dialog is carried as its compound and not validated; give it the typed
 // dialog codecs once they live below the protocol crate.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(untagged)]

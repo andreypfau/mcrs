@@ -336,7 +336,7 @@ fn rule_of(
             supports.difference_with(&tag(CANNOT_SUPPORT_SEAGRASS)?);
             below(supports)
         }
-        // ponytail: `isFull` is not checked; worldgen water is source water.
+        // chisle: `isFull` is not checked; worldgen water is source water.
         SurviveFamily::TallSeagrass => {
             let mut supports = faces.sturdy_up.clone();
             supports.difference_with(&tag(CANNOT_SUPPORT_SEAGRASS)?);

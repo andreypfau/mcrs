@@ -114,7 +114,7 @@ pub struct StructureIndex {
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
-    // ponytail: unbounded; only gate-passing chunks enter, but the memo grows
+    // chisle: unbounded; only gate-passing chunks enter, but the memo grows
     // with the explored area until the staging store's wanted set evicts it.
     starts: Mutex<HashMap<(SetId, ColumnPos), StartCell>>,
 }
@@ -286,7 +286,7 @@ impl StructureIndex {
     /// Every start whose bounds cross `column`, from every chunk within
     /// [`MAX_STRUCTURE_DISTANCE`] of it, in `(step, step_index, chunk.x, chunk.z)`
     /// order.
-    // ponytail: starts of one structure are ordered by chunk, where the
+    // chisle: starts of one structure are ordered by chunk, where the
     // reference walks a `LongOpenHashSet`; only a column two starts of one
     // structure both cross can tell the difference.
     pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
