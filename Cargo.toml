@@ -106,6 +106,7 @@ mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_str
 mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
+mcrs_minecraft_light_color = { path = "crates/mcrs_minecraft_light_color", default-features = false }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 wtransport = "0.7.2"

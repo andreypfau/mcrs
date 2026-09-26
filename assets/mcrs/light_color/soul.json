@@ -1,0 +1,13 @@
+{
+  "color": "#36d9e6",
+  "blocks": [
+    "minecraft:soul_lantern",
+    "minecraft:soul_torch",
+    "minecraft:soul_wall_torch",
+    "minecraft:soul_campfire",
+    "minecraft:soul_fire",
+    "minecraft:sculk_catalyst",
+    "minecraft:sculk_sensor",
+    "minecraft:calibrated_sculk_sensor"
+  ]
+}

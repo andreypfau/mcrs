@@ -1,0 +1,47 @@
+[package]
+name = "mcrs_minecraft_light_color"
+description = "Light colours of block states and the light a held item emits"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_chunk.workspace = true
+mcrs_minecraft_light.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+bevy_ecs = { workspace = true, optional = true }
+bevy_app = { workspace = true, optional = true }
+bevy_state = { workspace = true, optional = true }
+bevy_asset = { workspace = true, optional = true }
+mcrs_minecraft_block = { workspace = true, optional = true }
+mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_registry = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+default = ["bevy"]
+bevy = [
+    "dep:bevy_ecs",
+    "dep:bevy_app",
+    "dep:bevy_state",
+    "dep:bevy_asset",
+    "dep:mcrs_minecraft_block",
+    "dep:mcrs_minecraft_assets",
+    "dep:mcrs_minecraft_registry",
+    "dep:serde_json",
+]
+
+[dev-dependencies]
+serde_json.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+
+[[test]]
+name = "colors"
+required-features = ["bevy"]
