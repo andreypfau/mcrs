@@ -184,6 +184,12 @@ impl Palette {
     }
 }
 
+/// One byte per type, in the narrowest of 1, 2, 4 or 8 bytes that holds the
+/// palette, and whole 8-byte words beyond that, so no type spans two words.
 pub fn lane_bytes(types: usize) -> usize {
-    types
+    match types {
+        0..=2 => types,
+        3..=4 => 4,
+        _ => types.div_ceil(8) * 8,
+    }
 }

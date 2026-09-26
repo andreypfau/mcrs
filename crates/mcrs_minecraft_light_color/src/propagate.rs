@@ -3,7 +3,9 @@ use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light::level::LightBounds;
 
 use crate::colors::LightColors;
-use crate::region::{EAST_FACE, EdgeCosts, Palette, Region, SOUTH_FACE, UP_FACE, section_output};
+use crate::region::{
+    EAST_FACE, EdgeCosts, Palette, Region, SOUTH_FACE, UP_FACE, lane_bytes, section_output,
+};
 use crate::resolve::resolve;
 
 /// Light per cell and palette lane: cell `c`, lane `l` is `levels[c * bytes + l]`.
@@ -28,16 +30,31 @@ pub fn propagate(
     registry: &LightRegistry,
     colours: &LightColors,
 ) -> Lanes {
-    let bytes = palette.types.len();
-    let mut levels = vec![[0u8; 1]; region.cell_count() * bytes];
-    seed(&mut levels, bytes, region, palette, registry, colours);
-    for word in 0..bytes {
-        relax_word(&mut levels, bytes, word, region, costs);
+    let bytes = lane_bytes(palette.types.len());
+    let levels = match bytes {
+        0 => Box::default(),
+        1 => words::<1>(region, costs, palette, registry, colours),
+        2 => words::<2>(region, costs, palette, registry, colours),
+        4 => words::<4>(region, costs, palette, registry, colours),
+        _ => words::<8>(region, costs, palette, registry, colours),
+    };
+    Lanes { bytes, levels }
+}
+
+fn words<const N: usize>(
+    region: &Region,
+    costs: &EdgeCosts,
+    palette: &Palette,
+    registry: &LightRegistry,
+    colours: &LightColors,
+) -> Box<[u8]> {
+    let words = lane_bytes(palette.types.len()) / N;
+    let mut levels = vec![[0u8; N]; region.cell_count() * words];
+    seed(&mut levels, words, region, palette, registry, colours);
+    for word in 0..words {
+        relax_word(&mut levels, words, word, region, costs);
     }
-    Lanes {
-        bytes,
-        levels: levels.into_flattened().into_boxed_slice(),
-    }
+    levels.into_flattened().into_boxed_slice()
 }
 
 fn seed<const N: usize>(
