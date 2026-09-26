@@ -21,6 +21,11 @@ pub struct Stages {
     pub costs: Duration,
     pub propagation: Duration,
     pub resolve: Duration,
+    /// Device buffers the run holds, for a candidate that runs on the GPU.
+    pub device_memory: usize,
+    /// CPU wall clock a GPU run spends creating its buffers, submitting, and
+    /// waiting for its readback.
+    pub round_trip: Duration,
 }
 
 impl Stages {
@@ -135,6 +140,23 @@ pub const CANDIDATES: &[Candidate] = &[
                combined cost. It composes with every other candidate.",
         redundancy: cube(46.0) / cube(18.0),
         run: single::run,
+    },
+    Candidate {
+        name: "gpu",
+        exact: true,
+        note: "Exact: the reference's waves on the GPU, four byte lanes to a 32-bit word. Each \
+               section's 16³ brick holds, per cell, the entry cost and the three face vetoes \
+               from the same edge costs as the reference, and the emission and light type. A \
+               gather dispatch assembles a section's 46³ region from the 27 bricks around it, \
+               15 wave dispatches propagate it, and a cut dispatch leaves the 18³ output, which \
+               is read back and resolved on the CPU. Snapshot is the CPU brick build for the \
+               scene charged a 125th per section, plus the section's palette; costs are part of \
+               the bricks; propagation is GPU time from timestamp queries around the one compute \
+               pass. Peak memory is the device buffers one section holds, its brick included. \
+               Reads only the blocks. The production form would live in the deferred renderer; \
+               the browser's cost is not measured here.",
+        redundancy: cube(46.0) / cube(18.0),
+        run: gpu::run,
     },
 ];
 

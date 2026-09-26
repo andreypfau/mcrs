@@ -10,6 +10,7 @@ use std::time::Duration;
 use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::region::{Palette, Region, section_output};
+use mcrs_minecraft_light_color_bench::candidates::gpu::{BRICK_BYTES, PARAMS_BYTES, gpu};
 use mcrs_minecraft_light_color_bench::candidates::{CANDIDATES, Outcome, Stages, mismatch};
 use mcrs_minecraft_light_color_bench::fixture::{
     Scene, oracle, output_positions, relaxed_block_light, scenes,
@@ -83,6 +84,7 @@ struct Measured {
     mismatch: Option<String>,
     samples: Vec<Stages>,
     peak: usize,
+    device: usize,
     delta_max: u8,
     delta_sum: u64,
     delta_count: u64,
@@ -106,12 +108,23 @@ fn main() {
     let mut notes = String::new();
     let mut undetermined: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
     let mut one_type = Vec::new();
+    let mut walls: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
 
     for scene in scenes() {
         let measured = measure(&scene, &out);
         let lit_cells = lit_output_cells(&scene);
         for (counts, m) in undetermined.iter_mut().zip(&measured) {
             counts.push(format!("{} {} of {lit_cells}", scene.name, m.undetermined));
+        }
+        for (walls, m) in walls.iter_mut().zip(&measured) {
+            let mut wall: Vec<Duration> = m.samples.iter().map(|s| s.round_trip).collect();
+            let median = percentile(&mut wall, 0.5);
+            walls.push(format!(
+                "{} median {} and p99 {}",
+                scene.name,
+                ms(median),
+                ms(percentile(&mut wall, 0.99))
+            ));
         }
         let sections = (scene.bounds.max_section_y - scene.bounds.min_section_y + 1) as f64;
         for (candidate, m) in CANDIDATES.iter().zip(&measured) {
@@ -125,6 +138,11 @@ fn main() {
             let mean = totals.iter().sum::<Duration>() / totals.len().max(1) as u32;
             let join =
                 mean.as_secs_f64() * m.lit as f64 / 27.0 * RENDER_DISTANCE_COLUMNS * sections;
+            let (costs, peak) = if m.device > 0 {
+                ("n/a".to_owned(), m.device)
+            } else {
+                (stage(|s| s.costs), m.peak)
+            };
             let exact = match (&m.mismatch, m.lanes) {
                 (Some(first), _) => format!("no ({first})"),
                 (None, true) => "yes".to_owned(),
@@ -138,13 +156,13 @@ fn main() {
                 candidate.name,
                 m.lit,
                 stage(|s| s.snapshot),
-                stage(|s| s.costs),
+                costs,
                 stage(|s| s.propagation),
                 stage(|s| s.resolve),
                 ms(median),
                 ms(p99),
                 ms(mean),
-                m.peak as f64 / (1024.0 * 1024.0),
+                peak as f64 / (1024.0 * 1024.0),
                 m.delta_max,
                 m.delta_sum as f64 / m.delta_count.max(1) as f64,
                 m.hue_max,
@@ -158,7 +176,7 @@ fn main() {
     }
 
     let mut candidate_notes = String::new();
-    for (candidate, counts) in CANDIDATES.iter().zip(&undetermined) {
+    for ((candidate, counts), walls) in CANDIDATES.iter().zip(&undetermined).zip(&walls) {
         write!(
             candidate_notes,
             "- `{}`: {}",
@@ -176,6 +194,18 @@ fn main() {
         if candidate.name == "single" {
             write!(candidate_notes, " Coverage: {}.", one_type.join("; ")).unwrap();
         }
+        if candidate.name == "gpu" {
+            write!(
+                candidate_notes,
+                " Measured on {}. Uploads {BRICK_BYTES} bytes of brick per section, once per \
+                 scene here, and {PARAMS_BYTES} bytes of parameters and palette per region. CPU \
+                 wall clock per section for creating its device buffers, submitting, and waiting \
+                 for the readback, which the timestamps leave out: {}.",
+                gpu().adapter,
+                walls.join("; ")
+            )
+            .unwrap();
+        }
         candidate_notes.push('\n');
     }
 
@@ -188,7 +218,9 @@ fn main() {
          join estimate is the mean per lit section times the lit share of the 27 inner \
          sections, times 65² columns, times the dimension's section count. `bfs` is the server's \
          relax, which spreads any round of 4096 or more cells over the rayon pool, so its \
-         times on dense emitters use several threads; every other stage runs on one.\n\n\
+         times on dense emitters use several threads; every other stage runs on one. `gpu`'s \
+         propagation is GPU time from timestamp queries, its costs are part of its bricks, and \
+         its peak memory is the device buffers one section holds.\n\n\
          {table}\n\
          Server level against relax over every light type on the 27 inner sections:\n\n\
          {notes}\n\
@@ -212,10 +244,12 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
             .map(|(candidate, m)| {
                 let base = CURRENT.load(Ordering::Relaxed);
                 PEAK.store(base, Ordering::Relaxed);
-                let outcome = (candidate.run)(scene, section, &mut Stages::default());
+                let mut stages = Stages::default();
+                let outcome = (candidate.run)(scene, section, &mut stages);
                 m.peak = m
                     .peak
                     .max(PEAK.load(Ordering::Relaxed).saturating_sub(base));
+                m.device = m.device.max(stages.device_memory);
                 outcome
             })
             .collect();
