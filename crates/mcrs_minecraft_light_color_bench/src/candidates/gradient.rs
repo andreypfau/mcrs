@@ -6,6 +6,7 @@ use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::region::{
     EAST_FACE, EdgeCosts, REACH, Region, SOUTH_FACE, UP_FACE, section_output,
 };
+use mcrs_minecraft_light_color::resolve::light_weight;
 
 use super::{Outcome, Stages};
 use crate::fixture::Scene;
@@ -19,6 +20,10 @@ pub fn strict(scene: &Scene, section: SectionPos, stages: &mut Stages) -> Option
     run(scene, section, stages, |arriving, here| {
         if arriving == here { 1.0 } else { 0.0 }
     })
+}
+
+pub fn weighted(scene: &Scene, section: SectionPos, stages: &mut Stages) -> Option<Outcome> {
+    run(scene, section, stages, |arriving, _| light_weight(arriving))
 }
 
 /// `weight(arriving, here)` is how much a colour arriving at level `arriving`

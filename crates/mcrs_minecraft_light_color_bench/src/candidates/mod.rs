@@ -9,8 +9,10 @@ use crate::fixture::{Scene, output_positions};
 pub mod bfs;
 pub mod block;
 pub mod gradient;
+pub mod hybrid;
 pub mod planar;
 pub mod reference;
+pub mod single;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Stages {
@@ -75,7 +77,8 @@ pub const CANDIDATES: &[Candidate] = &[
         exact: true,
         note: "Exact: the reference kernel over one region per 3×3×3 block of sections, charged \
                a 27th to each. Reads only the blocks, but needs the whole block and its ring \
-               present, so colour work is scheduled in blocks.",
+               present, so colour work is scheduled in blocks. Its redundancy is 78³ over 50³ = \
+               3.80×, not the about 2× estimated before measuring.",
         redundancy: cube(78.0) / cube(50.0),
         run: block::run,
     },
@@ -87,11 +90,50 @@ pub const CANDIDATES: &[Candidate] = &[
                colour when it emits at that level. It reads the server's light levels, so \
                colour must be recomputed whenever the light changes. That reverses the rule of \
                recolouring only when a chunk arrives or a block changes, and changes when \
-               colour work is scheduled. Borders between colours are sharp, because only ties \
-               blend. Undetermined cells are lit cells with no such neighbour, left at the \
+               colour work is scheduled. It never disagrees with the server's levels, which \
+               per-type propagation can at unloaded borders. Borders between colours are \
+               sharp, because only ties blend. Undetermined cells are lit cells with no such neighbour, left at the \
                default tint.",
         redundancy: cube(46.0) / cube(18.0),
         run: gradient::strict,
+    },
+    Candidate {
+        name: "gradient_weighted",
+        exact: false,
+        note: "Approximate: the same pass over the server's light levels, but every brighter \
+               neighbour counts, weighted by the light curve at the level its light arrives \
+               with, and a cell that emits counts its own colour weighted by its emission. \
+               Softer than strict parents, still approximate. It reads the server's light \
+               levels, so colour must be recomputed whenever the light changes, reversing the \
+               rule of recolouring only when a chunk arrives or a block changes. Undetermined \
+               cells are lit cells with no brighter neighbour and no emission, left at the \
+               default tint.",
+        redundancy: cube(46.0) / cube(18.0),
+        run: gradient::weighted,
+    },
+    Candidate {
+        name: "hybrid",
+        exact: false,
+        note: "Approximate: propagates every light type except the one with the most emitters \
+               in the region, and gives that type the server's level wherever the level \
+               strictly exceeds every other lane. The level is the maximum over types but does \
+               not say which type attains it, so the dominant lane is exact only where it \
+               strictly wins and is set to 0 elsewhere. It reads the server's light levels, so \
+               it shares the gradients' recolour consequence. Undetermined cells are lit cells \
+               whose level does not exceed another lane.",
+        redundancy: cube(46.0) / cube(18.0),
+        run: hybrid::run,
+    },
+    Candidate {
+        name: "single",
+        exact: true,
+        note: "Exact where it applies: a section whose region holds one light type skips \
+               propagation and takes that type's colour wherever the server's level is above \
+               0, with the level as its lane. It reads the server's light levels as that mask. \
+               Every other section falls through to the reference, so the row times the \
+               combined cost. It composes with every other candidate.",
+        redundancy: cube(46.0) / cube(18.0),
+        run: single::run,
     },
 ];
 

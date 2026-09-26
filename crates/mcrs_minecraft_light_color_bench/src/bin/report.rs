@@ -99,12 +99,13 @@ fn main() {
 
     let mut table = String::from(
         "| scene | candidate | lit sections | exact | snapshot | costs | propagation | resolve \
-         | median | p99 | peak memory | max Δ | mean Δ | max hue Δ | mean hue Δ | join estimate \
+         | median | p99 | mean | peak memory | max Δ | mean Δ | max hue Δ | mean hue Δ | join estimate \
          | redundancy |\n\
-         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let mut notes = String::new();
     let mut undetermined: Vec<Vec<String>> = vec![Vec::new(); CANDIDATES.len()];
+    let mut one_type = Vec::new();
 
     for scene in scenes() {
         let measured = measure(&scene, &out);
@@ -121,8 +122,9 @@ fn main() {
             let mut totals: Vec<Duration> = m.samples.iter().map(Stages::total).collect();
             let median = percentile(&mut totals, 0.5);
             let p99 = percentile(&mut totals, 0.99);
+            let mean = totals.iter().sum::<Duration>() / totals.len().max(1) as u32;
             let join =
-                median.as_secs_f64() * m.lit as f64 / 27.0 * RENDER_DISTANCE_COLUMNS * sections;
+                mean.as_secs_f64() * m.lit as f64 / 27.0 * RENDER_DISTANCE_COLUMNS * sections;
             let exact = match (&m.mismatch, m.lanes) {
                 (Some(first), _) => format!("no ({first})"),
                 (None, true) => "yes".to_owned(),
@@ -130,7 +132,7 @@ fn main() {
             };
             writeln!(
                 table,
-                "| {} | {} | {} | {exact} | {} | {} | {} | {} | {} | {} | {:.2} MiB | {} | {:.3} \
+                "| {} | {} | {} | {exact} | {} | {} | {} | {} | {} | {} | {} | {:.2} MiB | {} | {:.3} \
                  | {:.1}° | {:.2}° | {join:.1} s | {:.2}× |",
                 scene.name,
                 candidate.name,
@@ -141,6 +143,7 @@ fn main() {
                 stage(|s| s.resolve),
                 ms(median),
                 ms(p99),
+                ms(mean),
                 m.peak as f64 / (1024.0 * 1024.0),
                 m.delta_max,
                 m.delta_sum as f64 / m.delta_count.max(1) as f64,
@@ -151,6 +154,7 @@ fn main() {
             .unwrap();
         }
         writeln!(notes, "- {}", saved_light_note(&scene)).unwrap();
+        one_type.push(one_type_note(&scene));
     }
 
     let mut candidate_notes = String::new();
@@ -169,6 +173,9 @@ fn main() {
             )
             .unwrap();
         }
+        if candidate.name == "single" {
+            write!(candidate_notes, " Coverage: {}.", one_type.join("; ")).unwrap();
+        }
         candidate_notes.push('\n');
     }
 
@@ -176,9 +183,9 @@ fn main() {
         "# Light colour propagation\n\n\
          Native release build, single process. Each lit inner section runs once to warm up and \
          to measure memory, then {REPETITIONS} times with the candidates interleaved. Stage \
-         columns are medians; median and p99 are of the total per section. Deltas are the final \
+         columns are medians; median, p99 and mean are of the total per section. Deltas are the final \
          block-light RGB against the reference over cells whose server level is above 0. The \
-         join estimate is the median per lit section times the lit share of the 27 inner \
+         join estimate is the mean per lit section times the lit share of the 27 inner \
          sections, times 65² columns, times the dimension's section count. `bfs` is the server's \
          relax, which spreads any round of 4096 or more cells over the rayon pool, so its \
          times on dense emitters use several threads; every other stage runs on one.\n\n\
@@ -270,6 +277,27 @@ fn measure(scene: &Scene, out: &Path) -> Vec<Measured> {
         );
     }
     measured
+}
+
+/// Of the lit inner sections, how many have one light type in reach, and how
+/// many of those have only the default type, which needs no colour data at
+/// all because A is 1 everywhere.
+fn one_type_note(scene: &Scene) -> String {
+    let (mut lit, mut one, mut default) = (0, 0, 0);
+    for section in scene.inner() {
+        let (min, size) = section_output(section);
+        let region = Region::new(min, size, scene.bounds, &scene.registry, scene.cells());
+        let palette = Palette::of(&region, &scene.registry, &scene.colours);
+        lit += !palette.types.is_empty() as usize;
+        if let [only] = palette.types[..] {
+            one += 1;
+            default += (only == LightType::DEFAULT) as usize;
+        }
+    }
+    format!(
+        "{} {one} of {lit} lit sections hold one light type, {default} of them only the default",
+        scene.name
+    )
 }
 
 fn has_emitters(scene: &Scene, section: SectionPos) -> bool {
