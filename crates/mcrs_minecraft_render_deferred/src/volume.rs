@@ -13,7 +13,7 @@ use mcrs_minecraft_light_color::layout::{
     JOB_WORDS, Lane, REGION_CELLS, SLOT_ABOVE, SLOT_UNLOADED, job_words, lane_words, neighbours,
 };
 use mcrs_minecraft_render::sky::ExtractedSky;
-use mcrs_minecraft_render::{Brightness, RenderPath, uniform_buffer};
+use mcrs_minecraft_render::{Brightness, CameraOrigin, RenderPath, uniform_buffer};
 
 pub(crate) const BRICK_SIDE: u32 = 18;
 const BRICK_BYTES: u64 = (SectionPos::VOLUME * 4) as u64;
@@ -88,7 +88,8 @@ impl VolumeQueue {
         self.0.lock().unwrap()
     }
 
-    fn restart(&self, radius: u8) {
+    /// Called by whoever creates the volume; the filler sees the new generation and starts again.
+    pub fn restart(&self, radius: u8) {
         let mut inbox = self.inbox();
         inbox.generation += 1;
         inbox.radius = radius;
@@ -96,14 +97,14 @@ impl VolumeQueue {
         inbox.commands.clear();
     }
 
-    fn close(&self) {
+    pub fn close(&self) {
         let mut inbox = self.inbox();
         inbox.radius = 0;
         inbox.pending = 0;
         inbox.commands.clear();
     }
 
-    fn take(&self, into: &mut Vec<VolumeCommand>) {
+    pub fn take(&self, into: &mut Vec<VolumeCommand>) {
         into.extend(self.inbox().commands.drain(..));
     }
 
@@ -229,6 +230,10 @@ fn chebyshev(a: IVec3, b: IVec3) -> i32 {
     (a.x - b.x).abs().max((a.z - b.z).abs())
 }
 
+fn quarter(used: usize, capacity: u32) -> u32 {
+    (used as u64 * 4 / capacity.max(1) as u64).min(4) as u32
+}
+
 #[derive(Default)]
 pub(crate) struct Jobs {
     pub records: Vec<[u32; JOB_WORDS]>,
@@ -249,7 +254,10 @@ pub(crate) struct VolumeBook {
     free_atlas: Vec<u32>,
     atlas_next: u32,
     pending: HashMap<IVec3, Vec<Lane>>,
+    refused: HashSet<IVec3>,
     touched: HashSet<IVec3>,
+    followed: Option<IVec3>,
+    quarters: [u32; 2],
 }
 
 impl VolumeBook {
@@ -266,7 +274,10 @@ impl VolumeBook {
             free_atlas: Vec::new(),
             atlas_next: 1,
             pending: HashMap::default(),
+            refused: HashSet::default(),
             touched: HashSet::default(),
+            followed: None,
+            quarters: [0; 2],
         }
     }
 
@@ -275,6 +286,8 @@ impl VolumeBook {
         self.pages = Some(Pages::new(self.view_distance, min_section_y, sections));
     }
 
+    /// A brick the pool has no room for is refused, and every section whose region needs it
+    /// reads the vanilla tint until the brick is evicted or a later one for it fits.
     fn brick(&mut self, section: IVec3) -> Option<u32> {
         if let Some(&slot) = self.pool.get(&section) {
             return Some(slot);
@@ -284,7 +297,17 @@ impl VolumeBook {
                 self.pool_next += 1;
                 self.pool_next - 1
             })
-        })?;
+        });
+        let Some(slot) = slot else {
+            warn_once!(
+                capacity = self.pool_capacity,
+                "the light volume's brick pool is full; sections that need a refused brick read \
+                 the vanilla tint"
+            );
+            self.refused.insert(section);
+            return None;
+        };
+        self.refused.remove(&section);
         self.pool.insert(section, slot);
         Some(slot)
     }
@@ -296,6 +319,7 @@ impl VolumeBook {
     }
 
     fn evict(&mut self, section: IVec3) {
+        self.refused.remove(&section);
         if let Some(slot) = self.pool.remove(&section) {
             self.free_pool.push(slot);
         }
@@ -336,6 +360,104 @@ impl VolumeBook {
         Some(slot)
     }
 
+    /// Once the camera stands in another column, sections past `radius` give up their colour and
+    /// their pending work; the filler dirties them again when they come back inside.
+    fn follow(&mut self, camera: IVec3, radius: u8) {
+        let column = camera.with_y(0);
+        if self.followed == Some(column) {
+            return;
+        }
+        self.followed = Some(column);
+        let outside = |section: IVec3| chebyshev(camera, section) > radius as i32;
+        let (free_atlas, touched) = (&mut self.free_atlas, &mut self.touched);
+        self.atlas.retain(|&section, &mut slot| {
+            let keep = !outside(section);
+            if !keep {
+                free_atlas.push(slot);
+                touched.insert(section);
+            }
+            keep
+        });
+        self.pending.retain(|&section, _| {
+            let keep = !outside(section);
+            if !keep {
+                touched.insert(section);
+            }
+            keep
+        });
+    }
+
+    /// Pending sections a job can be taken for. The filler may dirty a section against a camera a
+    /// frame apart from the one followed here, leaving it past the radius until the next move, so
+    /// only those inside the radius and the page table count.
+    fn waiting(&self, radius: u8) -> usize {
+        let Some(pages) = self.pages.filter(|_| radius > 0) else {
+            return 0;
+        };
+        self.pending
+            .keys()
+            .filter(|&&section| {
+                self.followed
+                    .is_none_or(|camera| chebyshev(camera, section) <= radius as i32)
+                    && pages.index(section).is_some()
+            })
+            .count()
+    }
+
+    /// The pool's and the atlas's use in quarters of capacity, for each one that moved to
+    /// another quarter since the last call.
+    fn crossings(&mut self) -> [Option<u32>; 2] {
+        let now = [
+            quarter(self.pool.len(), self.pool_capacity),
+            quarter(self.atlas.len(), self.grid.capacity() - 1),
+        ];
+        let crossed = std::array::from_fn(|i| (now[i] != self.quarters[i]).then_some(now[i]));
+        self.quarters = now;
+        crossed
+    }
+
+    fn log_occupancy(&mut self) {
+        let [pool, atlas] = self.crossings();
+        if let Some(quarter) = pool {
+            info!(
+                used = self.pool.len(),
+                capacity = self.pool_capacity,
+                "the light volume's brick pool is {}% full",
+                quarter * 25
+            );
+        }
+        if let Some(quarter) = atlas {
+            info!(
+                used = self.atlas.len(),
+                capacity = self.grid.capacity() - 1,
+                "the light volume atlas is {}% full",
+                quarter * 25
+            );
+        }
+    }
+
+    /// When the atlas is full the farthest coloured section gives way to a nearer one.
+    fn atlas_slot_near(&mut self, section: IVec3, camera: IVec3) -> Option<u32> {
+        if let Some(slot) = self.atlas_slot(section) {
+            return Some(slot);
+        }
+        warn_once!(
+            capacity = self.grid.capacity() - 1,
+            "the light volume atlas is full; the farthest coloured sections read the vanilla tint"
+        );
+        let distance = |at: IVec3| (at - camera).length_squared();
+        let farthest = self
+            .atlas
+            .keys()
+            .copied()
+            .max_by_key(|&at| distance(at))
+            .filter(|&at| distance(at) > distance(section))?;
+        let slot = self.atlas.remove(&farthest).expect("a coloured section");
+        self.touched.insert(farthest);
+        self.atlas.insert(section, slot);
+        Some(slot)
+    }
+
     fn neighbour_slot(&self, section: IVec3, pages: Pages) -> u32 {
         if pages.above(section) {
             SLOT_ABOVE
@@ -346,7 +468,8 @@ impl VolumeBook {
 
     /// The nearest pending sections within `radius` columns, up to `n` that some light reaches.
     /// Jobs are taken while their lane words fit `lane_budget`; the first is taken whatever its
-    /// width. A section no light reaches is published neutral without a job.
+    /// width. A section no light reaches, whose region needs a refused brick, or that loses the
+    /// atlas to nearer sections is published neutral without a job.
     fn take_jobs(&mut self, camera: IVec3, radius: u8, n: usize, lane_budget: u32) -> Jobs {
         let mut jobs = Jobs::default();
         let (Some(pages), true) = (self.pages, radius > 0) else {
@@ -363,7 +486,9 @@ impl VolumeBook {
         near.sort_unstable_by_key(|&section| (section - camera).length_squared());
         for section in near {
             let lanes = &self.pending[&section];
-            if lanes.is_empty() {
+            let refused = !self.refused.is_empty()
+                && neighbours(SectionPos(section)).any(|n| self.refused.contains(&n.0));
+            if lanes.is_empty() || refused {
                 self.pending.remove(&section);
                 if let Some(slot) = self.atlas.remove(&section) {
                     self.free_atlas.push(slot);
@@ -377,7 +502,9 @@ impl VolumeBook {
             if full {
                 continue;
             }
-            let Some(slot) = self.atlas_slot(section) else {
+            let Some(slot) = self.atlas_slot_near(section, camera) else {
+                self.pending.remove(&section);
+                self.touched.insert(section);
                 continue;
             };
             let mut slots = [SLOT_UNLOADED; 27];
@@ -410,6 +537,7 @@ impl VolumeBook {
             .collect()
     }
 
+    #[cfg(test)]
     fn pending_len(&self) -> usize {
         self.pending.len()
     }
@@ -745,6 +873,7 @@ pub(crate) fn fit_volume(
 pub(crate) fn apply_volume_commands(
     volume: Option<ResMut<Volume>>,
     queue: Res<VolumeQueue>,
+    origin: Res<CameraOrigin>,
     device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     cache: Res<PipelineCache>,
@@ -775,8 +904,10 @@ pub(crate) fn apply_volume_commands(
             VolumeCommand::Dirty { section, lanes } => volume.book.dirty(section, lanes),
         }
     }
+    volume.book.follow(origin.section, volume.radius);
+    volume.book.log_occupancy();
     volume.publish(&render_queue);
-    queue.set_pending(volume.book.pending_len());
+    queue.set_pending(volume.book.waiting(volume.radius));
 }
 
 /// The terms follow the light colours, the brightness and the extent, which move at tick rate
@@ -1049,5 +1180,281 @@ mod tests {
         book.dirty(other, lanes_of(1));
         book.take_jobs(section, 4, 8, 64);
         assert_eq!(book.entry(other).slot, 1, "the freed slot is taken again");
+    }
+
+    const NEUTRAL: PageEntry = PageEntry {
+        slot: 0,
+        tier: Tier::None,
+        pending: false,
+    };
+
+    fn coloured(book: &VolumeBook, section: IVec3) -> bool {
+        book.entry(section).tier == Tier::Full
+    }
+
+    fn touched_pages(book: &mut VolumeBook) -> HashMap<IVec3, [u32; 2]> {
+        let pages = book.pages.unwrap();
+        let by_page: HashMap<UVec3, [u32; 2]> = book.take_touched().into_iter().collect();
+        let mut sections = HashMap::default();
+        for x in -16..16 {
+            for y in pages.min_section_y..pages.min_section_y + pages.rows as i32 {
+                for z in -16..16 {
+                    let section = IVec3::new(x, y, z);
+                    if let Some(texel) = by_page.get(&pages.index(section).unwrap()) {
+                        sections.insert(section, *texel);
+                    }
+                }
+            }
+        }
+        sections
+    }
+
+    #[test]
+    fn an_evicted_section_reads_neutral_and_frees_its_slots() {
+        let mut book = book(4);
+        book.reset(0, 4);
+        let section = IVec3::new(2, 1, -1);
+        let pool_slot = book.brick(section).unwrap();
+        book.dirty(section, lanes_of(1));
+        book.take_jobs(section, 4, 8, 64);
+        let atlas_slot = book.entry(section).slot;
+        assert!(coloured(&book, section));
+        book.take_touched();
+
+        book.evict(section);
+        assert_eq!(book.entry(section), NEUTRAL);
+        assert_eq!(touched_pages(&mut book), HashMap::from([(section, [0, 0])]));
+
+        let other = section + IVec3::Z;
+        assert_eq!(
+            book.brick(other),
+            Some(pool_slot),
+            "the pool slot is free again"
+        );
+        book.dirty(other, lanes_of(1));
+        book.take_jobs(other, 4, 8, 64);
+        assert_eq!(
+            book.entry(other).slot,
+            atlas_slot,
+            "the atlas slot is free again"
+        );
+
+        book.dirty(section, lanes_of(1));
+        book.evict(section);
+        assert_eq!(
+            book.pending_len(),
+            0,
+            "an evicted section has no pending work"
+        );
+    }
+
+    #[test]
+    fn sections_past_the_radius_lose_their_colour_when_the_camera_moves() {
+        let mut book = book(4);
+        book.reset(0, 4);
+        book.follow(IVec3::ZERO, 2);
+        for x in -2..=2 {
+            book.dirty(IVec3::new(x, 0, 0), lanes_of(1));
+        }
+        book.take_jobs(IVec3::ZERO, 2, 8, 64);
+        book.dirty(IVec3::new(-2, 1, 0), lanes_of(1));
+        book.dirty(IVec3::new(2, 1, 0), lanes_of(1));
+        book.take_touched();
+
+        let camera = IVec3::new(3, 2, 0);
+        book.follow(camera, 2);
+        let kept: HashSet<IVec3> = book.atlas.keys().copied().collect();
+        assert_eq!(kept, (1..=2).map(|x| IVec3::new(x, 0, 0)).collect());
+        let lost: HashSet<IVec3> = touched_pages(&mut book).into_keys().collect();
+        let expected: HashSet<IVec3> = (-2..=0)
+            .map(|x| IVec3::new(x, 0, 0))
+            .chain([IVec3::new(-2, 1, 0)])
+            .collect();
+        assert_eq!(lost, expected);
+        for section in &lost {
+            assert_eq!(book.entry(*section), NEUTRAL, "{section}");
+        }
+        assert_eq!(
+            book.waiting(2),
+            1,
+            "the pending section inside the radius waits"
+        );
+
+        book.follow(camera + IVec3::new(0, 5, 0), 2);
+        assert!(
+            book.take_touched().is_empty(),
+            "a move inside the column changes nothing"
+        );
+        book.dirty(IVec3::new(-5, 0, 0), lanes_of(1));
+        assert_eq!(
+            book.waiting(2),
+            1,
+            "a section past the radius is not waited for"
+        );
+    }
+
+    #[test]
+    fn a_full_pool_refuses_bricks_and_their_dependents_read_neutral() {
+        let mut book = VolumeBook::new(2, AtlasGrid::holding(atlas_slots(4), 2048), 8);
+        book.reset(0, 4);
+        let camera = IVec3::ZERO;
+        assert!(book.brick(IVec3::new(0, 0, 0)).is_some());
+        assert!(book.brick(IVec3::new(5, 0, 0)).is_some());
+        let refused = IVec3::new(2, 0, 0);
+        assert_eq!(book.brick(refused), None);
+
+        let dependent = IVec3::new(1, 1, 0);
+        let clear = IVec3::new(0, 1, 0);
+        book.dirty(dependent, lanes_of(1));
+        book.dirty(clear, lanes_of(1));
+        let jobs = book.take_jobs(camera, 4, 8, 64);
+        assert_eq!(jobs.records.len(), 1);
+        assert!(coloured(&book, clear));
+        assert_eq!(book.entry(dependent), NEUTRAL);
+        assert_eq!(book.pending_len(), 0);
+
+        book.evict(IVec3::new(5, 0, 0));
+        assert!(
+            book.brick(refused).is_some(),
+            "a later brick that fits clears the refusal"
+        );
+        book.dirty(dependent, lanes_of(1));
+        assert_eq!(book.take_jobs(camera, 4, 8, 64).records.len(), 1);
+        assert!(coloured(&book, dependent));
+
+        assert_eq!(book.brick(IVec3::new(3, 0, 0)), None);
+        book.evict(IVec3::new(3, 0, 0));
+        book.dirty(IVec3::new(3, 1, 0), lanes_of(1));
+        assert_eq!(
+            book.take_jobs(camera, 4, 8, 64).records.len(),
+            1,
+            "an evicted section is refused no longer"
+        );
+    }
+
+    #[test]
+    fn a_full_atlas_gives_way_to_the_nearer_section() {
+        let grid = AtlasGrid {
+            per_axis: UVec3::new(3, 1, 1),
+        };
+        let mut book = VolumeBook::new(64, grid, 8);
+        book.reset(0, 4);
+        let camera = IVec3::ZERO;
+        let (middle, far) = (IVec3::new(3, 0, 0), IVec3::new(4, 0, 0));
+        book.dirty(middle, lanes_of(1));
+        book.dirty(far, lanes_of(1));
+        assert_eq!(book.take_jobs(camera, 8, 8, 64).records.len(), 2);
+        let far_slot = book.entry(far).slot;
+        book.take_touched();
+
+        let near = IVec3::new(1, 0, 0);
+        book.dirty(near, lanes_of(1));
+        let jobs = book.take_jobs(camera, 8, 8, 64);
+        assert_eq!(jobs.records.len(), 1);
+        assert_eq!(
+            book.entry(near).slot,
+            far_slot,
+            "the farthest section gives way"
+        );
+        assert!(coloured(&book, middle));
+        assert_eq!(book.entry(far), NEUTRAL);
+        let touched: HashSet<IVec3> = touched_pages(&mut book).into_keys().collect();
+        assert_eq!(touched, HashSet::from([near, far]));
+
+        let farther = IVec3::new(6, 0, 0);
+        book.dirty(farther, lanes_of(1));
+        assert!(book.take_jobs(camera, 8, 8, 64).records.is_empty());
+        assert_eq!(book.entry(farther), NEUTRAL);
+        assert_eq!(
+            book.pending_len(),
+            0,
+            "a section that cannot get a slot does not wait"
+        );
+        assert!(coloured(&book, near) && coloured(&book, middle));
+    }
+
+    #[test]
+    fn a_reset_forgets_every_section() {
+        let mut book = VolumeBook::new(2, AtlasGrid::holding(atlas_slots(4), 2048), 8);
+        book.reset(0, 4);
+        book.follow(IVec3::new(40, 0, 0), 4);
+        let section = IVec3::new(40, 1, 0);
+        let far = IVec3::new(0, 1, 0);
+        book.brick(section);
+        book.brick(section + IVec3::X);
+        assert_eq!(book.brick(far), None);
+        book.dirty(section, lanes_of(1));
+        book.dirty(section - IVec3::X, lanes_of(1));
+        book.take_jobs(section, 4, 1, 64);
+        assert!(coloured(&book, section));
+
+        book.reset(-4, 8);
+        assert!(book.pool.is_empty() && book.atlas.is_empty() && book.pending.is_empty());
+        assert!(book.refused.is_empty() && book.followed.is_none());
+        assert!(book.take_touched().is_empty());
+        assert_eq!(book.pages.map(|pages| pages.extent().y), Some(8));
+        assert_eq!(book.entry(section), NEUTRAL);
+        assert_eq!(book.brick(far), Some(0), "the pool is empty again");
+        book.dirty(section, lanes_of(1));
+        book.take_jobs(section, 4, 1, 64);
+        assert_eq!(book.entry(section).slot, 1, "the atlas is empty again");
+    }
+
+    #[test]
+    fn occupancy_is_reported_at_each_quarter() {
+        let grid = AtlasGrid {
+            per_axis: UVec3::new(9, 1, 1),
+        };
+        let mut book = VolumeBook::new(8, grid, 8);
+        book.reset(0, 4);
+        let bricks: Vec<IVec3> = (0..8).map(|x| IVec3::new(x, 0, 0)).collect();
+        let mut reports = Vec::new();
+        for &section in &bricks {
+            book.brick(section);
+            reports.push(book.crossings()[0]);
+        }
+        assert_eq!(
+            reports,
+            [None, Some(1), None, Some(2), None, Some(3), None, Some(4)]
+        );
+        reports.clear();
+        for &section in bricks.iter().rev() {
+            book.evict(section);
+            reports.push(book.crossings()[0]);
+        }
+        assert_eq!(
+            reports,
+            [Some(3), None, Some(2), None, Some(1), None, Some(0), None]
+        );
+
+        book.dirty(IVec3::ZERO, lanes_of(1));
+        book.take_jobs(IVec3::ZERO, 8, 8, 64);
+        assert_eq!(book.crossings(), [None, None]);
+        book.dirty(IVec3::X, lanes_of(1));
+        book.take_jobs(IVec3::ZERO, 8, 8, 64);
+        assert_eq!(book.crossings(), [None, Some(1)]);
+        assert_eq!(book.crossings(), [None, None], "reported once per crossing");
+    }
+
+    #[test]
+    fn closing_drops_commands_and_reopening_starts_a_new_generation() {
+        let queue = VolumeQueue::default();
+        queue.restart(6);
+        let opened = queue.generation();
+        queue.push(VolumeCommand::Evict {
+            section: IVec3::ZERO,
+        });
+        queue.set_pending(3);
+        queue.close();
+        assert_eq!((queue.radius(), queue.idle()), (0, true));
+        assert_eq!(queue.generation(), opened, "closing alone starts nothing");
+        queue.restart(6);
+        assert!(queue.generation() > opened);
+        let mut commands = Vec::new();
+        queue.take(&mut commands);
+        assert!(
+            commands.is_empty(),
+            "nothing from before the switch is replayed"
+        );
     }
 }
