@@ -9,6 +9,9 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_dis
 
 use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
 use mcrs_minecraft_render::{RenderPath, ShownPath};
+use mcrs_minecraft_render_deferred::VolumeQueue;
+
+use crate::light_volume::LightVolumeFeed;
 
 const DIR_VAR: &str = "MCRS_SCREENSHOT_DIR";
 
@@ -119,7 +122,9 @@ struct Settling {
 }
 
 /// `Streaming::done` also holds in the gaps between the server's batches, so the
-/// scene counts as settled only once it has stayed done with nothing new arriving.
+/// scene counts as settled only once it has stayed done with nothing new arriving. On the
+/// deferred path it also waits for block light colour, with no timeout of its own: colour that
+/// never settles fails the capture rather than shooting it uncoloured.
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,
@@ -129,6 +134,8 @@ fn capture_scene(
     cpu: Res<CpuTimings>,
     requested: Res<RenderPath>,
     shown: Res<ShownPath>,
+    feed: Res<LightVolumeFeed>,
+    volume: Res<VolumeQueue>,
     captured: Option<Res<SceneCaptured>>,
     mut settling: Local<Settling>,
 ) {
@@ -147,10 +154,12 @@ fn capture_scene(
     }
     let status = streaming.status();
     let counts = (status.columns, status.sections, status.sections_total);
+    let coloured = shown.get() != RenderPath::Deferred || (feed.idle() && volume.idle());
     let quiet = streaming.done()
         && status.columns > 0
         && counts == settling.last
-        && shown.get() == *requested;
+        && shown.get() == *requested
+        && coloured;
     settling.last = counts;
     if !quiet {
         settling.quiet_since = None;
