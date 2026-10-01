@@ -62,7 +62,7 @@ proptest = "1.11.0"
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
-telemetry-tracy = ["mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
+telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_worldgen_generator/telemetry-tracy", "mcrs_minecraft_network/telemetry-tracy", "mcrs_minecraft_level/telemetry-tracy"]
 
 [[bench]]
 name = "tr07_scale"

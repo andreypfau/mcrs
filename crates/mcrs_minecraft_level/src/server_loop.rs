@@ -2,7 +2,7 @@ use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::{ScheduleLabel, SingleThreadedExecutor};
+use bevy_ecs::schedule::SingleThreadedExecutor;
 use bevy_time::{Fixed, Time, TimePlugin};
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
@@ -127,6 +127,7 @@ pub fn run_server_loop(
 
 #[cfg(debug_assertions)]
 fn force_singlethread_schedules(app: &mut App) {
+    use bevy_ecs::schedule::ScheduleLabel;
     for label in [
         PreStartup.intern(),
         Startup.intern(),
