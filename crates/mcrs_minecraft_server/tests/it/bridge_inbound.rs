@@ -16,7 +16,7 @@ use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
-    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
+    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
 };
 use mcrs_minecraft_server::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
@@ -196,8 +196,7 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
 // inbound_rate_kick
 // ---------------------------------------------------------------------------
 
-/// Sustained packet flood exceeding INBOUND_BUCKET_CAP for
-/// INBOUND_KICK_OVERFLOW_TICKS kicks the connection (ServerSideConnection
+/// A burst past INBOUND_BUCKET_CAP by INBOUND_KICK_OVERFLOW_PACKETS kicks the connection (ServerSideConnection
 /// removed) and increments kick_flood_total.
 /// Packets received within the budget are NOT dropped.
 #[test]
@@ -215,7 +214,7 @@ fn inbound_rate_kick() {
 
     // Run enough ticks flooding packets to trigger the kick.
     // Each tick sends INBOUND_BUCKET_CAP + 1 packets to ensure bucket empties.
-    for _ in 0..INBOUND_KICK_OVERFLOW_TICKS + 1 {
+    for _ in 0..INBOUND_KICK_OVERFLOW_PACKETS + 1 {
         if world.get::<ServerSideConnection>(socket).is_none() {
             break;
         }
