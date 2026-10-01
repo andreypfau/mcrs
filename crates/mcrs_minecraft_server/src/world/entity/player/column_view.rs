@@ -10,7 +10,8 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or, Query};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
-use bevy_ecs::system::Res;
+use bevy_ecs::system::{Res, SystemParam};
+use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -439,24 +440,74 @@ fn resolve_column(
     Some((column, sections))
 }
 
+#[derive(SystemParam)]
+pub(crate) struct ReadyInputs<'w, 's> {
+    players: Query<'w, 's, (&'static mut ColumnView, &'static InDimension)>,
+    dims: Query<
+        'w,
+        's,
+        (
+            &'static SectionIndex,
+            &'static ColumnIndex,
+            &'static DimensionTypeConfig,
+        ),
+    >,
+    chunks: Query<'w, 's, &'static SectionStage>,
+    codec_params: LightCodecParams<'w, 's>,
+    light_status: mcrs_minecraft_light::prelude::LightStatus<'w>,
+    lighting: Res<'w, crate::Lighting>,
+    ready: Local<'s, Vec<ColumnPos>>,
+    traces: Option<ResMut<'w, ColumnTraceLog>>,
+}
+
 /// Moves a column from "wanted" to "ready to send" once every section it carries has landed
 /// and its light has settled. The only writer of that transition.
 ///
 /// The light gate belongs here rather than at the send: a column goes out once and never
 /// again, so sending one before its light has settled leaves it permanently black on the
 /// client.
-pub(crate) fn project_ready_columns(
-    mut players: Query<(&mut ColumnView, &InDimension)>,
-    dims: Query<(&SectionIndex, &ColumnIndex, &DimensionTypeConfig)>,
-    chunks: Query<&SectionStage>,
-    codec_params: LightCodecParams,
-    light_status: mcrs_minecraft_light::prelude::LightStatus,
-    lighting: Res<crate::Lighting>,
-    mut ready: Local<Vec<ColumnPos>>,
-    mut traces: Option<ResMut<ColumnTraceLog>>,
+///
+/// Every waiting column is looked at, so this runs once a tick; light settling has no
+/// per-column signal and this is what catches it.
+pub(crate) fn project_ready_columns(mut inputs: ReadyInputs) {
+    project(&mut inputs, None);
+}
+
+/// The drain between ticks looks only at columns whose own or neighbouring sections changed
+/// stage or took light since it last ran: rescanning every waiting column at a full render
+/// distance every drain kept the server thread busy enough to starve its inbound packets.
+pub(crate) fn project_touched_columns(
+    mut inputs: ReadyInputs,
+    touched: Query<
+        &SectionPos,
+        Or<(Changed<SectionStage>, Changed<BlockLight>, Changed<SkyLight>)>,
+    >,
+    mut candidates: Local<FxHashSet<ColumnPos>>,
 ) {
-    let await_light = light_status.is_installed() && *lighting == crate::Lighting::Propagated;
-    for (mut chunk_view, dim) in &mut players {
+    candidates.clear();
+    candidates.extend(
+        touched
+            .iter()
+            .flat_map(|pos| margin_of(ColumnPos::new(pos.x, pos.z))),
+    );
+    if !candidates.is_empty() {
+        project(&mut inputs, Some(&candidates));
+    }
+}
+
+fn project(inputs: &mut ReadyInputs, candidates: Option<&FxHashSet<ColumnPos>>) {
+    let ReadyInputs {
+        players,
+        dims,
+        chunks,
+        codec_params,
+        light_status,
+        lighting,
+        ready,
+        traces,
+    } = inputs;
+    let await_light = light_status.is_installed() && **lighting == crate::Lighting::Propagated;
+    for (mut chunk_view, dim) in players.iter_mut() {
         let Ok((chunk_index, column_index, type_config)) = dims.get(dim.entity()) else {
             continue;
         };
@@ -489,14 +540,24 @@ pub(crate) fn project_ready_columns(
         // is a seam the column would carry for as long as the client holds
         // it, because a column goes out once. `settled_around` then waits
         // for the work those neighbours raised.
-        ready.extend(chunk_view.in_state(ColumnState::Awaiting).filter(|&col| {
+        let is_ready = |&col: &ColumnPos| {
             light_landed(col)
                 && margin_of(col).all(blocks_landed)
                 && (!await_light || light_status.settled_around(col))
-        }));
+        };
+        match candidates {
+            None => ready.extend(chunk_view.in_state(ColumnState::Awaiting).filter(is_ready)),
+            Some(candidates) => ready.extend(
+                candidates
+                    .iter()
+                    .copied()
+                    .filter(|&col| chunk_view.state(col) == Some(ColumnState::Awaiting))
+                    .filter(is_ready),
+            ),
+        }
         for col in ready.drain(..) {
             trace!("Column {:?} ready", col);
-            column_trace::mark(&mut traces, col, ColumnStage::Ready);
+            column_trace::mark(traces, col, ColumnStage::Ready);
             chunk_view.set(col, Some(ColumnState::Ready));
         }
     }

@@ -358,7 +358,7 @@ pub fn spawn_dim_subapp(
                 )
                 .in_set(ColumnDrainSet::Light),
             (
-                crate::world::entity::player::column_view::project_ready_columns,
+                crate::world::entity::player::column_view::project_touched_columns,
                 crate::world::entity::player::column_view::send_column_queue,
                 crate::world::aoi::mirror_held_columns,
                 flush_from_dim_outbox,
