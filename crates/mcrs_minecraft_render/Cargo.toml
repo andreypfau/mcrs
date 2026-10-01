@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_render"
-description = "Classic terrain and sky renderer, drawn in ordered world pass stages"
+description = "Deferred terrain and sky renderer: a G-buffer, one fullscreen lighting pass and forward translucents, drawn in ordered world pass stages"
 version.workspace = true
 edition.workspace = true
 

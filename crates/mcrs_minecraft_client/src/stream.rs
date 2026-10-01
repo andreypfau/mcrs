@@ -837,10 +837,7 @@ impl BlockCatalog {
     fn new() -> Self {
         Self {
             pack: PackLoad::Pending,
-            catalog: Some(blocks::Catalog {
-                smooth_lighting: crate::config::smooth_lighting(),
-                ..blocks::empty()
-            }),
+            catalog: Some(blocks::empty()),
             blocks: Arc::new(Vec::new()),
             baked: Vec::new(),
             to_bake: Vec::new(),

@@ -4,7 +4,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
-use mcrs_minecraft_render::{DebugViews, DrawnTriangles, RenderPath, SelectedView, ShownPath};
+use mcrs_minecraft_render::{DebugViews, DrawnTriangles, SelectedView};
 
 pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:terrain");
 
@@ -13,8 +13,6 @@ pub fn display(
     triangles: Res<DrawnTriangles>,
     cave: Res<CaveCull>,
     streaming: Streaming,
-    requested: Res<RenderPath>,
-    shown: Res<ShownPath>,
     views: Res<DebugViews>,
     selected: Res<SelectedView>,
 ) {
@@ -45,7 +43,6 @@ pub fn display(
             (true, None) => format!("Sight lines: {} sections", cave.reached()),
             (true, Some(ms)) => format!("Sight lines: {} sections in {ms:.3} ms", cave.reached()),
         },
-        render_line(shown.get(), *requested),
         format!(
             "View: {}",
             selected.0.map_or("final", |view| views.name(view))
@@ -53,15 +50,6 @@ pub fn display(
     ];
     lines.extend(gpu_memory_line());
     displayer.add_to_group(GROUP, lines);
-}
-
-fn render_line(shown: RenderPath, requested: RenderPath) -> String {
-    let shown_name = shown.name();
-    match requested {
-        _ if requested == shown => format!("Render: {shown_name}"),
-        RenderPath::Deferred => format!("Render: {shown_name} (deferred requested, compiling)"),
-        RenderPath::Classic => format!("Render: {shown_name} (classic requested)"),
-    }
 }
 
 #[cfg(target_os = "macos")]

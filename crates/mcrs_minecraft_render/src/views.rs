@@ -1,51 +1,38 @@
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResource;
 
-use crate::RenderPath;
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct DebugView(u16);
 
-/// Every view a path can show in place of its final shading, in registration order.
+/// Every view shown in place of final shading, in registration order.
 #[derive(Resource, Default)]
-pub struct DebugViews(Vec<(RenderPath, &'static str)>);
+pub struct DebugViews(Vec<&'static str>);
 
 impl DebugViews {
-    /// A path's views cycle in the order registered, so a crate registers each view where it
-    /// belongs in its path's list.
-    pub fn register(&mut self, path: RenderPath, name: &'static str) -> DebugView {
+    /// Views cycle in the order registered, so a crate registers each view where it belongs in
+    /// the list.
+    pub fn register(&mut self, name: &'static str) -> DebugView {
         let view = DebugView(u16::try_from(self.0.len()).expect("fewer than 65536 debug views"));
-        self.0.push((path, name));
+        self.0.push(name);
         view
     }
 
     pub fn name(&self, view: DebugView) -> &'static str {
-        self.0[view.0 as usize].1
+        self.0[view.0 as usize]
     }
 
-    /// The view after `current` among `path`'s, or before it when `back`; final shading (`None`)
-    /// closes the cycle, and a selection the path lacks counts as final shading.
-    pub fn step(
-        &self,
-        path: RenderPath,
-        current: Option<DebugView>,
-        back: bool,
-    ) -> Option<DebugView> {
-        let cycle: Vec<Option<DebugView>> = (0..self.0.len() as u16)
-            .filter(|&index| self.0[index as usize].0 == path)
-            .map(|index| Some(DebugView(index)))
-            .chain([None])
-            .collect();
-        let len = cycle.len();
-        let at = cycle
-            .iter()
-            .position(|&view| view == current)
-            .unwrap_or(len - 1);
-        cycle[if back {
+    /// The view after `current`, or before it when `back`; final shading (`None`) closes the
+    /// cycle.
+    pub fn step(&self, current: Option<DebugView>, back: bool) -> Option<DebugView> {
+        let final_shading = self.0.len();
+        let len = final_shading + 1;
+        let at = current.map_or(final_shading, |view| final_shading.min(view.0 as usize));
+        let next = if back {
             (at + len - 1) % len
         } else {
             (at + 1) % len
-        }]
+        };
+        (next != final_shading).then(|| DebugView(next as u16))
     }
 }
 
@@ -53,18 +40,134 @@ impl DebugViews {
 #[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug, ExtractResource)]
 pub struct SelectedView(pub Option<DebugView>);
 
-#[derive(Resource)]
-pub(crate) struct ClassicViews {
-    pub wireframe: DebugView,
-    pub depth: DebugView,
-    pub hiz: Option<DebugView>,
+/// A fullscreen program the lighting stage can run in place of the lit one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Variant {
+    LightingTerm,
+    Unlit,
+    Albedo,
+    Ao,
+    Normals,
+    BlockLight,
+    SkyLight,
+    Grid,
 }
 
-impl ClassicViews {
-    pub fn displays_texture(&self, selected: SelectedView) -> bool {
-        selected
-            .0
-            .is_some_and(|view| view == self.depth || Some(view) == self.hiz)
+impl Variant {
+    pub const ALL: [Self; 8] = [
+        Self::LightingTerm,
+        Self::Unlit,
+        Self::Albedo,
+        Self::Ao,
+        Self::Normals,
+        Self::BlockLight,
+        Self::SkyLight,
+        Self::Grid,
+    ];
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Lighting {
+    Lit,
+    Variant(Variant),
+    Depth,
+    Pyramid,
+}
+
+/// What each deferred stage draws for the selected view.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct Display {
+    pub lighting: Lighting,
+    pub wireframe: bool,
+    pub forward: bool,
+}
+
+impl Display {
+    pub const FINAL: Self = Self {
+        lighting: Lighting::Lit,
+        wireframe: false,
+        forward: true,
+    };
+
+    const fn lighting(lighting: Lighting) -> Self {
+        Self {
+            lighting,
+            wireframe: false,
+            forward: false,
+        }
+    }
+}
+
+#[derive(Resource)]
+pub(crate) struct DeferredViews {
+    wireframe: DebugView,
+    albedo: DebugView,
+    ao: DebugView,
+    normals: DebugView,
+    block_light: DebugView,
+    sky_light: DebugView,
+    depth: DebugView,
+    block_grid: DebugView,
+    hiz: Option<DebugView>,
+    lighting_term: DebugView,
+    forward: DebugView,
+}
+
+impl DeferredViews {
+    /// The pyramid exists only while occlusion is on.
+    pub fn register(views: &mut DebugViews, occlusion: bool) -> Self {
+        let mut register = |name| views.register(name);
+        Self {
+            wireframe: register("wireframe"),
+            albedo: register("albedo"),
+            ao: register("AO"),
+            normals: register("normals"),
+            block_light: register("block GI"),
+            sky_light: register("sky GI"),
+            depth: register("depth"),
+            block_grid: register("block grid"),
+            hiz: occlusion.then(|| register("Hi-Z")),
+            lighting_term: register("lighting term"),
+            forward: register("forward translucents"),
+        }
+    }
+
+    pub fn display(&self, selected: SelectedView) -> Display {
+        let Some(view) = selected.0 else {
+            return Display::FINAL;
+        };
+        let variant = |variant| Display::lighting(Lighting::Variant(variant));
+        if view == self.wireframe {
+            Display {
+                wireframe: true,
+                ..variant(Variant::Albedo)
+            }
+        } else if view == self.albedo {
+            variant(Variant::Albedo)
+        } else if view == self.ao {
+            variant(Variant::Ao)
+        } else if view == self.normals {
+            variant(Variant::Normals)
+        } else if view == self.block_light {
+            variant(Variant::BlockLight)
+        } else if view == self.sky_light {
+            variant(Variant::SkyLight)
+        } else if view == self.depth {
+            Display::lighting(Lighting::Depth)
+        } else if view == self.block_grid {
+            variant(Variant::Grid)
+        } else if Some(view) == self.hiz {
+            Display::lighting(Lighting::Pyramid)
+        } else if view == self.lighting_term {
+            variant(Variant::LightingTerm)
+        } else if view == self.forward {
+            Display {
+                forward: true,
+                ..variant(Variant::Unlit)
+            }
+        } else {
+            Display::FINAL
+        }
     }
 }
 
@@ -72,57 +175,74 @@ impl ClassicViews {
 mod tests {
     use super::*;
 
-    fn registry() -> (DebugViews, [DebugView; 3]) {
-        let mut views = DebugViews::default();
-        let a = views.register(RenderPath::Classic, "a");
-        let other = views.register(RenderPath::Deferred, "other");
-        let b = views.register(RenderPath::Classic, "b");
-        (views, [a, b, other])
+    fn cycle(views: &DebugViews) -> Vec<DebugView> {
+        std::iter::successors(views.step(None, false), |&view| {
+            views.step(Some(view), false)
+        })
+        .collect()
     }
 
     #[test]
-    fn stepping_forward_visits_each_view_of_the_path_then_final_shading() {
-        let (views, [a, b, _]) = registry();
-        let path = RenderPath::Classic;
-        assert_eq!(views.step(path, None, false), Some(a));
-        assert_eq!(views.step(path, Some(a), false), Some(b));
-        assert_eq!(views.step(path, Some(b), false), None);
+    fn the_deferred_cycle_follows_the_stages_and_holds_the_pyramid_only_with_occlusion() {
+        for occlusion in [true, false] {
+            let mut views = DebugViews::default();
+            DeferredViews::register(&mut views, occlusion);
+            let names: Vec<_> = cycle(&views)
+                .into_iter()
+                .map(|view| views.name(view))
+                .collect();
+            let mut expected = vec![
+                "wireframe",
+                "albedo",
+                "AO",
+                "normals",
+                "block GI",
+                "sky GI",
+                "depth",
+                "block grid",
+                "Hi-Z",
+                "lighting term",
+                "forward translucents",
+            ];
+            expected.retain(|&name| occlusion || name != "Hi-Z");
+            assert_eq!(names, expected);
+        }
+    }
+
+    #[test]
+    fn only_final_shading_and_the_forward_view_draw_forward_on_the_deferred_path() {
+        let mut views = DebugViews::default();
+        let deferred = DeferredViews::register(&mut views, true);
+        assert_eq!(deferred.display(SelectedView(None)), Display::FINAL);
+        for view in cycle(&views) {
+            let display = deferred.display(SelectedView(Some(view)));
+            let name = views.name(view);
+            assert_eq!(display.forward, name == "forward translucents", "{name}");
+            assert_eq!(display.wireframe, name == "wireframe", "{name}");
+            assert_ne!(display.lighting, Lighting::Lit, "{name}");
+        }
+    }
+
+    fn registry() -> (DebugViews, [DebugView; 2]) {
+        let mut views = DebugViews::default();
+        let a = views.register("a");
+        let b = views.register("b");
+        (views, [a, b])
+    }
+
+    #[test]
+    fn stepping_forward_visits_each_view_then_final_shading() {
+        let (views, [a, b]) = registry();
+        assert_eq!(views.step(None, false), Some(a));
+        assert_eq!(views.step(Some(a), false), Some(b));
+        assert_eq!(views.step(Some(b), false), None);
     }
 
     #[test]
     fn stepping_back_reverses_the_cycle() {
-        let (views, [a, b, _]) = registry();
-        let path = RenderPath::Classic;
-        assert_eq!(views.step(path, None, true), Some(b));
-        assert_eq!(views.step(path, Some(b), true), Some(a));
-        assert_eq!(views.step(path, Some(a), true), None);
-    }
-
-    #[test]
-    fn a_view_of_another_path_is_never_visited() {
-        let (views, [_, _, other]) = registry();
-        let mut current = None;
-        for _ in 0..6 {
-            current = views.step(RenderPath::Classic, current, false);
-            assert_ne!(current, Some(other));
-        }
-        assert_eq!(views.step(RenderPath::Deferred, None, false), Some(other));
-        assert_eq!(views.step(RenderPath::Deferred, Some(other), false), None);
-    }
-
-    #[test]
-    fn a_selection_the_path_lacks_steps_to_its_first_or_last_view() {
-        let (views, [a, b, other]) = registry();
-        assert_eq!(views.step(RenderPath::Classic, Some(other), false), Some(a));
-        assert_eq!(views.step(RenderPath::Classic, Some(other), true), Some(b));
-    }
-
-    #[test]
-    fn a_path_without_views_stays_at_final_shading() {
-        let mut views = DebugViews::default();
-        let classic = views.register(RenderPath::Classic, "a");
-        assert_eq!(views.step(RenderPath::Deferred, None, false), None);
-        assert_eq!(views.step(RenderPath::Deferred, None, true), None);
-        assert_eq!(views.step(RenderPath::Deferred, Some(classic), false), None);
+        let (views, [a, b]) = registry();
+        assert_eq!(views.step(None, true), Some(b));
+        assert_eq!(views.step(Some(b), true), Some(a));
+        assert_eq!(views.step(Some(a), true), None);
     }
 }

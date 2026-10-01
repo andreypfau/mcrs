@@ -1,29 +1,20 @@
 #!/usr/bin/env bash
-# Captures every scene with a base commit and with the working tree, or with
-# --paths as classic, deferred and the deferred parity mask from the working tree
-# alone, each run on a fresh copy of one saved world, and writes a report.
+# Captures every scene with a base commit and with the working tree, each run on
+# a fresh copy of one saved world, and writes a report of the pixels that differ.
 set -euo pipefail
 LC_ALL=C
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-paths=0
-if [ "${1-}" = --paths ]; then
-    paths=1
-    shift
-fi
-if [ $# -lt $((2 - paths)) ] || [ $# -gt $((3 - paths)) ]; then
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     echo "usage: $0 <base-rev> <world-dir> [<scenes-file>]" >&2
-    echo "       $0 --paths <world-dir> [<scenes-file>]" >&2
     exit 1
 fi
-if [ $paths -eq 0 ]; then
-    base=$(git -C "$root" rev-parse --verify --quiet "$1^{commit}") || {
-        echo "unknown revision: $1" >&2
-        exit 1
-    }
-    base_rev=$1
-    shift
-fi
+base=$(git -C "$root" rev-parse --verify --quiet "$1^{commit}") || {
+    echo "unknown revision: $1" >&2
+    exit 1
+}
+base_rev=$1
+shift
 if [ ! -f "$1/level.dat" ]; then
     echo "not a world folder, no level.dat in: $1" >&2
     exit 1
@@ -49,8 +40,7 @@ while IFS= read -r line || [ -n "$line" ]; do
         if ! [[ $token =~ $token_re ]] || [[ $token == MCRS_CAPTURE=* ]] ||
             { [[ $token == MCRS_DIMENSION=* ]] && ! [[ ${token#MCRS_DIMENSION=} =~ $dimension_re ]]; } ||
             { [[ $token == MCRS_SCENE=* ]] && { ! [[ ${token#MCRS_SCENE=} =~ $scene_re ]] ||
-                [ ! -f "$root/scripts/scenes/${token#MCRS_SCENE=}.json" ]; }; } ||
-            { [ $paths -eq 1 ] && [[ $token == MCRS_RENDER_PATH=* || $token == MCRS_PARITY_MASK=* ]]; }; then
+                [ ! -f "$root/scripts/scenes/${token#MCRS_SCENE=}.json" ]; }; }; then
             echo "scene $name: rejected token $token" >&2
             exit 1
         fi
@@ -70,7 +60,7 @@ if ! python3 -c 'import PIL, numpy' 2>/dev/null; then
     echo "the report needs Pillow and NumPy: python3 -m pip install pillow numpy" >&2
     exit 1
 fi
-if [ $paths -eq 0 ] && ! git -C "$root" grep -q '"CAPTURE"' "$base" -- crates/mcrs_minecraft_client/src; then
+if ! git -C "$root" grep -q '"CAPTURE"' "$base" -- crates/mcrs_minecraft_client/src; then
     echo "$base_rev predates the client's capture mode and cannot be a base" >&2
     exit 1
 fi
@@ -97,13 +87,11 @@ if [ $uses_scenes -eq 1 ]; then
     cp "$root/target/release/scene" "$tmp/scene"
 fi
 
-if [ $paths -eq 0 ]; then
-    echo "building base $base" >&2
-    git -C "$root" worktree add --detach --quiet "$tmp/base-src" "$base"
-    CARGO_TARGET_DIR=$root/target/parity-base cargo build --release -p mcrs_minecraft_client \
-        --manifest-path "$tmp/base-src/Cargo.toml"
-    cp "$root/target/parity-base/release/mcrs_minecraft_client" "$tmp/base"
-fi
+echo "building base $base" >&2
+git -C "$root" worktree add --detach --quiet "$tmp/base-src" "$base"
+CARGO_TARGET_DIR=$root/target/parity-base cargo build --release -p mcrs_minecraft_client \
+    --manifest-path "$tmp/base-src/Cargo.toml"
+cp "$root/target/parity-base/release/mcrs_minecraft_client" "$tmp/base"
 
 # The saved player position decides what the server loads before the first teleport, so
 # every capture starts where its scene stands rather than where the world was last left.
@@ -170,31 +158,14 @@ run() {
 }
 
 status=0
-if [ $paths -eq 1 ]; then
-    for i in "${!names[@]}"; do
-        case " ${settings[$i]} " in
-            *" MCRS_SMOOTH_LIGHTING=0 "*)
-                echo "scene ${names[$i]}: skipped, flat lighting is Classic-only" >&2
-                echo "${names[$i]}" >> "$out/skipped.txt"
-                continue
-                ;;
-        esac
-        echo "${names[$i]}" >> "$out/scenes.txt"
-        run head classic "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=classic
-        run head deferred "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=deferred
-        run head mask "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=deferred MCRS_PARITY_MASK=1
-    done
-    python3 "$root/scripts/parity_report.py" --paths "$out" \
-        "$(git -C "$root" describe --always --dirty)" || status=$?
-else
-    for i in "${!names[@]}"; do
-        echo "${names[$i]}" >> "$out/scenes.txt"
-        run base base "${names[$i]}" "${settings[$i]}"
-        run head head "${names[$i]}" "${settings[$i]}"
-    done
-    python3 "$root/scripts/parity_report.py" "$out" \
-        "$(git -C "$root" log -1 --format='%h %s' "$base")" \
-        "$(git -C "$root" describe --always --dirty)" || status=$?
-fi
+for i in "${!names[@]}"; do
+    echo "${names[$i]}" >> "$out/scenes.txt"
+    # A base older than the single render path draws the other one unless told; newer builds ignore this.
+    run base base "${names[$i]}" "${settings[$i]}" MCRS_RENDER_PATH=deferred
+    run head head "${names[$i]}" "${settings[$i]}"
+done
+python3 "$root/scripts/parity_report.py" "$out" \
+    "$(git -C "$root" log -1 --format='%h %s' "$base")" \
+    "$(git -C "$root" describe --always --dirty)" || status=$?
 echo "report: $out/report.md"
 exit "$status"

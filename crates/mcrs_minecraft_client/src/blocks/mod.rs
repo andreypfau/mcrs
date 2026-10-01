@@ -78,7 +78,6 @@ pub struct Catalog {
     pub sprites: SpriteRegistry,
     pub tints: Vec<tint::BiomeTint>,
     pub failures: Vec<String>,
-    pub smooth_lighting: bool,
 }
 
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
@@ -91,7 +90,6 @@ pub fn empty() -> Catalog {
         sprites: SpriteRegistry::default(),
         tints: Vec::new(),
         failures: Vec::new(),
-        smooth_lighting: true,
     }
 }
 
@@ -118,7 +116,6 @@ pub fn extend(
             data,
             definitions.shape(data.occlusion_shape),
             &mut catalog.sprites,
-            catalog.smooth_lighting,
         ) {
             Ok(info) => catalog.blocks[id as usize] = info,
             Err(reason) => catalog

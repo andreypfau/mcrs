@@ -8,7 +8,6 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 
 use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
-use mcrs_minecraft_render::{RenderPath, ShownPath};
 use mcrs_minecraft_render_deferred::VolumeQueue;
 
 use crate::light_volume::LightVolumeFeed;
@@ -122,9 +121,9 @@ struct Settling {
 }
 
 /// `Streaming::done` also holds in the gaps between the server's batches, so the
-/// scene counts as settled only once it has stayed done with nothing new arriving. On the
-/// deferred path it also waits for block light colour, with no timeout of its own: colour that
-/// never settles fails the capture rather than shooting it uncoloured.
+/// scene counts as settled only once it has stayed done with nothing new arriving. It also
+/// waits for block light colour, with no timeout of its own: colour that never settles fails
+/// the capture rather than shooting it uncoloured.
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,
@@ -132,8 +131,6 @@ fn capture_scene(
     time: Res<Time<Real>>,
     gpu: Res<GpuTimings>,
     cpu: Res<CpuTimings>,
-    requested: Res<RenderPath>,
-    shown: Res<ShownPath>,
     feed: Res<LightVolumeFeed>,
     volume: Res<VolumeQueue>,
     captured: Option<Res<SceneCaptured>>,
@@ -154,12 +151,8 @@ fn capture_scene(
     }
     let status = streaming.status();
     let counts = (status.columns, status.sections, status.sections_total);
-    let coloured = shown.get() != RenderPath::Deferred || (feed.idle() && volume.idle());
-    let quiet = streaming.done()
-        && status.columns > 0
-        && counts == settling.last
-        && shown.get() == *requested
-        && coloured;
+    let coloured = feed.idle() && volume.idle();
+    let quiet = streaming.done() && status.columns > 0 && counts == settling.last && coloured;
     settling.last = counts;
     if !quiet {
         settling.quiet_since = None;
@@ -177,10 +170,6 @@ fn capture_scene(
     let timings = capture.0.with_extension("tsv");
     if let Err(err) = std::fs::write(&timings, timing_rows(&gpu, &cpu)) {
         error!("cannot write {}: {err}", timings.display());
-    }
-    let path = capture.0.with_extension("path");
-    if let Err(err) = std::fs::write(&path, format!("{}\n", shown.get().name())) {
-        error!("cannot write {}: {err}", path.display());
     }
     info!(path = %capture.0.display(), "capturing the settled scene");
     commands

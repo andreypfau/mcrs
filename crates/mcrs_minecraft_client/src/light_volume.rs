@@ -15,7 +15,7 @@ use mcrs_minecraft_light_color::layout::{
     Emitter, PackedBrick, lanes, neighbours, pack, reaching_types,
 };
 use mcrs_minecraft_light_color::region::section_bricks;
-use mcrs_minecraft_render::{CameraOrigin, RenderPath, ShownPath};
+use mcrs_minecraft_render::CameraOrigin;
 use mcrs_minecraft_render_deferred::{VolumeCommand, VolumeQueue};
 
 use crate::columns::{
@@ -40,7 +40,7 @@ impl Plugin for LightVolumePlugin {
 }
 
 /// What the feeder has handed the renderer and what it still owes it, kept only while the
-/// deferred path is shown. The column store stays the truth.
+/// light volume is open. The column store stays the truth.
 #[derive(Resource, Default)]
 pub struct LightVolumeFeed {
     active: bool,
@@ -456,15 +456,14 @@ fn feed_light_volume(
     mut feed: ResMut<LightVolumeFeed>,
     mut changes: MessageReader<ColumnChange>,
     store: Res<ColumnStore>,
-    shown: Res<ShownPath>,
     queue: Res<VolumeQueue>,
     origin: Res<CameraOrigin>,
     colours: Option<Res<LightColors>>,
     blocks: Option<Res<Blocks>>,
 ) {
     let radius = queue.radius();
-    let (Some(colours), Some(blocks), Some(extent), RenderPath::Deferred, 1..) =
-        (colours, blocks, store.extent(), shown.get(), radius)
+    let (Some(colours), Some(blocks), Some(extent), 1..) =
+        (colours, blocks, store.extent(), radius)
     else {
         if feed.active {
             feed.clear();
@@ -746,13 +745,10 @@ mod tests {
         store.enter(EXTENT);
         let queue = VolumeQueue::default();
         queue.restart(radius);
-        let shown = ShownPath::default();
-        shown.set(RenderPath::Deferred);
         let mut app = App::new();
         app.add_message::<ColumnChange>()
             .insert_resource(store)
             .insert_resource(queue)
-            .insert_resource(shown)
             .insert_resource(crate::blocks::corpus_blocks().clone())
             .insert_resource(light_colours([255, 64, 0]))
             .init_resource::<CameraOrigin>()
@@ -889,15 +885,11 @@ mod tests {
         store(&mut app).insert(gone, column_lit());
         settle(&mut app);
 
-        let shown = app.world().resource::<ShownPath>().clone();
         let queue = app.world().resource::<VolumeQueue>().clone();
-        shown.set(RenderPath::Classic);
         queue.close();
         app.update();
         let feed = app.world().resource::<LightVolumeFeed>();
         assert!(!feed.active && feed.built.is_empty() && feed.emitters.is_empty());
-        queue.restart(1);
-        app.update();
 
         store(&mut app).insert(kept, column_lit());
         store(&mut app).remove(gone);
@@ -906,11 +898,11 @@ mod tests {
         queue.take(&mut commands);
         assert!(
             commands.is_empty(),
-            "nothing is sent while classic is shown"
+            "nothing is sent while the volume is closed"
         );
 
         store(&mut app).insert(new, column_lit());
-        shown.set(RenderPath::Deferred);
+        queue.restart(1);
         let back = settle(&mut app);
         assert_eq!(back[0], Sent::Reset(0, 4));
         assert_eq!(

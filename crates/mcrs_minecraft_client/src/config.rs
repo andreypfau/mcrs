@@ -6,7 +6,7 @@ use crate::render::Raster;
 use mcrs_minecraft_mesh::STREAMS;
 use mcrs_minecraft_render::sky::SkyEffects;
 use mcrs_minecraft_render::{
-    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, RenderPath, Streams, Uploads,
+    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Streams, Uploads,
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -394,12 +394,6 @@ pub fn capture_path() -> Option<std::path::PathBuf> {
     }
 }
 
-/// Vanilla's "Smooth Lighting": ambient occlusion and light blended across each face. Off draws
-/// every face at the flat light in front of it.
-pub fn smooth_lighting() -> bool {
-    flag("SMOOTH_LIGHTING", true)
-}
-
 /// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).
 pub fn brightness() -> f32 {
     parsed(
@@ -414,28 +408,6 @@ pub fn brightness() -> f32 {
 /// pyramid test and its second pass.
 pub fn occlusion() -> Occlusion {
     Occlusion(flag("OCCLUSION", true))
-}
-
-/// `PARITY_MASK=1` makes the deferred path capture white where a face's four corners share light
-/// and AO and black elsewhere, for comparing the render paths.
-pub fn parity_mask() -> bool {
-    flag("PARITY_MASK", false)
-}
-
-/// `RENDER_PATH=deferred` starts on the deferred path.
-pub fn render_path() -> RenderPath {
-    let value = knob("RENDER_PATH");
-    parse_render_path(value.as_deref()).unwrap_or_else(|expected| {
-        reject("RENDER_PATH", value.as_deref().unwrap_or_default(), expected).unwrap_or_default()
-    })
-}
-
-fn parse_render_path(value: Option<&str>) -> Result<RenderPath, &'static str> {
-    match value {
-        None | Some("classic") => Ok(RenderPath::Classic),
-        Some("deferred") => Ok(RenderPath::Deferred),
-        Some(_) => Err("expected classic or deferred"),
-    }
 }
 
 /// The knob's spelling in the message a bad value produces, which is the
@@ -585,16 +557,6 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_render_path_knob_accepts_classic_and_deferred_only() {
-        assert_eq!(parse_render_path(None), Ok(RenderPath::Classic));
-        assert_eq!(parse_render_path(Some("classic")), Ok(RenderPath::Classic));
-        assert_eq!(parse_render_path(Some("deferred")), Ok(RenderPath::Deferred));
-        for value in ["", "Deferred", "forward", "deferred "] {
-            assert!(parse_render_path(Some(value)).is_err(), "{value:?} was accepted");
-        }
-    }
 
     #[test]
     fn colour_knobs_accept_their_ranges_only() {

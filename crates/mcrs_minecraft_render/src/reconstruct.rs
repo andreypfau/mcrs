@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy::render::renderer::RenderQueue;
 use bevy::render::view::ExtractedView;
-use mcrs_minecraft_render::{CameraOrigin, clip_from_relative};
 
 use crate::gbuffer::DeferredFrame;
+use crate::{CameraOrigin, clip_from_relative};
 
 /// Turns a G-buffer pixel back into a position against the origin of the camera's section, the
 /// same space terrain is drawn in, so no absolute world coordinate is ever held in f32.

@@ -25,11 +25,6 @@ fn relative_position(pixel: vec2<i32>, depth: f32) -> vec3<f32> {
 @fragment
 fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(in.position.xy);
-#ifdef PARITY_MASK
-    let sky = textureLoad(depth, pixel, 0) == 0.0;
-    let uniform_corners = textureLoad(light, pixel, 0).a > 0.5;
-    return vec4<f32>(vec3<f32>(f32(sky || uniform_corners)), 1.0);
-#else
     let d = textureLoad(depth, pixel, 0);
     if (d == 0.0) {
         discard;
@@ -47,6 +42,5 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
     let tint = volume_tint(relative_position(pixel, d), normal);
     return vec4<f32>(to_target(shade_tinted(albedo, a.a, l.g, l.b, tint)), 1.0);
-#endif
 #endif
 }

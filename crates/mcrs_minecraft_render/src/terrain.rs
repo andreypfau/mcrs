@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupLayoutDescriptor, PipelineCache, RenderPipelineDescriptor, WgpuFeatures,
+    BindGroup, BindGroupLayoutDescriptor, PipelineCache, WgpuFeatures,
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
-use bevy::render::view::ExtractedView;
-use mcrs_minecraft_mesh::block::Pass;
 
 use crate::sky::ExtractedSky;
 
@@ -15,8 +13,7 @@ use super::binds::Bindings;
 use super::draws::DrawList;
 use super::frame::Frame;
 use super::hiz::Hiz;
-use super::layer::Shape;
-use super::pipeline::{Pipelines, terrain_descriptor};
+use super::pipeline::Pipelines;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
 use super::texture;
@@ -54,35 +51,13 @@ impl Terrain {
         &self.binds.draw
     }
 
-    pub fn ready(&self) -> bool {
-        self.pipelines.ready()
-    }
-
     /// Whether this frame has a second cull, and so a second set of draws after the first.
     pub fn second_pass(&self, occlusion: &Occlusion, pipeline_cache: &PipelineCache) -> bool {
-        self.ready()
-            && occlusion.0
+        occlusion.0
             && self.list.visible_entries != 0
             && pipeline_cache
                 .get_compute_pipeline(self.pipelines.cull_groups_second)
                 .is_some()
-    }
-
-    pub fn pipeline_descriptor(
-        &self,
-        layer: Pass,
-        shape: Shape,
-        wireframe: bool,
-        view: &ExtractedView,
-    ) -> RenderPipelineDescriptor {
-        terrain_descriptor(
-            &self.binds,
-            &self.pipelines.shaders,
-            layer,
-            shape,
-            wireframe,
-            view,
-        )
     }
 
     pub fn write_cave_visibility(&self, queue: &RenderQueue, bits: &[u32]) {

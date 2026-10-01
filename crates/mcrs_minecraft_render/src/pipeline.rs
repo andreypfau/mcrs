@@ -1,16 +1,22 @@
+use bevy::core_pipeline::FullscreenShader;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
+use bevy::platform::collections::HashSet;
+use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::view::ExtractedView;
-use bevy::shader::ShaderDefVal;
+use bevy::shader::{ShaderCacheError, ShaderDefVal};
 
 use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::{STREAMS, stream_pass};
 
+use super::LightTint;
 use super::binds::Bindings;
+use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, gbuffer_layout};
 use super::layer::{Shape, blend};
 use super::shaders::Shaders;
 use super::terrain::Terrain;
+use super::views::Variant;
 
 pub const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len() * 2;
 
@@ -67,7 +73,6 @@ pub(super) struct Pipelines {
     pub cull_scatter: CachedComputePipelineId,
     pub cull_groups_second: CachedComputePipelineId,
     pub cull_quads_second: CachedComputePipelineId,
-    terrain: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
 }
 
 impl Pipelines {
@@ -126,46 +131,7 @@ impl Pipelines {
                 "cull_quads_second",
             ),
             shaders,
-            terrain: None,
         }
-    }
-
-    pub fn ready(&self) -> bool {
-        self.terrain.is_some()
-    }
-
-    pub fn queue_render(
-        &mut self,
-        binds: &Bindings,
-        view: &ExtractedView,
-        pipeline_cache: &PipelineCache,
-    ) {
-        let mut terrain = [CachedRenderPipelineId::INVALID; TERRAIN_PIPELINES];
-        for layer in Pass::ALL {
-            for shape in Shape::ALL {
-                for wireframe in [false, true] {
-                    terrain[terrain_slot(layer, shape, wireframe)] = pipeline_cache
-                        .queue_render_pipeline(terrain_descriptor(
-                            binds,
-                            &self.shaders,
-                            layer,
-                            shape,
-                            wireframe,
-                            view,
-                        ));
-                }
-            }
-        }
-        self.terrain = Some(terrain);
-    }
-
-    pub fn terrain<'cache>(
-        &self,
-        stream: u32,
-        wireframe: bool,
-        pipeline_cache: &'cache PipelineCache,
-    ) -> Option<&'cache RenderPipeline> {
-        pipeline_cache.get_render_pipeline(self.terrain?[stream_slot(stream, wireframe)])
     }
 }
 
@@ -206,12 +172,23 @@ pub(crate) fn terrain_descriptor(
             blend(layer),
         )
     };
+    let fragment = descriptor
+        .fragment
+        .as_mut()
+        .expect("common sets a fragment");
     if wireframe {
-        let fragment = descriptor
-            .fragment
-            .as_mut()
-            .expect("common sets a fragment");
         fragment.shader_defs.push("WIREFRAME".into());
+    }
+    if layer != Pass::Translucent {
+        fragment.targets = GBUFFER_FORMATS
+            .map(|format| {
+                Some(ColorTargetState {
+                    format,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                })
+            })
+            .into();
     }
     descriptor
 }
@@ -232,29 +209,226 @@ fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
     }
 }
 
-pub(super) fn prepare_pipelines(
-    mut terrain: Option<ResMut<Terrain>>,
+/// Queued once, on the first frame the terrain and a 3D view exist, and never dropped: the
+/// pipeline cache neither deduplicates nor evicts, so queuing again would leak a set.
+#[derive(Resource, Default)]
+pub(crate) struct DeferredPipelines {
+    pub lighting: Option<CachedRenderPipelineId>,
+    pub terrain: [Option<CachedRenderPipelineId>; TERRAIN_PIPELINES],
+    variants: [Option<CachedRenderPipelineId>; Variant::ALL.len()],
+}
+
+impl DeferredPipelines {
+    fn gated(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
+        self.lighting
+            .into_iter()
+            .chain(self.terrain.iter().copied().flatten())
+    }
+
+    pub fn ids(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
+        self.gated().chain(self.variants.iter().copied().flatten())
+    }
+
+    pub fn variant<'cache>(
+        &self,
+        variant: Variant,
+        cache: &'cache PipelineCache,
+    ) -> Option<&'cache RenderPipeline> {
+        cache.get_render_pipeline(self.variants[variant as usize]?)
+    }
+
+    pub fn terrain<'cache>(
+        &self,
+        slot: usize,
+        cache: &'cache PipelineCache,
+    ) -> Option<&'cache RenderPipeline> {
+        cache.get_render_pipeline(self.terrain[slot]?)
+    }
+
+    pub fn ready(&self, cache: &PipelineCache) -> bool {
+        self.lighting.is_some()
+            && self
+                .gated()
+                .all(|id| cache.get_render_pipeline(id).is_some())
+    }
+}
+
+pub(crate) fn frame_ready(
+    frame: Option<Res<DeferredFrame>>,
+    tint: Res<LightTint>,
+    pipelines: Res<DeferredPipelines>,
+    cache: Res<PipelineCache>,
+) -> bool {
+    frame.is_some() && tint.bind_group.is_some() && pipelines.ready(&cache)
+}
+
+pub(crate) fn prepare_deferred_pipelines(
+    mut pipelines: ResMut<DeferredPipelines>,
+    terrain: Option<Res<Terrain>>,
     views: Query<&ExtractedView, With<Camera3d>>,
-    pipeline_cache: Res<PipelineCache>,
+    fullscreen: Res<FullscreenShader>,
+    asset_server: Res<AssetServer>,
+    cache: Res<PipelineCache>,
+    frame: Option<Res<DeferredFrame>>,
+    tint: Res<LightTint>,
+    mut failed: Local<HashSet<CachedRenderPipelineId>>,
+    mut waited: Local<Option<(Instant, u32)>>,
+    mut announced: Local<bool>,
 ) {
-    let Some(terrain) = terrain.as_mut() else {
-        return;
-    };
-    if terrain.pipelines.ready() {
+    if pipelines.lighting.is_none()
+        && let (Some(terrain), Some(view)) = (terrain, views.iter().next())
+    {
+        queue_pipelines(
+            &mut pipelines,
+            &tint.layout,
+            &terrain,
+            view,
+            &fullscreen,
+            &asset_server,
+            &cache,
+        );
+    }
+    for id in pipelines.ids() {
+        if let CachedPipelineState::Err(error) = cache.get_render_pipeline_state(id)
+            && !matches!(
+                error,
+                ShaderCacheError::ShaderNotLoaded(_)
+                    | ShaderCacheError::ShaderImportNotYetAvailable
+            )
+            && failed.insert(id)
+        {
+            let label = cache.get_render_pipeline_descriptor(id).label.as_deref();
+            error!(?label, "a deferred pipeline cannot be built: {error}");
+        }
+    }
+    if *announced {
         return;
     }
-    let Some(view) = views.iter().next() else {
-        return;
+    let (since, frames) = waited.get_or_insert((Instant::now(), 0));
+    if frame.is_some() && tint.bind_group.is_some() && pipelines.ready(&cache) {
+        let ms = since.elapsed().as_millis();
+        info!(frames = *frames, ms, "the deferred path is ready");
+        *announced = true;
+    } else {
+        *frames += 1;
+    }
+}
+
+fn queue_pipelines(
+    pipelines: &mut DeferredPipelines,
+    tint_layout: &BindGroupLayoutDescriptor,
+    terrain: &Terrain,
+    view: &ExtractedView,
+    fullscreen: &FullscreenShader,
+    asset_server: &AssetServer,
+    cache: &PipelineCache,
+) {
+    let lighting =
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wgsl");
+    let show =
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wgsl");
+    let fullscreen_pipeline = |label: &str, shader: &Handle<Shader>, entry: &str, def: &str| {
+        let mut descriptor = RenderPipelineDescriptor {
+            vertex: fullscreen.to_vertex_state(),
+            ..common(
+                label.into(),
+                vec![
+                    terrain.view_layout().clone(),
+                    terrain.draw_layout().clone(),
+                    gbuffer_layout(),
+                    tint_layout.clone(),
+                ],
+                shader,
+                String::new(),
+                entry.into(),
+                view,
+                None,
+            )
+        };
+        if !def.is_empty() {
+            let fragment = descriptor.fragment.as_mut().expect("a fullscreen fragment");
+            fragment.shader_defs.push(def.into());
+        }
+        cache.queue_render_pipeline(descriptor)
     };
-    let terrain = terrain.as_mut();
-    terrain
-        .pipelines
-        .queue_render(&terrain.binds, view, &pipeline_cache);
+    pipelines.lighting = Some(fullscreen_pipeline(
+        "deferred lighting",
+        &lighting,
+        "lighting",
+        "",
+    ));
+    for variant in Variant::ALL {
+        let (shader, entry, def, label) = match variant {
+            Variant::LightingTerm => (&lighting, "lighting", "LIGHTING_TERM", "lighting term"),
+            Variant::Unlit => (&lighting, "lighting", "UNLIT", "unlit"),
+            Variant::Albedo => (&show, "show", "SHOW_ALBEDO", "albedo"),
+            Variant::Ao => (&show, "show", "SHOW_AO", "AO"),
+            Variant::Normals => (&show, "show", "SHOW_NORMAL", "normals"),
+            Variant::BlockLight => (&show, "show", "SHOW_BLOCK_LIGHT", "block light"),
+            Variant::SkyLight => (&show, "show", "SHOW_SKY_LIGHT", "sky light"),
+            Variant::Grid => (&show, "show", "SHOW_GRID", "block grid"),
+        };
+        pipelines.variants[variant as usize] = Some(fullscreen_pipeline(
+            &format!("deferred {label}"),
+            shader,
+            entry,
+            def,
+        ));
+    }
+    for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
+        let descriptor = terrain_descriptor(
+            &terrain.binds,
+            &terrain.pipelines.shaders,
+            layer,
+            shape,
+            wireframe,
+            view,
+        );
+        pipelines.terrain[terrain_slot(layer, shape, wireframe)] =
+            Some(cache.queue_render_pipeline(descriptor));
+    }
+    info!("queued the deferred pipelines");
+}
+
+fn gbuffer_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
+    [Pass::Solid, Pass::Cutout].into_iter().flat_map(|layer| {
+        Shape::ALL
+            .into_iter()
+            .flat_map(move |shape| [false, true].map(move |wireframe| (layer, shape, wireframe)))
+    })
+}
+
+fn forward_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
+    Shape::ALL
+        .into_iter()
+        .flat_map(|shape| [false, true].map(move |wireframe| (Pass::Translucent, shape, wireframe)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_deferred_table_holds_one_gbuffer_pipeline_per_opaque_layer_shape_and_wireframe() {
+        let mut slots: Vec<usize> = gbuffer_slots()
+            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
+            .collect();
+        slots.sort_unstable();
+        slots.dedup();
+        assert_eq!(slots.len(), 8);
+        assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
+    }
+
+    #[test]
+    fn the_deferred_table_fills_every_terrain_slot_exactly_once() {
+        let mut slots: Vec<usize> = gbuffer_slots()
+            .chain(forward_slots())
+            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
+            .collect();
+        slots.sort_unstable();
+        assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());
+        assert!(forward_slots().all(|(layer, _, _)| layer == Pass::Translucent));
+    }
 
     #[test]
     fn the_table_holds_one_pipeline_per_layer_shape_and_wireframe() {

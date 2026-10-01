@@ -69,7 +69,6 @@ pub(super) fn build_one(
     data: &BlockStateData,
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
-    smooth_lighting: bool,
 ) -> Result<BlockInfo, String> {
     if state.name == "minecraft:air"
         || state.name == "minecraft:cave_air"
@@ -173,7 +172,7 @@ pub(super) fn build_one(
         emissive,
         fluid,
         neighbour,
-        ambient_occlusion: smooth_lighting && baked.ambient_occlusion && emission == 0,
+        ambient_occlusion: baked.ambient_occlusion && emission == 0,
     })
 }
 
@@ -527,7 +526,6 @@ mod tests {
             corpus.state(id),
             corpus.shape(corpus.state(id).occlusion_shape),
             &mut SpriteRegistry::default(),
-            true,
         )
         .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
     }

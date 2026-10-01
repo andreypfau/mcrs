@@ -9,14 +9,14 @@ use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery
 use bevy::render::view::ExtractedView;
 use bevy::shader::ShaderCacheError;
 use mcrs_minecraft_light_color::layout::{REGION_CELLS, WAVES};
-use mcrs_minecraft_render::{CameraOrigin, RenderPath};
+use mcrs_minecraft_render::CameraOrigin;
 
 use crate::volume::{BRICK_SIDE, Volume};
 
 const WORKGROUP: u64 = 64;
 
-/// Queued once, on the first frame the deferred path is asked for. The deferred path does not
-/// wait for them: until they build, every section reads the vanilla tint.
+/// Queued once. The deferred path does not wait for them: until they build, every section reads
+/// the vanilla tint.
 #[derive(Resource, Default)]
 pub(crate) struct ColourPipelines {
     stages: Option<[CachedComputePipelineId; 3]>,
@@ -41,12 +41,11 @@ pub(crate) fn colour_layout() -> BindGroupLayoutDescriptor {
 
 pub(crate) fn prepare_colour_pipelines(
     mut pipelines: ResMut<ColourPipelines>,
-    requested: Res<RenderPath>,
     asset_server: Res<AssetServer>,
     cache: Res<PipelineCache>,
     mut failed: Local<HashSet<CachedComputePipelineId>>,
 ) {
-    if *requested == RenderPath::Deferred && pipelines.stages.is_none() {
+    if pipelines.stages.is_none() {
         let shader =
             asset_server.load("embedded://mcrs_minecraft_render_deferred/shaders/colour.wgsl");
         pipelines.stages = Some(["gather", "waves", "resolve"].map(|entry| {

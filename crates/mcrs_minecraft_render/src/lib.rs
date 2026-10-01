@@ -6,6 +6,7 @@ mod arenas;
 mod binds;
 mod draws;
 mod frame;
+mod gbuffer;
 mod heat;
 mod hiz;
 mod layer;
@@ -13,6 +14,7 @@ mod pass;
 mod pipeline;
 pub mod probe;
 mod readback;
+mod reconstruct;
 mod shaders;
 mod show;
 pub mod sky;
@@ -24,7 +26,6 @@ mod upload;
 mod views;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::core_pipeline::core_3d::{
     CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d, main_transparent_pass_3d,
@@ -33,7 +34,9 @@ use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::ecs::schedule::{InternedSystemSet, ScheduleCleanupPolicy, ScheduleConfigs};
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
-use bevy::render::render_resource::{CompareFunction, TextureFormat};
+use bevy::render::render_resource::{
+    BindGroup, BindGroupLayoutDescriptor, CompareFunction, TextureFormat,
+};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::probe::{CpuTimings, GpuTimings};
@@ -177,44 +180,11 @@ impl Default for Brightness {
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct PinnedTick(pub i64);
 
-/// The path the player asked for; the frame shows it once it is ready.
-#[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug, ExtractResource)]
-pub enum RenderPath {
-    #[default]
-    Classic,
-    Deferred,
-}
-
-impl RenderPath {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Classic => "classic",
-            Self::Deferred => "deferred",
-        }
-    }
-}
-
-/// The path the frame shows this frame.
-#[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug)]
-pub struct EffectivePath(pub RenderPath);
-
-/// The path the frame last showed, readable from the main world.
-#[derive(Resource, Clone, Default)]
-pub struct ShownPath(Arc<AtomicBool>);
-
-impl ShownPath {
-    pub fn get(&self) -> RenderPath {
-        if self.0.load(Ordering::Relaxed) {
-            RenderPath::Deferred
-        } else {
-            RenderPath::Classic
-        }
-    }
-
-    pub fn set(&self, path: RenderPath) {
-        self.0
-            .store(path == RenderPath::Deferred, Ordering::Relaxed);
-    }
+/// Group 3 of the lighting pass, from whoever tints block light.
+#[derive(Resource)]
+pub struct LightTint {
+    pub layout: BindGroupLayoutDescriptor,
+    pub bind_group: Option<BindGroup>,
 }
 
 #[derive(Resource, Deref)]
@@ -239,6 +209,8 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/show.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wgsl");
 }
 
 /// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
@@ -287,16 +259,13 @@ impl Plugin for TerrainPlugin {
         let timings = GpuTimings::default();
         let cpu = CpuTimings::default();
         let counts = FrameCounts::default();
-        let shown = ShownPath::default();
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
-            .init_resource::<RenderPath>()
             .init_resource::<DebugViews>()
             .init_resource::<SelectedView>()
-            .add_plugins(ExtractResourcePlugin::<RenderPath>::default())
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
@@ -308,7 +277,6 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings.clone())
             .insert_resource(cpu.clone())
             .insert_resource(counts.clone())
-            .insert_resource(shown.clone())
             .add_systems(First, probe::frame_started.after(bevy::time::TimeSystems))
             .add_systems(Last, probe::main_ended)
             .add_systems(PostStartup, probe::log_system_counts);
@@ -321,11 +289,10 @@ impl Plugin for TerrainPlugin {
             .insert_resource(timings)
             .insert_resource(cpu)
             .insert_resource(counts)
-            .insert_resource(shown)
-            .init_resource::<EffectivePath>()
             .insert_resource(TerrainBudget(self.budget.clone()))
             .insert_resource(self.uploads.clone())
             .insert_resource(probe::PassTimestamps(self.timestamps))
+            .init_resource::<pipeline::DeferredPipelines>()
             .add_systems(
                 RenderStartup,
                 (
@@ -349,12 +316,18 @@ impl Plugin for TerrainPlugin {
                         .after(RenderSystems::Render)
                         .before(RenderSystems::Cleanup),
                     probe::cleaned.in_set(RenderSystems::PostCleanup),
-                    pipeline::prepare_pipelines.in_set(RenderSystems::Prepare),
                     show::prepare_depth_display.in_set(RenderSystems::Prepare),
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
                     frame::write_camera.in_set(RenderSystems::Prepare),
+                    pipeline::prepare_deferred_pipelines.in_set(RenderSystems::Prepare),
+                    (
+                        gbuffer::fit_deferred_frame,
+                        reconstruct::write_lighting_uniform,
+                    )
+                        .chain()
+                        .in_set(RenderSystems::PrepareBindGroups),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),
                     upload::recall_staging.in_set(RenderSystems::Cleanup),
@@ -365,21 +338,25 @@ impl Plugin for TerrainPlugin {
                 Core3d,
                 (
                     pass::upload_frame.in_set(WorldPass::Upload),
-                    pass::cull_frame.in_set(WorldPass::Cull),
-                    pass::draw_opaque
+                    pass::cull_frame
+                        .in_set(WorldPass::Cull)
+                        .run_if(pipeline::frame_ready),
+                    pass::draw_gbuffer
                         .in_set(WorldPass::Opaque)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
-                    pass::build_occlusion.in_set(WorldPass::Occlusion),
-                    pass::draw_opaque_second
+                        .run_if(pipeline::frame_ready),
+                    pass::build_occlusion
+                        .in_set(WorldPass::Occlusion)
+                        .run_if(pipeline::frame_ready),
+                    pass::draw_gbuffer_second
                         .in_set(WorldPass::OpaqueSecond)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
-                    pass::show_classic_view
+                        .run_if(pipeline::frame_ready),
+                    pass::draw_lighting
                         .in_set(WorldPass::Lighting)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Classic))),
-                    pass::draw_forward
+                        .run_if(pipeline::frame_ready),
+                    pass::draw_forward_deferred
                         .in_set(WorldPass::Forward)
-                        .run_if(resource_equals(EffectivePath(RenderPath::Classic)))
-                        .run_if(pass::shows_final_colour),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(pass::draws_forward),
                 ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,
@@ -399,17 +376,9 @@ impl Plugin for TerrainPlugin {
     fn finish(&self, app: &mut App) {
         let occlusion = app.world().resource::<Occlusion>().0;
         let mut views = app.world_mut().resource_mut::<DebugViews>();
-        let classic = views::ClassicViews {
-            wireframe: views.register(RenderPath::Classic, "wireframe"),
-            depth: views.register(RenderPath::Classic, "depth"),
-            hiz: if occlusion {
-                Some(views.register(RenderPath::Classic, "Hi-Z"))
-            } else {
-                None
-            },
-        };
+        let deferred = views::DeferredViews::register(&mut views, occlusion);
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.insert_resource(classic);
+            render_app.insert_resource(deferred);
         }
     }
 }

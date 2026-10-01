@@ -7,9 +7,9 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthTexture;
-use mcrs_minecraft_render::{RenderPath, uniform_buffer};
 
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
+use crate::uniform_buffer;
 
 /// Albedo and occlusion, normal and motion, then emissive, block light, sky light and roughness.
 /// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
@@ -37,7 +37,7 @@ pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
 }
 
 /// Everything the deferred path allocates. Nothing else may hold a clone of these
-/// textures or the bind group, or switching back to classic would not free them.
+/// textures or the bind group, or a resize would not free the ones it replaces.
 #[derive(Resource)]
 pub(crate) struct DeferredFrame {
     pub targets: [TextureView; 3],
@@ -128,18 +128,11 @@ fn bind_group(
 
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
-    requested: Res<RenderPath>,
     frame: Option<ResMut<DeferredFrame>>,
     views: Query<&ViewDepthTexture, With<Camera3d>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {
-    if *requested == RenderPath::Classic {
-        if frame.is_some() {
-            commands.remove_resource::<DeferredFrame>();
-        }
-        return;
-    }
     let Some(depth) = views.iter().next() else {
         return;
     };

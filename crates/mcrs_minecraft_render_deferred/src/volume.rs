@@ -13,7 +13,7 @@ use mcrs_minecraft_light_color::layout::{
     JOB_WORDS, Lane, REGION_CELLS, SLOT_ABOVE, SLOT_UNLOADED, job_words, lane_words, neighbours,
 };
 use mcrs_minecraft_render::sky::ExtractedSky;
-use mcrs_minecraft_render::{Brightness, CameraOrigin, RenderPath, uniform_buffer};
+use mcrs_minecraft_render::{Brightness, CameraOrigin, uniform_buffer};
 
 pub(crate) const BRICK_SIDE: u32 = 18;
 const BRICK_BYTES: u64 = (SectionPos::VOLUME * 4) as u64;
@@ -594,7 +594,7 @@ fn lanes(words: u32, device: &RenderDevice) -> [Buffer; 2] {
 }
 
 /// Everything the light volume allocates. Nothing else may hold a clone of these buffers,
-/// textures or bind groups, or switching back to classic would not free them.
+/// textures or bind groups, or a change of settings would not free them.
 #[derive(Resource)]
 pub(crate) struct Volume {
     pub radius: u8,
@@ -847,7 +847,6 @@ fn volume_bind_group(
 
 pub(crate) fn fit_volume(
     mut commands: Commands,
-    requested: Res<RenderPath>,
     settings: Res<VolumeSettings>,
     volume: Option<Res<Volume>>,
     queue: Res<VolumeQueue>,
@@ -855,13 +854,6 @@ pub(crate) fn fit_volume(
     render_queue: Res<RenderQueue>,
     cache: Res<PipelineCache>,
 ) {
-    if *requested == RenderPath::Classic {
-        if volume.is_some() {
-            commands.remove_resource::<Volume>();
-        }
-        queue.close();
-        return;
-    }
     if volume.is_some_and(|volume| volume.settings == *settings) {
         return;
     }

@@ -81,12 +81,9 @@ impl Plugin for ClientTerrainPlugin {
             heat: config::gpu_hot(),
             timestamps: config::pass_timestamps(),
         })
-        .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin {
-            parity_mask: config::parity_mask(),
-        })
+        .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin)
         .add_plugins(render::GuiItemsPlugin)
         .add_plugins(render::RasterPlugin)
-        .insert_resource(config::render_path())
         .insert_resource(config::occlusion())
         .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
         .insert_resource(config::drawn_streams())
@@ -105,7 +102,6 @@ impl Plugin for ClientTerrainPlugin {
                 cave::toggle,
                 toggle_culls,
                 step_debug_view,
-                toggle_render_path,
                 #[cfg(target_os = "macos")]
                 capture::gputrace,
             ),
@@ -126,12 +122,11 @@ impl Plugin for ClientTerrainPlugin {
 fn step_debug_view(
     keys: Res<ButtonInput<KeyCode>>,
     views: Res<mcrs_minecraft_render::DebugViews>,
-    shown: Res<mcrs_minecraft_render::ShownPath>,
     mut selected: ResMut<mcrs_minecraft_render::SelectedView>,
 ) {
     if keys.just_pressed(KeyCode::F10) {
         let back = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-        selected.0 = views.step(shown.get(), selected.0, back);
+        selected.0 = views.step(selected.0, back);
     }
 }
 
@@ -152,25 +147,10 @@ fn toggle_culls(
     }
 }
 
-fn toggle_render_path(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut path: ResMut<mcrs_minecraft_render::RenderPath>,
-    mut selected: ResMut<mcrs_minecraft_render::SelectedView>,
-) {
-    use mcrs_minecraft_render::{RenderPath, SelectedView};
-    if keys.just_pressed(KeyCode::F7) {
-        *path = match *path {
-            RenderPath::Classic => RenderPath::Deferred,
-            RenderPath::Deferred => RenderPath::Classic,
-        };
-        *selected = SelectedView(None);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_render::{DebugViews, RenderPath, SelectedView, ShownPath};
+    use mcrs_minecraft_render::{DebugViews, SelectedView};
 
     fn press(app: &mut App, key: KeyCode) {
         app.world_mut()
@@ -193,31 +173,13 @@ mod tests {
     }
 
     #[test]
-    fn f7_switches_the_requested_render_path_back_and_forth() {
-        let mut app = App::new();
-        app.init_resource::<ButtonInput<KeyCode>>()
-            .init_resource::<RenderPath>()
-            .init_resource::<SelectedView>()
-            .add_systems(Update, toggle_render_path);
-        let path = |app: &App| *app.world().resource::<RenderPath>();
-
-        press(&mut app, KeyCode::F7);
-        assert_eq!(path(&app), RenderPath::Deferred);
-        release(&mut app, KeyCode::F7);
-        assert_eq!(path(&app), RenderPath::Deferred);
-        press(&mut app, KeyCode::F7);
-        assert_eq!(path(&app), RenderPath::Classic);
-    }
-
-    #[test]
     fn f10_steps_forward_and_shift_f10_steps_back() {
         let mut views = DebugViews::default();
-        let first = views.register(RenderPath::Classic, "first");
-        let second = views.register(RenderPath::Classic, "second");
+        let first = views.register("first");
+        let second = views.register("second");
         let mut app = App::new();
         app.init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<SelectedView>()
-            .init_resource::<ShownPath>()
             .insert_resource(views)
             .add_systems(Update, step_debug_view);
         let selected = |app: &App| app.world().resource::<SelectedView>().0;
@@ -235,19 +197,5 @@ mod tests {
         press(&mut app, KeyCode::ShiftLeft);
         press(&mut app, KeyCode::F10);
         assert_eq!(selected(&app), Some(second));
-    }
-
-    #[test]
-    fn f7_returns_to_final_shading() {
-        let mut views = DebugViews::default();
-        let view = views.register(RenderPath::Classic, "view");
-        let mut app = App::new();
-        app.init_resource::<ButtonInput<KeyCode>>()
-            .init_resource::<RenderPath>()
-            .insert_resource(SelectedView(Some(view)))
-            .add_systems(Update, toggle_render_path);
-
-        press(&mut app, KeyCode::F7);
-        assert_eq!(app.world().resource::<SelectedView>().0, None);
     }
 }
