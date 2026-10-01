@@ -241,7 +241,7 @@ impl Gpu {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("light colour"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../../mcrs_minecraft_render_deferred/src/shaders/colour.wgsl")
+                include_str!("../../../mcrs_minecraft_render_light_color/src/shaders/colour.wgsl")
                     .into(),
             ),
         });

@@ -14,13 +14,16 @@ use mcrs_minecraft_render::{LightTint, WorldPass};
 
 pub use volume::{VolumeCommand, VolumeQueue, VolumeSettings};
 
-pub struct DeferredPlugin;
+pub struct LightVolumeRenderPlugin {
+    pub settings: VolumeSettings,
+}
 
-impl Plugin for DeferredPlugin {
+impl Plugin for LightVolumeRenderPlugin {
     fn build(&self, app: &mut App) {
+        bevy::shader::load_shader_library!(app, "shaders/volume.wgsl");
         bevy::asset::embedded_asset!(app, "shaders/colour.wgsl");
         let queue = VolumeQueue::default();
-        app.init_resource::<VolumeSettings>()
+        app.insert_resource(self.settings)
             .insert_resource(queue.clone())
             .add_plugins(ExtractResourcePlugin::<VolumeSettings>::default());
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {

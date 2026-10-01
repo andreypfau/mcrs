@@ -8,9 +8,8 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 
 use mcrs_minecraft_render::probe::{self, CpuTimings, GpuTimings};
-use mcrs_minecraft_render_deferred::VolumeQueue;
 
-use crate::light_volume::LightVolumeFeed;
+use crate::Unsettled;
 
 const DIR_VAR: &str = "MCRS_SCREENSHOT_DIR";
 
@@ -48,6 +47,7 @@ impl Plugin for ScreenshotPlugin {
             .add_systems(Update, capture);
         if let Some(path) = crate::config::capture_path() {
             app.insert_resource(SceneCapture(path))
+                .add_message::<Unsettled>()
                 .add_systems(Update, capture_scene);
         }
         #[cfg(feature = "telemetry-tracy")]
@@ -122,8 +122,8 @@ struct Settling {
 
 /// `Streaming::done` also holds in the gaps between the server's batches, so the
 /// scene counts as settled only once it has stayed done with nothing new arriving. It also
-/// waits for block light colour, with no timeout of its own: colour that never settles fails
-/// the capture rather than shooting it uncoloured.
+/// waits while any plugin reports `Unsettled`, with no timeout of its own: work that never
+/// settles fails the capture rather than shooting it unfinished.
 fn capture_scene(
     mut commands: Commands,
     capture: Res<SceneCapture>,
@@ -131,8 +131,7 @@ fn capture_scene(
     time: Res<Time<Real>>,
     gpu: Res<GpuTimings>,
     cpu: Res<CpuTimings>,
-    feed: Res<LightVolumeFeed>,
-    volume: Res<VolumeQueue>,
+    mut unsettled: MessageReader<Unsettled>,
     captured: Option<Res<SceneCaptured>>,
     mut settling: Local<Settling>,
 ) {
@@ -151,8 +150,8 @@ fn capture_scene(
     }
     let status = streaming.status();
     let counts = (status.columns, status.sections, status.sections_total);
-    let coloured = feed.idle() && volume.idle();
-    let quiet = streaming.done() && status.columns > 0 && counts == settling.last && coloured;
+    let settled = unsettled.read().count() == 0;
+    let quiet = streaming.done() && status.columns > 0 && counts == settling.last && settled;
     settling.last = counts;
     if !quiet {
         settling.quiet_since = None;

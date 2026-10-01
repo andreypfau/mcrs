@@ -216,9 +216,14 @@ pub(crate) struct DeferredPipelines {
     pub lighting: Option<CachedRenderPipelineId>,
     pub terrain: [Option<CachedRenderPipelineId>; TERRAIN_PIPELINES],
     variants: [Option<CachedRenderPipelineId>; Variant::ALL.len()],
+    pub tinted: bool,
 }
 
 impl DeferredPipelines {
+    fn tint_ready(&self, tint: Option<&LightTint>) -> bool {
+        !self.tinted || tint.is_some_and(|tint| tint.bind_group.is_some())
+    }
+
     fn gated(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
         self.lighting
             .into_iter()
@@ -255,11 +260,11 @@ impl DeferredPipelines {
 
 pub(crate) fn frame_ready(
     frame: Option<Res<DeferredFrame>>,
-    tint: Res<LightTint>,
+    tint: Option<Res<LightTint>>,
     pipelines: Res<DeferredPipelines>,
     cache: Res<PipelineCache>,
 ) -> bool {
-    frame.is_some() && tint.bind_group.is_some() && pipelines.ready(&cache)
+    frame.is_some() && pipelines.tint_ready(tint.as_deref()) && pipelines.ready(&cache)
 }
 
 pub(crate) fn prepare_deferred_pipelines(
@@ -270,7 +275,7 @@ pub(crate) fn prepare_deferred_pipelines(
     asset_server: Res<AssetServer>,
     cache: Res<PipelineCache>,
     frame: Option<Res<DeferredFrame>>,
-    tint: Res<LightTint>,
+    tint: Option<Res<LightTint>>,
     mut failed: Local<HashSet<CachedRenderPipelineId>>,
     mut waited: Local<Option<(Instant, u32)>>,
     mut announced: Local<bool>,
@@ -280,7 +285,7 @@ pub(crate) fn prepare_deferred_pipelines(
     {
         queue_pipelines(
             &mut pipelines,
-            &tint.layout,
+            tint.as_deref().map(|tint| &tint.layout),
             &terrain,
             view,
             &fullscreen,
@@ -305,7 +310,7 @@ pub(crate) fn prepare_deferred_pipelines(
         return;
     }
     let (since, frames) = waited.get_or_insert((Instant::now(), 0));
-    if frame.is_some() && tint.bind_group.is_some() && pipelines.ready(&cache) {
+    if frame.is_some() && pipelines.tint_ready(tint.as_deref()) && pipelines.ready(&cache) {
         let ms = since.elapsed().as_millis();
         info!(frames = *frames, ms, "the deferred path is ready");
         *announced = true;
@@ -316,28 +321,38 @@ pub(crate) fn prepare_deferred_pipelines(
 
 fn queue_pipelines(
     pipelines: &mut DeferredPipelines,
-    tint_layout: &BindGroupLayoutDescriptor,
+    tint_layout: Option<&BindGroupLayoutDescriptor>,
     terrain: &Terrain,
     view: &ExtractedView,
     fullscreen: &FullscreenShader,
     asset_server: &AssetServer,
     cache: &PipelineCache,
 ) {
+    pipelines.tinted = tint_layout.is_some();
+    if !pipelines.tinted {
+        let stand_in: Handle<Shader> =
+            asset_server.load("embedded://mcrs_minecraft_render/shaders/include/untinted.wgsl");
+        // Never dropped, as `load_shader_library!` keeps a library.
+        core::mem::forget(stand_in);
+    }
     let lighting =
         asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wgsl");
     let show =
         asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wgsl");
+    let layout: Vec<_> = [
+        terrain.view_layout().clone(),
+        terrain.draw_layout().clone(),
+        gbuffer_layout(),
+    ]
+    .into_iter()
+    .chain(tint_layout.cloned())
+    .collect();
     let fullscreen_pipeline = |label: &str, shader: &Handle<Shader>, entry: &str, def: &str| {
         let mut descriptor = RenderPipelineDescriptor {
             vertex: fullscreen.to_vertex_state(),
             ..common(
                 label.into(),
-                vec![
-                    terrain.view_layout().clone(),
-                    terrain.draw_layout().clone(),
-                    gbuffer_layout(),
-                    tint_layout.clone(),
-                ],
+                layout.clone(),
                 shader,
                 String::new(),
                 entry.into(),
@@ -345,9 +360,12 @@ fn queue_pipelines(
                 None,
             )
         };
+        let fragment = descriptor.fragment.as_mut().expect("a fullscreen fragment");
         if !def.is_empty() {
-            let fragment = descriptor.fragment.as_mut().expect("a fullscreen fragment");
             fragment.shader_defs.push(def.into());
+        }
+        if tint_layout.is_some() {
+            fragment.shader_defs.push("LIGHT_TINT".into());
         }
         cache.queue_render_pipeline(descriptor)
     };

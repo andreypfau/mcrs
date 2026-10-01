@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_minecraft_render_deferred"
-description = "Deferred terrain path: a G-buffer, one fullscreen lighting pass and forward translucents over the world pass stages"
+name = "mcrs_minecraft_render_light_color"
+description = "Coloured block light for the lighting pass: a paged light volume propagated on the GPU"
 version.workspace = true
 edition.workspace = true
 

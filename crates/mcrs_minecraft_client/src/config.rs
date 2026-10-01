@@ -57,19 +57,6 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
-#[cfg(not(target_family = "wasm"))]
-const COLOR_RADIUS: u8 = 10;
-#[cfg(not(target_family = "wasm"))]
-const COLOR_SECTIONS: u32 = 8;
-#[cfg(not(target_family = "wasm"))]
-const COLOR_BRICKS: usize = 512;
-#[cfg(target_family = "wasm")]
-const COLOR_RADIUS: u8 = 6;
-#[cfg(target_family = "wasm")]
-const COLOR_SECTIONS: u32 = 2;
-#[cfg(target_family = "wasm")]
-const COLOR_BRICKS: usize = 16;
-
 const VIEW_DISTANCE: u8 = 96;
 pub const MAX_VIEW_DISTANCE: u8 = 96;
 
@@ -114,44 +101,6 @@ pub fn view_distance() -> u8 {
         format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
     )
     .unwrap_or(VIEW_DISTANCE)
-}
-
-/// `COLOR_RADIUS=<columns>` colours block light that many columns around the camera; 0 is off.
-pub fn color_radius() -> u8 {
-    parsed(
-        "COLOR_RADIUS",
-        colour_radius_fits,
-        format_args!("expected a colour radius from 0 to {MAX_VIEW_DISTANCE} columns"),
-    )
-    .unwrap_or(COLOR_RADIUS)
-}
-
-/// `COLOR_SECTIONS=<sections>` is how many sections the GPU colours in one frame.
-pub fn color_sections() -> u32 {
-    parsed(
-        "COLOR_SECTIONS",
-        at_least_one,
-        "expected at least one section a frame",
-    )
-    .unwrap_or(COLOR_SECTIONS)
-}
-
-/// `COLOR_BRICKS=<bricks>` is how many section bricks may start building in one frame.
-pub fn color_bricks() -> usize {
-    parsed(
-        "COLOR_BRICKS",
-        at_least_one,
-        "expected at least one brick a frame",
-    )
-    .unwrap_or(COLOR_BRICKS)
-}
-
-fn colour_radius_fits(columns: &u8) -> bool {
-    *columns <= MAX_VIEW_DISTANCE
-}
-
-fn at_least_one<T: PartialOrd + From<u8>>(count: &T) -> bool {
-    *count >= T::from(1)
 }
 
 pub fn upload_budget() -> usize {
@@ -552,37 +501,4 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
 
     let cave = CaveCull::new(budget.sections);
     (budget, Uploads::default(), cave)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn colour_knobs_accept_their_ranges_only() {
-        let radius = |spec: &str| accepts(spec, colour_radius_fits);
-        assert_eq!(radius("0"), Some(0));
-        assert_eq!(radius("10"), Some(10));
-        assert_eq!(
-            radius(&MAX_VIEW_DISTANCE.to_string()),
-            Some(MAX_VIEW_DISTANCE)
-        );
-        for spec in ["97", "255", "-1", "ten", ""] {
-            assert_eq!(radius(spec), None, "{spec:?} was accepted as a radius");
-        }
-        for spec in ["0", "-1", "", "eight"] {
-            assert_eq!(
-                accepts::<u32>(spec, at_least_one),
-                None,
-                "{spec:?} sections"
-            );
-            assert_eq!(
-                accepts::<usize>(spec, at_least_one),
-                None,
-                "{spec:?} bricks"
-            );
-        }
-        assert_eq!(accepts::<u32>("1", at_least_one), Some(1));
-        assert_eq!(accepts::<usize>(" 512 ", at_least_one), Some(512));
-    }
 }

@@ -1,7 +1,11 @@
 #import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
 #import mcrs_minecraft_client::deferred::octahedral_decode
 #import mcrs_minecraft_client::finish::to_target
+#ifdef LIGHT_TINT
 #import mcrs_minecraft_client::volume::{shade_tinted, volume_tint}
+#else
+#import mcrs_minecraft_client::deferred::shade
+#endif
 
 struct Reconstruction {
     relative_from_clip: mat4x4<f32>,
@@ -39,8 +43,12 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
 #else
     let albedo = a.rgb;
 #endif
+#ifdef LIGHT_TINT
     let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
     let tint = volume_tint(relative_position(pixel, d), normal);
     return vec4<f32>(to_target(shade_tinted(albedo, a.a, l.g, l.b, tint)), 1.0);
+#else
+    return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
+#endif
 #endif
 }

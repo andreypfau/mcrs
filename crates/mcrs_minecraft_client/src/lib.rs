@@ -50,6 +50,10 @@ pub fn asset_corpus() -> PathBuf {
         .join("assets")
 }
 
+/// A plugin still has work a scripted capture must wait for.
+#[derive(Message)]
+pub struct Unsettled;
+
 pub struct ClientPlugins;
 
 impl PluginGroup for ClientPlugins {
@@ -58,7 +62,6 @@ impl PluginGroup for ClientPlugins {
             .add(vanilla::VanillaAssetsPlugin)
             .add(mcrs_minecraft_assets::MinecraftCorePlugin)
             .add(mcrs_minecraft_world::MinecraftWorldPlugin)
-            .add(mcrs_minecraft_light_color::plugin::LightColorPlugin)
             .add(player::PlayerPlugin)
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
@@ -81,20 +84,13 @@ impl Plugin for ClientTerrainPlugin {
             heat: config::gpu_hot(),
             timestamps: config::pass_timestamps(),
         })
-        .add_plugins(mcrs_minecraft_render_deferred::DeferredPlugin)
         .add_plugins(render::GuiItemsPlugin)
         .add_plugins(render::RasterPlugin)
         .insert_resource(config::occlusion())
         .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
         .insert_resource(config::drawn_streams())
         .insert_resource(config::raster_fraction())
-        .insert_resource(mcrs_minecraft_render_deferred::VolumeSettings {
-            radius: config::color_radius(),
-            view_distance: config::view_distance(),
-            sections_per_frame: config::color_sections(),
-        })
         .add_plugins(stream::StreamPlugin::new(budget, uploads))
-        .add_plugins(light_volume::LightVolumePlugin)
         .insert_resource(cave)
         .add_systems(
             Update,

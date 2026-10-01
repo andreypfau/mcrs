@@ -1,5 +1,5 @@
 use std::ops::RangeInclusive;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
@@ -16,28 +16,73 @@ use mcrs_minecraft_light_color::layout::{
 };
 use mcrs_minecraft_light_color::region::section_bricks;
 use mcrs_minecraft_render::CameraOrigin;
-use mcrs_minecraft_render_deferred::{VolumeCommand, VolumeQueue};
+use mcrs_minecraft_render_light_color::{
+    LightVolumeRenderPlugin, VolumeCommand, VolumeQueue, VolumeSettings,
+};
 
+use crate::Unsettled;
 use crate::columns::{
     AIR, BlockSource, ClientTerrainSet, Column, ColumnChange, ColumnStore, Extent, SECTION_VOLUME,
 };
 
-static BRICKS_PER_FRAME: LazyLock<usize> = LazyLock::new(crate::config::color_bricks);
-
 static AIR_SECTION: [u16; SECTION_VOLUME] = [AIR; SECTION_VOLUME];
 
-pub struct LightVolumePlugin;
+pub struct LightVolumePlugin {
+    /// Columns around the camera whose block light is coloured; 0 is off.
+    pub radius: u8,
+    /// Sections the GPU colours in one frame.
+    pub sections_per_frame: u32,
+    /// Section bricks that may start building in one frame.
+    pub bricks_per_frame: usize,
+}
+
+impl Default for LightVolumePlugin {
+    #[cfg(not(target_family = "wasm"))]
+    fn default() -> Self {
+        Self {
+            radius: 10,
+            sections_per_frame: 8,
+            bricks_per_frame: 512,
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn default() -> Self {
+        Self {
+            radius: 6,
+            sections_per_frame: 2,
+            bricks_per_frame: 16,
+        }
+    }
+}
 
 impl Plugin for LightVolumePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LightVolumeFeed>().add_systems(
-            Update,
-            feed_light_volume
-                .in_set(ClientTerrainSet::Build)
-                .run_if(resource_exists::<ColumnStore>),
-        );
+        app.add_plugins(mcrs_minecraft_light_color::plugin::LightColorPlugin)
+            .add_plugins(LightVolumeRenderPlugin {
+                settings: VolumeSettings {
+                    radius: self.radius,
+                    view_distance: crate::config::view_distance(),
+                    sections_per_frame: self.sections_per_frame,
+                },
+            })
+            .insert_resource(BricksPerFrame(self.bricks_per_frame))
+            .init_resource::<LightVolumeFeed>()
+            .add_message::<Unsettled>()
+            .add_systems(
+                Update,
+                (
+                    feed_light_volume.run_if(resource_exists::<ColumnStore>),
+                    report_unsettled,
+                )
+                    .chain()
+                    .in_set(ClientTerrainSet::Build),
+            );
     }
 }
+
+#[derive(Resource)]
+struct BricksPerFrame(usize);
 
 /// What the feeder has handed the renderer and what it still owes it, kept only while the
 /// light volume is open. The column store stays the truth.
@@ -460,6 +505,7 @@ fn feed_light_volume(
     origin: Res<CameraOrigin>,
     colours: Option<Res<LightColors>>,
     blocks: Option<Res<Blocks>>,
+    bricks: Res<BricksPerFrame>,
 ) {
     let radius = queue.radius();
     let (Some(colours), Some(blocks), Some(extent), 1..) =
@@ -492,8 +538,18 @@ fn feed_light_volume(
         }
     }
     feed.land(&queue);
-    feed.admit(&scope, &store, &registry, &colours, *BRICKS_PER_FRAME);
+    feed.admit(&scope, &store, &registry, &colours, bricks.0);
     feed.push_dirty(&colours, &queue);
+}
+
+fn report_unsettled(
+    feed: Res<LightVolumeFeed>,
+    queue: Res<VolumeQueue>,
+    mut unsettled: MessageWriter<Unsettled>,
+) {
+    if !(feed.idle() && queue.idle()) {
+        unsettled.write(Unsettled);
+    }
 }
 
 #[cfg(test)]
@@ -751,6 +807,9 @@ mod tests {
             .insert_resource(queue)
             .insert_resource(crate::blocks::corpus_blocks().clone())
             .insert_resource(light_colours([255, 64, 0]))
+            .insert_resource(BricksPerFrame(
+                LightVolumePlugin::default().bricks_per_frame,
+            ))
             .init_resource::<CameraOrigin>()
             .init_resource::<LightVolumeFeed>()
             .add_systems(Update, (publish_changes, feed_light_volume).chain());

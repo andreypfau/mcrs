@@ -47,7 +47,7 @@ pub(crate) fn prepare_colour_pipelines(
 ) {
     if pipelines.stages.is_none() {
         let shader =
-            asset_server.load("embedded://mcrs_minecraft_render_deferred/shaders/colour.wgsl");
+            asset_server.load("embedded://mcrs_minecraft_render_light_color/shaders/colour.wgsl");
         pipelines.stages = Some(["gather", "waves", "resolve"].map(|entry| {
             cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(format!("light colour {entry}").into()),

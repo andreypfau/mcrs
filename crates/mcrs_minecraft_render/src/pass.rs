@@ -528,18 +528,22 @@ pub(crate) fn draw_gbuffer_second(
 pub(crate) fn draw_lighting(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
-    tint: Res<LightTint>,
+    tint: Option<Res<LightTint>>,
     display: Res<DepthDisplay>,
     device: Res<RenderDevice>,
     mut ctx: RenderContext,
 ) {
-    let (Some(terrain), Some(frame), Some(tint)) = (
-        params.terrain.as_deref(),
-        params.frame.as_deref(),
-        tint.bind_group.as_ref(),
-    ) else {
+    let (Some(terrain), Some(frame)) = (params.terrain.as_deref(), params.frame.as_deref()) else {
         return;
     };
+    let tinted = params.pipelines.tinted;
+    let tint = tint
+        .as_deref()
+        .and_then(|tint| tint.bind_group.as_ref())
+        .filter(|_| tinted);
+    if tinted && tint.is_none() {
+        return;
+    }
     let (target, depth, _, _) = view.into_inner();
     let pipeline = match params.display().lighting {
         Lighting::Depth => {
@@ -572,7 +576,9 @@ pub(crate) fn draw_lighting(
     pass.set_bind_group(0, terrain.view_bind_group(), &[0]);
     pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
     pass.set_bind_group(2, &frame.bind_group, &[]);
-    pass.set_bind_group(3, tint, &[]);
+    if let Some(tint) = tint {
+        pass.set_bind_group(3, tint, &[]);
+    }
     pass.draw(0..3, 0..1);
 }
 
