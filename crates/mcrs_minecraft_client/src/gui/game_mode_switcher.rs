@@ -112,7 +112,7 @@ impl Plugin for GameModeSwitcherPlugin {
 fn add_icon_spawning(app: &mut App) {
     app.add_systems(
         Update,
-        spawn_icons.run_if(resource_exists::<Items>.and(not(any_with_component::<GameModeIcons>))),
+        spawn_icons.run_if(resource_exists::<Items>.and_then(not(any_with_component::<GameModeIcons>))),
     );
 }
 
