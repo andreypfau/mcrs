@@ -235,6 +235,8 @@ pub(crate) async fn assets(
     mut pick: impl FnMut(&str) -> bool,
     mut fonts: impl FnMut(Files),
 ) -> Files {
+    let host = release.jar.url.split('/').nth(2).unwrap_or(release.jar.url);
+    let phase = |what: &str| format!("Downloading {what} from {host}");
     let tail = [release.jar.size - release.directory.size..release.jar.size];
     let hint = FontHint::for_release(release);
     let hinted = hint.as_ref().map(FontHint::spans).unwrap_or_default();
@@ -245,7 +247,7 @@ pub(crate) async fn assets(
 
     let mut fonts_in = false;
     if let Some(hint) = &hint {
-        until_held(source, &hinted, progress, "Downloading fonts").await;
+        until_held(source, &hinted, progress, &phase("fonts")).await;
         match unpack(source, &hint.directory(), &hinted, |_| true) {
             Ok(files) => {
                 tracing::info!(files = files.len(), "fonts arrived where the hint put them");
@@ -262,7 +264,7 @@ pub(crate) async fn assets(
     }
 
     let directory = loop {
-        until_held(source, &tail, progress, "Downloading the jar index").await;
+        until_held(source, &tail, progress, &phase("the jar index")).await;
         let parsed = source.read(tail[0].clone()).and_then(|bytes| {
             if verify(&release.directory, &bytes) {
                 Directory::parse(&bytes, tail[0].start)
@@ -296,7 +298,7 @@ pub(crate) async fn assets(
     while !fonts_in {
         let definitions = directory.spans(is_font_definition);
         source.with_queue(|queue| queue.enqueue(FONTS, &definitions, true));
-        until_held(source, &definitions, progress, "Downloading fonts").await;
+        until_held(source, &definitions, progress, &phase("fonts")).await;
         let mut files = match unpack(source, &directory, &definitions, is_font_definition) {
             Ok(files) => files,
             Err(error) => {
@@ -308,7 +310,7 @@ pub(crate) async fn assets(
         let names = font_textures(&files);
         let textures = directory.spans(|name| names.contains(name));
         source.with_queue(|queue| queue.enqueue(FONTS, &textures, true));
-        until_held(source, &textures, progress, "Downloading fonts").await;
+        until_held(source, &textures, progress, &phase("fonts")).await;
         match unpack(source, &directory, &textures, |name| names.contains(name)) {
             Ok(more) => {
                 files.extend(more);
@@ -329,10 +331,10 @@ pub(crate) async fn assets(
         queue.enqueue(TEXTURES, &textures, true);
         queue.enqueue(ASSETS, &everything, true);
     });
-    until_held(source, &textures, progress, "Downloading textures").await;
+    until_held(source, &textures, progress, &phase("textures")).await;
     tracing::info!("textures arrived");
     loop {
-        until_held(source, &everything, progress, "Downloading models").await;
+        until_held(source, &everything, progress, &phase("models")).await;
         match unpack(source, &directory, &everything, &mut pick) {
             Ok(files) => {
                 tracing::info!(files = files.len(), "assets arrived");

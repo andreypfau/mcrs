@@ -36,7 +36,7 @@ const GLINT_BIT: u32 = 0x40000000u;
 const ALPHA_CUTOUT: f32 = 0.1;
 const GLINT_ROTATION: f32 = 0.17453292;
 const GLINT_SCALE: f32 = 8.0;
-// ponytail: vanilla projects the glint from stitched-atlas UVs, so a 16px sprite spans
+// chisle: vanilla projects the glint from stitched-atlas UVs, so a 16px sprite spans
 // 16/atlas_px of it; the atlas width stands in as a constant and the sprite's
 // position in the atlas (a per-item phase offset) is not modelled.
 const GLINT_ATLAS_PX: f32 = 2048.0;

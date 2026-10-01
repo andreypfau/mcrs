@@ -1,0 +1,10 @@
+{
+  "color": "#f39a5e",
+  "blocks": [
+    "minecraft:torch",
+    "minecraft:wall_torch",
+    "minecraft:lantern",
+    "minecraft:fire",
+    "minecraft:campfire"
+  ]
+}

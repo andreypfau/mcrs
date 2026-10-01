@@ -1,0 +1,17 @@
+{
+  "dimension": "minecraft:overworld",
+  "blocks": [
+    { "from": [19, 77, 19], "to": [34, 85, 32], "id": "minecraft:stone" },
+    { "from": [20, 79, 20], "to": [33, 84, 31], "id": "minecraft:air" },
+    { "from": [27, 78, 23], "to": [29, 78, 25], "id": "minecraft:water" },
+    { "from": [25, 79, 24], "id": "minecraft:soul_lantern" },
+    { "from": [31, 79, 24], "id": "minecraft:torch" },
+    { "from": [25, 79, 30], "id": "minecraft:copper_lantern" },
+    { "from": [30, 79, 29], "id": "minecraft:redstone_torch" },
+    { "from": [22, 79, 27], "id": "minecraft:amethyst_cluster" },
+    { "from": [28, 79, 26], "id": "minecraft:white_stained_glass" },
+    { "from": [36, 77, 19], "to": [42, 84, 25], "id": "minecraft:stone" },
+    { "from": [37, 79, 20], "to": [41, 83, 24], "id": "minecraft:air" },
+    { "from": [40, 79, 21], "id": "minecraft:soul_lantern" }
+  ]
+}

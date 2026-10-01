@@ -431,12 +431,11 @@ pub fn bridge_inbound(
         if *state != ConnectionState::Game {
             continue;
         }
-        bucket.refill();
 
         loop {
             match conn.raw.try_recv() {
                 Ok(Some(pkt)) => {
-                    if !bucket.consume_or_flag() {
+                    if !bucket.consume_or_flag(pkt.timestamp) {
                         conn.raw
                             .append(&ClientboundDisconnect {
                                 reason: mcrs_minecraft_protocol::Text::from(

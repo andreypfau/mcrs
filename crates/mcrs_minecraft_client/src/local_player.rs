@@ -14,6 +14,8 @@ use mcrs_minecraft_protocol::{Look, MoveFlags, VarInt, WritePacket};
 use mcrs_minecraft_world::entity::movement;
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed, Input};
 
+#[cfg(feature = "dev")]
+use crate::dev::flight::ScriptedFlight;
 use crate::input;
 use crate::player::Player;
 
@@ -121,18 +123,16 @@ impl LastSentMovement {
     }
 }
 
-#[derive(Resource)]
-pub struct ScriptedFlight {
-    pub turn_at: Option<f32>,
-    pub turned: bool,
-}
-
 /// The look a run asked for, kept through the teleports the server answers a join with.
 #[derive(Resource, Clone, Copy)]
 pub struct LookOverride {
     pub yaw: f32,
     pub pitch: f32,
 }
+
+/// The position a run asked for, kept through the teleports the server answers a join with.
+#[derive(Resource, Clone, Copy)]
+pub struct PositionOverride(pub DVec3);
 
 /// One tick of local-player movement, from the sprint machine through the
 /// shared travel step.
@@ -160,6 +160,7 @@ fn accept_teleports(
     player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
+    position: Option<Res<PositionOverride>>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
@@ -168,7 +169,9 @@ fn accept_teleports(
     }
     let (mut transform, mut velocity) = player.into_inner();
     for teleport in pending.0.drain(..) {
-        transform.translation = teleport.position;
+        transform.translation = position
+            .as_deref()
+            .map_or(teleport.position, |position| position.0);
         transform.rotation = match look.as_deref() {
             Some(look) => Rotation::new(look.yaw, look.pitch),
             None => Rotation::new(teleport.look.yaw, teleport.look.pitch),
@@ -231,8 +234,8 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
 fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    scripted: Option<ResMut<ScriptedFlight>>,
-    time: Res<Time>,
+    #[cfg(feature = "dev")] scripted: Option<ResMut<ScriptedFlight>>,
+    #[cfg(feature = "dev")] time: Res<Time>,
     player: Single<
         (
             &mut Sprint,
@@ -244,23 +247,13 @@ fn fly(
     >,
 ) {
     let (mut sprint, mut velocity, mut transform, flying_speed) = player.into_inner();
-    let input = if let Some(mut scripted) = scripted {
-        if let Some(turn_at) = scripted.turn_at
-            && !scripted.turned
-            && time.elapsed_secs() >= turn_at
-        {
-            scripted.turned = true;
-            let rotation = transform.rotation;
-            transform.rotation = Rotation::new(rotation.yaw() + 180.0, rotation.pitch());
-        }
-        Input {
-            forward: true,
-            sprint: true,
-            ..Input::EMPTY
-        }
-    } else {
-        input::pressed(&keys, &cursor)
+    #[cfg(feature = "dev")]
+    let input = match scripted {
+        Some(mut scripted) => scripted.input(&mut transform, time.elapsed_secs()),
+        None => input::pressed(&keys, &cursor),
     };
+    #[cfg(not(feature = "dev"))]
+    let input = input::pressed(&keys, &cursor);
     let yaw = transform.rotation.yaw();
     tick(
         &mut sprint,

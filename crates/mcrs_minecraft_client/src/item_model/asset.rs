@@ -52,7 +52,7 @@ impl Validate for ClientItem {
 // `flatten` buffers through serde's self-describing `Content`, which is only
 // sound because these assets are JSON-only; `deny_unknown_fields` cannot join
 // it, so an unknown key on one of the flattened objects passes silently.
-// ponytail: a hand-written map visitor per flattened variant would reject it.
+// chisle: a hand-written map visitor per flattened variant would reject it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum UnbakedItemModel {

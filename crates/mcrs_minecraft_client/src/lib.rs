@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use bevy::app::PluginGroupBuilder;
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::prelude::*;
+use bevy::render::{ExtractSchedule, RenderApp};
 
 pub mod anim;
 #[cfg(target_os = "macos")]
@@ -15,28 +16,24 @@ pub mod atlas;
 pub mod bake;
 pub mod blocks;
 pub mod camera;
-#[cfg(target_os = "macos")]
-pub mod capture;
 pub mod cave;
-pub mod chunk_guard;
 pub mod columns;
 pub mod config;
+#[cfg(feature = "dev")]
+pub mod dev;
 pub mod game_mode;
 pub mod gui;
 pub mod input;
 pub mod inventory;
 pub mod item_model;
-pub mod light_guard;
+pub mod light_volume;
 pub mod local_player;
 pub mod model;
 pub mod player;
-pub mod probe;
-pub mod readback;
 pub mod render;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
-pub mod sky_render;
 pub mod sky_state;
 pub mod stream;
 pub mod vanilla;
@@ -50,6 +47,10 @@ pub fn asset_corpus() -> PathBuf {
         .expect("the crate sits two levels below the workspace root")
         .join("assets")
 }
+
+/// A plugin still has work a scripted capture must wait for.
+#[derive(Message)]
+pub struct Unsettled;
 
 pub struct ClientPlugins;
 
@@ -75,21 +76,117 @@ pub struct ClientTerrainPlugin(pub config::TerrainLimits);
 impl Plugin for ClientTerrainPlugin {
     fn build(&self, app: &mut App) {
         let (budget, uploads, cave) = config::terrain(self.0);
-        app.add_plugins(render::TerrainPlugin(budget.clone(), uploads.clone()))
-            .add_plugins(stream::StreamPlugin::new(budget, uploads))
-            .insert_resource(cave)
-            .add_systems(
-                Update,
-                (
-                    cave::toggle,
-                    render::toggle_wireframe,
-                    #[cfg(target_os = "macos")]
-                    capture::gputrace,
-                ),
-            )
-            .add_systems(
-                PostUpdate,
-                cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
-            );
+        app.add_plugins(mcrs_minecraft_render::TerrainPlugin {
+            budget: budget.clone(),
+            uploads: uploads.clone(),
+        })
+        .add_plugins(mcrs_minecraft_render_probe::ProbePlugin {
+            heat: config::gpu_hot(),
+            timestamps: config::pass_timestamps(),
+        })
+        .add_plugins(render::GuiItemsPlugin)
+        .insert_resource(mcrs_minecraft_render::Occlusion(config::occlusion()))
+        .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
+        .add_plugins(stream::StreamPlugin::new(
+            budget,
+            uploads,
+            stream::MeshPacing {
+                per_frame: config::mesh_per_frame(),
+                in_flight: config::mesh_in_flight(),
+            },
+        ))
+        .insert_resource(cave)
+        .add_systems(Update, (cave::toggle, toggle_culls, step_debug_view))
+        .add_systems(
+            PostUpdate,
+            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+        );
+        if let Some(tick) = config::frozen_time() {
+            app.insert_resource(mcrs_minecraft_render::PinnedTick(tick));
+        }
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.add_systems(ExtractSchedule, cave::extract_cave_visibility);
+        }
+    }
+}
+
+fn step_debug_view(
+    keys: Res<ButtonInput<KeyCode>>,
+    views: Res<mcrs_minecraft_render::DebugViews>,
+    mut selected: ResMut<mcrs_minecraft_render::SelectedView>,
+) {
+    if keys.just_pressed(KeyCode::F10) {
+        let back = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+        selected.0 = views.step(selected.0, back);
+    }
+}
+
+/// `O` turns the depth pyramid's occlusion test off and on, and `F8` the per-quad tests, so a
+/// hole in the terrain can be traced to the cull stage that makes it.
+fn toggle_culls(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut occlusion: ResMut<mcrs_minecraft_render::Occlusion>,
+    mut quad_cull: ResMut<mcrs_minecraft_render::QuadCull>,
+) {
+    if keys.just_pressed(KeyCode::KeyO) {
+        occlusion.0 = !occlusion.0;
+        info!(on = occlusion.0, "occlusion culling");
+    }
+    if keys.just_pressed(KeyCode::F8) {
+        quad_cull.0 = !quad_cull.0;
+        info!(on = quad_cull.0, "per-quad culling");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_render::{DebugViews, SelectedView};
+
+    fn press(app: &mut App, key: KeyCode) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+    }
+
+    fn release(app: &mut App, key: KeyCode) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(key);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+    }
+
+    #[test]
+    fn f10_steps_forward_and_shift_f10_steps_back() {
+        let mut views = DebugViews::default();
+        let first = views.register("first");
+        let second = views.register("second");
+        let mut app = App::new();
+        app.init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<SelectedView>()
+            .insert_resource(views)
+            .add_systems(Update, step_debug_view);
+        let selected = |app: &App| app.world().resource::<SelectedView>().0;
+
+        press(&mut app, KeyCode::F10);
+        assert_eq!(selected(&app), Some(first));
+        release(&mut app, KeyCode::F10);
+        press(&mut app, KeyCode::F10);
+        assert_eq!(selected(&app), Some(second));
+        release(&mut app, KeyCode::F10);
+        press(&mut app, KeyCode::F10);
+        assert_eq!(selected(&app), None);
+        release(&mut app, KeyCode::F10);
+
+        press(&mut app, KeyCode::ShiftLeft);
+        press(&mut app, KeyCode::F10);
+        assert_eq!(selected(&app), Some(second));
     }
 }

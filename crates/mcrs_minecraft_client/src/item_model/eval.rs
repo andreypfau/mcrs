@@ -104,7 +104,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         if let Some(EnchantmentGlintOverride(foil)) = self.get::<EnchantmentGlintOverride>() {
             return foil;
         }
-        // ponytail: the only vanilla override is the compass with a lodestone
+        // chisle: the only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
         if self.item().as_str() == "minecraft:compass"
             && self.has(ItemComponentKind::LodestoneTracker)
@@ -275,7 +275,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 .stack
                 .get::<DyedColor>()
                 .map_or(default.0 as u32, |DyedColor(rgb)| opaque(rgb.0)),
-            // ponytail: without the custom colour a potion shows the base colour;
+            // chisle: without the custom colour a potion shows the base colour;
             // averaging effect colours needs the potion and mob_effect tables in the corpus.
             TintSource::Potion { default } => opaque(
                 self.stack

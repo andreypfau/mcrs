@@ -22,7 +22,7 @@ const ITEMS: [(&str, u16); 4] = [
     ("bundle", 4),
 ];
 
-// ponytail: the pool is every kind's Sample::samples(); only the nested kinds
+// chisle: the pool is every kind's Sample::samples(); only the nested kinds
 // are generated fresh, so scalar kinds are exercised in combination, not with
 // random field values. Upgrade path: a Gen impl per value type.
 macro_rules! sample_pool {

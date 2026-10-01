@@ -224,7 +224,7 @@ pub fn forget(log: &mut Option<ResMut<ColumnTraceLog>>, pos: ColumnPos) {
 /// map reads the server's column lifecycle through the sink both hold rather
 /// than over the wire.
 ///
-/// ponytail: against a remote server only the client's own `Received`/`Meshed`
+/// chisle: against a remote server only the client's own `Received`/`Meshed`
 /// marks land, and the earlier stages read as unknown; a debug packet is the
 /// upgrade.
 #[derive(Resource, Clone, Default)]

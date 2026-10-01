@@ -1,0 +1,9 @@
+{
+  "color": "#a233eb",
+  "blocks": [
+    "minecraft:respawn_anchor",
+    "minecraft:nether_portal",
+    "minecraft:crying_obsidian",
+    "minecraft:enchanting_table"
+  ]
+}

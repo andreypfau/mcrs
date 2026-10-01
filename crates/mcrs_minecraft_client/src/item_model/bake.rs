@@ -5,16 +5,16 @@ use bevy::math::{Mat4, Vec3};
 use bevy::prelude::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::generator;
-use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
-use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
-use crate::blocks::load_colormap;
-use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 use super::asset::{
     ClientItem, ConditionProperty, RangeProperty, SelectSwitch, SpecialModel, TintSource,
     UnbakedItemModel,
 };
+use super::generator;
 use super::transform::compose;
+use crate::atlas::{MISSING_SPRITE, SpriteRegistry};
+use crate::bake::{Dir, VariantRotation, draws_face, face_geometry};
+use crate::blocks::load_colormap;
+use crate::model::{Element, Face, GuiLight, ItemTransform, Pack, ResolvedModel, resolve_model};
 
 #[derive(Debug, Clone)]
 pub struct ItemQuad {
@@ -49,7 +49,7 @@ pub enum BakedNode {
         on_false: Box<BakedNode>,
     },
     /// `cases[i]` is the baked model of the switch's i-th case.
-    // ponytail: the switch keeps its unbaked case models and lookup is a scan of `when`
+    // chisle: the switch keeps its unbaked case models and lookup is a scan of `when`
     // lists; a per-property `HashMap<T, BakedNode>` is the upgrade if selects show in a profile.
     Select {
         switch: SelectSwitch,

@@ -11,7 +11,11 @@ mod sweep;
 pub mod tint;
 
 use crate::block::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::{FACE_WORDS, QUAD_WORDS};
+use crate::pack::{
+    BOUNDS_HI_X, BOUNDS_HI_Y, BOUNDS_HI_Z, BOUNDS_LO_X, BOUNDS_LO_Y, BOUNDS_LO_Z, FACE_WORDS,
+    Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
+    QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
+};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
@@ -27,6 +31,10 @@ pub trait BlockView {
 }
 
 pub const STREAMS: usize = Pass::COUNT * 2;
+
+/// Most quads a group holds. The cull tests a group as one box, so a small group hugs its quads
+/// and hides behind terrain that a whole section's worth of them would reach past.
+pub const GROUP_QUADS: usize = 32;
 
 pub const STREAM_NAMES: [&str; STREAMS] = [
     "solid greedy",
@@ -52,7 +60,8 @@ pub struct Group {
     pub quad_count: u32,
     pub section: u32,
     pub face: u32,
-    pub quad_prefix: u32,
+    /// The box its quads lie in, packed by the `BOUNDS_*` fields.
+    pub bounds: u32,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -101,7 +110,7 @@ struct Sink {
 }
 
 impl Sink {
-    fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize) {
+    fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize, bounds: u32) {
         self.groups.push((
             stream as u32,
             Group {
@@ -109,32 +118,106 @@ impl Sink {
                 quad_count: quad_count as u32,
                 section: self.slot,
                 face: face as u32,
-                quad_prefix: 0,
+                bounds,
             },
         ));
     }
 
     fn simple(&mut self, pass: usize, face: u64, quads: &[[u32; QUAD_WORDS]]) {
-        if quads.is_empty() {
-            return;
+        for run in quads.chunks(GROUP_QUADS) {
+            let base = self.simple.len();
+            let mut bounds = Bounds::EMPTY;
+            for quad in run {
+                bounds.cover_greedy(quad[0]);
+            }
+            self.group(pass * 2, face, base, run.len(), bounds.pack());
+            self.simple.extend_from_slice(run);
         }
-        let base = self.simple.len();
-        self.group(pass * 2, face, base, quads.len());
-        self.simple.extend_from_slice(quads);
     }
 
     fn complex(&mut self, pass: usize, face: u64, verts: &[u32]) {
-        if verts.is_empty() {
-            return;
+        for run in verts.chunks(GROUP_QUADS * model::WORDS_PER_QUAD) {
+            let base = self.complex.len() / model::WORDS_PER_QUAD;
+            let mut bounds = Bounds::EMPTY;
+            for vertex in run.chunks(model::WORDS_PER_QUAD / 4) {
+                bounds.cover_model(vertex);
+            }
+            self.group(
+                pass * 2 + 1,
+                face,
+                base,
+                run.len() / model::WORDS_PER_QUAD,
+                bounds.pack(),
+            );
+            self.complex.extend_from_slice(run);
         }
-        let base = self.complex.len() / model::WORDS_PER_QUAD;
-        self.group(
-            pass * 2 + 1,
-            face,
-            base,
-            verts.len() / model::WORDS_PER_QUAD,
-        );
-        self.complex.extend_from_slice(verts);
+    }
+}
+
+/// A box in blocks from a section's corner, grown to take in quads as `quad.wgsl` places them.
+struct Bounds {
+    lo: [f32; 3],
+    hi: [f32; 3],
+}
+
+impl Bounds {
+    const EMPTY: Self = Self {
+        lo: [f32::MAX; 3],
+        hi: [f32::MIN; 3],
+    };
+
+    fn cover(&mut self, point: [f32; 3]) {
+        for axis in 0..3 {
+            self.lo[axis] = self.lo[axis].min(point[axis]);
+            self.hi[axis] = self.hi[axis].max(point[axis]);
+        }
+    }
+
+    /// The rectangle spans the quad's size along its face's u and v axes from its corner. A
+    /// fluid surface drops below the plane it names and is pulled in off the face behind it,
+    /// both along the normal and by less than a block.
+    fn cover_greedy(&mut self, word: u32) {
+        let word = word as u64;
+        let corner = [QUAD_X, QUAD_Y, QUAD_Z].map(|field| field.get(word) as f32);
+        let axes = FACE_AXES[QUAD_FACE.get(word) as usize];
+        let along = |axis: u8, positive: u8, size: Field| {
+            let size = (size.get(word) + 1) as f32;
+            let mut step = [0.0; 3];
+            step[axis as usize] = if positive == 1 { size } else { -size };
+            step
+        };
+        let u = along(axes[2], axes[3], QUAD_W);
+        let v = along(axes[4], axes[5], QUAD_H);
+        let far = std::array::from_fn(|axis| corner[axis] + u[axis] + v[axis]);
+        self.cover(corner);
+        self.cover(far);
+        if QUAD_DROP.get(word) != 0 || QUAD_FLUID.get(word) != 0 {
+            let normal = axes[0] as usize;
+            let mut below = corner;
+            below[normal] -= 1.0;
+            let mut above = corner;
+            above[normal] += 1.0;
+            self.cover(below);
+            self.cover(above);
+        }
+    }
+
+    fn cover_model(&mut self, vertex: &[u32]) {
+        self.cover([MODEL_X, MODEL_Y, MODEL_Z].map(|field| {
+            field.get(vertex[field.word as usize] as u64) as f32 / MODEL_STEPS - MODEL_OVERHANG
+        }));
+    }
+
+    fn pack(&self) -> u32 {
+        let field = |field: Field, value: f32| {
+            field.pack((value + MODEL_OVERHANG).clamp(0.0, field.max() as f32) as u64) as u32
+        };
+        field(BOUNDS_LO_X, self.lo[0].floor())
+            | field(BOUNDS_LO_Y, self.lo[1].floor())
+            | field(BOUNDS_LO_Z, self.lo[2].floor())
+            | field(BOUNDS_HI_X, self.hi[0].ceil())
+            | field(BOUNDS_HI_Y, self.hi[1].ceil())
+            | field(BOUNDS_HI_Z, self.hi[2].ceil())
     }
 }
 
@@ -170,8 +253,6 @@ pub fn mesh_section(
         let mut quads = 0u32;
         for &(from, group) in &sink.groups {
             if from as usize == stream {
-                let mut group = group;
-                group.quad_prefix = quads;
                 quads += group.quad_count;
                 groups.push(group);
             }
@@ -328,6 +409,132 @@ mod tests {
         assert_eq!(fresh.connectivity, again.connectivity, "connectivity");
     }
 
+    fn unpack_bounds(bounds: u32) -> ([f32; 3], [f32; 3]) {
+        let get = |field: Field| field.get(bounds as u64) as f32 - MODEL_OVERHANG;
+        (
+            [get(BOUNDS_LO_X), get(BOUNDS_LO_Y), get(BOUNDS_LO_Z)],
+            [get(BOUNDS_HI_X), get(BOUNDS_HI_Y), get(BOUNDS_HI_Z)],
+        )
+    }
+
+    #[test]
+    fn a_lone_block_is_boxed_to_its_own_cell() {
+        const STONE: u16 = 1;
+        const BUSH: u16 = 2;
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        catalog[STONE as usize].cube = Some(
+            [CubeFace {
+                sprite: 1,
+                pass: Pass::Solid as u8,
+                tint: crate::tint::Tint::None,
+            }; 6],
+        );
+        catalog[STONE as usize].occludes = true;
+        catalog[BUSH as usize].quads = vec![ModelQuad {
+            positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            facing: mcrs_minecraft_core::Direction::Up,
+            face: None,
+            sprite: 0,
+            pass: Pass::Cutout,
+            shade: 1.0,
+            tint: crate::tint::Tint::None,
+        }];
+
+        for (at, state) in [([3, 4, 5], STONE), ([15, 0, 9], STONE), ([7, 12, 0], BUSH)] {
+            let world = one_section_world(|x, y, z| if [x, y, z] == at { state } else { 0 });
+            let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+            assert!(!mesh.groups.is_empty());
+            let cell = at.map(|n| n as f32);
+            for group in &mesh.groups {
+                let (lo, hi) = unpack_bounds(group.bounds);
+                for axis in 0..3 {
+                    assert!(
+                        lo[axis] >= cell[axis] && hi[axis] <= cell[axis] + 1.0,
+                        "a group of the block at {at:?} is boxed {lo:?}..{hi:?}"
+                    );
+                    assert!(lo[axis] <= hi[axis]);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_long_run_of_quads_is_split_into_groups_no_larger_than_the_cap() {
+        const BUSH: u16 = 2;
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        catalog[BUSH as usize].quads = vec![ModelQuad {
+            positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            facing: mcrs_minecraft_core::Direction::Up,
+            face: None,
+            sprite: 0,
+            pass: Pass::Cutout,
+            shade: 1.0,
+            tint: crate::tint::Tint::None,
+        }];
+        let world = one_section_world(|_, y, _| if y == 0 { BUSH } else { 0 });
+        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+        assert_eq!(mesh.model_quads(), SECTION_SIZE * SECTION_SIZE);
+        assert!(mesh.groups.iter().all(|group| group.quad_count as usize <= GROUP_QUADS));
+    }
+
+    #[test]
+    fn a_field_of_snow_is_one_lowered_top_over_hidden_ground() {
+        use crate::block::FaceShapes;
+        use crate::pack::{QUAD_DROP, QUAD_FACE};
+        const STONE: u16 = 1;
+        const SNOW: u16 = 2;
+        let face = |sprite| CubeFace {
+            sprite,
+            pass: Pass::Solid as u8,
+            tint: crate::tint::Tint::None,
+        };
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        catalog[STONE as usize].cube = Some([face(1); 6]);
+        catalog[STONE as usize].occludes = true;
+        catalog[STONE as usize].faces = Some(Box::new(FaceShapes {
+            outer: [[u16::MAX; 16]; 6],
+            inner: [[u16::MAX; 16]; 6],
+        }));
+        // One layer: the floor is covered whole, each side along its lowest two rows.
+        let mut sides = [[0u16; 16]; 6];
+        sides[0] = [u16::MAX; 16];
+        for side in 2..6 {
+            let rows_are_height = side >= 4;
+            for row in 0..16 {
+                sides[side][row] = if rows_are_height {
+                    if row < 2 { u16::MAX } else { 0 }
+                } else {
+                    0b11
+                };
+            }
+        }
+        catalog[SNOW as usize].cube = Some([face(2); 6]);
+        catalog[SNOW as usize].drop = 28;
+        catalog[SNOW as usize].faces = Some(Box::new(FaceShapes {
+            outer: sides,
+            inner: sides,
+        }));
+        catalog[SNOW as usize].ambient_occlusion = true;
+
+        let world = one_section_world(|_, y, _| match y {
+            0 => STONE,
+            1 => SNOW,
+            _ => 0,
+        });
+        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut Scratch::new());
+        let tops: Vec<_> = mesh
+            .simple
+            .iter()
+            .filter(|quad| QUAD_FACE.read(*quad) == 1)
+            .collect();
+        assert_eq!(tops.len(), 1, "the snow tops merge and the stone under them is hidden");
+        assert_eq!(QUAD_DROP.read(tops[0]), 28);
+    }
+
     #[test]
     fn the_groups_of_a_section_tile_the_quads_of_that_section() {
         const STONE: u16 = 1;
@@ -370,7 +577,6 @@ mod tests {
             let mut quads = 0u32;
             let mut covered = 0u32;
             for group in held {
-                assert_eq!(group.quad_prefix, quads, "stream {stream} skips a slot");
                 assert_eq!(group.quad_base, covered, "stream {stream} leaves a hole");
                 quads += group.quad_count;
                 covered += group.quad_count;

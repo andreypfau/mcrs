@@ -6,9 +6,11 @@ use crate::model::Pack;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
 use mcrs_minecraft_mesh::ambient::Neighbour;
+use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_mesh::block::{
-    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Fluid, ModelQuad, Pass,
+    BlockInfo, CORNER_UV, CubeFace, FACE_AXES, FaceShapes, Fluid, ModelQuad, Pass, SideCells,
 };
+use mcrs_minecraft_mesh::pack::MODEL_STEPS;
 use mcrs_minecraft_mesh::tint::Tint;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
@@ -65,8 +67,8 @@ pub(super) fn build_one(
     pack: &Pack,
     state: &BlockStateKey,
     data: &BlockStateData,
+    occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
-    smooth_lighting: bool,
 ) -> Result<BlockInfo, String> {
     if state.name == "minecraft:air"
         || state.name == "minecraft:cave_air"
@@ -87,6 +89,7 @@ pub(super) fn build_one(
         light_opaque: solid_render && data.light_dampening != 0,
     };
     let emissive = data.flags.contains(BlockStateFlags::EMISSIVE_RENDERING);
+    let faces = face_shapes(occlusion);
 
     let baked = bake::bake(pack, &state.name, &state.pairs())?;
     if baked.quads.is_empty() {
@@ -95,6 +98,7 @@ pub(super) fn build_one(
             neighbour,
             emission,
             emissive,
+            faces,
             ..BlockInfo::default()
         });
     }
@@ -106,7 +110,17 @@ pub(super) fn build_one(
 
     let sturdy = sturdy_faces(&baked.quads, &layers, sprites);
 
-    let (cube_faces, extras) = split_cube(&baked.quads);
+    let (mut cube_faces, mut extras) = split_cube(&baked.quads);
+    let mut drop = 0;
+    if cube_faces.is_none()
+        && let Some((top, bottom, lowered)) = split_lowered(&baked.quads)
+    {
+        cube_faces = Some(std::array::from_fn(|dir| {
+            if dir == Dir::Down as usize { bottom } else { top }
+        }));
+        extras.retain(|&index| index != top && index != bottom);
+        drop = lowered;
+    }
     let mut cube = None;
     let mut occludes = false;
     let mut self_culls = false;
@@ -125,8 +139,8 @@ pub(super) fn build_one(
             };
         }
         cube = Some(built);
-        occludes = worst == Pass::Solid;
-        self_culls = worst == Pass::Translucent;
+        occludes = drop == 0 && worst == Pass::Solid;
+        self_culls = drop == 0 && worst == Pass::Translucent;
     }
 
     let mut quads = Vec::with_capacity(extras.len());
@@ -148,6 +162,8 @@ pub(super) fn build_one(
 
     Ok(BlockInfo {
         cube,
+        faces,
+        drop,
         quads,
         occludes,
         self_culls,
@@ -156,11 +172,65 @@ pub(super) fn build_one(
         emissive,
         fluid,
         neighbour,
-        ambient_occlusion: smooth_lighting && baked.ambient_occlusion && emission == 0,
+        ambient_occlusion: baked.ambient_occlusion && emission == 0,
     })
 }
 
 const FACE_GRID: usize = 16;
+
+/// Vanilla's `VoxelShape.getFaceShape` per side, on a sixteenth grid: the boxes that reach the
+/// side, seen along its normal.
+fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
+    const EDGE: f32 = 1e-6;
+    if occlusion.is_empty() {
+        return None;
+    }
+    let mut faces = FaceShapes {
+        outer: [[0; FACE_GRID]; 6],
+        inner: [[0; FACE_GRID]; 6],
+    };
+    for side in 0..6 {
+        let normal = FACE_AXES[side][0] as usize;
+        let positive = FACE_AXES[side][1] == 1;
+        let mut tangents = (0..3).filter(|axis| *axis != normal);
+        let (rows, columns) = (tangents.next().unwrap(), tangents.next().unwrap());
+        for aabb in occlusion {
+            let (min, max) = (aabb.min.to_array(), aabb.max.to_array());
+            let reaches = if positive {
+                max[normal] >= 1.0 - EDGE
+            } else {
+                min[normal] <= EDGE
+            };
+            if reaches {
+                mark(&mut faces.outer[side], (min[rows], max[rows]), (min[columns], max[columns]), true);
+                mark(&mut faces.inner[side], (min[rows], max[rows]), (min[columns], max[columns]), false);
+            }
+        }
+    }
+    Some(Box::new(faces))
+}
+
+/// Sets the cells a box's side spans: all it touches when rounding out, only those it fills when
+/// rounding in.
+fn mark(side: &mut SideCells, rows: (f32, f32), columns: (f32, f32), out: bool) {
+    let steps = FACE_GRID as f32;
+    let span = |(low, high): (f32, f32)| {
+        let (low, high) = if out {
+            ((low * steps + 1e-4).floor(), (high * steps - 1e-4).ceil())
+        } else {
+            ((low * steps - 1e-4).ceil(), (high * steps + 1e-4).floor())
+        };
+        low.clamp(0.0, steps) as usize..high.clamp(0.0, steps) as usize
+    };
+    let columns = span(columns);
+    if columns.is_empty() {
+        return;
+    }
+    let bits = ((1u32 << columns.len()) - 1) << columns.start;
+    for row in span(rows) {
+        side[row] |= bits as u16;
+    }
+}
 
 fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[u16], sprites: &SpriteRegistry) -> u8 {
     let mut sides = [[0u16; FACE_GRID]; Dir::all().len()];
@@ -285,6 +355,42 @@ fn split_cube(quads: &[bake::BakedQuad]) -> (Option<[usize; 6]>, Vec<usize>) {
         return (None, (0..quads.len()).collect());
     }
     (Some(faces), extras)
+}
+
+/// A box as wide as its cell standing on the cell's floor, its top and bottom textured the way a
+/// cube's are: they tile across neighbours like cube faces, the top dropped below the cell's by
+/// a whole number of `MODEL_STEPS`. Answers the top, the bottom and the drop.
+fn split_lowered(quads: &[bake::BakedQuad]) -> Option<(usize, usize, u8)> {
+    let bottom = quads
+        .iter()
+        .position(|quad| quad.dir == Dir::Down && is_cube_face(quad))?;
+    quads.iter().enumerate().find_map(|(index, quad)| {
+        if quad.dir != Dir::Up || quad.cull.is_some() || !cube_uvs(quad) {
+            return None;
+        }
+        let height = quad.positions[0].y;
+        let drop = (1.0 - height) * MODEL_STEPS;
+        if !(1.0..MODEL_STEPS).contains(&drop.round()) || (drop - drop.round()).abs() > 1e-3 {
+            return None;
+        }
+        let lowered = (0..4).all(|corner| {
+            let at = mcrs_minecraft_mesh::ambient::corner(
+                Dir::Up,
+                corner,
+                Vec3::ZERO,
+                Vec3::new(1.0, height, 1.0),
+            );
+            quad.positions[corner].distance_squared(at) <= 1e-6
+        });
+        lowered.then_some((index, bottom, drop.round() as u8))
+    })
+}
+
+fn cube_uvs(quad: &bake::BakedQuad) -> bool {
+    (0..4).all(|corner| {
+        (quad.uvs[corner][0] - CORNER_UV[corner][0]).abs() <= 1e-4
+            && (quad.uvs[corner][1] - CORNER_UV[corner][1]).abs() <= 1e-4
+    })
 }
 
 fn is_cube_face(quad: &bake::BakedQuad) -> bool {
@@ -418,8 +524,8 @@ mod tests {
             Pack::corpus(),
             &state,
             corpus.state(id),
+            corpus.shape(corpus.state(id).occlusion_shape),
             &mut SpriteRegistry::default(),
-            true,
         )
         .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
     }
@@ -515,6 +621,58 @@ mod tests {
             face_group(&mirrored),
             Some(group),
             "the same pane wound the other way faces the other way"
+        );
+    }
+
+    #[test]
+    fn a_face_hides_behind_a_neighbour_whose_shape_covers_it() {
+        use mcrs_minecraft_mesh::block::face_hidden;
+        let snow = |layers: &str| bake_state("minecraft:snow", &[("layers", layers)]);
+        let (low, same, high) = (snow("2"), snow("2"), snow("5"));
+        let (north, east, up, down) = (Dir::North as usize, Dir::East as usize, 1, 0);
+        assert!(face_hidden(&low, &same, north), "snow of one height meets itself");
+        assert!(face_hidden(&low, &high, east), "a deeper drift covers a shallower one's side");
+        assert!(!face_hidden(&high, &low, east), "and not the other way round");
+        assert!(!face_hidden(&low, &same, up), "the top of a layer touches nothing above it");
+
+        let stone = bake_state("minecraft:stone", &[]);
+        assert!(face_hidden(&low, &stone, down), "a full block hides whatever faces it");
+        assert!(
+            face_hidden(&stone, &low, up),
+            "a layer's underside covers the whole top of the block it lies on"
+        );
+
+        let grass = bake_state("minecraft:short_grass", &[]);
+        assert!(grass.faces.is_none(), "a plant occludes nothing");
+        assert!(!face_hidden(&low, &grass, north));
+    }
+
+    #[test]
+    fn a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces() {
+        for layers in 1..=7u8 {
+            let snow = bake_state("minecraft:snow", &[("layers", &layers.to_string())]);
+            assert!(snow.cube.is_some(), "{layers} layers of snow");
+            assert_eq!(snow.drop, 32 - 4 * layers, "{layers} layers of snow");
+            let baked = bake::bake(
+                Pack::corpus(),
+                "minecraft:snow",
+                &[("layers", &layers.to_string())],
+            )
+            .expect("snow bakes");
+            assert_eq!(
+                snow.quads.len(),
+                baked.quads.len() - 2,
+                "only the top and the bottom leave the model quads"
+            );
+            assert!(!snow.occludes);
+        }
+        assert_eq!(bake_state("minecraft:snow", &[("layers", "8")]).drop, 0, "a full block of snow");
+        assert_eq!(bake_state("minecraft:white_carpet", &[]).drop, 30);
+        assert_eq!(bake_state("minecraft:oak_slab", &[("type", "bottom")]).drop, 16);
+        let top_slab = bake_state("minecraft:oak_slab", &[("type", "top")]);
+        assert!(
+            top_slab.cube.is_none() && top_slab.drop == 0,
+            "a top slab does not stand on its floor"
         );
     }
 

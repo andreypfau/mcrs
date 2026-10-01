@@ -181,8 +181,15 @@ fn end_session(world: &mut World, reason: String) {
     }
 }
 
-fn end_session_later(commands: &mut Commands, reason: String) {
-    commands.queue(move |world: &mut World| end_session(world, reason));
+/// Closes the connection and ends the session, unless an earlier close in the
+/// same frame already did: a disconnect packet is followed by the socket
+/// closing, and only the first of the two is the reason.
+fn close_connection_later(commands: &mut Commands, connection: Entity, reason: String) {
+    commands.queue(move |world: &mut World| {
+        if world.despawn(connection) {
+            end_session(world, reason);
+        }
+    });
 }
 
 impl Plugin for ClientNetworkPlugin {
@@ -393,8 +400,11 @@ fn receive_packets(
                 }),
                 Ok(None) => break,
                 Err(_) => {
-                    commands.entity(entity).despawn();
-                    end_session_later(&mut commands, "the server closed the connection".into());
+                    close_connection_later(
+                        &mut commands,
+                        entity,
+                        "the server closed the connection".into(),
+                    );
                     break;
                 }
             }
@@ -410,8 +420,11 @@ fn flush(mut connections: Query<(Entity, &mut ClientConnection)>, mut commands: 
         // The flush error above is also raised by a writer that is merely
         // behind, so the dead writer is what the disconnect is read from.
         if connection.raw.disconnected() {
-            commands.entity(entity).despawn();
-            end_session_later(&mut commands, "the connection to the server failed".into());
+            close_connection_later(
+                &mut commands,
+                entity,
+                "the connection to the server failed".into(),
+            );
         }
     }
 }
@@ -496,9 +509,9 @@ fn handle_game_packet(
     }
 
     if let Some(disconnect) = event.decode::<ClientboundDisconnect>() {
-        commands.entity(event.entity).despawn();
-        end_session_later(
+        close_connection_later(
             &mut commands,
+            event.entity,
             format!(
                 "the server disconnected you: {}",
                 disconnect.reason.to_legacy_lossy()
@@ -512,7 +525,7 @@ fn handle_game_packet(
         });
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
         if !position.flags.is_empty() {
-            // ponytail: every relative flag is treated as absolute. Our server
+            // chisle: every relative flag is treated as absolute. Our server
             // only ever sends absolute teleports; the upgrade is vanilla's
             // `PositionMoveRotation.calculateAbsolute`.
             warn!(

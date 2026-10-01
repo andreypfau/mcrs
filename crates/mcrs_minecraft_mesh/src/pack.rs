@@ -86,6 +86,15 @@ pub const MODEL_SPRITE: Field = Field::new(2, 0, FACE_SPRITE.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
 
+/// A group's box in whole blocks from its section's corner, raised by `MODEL_OVERHANG` so a
+/// model leaning out of its section still lands inside the field.
+pub const BOUNDS_LO_X: Field = Field::new(0, 0, 5);
+pub const BOUNDS_LO_Y: Field = Field::new(0, 5, 5);
+pub const BOUNDS_LO_Z: Field = Field::new(0, 10, 5);
+pub const BOUNDS_HI_X: Field = Field::new(0, 15, 5);
+pub const BOUNDS_HI_Y: Field = Field::new(0, 20, 5);
+pub const BOUNDS_HI_Z: Field = Field::new(0, 25, 5);
+
 pub const MODEL_STEPS: f32 = 32.0;
 
 pub const FLUID_INSET: f32 = 0.001;
@@ -135,10 +144,21 @@ const MODEL_FIELDS: &[(&str, Field)] = &[
 ];
 
 #[cfg(test)]
+const BOUNDS_FIELDS: &[(&str, Field)] = &[
+    ("BOUNDS_LO_X", BOUNDS_LO_X),
+    ("BOUNDS_LO_Y", BOUNDS_LO_Y),
+    ("BOUNDS_LO_Z", BOUNDS_LO_Z),
+    ("BOUNDS_HI_X", BOUNDS_HI_X),
+    ("BOUNDS_HI_Y", BOUNDS_HI_Y),
+    ("BOUNDS_HI_Z", BOUNDS_HI_Z),
+];
+
+#[cfg(test)]
 const GROUPS: &[(&str, &[(&str, Field)])] = &[
     ("greedy quad", QUAD_FIELDS),
     ("face attribute", FACE_FIELDS),
     ("model vertex", MODEL_FIELDS),
+    ("group bounds", BOUNDS_FIELDS),
 ];
 
 #[cfg(test)]
@@ -207,7 +227,7 @@ mod tests {
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_client/src/render/shaders/include/fields.wgsl");
+            .join("../mcrs_minecraft_render/src/shaders/include/fields.wgsl");
         let generated = wgsl_fields();
         if std::env::var("MCRS_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");
@@ -277,6 +297,12 @@ mod tests {
             far <= MODEL_X.max() as f32,
             "a model quad hanging {MODEL_OVERHANG} blocks past a section does not fit the field"
         );
+    }
+
+    #[test]
+    fn a_group_box_reaches_the_overhang_on_both_sides() {
+        let far = SECTION_SIZE as f32 + MODEL_OVERHANG + MODEL_OVERHANG;
+        assert!(far <= BOUNDS_HI_X.max() as f32);
     }
 
     #[test]

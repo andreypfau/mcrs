@@ -1,0 +1,222 @@
+use bevy::math::DVec3;
+use bevy::math::primitives::ViewFrustum;
+use bevy::prelude::*;
+use bevy::render::extract_resource::ExtractResource;
+use bevy::render::render_resource::*;
+use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::view::ExtractedView;
+
+use super::Occlusion;
+use super::draws::PARAMS_STRIDE;
+use super::stats::args_reset;
+use super::terrain::Terrain;
+use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
+
+use super::Budget;
+
+/// The camera split into the section it stands in and where it stands inside that section, so
+/// the terrain shaders never need an absolute world coordinate in f32.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
+pub struct CameraOrigin {
+    pub section: IVec3,
+    pub offset: Vec3,
+}
+
+impl CameraOrigin {
+    pub fn of(eye: DVec3) -> Self {
+        let section = (eye / SECTION_SIZE as f64).floor();
+        Self {
+            section: section.as_ivec3(),
+            offset: (eye - section * SECTION_SIZE as f64).as_vec3(),
+        }
+    }
+
+    /// Subtracted in i32, so a block at the edge of the world still lands where it belongs.
+    pub fn relative(&self, block: IVec3) -> Vec3 {
+        (block - self.section * SECTION_SIZE as i32).as_vec3()
+    }
+}
+
+/// The frame's view, expressed against the origin of the section the camera stands in. Nothing
+/// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
+#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub(super) struct CameraUniform {
+    clip_from_relative: [f32; 16],
+    frustum: [[f32; 4]; SIDE_PLANES],
+    section: [i32; 3],
+    _pad_section: i32,
+    offset: [f32; 3],
+    _pad_offset: f32,
+    tint_origin: [f32; 2],
+    tint_scale: [f32; 2],
+    hiz_levels: u32,
+    quad_cull: u32,
+    viewport: [f32; 2],
+}
+
+pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
+
+/// The projection is an infinite reverse-Z one, so the sixth plane a frustum carries is the
+/// degenerate far plane and nothing to test against.
+const SIDE_PLANES: usize = 5;
+
+pub(super) struct Frame {
+    pub params: Buffer,
+    pub camera: Buffer,
+    pub cave: Buffer,
+    pub args: Buffer,
+    // Copied over `args` once a frame so the cull pass starts from zeroed instance counts
+    // without one small clear per draw.
+    pub args_reset: Buffer,
+    /// The dispatch sizes the cull computes into `args`, copied here because a dispatch cannot
+    /// read its size from a buffer it may also write.
+    pub dispatch: Buffer,
+}
+
+pub fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
+    device.create_buffer(&BufferDescriptor {
+        label: Some(label),
+        size,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+impl Frame {
+    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
+        let args_init = args_reset();
+        Self {
+            params: uniform(
+                "terrain draw params",
+                STREAMS as u64 * PARAMS_STRIDE as u64,
+                device,
+            ),
+            camera: uniform("terrain camera", CAMERA_SIZE, device),
+            // The cave walk's bits, then the frame's, which the cull writes.
+            cave: device.create_buffer_with_data(&BufferInitDescriptor {
+                label: Some("terrain cave visibility"),
+                contents: bytemuck::cast_slice(&vec![u32::MAX; 2 * budget.sections.div_ceil(32)]),
+                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            }),
+            args: device.create_buffer_with_data(&BufferInitDescriptor {
+                label: Some("terrain draw args"),
+                contents: bytemuck::cast_slice(&args_init),
+                usage: BufferUsages::STORAGE
+                    | BufferUsages::INDIRECT
+                    | BufferUsages::COPY_DST
+                    | BufferUsages::COPY_SRC,
+            }),
+            args_reset: device.create_buffer_with_data(&BufferInitDescriptor {
+                label: Some("terrain draw args reset"),
+                contents: bytemuck::cast_slice(&args_init),
+                usage: BufferUsages::COPY_SRC,
+            }),
+            dispatch: device.create_buffer(&BufferDescriptor {
+                label: Some("terrain cull dispatch"),
+                size: super::stats::DISPATCH_BYTES,
+                usage: BufferUsages::INDIRECT | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+        }
+    }
+}
+
+pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) -> Mat4 {
+    clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
+}
+
+pub(super) fn write_camera(
+    terrain: Option<Res<Terrain>>,
+    origin: Option<Res<CameraOrigin>>,
+    views: Query<&ExtractedView, With<Camera3d>>,
+    occlusion: Res<Occlusion>,
+    quad_cull: Res<super::QuadCull>,
+    queue: Res<RenderQueue>,
+) {
+    let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
+        return;
+    };
+    let clip_from_relative = clip_from_relative(
+        view.clip_from_view,
+        view.world_from_view.rotation(),
+        origin.offset,
+    );
+    let frustum = ViewFrustum::from_clip_from_world(&clip_from_relative);
+    // The tint window wraps, so only the camera section's place inside it matters, and that
+    // stays exact in i32 where the section's absolute position would not in f32.
+    let tint_origin = [
+        -(origin.section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32)
+            as f32,
+        -(origin.section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32)
+            as f32,
+    ];
+    queue.write_buffer(
+        &terrain.frame.camera,
+        0,
+        bytemuck::bytes_of(&CameraUniform {
+            clip_from_relative: clip_from_relative.to_cols_array(),
+            frustum: std::array::from_fn(|plane| frustum.half_spaces[plane].normal_d().to_array()),
+            section: origin.section.to_array(),
+            offset: origin.offset.to_array(),
+            tint_origin,
+            tint_scale: [
+                1.0 / terrain.budget.tint_size[0] as f32,
+                1.0 / terrain.budget.tint_size[1] as f32,
+            ],
+            hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
+            viewport: view.viewport.zw().as_vec2().to_array(),
+            quad_cull: quad_cull.0 as u32,
+            ..default()
+        }),
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::math::{DMat4, DVec3};
+
+    use super::*;
+
+    fn ndc(clip: Vec4) -> Vec2 {
+        clip.xy() / clip.w
+    }
+
+    #[test]
+    fn a_far_section_keeps_the_precision_an_absolute_f32_has_lost() {
+        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
+        let origin = CameraOrigin::of(eye);
+        let far = (origin.section + IVec3::new(96, 0, -96)) * SECTION_SIZE as i32;
+        let truth = (far.as_dvec3() - eye).as_vec3();
+
+        assert_eq!(origin.relative(far) - origin.offset, truth);
+        assert_ne!(far.as_vec3() - eye.as_vec3(), truth);
+    }
+
+    /// A block a render distance away, seen from the far edge of the world. Against an f64
+    /// ground truth the camera-relative projection holds to a ten-thousandth of a pixel, while
+    /// the same projection built on absolute f32 coordinates drifts by more than one.
+    #[test]
+    fn the_relative_projection_survives_a_coordinate_f32_cannot_hold() {
+        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
+        let origin = CameraOrigin::of(eye);
+        let block = (origin.section + IVec3::new(96, -4, -96)) * SECTION_SIZE as i32;
+        let rotation =
+            Quat::from_rotation_arc(Vec3::NEG_Z, (block.as_dvec3() - eye).normalize().as_vec3())
+                * Quat::from_rotation_y(0.3);
+        let clip_from_view = Mat4::perspective_infinite_reverse_rh(1.4, 16.0 / 9.0, 0.05);
+
+        let truth = ndc((clip_from_view.as_dmat4()
+            * DMat4::from_rotation_translation(rotation.as_dquat(), eye).inverse()
+            * block.as_dvec3().extend(1.0))
+        .as_vec4());
+        let relative = ndc(clip_from_relative(clip_from_view, rotation, origin.offset)
+            * origin.relative(block).extend(1.0));
+        let absolute = ndc(clip_from_view
+            * Mat4::from_rotation_translation(rotation, eye.as_vec3()).inverse()
+            * block.as_vec3().extend(1.0));
+
+        assert!(relative.distance(truth) < 1e-6, "{relative} {truth}");
+        assert!(absolute.distance(truth) > 1e-3, "{absolute} {truth}");
+    }
+}

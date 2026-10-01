@@ -141,7 +141,7 @@ pub fn child_kind(entry: &ItemEntry) -> Option<ItemComponentKind> {
         .find(|kind| entry.prototype.get_value(*kind).is_some())
 }
 
-// ponytail: the campfire's four slots are not in the block corpus, so its
+// chisle: the campfire's four slots are not in the block corpus, so its
 // stacks accept the codec bound; upgrade by dumping block-entity slot counts.
 pub fn container_slots(entry: &ItemEntry) -> usize {
     entry

@@ -99,12 +99,12 @@ impl Plugin for GameModeSwitcherPlugin {
     fn build(&self, app: &mut App) {
         add_icon_spawning(app);
         app.init_resource::<DebugChat>().add_systems(
-                Update,
-                switch_game_mode
-                    .after(ClientNetworkSystems::Receive)
-                    .before(ClientNetworkSystems::Flush)
-                    .before(toggle_overlay),
-            );
+            Update,
+            switch_game_mode
+                .after(ClientNetworkSystems::Receive)
+                .before(ClientNetworkSystems::Flush)
+                .before(toggle_overlay),
+        );
     }
 }
 
@@ -112,7 +112,7 @@ impl Plugin for GameModeSwitcherPlugin {
 fn add_icon_spawning(app: &mut App) {
     app.add_systems(
         Update,
-        spawn_icons.run_if(resource_exists::<Items>.and(not(any_with_component::<GameModeIcons>))),
+        spawn_icons.run_if(resource_exists::<Items>.and_then(not(any_with_component::<GameModeIcons>))),
     );
 }
 

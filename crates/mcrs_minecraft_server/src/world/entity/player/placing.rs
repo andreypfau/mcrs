@@ -20,7 +20,7 @@ impl Plugin for PlacingPlugin {
     }
 }
 
-// ponytail: places the item's default block state on the clicked face; no
+// chisle: places the item's default block state on the clicked face; no
 // facing/waterlogged/replaceable resolution and no survival count decrement
 // yet.
 fn handle_use_item_on(

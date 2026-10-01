@@ -95,7 +95,7 @@ fn build_dimension_features(
     // A template is `structure/<id>.nbt`, which `registry_of` cannot name, so
     // the ids come off the handles the feature, placed-feature and pool assets
     // declared: a pool can inline a template feature.
-    // ponytail: every pool template is cloned for the few an inline template
+    // chisle: every pool template is cloned for the few an inline template
     // feature might name; upgrade = walk the pool elements for template
     // feature nodes and take only theirs.
     let template_values = features

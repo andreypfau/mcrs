@@ -1,7 +1,8 @@
 use std::fmt;
 
 use serde::de::{DeserializeSeed, Error, MapAccess, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::ser::{SerializeSeq, SerializeStruct};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 type Span = (u32, u32);
 
@@ -49,6 +50,22 @@ impl BlockStateList {
         self.text.push_str(value);
         (start, value.len() as u32)
     }
+
+    pub(crate) fn push<'p>(
+        &mut self,
+        name: &str,
+        properties: impl IntoIterator<Item = (&'p str, &'p str)>,
+    ) {
+        let name = self.push_str(name);
+        let start = self.props.len() as u32;
+        for (key, value) in properties {
+            let key = self.push_str(key);
+            let value = self.push_str(value);
+            self.props.push((key, value));
+        }
+        let props = (start, self.props.len() as u32 - start);
+        self.entries.push(Entry { name, props });
+    }
 }
 
 /// Vanilla resolves a state by asking the block for each property it declares,
@@ -93,6 +110,46 @@ pub trait PaletteLookup<V> {
 impl<'de> Deserialize<'de> for BlockStateList {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_seq(PaletteVisitor)
+    }
+}
+
+/// An entry without properties is a bare name, which is how vanilla writes a
+/// block's default state and every biome; any other is `{ id, properties }`.
+impl Serialize for BlockStateList {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for index in 0..self.len() {
+            let properties = self.properties(index);
+            if properties.is_empty() {
+                seq.serialize_element(self.name(index))?;
+            } else {
+                seq.serialize_element(&BlockState {
+                    id: self.name(index),
+                    properties,
+                })?;
+            }
+        }
+        seq.end()
+    }
+}
+
+struct BlockState<'a> {
+    id: &'a str,
+    properties: Properties<'a>,
+}
+
+impl Serialize for BlockState<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("BlockState", 2)?;
+        state.serialize_field("id", self.id)?;
+        state.serialize_field("properties", &self.properties)?;
+        state.end()
+    }
+}
+
+impl Serialize for Properties<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(self.iter())
     }
 }
 

@@ -7,7 +7,7 @@ use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
-use crate::world::sub_app_builder::DimSubAppHandle;
+use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 use bevy_app::{App, Plugin, Update};
 use bevy_asset::{AssetEvent, AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::component::Component;
@@ -645,7 +645,9 @@ fn on_game_configuration_ack(
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
 /// Runs each Update tick. For every connection in the game state whose session
-/// is still unplaced, picks the first live `DimSubAppHandle` label entity, sends
+/// is still unplaced, picks the live `DimSubAppHandle` label entity of the
+/// dimension the player was saved in, or the first live one when the save names
+/// none or a dimension that does not exist, sends
 /// one `ToDim::Spawn` into the dimension's control channel and marks the session
 /// as joining that label entity — the key used by `DimChannelsResource`, NOT a
 /// sub-app-internal `Dimension` entity.
@@ -655,20 +657,15 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
-    live_dims: Query<Entity, With<DimSubAppHandle>>,
+    live_dims: Query<(Entity, Option<&DimLabel>), With<DimSubAppHandle>>,
     dim_channels: Res<DimChannelsResource>,
     world_preset: Option<Res<LoadedWorldPreset>>,
     save: Option<Res<WorldSave>>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
-    let dim_label = match live_dims.iter().next() {
-        Some(e) => e,
-        None => return,
-    };
-
-    let Some(chan) = dim_channels.get(dim_label) else {
+    if live_dims.is_empty() {
         return;
-    };
+    }
 
     let dimensions: Vec<String> = match &world_preset {
         Some(preset) if !preset.dimensions.is_empty() => preset
@@ -692,6 +689,17 @@ pub fn emit_initial_player_spawn(
         let saved = save
             .as_ref()
             .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
+        let saved_dimension = saved.as_ref().map(|dat| dat.dimension.as_str());
+        let Some((dim_label, _)) = live_dims
+            .iter()
+            .find(|(_, label)| label.map(|label| label.0.as_str()) == saved_dimension)
+            .or_else(|| live_dims.iter().next())
+        else {
+            continue;
+        };
+        let Some(chan) = dim_channels.get(dim_label) else {
+            continue;
+        };
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),

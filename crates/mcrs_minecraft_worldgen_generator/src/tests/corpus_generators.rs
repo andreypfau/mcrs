@@ -22,7 +22,7 @@ use super::{
 const BIOME: &str = "minecraft:badlands";
 
 /// The corpus features this build still cannot place.
-// ponytail: `desert_well`, `sulfur_spring` and the fossils place their
+// chisle: `desert_well`, `sulfur_spring` and the fossils place their
 // templates without the neighbour-shape pass the reference runs afterwards, so
 // a sulfur spike at a template's edge keeps its file state where a real server
 // may recompute its thickness; the upgrade is that post pass over the region.

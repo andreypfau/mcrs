@@ -29,7 +29,7 @@ struct Snapshot {
     pos: DVec3,
 }
 
-/// ponytail: vertical-only collision against full blocks, no water or lava
+/// chisle: vertical-only collision against full blocks, no water or lava
 /// branches. Upgrade: an AABB sweep over the block shapes.
 pub fn tick_dropped_items(world: &mut World) {
     let mut query = world.query::<(Entity, &InDimension, &Transform, &DroppedItem)>();

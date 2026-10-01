@@ -27,7 +27,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClo
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_registry::BlockStateId;
 
-/// ponytail: no menu registry is loaded, so the generic 9x3 id is the
+/// chisle: no menu registry is loaded, so the generic 9x3 id is the
 /// vanilla constant. Upgrade: a `minecraft:menu` snapshot in RegistryAccess.
 const GENERIC_9X3: i32 = 2;
 const CHEST_ROWS: usize = 3;
@@ -57,7 +57,7 @@ pub fn close_container_menu(world: &mut World, player: Entity, menu: Entity, not
     match inventory_menu(world, player) {
         Some(inventory) => {
             world.entity_mut(player).insert(CurrentMenu(inventory));
-            // ponytail: main and hotbar slots the client already saw through the
+            // chisle: main and hotbar slots the client already saw through the
             // closing menu are resent if they moved. Upgrade: copy those remote entries across.
             if let Some(mut remote) = world.get_mut::<RemoteSlots>(inventory) {
                 remote.set_changed();
@@ -169,7 +169,7 @@ pub fn open_containers(world: &mut World) {
     }
 }
 
-/// ponytail: the block interaction range attribute is not modelled, so the
+/// chisle: the block interaction range attribute is not modelled, so the
 /// vanilla default stands in. Upgrade: read the player's attribute.
 const BLOCK_INTERACTION_RANGE: f64 = 4.5;
 const STILL_VALID_BUFFER: f64 = 4.0;

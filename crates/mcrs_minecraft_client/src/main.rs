@@ -28,12 +28,13 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 
+use mcrs_minecraft_client::columns::SECTION_SIZE;
 use mcrs_minecraft_client::config::TerrainLimits;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
     ClientPlugins, ClientTerrainPlugin, asset_corpus, config, gui, local_player, player, sky,
-    sky_render, vanilla,
+    vanilla,
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
@@ -74,41 +75,44 @@ fn main() {
 }
 
 #[cfg(not(target_family = "wasm"))]
-fn main() {
+fn main() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
-    if config::hot_clocks() {
-        std::thread::Builder::new()
-            .name("hot clocks".into())
-            .spawn(|| {
-                loop {
-                    std::hint::spin_loop();
-                }
-            })
-            .expect("a thread");
-    }
     let world = world_folder();
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = config::frozen_time();
     let assets = asset_corpus().to_string_lossy().into_owned();
 
+    let mut wgpu = WgpuSettings {
+        features: WgpuFeatures::TIMESTAMP_QUERY,
+        ..default()
+    };
+    // Bevy keeps wgpu's per-draw validation pass whenever DX12 is among the backends, which the
+    // default set is even where DX12 cannot exist; the cull writes every indirect argument itself.
+    // Labels handed to Metal cost a fifth of the frame's encoding. The environment still wins,
+    // so `WGPU_DISCARD_HAL_LABELS=0` brings them back for a GPU capture.
+    #[cfg(not(debug_assertions))]
+    {
+        use bevy::render::settings::InstanceFlags;
+        #[cfg(not(target_os = "windows"))]
+        wgpu.instance_flags.remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
+        wgpu.instance_flags = (wgpu.instance_flags | InstanceFlags::DISCARD_HAL_LABELS).with_env();
+    }
+    let mut task_pool_options = bevy::app::TaskPoolOptions::default();
+    task_pool_options.async_compute.max_threads = config::async_threads();
+    task_pool_options.async_compute.percent = 1.0;
+    task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins
-            .set(bevy::app::TaskPoolPlugin {
-                task_pool_options: config::task_pool_options(),
-            })
+            .set(bevy::app::TaskPoolPlugin { task_pool_options })
             .set(AssetPlugin {
                 file_path: assets.clone(),
                 ..default()
             })
             .set(RenderPlugin {
-                render_creation: WgpuSettings {
-                    features: WgpuFeatures::TIMESTAMP_QUERY,
-                    ..default()
-                }
-                .into(),
+                render_creation: wgpu.into(),
                 ..default()
             })
             .set(LogPlugin {
@@ -146,7 +150,8 @@ fn main() {
                     } else {
                         PresentMode::AutoNoVsync
                     },
-                    desired_maximum_frame_latency: config::frame_latency(),
+                    #[cfg(feature = "dev")]
+                    desired_maximum_frame_latency: mcrs_minecraft_client::dev::frame_latency(),
                     ..default()
                 }),
                 ..default()
@@ -161,8 +166,6 @@ fn main() {
     .add_plugins(
         ClientPlugins
             .build()
-            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::light_guard::LightGuardPlugin)
-            .add_before::<sky::SkyPlugin>(mcrs_minecraft_client::chunk_guard::ChunkGuardPlugin)
             .add_before::<sky::SkyPlugin>(
                 mcrs_minecraft_client::item_model::resolve::ItemRenderPlugin,
             )
@@ -179,20 +182,21 @@ fn main() {
         (
             log_spawned_transforms.after(TransformSystems::Propagate),
             log_monitors,
-            place_window.after(log_monitors),
         ),
     );
-
-    if let Some(only) = config::sky_draws_only() {
-        app.insert_resource(sky_render::SkyDrawsOnly(only));
-    }
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
     #[cfg(feature = "singleplayer")]
     let server = server_address().unwrap_or_else(|| {
-        let traces = ColumnTraceSink::default();
-        app.insert_resource(traces.clone());
+        #[cfg(feature = "dev")]
+        let traces = {
+            let traces = ColumnTraceSink::default();
+            app.insert_resource(traces.clone());
+            Some(traces)
+        };
+        #[cfg(not(feature = "dev"))]
+        let traces = None;
         host_integrated_server(world.as_deref(), &assets, traces)
     });
     #[cfg(not(feature = "singleplayer"))]
@@ -200,7 +204,7 @@ fn main() {
         .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
-        username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+        username: config::username(),
         profile_id: save_data.player_uuid,
         view_distance: config::view_distance(),
     });
@@ -226,7 +230,9 @@ fn main() {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));
+    app.add_plugins(ClientTerrainPlugin(terrain_limits(config::view_distance())));
+    #[cfg(feature = "dev")]
+    app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
 
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
@@ -235,57 +241,22 @@ fn main() {
     if config::look_override().is_some() {
         app.insert_resource(local_player::LookOverride { yaw, pitch });
     }
-    let player = player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
-    if let Some(speed) = config::scripted_flight() {
-        app.insert_resource(local_player::ScriptedFlight {
-            turn_at: config::turn_after(),
-            turned: false,
-        });
-        app.world_mut()
-            .entity_mut(player)
-            .insert(mcrs_minecraft_world::entity::player::FlyingSpeed(speed));
+    let position = config::position_override();
+    if let Some(position) = position {
+        app.insert_resource(local_player::PositionOverride(position));
     }
-
-    app.run();
-}
-
-/// Opens the window on the fastest display rather than on the system's primary
-/// one.
-///
-/// Whenever the engine is quicker than the display, the frame rate a run reads
-/// is the display's: a 60 Hz external panel pins a whole chunk load to sixty
-/// frames a second and everything paced per frame along with it, while the
-/// laptop's own panel does a hundred and twenty. `MCRS_MONITOR=primary` puts it
-/// back. The placement is absolute rather than a `MonitorSelection`, which macOS
-/// ignores once the window exists — which is also why `FULLSCREEN=1` still takes
-/// over the primary display and not this one.
-fn place_window(
-    monitors: Query<(&Monitor, Has<PrimaryMonitor>)>,
-    window: Option<Single<&mut Window>>,
-) {
-    let Some(mut window) = window else {
-        return;
-    };
-    if config::monitor_primary() {
-        return;
-    }
-    let Some((monitor, _)) = monitors
-        .iter()
-        .max_by_key(|(monitor, primary)| (monitor.refresh_rate_millihertz, *primary))
-    else {
-        return;
-    };
-    let free = IVec2::new(
-        monitor.physical_width as i32 - window.resolution.physical_width() as i32,
-        monitor.physical_height as i32 - window.resolution.physical_height() as i32,
+    let player = player::spawn_player(
+        app.world_mut(),
+        position.unwrap_or(save_data.position),
+        yaw,
+        pitch,
     );
-    window.position = WindowPosition::At(monitor.physical_position + free.max(IVec2::ZERO) / 2);
-    info!(
-        name = monitor.name.as_deref().unwrap_or("?"),
-        hz = monitor.refresh_rate_millihertz.map(|hz| hz as f32 / 1000.0),
-        at = ?window.position,
-        "window monitor"
-    );
+    #[cfg(feature = "dev")]
+    mcrs_minecraft_client::dev::script_flight(&mut app, player);
+    #[cfg(not(feature = "dev"))]
+    let _ = player;
+
+    app.run()
 }
 
 fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
@@ -304,12 +275,17 @@ fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
 
 /// One block holds every group of every bucket and a flush takes a fresh one before freeing the
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
-const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
-    arena_scale: 4,
-    groups: 1 << 22,
-    sections: 1 << 19,
-    tint_span: 4096,
-};
+///
+/// The tint window covers the view and two columns past it on each side, which a column the
+/// client has yet to drop can still stand in.
+fn terrain_limits(view_distance: u8) -> TerrainLimits {
+    TerrainLimits {
+        arena_scale: 4,
+        groups: 1 << 23,
+        sections: 1 << 19,
+        tint_span: (2 * (u32::from(view_distance) + 2) + 1) * SECTION_SIZE as u32,
+    }
+}
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
@@ -317,13 +293,13 @@ const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
 fn host_integrated_server(
     world: Option<&Path>,
     assets: &str,
-    traces: ColumnTraceSink,
+    traces: Option<ColumnTraceSink>,
 ) -> SocketAddr {
     let mut server = App::new();
     server.add_plugins(MinecraftServerPlugin {
         asset_path: Some(assets.to_owned()),
         world: world.map(Path::to_path_buf),
-        column_traces: Some(traces),
+        column_traces: traces,
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;
@@ -342,7 +318,7 @@ fn host_integrated_server(
 
 /// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.
 fn server_address() -> Option<SocketAddr> {
-    let address = std::env::var("MCRS_SERVER").ok()?;
+    let address = config::server()?;
     match address.to_socket_addrs().map(|mut a| a.next()) {
         Ok(Some(address)) => Some(address),
         Ok(None) | Err(_) => {

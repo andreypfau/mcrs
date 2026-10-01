@@ -1,4 +1,5 @@
-use std::sync::{Arc, LazyLock};
+use std::collections::BinaryHeap;
+use std::sync::Arc;
 
 use crate::columns::{
     BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
@@ -9,40 +10,48 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceSink, TraceEvent};
-use mcrs_minecraft_network::client::{ClientConnection, JoinedGame, ReceivedRegistries};
+#[cfg(feature = "dev")]
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
+use mcrs_minecraft_network::client::ReceivedRegistries;
 
 use crate::atlas::SpriteArray;
 use crate::blocks::{self, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::item_model::bake::{ItemModels, bake_all as bake_items};
 use crate::model::Pack;
-use crate::render::{
-    Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
-    SpriteUpload, Upload, Uploads,
-};
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
+use mcrs_minecraft_render::{
+    Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
+    SpriteUpload, Upload, Uploads,
+};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-static SECTIONS_IN_FLIGHT: LazyLock<usize> = LazyLock::new(crate::config::mesh_in_flight);
-
-static SECTIONS_PER_FRAME: LazyLock<usize> = LazyLock::new(crate::config::mesh_per_frame);
-
 const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
+
+#[derive(Resource, Clone, Copy)]
+pub struct MeshPacing {
+    pub per_frame: usize,
+    pub in_flight: usize,
+}
 
 pub struct StreamPlugin {
     budget: Arc<Budget>,
     uploads: Uploads,
+    pacing: MeshPacing,
 }
 
 impl StreamPlugin {
-    pub fn new(budget: Arc<Budget>, uploads: Uploads) -> Self {
-        Self { budget, uploads }
+    pub fn new(budget: Arc<Budget>, uploads: Uploads, pacing: MeshPacing) -> Self {
+        Self {
+            budget,
+            uploads,
+            pacing,
+        }
     }
 }
 
@@ -52,6 +61,7 @@ impl Plugin for StreamPlugin {
             .insert_resource(BlockCatalog::new())
             .insert_resource(ColumnTints::new(self.budget.tint_size))
             .insert_resource(self.uploads.clone())
+            .insert_resource(self.pacing)
             .add_systems(
                 Update,
                 (
@@ -61,12 +71,18 @@ impl Plugin for StreamPlugin {
                     tint_columns,
                     place_meshes,
                     flush_streams,
-                    record_traces,
                     admit_meshing,
                 )
                     .chain()
                     .in_set(ClientTerrainSet::Build)
                     .run_if(can_stream),
+            )
+            .add_systems(
+                Update,
+                collect_column_changes
+                    .in_set(ClientTerrainSet::Build)
+                    .before(adopt_columns)
+                    .run_if(resource_exists::<ColumnStore>),
             );
     }
 }
@@ -92,11 +108,15 @@ pub struct Loader {
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
+    /// Residents farthest first, as of the camera section it was built in. Entries go stale as
+    /// sections leave and are skipped when they surface.
+    farthest: Option<([i32; 3], BinaryHeap<(u32, [i32; 3])>)>,
     quads: Arena,
     models: Arena,
     faces: Arena,
     groups: Arena,
-    trace: Vec<TraceEvent>,
+    #[cfg(feature = "dev")]
+    pub(crate) trace: Vec<TraceEvent>,
 }
 
 /// The block states the catalog has baked and still owes, and the bake running on the pool.
@@ -247,10 +267,12 @@ impl Loader {
             camera: Vec3::ZERO,
             anchor: Vec3::splat(f32::MAX),
             evicted: 0,
+            farthest: None,
             quads: Arena::new(budget.quads),
             models: Arena::new(budget.models),
             faces: Arena::new(budget.faces),
             groups: Arena::new(budget.groups),
+            #[cfg(feature = "dev")]
             trace: Vec::new(),
         }
     }
@@ -280,6 +302,20 @@ impl Loader {
             .floor()
             .as_ivec3()
             .to_array()
+    }
+
+    fn look_from(&mut self, eye: Vec3) {
+        let was = self.camera_section();
+        self.camera = eye;
+        if self.camera_section() == was {
+            return;
+        }
+        for (index, stream) in self.streams.iter_mut().enumerate() {
+            if blended(index) && stream.live() != 0 {
+                stream.rebuild = true;
+                self.dirty = true;
+            }
+        }
     }
 
     fn enqueue(&mut self, at: [i32; 3]) {
@@ -360,13 +396,42 @@ impl Loader {
         taken
     }
 
-    fn victim(&self, candidate: f32) -> Option<[i32; 3]> {
-        let farthest = self
-            .sections
-            .residents()
-            .map(|(at, _)| at)
-            .max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
-        worth_evicting(self.distance(farthest), candidate).then_some(farthest)
+    fn victim(&mut self, candidate: f32) -> Option<[i32; 3]> {
+        let camera = self.camera_section();
+        if self
+            .farthest
+            .as_ref()
+            .is_none_or(|(built, _)| *built != camera)
+        {
+            let heap = self
+                .sections
+                .residents()
+                .map(|(at, _)| (heap_key(camera, at), at))
+                .collect();
+            self.farthest = Some((camera, heap));
+        }
+        let eye = self.camera;
+        let (_, heap) = self.farthest.as_mut()?;
+        while let Some(&(_, at)) = heap.peek() {
+            if !matches!(
+                self.sections.states.get(&at),
+                Some(SectionState::Resident(_))
+            ) {
+                heap.pop();
+                continue;
+            }
+            return worth_evicting(distance_from(eye, at), candidate).then(|| {
+                heap.pop();
+                at
+            });
+        }
+        None
+    }
+
+    fn placed(&mut self, at: [i32; 3]) {
+        if let Some((camera, heap)) = &mut self.farthest {
+            heap.push((heap_key(*camera, at), at));
+        }
     }
 
     fn take_slot(&mut self) -> Option<u32> {
@@ -406,7 +471,6 @@ impl Loader {
         }
         cave.forget(section);
         self.evicted += 1;
-        self.requeue_deferred();
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -435,6 +499,7 @@ impl Loader {
         for change in changes.drain(..) {
             match change {
                 ColumnChange::Departed(pos, column) => {
+                    #[cfg(feature = "dev")]
                     self.trace.push(TraceEvent::Forget(pos));
                     self.columns -= 1;
                     tints.to_tint.retain(|queued| *queued != pos);
@@ -448,6 +513,7 @@ impl Loader {
                     }
                 }
                 ColumnChange::Arrived(pos, column) => {
+                    #[cfg(feature = "dev")]
                     self.trace
                         .push(TraceEvent::mark(pos, ColumnStage::Received));
                     self.columns += 1;
@@ -529,7 +595,6 @@ impl Loader {
             } as u32;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
-                group.quad_prefix = stream.quads_end;
                 stream.quads_end += group.quad_count;
             }
             if run != 0 {
@@ -537,7 +602,7 @@ impl Loader {
                 stream.groups.extend_from_slice(&placed[first..first + run]);
                 ranges[index] = (at, run as u32);
                 stream.touched.push((at, at + run as u32));
-                if stream.groups.len() > stream.block.capacity() {
+                if blended(index) || stream.groups.len() > stream.block.capacity() {
                     stream.rebuild = true;
                 }
             }
@@ -554,6 +619,7 @@ impl Loader {
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
+        #[cfg(feature = "dev")]
         self.trace.push(TraceEvent::mark(
             ColumnPos::new(section[0], section[2]),
             ColumnStage::Meshed,
@@ -707,9 +773,11 @@ impl Loader {
         }
     }
 
-    /// Packs a stream's live records into the block it holds, keeping their order and telling
-    /// each resident section where its records went.
+    /// Packs a stream's live records into the block it holds, keeping their order, or for a
+    /// blended stream putting the farthest section first, and telling each resident section
+    /// where its records went.
     fn pack_stream(&mut self, index: usize) {
+        let camera = IVec3::from_array(self.camera_section());
         let Self {
             streams,
             owners,
@@ -718,22 +786,30 @@ impl Loader {
         } = self;
         let stream = &mut streams[index];
         let live = stream.live();
-        let old = std::mem::take(&mut stream.groups);
-        let mut packed = Vec::with_capacity(live);
+        let mut packed: Vec<Group> = std::mem::take(&mut stream.groups)
+            .into_iter()
+            .filter(|group| group.quad_count != 0)
+            .collect();
+        if blended(index) {
+            // Ties go by position so the order never depends on which section landed first.
+            packed.sort_by_key(|group| {
+                let at = IVec3::from_array(owners[group.section as usize]);
+                let distance = (at - camera).as_i64vec3().length_squared();
+                (std::cmp::Reverse(distance), at.to_array())
+            });
+        }
         let mut quads = 0u32;
         let mut last_slot = NO_SLOT;
-        for mut group in old.into_iter().filter(|group| group.quad_count != 0) {
+        for (at, group) in packed.iter_mut().enumerate() {
             let owner = owners[group.section as usize];
             if let Some(resident) = sections.resident_mut(owner) {
                 if group.section != last_slot {
-                    resident.groups[index] = (packed.len() as u32, 0);
+                    resident.groups[index] = (at as u32, 0);
                 }
                 resident.groups[index].1 += 1;
             }
             last_slot = group.section;
-            group.quad_prefix = quads;
             quads += group.quad_count;
-            packed.push(group);
         }
         stream.groups = packed;
         stream.quads_end = quads;
@@ -774,10 +850,7 @@ impl BlockCatalog {
     fn new() -> Self {
         Self {
             pack: PackLoad::Pending,
-            catalog: Some(blocks::Catalog {
-                smooth_lighting: crate::config::smooth_lighting(),
-                ..blocks::empty()
-            }),
+            catalog: Some(blocks::empty()),
             blocks: Arc::new(Vec::new()),
             baked: Vec::new(),
             to_bake: Vec::new(),
@@ -1227,13 +1300,28 @@ fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
 }
 
+/// Measured from the middle of the camera's section rather than the camera itself, so the order
+/// does not depend on where inside that section the camera was when a key was taken. Distances
+/// are never negative, so their bit patterns order the same way they do.
+fn heap_key(camera_section: [i32; 3], section: [i32; 3]) -> u32 {
+    let middle = (Vec3::from_array(camera_section.map(|n| n as f32)) + 0.5) * SECTION_SIZE as f32;
+    distance_from(middle, section).to_bits()
+}
+
+fn blended(stream: usize) -> bool {
+    mesh::stream_pass(stream as u32).translucent()
+}
+
 fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
     let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
     let max = min + Vec3::splat(SECTION_SIZE as f32);
     (camera.clamp(min, max) - camera).length()
 }
 
-fn can_stream(store: Option<Res<ColumnStore>>, cameras: Query<(), With<Camera3d>>) -> bool {
+pub(crate) fn can_stream(
+    store: Option<Res<ColumnStore>>,
+    cameras: Query<(), With<Camera3d>>,
+) -> bool {
     store.is_some() && cameras.single().is_ok()
 }
 
@@ -1243,7 +1331,7 @@ fn follow_camera(
     camera: Single<&GlobalTransform, With<Camera3d>>,
 ) {
     let loader = &mut *loader;
-    loader.camera = camera.translation();
+    loader.look_from(camera.translation());
     loader.follow(&mut cave);
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
         loader.anchor = loader.camera;
@@ -1251,22 +1339,23 @@ fn follow_camera(
     }
 }
 
+fn collect_column_changes(mut changes: MessageReader<ColumnChange>, mut loader: ResMut<Loader>) {
+    loader.changes.extend(changes.read().cloned());
+}
+
 fn adopt_columns(
     mut loader: ResMut<Loader>,
     mut catalog: ResMut<BlockCatalog>,
     mut tints: ResMut<ColumnTints>,
     mut cave: ResMut<CaveCull>,
-    mut store: ResMut<ColumnStore>,
+    store: Res<ColumnStore>,
     definitions: Res<Blocks>,
 ) {
-    let loader = &mut *loader;
-    let store = store.bypass_change_detection();
-    store.drain_changes(&mut loader.changes);
     if loader.changes.is_empty() {
         return;
     }
     let _adopting = info_span!("stream adopt").entered();
-    loader.adopt(store, &definitions, &mut catalog, &mut tints, &mut cave);
+    loader.adopt(&store, &definitions, &mut catalog, &mut tints, &mut cave);
 }
 
 fn bake_catalog(
@@ -1369,6 +1458,7 @@ fn place_meshes(
         loop {
             match loader.place(pending, slot, &mut cave) {
                 Ok(placement) => {
+                    loader.placed(at);
                     if !placement.sections.1.is_empty() {
                         uploads.push(Upload::Geometry(placement));
                     }
@@ -1376,8 +1466,10 @@ fn place_meshes(
                 }
                 Err(back) => match loader.victim(here) {
                     Some(victim) => {
+                        // The victim is the farthest resident, so meshing it again could only
+                        // end deferred; it waits for the camera to move instead.
                         loader.evict(victim, &mut cave);
-                        loader.enqueue(victim);
+                        loader.sections.defer(victim);
                         pending = back;
                     }
                     None => {
@@ -1393,7 +1485,7 @@ fn place_meshes(
     loader.remesh_relit(&store, &mut cave);
 }
 
-fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
+pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     let _flushing = info_span!("stream flush").entered();
     if loader.dirty
         && let Some(placement) = loader.flush()
@@ -1403,26 +1495,20 @@ fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     }
 }
 
-fn record_traces(
+fn admit_meshing(
     mut loader: ResMut<Loader>,
-    traces: Option<Res<ColumnTraceSink>>,
-    joined: Option<Single<&JoinedGame, With<ClientConnection>>>,
+    catalog: Res<BlockCatalog>,
+    store: Res<ColumnStore>,
+    pacing: Res<MeshPacing>,
 ) {
-    match (&traces, &joined) {
-        (Some(traces), Some(joined)) => traces.record(&joined.dimension, loader.trace.drain(..)),
-        _ => loader.trace.clear(),
-    }
-}
-
-fn admit_meshing(mut loader: ResMut<Loader>, catalog: Res<BlockCatalog>, store: Res<ColumnStore>) {
     if !catalog.caught_up() {
         return;
     }
     let _admitting = info_span!("stream admit").entered();
     let loader = &mut *loader;
     let pool = AsyncComputeTaskPool::get();
-    let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    let wanted = loader.take_wanted(room.min(*SECTIONS_PER_FRAME), &store);
+    let room = pacing.in_flight.saturating_sub(loader.meshing.len());
+    let wanted = loader.take_wanted(room.min(pacing.per_frame), &store);
     for (taken, &at) in wanted.iter().enumerate() {
         let Some(slot) = loader.take_slot() else {
             for &back in &wanted[taken..] {
@@ -1472,6 +1558,7 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 8,
+            upload: 0,
             tint_size: [512; 2],
         })
     }
@@ -1499,7 +1586,7 @@ mod tests {
                 quad_count: quads,
                 section: slot,
                 face: 0,
-                quad_prefix: 0,
+                bounds: 0,
             }],
             spans,
             connectivity: mcrs_minecraft_mesh::OPEN,
@@ -1524,7 +1611,7 @@ mod tests {
     #[test]
     fn one_draw_a_bucket_covers_every_section_placed_in_it() {
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
 
         let near = loader
             .place(one_greedy_group([0, 0, 0], 0, 3), 0, &mut cave)
@@ -1556,9 +1643,9 @@ mod tests {
             flushed.groups[0]
                 .1
                 .iter()
-                .map(|g| g.quad_prefix)
+                .map(|g| g.quad_count)
                 .collect::<Vec<_>>(),
-            [0, 3],
+            [3, 5],
             "the blend order of a bucket runs across the sections in it"
         );
 
@@ -1570,8 +1657,56 @@ mod tests {
         assert_eq!(draws[0].group_count, 1);
         assert_eq!(draws[0].quad_count, 5);
         assert_eq!(
-            flushed.groups[0].1[0].quad_prefix, 0,
+            flushed.groups[0].1[0].quad_count, 5,
             "what the evicted section held is given back, not left as a hole"
+        );
+    }
+
+    fn blended_sections(loader: &Loader, stream: usize) -> Vec<[i32; 3]> {
+        loader.streams[stream]
+            .groups
+            .iter()
+            .filter(|group| group.quad_count != 0)
+            .map(|group| loader.owners[group.section as usize])
+            .collect()
+    }
+
+    #[test]
+    fn blended_records_run_from_the_farthest_section_whatever_order_they_landed_in() {
+        let blended_stream = (0..STREAMS).find(|&index| blended(index)).unwrap();
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8, true);
+        loader.look_from(Vec3::splat(8.0));
+
+        let landed = [[1, 0, 0], [-3, 0, 0], [0, 0, 2], [3, 0, 0], [0, 1, 0]];
+        for (slot, at) in landed.into_iter().enumerate() {
+            let mut mesh = one_greedy_group(at, slot as u32, 1);
+            mesh.spans.swap(0, blended_stream);
+            loader
+                .place(mesh, slot as u32, &mut cave)
+                .unwrap_or_else(|_| panic!("the arena has room"));
+        }
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0]],
+            "farthest first, and a tie in distance goes by position"
+        );
+
+        loader.look_from(Vec3::new(4.0 * 16.0 + 8.0, 8.0, 8.0));
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0], [3, 0, 0]],
+            "a camera in another section orders them again"
+        );
+
+        loader.evict([0, 1, 0], &mut cave);
+        loader.flush().expect("the group arena has room");
+        assert_eq!(
+            blended_sections(&loader, blended_stream),
+            [[-3, 0, 0], [0, 0, 2], [1, 0, 0], [3, 0, 0]],
+            "an evicted section takes its own records with it and nobody else's"
         );
     }
 
@@ -1583,9 +1718,10 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 12,
+            upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 12);
+        let mut cave = CaveCull::new(1 << 12, true);
 
         // Past a thousand records the ask is a class the arena only has one of, so the
         // block the stream leaves has to be the room the next one comes out of.
@@ -1636,7 +1772,7 @@ mod tests {
                     quad_count: 1,
                     section: slot,
                     face: 0,
-                    quad_prefix: 0,
+                    bounds: 0,
                 })
                 .collect(),
             spans,
@@ -1652,9 +1788,10 @@ mod tests {
             faces: 1 << 14,
             groups: 1 << 12,
             sections: 1 << 10,
+            upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 10);
+        let mut cave = CaveCull::new(1 << 10, true);
 
         // Streams growing at their own rates leave the arena holding its room in pieces: at
         // 342 sections these three want 256, 1024 and 2048 records, which is 3584 of the 4096
@@ -1698,9 +1835,10 @@ mod tests {
             faces: 1 << 16,
             groups: 1 << 12,
             sections: 1 << 13,
+            upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 13);
+        let mut cave = CaveCull::new(1 << 13, true);
 
         let placed = 5000u32;
         for index in 0..placed {
@@ -1813,7 +1951,7 @@ mod tests {
         };
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(extent);
 
@@ -1866,7 +2004,7 @@ mod tests {
         };
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,
@@ -1919,7 +2057,7 @@ mod tests {
         use crate::columns::{Column, Extent, Section};
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,
@@ -1971,6 +2109,27 @@ mod tests {
         assert_eq!(tints.corner(ColumnPos::new(32, 0)), [0, 0]);
         assert_eq!(tints.corner(ColumnPos::new(-1, -33)), [496, 496]);
         assert_eq!(tints.corner(ColumnPos::new(1_000_000, 0)), [0, 0]);
+    }
+
+    #[test]
+    fn a_column_that_arrives_before_the_camera_is_kept_for_the_mesher() {
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .insert_resource(loader())
+            .add_message::<ColumnChange>()
+            .add_systems(Update, collect_column_changes);
+        let pos = ColumnPos::new(2, 3);
+        app.world_mut().write_message(ColumnChange::Arrived(
+            pos,
+            Arc::new(crate::columns::Column::unlit(0, Vec::new())),
+        ));
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let changes = &app.world().resource::<Loader>().changes;
+        assert_eq!(changes.len(), 1);
+        assert!(matches!(changes[0], ColumnChange::Arrived(at, _) if at == pos));
     }
 }
 

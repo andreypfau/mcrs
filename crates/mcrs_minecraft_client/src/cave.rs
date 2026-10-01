@@ -1,9 +1,12 @@
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
+use bevy::render::Extract;
+use bevy::render::renderer::RenderQueue;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::columns::SECTION_SIZE;
 use mcrs_minecraft_mesh::{Connectivity, OPEN, SEALED, along};
+use mcrs_minecraft_render::Terrain;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     mcrs_minecraft_mesh::face_normal(0),
@@ -156,9 +159,9 @@ struct Walker {
 }
 
 impl CaveCull {
-    pub fn new(slots: usize) -> Self {
+    pub fn new(slots: usize, enabled: bool) -> Self {
         Self {
-            enabled: !std::env::var("MCRS_CAVE").is_ok_and(|on| on == "0"),
+            enabled,
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             generation: 0,
             corner: [0; 3],
@@ -478,6 +481,22 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
     }
 }
 
+pub fn extract_cave_visibility(
+    cave: Extract<Res<CaveCull>>,
+    terrain: Option<Res<Terrain>>,
+    queue: Res<RenderQueue>,
+    mut uploaded: Local<Option<u32>>,
+) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    if *uploaded == Some(cave.generation) {
+        return;
+    }
+    *uploaded = Some(cave.generation);
+    terrain.write_cave_visibility(&queue, &cave.bits);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,7 +520,7 @@ mod tests {
 
         /// Every cell as the loader leaves one it has never reached: open air with no slot.
         fn in_the_open(eye: Vec3) -> Self {
-            let mut cave = CaveCull::new(WALK_CELLS);
+            let mut cave = CaveCull::new(WALK_CELLS, true);
             cave.follow(eye);
             Self {
                 cave,

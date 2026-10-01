@@ -1,0 +1,16 @@
+{
+  "color": "#d3852b",
+  "blocks": [
+    "#minecraft:candles",
+    "#minecraft:candle_cakes",
+    "minecraft:jack_o_lantern",
+    "minecraft:lava",
+    "minecraft:lava_cauldron",
+    "minecraft:shroomlight",
+    "minecraft:cave_vines",
+    "minecraft:cave_vines_plant",
+    "minecraft:vault",
+    "minecraft:trial_spawner",
+    "minecraft:magma_block"
+  ]
+}

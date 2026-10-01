@@ -1,0 +1,59 @@
+[package]
+name = "mcrs_minecraft_light_color_bench"
+description = "Measures light colour propagation candidates on fixtures cut from a saved world"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_light_color.workspace = true
+mcrs_minecraft_light.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_chunk.workspace = true
+bevy_math.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+flate2.workspace = true
+png = "0.18"
+wgpu = { version = "29", default-features = false, features = ["std", "metal", "wgsl"] }
+futures-lite = "2"
+bytemuck = "1"
+mcrs_minecraft_block = { workspace = true, optional = true }
+mcrs_minecraft_item = { workspace = true, optional = true }
+mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_registry = { workspace = true, optional = true }
+mcrs_minecraft_anvil = { workspace = true, optional = true }
+mcrs_minecraft_worldgen_testing = { workspace = true, optional = true }
+bevy_app = { workspace = true, optional = true }
+bevy_asset = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = "1.11.0"
+
+[features]
+corpus = [
+    "dep:mcrs_minecraft_block",
+    "dep:mcrs_minecraft_item",
+    "dep:mcrs_minecraft_assets",
+    "dep:mcrs_minecraft_registry",
+    "dep:mcrs_minecraft_anvil",
+    "dep:mcrs_minecraft_worldgen_testing",
+    "dep:bevy_app",
+    "dep:bevy_asset",
+    "mcrs_minecraft_light_color/bevy",
+]
+
+[[bin]]
+name = "cut_fixture"
+required-features = ["corpus"]
+
+[[bin]]
+name = "scene"
+required-features = ["corpus"]
+
+[[test]]
+name = "corpus"
+required-features = ["corpus"]

@@ -257,7 +257,7 @@ pub enum Generator {
 
 /// `minecraft:template`: one weighted draw picks the template, one bounded
 /// draw its rotation, and the palette and loot seeds come off the same stream.
-// ponytail: the reference leaves `knownShape` false here and re-derives every
+// chisle: the reference leaves `knownShape` false here and re-derives every
 // placed block's shape from its neighbours afterwards, which a sulfur spike at
 // a template's edge can feel; the upgrade is that post pass over the region.
 pub struct CompiledTemplateFeature {

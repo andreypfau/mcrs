@@ -29,6 +29,8 @@ pub struct Scratch {
     pub(super) light: Box<[u8; BORDER_VOLUME]>,
     pub(super) cube_columns: Box<[[u32; COLUMNS]; 3]>,
     pub(super) occlude_columns: Box<[[u32; COLUMNS]; 3]>,
+    /// Lowered boxes along each vertical column, whose top shows whatever lies above them.
+    lowered_columns: Box<[u32; COLUMNS]>,
     pub(super) fluid: Box<[u8; BORDER_VOLUME]>,
     pub(super) cover: Box<[u8; BORDER_VOLUME]>,
     pub(super) fluid_kinds: u8,
@@ -61,6 +63,7 @@ impl Scratch {
             light: Box::new([0; BORDER_VOLUME]),
             cube_columns: Box::new([[0; COLUMNS]; 3]),
             occlude_columns: Box::new([[0; COLUMNS]; 3]),
+            lowered_columns: Box::new([0; COLUMNS]),
             fluid: Box::new([0; BORDER_VOLUME]),
             cover: Box::new([0; BORDER_VOLUME]),
             fluid_kinds: 0,
@@ -81,6 +84,7 @@ impl Scratch {
     pub(super) fn load(&mut self, world: &impl BlockView, catalog: &[BlockInfo], base: [i32; 3]) {
         *self.cube_columns = [[0; COLUMNS]; 3];
         *self.occlude_columns = [[0; COLUMNS]; 3];
+        *self.lowered_columns = [0; COLUMNS];
         *self.fluid_columns = [[[0; COLUMNS]; 3]; FLUID_KINDS];
         self.fluid_kinds = 0;
         for y in -1..=SECTION_SIZE as i32 {
@@ -107,7 +111,7 @@ impl Scratch {
                         fluid.amount | if fluid.lava { FLUID_LAVA } else { 0 }
                     });
                     self.fluid[index] = fluid;
-                    let see_through = info.cube.is_some() && !info.occludes;
+                    let see_through = info.cube.is_some() && info.drop == 0 && !info.occludes;
                     self.cover[index] =
                         info.sturdy | if see_through { COVER_SEE_THROUGH } else { 0 };
                     if !info.occludes && info.cube.is_none() && fluid == 0 {
@@ -122,6 +126,9 @@ impl Scratch {
                         let bit = 1u32 << (along[axis] + 1);
                         if info.cube.is_some() {
                             self.cube_columns[axis][column] |= bit;
+                            if axis == 1 && info.drop != 0 {
+                                self.lowered_columns[column] |= bit;
+                            }
                         }
                         if info.occludes {
                             self.occlude_columns[axis][column] |= bit;
@@ -183,7 +190,11 @@ impl Scratch {
         } else {
             blocker << 1
         };
-        own & !front
+        let shown = match columns {
+            Columns::Cubes if axis == 1 && n_positive => !front | self.lowered_columns[column],
+            _ => !front,
+        };
+        own & shown
     }
 }
 

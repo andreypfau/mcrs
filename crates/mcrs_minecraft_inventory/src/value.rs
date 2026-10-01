@@ -73,7 +73,7 @@ fn check(entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Result<(),
             continue;
         };
         let targets = child_targets(given);
-        // ponytail: vanilla lets any item carry a child-kind component; here
+        // chisle: vanilla lets any item carry a child-kind component; here
         // children are entities under the prototype's kind, so a foreign one
         // with contents is refused rather than kept as inert data.
         if Some(kind) != own_child_kind {
@@ -85,7 +85,7 @@ fn check(entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Result<(),
             }
             continue;
         }
-        // ponytail: vanilla keeps container slots past the block's size on the
+        // chisle: vanilla keeps container slots past the block's size on the
         // item and drops them on placement; the fixed table refuses them here.
         if kind == ItemComponentKind::Container && targets.len() > container_slots(entry) {
             return Err(StackError::ContainerOverflow {

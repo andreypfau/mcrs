@@ -1,0 +1,79 @@
+use bevy::render::render_resource::BlendState;
+
+use mcrs_minecraft_mesh::block::Pass;
+use mcrs_minecraft_mesh::{stream_is_model, stream_pass};
+
+pub const fn blend(pass: Pass) -> Option<BlendState> {
+    match pass {
+        Pass::Translucent => Some(BlendState::ALPHA_BLENDING),
+        _ => None,
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum LayerGroup {
+    Opaque,
+    Translucent,
+}
+
+impl LayerGroup {
+    pub(crate) const ALL: [LayerGroup; 2] = [LayerGroup::Opaque, LayerGroup::Translucent];
+
+    pub(crate) fn holds(self, stream: u32) -> bool {
+        stream_pass(stream).translucent() == matches!(self, LayerGroup::Translucent)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Shape {
+    Greedy,
+    Model,
+}
+
+impl Shape {
+    pub const ALL: [Shape; 2] = [Shape::Greedy, Shape::Model];
+
+    pub fn of_stream(stream: u32) -> Self {
+        if stream_is_model(stream) {
+            Shape::Model
+        } else {
+            Shape::Greedy
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Shape::Greedy => "greedy",
+            Shape::Model => "model",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
+
+    #[test]
+    fn a_stream_is_named_after_the_layer_and_shape_it_stands_for() {
+        for stream in 0..STREAMS as u32 {
+            let name = format!(
+                "{} {}",
+                stream_pass(stream).label(),
+                Shape::of_stream(stream).label()
+            );
+            assert_eq!(name, STREAM_NAMES[stream as usize]);
+        }
+    }
+
+    #[test]
+    fn the_two_groups_between_them_hold_every_stream_exactly_once() {
+        for stream in 0..STREAMS as u32 {
+            let held = LayerGroup::ALL
+                .into_iter()
+                .filter(|group| group.holds(stream))
+                .count();
+            assert_eq!(held, 1, "stream {stream} is in {held} groups");
+        }
+    }
+}

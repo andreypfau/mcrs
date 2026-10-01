@@ -1,0 +1,9 @@
+{
+  "color": "#c32c1f",
+  "blocks": [
+    "minecraft:redstone_torch",
+    "minecraft:redstone_wall_torch",
+    "minecraft:redstone_ore",
+    "minecraft:deepslate_redstone_ore"
+  ]
+}

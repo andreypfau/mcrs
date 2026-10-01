@@ -1,19 +1,50 @@
 use std::num::NonZeroU64;
 
-use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
+use bevy::camera::NormalizedRenderTarget;
+use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
+use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
+use bevy::render::camera::ExtractedCamera;
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
+use mcrs_minecraft_render::{
+    DEPTH_COMPARE, Terrain, WorldPass, pipeline_descriptor, uniform_buffer,
+};
 
-use super::terrain::Terrain;
-use super::{DEPTH_COMPARE, pipeline_descriptor, uniform_buffer};
 use crate::gui::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
+
+pub struct GuiItemsPlugin;
+
+impl Plugin for GuiItemsPlugin {
+    fn build(&self, app: &mut App) {
+        bevy::asset::embedded_asset!(app, "shaders/core/gui_items.wgsl");
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+        render_app
+            .add_systems(RenderStartup, init_gui_pass)
+            .add_systems(
+                Render,
+                (prepare_gui_pass, write_gui_buffers)
+                    .chain()
+                    .in_set(RenderSystems::Prepare),
+            )
+            .add_systems(
+                Core3d,
+                draw_gui
+                    .after(WorldPass::Forward)
+                    .before(main_transparent_pass_3d)
+                    .in_set(Core3dSystems::MainPass),
+            );
+    }
+}
 
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -26,7 +57,7 @@ struct GuiUniform {
 }
 
 #[derive(Resource)]
-pub(super) struct GuiPass {
+pub(crate) struct GuiPass {
     layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
     uniform: Buffer,
@@ -115,7 +146,7 @@ pub(super) fn prepare_gui_pass(
     pass: Option<ResMut<GuiPass>>,
     atlas: Option<Res<GuiAtlas>>,
     terrain: Option<Res<Terrain>>,
-    views: Query<&ExtractedView>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
@@ -123,7 +154,7 @@ pub(super) fn prepare_gui_pass(
     let (Some(mut pass), Some(terrain)) = (pass, terrain) else {
         return;
     };
-    let Some(view) = views.iter().next() else {
+    let Some(view) = window_view(&views) else {
         return;
     };
     let pass = &mut *pass;
@@ -237,17 +268,29 @@ pub(super) fn prepare_gui_pass(
     }
 }
 
+fn on_window(camera: &ExtractedCamera) -> bool {
+    matches!(camera.target, Some(NormalizedRenderTarget::Window(_)))
+}
+
+fn window_view<'a>(
+    views: &'a Query<(&ExtractedView, &ExtractedCamera)>,
+) -> Option<&'a ExtractedView> {
+    views
+        .iter()
+        .find_map(|(view, camera)| on_window(camera).then_some(view))
+}
+
 pub(super) fn write_gui_buffers(
     pass: Option<ResMut<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
-    views: Query<&ExtractedView>,
+    views: Query<(&ExtractedView, &ExtractedCamera)>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(mut pass), Some(batch)) = (pass, batch) else {
         return;
     };
-    let Some(view) = views.iter().next() else {
+    let Some(view) = window_view(&views) else {
         return;
     };
     let pass = &mut *pass;
@@ -286,14 +329,22 @@ pub(super) fn write_gui_buffers(
 /// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
 /// Every item element then gets its own slice of the depth range, so its own geometry is
 /// depth-tested against itself and later elements land over earlier ones by draw order.
-pub(super) fn draw_gui(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ExtractedView)>,
+pub(crate) fn draw_gui(
+    view: ViewQuery<(
+        &ViewTarget,
+        &ViewDepthTexture,
+        &ExtractedView,
+        &ExtractedCamera,
+    )>,
     gui: Option<Res<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (target, depth, extracted) = view.into_inner();
+    let (target, depth, extracted, camera) = view.into_inner();
+    if !on_window(camera) {
+        return;
+    }
     let color_attachments = [Some(RenderPassColorAttachment {
         view: target.main_texture_view(),
         depth_slice: None,

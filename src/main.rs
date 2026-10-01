@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use bevy_app::App;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft_server::MinecraftServerPlugin;
@@ -24,6 +26,20 @@ async fn main() {
         bevy_diagnostic::FrameTimeDiagnosticsPlugin::default(),
         bevy_diagnostic::EntityCountDiagnosticsPlugin::default(),
     ));
-    app.add_plugins(MinecraftServerPlugin::default());
+    app.add_plugins(MinecraftServerPlugin {
+        world: world_folder(),
+        ..Default::default()
+    });
     mcrs_minecraft_server::run_server_loop(app);
+}
+
+/// The first argument names a world folder whose saved chunks the server reads; without one it
+/// generates.
+fn world_folder() -> Option<PathBuf> {
+    let path = std::env::args_os().nth(1).map(PathBuf::from)?;
+    if !path.is_dir() {
+        eprintln!("not a world folder: {}", path.display());
+        std::process::exit(1);
+    }
+    Some(path)
 }

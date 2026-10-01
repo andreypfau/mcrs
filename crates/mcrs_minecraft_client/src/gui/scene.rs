@@ -487,7 +487,11 @@ impl Plugin for GuiPlugin {
             frozen_ticks: crate::config::frozen_time(),
         };
         app.insert_resource(config)
-            .insert_resource(crate::config::initial_screen())
+            .insert_resource(if crate::config::opens_inventory() {
+                Screen::Inventory
+            } else {
+                Screen::None
+            })
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())

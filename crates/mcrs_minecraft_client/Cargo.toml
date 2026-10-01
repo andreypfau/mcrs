@@ -6,6 +6,9 @@ edition.workspace = true
 
 [dependencies]
 mcrs_minecraft_mesh.workspace = true
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_render_light_color.workspace = true
+mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
@@ -17,6 +20,8 @@ mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_item_component.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_light.workspace = true
+mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
@@ -39,7 +44,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "default_font",
 ] }
 bytemuck = { version = "1", features = ["derive"] }
-bitflags = "2"
 flate2.workspace = true
 anyhow.workspace = true
 serde.workspace = true
@@ -55,7 +59,7 @@ mcrs_minecraft_level.workspace = true
 wgpu = { version = "29", default-features = false }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
+bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image", "multi_threaded"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
@@ -65,13 +69,15 @@ bevy = { version = "0.19.1", default-features = false, features = ["web", "webgp
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
 # The rustflag in .cargo/config.toml picks the backend; without the crate
-# feature of the same name getrandom refuses to build at all. Both majors are
-# in the dependency graph.
+# feature of the same name getrandom refuses to build at all. Only 0.4 reaches
+# the wasm dependency graph.
+getrandom = { version = "0.4", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
 [features]
-default = ["singleplayer"]
+default = ["singleplayer", "dev"]
 singleplayer = ["dep:mcrs_minecraft_server"]
+dev = []
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.
 dynamic_linking = ["bevy/dynamic_linking"]

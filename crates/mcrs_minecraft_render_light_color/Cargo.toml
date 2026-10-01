@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_render_light_color"
+description = "Coloured block light for the lighting pass: a paged light volume propagated on the GPU"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_light_color = { workspace = true, default-features = false }
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_image",
+] }
+bytemuck = { version = "1", features = ["derive"] }

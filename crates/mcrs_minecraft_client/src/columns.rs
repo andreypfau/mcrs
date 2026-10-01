@@ -5,7 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
-use bevy::ecs::prelude::{IntoScheduleConfigs, On, Query, ResMut, Resource, Single};
+use bevy::ecs::message::{Message, MessageWriter};
+use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, ResMut, Resource, Single};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
@@ -13,10 +14,11 @@ use mcrs_minecraft_chunk::PalettedContainer;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
+use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
-    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
@@ -46,6 +48,22 @@ pub struct Extent {
     pub sections: usize,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Dimension {
+    pub name: String,
+    pub extent: Extent,
+}
+
+#[cfg(test)]
+impl From<Extent> for Dimension {
+    fn from(extent: Extent) -> Self {
+        Dimension {
+            name: String::new(),
+            extent,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
@@ -65,7 +83,8 @@ pub struct Column {
 
 /// A column the server sent or took back, in the order it happened. A column sent again
 /// departs and arrives in that order, and one dropped by a change of extent departs too.
-#[derive(Clone)]
+/// The store stays the truth: a reader that keeps state decides from what it finds there.
+#[derive(Message, Clone)]
 pub enum ColumnChange {
     Arrived(ColumnPos, Arc<Column>),
     Departed(ColumnPos, Arc<Column>),
@@ -77,20 +96,22 @@ pub enum ColumnChange {
 /// nobody has drained yet.
 #[derive(Resource, Default, Clone)]
 pub struct ColumnStore {
-    extent: Option<Extent>,
+    dimension: Option<Dimension>,
     columns: HashMap<ColumnPos, Arc<Column>>,
     changes: Vec<ColumnChange>,
 }
 
 impl ColumnStore {
-    /// A column placed against one extent cannot be read against another, so
-    /// entering a dimension of a different shape drops what is resident.
-    pub fn enter(&mut self, extent: Extent) {
-        if self.extent != Some(extent) {
+    /// A column placed against one extent cannot be read against another, and a column of one
+    /// dimension is not a column of another, so entering any other dimension drops what is
+    /// resident.
+    pub fn enter(&mut self, dimension: impl Into<Dimension>) {
+        let dimension = dimension.into();
+        if self.dimension.as_ref() != Some(&dimension) {
             for (pos, column) in self.columns.drain() {
                 self.changes.push(ColumnChange::Departed(pos, column));
             }
-            self.extent = Some(extent);
+            self.dimension = Some(dimension);
         }
     }
 
@@ -128,7 +149,7 @@ impl ColumnStore {
     /// across their edges.
     pub fn around(&self, origin: ColumnPos) -> Neighbourhood {
         Neighbourhood {
-            extent: self.extent,
+            extent: self.extent(),
             origin,
             columns: std::array::from_fn(|index| {
                 let (dx, dz) = (index as i32 % 3 - 1, index as i32 / 3 - 1);
@@ -166,7 +187,7 @@ impl ColumnStore {
 
 impl BlockSource for ColumnStore {
     fn extent(&self) -> Option<Extent> {
-        self.extent
+        self.dimension.as_ref().map(|dimension| dimension.extent)
     }
 
     #[inline]
@@ -415,6 +436,7 @@ impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ColumnStore>();
         app.init_resource::<Arrivals>();
+        app.add_message::<ColumnChange>();
         app.add_observer(receive_column_packets);
         app.configure_sets(
             Update,
@@ -454,7 +476,7 @@ impl Default for Arrivals {
 }
 
 enum Arrival {
-    Enter(Extent),
+    Enter(Dimension),
     Column(Task<Result<(ColumnPos, Column)>>),
     Light(ColumnPos, ColumnLight),
     Forget(ColumnPos),
@@ -477,6 +499,23 @@ const NANOS_PER_TICK_ON_COLUMNS: f64 = 35_000_000.0;
 impl Arrivals {
     pub fn pending(&self) -> usize {
         self.queue.len()
+    }
+
+    fn enter(&mut self, registries: &[ReceivedRegistry], spawn: &PlayerSpawnInfo) {
+        let dimension_type = spawn.dimension_type_id.0;
+        match extent_of(registries, dimension_type) {
+            Some(extent) => {
+                self.extent = Some(extent);
+                self.queue.push_back(Arrival::Enter(Dimension {
+                    name: spawn.dimension.to_string(),
+                    extent,
+                }));
+            }
+            None => error!(
+                "dimension type {dimension_type} carries no min_y and height: \
+                 columns have nowhere to sit"
+            ),
+        }
     }
 
     /// Folds a finished batch into the running average and answers with the columns a tick it
@@ -509,17 +548,9 @@ fn receive_column_packets(
     }
 
     if let Some(login) = event.decode::<ClientboundLogin>() {
-        let dimension_type = login.player_spawn_info.dimension_type_id.0;
-        match extent_of(&registries.0, dimension_type) {
-            Some(extent) => {
-                arrivals.extent = Some(extent);
-                arrivals.queue.push_back(Arrival::Enter(extent));
-            }
-            None => error!(
-                "dimension type {dimension_type} carries no min_y and height: \
-                 columns have nowhere to sit"
-            ),
-        }
+        arrivals.enter(&registries.0, &login.player_spawn_info);
+    } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
+        arrivals.enter(&registries.0, &respawn.player_spawn_info);
     } else if event.id == ClientboundLevelChunkWithLight::ID {
         let Some(extent) = arrivals.extent else {
             return;
@@ -561,13 +592,15 @@ fn receive_column_packets(
 fn settle_columns(
     mut arrivals: ResMut<Arrivals>,
     mut store: ResMut<ColumnStore>,
+    mut changes: MessageWriter<ColumnChange>,
+    mut drained: Local<Vec<ColumnChange>>,
     connection: Option<Single<&mut ClientConnection>>,
 ) {
     let mut connection = connection.map(Single::into_inner);
     let arrivals = arrivals.bypass_change_detection();
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
-            Arrival::Enter(extent) => store.enter(extent),
+            Arrival::Enter(dimension) => store.enter(dimension),
             Arrival::Forget(pos) => store.remove(pos),
             Arrival::Light(pos, light) => store.relight(pos, &light),
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
@@ -589,6 +622,8 @@ fn settle_columns(
             },
         }
     }
+    store.bypass_change_detection().drain_changes(&mut drained);
+    changes.write_batch(drained.drain(..));
 }
 
 #[cfg(test)]
@@ -899,6 +934,117 @@ mod tests {
             "the resident column is untouched"
         );
         assert!(store.holds(pos));
+    }
+
+    #[derive(Resource, Default)]
+    struct Seen<const READER: usize>(Vec<(&'static str, ColumnPos, Vec<i32>)>);
+
+    fn observed(change: &ColumnChange) -> (&'static str, ColumnPos, Vec<i32>) {
+        match change {
+            ColumnChange::Arrived(pos, _) => ("arrived", *pos, Vec::new()),
+            ColumnChange::Departed(pos, _) => ("departed", *pos, Vec::new()),
+            ColumnChange::Relit(pos, rows) => ("relit", *pos, rows.clone()),
+        }
+    }
+
+    fn read_into<const READER: usize>(
+        mut changes: bevy::ecs::message::MessageReader<ColumnChange>,
+        mut seen: ResMut<Seen<READER>>,
+    ) {
+        seen.0.extend(changes.read().map(observed));
+    }
+
+    #[test]
+    fn two_readers_each_see_every_change_in_order() {
+        use bevy::ecs::change_detection::DetectChanges;
+
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .init_resource::<Arrivals>()
+            .init_resource::<Seen<0>>()
+            .init_resource::<Seen<1>>()
+            .add_message::<ColumnChange>()
+            .add_systems(
+                Update,
+                (
+                    settle_columns,
+                    (read_into::<0>, read_into::<1>).after(settle_columns),
+                ),
+            );
+        let pos = ColumnPos::new(4, -7);
+        let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
+
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(pos, column());
+        app.update();
+
+        let rows = EXTENT.sections + 2;
+        let mut sky: Vec<RowLight> = (0..rows).map(|_| RowLight::Unchanged).collect();
+        sky[1] = RowLight::Filled(one_lit_cell(0, 15));
+        let block = (0..rows).map(|_| RowLight::Unchanged).collect();
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        store.relight(pos, &ColumnLight { sky, block });
+        store.insert(pos, column());
+        store.remove(pos);
+        app.update();
+
+        let expected = vec![
+            ("arrived", pos, Vec::new()),
+            ("relit", pos, vec![-1]),
+            ("departed", pos, Vec::new()),
+            ("arrived", pos, Vec::new()),
+            ("departed", pos, Vec::new()),
+        ];
+        assert_eq!(app.world().resource::<Seen<0>>().0, expected);
+        assert_eq!(app.world().resource::<Seen<1>>().0, expected);
+
+        let changed = app.world().resource_ref::<ColumnStore>().last_changed();
+        app.update();
+        assert_eq!(
+            app.world().resource::<Seen<0>>().0,
+            expected,
+            "a frame where nothing lands writes nothing"
+        );
+        assert_eq!(app.world().resource::<Seen<1>>().0, expected);
+        assert_eq!(
+            app.world().resource_ref::<ColumnStore>().last_changed(),
+            changed,
+            "settling nothing leaves the store's change tick where it was"
+        );
+    }
+
+    #[test]
+    fn a_new_dimension_of_the_same_height_departs_every_column() {
+        let dimension = |name: &str| Dimension {
+            name: name.to_owned(),
+            extent: EXTENT,
+        };
+        let column = || Column::unlit(EXTENT.min_section_y, vec![None; EXTENT.sections]);
+        let (a, b) = (ColumnPos::new(0, 0), ColumnPos::new(1, 0));
+        let mut store = ColumnStore::default();
+        store.enter(dimension("minecraft:overworld"));
+        store.insert(a, column());
+        store.insert(b, column());
+        drained(&mut store);
+
+        store.enter(dimension("minecraft:the_nether"));
+        let mut changes: Vec<_> = drained(&mut store).iter().map(observed).collect();
+        changes.sort_by_key(|(_, pos, _)| *pos);
+        assert_eq!(
+            changes,
+            vec![("departed", a, Vec::new()), ("departed", b, Vec::new())]
+        );
+        assert!(store.is_empty());
+
+        store.insert(a, column());
+        drained(&mut store);
+        store.enter(dimension("minecraft:the_nether"));
+        assert!(
+            drained(&mut store).is_empty(),
+            "a respawn into the same dimension keeps its columns"
+        );
+        assert!(store.holds(a));
     }
 
     #[test]

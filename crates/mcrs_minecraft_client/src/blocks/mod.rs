@@ -78,7 +78,6 @@ pub struct Catalog {
     pub sprites: SpriteRegistry,
     pub tints: Vec<tint::BiomeTint>,
     pub failures: Vec<String>,
-    pub smooth_lighting: bool,
 }
 
 pub fn cube_corner(dir: Dir, corner: usize) -> Vec3 {
@@ -91,7 +90,6 @@ pub fn empty() -> Catalog {
         sprites: SpriteRegistry::default(),
         tints: Vec::new(),
         failures: Vec::new(),
-        smooth_lighting: true,
     }
 }
 
@@ -116,8 +114,8 @@ pub fn extend(
             pack,
             &state,
             data,
+            definitions.shape(data.occlusion_shape),
             &mut catalog.sprites,
-            catalog.smooth_lighting,
         ) {
             Ok(info) => catalog.blocks[id as usize] = info,
             Err(reason) => catalog
@@ -143,11 +141,16 @@ pub fn extend(
 /// a test has no running app to take them from.
 #[cfg(test)]
 pub fn corpus() -> &'static BlockDefinitions {
+    &corpus_blocks().0
+}
+
+#[cfg(test)]
+pub fn corpus_blocks() -> &'static mcrs_minecraft_block::definition::Blocks {
     use bevy::app::{App, TaskPoolPlugin};
     use bevy::asset::{AssetPlugin, AssetServer};
-    use mcrs_minecraft_block::definition::load_block_definitions;
+    use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 
-    static CORPUS: std::sync::OnceLock<BlockDefinitions> = std::sync::OnceLock::new();
+    static CORPUS: std::sync::OnceLock<Blocks> = std::sync::OnceLock::new();
     CORPUS.get_or_init(|| {
         let mut app = App::new();
         app.add_plugins(TaskPoolPlugin::default());
@@ -156,9 +159,11 @@ pub fn corpus() -> &'static BlockDefinitions {
             ..Default::default()
         });
         let assets = app.world().resource::<AssetServer>().clone();
-        load_block_definitions(&assets)
-            .expect("the block definition corpus loads")
-            .0
+        Blocks(std::sync::Arc::new(
+            load_block_definitions(&assets)
+                .expect("the block definition corpus loads")
+                .0,
+        ))
     })
 }
 

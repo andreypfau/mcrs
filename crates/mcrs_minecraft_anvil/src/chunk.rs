@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
@@ -6,7 +6,7 @@ use std::io::Cursor;
 use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::palette::{BlockStateList, PaletteLookup};
 use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
@@ -39,49 +39,121 @@ pub struct Chunk {
     pub sections: Vec<Section>,
 }
 
-#[derive(Deserialize)]
+impl Chunk {
+    /// Answers the state the cell held. A changed cell leaves the saved light and
+    /// heightmaps describing the old blocks, so both are dropped for the loader to
+    /// recompute.
+    pub fn set_block(&mut self, pos: BlockPos, state: VoxelId) -> Result<VoxelId, ErrorKind> {
+        let (x, y, z) = pos.into();
+        if ColumnPos::from(pos) != self.pos {
+            return Err(ErrorKind::BlockOutsideChunk {
+                x,
+                y,
+                z,
+                chunk_x: self.pos.x,
+                chunk_z: self.pos.z,
+            });
+        }
+        let section_y = y >> 4;
+        let states = self
+            .sections
+            .iter_mut()
+            .find(|section| i32::from(section.y) == section_y)
+            .and_then(|section| section.block_states.as_mut())
+            .ok_or(ErrorKind::NoBlockStates {
+                x: self.pos.x,
+                z: self.pos.z,
+                section_y,
+            })?;
+        let previous = states.set(
+            (x & 15) as usize,
+            (y & 15) as usize,
+            (z & 15) as usize,
+            state,
+        );
+        if previous != state {
+            self.is_light_on = false;
+            self.heightmaps.clear();
+            for section in &mut self.sections {
+                section.block_light = None;
+                section.sky_light = None;
+            }
+        }
+        Ok(previous)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct RawPalettedContainer {
-    palette: BlockStateList,
-    data: Option<PackedData>,
+pub(crate) struct RawPalettedContainer {
+    pub(crate) palette: BlockStateList,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) data: Option<PackedData>,
 }
 
-#[derive(Deserialize)]
-struct RawSection {
+#[derive(Deserialize, Serialize)]
+pub(crate) struct RawSection {
     #[serde(rename = "Y")]
-    y: i8,
-    block_states: Option<RawPalettedContainer>,
-    biomes: Option<RawPalettedContainer>,
-    #[serde(rename = "BlockLight")]
-    block_light: Option<RawLight>,
-    #[serde(rename = "SkyLight")]
-    sky_light: Option<RawLight>,
+    pub(crate) y: i8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) block_states: Option<RawPalettedContainer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) biomes: Option<RawPalettedContainer>,
+    #[serde(rename = "BlockLight", skip_serializing_if = "Option::is_none")]
+    pub(crate) block_light: Option<RawLight>,
+    #[serde(rename = "SkyLight", skip_serializing_if = "Option::is_none")]
+    pub(crate) sky_light: Option<RawLight>,
 }
 
-#[derive(Deserialize)]
-struct RawChunk {
+#[derive(Deserialize, Serialize)]
+pub(crate) struct RawChunk {
     #[serde(rename = "DataVersion")]
-    data_version: i32,
+    pub(crate) data_version: i32,
     #[serde(rename = "xPos")]
-    x_pos: i32,
+    pub(crate) x_pos: i32,
     #[serde(rename = "zPos")]
-    z_pos: i32,
+    pub(crate) z_pos: i32,
     #[serde(rename = "yPos")]
-    y_pos: i32,
+    pub(crate) y_pos: i32,
     #[serde(rename = "Status")]
-    status: String,
+    pub(crate) status: String,
     #[serde(default)]
-    sections: Vec<RawSection>,
-    #[serde(rename = "Heightmaps", default)]
-    heightmaps: BTreeMap<String, Vec<i64>>,
-    #[serde(rename = "isLightOn", default)]
-    is_light_on: bool,
+    pub(crate) sections: Vec<RawSection>,
+    #[serde(
+        rename = "Heightmaps",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        serialize_with = "long_array_map"
+    )]
+    pub(crate) heightmaps: BTreeMap<String, Vec<i64>>,
+    /// Vanilla writes the flag only when set.
+    #[serde(rename = "isLightOn", default, skip_serializing_if = "is_false")]
+    pub(crate) is_light_on: bool,
     #[serde(default)]
-    block_entities: Vec<NbtCompound>,
+    pub(crate) block_entities: Vec<NbtCompound>,
     #[serde(rename = "InhabitedTime", default)]
-    inhabited_time: i64,
+    pub(crate) inhabited_time: i64,
     #[serde(rename = "LastUpdate", default)]
-    last_update: i64,
+    pub(crate) last_update: i64,
+}
+
+fn is_false(flag: &bool) -> bool {
+    !*flag
+}
+
+fn long_array_map<S: Serializer>(
+    map: &BTreeMap<String, Vec<i64>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    struct LongArray<'a>(&'a [i64]);
+
+    impl Serialize for LongArray<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            mcrs_minecraft_nbt::nbt_long_array(self.0, serializer)
+        }
+    }
+
+    serializer.collect_map(map.iter().map(|(name, data)| (name, LongArray(data))))
 }
 
 #[derive(Deserialize)]
@@ -248,7 +320,13 @@ fn resolve<V>(
 
 /// Asks the deserializer for the long array whole; read as a sequence it costs
 /// a visitor round trip per element.
-struct PackedData(Box<[i64]>);
+pub(crate) struct PackedData(pub(crate) Box<[i64]>);
+
+impl Serialize for PackedData {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        mcrs_minecraft_nbt::nbt_long_array(&*self.0, serializer)
+    }
+}
 
 impl<'de> Deserialize<'de> for PackedData {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -290,7 +368,13 @@ impl<'de> Deserialize<'de> for PackedData {
 
 /// Asks the deserializer for the byte array whole. Reading it as a sequence
 /// costs a visitor round trip per byte, and every section carries two of them.
-struct RawLight(Vec<u8>);
+pub(crate) struct RawLight(pub(crate) Vec<u8>);
+
+impl Serialize for RawLight {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        mcrs_minecraft_nbt::nbt_byte_array(&self.0, serializer)
+    }
+}
 
 impl<'de> Deserialize<'de> for RawLight {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {

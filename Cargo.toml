@@ -18,7 +18,7 @@ edition = "2024"
 
 [workspace.dependencies]
 fixedbitset = "0.5.7"
-bevy_ecs = { version = "0.19.1", features = ["trace"] }
+bevy_ecs = { version = "0.19.1" }
 bevy_ecs_macros = "0.19.1"
 bevy_app = { version = "0.19.1" }
 bevy_math = "0.19.1"
@@ -90,6 +90,9 @@ mcrs_minecraft_inventory = { path = "crates/mcrs_minecraft_inventory" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
+mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
+mcrs_minecraft_render_light_color = { path = "crates/mcrs_minecraft_render_light_color" }
+mcrs_minecraft_render_probe = { path = "crates/mcrs_minecraft_render_probe" }
 mcrs_minecraft_client_jar = { path = "crates/mcrs_minecraft_client_jar" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen", default-features = false }
 mcrs_minecraft_worldgen_testing = { path = "crates/mcrs_minecraft_worldgen_testing" }
@@ -104,6 +107,7 @@ mcrs_minecraft_worldgen_structure = { path = "crates/mcrs_minecraft_worldgen_str
 mcrs_minecraft_worldgen_structure_place = { path = "crates/mcrs_minecraft_worldgen_structure_place" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_minecraft_light = { path = "crates/mcrs_minecraft_light", default-features = false }
+mcrs_minecraft_light_color = { path = "crates/mcrs_minecraft_light_color", default-features = false }
 mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_minecraft_chunk = { path = "crates/mcrs_minecraft_chunk", default-features = false }
 wtransport = "0.7.2"
@@ -199,6 +203,11 @@ opt-level = 3
 # The light engine runs a frontier relaxation over millions of cells every time
 # a column arrives, so it belongs with the other per-column hot paths.
 [profile.dev.package."mcrs_minecraft_light"]
+opt-level = 3
+
+# Edge costs sweep about a hundred thousand cells per region in every oracle
+# case, and the GPU bench builds bricks for every section of a fixture.
+[profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_server"]

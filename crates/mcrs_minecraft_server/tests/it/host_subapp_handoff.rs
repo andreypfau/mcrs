@@ -179,6 +179,68 @@ fn game_transition_emits_initial_spawn() {
     );
 }
 
+#[test]
+fn a_player_saved_in_another_dimension_joins_that_dimension() {
+    use mcrs_minecraft_level::world::channels::{
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
+    use mcrs_minecraft_server::WorldSave;
+    use mcrs_minecraft_server::world::channel_types::FromDim;
+    use mcrs_minecraft_server::world::sub_app_builder::DimLabel;
+    use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
+
+    let mut app = build_host_app();
+    let save = std::env::temp_dir().join(format!("mcrs-join-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&save).unwrap();
+    app.insert_resource(WorldSave(save.clone()));
+
+    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
+    let uuid = app
+        .world()
+        .get::<GameProfile>(connection_entity)
+        .expect("profile")
+        .id;
+    write_player_dat(
+        &save,
+        uuid,
+        &PlayerDat {
+            dimension: "minecraft:the_nether".to_owned(),
+            ..PlayerDat::default()
+        },
+    )
+    .unwrap();
+
+    let mut labels = Vec::new();
+    for name in ["minecraft:overworld", "minecraft:the_nether"] {
+        let label = app
+            .world_mut()
+            .spawn((DimSubAppHandle, DimLabel(name.to_owned())))
+            .id();
+        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        app.world_mut()
+            .resource_mut::<DimChannelsResource>()
+            .insert(label, srv_tx, ctl_tx, from_rx);
+        labels.push((label, ctl_rx));
+    }
+
+    transition_to_game(&mut app, connection_entity);
+    app.update();
+
+    let (nether, nether_rx) = &labels[1];
+    assert_eq!(
+        app.world()
+            .get::<SessionPlacement>(host_anchor)
+            .expect("session present")
+            .place(),
+        Place::Joining(*nether),
+    );
+    assert_eq!(nether_rx.try_iter().count(), 1);
+    assert_eq!(labels[0].1.try_iter().count(), 0);
+    std::fs::remove_dir_all(&save).unwrap();
+}
+
 /// When no live DimSubAppHandle label entity exists yet (dims still loading),
 /// the emitter must NOT push any spawn and must leave the session unplaced.
 #[test]
