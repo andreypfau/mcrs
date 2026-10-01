@@ -1,8 +1,7 @@
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderQueue;
 
-use mcrs_minecraft_mesh::pack::MODEL_OVERHANG;
-use mcrs_minecraft_mesh::{Draw, STREAMS, stream_is_model};
+use mcrs_minecraft_mesh::{Draw, STREAMS, stream_is_model, stream_pass};
 
 use super::Streams;
 use super::layer::LayerGroup;
@@ -18,12 +17,18 @@ pub(super) struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    overhang: f32,
     counter: u32,
+    flags: u32,
     /// Keeps the struct a 16-byte multiple, which every backend lays a uniform
     /// out to whatever the member alignments alone would allow.
     padding: [u32; 2],
 }
+
+/// The draw's quads are models, with four corners of their own rather than a greedy rectangle.
+const MODEL: u32 = 1;
+/// The draw writes depth and culls back faces, so a quad is tested on its own: blended quads
+/// keep the order the blend needs and go through by group.
+const QUAD_CULL: u32 = 2;
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
@@ -58,12 +63,13 @@ impl DrawList {
                 group_count: draw.group_count,
                 visible_base,
                 args_index: index as u32,
-                overhang: if stream_is_model(draw.stream) {
-                    MODEL_OVERHANG
-                } else {
-                    0.0
-                },
                 counter: 2 * STREAMS as u32 + index as u32,
+                flags: if stream_is_model(draw.stream) { MODEL } else { 0 }
+                    | if stream_pass(draw.stream).writes_depth() {
+                        QUAD_CULL
+                    } else {
+                        0
+                    },
                 padding: [0; 2],
             });
             visible_base += draw.quad_count;
@@ -77,10 +83,16 @@ impl DrawList {
             return;
         }
         self.dirty = false;
+        let Some(last) = self.params.len().checked_sub(1) else {
+            return;
+        };
+        // One write rather than one per draw: every write stages through a buffer of its own.
+        let mut bytes = vec![0u8; last * PARAMS_STRIDE as usize + PARAMS_SIZE as usize];
         for (index, entry) in self.params.iter().enumerate() {
-            let at = index as u64 * PARAMS_STRIDE as u64;
-            queue.write_buffer(params, at, bytemuck::bytes_of(entry));
+            let at = index * PARAMS_STRIDE as usize;
+            bytes[at..at + PARAMS_SIZE as usize].copy_from_slice(bytemuck::bytes_of(entry));
         }
+        queue.write_buffer(params, 0, &bytes);
     }
 
     pub fn drawn<'a>(

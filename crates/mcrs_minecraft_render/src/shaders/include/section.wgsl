@@ -18,7 +18,3 @@ fn section_origin(desc: SectionDesc) -> vec3<f32> {
     let delta = vec3<i32>(desc.x, desc.y, desc.z) - camera.section;
     return vec3<f32>(delta * i32(SECTION_SIZE));
 }
-
-fn section_span(desc: SectionDesc) -> f32 {
-    return SECTION_SIZE * f32(desc.scale);
-}

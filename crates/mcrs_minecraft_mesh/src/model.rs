@@ -1,6 +1,6 @@
 use crate::SECTION_SIZE;
 use crate::ambient;
-use crate::block::{BlockInfo, Pass};
+use crate::block::{BlockInfo, Pass, face_hidden};
 use crate::pack::{
     FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
     MODEL_STEPS, MODEL_TINT, MODEL_TINT_HIGH, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
@@ -78,7 +78,7 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                             y as i32 + normal[1],
                             z as i32 + normal[2],
                         );
-                        if scratch.occludes[front] {
+                        if face_hidden(info, &catalog[scratch.states[front] as usize], cull as usize) {
                             continue;
                         }
                         sample = front;

@@ -59,30 +59,46 @@ pub fn common(
 
 pub(super) struct Pipelines {
     pub shaders: Shaders,
-    pub cull: CachedComputePipelineId,
+    pub cull_sections: CachedComputePipelineId,
+    pub cull_groups: CachedComputePipelineId,
+    pub cull_quads: CachedComputePipelineId,
     pub cull_count: CachedComputePipelineId,
     pub cull_scan: CachedComputePipelineId,
     pub cull_scatter: CachedComputePipelineId,
-    pub cull_second: CachedComputePipelineId,
+    pub cull_groups_second: CachedComputePipelineId,
+    pub cull_quads_second: CachedComputePipelineId,
     terrain: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
 }
 
 impl Pipelines {
-    pub fn new(shaders: Shaders, binds: &Bindings, pipeline_cache: &PipelineCache) -> Self {
+    pub fn new(
+        shaders: Shaders,
+        binds: &Bindings,
+        section_slots: usize,
+        max_workgroups: u32,
+        subgroups: bool,
+        pipeline_cache: &PipelineCache,
+    ) -> Self {
         let layout = vec![binds.view_layout.clone(), binds.cull_layout.clone()];
-        let shader_defs = vec![
+        let quad_layout = vec![binds.view_layout.clone(), binds.quad_cull_layout.clone()];
+        let mut shader_defs = vec![
             ShaderDefVal::UInt("CULL_THREADS".into(), super::pass::CULL_THREADS),
+            ShaderDefVal::UInt("GROUP_THREADS".into(), super::pass::GROUP_THREADS),
+            ShaderDefVal::UInt("GROUPS_PER_STEP".into(), super::pass::GROUPS_PER_STEP),
             ShaderDefVal::UInt("STREAMS".into(), STREAMS as u32),
+            ShaderDefVal::UInt("SECTION_SLOTS".into(), section_slots as u32),
+            ShaderDefVal::UInt("CAVE_WORDS".into(), section_slots.div_ceil(32) as u32),
+            ShaderDefVal::UInt("MAX_WORKGROUPS".into(), max_workgroups),
+            ShaderDefVal::Int("MODEL_BIAS_CONSTANT".into(), MODEL_DEPTH_BIAS.constant),
+            ShaderDefVal::UInt(
+                "MODEL_BIAS_SLOPE_BITS".into(),
+                MODEL_DEPTH_BIAS.slope_scale.to_bits(),
+            ),
         ];
-        let cull = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: Some("terrain cull".into()),
-            layout: layout.clone(),
-            shader: shaders.cull.clone(),
-            shader_defs: shader_defs.clone(),
-            entry_point: Some("cull".into()),
-            ..default()
-        });
-        let ordered = |label: &str, entry: &str| {
+        if subgroups {
+            shader_defs.push("SUBGROUPS".into());
+        }
+        let compute = |label: &str, layout: &Vec<BindGroupLayoutDescriptor>, entry: &str| {
             pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some(label.to_owned().into()),
                 layout: layout.clone(),
@@ -92,17 +108,24 @@ impl Pipelines {
                 ..default()
             })
         };
-        let cull_count = ordered("terrain cull count", "count_ordered");
-        let cull_scan = ordered("terrain cull scan", "scan_ordered");
-        let cull_scatter = ordered("terrain cull scatter", "scatter_ordered");
-        let cull_second = ordered("terrain cull second", "cull_second");
         Self {
+            cull_sections: compute("terrain cull sections", &quad_layout, "cull_sections"),
+            cull_groups: compute("terrain cull groups", &quad_layout, "cull_groups"),
+            cull_quads: compute("terrain cull quads", &quad_layout, "cull_quads"),
+            cull_count: compute("terrain cull count", &layout, "count_ordered"),
+            cull_scan: compute("terrain cull scan", &layout, "scan_ordered"),
+            cull_scatter: compute("terrain cull scatter", &layout, "scatter_ordered"),
+            cull_groups_second: compute(
+                "terrain cull groups second",
+                &quad_layout,
+                "cull_groups_second",
+            ),
+            cull_quads_second: compute(
+                "terrain cull quads second",
+                &quad_layout,
+                "cull_quads_second",
+            ),
             shaders,
-            cull,
-            cull_count,
-            cull_scan,
-            cull_scatter,
-            cull_second,
             terrain: None,
         }
     }
@@ -194,14 +217,16 @@ pub(crate) fn terrain_descriptor(
 }
 
 // Model quads sit flush against the greedy faces behind them, so without a nudge the two
-// fight for the same depth.
+// fight for the same depth. The cull allows for the nudge when it tests a model quad.
+const MODEL_DEPTH_BIAS: DepthBiasState = DepthBiasState {
+    constant: 2,
+    slope_scale: 1.0,
+    clamp: 0.0,
+};
+
 fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
     if shape == Shape::Model && layer.writes_depth() {
-        DepthBiasState {
-            constant: 2,
-            slope_scale: 1.0,
-            clamp: 0.0,
-        }
+        MODEL_DEPTH_BIAS
     } else {
         default()
     }

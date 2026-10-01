@@ -1,29 +1,27 @@
 
 #import mcrs_minecraft_client::fields::{
     MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS,
-    MODEL_OVERHANG,
     MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS,
     MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS,
     MODEL_SPRITE_WORD, MODEL_SPRITE_SHIFT, MODEL_SPRITE_BITS,
-    MODEL_STEPS,
     MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS,
     MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS,
     MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS,
     MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS,
-    MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS,
-    MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS,
-    MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS,
+    MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD,
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::lightmap
-#import mcrs_minecraft_client::quad::{corner_index, corner_uv, quad_of}
+#import mcrs_minecraft_client::quad::{
+    CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, model_position, quad_of,
+}
 #import mcrs_minecraft_client::section::section_origin
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible, visible_slot}
+#import mcrs_minecraft_client::terrain_bindings::{
+    model_field, sections, vertices, visible, visible_slot,
+}
 
-const WORDS_PER_VERTEX: u32 = 3u;
-const CORNERS_PER_QUAD: u32 = 4u;
 
 struct ModelOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -35,20 +33,22 @@ struct ModelOut {
     @location(5) quad_uv: vec2<f32>,
 };
 
+fn model_local(base: u32) -> vec3<f32> {
+    return model_position(
+        vertices[base + MODEL_X_WORD],
+        vertices[base + MODEL_Y_WORD],
+        vertices[base + MODEL_Z_WORD],
+    );
+}
+
 @vertex
 fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
     var out: ModelOut;
     let entry = visible[visible_slot(quad_of(vertex))];
     let corner = corner_index(vertex);
-    let base = (entry.x * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
+    let base = (entry.x * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
 
-    // Positions are stored in steps of a block and biased so a model may lean into its
-    // neighbours by the overhang the mesher allowed for.
-    let local = vec3<f32>(
-        f32(model_field(base, MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS)),
-        f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
-        f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
-    ) / MODEL_STEPS - MODEL_OVERHANG;
+    let local = model_local(base);
     let desc = sections[entry.y];
     let world = section_origin(desc) + local * f32(desc.scale);
 
@@ -124,13 +124,9 @@ fn vertex_model_deferred(@builtin(vertex_index) vertex: u32) -> ModelDeferredOut
     var out: ModelDeferredOut;
     let entry = visible[visible_slot(quad_of(vertex))];
     let corner = corner_index(vertex);
-    let base = (entry.x * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
+    let base = (entry.x * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
 
-    let local = vec3<f32>(
-        f32(model_field(base, MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS)),
-        f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
-        f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
-    ) / MODEL_STEPS - MODEL_OVERHANG;
+    let local = model_local(base);
     let desc = sections[entry.y];
     let world = section_origin(desc) + local * f32(desc.scale);
 
@@ -162,12 +158,8 @@ fn vertex_model_deferred(@builtin(vertex_index) vertex: u32) -> ModelDeferredOut
 }
 
 fn model_corner(quad: u32, corner: u32) -> vec3<f32> {
-    let base = (quad * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
-    return vec3<f32>(
-        f32(model_field(base, MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS)),
-        f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
-        f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
-    ) / MODEL_STEPS - MODEL_OVERHANG;
+    let base = (quad * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
+    return model_local(base);
 }
 
 /// Models carry no normal, and one taken from derivatives breaks along triangle edges, so it is
@@ -181,7 +173,7 @@ fn model_quad_normal(quad: u32) -> vec3<f32> {
 
 #ifdef PARITY_MASK
 fn model_corner_light(quad: u32, corner: u32) -> vec3<u32> {
-    let base = (quad * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
+    let base = (quad * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
     return vec3<u32>(
         model_field(base, MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS),
         model_field(base, MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS),

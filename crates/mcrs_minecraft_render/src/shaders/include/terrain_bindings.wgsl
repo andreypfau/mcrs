@@ -1,5 +1,6 @@
 #define_import_path mcrs_minecraft_client::terrain_bindings
 
+#import mcrs_minecraft_client::fields::QUAD_WORDS
 #import mcrs_minecraft_client::frame::params
 #import mcrs_minecraft_client::section::SectionDesc
 
@@ -44,6 +45,14 @@ const STILL: u32 = 0xFFFFFFFFu;
 
 fn visible_slot(quad: u32) -> u32 {
     return params.visible_base + quad;
+}
+
+fn quad_words(base: u32) -> array<u32, QUAD_WORDS> {
+    var words: array<u32, QUAD_WORDS>;
+    for (var word = 0u; word < QUAD_WORDS; word++) {
+        words[word] = quads[base + word];
+    }
+    return words;
 }
 
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {

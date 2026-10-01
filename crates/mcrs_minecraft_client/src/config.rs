@@ -26,13 +26,17 @@ const UPLOAD_MB: usize = 4;
 
 /// Bevy's stock split caps async compute at four threads whatever the machine has, and on
 /// this one the mesher, the column decode and the embedded server's lighting all live there.
-/// Everything but a handful of cores kept for the render and io pools does better.
+/// Half the cores go there; the compute pool takes what io leaves, since it runs every parallel
+/// system of the main and render worlds and one thread there serialises the whole frame.
 #[cfg(not(target_family = "wasm"))]
 fn async_compute_threads() -> usize {
-    bevy::tasks::available_parallelism()
-        .saturating_sub(4)
-        .max(4)
+    (bevy::tasks::available_parallelism() / 2).max(4)
 }
+
+#[cfg(not(target_family = "wasm"))]
+const IO_THREADS: usize = 2;
+#[cfg(target_family = "wasm")]
+const IO_THREADS: usize = 1;
 
 /// The browser has no worker pool to spread across.
 #[cfg(target_family = "wasm")]
@@ -222,11 +226,16 @@ pub fn gpu_hot() -> Option<u32> {
     )
 }
 
-/// `PROBE=0` leaves passes untimed.
+/// `PROBE=0` leaves passes untimed and `PROBE=1` times every frame. Otherwise a pass is timed
+/// only while the F3 overlay, the stats log or a scripted capture reads the figures.
 pub fn pass_timestamps() -> bool {
     let overlay_times_encoders =
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");
     !overlay_times_encoders && knob("PROBE").is_none_or(|on| on != "0")
+}
+
+pub fn always_time_passes() -> bool {
+    knob("PROBE").is_some_and(|on| on == "1") || knob("CAPTURE").is_some()
 }
 
 /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
@@ -348,6 +357,7 @@ pub fn task_pool_options() -> bevy::app::TaskPoolOptions {
         .and_then(|spec| spec.trim().parse().ok())
         .unwrap_or_else(async_compute_threads);
     options.async_compute.percent = 1.0;
+    options.io.max_threads = IO_THREADS;
     options
 }
 

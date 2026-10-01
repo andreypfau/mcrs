@@ -189,7 +189,15 @@ impl Plugin for DebugScreenPlugin {
     }
 }
 
-fn schedule_refresh(mut refresh: ResMut<Refresh>, overlay: Res<DebugOverlay>, time: Res<Time>) {
+fn schedule_refresh(
+    mut refresh: ResMut<Refresh>,
+    overlay: Res<DebugOverlay>,
+    time: Res<Time>,
+    gpu: Res<mcrs_minecraft_render::probe::GpuTimings>,
+    mut always: Local<Option<bool>>,
+) {
+    let always = *always.get_or_insert_with(crate::config::always_time_passes);
+    gpu.want(always || **overlay || refresh.log_every.is_some());
     let now = time.elapsed_secs();
     let refresh = refresh.bypass_change_detection();
     let shown = **overlay && now >= refresh.next_refresh;

@@ -103,6 +103,7 @@ impl Plugin for ClientTerrainPlugin {
             Update,
             (
                 cave::toggle,
+                toggle_culls,
                 step_debug_view,
                 toggle_render_path,
                 #[cfg(target_os = "macos")]
@@ -131,6 +132,23 @@ fn step_debug_view(
     if keys.just_pressed(KeyCode::F10) {
         let back = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
         selected.0 = views.step(shown.get(), selected.0, back);
+    }
+}
+
+/// `O` turns the depth pyramid's occlusion test off and on, and `F8` the per-quad tests, so a
+/// hole in the terrain can be traced to the cull stage that makes it.
+fn toggle_culls(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut occlusion: ResMut<mcrs_minecraft_render::Occlusion>,
+    mut quad_cull: ResMut<mcrs_minecraft_render::QuadCull>,
+) {
+    if keys.just_pressed(KeyCode::KeyO) {
+        occlusion.0 = !occlusion.0;
+        info!(on = occlusion.0, "occlusion culling");
+    }
+    if keys.just_pressed(KeyCode::F8) {
+        quad_cull.0 = !quad_cull.0;
+        info!(on = quad_cull.0, "per-quad culling");
     }
 }
 

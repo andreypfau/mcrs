@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupLayoutDescriptor, PipelineCache, RenderPipelineDescriptor,
+    BindGroup, BindGroupLayoutDescriptor, PipelineCache, RenderPipelineDescriptor, WgpuFeatures,
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
@@ -33,6 +33,7 @@ pub struct Terrain {
     pub(super) pipelines: Pipelines,
     pub(super) list: DrawList,
     pub(super) cull_grid: u32,
+    pub(super) group_grid: u32,
     pub(super) hiz: Hiz,
 }
 
@@ -63,7 +64,7 @@ impl Terrain {
             && occlusion.0
             && self.list.visible_entries != 0
             && pipeline_cache
-                .get_compute_pipeline(self.pipelines.cull_second)
+                .get_compute_pipeline(self.pipelines.cull_groups_second)
                 .is_some()
     }
 
@@ -132,11 +133,20 @@ pub(super) fn init_terrain(
         &device,
         &pipeline_cache,
     );
-    let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
+    let pipelines = Pipelines::new(
+        Shaders::load(&asset_server),
+        &binds,
+        budget.sections,
+        device.limits().max_compute_workgroups_per_dimension,
+        device.features().contains(WgpuFeatures::SUBGROUP),
+        &pipeline_cache,
+    );
 
     commands.insert_resource(super::upload::Staging::new(&device, budget.upload));
     commands.insert_resource(Terrain {
-        cull_grid: super::pass::cull_grid(&device.limits()),
+        cull_grid: super::pass::cull_grid(&device.limits(), super::pass::CULL_THREADS),
+        group_grid: super::pass::cull_grid(&device.limits(), super::pass::GROUP_THREADS),
+
         list: DrawList::new(),
         budget,
         arenas,

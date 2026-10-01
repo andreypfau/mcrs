@@ -51,7 +51,8 @@ pub(super) struct CameraUniform {
     tint_origin: [f32; 2],
     tint_scale: [f32; 2],
     hiz_levels: u32,
-    _pad: [u32; 3],
+    quad_cull: u32,
+    viewport: [f32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -69,6 +70,9 @@ pub(super) struct Frame {
     // without one small clear per draw.
     pub args_reset: Buffer,
     pub args_readback: Buffer,
+    /// The dispatch sizes the cull computes into `args`, copied here because a dispatch cannot
+    /// read its size from a buffer it may also write.
+    pub dispatch: Buffer,
 }
 
 pub fn uniform(label: &str, size: u64, device: &RenderDevice) -> Buffer {
@@ -90,9 +94,10 @@ impl Frame {
                 device,
             ),
             camera: uniform("terrain camera", CAMERA_SIZE, device),
+            // The cave walk's bits, then the frame's, which the cull writes.
             cave: device.create_buffer_with_data(&BufferInitDescriptor {
                 label: Some("terrain cave visibility"),
-                contents: bytemuck::cast_slice(&vec![u32::MAX; budget.sections.div_ceil(32)]),
+                contents: bytemuck::cast_slice(&vec![u32::MAX; 2 * budget.sections.div_ceil(32)]),
                 usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             }),
             args: device.create_buffer_with_data(&BufferInitDescriptor {
@@ -107,6 +112,12 @@ impl Frame {
                 label: Some("terrain draw args reset"),
                 contents: bytemuck::cast_slice(&args_init),
                 usage: BufferUsages::COPY_SRC,
+            }),
+            dispatch: device.create_buffer(&BufferDescriptor {
+                label: Some("terrain cull dispatch"),
+                size: super::stats::DISPATCH_BYTES,
+                usage: BufferUsages::INDIRECT | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             }),
             args_readback: device.create_buffer(&BufferDescriptor {
                 label: Some("terrain draw args readback"),
@@ -127,6 +138,7 @@ pub(super) fn write_camera(
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
     occlusion: Res<Occlusion>,
+    quad_cull: Res<super::QuadCull>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
@@ -160,6 +172,8 @@ pub(super) fn write_camera(
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
             hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
+            viewport: view.viewport.zw().as_vec2().to_array(),
+            quad_cull: quad_cull.0 as u32,
             ..default()
         }),
     );

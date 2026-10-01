@@ -116,6 +116,7 @@ pub fn extend(
             pack,
             &state,
             data,
+            definitions.shape(data.occlusion_shape),
             &mut catalog.sprites,
             catalog.smooth_lighting,
         ) {

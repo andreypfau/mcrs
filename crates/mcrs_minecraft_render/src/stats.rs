@@ -27,13 +27,27 @@ pub(super) fn quad_list() -> DrawArgs {
 }
 
 /// The draw args as a frame starts: a list per stream for the first pass, one per stream for
-/// the second, then a counter per stream.
+/// the second, then per stream the quads the first pass hid, the groups each pass's group cull
+/// kept and the groups the first pass left quads of, and last the workgroups the kernels
+/// reading those three lists dispatch, laid out as `DISPATCHES` expects.
 pub(super) fn args_reset() -> Vec<DrawArgs> {
+    let dispatch = DrawArgs {
+        vertex_count: 0,
+        instance_count: 1,
+        first_vertex: 1,
+        first_instance: 0,
+    };
     (0..2 * STREAMS)
         .map(|_| quad_list())
-        .chain((0..STREAMS).map(|_| DrawArgs::default()))
+        .chain((0..4 * STREAMS).map(|_| DrawArgs::default()))
+        .chain((0..3 * STREAMS).map(|_| dispatch))
         .collect()
 }
+
+/// Where the dispatch sizes start in the args, and how many bytes they take: the quad cull's of
+/// each pass, then the second pass's group cull's.
+pub(super) const DISPATCHES: u64 = (6 * STREAMS) as u64 * DRAW_ARGS_SIZE;
+pub(super) const DISPATCH_BYTES: u64 = (3 * STREAMS) as u64 * DRAW_ARGS_SIZE;
 
 fn drawn_quads(args: &[DrawArgs]) -> u32 {
     (0..2 * STREAMS)

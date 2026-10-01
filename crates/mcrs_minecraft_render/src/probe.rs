@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bevy::platform::time::Instant;
@@ -20,7 +20,11 @@ pub(crate) const HIZ: usize = 3;
 pub(crate) const CULL_SECOND: usize = 4;
 pub(crate) const WORLD_SECOND: usize = 5;
 pub(crate) const FORWARD: usize = 6;
-pub const NAMES: [&str; 7] = [
+pub(crate) const CULL_SECTIONS: usize = 7;
+pub(crate) const CULL_BLENDED: usize = 8;
+pub(crate) const CULL_QUADS: usize = 9;
+pub(crate) const CULL_QUADS_SECOND: usize = 10;
+pub const NAMES: [&str; 11] = [
     "cull",
     "world",
     "heat",
@@ -28,6 +32,10 @@ pub const NAMES: [&str; 7] = [
     "cull second",
     "world second",
     "forward",
+    "cull sections",
+    "cull blended",
+    "cull quads",
+    "cull quads second",
 ];
 pub(crate) const SLOTS: usize = NAMES.len();
 
@@ -53,6 +61,16 @@ impl GpuTimings {
             .percentiles(slot, last, &[0.5, 0.95])
     }
 
+    /// Timing a pass costs an encoder of its own to reset its queries, so passes are timed only
+    /// while something reads the figures.
+    pub fn want(&self, on: bool) {
+        self.0.wanted.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn timed<'a>(&self, queries: Option<&'a Queries>) -> Option<&'a Queries> {
+        queries.filter(|_| self.0.wanted.load(Ordering::Relaxed))
+    }
+
     fn writing(&self) -> u32 {
         self.0.frame.load(Ordering::Relaxed) % RING * SLOTS as u32 * 2
     }
@@ -69,6 +87,10 @@ impl GpuTimings {
 
 #[derive(Default)]
 struct Shared {
+    wanted: AtomicBool,
+    /// Frames timed since timing was last switched on; the ring holds older frames until every
+    /// slot has been written again.
+    warm: AtomicU32,
     frame: AtomicU32,
     samples: Mutex<Samples<SLOTS, WINDOW>>,
     gate: Gate,
@@ -445,11 +467,12 @@ pub(crate) fn resolve(
     timings: &GpuTimings,
     encoder: &mut CommandEncoder,
 ) {
-    let Some(queries) = queries else {
+    let Some(queries) = timings.timed(queries) else {
+        timings.0.warm.store(0, Ordering::Relaxed);
         return;
     };
     timings.0.frame.fetch_add(1, Ordering::Relaxed);
-    if !timings.0.gate.claim_copy() {
+    if timings.0.warm.fetch_add(1, Ordering::Relaxed) < RING || !timings.0.gate.claim_copy() {
         return;
     }
     let first = timings.resolving();
@@ -518,9 +541,9 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.5, 0.1, 0.2, 0.3, 0.6]);
+            timings.push([1.0, 4.0, 0.5, 0.1, 0.2, 0.3, 0.6, 0.0, 0.0, 0.0, 0.0]);
         }
-        timings.push([1.0, 400.0, 0.5, 0.1, 0.2, 0.3, 0.6]);
+        timings.push([1.0, 400.0, 0.5, 0.1, 0.2, 0.3, 0.6, 0.0, 0.0, 0.0, 0.0]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(WORLD), Some(4.0));
     }
@@ -529,7 +552,7 @@ mod tests {
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
@@ -545,7 +568,7 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));

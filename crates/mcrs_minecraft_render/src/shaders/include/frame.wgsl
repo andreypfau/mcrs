@@ -5,9 +5,12 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    overhang: f32,
     counter: u32,
+    flags: u32,
 }
+
+const PARAMS_MODEL: u32 = 1u;
+const PARAMS_QUAD_CULL: u32 = 2u;
 
 struct Camera {
     clip_from_relative: mat4x4<f32>,
@@ -17,6 +20,8 @@ struct Camera {
     tint_origin: vec2<f32>,
     tint_scale: vec2<f32>,
     hiz_levels: u32,
+    quad_cull: u32,
+    viewport: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;

@@ -461,7 +461,6 @@ impl Loader {
         }
         cave.forget(section);
         self.evicted += 1;
-        self.requeue_deferred();
     }
 
     fn follow(&mut self, cave: &mut CaveCull) {
@@ -584,7 +583,6 @@ impl Loader {
             } as u32;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
-                group.quad_prefix = stream.quads_end;
                 stream.quads_end += group.quad_count;
             }
             if run != 0 {
@@ -798,7 +796,6 @@ impl Loader {
                 resident.groups[index].1 += 1;
             }
             last_slot = group.section;
-            group.quad_prefix = quads;
             quads += group.quad_count;
         }
         stream.groups = packed;
@@ -1456,8 +1453,10 @@ fn place_meshes(
                 }
                 Err(back) => match loader.victim(here) {
                     Some(victim) => {
+                        // The victim is the farthest resident, so meshing it again could only
+                        // end deferred; it waits for the camera to move instead.
                         loader.evict(victim, &mut cave);
-                        loader.enqueue(victim);
+                        loader.sections.defer(victim);
                         pending = back;
                     }
                     None => {
@@ -1580,7 +1579,7 @@ mod tests {
                 quad_count: quads,
                 section: slot,
                 face: 0,
-                quad_prefix: 0,
+                bounds: 0,
             }],
             spans,
             connectivity: mcrs_minecraft_mesh::OPEN,
@@ -1637,9 +1636,9 @@ mod tests {
             flushed.groups[0]
                 .1
                 .iter()
-                .map(|g| g.quad_prefix)
+                .map(|g| g.quad_count)
                 .collect::<Vec<_>>(),
-            [0, 3],
+            [3, 5],
             "the blend order of a bucket runs across the sections in it"
         );
 
@@ -1651,7 +1650,7 @@ mod tests {
         assert_eq!(draws[0].group_count, 1);
         assert_eq!(draws[0].quad_count, 5);
         assert_eq!(
-            flushed.groups[0].1[0].quad_prefix, 0,
+            flushed.groups[0].1[0].quad_count, 5,
             "what the evicted section held is given back, not left as a hole"
         );
     }
@@ -1766,7 +1765,7 @@ mod tests {
                     quad_count: 1,
                     section: slot,
                     face: 0,
-                    quad_prefix: 0,
+                    bounds: 0,
                 })
                 .collect(),
             spans,

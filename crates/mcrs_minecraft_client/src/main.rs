@@ -28,6 +28,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 
+use mcrs_minecraft_client::columns::SECTION_SIZE;
 use mcrs_minecraft_client::config::TerrainLimits;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::screenshot;
@@ -92,6 +93,21 @@ fn main() -> AppExit {
     let frozen_at = config::frozen_time();
     let assets = asset_corpus().to_string_lossy().into_owned();
 
+    let mut wgpu = WgpuSettings {
+        features: WgpuFeatures::TIMESTAMP_QUERY,
+        ..default()
+    };
+    // Bevy keeps wgpu's per-draw validation pass whenever DX12 is among the backends, which the
+    // default set is even where DX12 cannot exist; the cull writes every indirect argument itself.
+    // Labels handed to Metal cost a fifth of the frame's encoding. The environment still wins,
+    // so `WGPU_DISCARD_HAL_LABELS=0` brings them back for a GPU capture.
+    #[cfg(not(debug_assertions))]
+    {
+        use bevy::render::settings::InstanceFlags;
+        #[cfg(not(target_os = "windows"))]
+        wgpu.instance_flags.remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
+        wgpu.instance_flags = (wgpu.instance_flags | InstanceFlags::DISCARD_HAL_LABELS).with_env();
+    }
     let mut app = App::new();
     vanilla::register(&mut app);
     app.add_plugins(
@@ -104,11 +120,7 @@ fn main() -> AppExit {
                 ..default()
             })
             .set(RenderPlugin {
-                render_creation: WgpuSettings {
-                    features: WgpuFeatures::TIMESTAMP_QUERY,
-                    ..default()
-                }
-                .into(),
+                render_creation: wgpu.into(),
                 ..default()
             })
             .set(LogPlugin {
@@ -226,7 +238,7 @@ fn main() -> AppExit {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));
+    app.add_plugins(ClientTerrainPlugin(terrain_limits(config::view_distance())));
 
     #[cfg(feature = "telemetry-tracy")]
     app.add_systems(Last, frame_mark);
@@ -313,12 +325,17 @@ fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
 
 /// One block holds every group of every bucket and a flush takes a fresh one before freeing the
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
-const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
-    arena_scale: 4,
-    groups: 1 << 22,
-    sections: 1 << 19,
-    tint_span: 4096,
-};
+///
+/// The tint window covers the view and two columns past it on each side, which a column the
+/// client has yet to drop can still stand in.
+fn terrain_limits(view_distance: u8) -> TerrainLimits {
+    TerrainLimits {
+        arena_scale: 4,
+        groups: 1 << 23,
+        sections: 1 << 19,
+        tint_span: (2 * (u32::from(view_distance) + 2) + 1) * SECTION_SIZE as u32,
+    }
+}
 
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.

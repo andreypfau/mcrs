@@ -2,14 +2,15 @@ use bevy_math::Vec3;
 use mcrs_minecraft_core::Direction;
 
 use crate::ambient;
-use crate::block::BlockInfo;
+use crate::block::{BlockInfo, face_hidden};
 use crate::pack::{
+    MODEL_STEPS,
     FACE_AO, FACE_AO_CORNER_BITS, FACE_BLOCK_LIGHT, FACE_LIGHT_CORNER_BITS, FACE_SKY_LIGHT,
     FACE_SPRITE, FACE_TINT, FACE_WORDS,
 };
 
 use super::scratch::{Columns, Scratch, border_index};
-use super::sweep::sweep;
+use super::sweep::{PASS_KEY_BITS, sweep};
 use super::{Sink, face_normal};
 
 pub(super) fn greedy(catalog: &[BlockInfo], scratch: &mut Scratch, sink: &mut Sink) {
@@ -35,6 +36,10 @@ fn face_attr(
     let here = scratch.states[border_index(local[0], local[1], local[2])];
     let info = &catalog[here as usize];
     let cube = info.cube.as_ref()?;
+    let lowered_top = info.drop != 0 && face == Direction::Up as usize;
+    if info.drop != 0 && face >= 2 {
+        return None;
+    }
     let normal = face_normal(face);
     let front = [
         local[0] + normal[0],
@@ -42,7 +47,8 @@ fn face_attr(
         local[2] + normal[2],
     ];
     let front_index = border_index(front[0], front[1], front[2]);
-    if scratch.occludes[front_index] {
+    // A lowered top lies inside its own cell, touches nothing above it and has no cullface.
+    if !lowered_top && face_hidden(info, &catalog[scratch.states[front_index] as usize], face) {
         return None;
     }
     if info.self_culls && scratch.states[front_index] == here {
@@ -50,9 +56,12 @@ fn face_attr(
     }
 
     let cube = cube[face];
+    let height = 1.0 - info.drop as f32 / MODEL_STEPS;
     let (ao, light) = if info.ambient_occlusion {
         let dir = Direction::all()[face];
-        let positions = std::array::from_fn(|i| ambient::corner(dir, i, Vec3::ZERO, Vec3::ONE));
+        let positions = std::array::from_fn(|i| {
+            ambient::corner(dir, i, Vec3::ZERO, Vec3::new(1.0, height, 1.0))
+        });
         let lit = ambient::smooth(
             &positions,
             dir,
@@ -62,7 +71,12 @@ fn face_attr(
         );
         (lit.shade.map(ao_code), lit.light)
     } else {
-        let light = ambient::light_coords(info.emissive, info.emission, scratch.light[front_index]);
+        let lit_from = if lowered_top {
+            border_index(local[0], local[1], local[2])
+        } else {
+            front_index
+        };
+        let light = ambient::light_coords(info.emissive, info.emission, scratch.light[lit_from]);
         ([0; 4], [light; 4])
     };
 
@@ -70,7 +84,7 @@ fn face_attr(
     FACE_SPRITE.set(&mut words, cube.sprite as u64);
     FACE_TINT.set(&mut words, cube.tint.index() as u64);
     set_corners(&mut words, ao, light);
-    Some((cube.pass, words))
+    Some((cube.pass | info.drop << PASS_KEY_BITS, words))
 }
 
 /// Full cube faces keep vanilla's occlusion byte as its distance below 255 in steps of 51, the

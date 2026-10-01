@@ -19,12 +19,6 @@ pub enum LayerGroup {
 impl LayerGroup {
     pub(crate) const ALL: [LayerGroup; 2] = [LayerGroup::Opaque, LayerGroup::Translucent];
 
-    // Blending is not commutative, so translucent draws have to reach the rasteriser in the order
-    // the list holds them; opaque ones may be compacted.
-    pub(crate) const fn culls_in_order(self) -> bool {
-        matches!(self, LayerGroup::Translucent)
-    }
-
     pub(crate) fn holds(self, stream: u32) -> bool {
         stream_pass(stream).translucent() == matches!(self, LayerGroup::Translucent)
     }

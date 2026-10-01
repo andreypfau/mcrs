@@ -8,28 +8,21 @@
     FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS,
     FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS,
     FACE_WORDS,
-    FLUID_INSET,
-    MODEL_STEPS,
-    QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS,
     QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS,
     QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS,
-    QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS,
     QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS,
     QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS,
     QUAD_WORDS,
-    QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS,
-    QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS,
-    QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS,
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
 #import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::{face_shade, lightmap}
-#import mcrs_minecraft_client::quad::{
-    corner_index, corner_uv, face_normal, face_u_dir, face_v_dir, quad_of,
-}
+#import mcrs_minecraft_client::quad::{corner_index, face_normal, greedy_corner, quad_of}
 #import mcrs_minecraft_client::section::section_origin
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{face_field, quad_field, sections, visible, visible_slot}
+#import mcrs_minecraft_client::terrain_bindings::{
+    face_field, quad_field, quad_words, sections, visible, visible_slot,
+}
 
 struct GreedyOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -47,35 +40,14 @@ fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
     let quad = entry.x * QUAD_WORDS;
 
     let desc = sections[entry.y];
-    let scale = f32(desc.scale);
-    let local = vec3<f32>(
-        f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
-        f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
-        f32(quad_field(quad, QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS)),
-    );
     let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
     let span = vec2<u32>(
         quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
         quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
     );
-    let size = vec2<f32>(span);
-
-    // Fluids sit below the top of their block, so the surface drops and the sides shorten.
-    let drop = f32(quad_field(quad, QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
-    var quad_uv = corner_uv(corner_index(vertex));
-    if (face >= 2u) {
-        quad_uv.y = max(quad_uv.y, drop / size.y);
-    }
-    let c = quad_uv * size;
-    let u_dir = face_u_dir(face);
-    let v_dir = face_v_dir(face);
-    var world = section_origin(desc) + (local + u_dir * c.x + v_dir * c.y) * scale;
-    if (face == 1u) {
-        world.y -= drop;
-    }
-    // A fluid face shares a plane with the block face behind it, so it is pulled in slightly.
-    let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
-    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
+    let corner = greedy_corner(quad_words(quad), section_origin(desc), f32(desc.scale), corner_index(vertex));
+    let world = corner.world;
+    let quad_uv = corner.quad_uv;
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
@@ -169,33 +141,14 @@ fn vertex_greedy_deferred(@builtin(vertex_index) vertex: u32) -> GreedyDeferredO
     let quad = entry.x * QUAD_WORDS;
 
     let desc = sections[entry.y];
-    let scale = f32(desc.scale);
-    let local = vec3<f32>(
-        f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
-        f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
-        f32(quad_field(quad, QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS)),
-    );
     let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
     let span = vec2<u32>(
         quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
         quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
     );
-    let size = vec2<f32>(span);
-
-    let drop = f32(quad_field(quad, QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
-    var quad_uv = corner_uv(corner_index(vertex));
-    if (face >= 2u) {
-        quad_uv.y = max(quad_uv.y, drop / size.y);
-    }
-    let c = quad_uv * size;
-    let u_dir = face_u_dir(face);
-    let v_dir = face_v_dir(face);
-    var world = section_origin(desc) + (local + u_dir * c.x + v_dir * c.y) * scale;
-    if (face == 1u) {
-        world.y -= drop;
-    }
-    let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
-    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
+    let corner = greedy_corner(quad_words(quad), section_origin(desc), f32(desc.scale), corner_index(vertex));
+    let world = corner.world;
+    let quad_uv = corner.quad_uv;
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;

@@ -83,6 +83,25 @@ const MODEL_SPRITE_WORD: u32 = 2u;
 const MODEL_SPRITE_SHIFT: u32 = 0u;
 const MODEL_SPRITE_BITS: u32 = 16u;
 
+const BOUNDS_LO_X_WORD: u32 = 0u;
+const BOUNDS_LO_X_SHIFT: u32 = 0u;
+const BOUNDS_LO_X_BITS: u32 = 5u;
+const BOUNDS_LO_Y_WORD: u32 = 0u;
+const BOUNDS_LO_Y_SHIFT: u32 = 5u;
+const BOUNDS_LO_Y_BITS: u32 = 5u;
+const BOUNDS_LO_Z_WORD: u32 = 0u;
+const BOUNDS_LO_Z_SHIFT: u32 = 10u;
+const BOUNDS_LO_Z_BITS: u32 = 5u;
+const BOUNDS_HI_X_WORD: u32 = 0u;
+const BOUNDS_HI_X_SHIFT: u32 = 15u;
+const BOUNDS_HI_X_BITS: u32 = 5u;
+const BOUNDS_HI_Y_WORD: u32 = 0u;
+const BOUNDS_HI_Y_SHIFT: u32 = 20u;
+const BOUNDS_HI_Y_BITS: u32 = 5u;
+const BOUNDS_HI_Z_WORD: u32 = 0u;
+const BOUNDS_HI_Z_SHIFT: u32 = 25u;
+const BOUNDS_HI_Z_BITS: u32 = 5u;
+
 const QUAD_WORDS: u32 = 2u;
 const FACE_WORDS: u32 = 3u;
 const FACE_AO_CORNER_BITS: u32 = 3u;

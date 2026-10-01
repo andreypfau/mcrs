@@ -152,6 +152,17 @@ impl Default for Occlusion {
     }
 }
 
+/// Whether the cull tests each quad of a surviving group on its own; off, a group that survives
+/// is drawn whole, which is how a hole the quad tests leave is told from any other.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct QuadCull(pub bool);
+
+impl Default for QuadCull {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Brightness(pub f32);
@@ -279,6 +290,7 @@ impl Plugin for TerrainPlugin {
         let shown = ShownPath::default();
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()
+            .init_resource::<QuadCull>()
             .init_resource::<Brightness>()
             .init_resource::<Streams>()
             .init_resource::<RenderPath>()
@@ -287,6 +299,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<RenderPath>::default())
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
+            .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())

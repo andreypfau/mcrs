@@ -48,7 +48,6 @@ impl Animation {
 
 pub struct Sprites {
     pub atlases: Vec<AtlasSlot>,
-    staging: Buffer,
     pub atlas_sampler: Sampler,
     pub(crate) tints: Texture,
     pub(crate) tints_view: TextureView,
@@ -70,7 +69,6 @@ impl Sprites {
             atlases: (0..MAX_SPRITE_ARRAYS)
                 .map(|index| blank_atlas(index, device))
                 .collect(),
-            staging: atlas_staging(FIRST_STAGING_BYTES, device),
             atlas_sampler: atlas_sampler(device),
             tints_view: array_view(&tints),
             tints,
@@ -95,11 +93,14 @@ impl Sprites {
         encoder: &mut CommandEncoder,
         belt: &mut wgpu::util::StagingBelt,
     ) -> (usize, bool) {
+        // Uploads come in a burst at load and rarely after, so the buffer is not kept between
+        // them: holding the largest one ever made would pin tens of megabytes for good.
+        let mut staging = atlas_staging(FIRST_STAGING_BYTES, device);
         let mut writer = AtlasWriter {
             device,
             encoder,
             belt,
-            staging: &mut self.staging,
+            staging: &mut staging,
             used: 0,
         };
         let SpriteUpload {

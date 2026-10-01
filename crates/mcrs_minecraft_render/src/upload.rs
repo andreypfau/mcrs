@@ -84,17 +84,17 @@ impl Placement {
     fn parts<'a>(&'a self, arenas: &'a Arenas) -> Vec<(&'a Buffer, u64, &'a [u8])> {
         let mut parts = vec![
             (
-                &arenas.quads,
+                &arenas.quads.buffer,
                 self.quads.0,
                 bytemuck::cast_slice(&self.quads.1),
             ),
             (
-                &arenas.vertices,
+                &arenas.vertices.buffer,
                 self.vertices.0,
                 bytemuck::cast_slice(&self.vertices.1),
             ),
             (
-                &arenas.faces,
+                &arenas.faces.buffer,
                 self.faces.0,
                 bytemuck::cast_slice(&self.faces.1),
             ),
@@ -106,7 +106,7 @@ impl Placement {
         ];
         parts.extend(self.groups.iter().map(|(offset, records)| {
             (
-                &arenas.groups,
+                &arenas.groups.buffer,
                 *offset,
                 bytemuck::cast_slice::<_, u8>(records),
             )
@@ -174,6 +174,25 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                     continue;
                 }
                 Some(Upload::Geometry(placement)) => {
+                    let rebind = terrain.arenas.fit(&placement, device, encoder);
+                    if rebind.draw {
+                        terrain.binds.rebuild_draw(
+                            &terrain.arenas,
+                            &terrain.frame,
+                            &terrain.sprites,
+                            device,
+                            pipeline_cache,
+                        );
+                    }
+                    if rebind.cull || rebind.draw {
+                        terrain.binds.rebuild_cull(
+                            &terrain.arenas,
+                            &terrain.frame,
+                            &terrain.hiz.view,
+                            device,
+                            pipeline_cache,
+                        );
+                    }
                     terrain.arenas.pending = Some(Pending {
                         placement,
                         part: 0,
