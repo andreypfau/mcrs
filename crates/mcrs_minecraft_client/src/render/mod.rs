@@ -1,5 +1,3 @@
-mod gui_items;
-mod raster;
+pub(crate) mod gui_items;
 
 pub use gui_items::GuiItemsPlugin;
-pub use raster::{Raster, RasterPlugin};

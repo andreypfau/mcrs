@@ -18,7 +18,7 @@ use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_registry::BlockStateId;
 
-use crate::config::Guard;
+use super::knobs::Guard;
 
 /// Columns handed to a worker per frame, and how many walks may be in flight.
 /// One walk is 256 block columns of the world's height, so a handful of them is
@@ -30,17 +30,27 @@ const IN_FLIGHT: usize = 12;
 /// break rather than a single cell of it.
 const REPORTS: usize = 40;
 
-pub struct LightGuardPlugin;
+pub struct LightGuardPlugin {
+    pub level: Guard,
+}
 
 impl Plugin for LightGuardPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LightGuard>()
-            .add_systems(Update, (enqueue, collect).chain());
+        app.insert_resource(LightGuard {
+            level: self.level,
+            air: None,
+            waiting: default(),
+            queued: default(),
+            passed: default(),
+            running: default(),
+        })
+        .add_systems(Update, (enqueue, collect).chain());
     }
 }
 
-#[derive(Default, Resource)]
+#[derive(Resource)]
 pub struct LightGuard {
+    level: Guard,
     /// Whether each block state is air, by state id. Built once the block
     /// corpus exists; without it every cell would have to be treated as opaque
     /// and nothing would be checked.
@@ -90,9 +100,6 @@ fn enqueue(
     store: Option<Res<ColumnStore>>,
     blocks: Option<Res<Blocks>>,
 ) {
-    if crate::config::light_guard().is_none() {
-        return;
-    }
     let Some(store) = store else {
         return;
     };
@@ -178,7 +185,7 @@ fn collect(mut guard: ResMut<LightGuard>) {
                 "sky light steps by more than one between two air cells"
             );
         }
-        if crate::config::light_guard() != Some(Guard::Panic) {
+        if guard.level != Guard::Panic {
             continue;
         }
         let first = &report.faults[0];

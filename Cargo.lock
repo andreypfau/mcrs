@@ -3554,6 +3554,7 @@ dependencies = [
  "mcrs_minecraft_registry",
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_light_color",
+ "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_noise",
@@ -3928,6 +3929,17 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_light_color",
  "mcrs_minecraft_render",
+]
+
+[[package]]
+name = "mcrs_minecraft_render_probe"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bytemuck",
+ "mcrs_minecraft_mesh",
+ "mcrs_minecraft_render",
+ "wgpu",
 ]
 
 [[package]]

@@ -47,7 +47,6 @@ fn update_ui_needed(
 
 pub mod displayer;
 pub mod entry_fps;
-pub mod entry_frame;
 pub mod entry_network;
 pub mod entry_position;
 pub mod entry_system_specs;
@@ -63,6 +62,7 @@ pub struct Refresh {
     active: bool,
     logging: bool,
     log_every: Option<f32>,
+    always_timed: bool,
     next_refresh: f32,
     next_log: f32,
 }
@@ -70,11 +70,12 @@ pub struct Refresh {
 impl Refresh {
     const SHOWN_INTERVAL: f32 = 0.1;
 
-    fn new(log_every: Option<f32>) -> Self {
+    fn new(log_every: Option<f32>, always_timed: bool) -> Self {
         Self {
             active: false,
             logging: false,
             log_every,
+            always_timed,
             next_refresh: 0.0,
             next_log: 0.0,
         }
@@ -118,7 +119,10 @@ impl Plugin for DebugScreenPlugin {
                 )
                     .run_if(ui_needed),
             )
-            .insert_resource(Refresh::new(crate::config::stats_interval()))
+            .insert_resource(Refresh::new(
+                crate::config::stats_interval(),
+                crate::config::always_time_passes(),
+            ))
             .configure_sets(
                 Update,
                 (
@@ -151,7 +155,6 @@ impl Plugin for DebugScreenPlugin {
             Update,
             (
                 entry_fps::display,
-                entry_frame::display,
                 entry_fps::display_version,
                 entry_network::display,
                 entry_position::display,
@@ -160,9 +163,7 @@ impl Plugin for DebugScreenPlugin {
             )
                 .chain()
                 .in_set(DebugScreenSet::Collect)
-                .run_if(|overlay: Res<DebugOverlay>, refresh: Res<Refresh>| {
-                    **overlay || refresh.logging
-                }),
+                .run_if(collecting),
         );
 
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
@@ -189,15 +190,17 @@ impl Plugin for DebugScreenPlugin {
     }
 }
 
+pub fn collecting(overlay: Res<DebugOverlay>, refresh: Res<Refresh>) -> bool {
+    **overlay || refresh.logging
+}
+
 fn schedule_refresh(
     mut refresh: ResMut<Refresh>,
     overlay: Res<DebugOverlay>,
     time: Res<Time>,
-    gpu: Res<mcrs_minecraft_render::probe::GpuTimings>,
-    mut always: Local<Option<bool>>,
+    gpu: Res<mcrs_minecraft_render_probe::probe::GpuTimings>,
 ) {
-    let always = *always.get_or_insert_with(crate::config::always_time_passes);
-    gpu.want(always || **overlay || refresh.log_every.is_some());
+    gpu.want(refresh.always_timed || **overlay || refresh.log_every.is_some());
     let now = time.elapsed_secs();
     let refresh = refresh.bypass_change_detection();
     let shown = **overlay && now >= refresh.next_refresh;

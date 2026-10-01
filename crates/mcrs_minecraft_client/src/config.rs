@@ -1,13 +1,7 @@
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use crate::cave::CaveCull;
-use crate::render::Raster;
-use mcrs_minecraft_mesh::STREAMS;
-use mcrs_minecraft_render::sky::SkyEffects;
-use mcrs_minecraft_render::{
-    Budget, FACE_BYTES, MODEL_BYTES, Occlusion, QUAD_BYTES, Streams, Uploads,
-};
+use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
 #[cfg(not(target_family = "wasm"))]
 const QUAD_MB_PER_FILE: usize = 192;
@@ -34,9 +28,9 @@ fn async_compute_threads() -> usize {
 }
 
 #[cfg(not(target_family = "wasm"))]
-const IO_THREADS: usize = 2;
+pub const IO_THREADS: usize = 2;
 #[cfg(target_family = "wasm")]
-const IO_THREADS: usize = 1;
+pub const IO_THREADS: usize = 1;
 
 /// The browser has no worker pool to spread across.
 #[cfg(target_family = "wasm")]
@@ -60,21 +54,8 @@ const MESH_PER_FRAME: usize = 32;
 const VIEW_DISTANCE: u8 = 96;
 pub const MAX_VIEW_DISTANCE: u8 = 96;
 
-static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
-
-/// Names a knob without its `MCRS_` prefix, so a source that is not the
-/// environment — the browser has none, and reads the query string instead —
-/// can supply the same values. Only the first call is kept, and it has to come
-/// before the first read.
-pub fn seed(knobs: HashMap<String, String>) {
-    let _ = KNOBS.set(knobs);
-}
-
-fn knob(name: &str) -> Option<String> {
-    match KNOBS.get() {
-        Some(knobs) => knobs.get(name).cloned(),
-        None => from_environment(name),
-    }
+pub(crate) fn knob(name: &str) -> Option<String> {
+    from_environment(name)
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -87,7 +68,7 @@ fn from_environment(name: &str) -> Option<String> {
     crate::web::query(&name.to_ascii_lowercase())
 }
 
-fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
+pub(crate) fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
     spec.split(',')
         .filter_map(|n| n.trim().parse().ok())
         .collect()
@@ -101,6 +82,19 @@ pub fn view_distance() -> u8 {
         format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
     )
     .unwrap_or(VIEW_DISTANCE)
+}
+
+pub fn username() -> String {
+    knob("USERNAME").unwrap_or_else(|| "Player".to_owned())
+}
+
+pub fn server() -> Option<String> {
+    knob("SERVER")
+}
+
+#[cfg(target_family = "wasm")]
+pub fn server_certificate() -> Option<String> {
+    knob("CERT")
 }
 
 pub fn upload_budget() -> usize {
@@ -124,7 +118,7 @@ pub fn arena_budget() -> (usize, usize, usize) {
     }
 }
 
-fn flag(name: &str, default: bool) -> bool {
+pub(crate) fn flag(name: &str, default: bool) -> bool {
     match knob(name).as_deref().map(str::trim) {
         Some("0" | "false" | "off" | "no") => false,
         Some("1" | "true" | "on" | "yes") => true,
@@ -140,25 +134,6 @@ fn flag(name: &str, default: bool) -> bool {
 /// a run never seizes the screen the work is being done on.
 pub fn fullscreen() -> bool {
     flag("FULLSCREEN", false)
-}
-
-/// `LATENCY=<frames>` is how many swapchain images the window may run ahead by, for checking
-/// whether a display's drawable recycling is what the frame is waiting on.
-pub fn frame_latency() -> Option<std::num::NonZeroU32> {
-    parsed("LATENCY", |_| true, "expected a frame count above zero")
-}
-
-/// `TRACY_PREVIEW=1` streams frame images to the profiler, which costs a readback per frame and
-/// so stays off in a capture meant for timing.
-pub fn tracy_preview() -> bool {
-    flag("TRACY_PREVIEW", false)
-}
-
-/// `HOT=1` keeps one core spinning for the whole run. The frame sleeps in the swapchain acquire
-/// and the performance cluster clocks down while it does, so the same work then measures two to
-/// three times longer; with the cluster held at speed the numbers are the engine's own.
-pub fn hot_clocks() -> bool {
-    flag("HOT", false)
 }
 
 /// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.
@@ -187,26 +162,6 @@ pub fn always_time_passes() -> bool {
     knob("PROBE").is_some_and(|on| on == "1") || knob("CAPTURE").is_some()
 }
 
-/// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
-/// vanilla's units where 0.05 is the default, so a flight can be repeated exactly.
-pub fn scripted_flight() -> Option<f64> {
-    parsed(
-        "FLY",
-        |&speed| speed > 0.0,
-        "expected a flying speed above zero, 0.05 is vanilla",
-    )
-}
-
-/// `TURN=<seconds>` turns a scripted flight round once, that long after launch, so the way
-/// back over columns the server took back can be repeated exactly.
-pub fn turn_after() -> Option<f32> {
-    parsed(
-        "TURN",
-        |&seconds| seconds > 0.0,
-        "expected seconds above zero",
-    )
-}
-
 /// `RESOLUTION=<width>x<height>` opens a window of exactly that many pixels instead of the
 /// fullscreen one, so a frame can be priced at a stated pixel count.
 pub fn resolution() -> Option<(u32, u32)> {
@@ -219,95 +174,21 @@ pub fn vsync() -> bool {
     flag("VSYNC", false)
 }
 
-pub fn drawn_streams() -> Streams {
-    let Some(spec) = knob("STREAMS") else {
-        return Streams::default();
-    };
-    let mut mask = 0;
-    for name in spec.split(',') {
-        match name.trim().parse::<u32>() {
-            Ok(stream) if (stream as usize) < STREAMS => mask |= 1 << stream,
-            _ => eprintln!("MCRS_STREAMS takes stream numbers 0..{}", STREAMS - 1),
-        }
-    }
-    Streams(mask)
-}
-
-pub fn raster_fraction() -> Raster {
-    let Some(spec) = knob("RASTER") else {
-        return Raster::default();
-    };
-    match spec.trim().parse::<f32>() {
-        Ok(fraction) if (0.0..=1.0).contains(&fraction) && fraction > 0.0 => Raster(fraction),
-        _ => {
-            eprintln!("MCRS_RASTER takes a fraction between 0 and 1");
-            Raster::default()
-        }
-    }
-}
-
-/// Seconds between debug-screen lines written to the log, for a run whose
-/// window cannot be read.
 pub fn chunk_map() -> bool {
     flag("CHUNK_MAP", false)
-}
-
-/// `CENSUS=<seconds>` writes one line per interval tallying every traced column
-/// by lifecycle stage, so a headless run can be timed without reading the window.
-pub fn census_interval() -> Option<f32> {
-    knob("CENSUS").map(|spec| spec.trim().parse().unwrap_or(1.0))
-}
-
-/// `MONITOR=primary` opens the window on the system's primary display instead of
-/// on the fastest one.
-pub fn monitor_primary() -> bool {
-    knob("MONITOR").as_deref().map(str::trim) == Some("primary")
 }
 
 pub fn light_levels() -> bool {
     flag("LIGHT_LEVELS", false)
 }
 
-/// `CHUNK_GUARD=1` takes the client down the moment the player stands in a
-/// column it does not hold, `=warn` only says so, and `0` or unset is off.
-///
-/// A break that self-heals a frame later cannot be missed by a log line, which
-/// is why the loud form is the default once the knob is set at all.
-pub fn chunk_guard() -> Option<Guard> {
-    guard(knob("CHUNK_GUARD"))
-}
-
-/// `LIGHT_GUARD` reads the same way; `warn` keeps the process alive so a whole
-/// load can be measured.
-pub fn light_guard() -> Option<Guard> {
-    guard(knob("LIGHT_GUARD"))
-}
-
-fn guard(value: Option<String>) -> Option<Guard> {
-    match value.as_deref().map(str::trim) {
-        None | Some("0") => None,
-        Some("warn") => Some(Guard::Warn),
-        Some(_) => Some(Guard::Panic),
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum Guard {
-    Warn,
-    Panic,
-}
-
 /// Bevy's stock split gives async compute a quarter of the cores capped at four, which on a
 /// sixteen-core machine leaves meshing, column decode and the embedded server's lighting to
 /// share four threads while twelve idle. `ASYNC=<threads>` moves the cap.
-pub fn task_pool_options() -> bevy::app::TaskPoolOptions {
-    let mut options = bevy::app::TaskPoolOptions::default();
-    options.async_compute.max_threads = knob("ASYNC")
+pub fn async_threads() -> usize {
+    knob("ASYNC")
         .and_then(|spec| spec.trim().parse().ok())
-        .unwrap_or_else(async_compute_threads);
-    options.async_compute.percent = 1.0;
-    options.io.max_threads = IO_THREADS;
-    options
+        .unwrap_or_else(async_compute_threads)
 }
 
 /// `MESH=<per frame>` and `MESH_FLIGHT=<jobs>` bound how fast the mesher may run: how many
@@ -324,12 +205,10 @@ pub fn mesh_in_flight() -> usize {
         .unwrap_or(MESH_IN_FLIGHT)
 }
 
+/// Seconds between debug-screen lines written to the log, for a run whose
+/// window cannot be read.
 pub fn stats_interval() -> Option<f32> {
     knob("STATS").map(|spec| spec.trim().parse().unwrap_or(1.0))
-}
-
-pub fn gputrace_path() -> Option<String> {
-    knob("GPUTRACE")
 }
 
 /// `CAPTURE=<file>.png` waits for streaming to settle, writes one screenshot there and exits.
@@ -341,6 +220,10 @@ pub fn capture_path() -> Option<std::path::PathBuf> {
     } else {
         reject("CAPTURE", &spec, "expected a path ending in .png")
     }
+}
+
+pub fn screenshot_dir() -> Option<std::path::PathBuf> {
+    knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
 }
 
 /// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).
@@ -355,8 +238,12 @@ pub fn brightness() -> f32 {
 
 /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth
 /// pyramid test and its second pass.
-pub fn occlusion() -> Occlusion {
-    Occlusion(flag("OCCLUSION", true))
+pub fn occlusion() -> bool {
+    flag("OCCLUSION", true)
+}
+
+pub fn cave() -> bool {
+    flag("CAVE", true)
 }
 
 /// The knob's spelling in the message a bad value produces, which is the
@@ -375,18 +262,18 @@ fn spelled(name: &str) -> String {
 /// the native binary refuses to start. The browser has no exit status to carry
 /// that, and drops the knob after saying so.
 #[cfg(not(target_family = "wasm"))]
-fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
+pub(crate) fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
     eprintln!("{}={value}: {expected}", spelled(name));
     std::process::exit(1);
 }
 
 #[cfg(target_family = "wasm")]
-fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
+pub(crate) fn reject<T>(name: &str, value: &str, expected: impl std::fmt::Display) -> Option<T> {
     bevy::log::error!("{}={value}: {expected}", spelled(name));
     None
 }
 
-fn parsed<T: std::str::FromStr>(
+pub(crate) fn parsed<T: std::str::FromStr>(
     name: &str,
     check: impl FnOnce(&T) -> bool,
     expected: impl std::fmt::Display,
@@ -395,11 +282,18 @@ fn parsed<T: std::str::FromStr>(
     accepts(&spec, check).or_else(|| reject(name, &spec, expected))
 }
 
-fn accepts<T: std::str::FromStr>(spec: &str, check: impl FnOnce(&T) -> bool) -> Option<T> {
+pub(crate) fn accepts<T: std::str::FromStr>(
+    spec: &str,
+    check: impl FnOnce(&T) -> bool,
+) -> Option<T> {
     spec.trim().parse().ok().filter(check)
 }
 
-fn pair<T: std::str::FromStr>(name: &str, separator: char, expected: &str) -> Option<(T, T)> {
+pub(crate) fn pair<T: std::str::FromStr>(
+    name: &str,
+    separator: char,
+    expected: &str,
+) -> Option<(T, T)> {
     let spec = knob(name)?;
     spec.split_once(separator)
         .and_then(|(a, b)| Some((a.trim().parse().ok()?, b.trim().parse().ok()?)))
@@ -431,16 +325,6 @@ pub fn position_override() -> Option<bevy::math::DVec3> {
     }
 }
 
-/// `SKY=disc,twilight,celestial,stars,clouds` draws only the passes it lists,
-/// which is how a frame gets priced one pass at a time.
-pub fn sky_draws_only() -> Option<SkyEffects> {
-    let list = knob("SKY")?;
-    match SkyEffects::parse(&list) {
-        Ok(effects) => Some(effects),
-        Err(error) => reject("SKY", &list, error),
-    }
-}
-
 /// `TIME=<ticks>` pins every clock and stops them, so a scripted screenshot
 /// lands on the tick it asked for.
 pub fn frozen_time() -> Option<i64> {
@@ -454,14 +338,11 @@ pub fn gui_scale() -> u32 {
 }
 
 /// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.
-pub fn initial_screen() -> crate::inventory::Screen {
-    use crate::inventory::Screen;
+pub fn opens_inventory() -> bool {
     match knob("SCREEN").as_deref() {
-        None | Some("none") => Screen::None,
-        Some("inventory") => Screen::Inventory,
-        Some(other) => {
-            reject("SCREEN", other, "expected none or inventory").unwrap_or(Screen::None)
-        }
+        None | Some("none") => false,
+        Some("inventory") => true,
+        Some(other) => reject("SCREEN", other, "expected none or inventory").unwrap_or(false),
     }
 }
 
@@ -499,6 +380,6 @@ pub fn terrain(limits: TerrainLimits) -> (Arc<Budget>, Uploads, CaveCull) {
         "meshing the columns the server sends"
     );
 
-    let cave = CaveCull::new(budget.sections);
+    let cave = CaveCull::new(budget.sections, cave());
     (budget, Uploads::default(), cave)
 }

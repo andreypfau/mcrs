@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupLayoutDescriptor, PipelineCache, WgpuFeatures,
+    BindGroup, BindGroupLayoutDescriptor, Buffer, PipelineCache, WgpuFeatures,
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
@@ -49,6 +49,10 @@ impl Terrain {
 
     pub fn draw_bind_group(&self) -> &BindGroup {
         &self.binds.draw
+    }
+
+    pub fn draw_args(&self) -> &Buffer {
+        &self.frame.args
     }
 
     /// Whether this frame has a second cull, and so a second set of draws after the first.

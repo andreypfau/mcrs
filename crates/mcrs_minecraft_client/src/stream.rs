@@ -1,5 +1,5 @@
 use std::collections::BinaryHeap;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use crate::columns::{
     BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
@@ -10,8 +10,9 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceSink, TraceEvent};
-use mcrs_minecraft_network::client::{ClientConnection, JoinedGame, ReceivedRegistries};
+#[cfg(feature = "dev")]
+use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
+use mcrs_minecraft_network::client::ReceivedRegistries;
 
 use crate::atlas::SpriteArray;
 use crate::blocks::{self, Catalog};
@@ -30,20 +31,27 @@ use mcrs_minecraft_render::{
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-static SECTIONS_IN_FLIGHT: LazyLock<usize> = LazyLock::new(crate::config::mesh_in_flight);
-
-static SECTIONS_PER_FRAME: LazyLock<usize> = LazyLock::new(crate::config::mesh_per_frame);
-
 const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
+
+#[derive(Resource, Clone, Copy)]
+pub struct MeshPacing {
+    pub per_frame: usize,
+    pub in_flight: usize,
+}
 
 pub struct StreamPlugin {
     budget: Arc<Budget>,
     uploads: Uploads,
+    pacing: MeshPacing,
 }
 
 impl StreamPlugin {
-    pub fn new(budget: Arc<Budget>, uploads: Uploads) -> Self {
-        Self { budget, uploads }
+    pub fn new(budget: Arc<Budget>, uploads: Uploads, pacing: MeshPacing) -> Self {
+        Self {
+            budget,
+            uploads,
+            pacing,
+        }
     }
 }
 
@@ -53,6 +61,7 @@ impl Plugin for StreamPlugin {
             .insert_resource(BlockCatalog::new())
             .insert_resource(ColumnTints::new(self.budget.tint_size))
             .insert_resource(self.uploads.clone())
+            .insert_resource(self.pacing)
             .add_systems(
                 Update,
                 (
@@ -62,7 +71,6 @@ impl Plugin for StreamPlugin {
                     tint_columns,
                     place_meshes,
                     flush_streams,
-                    record_traces,
                     admit_meshing,
                 )
                     .chain()
@@ -107,7 +115,8 @@ pub struct Loader {
     models: Arena,
     faces: Arena,
     groups: Arena,
-    trace: Vec<TraceEvent>,
+    #[cfg(feature = "dev")]
+    pub(crate) trace: Vec<TraceEvent>,
 }
 
 /// The block states the catalog has baked and still owes, and the bake running on the pool.
@@ -263,6 +272,7 @@ impl Loader {
             models: Arena::new(budget.models),
             faces: Arena::new(budget.faces),
             groups: Arena::new(budget.groups),
+            #[cfg(feature = "dev")]
             trace: Vec::new(),
         }
     }
@@ -489,6 +499,7 @@ impl Loader {
         for change in changes.drain(..) {
             match change {
                 ColumnChange::Departed(pos, column) => {
+                    #[cfg(feature = "dev")]
                     self.trace.push(TraceEvent::Forget(pos));
                     self.columns -= 1;
                     tints.to_tint.retain(|queued| *queued != pos);
@@ -502,6 +513,7 @@ impl Loader {
                     }
                 }
                 ColumnChange::Arrived(pos, column) => {
+                    #[cfg(feature = "dev")]
                     self.trace
                         .push(TraceEvent::mark(pos, ColumnStage::Received));
                     self.columns += 1;
@@ -607,6 +619,7 @@ impl Loader {
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
+        #[cfg(feature = "dev")]
         self.trace.push(TraceEvent::mark(
             ColumnPos::new(section[0], section[2]),
             ColumnStage::Meshed,
@@ -1305,7 +1318,10 @@ fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
     (camera.clamp(min, max) - camera).length()
 }
 
-fn can_stream(store: Option<Res<ColumnStore>>, cameras: Query<(), With<Camera3d>>) -> bool {
+pub(crate) fn can_stream(
+    store: Option<Res<ColumnStore>>,
+    cameras: Query<(), With<Camera3d>>,
+) -> bool {
     store.is_some() && cameras.single().is_ok()
 }
 
@@ -1469,7 +1485,7 @@ fn place_meshes(
     loader.remesh_relit(&store, &mut cave);
 }
 
-fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
+pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     let _flushing = info_span!("stream flush").entered();
     if loader.dirty
         && let Some(placement) = loader.flush()
@@ -1479,26 +1495,20 @@ fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     }
 }
 
-fn record_traces(
+fn admit_meshing(
     mut loader: ResMut<Loader>,
-    traces: Option<Res<ColumnTraceSink>>,
-    joined: Option<Single<&JoinedGame, With<ClientConnection>>>,
+    catalog: Res<BlockCatalog>,
+    store: Res<ColumnStore>,
+    pacing: Res<MeshPacing>,
 ) {
-    match (&traces, &joined) {
-        (Some(traces), Some(joined)) => traces.record(&joined.dimension, loader.trace.drain(..)),
-        _ => loader.trace.clear(),
-    }
-}
-
-fn admit_meshing(mut loader: ResMut<Loader>, catalog: Res<BlockCatalog>, store: Res<ColumnStore>) {
     if !catalog.caught_up() {
         return;
     }
     let _admitting = info_span!("stream admit").entered();
     let loader = &mut *loader;
     let pool = AsyncComputeTaskPool::get();
-    let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    let wanted = loader.take_wanted(room.min(*SECTIONS_PER_FRAME), &store);
+    let room = pacing.in_flight.saturating_sub(loader.meshing.len());
+    let wanted = loader.take_wanted(room.min(pacing.per_frame), &store);
     for (taken, &at) in wanted.iter().enumerate() {
         let Some(slot) = loader.take_slot() else {
             for &back in &wanted[taken..] {
@@ -1601,7 +1611,7 @@ mod tests {
     #[test]
     fn one_draw_a_bucket_covers_every_section_placed_in_it() {
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
 
         let near = loader
             .place(one_greedy_group([0, 0, 0], 0, 3), 0, &mut cave)
@@ -1665,7 +1675,7 @@ mod tests {
     fn blended_records_run_from_the_farthest_section_whatever_order_they_landed_in() {
         let blended_stream = (0..STREAMS).find(|&index| blended(index)).unwrap();
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         loader.look_from(Vec3::splat(8.0));
 
         let landed = [[1, 0, 0], [-3, 0, 0], [0, 0, 2], [3, 0, 0], [0, 1, 0]];
@@ -1711,7 +1721,7 @@ mod tests {
             upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 12);
+        let mut cave = CaveCull::new(1 << 12, true);
 
         // Past a thousand records the ask is a class the arena only has one of, so the
         // block the stream leaves has to be the room the next one comes out of.
@@ -1781,7 +1791,7 @@ mod tests {
             upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 10);
+        let mut cave = CaveCull::new(1 << 10, true);
 
         // Streams growing at their own rates leave the arena holding its room in pieces: at
         // 342 sections these three want 256, 1024 and 2048 records, which is 3584 of the 4096
@@ -1828,7 +1838,7 @@ mod tests {
             upload: 0,
             tint_size: [512; 2],
         });
-        let mut cave = CaveCull::new(1 << 13);
+        let mut cave = CaveCull::new(1 << 13, true);
 
         let placed = 5000u32;
         for index in 0..placed {
@@ -1941,7 +1951,7 @@ mod tests {
         };
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(extent);
 
@@ -1994,7 +2004,7 @@ mod tests {
         };
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,
@@ -2047,7 +2057,7 @@ mod tests {
         use crate::columns::{Column, Extent, Section};
 
         let mut loader = loader();
-        let mut cave = CaveCull::new(1 << 8);
+        let mut cave = CaveCull::new(1 << 8, true);
         let mut store = ColumnStore::default();
         store.enter(Extent {
             min_section_y: 0,

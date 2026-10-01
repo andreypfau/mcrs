@@ -4,33 +4,25 @@ use std::sync::{Arc, Mutex};
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderDevice, RenderQueue};
+use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::view::ExtractedView;
 use wgpu::{
     CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites,
     QUERY_RESOLVE_BUFFER_ALIGNMENT, QuerySet, QuerySetDescriptor, QueryType,
 };
 
+use mcrs_minecraft_render::{PassSlot, PassTimestamps, Terrain};
+
+use crate::counts::{ArgsReadback, DrawnTriangles, copy_args};
+use crate::heat::Heat;
 use crate::readback::{self, Gate, Reader};
 
-pub(crate) const CULL: usize = 0;
-pub(crate) const HEAT: usize = 1;
-pub(crate) const HIZ: usize = 2;
-pub(crate) const CULL_SECOND: usize = 3;
-pub(crate) const CULL_SECTIONS: usize = 4;
-pub(crate) const CULL_BLENDED: usize = 5;
-pub(crate) const CULL_QUADS: usize = 6;
-pub(crate) const CULL_QUADS_SECOND: usize = 7;
-pub const NAMES: [&str; 8] = [
-    "cull",
-    "heat",
-    "hiz",
-    "cull second",
-    "cull sections",
-    "cull blended",
-    "cull quads",
-    "cull quads second",
-];
-pub(crate) const SLOTS: usize = NAMES.len();
+const HEAT: usize = PassSlot::ALL.len();
+pub const SLOTS: usize = HEAT + 1;
+
+pub fn slot_name(slot: usize) -> &'static str {
+    PassSlot::ALL.get(slot).map_or("heat", |pass| pass.name())
+}
 
 const WINDOW: usize = 256;
 
@@ -387,11 +379,11 @@ const TIMESTAMP_BYTES: u64 = 8;
 const RESOLVE_BYTES: u64 = QUERY_RESOLVE_BUFFER_ALIGNMENT;
 
 #[derive(Resource)]
-pub(crate) struct PassTimestamps(pub bool);
+pub(crate) struct TimePasses(pub bool);
 
 pub(crate) fn init(
     mut commands: Commands,
-    enabled: Res<PassTimestamps>,
+    enabled: Res<TimePasses>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     timings: Res<GpuTimings>,
@@ -469,6 +461,30 @@ pub(crate) fn resolve(
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
+pub(crate) fn begin_frame(
+    _view: ViewQuery<&'static ExtractedView>,
+    queries: Option<Res<Queries>>,
+    timings: Res<GpuTimings>,
+    mut timestamps: ResMut<PassTimestamps>,
+    heat: Option<Res<Heat>>,
+    terrain: Option<Res<Terrain>>,
+    readback: Option<Res<ArgsReadback>>,
+    triangles: Res<DrawnTriangles>,
+    pipeline_cache: Res<PipelineCache>,
+    mut ctx: RenderContext,
+) {
+    let queries = timings.timed(queries.as_deref());
+    resolve(queries, &timings, ctx.command_encoder());
+    timestamps.queries = queries.map(|queries| (queries.set.clone(), timings.writing()));
+    if let Some(heat) = heat.as_deref() {
+        let writes = queries.map(|queries| queries.compute(HEAT, &timings));
+        heat.dispatch(&pipeline_cache, writes, ctx.command_encoder());
+    }
+    if let (Some(terrain), Some(readback)) = (terrain.as_deref(), readback.as_deref()) {
+        copy_args(terrain, readback, &triangles, ctx.command_encoder());
+    }
+}
+
 pub(crate) fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
     let Some(queries) = queries else {
         return;
@@ -525,11 +541,11 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 0.5, 4.0, 0.2, 0.0, 0.0, 0.0, 0.0]);
+            timings.push([1.0, 4.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
         }
-        timings.push([1.0, 0.5, 400.0, 0.2, 0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(timings.median(CULL), Some(1.0));
-        assert_eq!(timings.median(HIZ), Some(4.0));
+        timings.push([1.0, 400.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
+        assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
+        assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
     }
 
     #[test]
@@ -539,13 +555,13 @@ mod tests {
         let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
-        assert_eq!(timings.median(CULL), Some(2.0));
-        assert_eq!(timings.median(HIZ), None);
+        assert_eq!(timings.median(PassSlot::Cull as usize), Some(2.0));
+        assert_eq!(timings.median(PassSlot::Hiz as usize), None);
     }
 
     #[test]
     fn a_pass_with_no_frames_behind_it_reports_nothing() {
-        assert_eq!(GpuTimings::default().median(CULL), None);
+        assert_eq!(GpuTimings::default().median(PassSlot::Cull as usize), None);
     }
 
     #[test]
@@ -553,12 +569,12 @@ mod tests {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
         let ticks: [u64; SLOTS * 2] = [
-            0, 1_000_000, 0, 0, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
-        assert_eq!(timings.median(CULL), Some(1.0));
-        assert_eq!(timings.median(HIZ), Some(4.0));
+        assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
+        assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
     }
 
     #[test]
@@ -566,11 +582,17 @@ mod tests {
         let timings = GpuTimings::default();
         for ms in 1..=100 {
             let mut frame = [0.0; SLOTS];
-            frame[HIZ] = ms as f32;
+            frame[PassSlot::Hiz as usize] = ms as f32;
             timings.push(frame);
         }
-        assert_eq!(timings.median_and_p95(HIZ, 100), Some([51.0, 96.0]));
-        assert_eq!(timings.median_and_p95(HIZ, 10), Some([96.0, 100.0]));
+        assert_eq!(
+            timings.median_and_p95(PassSlot::Hiz as usize, 100),
+            Some([51.0, 96.0])
+        );
+        assert_eq!(
+            timings.median_and_p95(PassSlot::Hiz as usize, 10),
+            Some([96.0, 100.0])
+        );
     }
 
     #[test]
@@ -585,7 +607,10 @@ mod tests {
 
     #[test]
     fn median_and_p95_of_a_slot_without_samples_is_none() {
-        assert_eq!(GpuTimings::default().median_and_p95(CULL, 100), None);
+        assert_eq!(
+            GpuTimings::default().median_and_p95(PassSlot::Cull as usize, 100),
+            None
+        );
         assert_eq!(CpuTimings::default().median_and_p95(ENGINE, 100), None);
     }
 }

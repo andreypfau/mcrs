@@ -60,7 +60,7 @@ fn take(bytes: &[u8]) -> (&[u8], &[u8]) {
 /// certificate the server minted at startup, which it prints on its own
 /// listening line. There is no discovery endpoint to fetch them from.
 fn server() -> Option<mcrs_minecraft_network::client::ServerAddress> {
-    let (url, hash) = (query("server")?, query("cert")?);
+    let (url, hash) = (config::server()?, config::server_certificate()?);
     match target_from_query(&url, &hash) {
         Ok(target) => Some(target),
         Err(error) => {
@@ -90,7 +90,6 @@ pub fn run() {
     console_error_panic_hook::set_once();
 
     let frozen_at = config::frozen_time();
-    let sky_only = config::sky_draws_only();
 
     let mut app = App::new();
     register_asset_source(&mut app);
@@ -121,17 +120,15 @@ pub fn run() {
         );
     }
 
-    if let Some(only) = sky_only {
-        app.insert_resource(mcrs_minecraft_render::sky::SkyDrawsOnly(only));
-    }
-
     app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));
+    #[cfg(feature = "dev")]
+    app.add_plugins(crate::dev::DevPlugin);
 
     match server() {
         Some(server) => {
             app.add_plugins(ClientNetworkPlugin {
                 server,
-                username: query("username").unwrap_or_else(|| "Player".to_owned()),
+                username: config::username(),
                 profile_id: None,
                 view_distance: config::view_distance(),
             });

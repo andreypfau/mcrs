@@ -16,18 +16,16 @@ pub mod atlas;
 pub mod bake;
 pub mod blocks;
 pub mod camera;
-#[cfg(target_os = "macos")]
-pub mod capture;
 pub mod cave;
-pub mod chunk_guard;
 pub mod columns;
 pub mod config;
+#[cfg(feature = "dev")]
+pub mod dev;
 pub mod game_mode;
 pub mod gui;
 pub mod input;
 pub mod inventory;
 pub mod item_model;
-pub mod light_guard;
 pub mod light_volume;
 pub mod local_player;
 pub mod model;
@@ -81,27 +79,24 @@ impl Plugin for ClientTerrainPlugin {
         app.add_plugins(mcrs_minecraft_render::TerrainPlugin {
             budget: budget.clone(),
             uploads: uploads.clone(),
+        })
+        .add_plugins(mcrs_minecraft_render_probe::ProbePlugin {
             heat: config::gpu_hot(),
             timestamps: config::pass_timestamps(),
         })
         .add_plugins(render::GuiItemsPlugin)
-        .add_plugins(render::RasterPlugin)
-        .insert_resource(config::occlusion())
+        .insert_resource(mcrs_minecraft_render::Occlusion(config::occlusion()))
         .insert_resource(mcrs_minecraft_render::Brightness(config::brightness()))
-        .insert_resource(config::drawn_streams())
-        .insert_resource(config::raster_fraction())
-        .add_plugins(stream::StreamPlugin::new(budget, uploads))
+        .add_plugins(stream::StreamPlugin::new(
+            budget,
+            uploads,
+            stream::MeshPacing {
+                per_frame: config::mesh_per_frame(),
+                in_flight: config::mesh_in_flight(),
+            },
+        ))
         .insert_resource(cave)
-        .add_systems(
-            Update,
-            (
-                cave::toggle,
-                toggle_culls,
-                step_debug_view,
-                #[cfg(target_os = "macos")]
-                capture::gputrace,
-            ),
-        )
+        .add_systems(Update, (cave::toggle, toggle_culls, step_debug_view))
         .add_systems(
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),

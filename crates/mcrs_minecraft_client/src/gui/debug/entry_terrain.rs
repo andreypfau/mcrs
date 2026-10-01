@@ -4,13 +4,12 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use super::DebugScreenDisplayer;
 use crate::cave::CaveCull;
 use crate::stream::Streaming;
-use mcrs_minecraft_render::{DebugViews, DrawnTriangles, SelectedView};
+use mcrs_minecraft_render::{DebugViews, SelectedView};
 
 pub const GROUP: ResourceLocation<&'static str> = ResourceLocation::new_static("minecraft:terrain");
 
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
-    triangles: Res<DrawnTriangles>,
     cave: Res<CaveCull>,
     streaming: Streaming,
     views: Res<DebugViews>,
@@ -18,11 +17,6 @@ pub fn display(
 ) {
     let status = streaming.status();
     let mut lines = vec![
-        format!(
-            "Tris: {} ({} hidden behind terrain)",
-            triangles.get(),
-            triangles.hidden()
-        ),
         format!(
             "Sections: {}/{} in {} columns, {} evicted",
             status.sections, status.sections_total, status.columns, status.evicted

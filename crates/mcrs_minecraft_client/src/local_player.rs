@@ -14,6 +14,8 @@ use mcrs_minecraft_protocol::{Look, MoveFlags, VarInt, WritePacket};
 use mcrs_minecraft_world::entity::movement;
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed, Input};
 
+#[cfg(feature = "dev")]
+use crate::dev::flight::ScriptedFlight;
 use crate::input;
 use crate::player::Player;
 
@@ -119,12 +121,6 @@ impl LastSentMovement {
         self.flags = flags;
         packet
     }
-}
-
-#[derive(Resource)]
-pub struct ScriptedFlight {
-    pub turn_at: Option<f32>,
-    pub turned: bool,
 }
 
 /// The look a run asked for, kept through the teleports the server answers a join with.
@@ -238,8 +234,8 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
 fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    scripted: Option<ResMut<ScriptedFlight>>,
-    time: Res<Time>,
+    #[cfg(feature = "dev")] scripted: Option<ResMut<ScriptedFlight>>,
+    #[cfg(feature = "dev")] time: Res<Time>,
     player: Single<
         (
             &mut Sprint,
@@ -251,23 +247,13 @@ fn fly(
     >,
 ) {
     let (mut sprint, mut velocity, mut transform, flying_speed) = player.into_inner();
-    let input = if let Some(mut scripted) = scripted {
-        if let Some(turn_at) = scripted.turn_at
-            && !scripted.turned
-            && time.elapsed_secs() >= turn_at
-        {
-            scripted.turned = true;
-            let rotation = transform.rotation;
-            transform.rotation = Rotation::new(rotation.yaw() + 180.0, rotation.pitch());
-        }
-        Input {
-            forward: true,
-            sprint: true,
-            ..Input::EMPTY
-        }
-    } else {
-        input::pressed(&keys, &cursor)
+    #[cfg(feature = "dev")]
+    let input = match scripted {
+        Some(mut scripted) => scripted.input(&mut transform, time.elapsed_secs()),
+        None => input::pressed(&keys, &cursor),
     };
+    #[cfg(not(feature = "dev"))]
+    let input = input::pressed(&keys, &cursor);
     let yaw = transform.rotation.yaw();
     tick(
         &mut sprint,

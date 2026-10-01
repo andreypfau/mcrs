@@ -11,19 +11,27 @@ use bevy::prelude::*;
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 
-use crate::config::Guard;
+use super::knobs::Guard;
 use crate::player::Player;
 
-pub struct ChunkGuardPlugin;
+pub struct ChunkGuardPlugin {
+    pub level: Guard,
+}
 
 impl Plugin for ChunkGuardPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ChunkGuard>().add_systems(Update, check);
+        app.insert_resource(ChunkGuard {
+            level: self.level,
+            armed: false,
+            reported: 0,
+        })
+        .add_systems(Update, check);
     }
 }
 
-#[derive(Default, Resource)]
+#[derive(Resource)]
 pub struct ChunkGuard {
+    level: Guard,
     armed: bool,
     reported: usize,
 }
@@ -33,9 +41,6 @@ fn check(
     store: Option<Res<ColumnStore>>,
     camera: Option<Single<&PhysicsTransform, With<Player>>>,
 ) {
-    let Some(level) = crate::config::chunk_guard() else {
-        return;
-    };
     let (Some(store), Some(camera)) = (store, camera) else {
         return;
     };
@@ -64,7 +69,7 @@ fn check(
         resident = store.len(),
         "the player is standing in a column the client does not hold"
     );
-    if level == Guard::Panic {
+    if guard.level == Guard::Panic {
         panic!(
             "chunk guard: the player is at {feet:?}, in column {},{}, which the client does \
              not hold ({} columns resident) — the camera has outrun the loader",

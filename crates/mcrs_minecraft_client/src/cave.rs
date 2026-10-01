@@ -159,9 +159,9 @@ struct Walker {
 }
 
 impl CaveCull {
-    pub fn new(slots: usize) -> Self {
+    pub fn new(slots: usize, enabled: bool) -> Self {
         Self {
-            enabled: !std::env::var("MCRS_CAVE").is_ok_and(|on| on == "0"),
+            enabled,
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             generation: 0,
             corner: [0; 3],
@@ -520,7 +520,7 @@ mod tests {
 
         /// Every cell as the loader leaves one it has never reached: open air with no slot.
         fn in_the_open(eye: Vec3) -> Self {
-            let mut cave = CaveCull::new(WALK_CELLS);
+            let mut cave = CaveCull::new(WALK_CELLS, true);
             cave.follow(eye);
             Self {
                 cave,

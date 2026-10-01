@@ -4,15 +4,19 @@ use objc2_metal::{
     MTLCaptureDescriptor, MTLCaptureDestination, MTLCaptureManager, MTLCreateSystemDefaultDevice,
 };
 
-use crate::{config, stream};
+use crate::stream;
 
 // Rendering runs a frame behind the update loop, so a couple of ticks after the capture
 // opens may hold no complete frame at all; ten always covers several.
 const FRAMES: u32 = 10;
 
+#[derive(Resource)]
+pub struct AutoTrace(pub Option<String>);
+
 pub fn gputrace(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
+    auto: Res<AutoTrace>,
     streaming: stream::Streaming,
     mut settled: Local<u32>,
     mut left: Local<u32>,
@@ -22,17 +26,16 @@ pub fn gputrace(
         if *left == 0 {
             unsafe { MTLCaptureManager::sharedCaptureManager() }.stopCapture();
             info!("gpu trace written");
-            if config::gputrace_path().is_some() {
+            if auto.0.is_some() {
                 commands.write_message(AppExit::Success);
             }
         }
         return;
     }
-    let auto = config::gputrace_path();
-    if auto.is_some() && streaming.done() {
+    if auto.0.is_some() && streaming.done() {
         *settled += 1;
     }
-    let path = match (&auto, keys.just_pressed(KeyCode::F9)) {
+    let path = match (&auto.0, keys.just_pressed(KeyCode::F9)) {
         (Some(path), _) if *settled == 30 => path.clone(),
         (_, true) => "mcrs.gputrace".to_string(),
         _ => return,

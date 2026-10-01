@@ -3,7 +3,7 @@ use bevy::render::renderer::RenderQueue;
 
 use mcrs_minecraft_mesh::{Draw, STREAMS, stream_is_model, stream_pass};
 
-use super::Streams;
+use super::DrawMask;
 use super::layer::LayerGroup;
 
 pub(super) const PARAMS_STRIDE: u32 = 256;
@@ -98,10 +98,10 @@ impl DrawList {
     pub fn drawn<'a>(
         &'a self,
         group: LayerGroup,
-        streams: &'a Streams,
+        mask: &'a DrawMask,
     ) -> impl Iterator<Item = (usize, &'a Draw)> {
         self.draws.iter().enumerate().filter(move |(_, draw)| {
-            draw.quad_count != 0 && group.holds(draw.stream) && streams.drawn(draw.stream)
+            draw.quad_count != 0 && group.holds(draw.stream) && mask.drawn(draw.stream)
         })
     }
 }

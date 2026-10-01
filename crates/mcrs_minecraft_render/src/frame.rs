@@ -69,7 +69,6 @@ pub(super) struct Frame {
     // Copied over `args` once a frame so the cull pass starts from zeroed instance counts
     // without one small clear per draw.
     pub args_reset: Buffer,
-    pub args_readback: Buffer,
     /// The dispatch sizes the cull computes into `args`, copied here because a dispatch cannot
     /// read its size from a buffer it may also write.
     pub dispatch: Buffer,
@@ -117,12 +116,6 @@ impl Frame {
                 label: Some("terrain cull dispatch"),
                 size: super::stats::DISPATCH_BYTES,
                 usage: BufferUsages::INDIRECT | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
-            args_readback: device.create_buffer(&BufferDescriptor {
-                label: Some("terrain draw args readback"),
-                size: size_of_val(args_init.as_slice()) as u64,
-                usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
         }

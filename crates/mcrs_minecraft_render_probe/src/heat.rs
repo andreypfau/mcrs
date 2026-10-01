@@ -3,10 +3,8 @@ use bevy::render::render_resource::binding_types::storage_buffer_sized;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::shader::ShaderDefVal;
-
-use crate::probe::{self, GpuTimings, Queries};
-
-use super::terrain::Terrain;
+use mcrs_minecraft_render::Terrain;
+use wgpu::ComputePassTimestampWrites;
 
 const HEAT_THREADS: u32 = 256;
 
@@ -26,16 +24,18 @@ pub(super) struct HeatWorkgroups(pub u32);
 
 pub(super) fn init_heat(
     mut commands: Commands,
-    workgroups: Option<Res<HeatWorkgroups>>,
+    workgroups: Res<HeatWorkgroups>,
     device: Res<RenderDevice>,
-    terrain: Res<Terrain>,
+    terrain: Option<Res<Terrain>>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let Some(&HeatWorkgroups(workgroups)) = workgroups.as_deref() else {
+    let Some(terrain) = terrain else {
         return;
     };
-    let workgroups = workgroups.min(device.limits().max_compute_workgroups_per_dimension);
+    let workgroups = workgroups
+        .0
+        .min(device.limits().max_compute_workgroups_per_dimension);
     let layout = BindGroupLayoutDescriptor::new(
         "gpu heat",
         &BindGroupLayoutEntries::single(ShaderStages::COMPUTE, storage_buffer_sized(false, None)),
@@ -43,12 +43,12 @@ pub(super) fn init_heat(
     let bind = device.create_bind_group(
         "gpu heat",
         &pipeline_cache.get_bind_group_layout(&layout),
-        &BindGroupEntries::single(terrain.frame.args.as_entire_buffer_binding()),
+        &BindGroupEntries::single(terrain.draw_args().as_entire_buffer_binding()),
     );
     let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("gpu heat".into()),
         layout: vec![layout],
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/heat.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render_probe/shaders/heat.wgsl"),
         shader_defs: vec![ShaderDefVal::UInt("HEAT_THREADS".into(), HEAT_THREADS)],
         entry_point: Some("heat".into()),
         ..default()
@@ -64,14 +64,12 @@ impl Heat {
     pub fn dispatch(
         &self,
         pipeline_cache: &PipelineCache,
-        queries: Option<&Queries>,
-        timings: &GpuTimings,
+        timestamps: Option<ComputePassTimestampWrites<'_>>,
         encoder: &mut CommandEncoder,
     ) {
         let Some(pipeline) = pipeline_cache.get_compute_pipeline(self.pipeline) else {
             return;
         };
-        let timestamps = queries.map(|q| q.compute(probe::HEAT, timings));
         let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("gpu heat"),
             timestamp_writes: timestamps,

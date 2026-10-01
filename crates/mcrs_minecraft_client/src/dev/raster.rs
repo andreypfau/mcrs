@@ -13,8 +13,8 @@ use bevy::render::texture::GpuImage;
 use bevy::render::view::{ExtractedView, Msaa, ViewTarget};
 use bevy::window::PrimaryWindow;
 
-use super::gui_items::draw_gui;
 use crate::player::PlayerCamera;
+use crate::render::gui_items::draw_gui;
 
 #[derive(Resource, Clone, Copy)]
 pub struct Raster(pub f32);

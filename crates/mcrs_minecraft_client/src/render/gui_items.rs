@@ -57,7 +57,7 @@ struct GuiUniform {
 }
 
 #[derive(Resource)]
-pub(super) struct GuiPass {
+pub(crate) struct GuiPass {
     layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
     uniform: Buffer,
@@ -329,7 +329,7 @@ pub(super) fn write_gui_buffers(
 /// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
 /// Every item element then gets its own slice of the depth range, so its own geometry is
 /// depth-tested against itself and later elements land over earlier ones by draw order.
-pub(super) fn draw_gui(
+pub(crate) fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
         &ViewDepthTexture,

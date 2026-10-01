@@ -8,6 +8,7 @@ edition.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_render_light_color.workspace = true
+mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
@@ -74,8 +75,9 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
 
 [features]
-default = ["singleplayer"]
+default = ["singleplayer", "dev"]
 singleplayer = ["dep:mcrs_minecraft_server"]
+dev = []
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.
 dynamic_linking = ["bevy/dynamic_linking"]

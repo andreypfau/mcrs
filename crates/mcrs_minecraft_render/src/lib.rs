@@ -7,13 +7,10 @@ mod binds;
 mod draws;
 mod frame;
 mod gbuffer;
-mod heat;
 mod hiz;
 mod layer;
 mod pass;
 mod pipeline;
-pub mod probe;
-mod readback;
 mod reconstruct;
 mod shaders;
 mod show;
@@ -22,6 +19,7 @@ mod sprites;
 mod stats;
 mod terrain;
 mod texture;
+mod timestamps;
 mod upload;
 mod views;
 
@@ -39,7 +37,6 @@ use bevy::render::render_resource::{
 };
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::probe::{CpuTimings, GpuTimings};
 use mcrs_minecraft_mesh::STREAMS;
 
 pub use frame::{CameraOrigin, clip_from_relative};
@@ -47,8 +44,9 @@ pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
 pub use show::{DepthDisplay, DepthSource};
-pub use stats::{DrawnTriangles, FrameCounts};
+pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
 pub use terrain::Terrain;
+pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
 pub use views::{DebugView, DebugViews, SelectedView};
 
@@ -128,9 +126,9 @@ pub struct SpriteEntry {
 }
 
 #[derive(Resource, Clone, Copy, ExtractResource)]
-pub struct Streams(pub u32);
+pub struct DrawMask(pub u32);
 
-impl Streams {
+impl DrawMask {
     pub(crate) const ALL: u32 = (1 << STREAMS) - 1;
 
     fn drawn(&self, stream: u32) -> bool {
@@ -138,7 +136,7 @@ impl Streams {
     }
 }
 
-impl Default for Streams {
+impl Default for DrawMask {
     fn default() -> Self {
         Self(Self::ALL)
     }
@@ -206,7 +204,6 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/heat.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/show.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wgsl");
@@ -246,76 +243,43 @@ impl WorldPass {
 pub struct TerrainPlugin {
     pub budget: Arc<Budget>,
     pub uploads: Uploads,
-    /// Workgroups of arithmetic burnt each frame to keep the GPU clocked up while passes are timed.
-    pub heat: Option<u32>,
-    pub timestamps: bool,
 }
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         embed_shaders(app);
 
-        let triangles = DrawnTriangles::default();
-        let timings = GpuTimings::default();
-        let cpu = CpuTimings::default();
-        let counts = FrameCounts::default();
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
             .init_resource::<Brightness>()
-            .init_resource::<Streams>()
+            .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
             .init_resource::<SelectedView>()
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
-            .add_plugins(ExtractResourcePlugin::<Streams>::default())
+            .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
-            .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default())
-            .insert_resource(triangles.clone())
-            .insert_resource(timings.clone())
-            .insert_resource(cpu.clone())
-            .insert_resource(counts.clone())
-            .add_systems(First, probe::frame_started.after(bevy::time::TimeSystems))
-            .add_systems(Last, probe::main_ended)
-            .add_systems(PostStartup, probe::log_system_counts);
+            .add_plugins(ExtractResourcePlugin::<CameraOrigin>::default());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
-            .insert_resource(triangles)
-            .insert_resource(timings)
-            .insert_resource(cpu)
-            .insert_resource(counts)
             .insert_resource(TerrainBudget(self.budget.clone()))
             .insert_resource(self.uploads.clone())
-            .insert_resource(probe::PassTimestamps(self.timestamps))
+            .init_resource::<FrameCounts>()
+            .init_resource::<PassTimestamps>()
             .init_resource::<pipeline::DeferredPipelines>()
             .add_systems(
                 RenderStartup,
-                (
-                    terrain::init_terrain,
-                    heat::init_heat.after(terrain::init_terrain),
-                    show::init_depth_display,
-                    probe::init,
-                    probe::log_system_counts,
-                ),
+                (terrain::init_terrain, show::init_depth_display),
             )
             .add_systems(
                 Render,
                 (
-                    probe::extracted.before(RenderSystems::ExtractCommands),
-                    probe::acquiring.before(bevy::render::view::window::prepare_windows),
-                    probe::acquired.after(bevy::render::view::window::prepare_windows),
-                    probe::prepared
-                        .after(RenderSystems::Prepare)
-                        .before(RenderSystems::Render),
-                    probe::rendered
-                        .after(RenderSystems::Render)
-                        .before(RenderSystems::Cleanup),
-                    probe::cleaned.in_set(RenderSystems::PostCleanup),
                     show::prepare_depth_display.in_set(RenderSystems::Prepare),
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
@@ -328,8 +292,6 @@ impl Plugin for TerrainPlugin {
                     )
                         .chain()
                         .in_set(RenderSystems::PrepareBindGroups),
-                    stats::read_draw_args.in_set(RenderSystems::Cleanup),
-                    probe::read.in_set(RenderSystems::Cleanup),
                     upload::recall_staging.in_set(RenderSystems::Cleanup),
                 ),
             )
@@ -368,9 +330,6 @@ impl Plugin for TerrainPlugin {
                 ScheduleCleanupPolicy::RemoveSystemsOnly,
             )
             .expect("the 3d core pipeline adds its opaque pass");
-        if let Some(workgroups) = self.heat {
-            render_app.insert_resource(heat::HeatWorkgroups(workgroups));
-        }
     }
 
     fn finish(&self, app: &mut App) {

@@ -5,8 +5,7 @@ use bevy::render::render_resource::binding_types::{
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthTexture;
-
-use crate::probe::{self, GpuTimings, Queries};
+use wgpu::ComputePassTimestampWrites;
 
 const THREADS: u32 = 8;
 
@@ -137,8 +136,7 @@ impl Hiz {
     pub fn build(
         &self,
         pipeline_cache: &PipelineCache,
-        queries: Option<&Queries>,
-        timings: &GpuTimings,
+        timestamps: Option<ComputePassTimestampWrites<'_>>,
         encoder: &mut CommandEncoder,
     ) {
         let (Some(from_depth), Some(down)) = (
@@ -147,7 +145,6 @@ impl Hiz {
         ) else {
             return;
         };
-        let timestamps = queries.map(|q| q.compute(probe::HIZ, timings));
         let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("hiz"),
             timestamp_writes: timestamps,

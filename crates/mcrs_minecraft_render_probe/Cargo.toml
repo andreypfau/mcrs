@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_render_probe"
+description = "GPU pass timings, CPU stage timings, draw counters and GPU warm-up for the terrain renderer"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_mesh.workspace = true
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_image",
+] }
+bytemuck = { version = "1", features = ["derive"] }
+# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
+wgpu = { version = "29", default-features = false }
