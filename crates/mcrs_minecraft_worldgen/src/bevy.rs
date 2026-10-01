@@ -420,7 +420,7 @@ impl AssetLoader for TemplateLoader {
 /// The JSON a worldgen asset parses from and the ids that JSON names. Loading is
 /// the same for every one of them: parse, turn the ids into handles, keep both.
 trait WorldgenAsset: Asset {
-    type Proto: DeserializeOwned;
+    type Proto: DeserializeOwned + Send;
 
     fn references(proto: &Self::Proto) -> References;
 
@@ -465,7 +465,9 @@ impl<A: WorldgenAsset> AssetLoader for WorldgenAssetLoader<A> {
         let bytes = read_all(reader).await?;
         let proto = serde_json::from_slice::<A::Proto>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        let deps = AssetRefs::load(&A::references(&proto), load_context);
+        let mut refs = A::references(&proto);
+        retain_shipped_templates(&mut refs.templates, load_context).await;
+        let deps = AssetRefs::load(&refs, load_context);
         Ok(A::build(proto, deps))
     }
 }
@@ -628,6 +630,23 @@ impl References {
             _ => {}
         }
     }
+}
+
+/// Vanilla's corpus names templates it does not ship (26.3's ancient city pools list a fifth wall
+/// staircase), and vanilla places an empty template for them without a word. A missing file
+/// requested as a dependency is logged as an error by the asset server, so it is not requested.
+async fn retain_shipped_templates(
+    templates: &mut BTreeSet<ResourceLocation>,
+    load_context: &mut LoadContext<'_>,
+) {
+    let mut shipped = BTreeSet::new();
+    for id in std::mem::take(templates) {
+        let path = format!("{}/structure/{}.nbt", id.namespace(), id.path());
+        if load_context.read_asset_bytes(path).await.is_ok() {
+            shipped.insert(id);
+        }
+    }
+    *templates = shipped;
 }
 
 fn handles<A: Asset>(
