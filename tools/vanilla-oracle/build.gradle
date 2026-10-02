@@ -176,6 +176,14 @@ tasks.register('dumpDefinitions', JavaExec) {
 	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
 }
 
+tasks.register('dumpChunks', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.ChunkFiles'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/chunks-out".toString()]
+}
+
 tasks.register('dumpGolden', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath

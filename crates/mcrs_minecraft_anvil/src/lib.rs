@@ -9,6 +9,8 @@ mod write;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vanilla_files;
 
 pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use palette::{PaletteLookup, Properties};

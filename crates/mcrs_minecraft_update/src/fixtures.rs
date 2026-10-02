@@ -14,6 +14,7 @@ const GENERATOR_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_generator/src/t
 const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text";
 const ITEM_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/item";
 const PROTOCOL_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures";
+const ANVIL_FIXTURES: &str = "crates/mcrs_minecraft_anvil/src/fixtures/vanilla";
 const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla";
 
 pub enum Files {
@@ -163,6 +164,18 @@ pub const FIXTURES: &[Fixture] = &[
         task: "dumpStructureGeometry",
         golden: None,
         outputs: &[named("structure_geometry.bin", GENERATOR_FIXTURES)],
+    },
+    Fixture {
+        name: "vanilla_chunk",
+        project: ORACLE,
+        task: "dumpChunks",
+        golden: None,
+        outputs: &[
+            named("chunk_full.nbt", ANVIL_FIXTURES),
+            named("chunk_terrain.nbt", ANVIL_FIXTURES),
+            named("chunk_retrogen.nbt", ANVIL_FIXTURES),
+            named("chunk_retrogen_minimal.nbt", ANVIL_FIXTURES),
+        ],
     },
     Fixture {
         name: "snbt",
