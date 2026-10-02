@@ -23,11 +23,13 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -41,9 +43,11 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
@@ -51,11 +55,15 @@ import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.ServerPacksSource;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.HashOps;
 import net.minecraft.util.Unit;
+import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.JukeboxPlayable;
+import net.minecraft.world.item.JukeboxSong;
 
 final class ItemGoldens {
     private static final HexFormat HEX = HexFormat.of();
@@ -64,6 +72,50 @@ final class ItemGoldens {
         ItemStackTemplate.class, ItemStack.class, DataComponentPatch.class, DataComponentMap.class, DataComponentExactPredicate.class
     );
     private static final Set<Class<?>> REFERENCES = Set.of(Holder.class, HolderSet.class, ResourceKey.class, TagKey.class, Registry.class);
+
+    private static final Map<String, String> RECORD_KINDS = Map.ofEntries(
+        Map.entry("use_effects", "use_effects"),
+        Map.entry("cmd", "custom_model_data"),
+        Map.entry("tooltip", "tooltip_display"),
+        Map.entry("tooltip_style", "tooltip_style"),
+        Map.entry("food", "food"),
+        Map.entry("cooldown", "use_cooldown"),
+        Map.entry("weapon", "weapon"),
+        Map.entry("attack_range", "attack_range"),
+        Map.entry("block_state", "block_state"),
+        Map.entry("writable", "writable_book_content"),
+        Map.entry("written", "written_book_content"),
+        Map.entry("profile", "profile"),
+        Map.entry("lodestone", "lodestone_tracker"),
+        Map.entry("explosion", "firework_explosion"),
+        Map.entry("fireworks", "fireworks"),
+        Map.entry("bucket", "bucket_entity_data"),
+        Map.entry("map_dec", "map_decorations"),
+        Map.entry("debug", "debug_stick_state"),
+        Map.entry("recipes", "recipes"),
+        Map.entry("loot", "container_loot"),
+        Map.entry("compostable", "compostable"),
+        Map.entry("cooking", "cooking_fuel"),
+        Map.entry("brewing", "brewing_fuel"),
+        Map.entry("sign", "sign_text_front"),
+        Map.entry("sign_full", "sign_text_back"),
+        Map.entry("item_model", "item_model"),
+        Map.entry("note_block_sound", "note_block_sound")
+    );
+    private static final Map<String, String> RECORD_INPUTS = Map.ofEntries(
+        Map.entry("use_effects_range", "{\"speed_multiplier\":1.5}"),
+        Map.entry("food_neg", "{\"nutrition\":-1,\"saturation\":0.6}"),
+        Map.entry("cooldown_zero", "{\"seconds\":0}"),
+        Map.entry("attack_range_bad", "{\"mob_factor\":2.5}"),
+        Map.entry("written_gen", "{\"title\":\"T\",\"author\":\"me\",\"generation\":4}"),
+        Map.entry("profile_bad_name", "{\"name\":\"has space\"}"),
+        Map.entry("profile_long_name", "\"abcdefghijklmnopq\""),
+        Map.entry("lodestone_bad_pos", "{\"target\":{\"dimension\":\"minecraft:overworld\",\"pos\":[1,2]}}"),
+        Map.entry("map_dec_bad", "{\"m1\":{\"type\":\"minecraft:nope\",\"x\":1.5,\"z\":-2.5,\"rotation\":90.0}}"),
+        Map.entry("debug_bad", "{\"minecraft:oak_log\":\"nope\"}"),
+        Map.entry("sign_three", "{\"messages\":[\"a\",\"b\",\"c\"]}"),
+        Map.entry("bucket_snbt", "\"{Health:3.0f}\"")
+    );
 
     private ItemGoldens() {}
 
@@ -153,6 +205,263 @@ final class ItemGoldens {
         JsonObject out = new JsonObject();
         out.add("kinds", rows);
         write(output, "  ", true, out);
+    }
+
+    static void holders(final Path current, final Path output) throws Exception {
+        withSession(session -> {
+            List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
+            List<String> out = new ArrayList<>();
+            int index = 0;
+            while (index < in.size()) {
+                String line = in.get(index);
+                if (line.startsWith("id ")) {
+                    out.add(idLine(session, line, false));
+                    index++;
+                    continue;
+                }
+                String label = line.substring(0, line.indexOf(' '));
+                List<String> group = new ArrayList<>();
+                while (index < in.size() && in.get(index).startsWith(label + " ")) {
+                    group.add(in.get(index++));
+                }
+                out.addAll(attempt(label, group, () -> holderCase(session, label, component(holderKind(label)), group)));
+            }
+            writeLines(output, out);
+        });
+    }
+
+    static void registryRefs(final Path current, final Path output) throws Exception {
+        withSession(session -> {
+            List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
+            List<String> out = new ArrayList<>();
+            int index = 0;
+            while (index < in.size()) {
+                String line = in.get(index++);
+                if (line.startsWith("id ")) {
+                    out.add(idLine(session, line, true));
+                    continue;
+                }
+                if (!line.startsWith("sample ")) {
+                    throw new IllegalStateException("unexpected line: " + line);
+                }
+                List<String> group = new ArrayList<>();
+                while (index < in.size() && in.get(index).startsWith("  ")) {
+                    group.add(in.get(index++));
+                }
+                String header = line;
+                out.add(header);
+                out.addAll(attempt(header, group, () -> {
+                    String rest = header.substring("sample ".length());
+                    int space = rest.indexOf(' ');
+                    return referenceSample(session, component(rest.substring(0, space)), rest.substring(space + 1), group);
+                }));
+            }
+            writeLines(output, out);
+        });
+    }
+
+    static void records(final Path current, final Path output) throws Exception {
+        withSession(session -> {
+            List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
+            List<String> out = new ArrayList<>();
+            int index = 0;
+            while (index < in.size()) {
+                String label = in.get(index).substring(0, in.get(index).indexOf(' '));
+                List<String> group = new ArrayList<>();
+                while (index < in.size() && in.get(index).startsWith(label + " ")) {
+                    group.add(in.get(index++));
+                }
+                out.addAll(attempt(label, group, () -> recordRows(session, label, component(recordKind(label)), group)));
+            }
+            writeLines(output, out);
+        });
+    }
+
+    @FunctionalInterface
+    private interface Lines {
+        List<String> write() throws Exception;
+    }
+
+    private static List<String> attempt(final String label, final List<String> group, final Lines lines) throws Exception {
+        try {
+            return lines.write();
+        } catch (RuntimeException failure) {
+            throw new IllegalStateException(label + " " + group, failure);
+        }
+    }
+
+    private static String idLine(final Session session, final String line, final boolean namespacedRegistry) {
+        String[] parts = line.split(" ");
+        if (parts.length != 4) {
+            throw new IllegalStateException("malformed id line: " + line);
+        }
+        Identifier registryId = namespacedRegistry ? Identifier.parse(parts[1]) : Identifier.withDefaultNamespace(parts[1]);
+        Registry<?> registry = session.access().lookupOrThrow(ResourceKey.createRegistryKey(registryId));
+        Object entry = registry.getValue(Identifier.parse(parts[2]));
+        if (entry == null) {
+            throw new IllegalStateException("registry " + parts[1] + " has no entry " + parts[2]);
+        }
+        return "id " + parts[1] + " " + parts[2] + " " + rawId(registry, entry);
+    }
+
+    private static boolean isComponent(final String id) {
+        return BuiltInRegistries.DATA_COMPONENT_TYPE.containsKey(Identifier.withDefaultNamespace(id));
+    }
+
+    private static String holderKind(final String label) {
+        for (String candidate = label; ; candidate = candidate.substring(0, candidate.lastIndexOf('_'))) {
+            if (isComponent(candidate)) {
+                return candidate;
+            }
+            if (isComponent(candidate.replace('_', '/'))) {
+                return candidate.replace('_', '/');
+            }
+            if (candidate.indexOf('_') < 0) {
+                throw new IllegalStateException("no component kind for label " + label);
+            }
+        }
+    }
+
+    private static String recordKind(final String label) {
+        String best = null;
+        for (String prefix : RECORD_KINDS.keySet()) {
+            if ((label.equals(prefix) || label.startsWith(prefix + "_")) && (best == null || prefix.length() > best.length())) {
+                best = prefix;
+            }
+        }
+        if (best == null) {
+            throw new IllegalStateException("no component kind for label " + label);
+        }
+        return RECORD_KINDS.get(best);
+    }
+
+    private static String keyOf(final String line, final int skip) {
+        String[] parts = line.trim().split(" ", skip + 2);
+        return parts[skip];
+    }
+
+    private static <T> List<String> holderCase(
+        final Session session, final String label, final DataComponentType<T> type, final List<String> group
+    ) throws Exception {
+        T value = null;
+        for (String line : group) {
+            if (keyOf(line, 1).equals("in")) {
+                String input = line.substring((label + " in ").length());
+                DataResult<T> parsed = type.codecOrThrow().parse(session.json(), JsonParser.parseString(input));
+                value = parsed.result().orElseThrow(() -> new IllegalStateException("now rejected: " + parsed.error().orElseThrow().message()));
+            }
+        }
+        if (value == null) {
+            value = wireOnlyValue(session, label, type);
+        }
+        List<String> out = new ArrayList<>();
+        for (String line : group) {
+            String key = line.split(" ", 3)[1];
+            out.add(switch (key) {
+                case "in" -> line;
+                case "json" -> label + " json " + json(session, type, value);
+                case "nbt" -> label + " nbt " + NbtGoldens.binary(nbt(session, type, value));
+                case "hash" -> label + " hash " + hash(session, type, value);
+                case "wire" -> label + " wire " + wire(session, type, value);
+                default -> throw new IllegalStateException("unknown field '" + key + "'");
+            });
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T wireOnlyValue(final Session session, final String label, final DataComponentType<T> type) {
+        Registry<SoundEvent> sounds = session.access().lookupOrThrow(Registries.SOUND_EVENT);
+        Holder<SoundEvent> itemBreak = sounds.getOrThrow(ResourceKey.create(Registries.SOUND_EVENT, Identifier.parse("entity.item.break")));
+        Object value = switch (label) {
+            case "jukebox_playable_direct" -> new JukeboxPlayable(Holder.direct(new JukeboxSong(itemBreak, Component.literal("Song"), 12.5F, 7)));
+            case "jukebox_playable_direct_sound" -> new JukeboxPlayable(Holder.direct(new JukeboxSong(
+                Holder.direct(SoundEvent.createVariableRangeEvent(Identifier.parse("mcrs:song"))), Component.translatable("song.mcrs"), 1.0F, 0
+            )));
+            case "painting_variant_direct" -> Holder.direct(new PaintingVariant(
+                2, 1, Identifier.parse("mcrs:art"), Optional.of(Component.literal("T")), Optional.empty()
+            ));
+            case "painting_variant_direct_both" -> Holder.direct(new PaintingVariant(
+                16, 16, Identifier.parse("mcrs:big"), Optional.empty(), Optional.of(Component.translatable("author.mcrs"))
+            ));
+            default -> throw new IllegalStateException("label " + label + " has no input and no value built for it");
+        };
+        DataComponentType<?> expected = label.startsWith("jukebox_playable") ? DataComponents.JUKEBOX_PLAYABLE : DataComponents.PAINTING_VARIANT;
+        if (type != expected) {
+            throw new IllegalStateException("label " + label + " is not a value of " + BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type));
+        }
+        return (T) value;
+    }
+
+    private static <T> List<String> referenceSample(
+        final Session session, final DataComponentType<T> type, final String input, final List<String> group
+    ) throws Exception {
+        boolean wasError = group.stream().anyMatch(line -> keyOf(line, 0).equals("error"));
+        DataResult<T> parsed = type.codecOrThrow().parse(session.json(), JsonParser.parseString(input));
+        if (wasError != parsed.result().isEmpty()) {
+            throw new IllegalStateException(wasError ? "now accepted" : "now rejected: " + parsed.error().orElseThrow().message());
+        }
+        if (wasError) {
+            return List.of("  error " + parsed.error().orElseThrow().message());
+        }
+        T value = parsed.result().orElseThrow();
+        List<String> out = new ArrayList<>();
+        for (String line : group) {
+            String key = keyOf(line, 0);
+            out.add("  " + switch (key) {
+                case "json" -> "json " + json(session, type, value);
+                case "snbt" -> "snbt " + nbt(session, type, value);
+                case "nbt" -> "nbt " + NbtGoldens.binary(nbt(session, type, value));
+                case "wire" -> "wire " + wire(session, type, value);
+                case "wire_roundtrip" -> roundtrip(session, type, value);
+                case "hash" -> "hash " + hash(session, type, value);
+                default -> throw new IllegalStateException("unknown field '" + key + "'");
+            });
+        }
+        return out;
+    }
+
+    private static <T> String roundtrip(final Session session, final DataComponentType<T> type, final T value) {
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(HEX.parseHex(wire(session, type, value))), session.access());
+        T decoded = type.streamCodec().decode(buffer);
+        return "wire_roundtrip " + json(session, type, decoded).equals(json(session, type, value)) + " remaining " + buffer.readableBytes();
+    }
+
+    private static <T> List<String> recordRows(
+        final Session session, final String label, final DataComponentType<T> type, final List<String> group
+    ) throws Exception {
+        boolean wasError = group.stream().anyMatch(line -> line.split(" ", 4)[1].equals("error"));
+        String input = RECORD_INPUTS.get(label);
+        if (input == null) {
+            if (wasError) {
+                throw new IllegalStateException("label " + label + " rejects its input and no input is known for it");
+            }
+            input = group.stream().filter(line -> line.split(" ", 4)[1].equals("json")).findFirst().orElseThrow().split(" ", 4)[3];
+        }
+        DataResult<T> parsed = type.codecOrThrow().parse(session.json(), JsonParser.parseString(input));
+        if (wasError != parsed.result().isEmpty()) {
+            throw new IllegalStateException(wasError ? "now accepted" : "now rejected: " + parsed.error().orElseThrow().message());
+        }
+        if (wasError) {
+            return List.of(label + " error = " + parsed.error().orElseThrow().message());
+        }
+        T value = parsed.result().orElseThrow();
+        List<String> out = new ArrayList<>();
+        for (String line : group) {
+            String key = line.split(" ", 4)[1];
+            out.add(label + " " + key + " = " + switch (key) {
+                case "json" -> json(session, type, value);
+                case "nbt" -> NbtGoldens.binary(nbt(session, type, value));
+                case "wire" -> wire(session, type, value);
+                case "hash" -> hash(session, type, value);
+                default -> throw new IllegalStateException("unknown field '" + key + "'");
+            });
+        }
+        return out;
+    }
+
+    private static void writeLines(final Path output, final List<String> lines) throws Exception {
+        Files.writeString(output, String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
     }
 
     private static JsonObject attempt(final Session session, final String label, final JsonObject in, final Row row) throws Exception {
