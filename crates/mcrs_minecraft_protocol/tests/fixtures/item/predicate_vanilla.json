@@ -339,8 +339,8 @@
     "max": 5
    },
    "components": {
-    "minecraft:unbreakable": {},
-    "minecraft:max_stack_size": 16
+    "minecraft:max_stack_size": 16,
+    "minecraft:unbreakable": {}
    },
    "predicates": {
     "minecraft:damage": {},
@@ -1020,8 +1020,8 @@
     "max": 5
    },
    "components": {
-    "minecraft:unbreakable": {},
-    "minecraft:max_stack_size": 16
+    "minecraft:max_stack_size": 16,
+    "minecraft:unbreakable": {}
    },
    "predicates": {
     "minecraft:damage": {

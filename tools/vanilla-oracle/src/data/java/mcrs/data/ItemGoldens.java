@@ -623,7 +623,7 @@ final class ItemGoldens {
         JsonObject member = new JsonObject();
         member.addProperty("kind", kind);
         member.addProperty("input", input);
-        member.add("json", plainNumbers(json(session, type, value)));
+        member.add("json", sortedComponents(plainNumbers(json(session, type, value))));
         member.addProperty("hash", hash(session, type, value));
         member.addProperty("wire", wire(session, type, value));
         member.addProperty("ordered", ordered);
@@ -762,6 +762,29 @@ final class ItemGoldens {
             && (primitive.getAsNumber() instanceof Double || primitive.getAsNumber() instanceof Float)) {
             String text = new BigDecimal(primitive.getAsNumber().toString()).stripTrailingZeros().toPlainString();
             return new JsonPrimitive(new LazilyParsedNumber(text.contains(".") ? text : text + ".0"));
+        }
+        return element;
+    }
+
+    // DataComponentExactPredicate encodes through a HashMap keyed by identity-hashed types, so its member order changes between runs.
+    private static JsonElement sortedComponents(final JsonElement element) {
+        if (element instanceof JsonObject object) {
+            JsonObject copy = new JsonObject();
+            object.entrySet().forEach(entry -> {
+                JsonElement member = sortedComponents(entry.getValue());
+                if (entry.getKey().equals("components") && member instanceof JsonObject components) {
+                    JsonObject sorted = new JsonObject();
+                    components.keySet().stream().sorted().forEach(key -> sorted.add(key, components.get(key)));
+                    member = sorted;
+                }
+                copy.add(entry.getKey(), member);
+            });
+            return copy;
+        }
+        if (element instanceof JsonArray array) {
+            JsonArray copy = new JsonArray();
+            array.forEach(item -> copy.add(sortedComponents(item)));
+            return copy;
         }
         return element;
     }
