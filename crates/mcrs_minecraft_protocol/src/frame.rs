@@ -1,14 +1,17 @@
 use bytes::{Buf, Bytes, BytesMut};
-use flate2::Decompress;
+use flate2::{Decompress, FlushDecompress, Status};
 use thiserror::Error;
 
 use crate::CompressionThreshold;
+use crate::var_int::VarInt;
 
 pub const MAX_FRAME_BODY: usize = 2_097_151;
 
 pub const MAX_UNCOMPRESSED_PACKET: usize = 8_388_608;
 
 const MAX_LENGTH_BYTES: usize = 3;
+
+const MIN_INFLATE_STEP: usize = 4096;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Error)]
 pub enum FrameError {
@@ -72,8 +75,33 @@ pub fn decompress(
     threshold: CompressionThreshold,
     inflater: &mut Option<Decompress>,
 ) -> Result<Bytes, FrameError> {
-    let _ = (frame, threshold, inflater);
-    Ok(Bytes::new())
+    let Ok(threshold) = usize::try_from(threshold.0) else {
+        return Ok(frame);
+    };
+
+    let mut rest = &frame[..];
+    let declared =
+        VarInt::decode_partial(&mut rest).map_err(|_| FrameError::MalformedDataLength)?;
+    let declared = usize::try_from(declared).map_err(|_| FrameError::MalformedDataLength)?;
+    let width = frame.len() - rest.len();
+
+    if declared == 0 {
+        return Ok(frame.slice(width..));
+    }
+    if declared < threshold {
+        return Err(FrameError::BelowThreshold {
+            declared,
+            threshold,
+        });
+    }
+    if declared > MAX_UNCOMPRESSED_PACKET {
+        return Err(FrameError::AboveMaximum { declared });
+    }
+
+    let inflater = inflater.get_or_insert_with(|| Decompress::new(true));
+    let mut out = Vec::new();
+    inflate(rest, declared, inflater, &mut out)?;
+    Ok(Bytes::from(out))
 }
 
 fn inflate(
@@ -82,8 +110,74 @@ fn inflate(
     inflater: &mut Decompress,
     out: &mut Vec<u8>,
 ) -> Result<(), FrameError> {
-    let _ = (input, declared, inflater, out);
-    Ok(())
+    let start_in = inflater.total_in();
+    let result = inflate_stream(input, declared, inflater, start_in, out);
+    inflater.reset(true);
+    result
+}
+
+fn inflate_stream(
+    input: &[u8],
+    declared: usize,
+    inflater: &mut Decompress,
+    start_in: u64,
+    out: &mut Vec<u8>,
+) -> Result<(), FrameError> {
+    let step = input.len().saturating_mul(4).max(MIN_INFLATE_STEP);
+    let consumed = |inflater: &Decompress| (inflater.total_in() - start_in) as usize;
+
+    loop {
+        let len = out.len();
+        let remaining = declared - len;
+        if remaining == 0 {
+            return check_stream_end(&input[consumed(inflater)..], inflater);
+        }
+
+        let chunk = remaining.min(step.max(len));
+        out.reserve_exact(chunk);
+        out.resize(len + chunk, 0);
+
+        let read = consumed(inflater);
+        let out_before = inflater.total_out();
+        let status = inflater.decompress(&input[read..], &mut out[len..], FlushDecompress::None);
+        let produced = (inflater.total_out() - out_before) as usize;
+        out.truncate(len + produced);
+        let status = status.map_err(|_| FrameError::CorruptStream)?;
+
+        let read_after = consumed(inflater);
+        if status == Status::StreamEnd {
+            return if out.len() < declared {
+                Err(FrameError::ShortStream {
+                    declared,
+                    inflated: out.len(),
+                })
+            } else if read_after < input.len() {
+                Err(FrameError::TrailingData)
+            } else {
+                Ok(())
+            };
+        }
+        if produced == 0 && read_after == read {
+            return Err(FrameError::CorruptStream);
+        }
+    }
+}
+
+fn check_stream_end(unread: &[u8], inflater: &mut Decompress) -> Result<(), FrameError> {
+    let in_before = inflater.total_in();
+    let out_before = inflater.total_out();
+    let mut probe = [0u8; 1];
+    let status = inflater
+        .decompress(unread, &mut probe, FlushDecompress::None)
+        .map_err(|_| FrameError::CorruptStream)?;
+    let read = (inflater.total_in() - in_before) as usize;
+    let produced = inflater.total_out() != out_before;
+
+    match status {
+        Status::StreamEnd if !produced && read == unread.len() => Ok(()),
+        _ if produced || read < unread.len() => Err(FrameError::TrailingData),
+        _ => Err(FrameError::CorruptStream),
+    }
 }
 
 #[cfg(test)]
