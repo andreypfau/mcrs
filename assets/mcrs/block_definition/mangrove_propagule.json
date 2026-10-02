@@ -49,7 +49,14 @@
       "minecraft:loot": "minecraft:blocks/mangrove_propagule",
       "minecraft:placement_filter": {
         "conditions": [
-          { "allowed_faces": ["up"], "block_filter": ["#minecraft:supports_mangrove_propagule"] }
+          {
+            "allowed_faces": [
+              "up"
+            ],
+            "block_filter": [
+              "#minecraft:supports_mangrove_propagule"
+            ]
+          }
         ]
       },
       "mcrs:use_shape_for_light_occlusion": false,

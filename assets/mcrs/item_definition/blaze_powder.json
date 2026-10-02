@@ -6,25 +6,25 @@
       "protocol_id": 1274
     },
     "components": {
-      "minecraft:lore": [],
+      "minecraft:attack_animation": {},
+      "minecraft:attribute_modifiers": [],
+      "minecraft:break_sound": "minecraft:entity.item.break",
       "minecraft:brewing_fuel": {
         "uses": "minecraft:brewing/uses_default",
         "speed_multiplier": "minecraft:brewing/speed_default"
       },
+      "minecraft:enchantments": {},
+      "minecraft:interact_animation": {},
+      "minecraft:item_model": "minecraft:blaze_powder",
       "minecraft:item_name": {
         "translate": "item.minecraft.blaze_powder"
       },
-      "minecraft:attribute_modifiers": [],
-      "minecraft:tooltip_display": {},
-      "minecraft:attack_animation": {},
-      "minecraft:rarity": "common",
-      "minecraft:enchantments": {},
-      "minecraft:repair_cost": 0,
+      "minecraft:lore": [],
       "minecraft:max_stack_size": 64,
-      "minecraft:use_effects": {},
-      "minecraft:item_model": "minecraft:blaze_powder",
-      "minecraft:interact_animation": {},
-      "minecraft:break_sound": "minecraft:entity.item.break"
+      "minecraft:rarity": "common",
+      "minecraft:repair_cost": 0,
+      "minecraft:tooltip_display": {},
+      "minecraft:use_effects": {}
     }
   }
 }
