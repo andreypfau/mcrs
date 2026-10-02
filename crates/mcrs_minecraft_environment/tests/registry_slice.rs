@@ -3,13 +3,17 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use bevy_ecs::prelude::*;
+use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistryError, RegistrySet, ScopeError};
+use mcrs_minecraft_registry::{
+    Entries, Id, LoadReport, Registry, RegistryError, RegistrySet, ScopeError,
+};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -543,4 +547,94 @@ fn an_empty_world_clock_round_trips_as_an_empty_object() {
         assert_eq!(write(&set, &clock), "{}");
         assert_eq!(read_value(&file), serde_json::json!({}));
     }
+}
+
+#[derive(Resource)]
+struct Clocks {
+    overworld: Id<WorldClockKey>,
+    the_end: Id<WorldClockKey>,
+}
+
+#[derive(Resource)]
+struct ClockRegistry(Registry<WorldClockKey>);
+
+#[derive(Resource)]
+struct ClockReport(LoadReport);
+
+fn resolve_clocks(
+    registry: Res<ClockRegistry>,
+    mut report: ResMut<ClockReport>,
+    mut commands: Commands,
+) {
+    let overworld = LoadReport::require(&mut report.0, &registry.0, "minecraft:overworld");
+    let the_end = LoadReport::require(&mut report.0, &registry.0, "minecraft:the_end");
+    if let (Some(overworld), Some(the_end)) = (overworld, the_end) {
+        commands.insert_resource(Clocks { overworld, the_end });
+    }
+}
+
+fn load_clocks(registry: Registry<WorldClockKey>) -> World {
+    let mut world = World::new();
+    world.insert_resource(ClockRegistry(registry));
+    world.insert_resource(ClockReport(LoadReport::new()));
+    world.run_system_once(resolve_clocks).unwrap();
+    world
+}
+
+fn clock_registry_of(entries: &[&str]) -> Registry<WorldClockKey> {
+    Registry::new(
+        entries
+            .iter()
+            .map(|text| ResourceLocation::<Arc<str>>::parse(text).unwrap()),
+        std::iter::empty(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_consumer_resolves_its_entries_once_into_one_resource() {
+    let Slice { clocks, .. } = slice();
+    let listing = names("world_clock");
+    let position = |wanted: &str| {
+        listing
+            .iter()
+            .position(|name| name.as_str() == wanted)
+            .unwrap()
+    };
+
+    let world = load_clocks(clocks);
+
+    let resolved = world.get_resource::<Clocks>().expect("Clocks is inserted");
+    assert_eq!(
+        Id::index(resolved.overworld),
+        position("minecraft:overworld")
+    );
+    assert_eq!(Id::index(resolved.the_end), position("minecraft:the_end"));
+    assert!(LoadReport::is_empty(&world.resource::<ClockReport>().0));
+}
+
+#[test]
+fn a_missing_entry_lands_in_the_report_and_no_resource_is_inserted() {
+    let world = load_clocks(clock_registry_of(&["minecraft:overworld"]));
+
+    assert!(world.get_resource::<Clocks>().is_none());
+    let report = &world.resource::<ClockReport>().0;
+    assert!(!LoadReport::is_empty(report));
+    let text = report.to_string();
+    assert_eq!(text.lines().count(), 1, "{text}");
+    assert!(text.contains("minecraft:world_clock"), "{text}");
+    assert!(text.contains("minecraft:the_end"), "{text}");
+    assert!(!text.contains("minecraft:overworld"), "{text}");
+}
+
+#[test]
+fn the_report_names_every_entry_a_consumer_misses_in_one_pass() {
+    let world = load_clocks(clock_registry_of(&[]));
+
+    assert!(world.get_resource::<Clocks>().is_none());
+    let text = world.resource::<ClockReport>().0.to_string();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 2, "{text}");
+    assert!(lines[0].contains("minecraft:overworld"), "{text}");
+    assert!(lines[1].contains("minecraft:the_end"), "{text}");
 }
