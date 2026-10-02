@@ -23,19 +23,49 @@ blocks happen to agree.
 
 ## Provenance Map
 
-One row per lifted code block. The reviewer uses this table to verify
-verbatim-ness against the mapped sources.
+Nothing is lifted. The harness holds no copy of any block of the game's code, so
+there is no source line range to keep in step with a new snapshot.
 
-| Harness symbol | Source file | Source lines | Mechanical edits applied |
-|---|---|---|---|
-| `place(...)` | `world/level/levelgen/feature/OreFeature.java` | 38–70 | `level.getHeight(OCEAN_FLOOR_WG, x, z)` → the constant `MAX_Y`. The harness world is stone everywhere with no heightmap, so the probe always succeeds; the probe box itself is therefore *not* covered by this dump and is pinned separately in `the_probe_box_is_the_reference_box`. Everything before the probe — the three draws and all of the segment arithmetic — is unmodified. |
-| `doPlace(...)` | `world/level/levelgen/feature/OreFeature.java` | 72–198 | `BulkSectionAccess` and `LevelChunkSection` replaced by a `Map<BlockPos, BlockState>` defaulting to stone; `level.isOutsideBuildHeight(y)` → the same test against `MIN_Y = -64` / `MAX_Y = 320`; `level.ensureCanWrite` and the `section != null` guard dropped (every position is writable). No numeric or draw-order edit. `this.size` read through `feature.size()`. |
-| `canPlaceOre(...)`, `isAdjacentToAir`, `checkNeighbors`, `shouldSkipAirCheck` | `world/level/levelgen/feature/AbstractOreFeature.java` | 59–100 | None — called on the real `OreFeature` instance. |
-| The rule tests | `world/level/levelgen/structure/templatesystem/{AlwaysTrueTest,BlockMatchTest,RandomBlockMatchTest}.java` | — | None — real instances. |
+| Harness symbol | Source file | Mechanical edits applied |
+|---|---|---|
+| `feature.place(...)`, which reaches `doPlace` | `world/level/levelgen/feature/OreFeature.java` | None: the real `OreFeature` instance runs, unedited, on the stub level below. |
+| `canPlaceOre(...)`, `isAdjacentToAir`, `checkNeighbors`, `shouldSkipAirCheck` | `world/level/levelgen/feature/AbstractOreFeature.java` | None: called by the placement on the real instance. |
+| The rule tests | `world/level/levelgen/structure/templatesystem/{AlwaysTrueTest,BlockMatchTest,RandomBlockMatchTest}.java` | None: real instances. |
+| The chunk sections | `world/level/chunk/{LevelChunkSection,ProtoChunk,BulkSectionAccess}.java` | None: the game's own classes; the harness subclasses `LevelChunkSection` only to record writes. |
 
 **Dropped world state** (provably cannot affect the recorded blocks): lighting,
 block entities, neighbour updates and chunk status, none of which the vein reads
 or writes.
+
+---
+
+## The stub level
+
+The level is a `java.lang.reflect.Proxy` over `WorldGenLevel`. Its handler
+answers four methods itself, by name and parameter types:
+
+| Method | Answer |
+|---|---|
+| `getMinY()` | -64 |
+| `getHeight()` | 384 |
+| `getHeight(Heightmap.Types, int, int)` | 320, the same height for every column, so the probe always succeeds and the probe box is not covered by the dump |
+| `getChunk(int, int, ChunkStatus, boolean)` | the stub chunk of that position, built on first use and kept for the case |
+
+`hashCode`, `equals` and `toString` are answered for the proxy itself. Every
+other default method of the interface runs its own body through
+`InvocationHandler.invokeDefault`: that is how `anyHeightMatches`, `getMaxY`,
+`getSectionIndex`, `getSectionsCount`, the two-argument `getChunk` and
+`ensureCanWrite` run the game's code. Any other abstract method throws
+`UnsupportedOperationException` naming it, so a harness that has fallen behind
+the game stops the capture. The dump is assembled in memory and written only
+after every case ran, so a stopped capture leaves no file.
+
+A stub chunk is a `ProtoChunk` over 24 sections. Each section is a subclass of
+`LevelChunkSection` that knows its position and the case's placement list; it is
+filled with stone first, and from then on its five-argument `setBlockState`
+appends the world position and the state to the list before delegating to the
+game's own method. The world a case sees is stone from y -64 to 319 and air
+elsewhere, because the game's section access answers air where no section exists.
 
 ---
 

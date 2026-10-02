@@ -1,25 +1,36 @@
 package mcrs.oracle;
 
-import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.SharedConstants;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.Bootstrap;
-import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.WorldGenLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainerFactory;
+import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.UpgradeData;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.BlockReplacement;
@@ -28,17 +39,20 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.AlwaysTrueTes
 import net.minecraft.world.level.levelgen.structure.templatesystem.BlockMatchTest;
 import net.minecraft.world.level.levelgen.structure.templatesystem.RandomBlockMatchTest;
 import net.minecraft.world.level.levelgen.structure.templatesystem.RuleTest;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.ticks.ProtoChunkTicks;
 
 /**
- * Runs `OreFeature.place` / `doPlace` over a world that is stone everywhere and
- * records every block the vein writes, in write order, together with the random
- * state the call leaves behind.
+ * Runs the game's `OreFeature.place` on a stub level whose chunk sections are
+ * stone from y -64 to 319 and records every block a section is asked to write,
+ * in write order, together with the random state the call leaves behind.
  */
 public final class OreOracle {
     private static final byte[] MAGIC = "MCOREVN0".getBytes(StandardCharsets.US_ASCII);
     private static final int FORMAT_VERSION = 1;
     private static final int MIN_Y = -64;
-    private static final int MAX_Y = 320;
+    private static final int HEIGHT = 384;
+    private static final int COLUMN_HEIGHT = 320;
 
     private static BlockState stone;
     private static BlockState air;
@@ -58,17 +72,20 @@ public final class OreOracle {
         stone = Blocks.STONE.defaultBlockState();
         air = Blocks.AIR.defaultBlockState();
 
+        PalettedContainerFactory containers = SurfaceOracle.containerFactory(
+            VanillaRegistries.createWorldLookup().lookupOrThrow(Registries.BIOME)
+        );
         List<OreCase> cases = cases();
         Path file = outDir.resolve("ore_vein.bin");
-        try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(file))) {
-            out.write(MAGIC);
-            Bin.i32(out, FORMAT_VERSION);
-            Bin.i32(out, SharedConstants.getCurrentVersion().dataVersion().version());
-            Bin.i32(out, cases.size());
-            for (OreCase oreCase : cases) {
-                run(out, oreCase);
-            }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(MAGIC);
+        Bin.i32(out, FORMAT_VERSION);
+        Bin.i32(out, SharedConstants.getCurrentVersion().dataVersion().version());
+        Bin.i32(out, cases.size());
+        for (OreCase oreCase : cases) {
+            run(out, containers, oreCase);
         }
+        Files.write(file, out.toByteArray());
         System.out.println("wrote " + file + " (" + Files.size(file) + " bytes)");
     }
 
@@ -114,16 +131,18 @@ public final class OreOracle {
         );
     }
 
-    private static void run(final OutputStream out, final OreCase oreCase) throws IOException {
+    private static void run(
+        final OutputStream out, final PalettedContainerFactory containers, final OreCase oreCase
+    ) throws IOException {
         OreFeature feature = new OreFeature(
             oreCase.targets().stream().map(Target::replacement).toList(),
             oreCase.size(),
             oreCase.discardChance()
         );
-        Map<BlockPos, BlockState> world = new HashMap<>();
         List<Placement> placements = new ArrayList<>();
+        WorldGenLevel level = level(containers, placements);
         RandomSource random = new WorldgenRandom(new XoroshiroRandomSource(oreCase.seed()));
-        boolean result = place(feature, world, placements, random, oreCase.origin());
+        boolean result = feature.place(level, null, random, oreCase.origin());
         long stateLo = random.nextLong();
         long stateHi = random.nextLong();
 
@@ -173,166 +192,135 @@ public final class OreOracle {
         );
     }
 
-    private static BlockState getBlockState(final Map<BlockPos, BlockState> world, final BlockPos pos) {
-        if (isOutsideBuildHeight(pos.getY())) {
-            return air;
-        }
-        BlockState state = world.get(pos);
-        return state == null ? stone : state;
-    }
-
-    private static boolean isOutsideBuildHeight(final int y) {
-        return y < MIN_Y || y >= MAX_Y;
-    }
-
-    private static boolean place(
-        final OreFeature feature,
-        final Map<BlockPos, BlockState> world,
-        final List<Placement> placements,
-        final RandomSource random,
-        final BlockPos origin
+    private static WorldGenLevel level(
+        final PalettedContainerFactory containers, final List<Placement> placements
     ) {
-        float dir = random.nextFloat() * (float)Math.PI;
-        float spreadXY = feature.size() / 8.0F;
-        int maxRadius = Mth.ceil((feature.size() / 16.0F * 2.0F + 1.0F) / 2.0F);
-        double x0 = origin.getX() + Math.sin(dir) * spreadXY;
-        double x1 = origin.getX() - Math.sin(dir) * spreadXY;
-        double z0 = origin.getZ() + Math.cos(dir) * spreadXY;
-        double z1 = origin.getZ() - Math.cos(dir) * spreadXY;
-        double y0 = origin.getY() + random.nextInt(3) - 2;
-        double y1 = origin.getY() + random.nextInt(3) - 2;
-        int xStart = origin.getX() - Mth.ceil(spreadXY) - maxRadius;
-        int yStart = origin.getY() - 2 - maxRadius;
-        int zStart = origin.getZ() - Mth.ceil(spreadXY) - maxRadius;
-        int sizeXZ = 2 * (Mth.ceil(spreadXY) + maxRadius);
-        int sizeY = 2 * (2 + maxRadius);
-
-        for (int xprobe = xStart; xprobe <= xStart + sizeXZ; xprobe++) {
-            for (int zprobe = zStart; zprobe <= zStart + sizeXZ; zprobe++) {
-                if (yStart <= MAX_Y) {
-                    return doPlace(
-                        feature, world, placements, random,
-                        x0, x1, z0, z1, y0, y1, xStart, yStart, zStart, sizeXZ, sizeY
-                    );
+        Map<Long, ProtoChunk> chunks = new HashMap<>();
+        InvocationHandler handler = (proxy, method, args) -> {
+            Class<?>[] types = method.getParameterTypes();
+            switch (method.getName()) {
+                case "hashCode" -> {
+                    if (types.length == 0) {
+                        return System.identityHashCode(proxy);
+                    }
+                }
+                case "equals" -> {
+                    if (types.length == 1) {
+                        return proxy == args[0];
+                    }
+                }
+                case "toString" -> {
+                    if (types.length == 0) {
+                        return "OreOracle stub level";
+                    }
+                }
+                case "getMinY" -> {
+                    if (types.length == 0) {
+                        return MIN_Y;
+                    }
+                }
+                case "getHeight" -> {
+                    if (types.length == 0) {
+                        return HEIGHT;
+                    }
+                    if (types.length == 3 && types[0] == Heightmap.Types.class) {
+                        return COLUMN_HEIGHT;
+                    }
+                }
+                case "getChunk" -> {
+                    if (types.length == 4 && types[2] == ChunkStatus.class) {
+                        int chunkX = (Integer)args[0];
+                        int chunkZ = (Integer)args[1];
+                        return chunks.computeIfAbsent(
+                            ChunkPos.pack(chunkX, chunkZ),
+                            key -> chunk(containers, placements, chunkX, chunkZ)
+                        );
+                    }
+                }
+                default -> {
                 }
             }
-        }
-
-        return false;
+            if (method.isDefault()) {
+                return InvocationHandler.invokeDefault(proxy, method, args);
+            }
+            throw new UnsupportedOperationException(
+                "the stub level does not answer " + method.getDeclaringClass().getSimpleName() + "." + method.getName()
+            );
+        };
+        return (WorldGenLevel)Proxy.newProxyInstance(
+            OreOracle.class.getClassLoader(), new Class<?>[] {WorldGenLevel.class}, handler
+        );
     }
 
-    private static boolean doPlace(
-        final OreFeature feature,
-        final Map<BlockPos, BlockState> world,
+    private static ProtoChunk chunk(
+        final PalettedContainerFactory containers,
         final List<Placement> placements,
-        final RandomSource random,
-        final double x0,
-        final double x1,
-        final double z0,
-        final double z1,
-        final double y0,
-        final double y1,
-        final int xStart,
-        final int yStart,
-        final int zStart,
-        final int sizeXZ,
-        final int sizeY
+        final int chunkX,
+        final int chunkZ
     ) {
-        int size = feature.size();
-        int placed = 0;
-        BitSet tested = new BitSet(sizeXZ * sizeY * sizeXZ);
-        BlockPos.MutableBlockPos orePos = new BlockPos.MutableBlockPos();
-        double[] data = new double[size * 4];
-
-        for (int i = 0; i < size; i++) {
-            float step = (float)i / size;
-            double xx = Mth.lerp((double)step, x0, x1);
-            double yy = Mth.lerp((double)step, y0, y1);
-            double zz = Mth.lerp((double)step, z0, z1);
-            double ss = random.nextDouble() * size / 16.0;
-            double r = ((Mth.sin((float)Math.PI * step) + 1.0F) * ss + 1.0) / 2.0;
-            data[i * 4 + 0] = xx;
-            data[i * 4 + 1] = yy;
-            data[i * 4 + 2] = zz;
-            data[i * 4 + 3] = r;
+        int minSectionY = MIN_Y >> 4;
+        RecordingSection[] sections = new RecordingSection[HEIGHT >> 4];
+        for (int index = 0; index < sections.length; index++) {
+            sections[index] = new RecordingSection(containers, placements, chunkX, minSectionY + index, chunkZ);
         }
+        ProtoChunk chunk = new ProtoChunk(
+            new ChunkPos(chunkX, chunkZ),
+            UpgradeData.EMPTY,
+            sections,
+            new ProtoChunkTicks<Block>(),
+            new ProtoChunkTicks<Fluid>(),
+            LevelHeightAccessor.create(MIN_Y, HEIGHT),
+            containers,
+            null
+        );
+        for (RecordingSection section : sections) {
+            section.startRecording();
+        }
+        return chunk;
+    }
 
-        for (int i1 = 0; i1 < size - 1; i1++) {
-            if (!(data[i1 * 4 + 3] <= 0.0)) {
-                for (int i2 = i1 + 1; i2 < size; i2++) {
-                    if (!(data[i2 * 4 + 3] <= 0.0)) {
-                        double dx = data[i1 * 4 + 0] - data[i2 * 4 + 0];
-                        double dy = data[i1 * 4 + 1] - data[i2 * 4 + 1];
-                        double dz = data[i1 * 4 + 2] - data[i2 * 4 + 2];
-                        double dr = data[i1 * 4 + 3] - data[i2 * 4 + 3];
-                        if (dr * dr > dx * dx + dy * dy + dz * dz) {
-                            if (dr > 0.0) {
-                                data[i2 * 4 + 3] = -1.0;
-                            } else {
-                                data[i1 * 4 + 3] = -1.0;
-                            }
-                        }
+    private static final class RecordingSection extends LevelChunkSection {
+        private final List<Placement> placements;
+        private final int minX;
+        private final int minY;
+        private final int minZ;
+        private boolean recording;
+
+        RecordingSection(
+            final PalettedContainerFactory containers,
+            final List<Placement> placements,
+            final int chunkX,
+            final int sectionY,
+            final int chunkZ
+        ) {
+            super(containers);
+            this.placements = placements;
+            this.minX = chunkX << 4;
+            this.minY = sectionY << 4;
+            this.minZ = chunkZ << 4;
+            for (int x = 0; x < 16; x++) {
+                for (int y = 0; y < 16; y++) {
+                    for (int z = 0; z < 16; z++) {
+                        super.setBlockState(x, y, z, stone);
                     }
                 }
             }
         }
 
-        for (int i = 0; i < size; i++) {
-            double r = data[i * 4 + 3];
-            if (!(r < 0.0)) {
-                double xx = data[i * 4 + 0];
-                double yy = data[i * 4 + 1];
-                double zz = data[i * 4 + 2];
-                int xMin = Math.max(Mth.floor(xx - r), xStart);
-                int yMin = Math.max(Mth.floor(yy - r), yStart);
-                int zMin = Math.max(Mth.floor(zz - r), zStart);
-                int xMax = Math.max(Mth.floor(xx + r), xMin);
-                int yMax = Math.max(Mth.floor(yy + r), yMin);
-                int zMax = Math.max(Mth.floor(zz + r), zMin);
-
-                for (int x = xMin; x <= xMax; x++) {
-                    double xd = (x + 0.5 - xx) / r;
-                    if (xd * xd < 1.0) {
-                        for (int y = yMin; y <= yMax; y++) {
-                            double yd = (y + 0.5 - yy) / r;
-                            if (xd * xd + yd * yd < 1.0) {
-                                for (int z = zMin; z <= zMax; z++) {
-                                    double zd = (z + 0.5 - zz) / r;
-                                    if (xd * xd + yd * yd + zd * zd < 1.0 && !isOutsideBuildHeight(y)) {
-                                        int bitSetIndex = x
-                                            - xStart
-                                            + (y - yStart) * sizeXZ
-                                            + (z - zStart) * sizeXZ * sizeY;
-                                        if (!tested.get(bitSetIndex)) {
-                                            tested.set(bitSetIndex);
-                                            orePos.set(x, y, z);
-                                            BlockState blockState = getBlockState(world, orePos);
-
-                                            for (BlockReplacement targetState : feature.targetStates()) {
-                                                if (feature.canPlaceOre(
-                                                    blockState,
-                                                    pos -> getBlockState(world, pos),
-                                                    random,
-                                                    targetState,
-                                                    orePos
-                                                )) {
-                                                    BlockPos at = orePos.immutable();
-                                                    world.put(at, targetState.state());
-                                                    placements.add(new Placement(at, targetState.state()));
-                                                    placed++;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        void startRecording() {
+            this.recording = true;
         }
 
-        return placed > 0;
+        @Override
+        public BlockState setBlockState(
+            final int sectionX, final int sectionY, final int sectionZ, final BlockState state, final boolean checkThreading
+        ) {
+            if (this.recording) {
+                this.placements.add(
+                    new Placement(new BlockPos(this.minX + sectionX, this.minY + sectionY, this.minZ + sectionZ), state)
+                );
+            }
+            return super.setBlockState(sectionX, sectionY, sectionZ, state, checkThreading);
+        }
     }
 }
