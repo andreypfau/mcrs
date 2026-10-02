@@ -12,6 +12,7 @@ const VERSION_FILE: &str = "assets/minecraft/version.json";
 const ORACLE: &str = "tools/vanilla-oracle";
 const GENERATOR_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures";
 const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text";
+const ITEM_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/item";
 const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla";
 
 pub enum Files {
@@ -199,6 +200,34 @@ pub const FIXTURES: &[Fixture] = &[
         task: "dumpGolden",
         golden: Some("text_wire"),
         outputs: &[named("wire.json", TEXT_FIXTURES)],
+    },
+    Fixture {
+        name: "item_plain",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_plain"),
+        outputs: &[named("plain_golden.json", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "item_nested",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_nested"),
+        outputs: &[named("nested_golden.json", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "item_predicate",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_predicate"),
+        outputs: &[named("predicate_vanilla.json", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "item_kinds",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_kinds"),
+        outputs: &[named("kinds.json", ITEM_FIXTURES)],
     },
 ];
 
@@ -458,12 +487,12 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_nineteen_fixtures_with_unique_names() {
+    fn the_table_has_twenty_three_fixtures_with_unique_names() {
         let mut names = names();
-        assert_eq!(names.len(), 19);
+        assert_eq!(names.len(), 23);
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 19);
+        assert_eq!(names.len(), 23);
     }
 
     #[test]
