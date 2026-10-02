@@ -2,8 +2,17 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
+def game = new groovy.json.JsonSlurper().parse(file('../../assets/minecraft/version.json'))
+
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	minecraft "com.mojang:minecraft:${game.id}"
+}
+
+sourceSets {
+	data {
+		compileClasspath += sourceSets.main.compileClasspath
+		runtimeClasspath += sourceSets.main.compileClasspath + configurations.runtimeClasspath
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -140,4 +149,13 @@ tasks.register('dumpStructureGeometry', JavaExec) {
 	mainClass = 'mcrs.oracle.StructureGeometryOracle'
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpReports', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.compileClasspath + configurations.runtimeClasspath
+	mainClass = 'net.minecraft.data.Main'
+	jvmArgs '-Xmx2G'
+	workingDir = temporaryDir
+	args = ['--reports', '--output', project.findProperty('reportsOut') ?: "${layout.buildDirectory.get()}/reports-out".toString()]
 }
