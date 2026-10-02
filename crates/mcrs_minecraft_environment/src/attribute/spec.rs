@@ -361,7 +361,7 @@ pub(super) fn malformed(id: &'static str, reason: impl Into<String>) -> Attribut
 pub static ENVIRONMENT_ATTRIBUTES: LazyLock<BTreeMap<&'static str, AttributeSpec>> =
     LazyLock::new(|| table().into_iter().map(|spec| (spec.id, spec)).collect());
 
-/// The spec for `id`, or `None` if no such attribute exists in 26.3.
+/// The spec for `id`, or `None` if the game registers no such attribute.
 pub fn attribute(id: &str) -> Option<&'static AttributeSpec> {
     ENVIRONMENT_ATTRIBUTES.get(id)
 }
@@ -526,76 +526,80 @@ fn table() -> Vec<AttributeSpec> {
     };
 
     vec![
-        row("minecraft:visual/sky_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
         row("minecraft:visual/fog_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/water_fog_color", T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sky_light_color", T::RgbColor, color(-1), R::Any, SYNC | INTERP),
-        row("minecraft:visual/ambient_light_color", T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
-        row("minecraft:visual/block_light_tint", T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
-        row("minecraft:visual/night_vision_color", T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
-        row("minecraft:visual/cloud_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sunrise_sunset_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/cloud_height", T::Float, Float(192.33), R::Any, SYNC | INTERP),
         row("minecraft:visual/fog_start_distance", T::Float, Float(0.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/fog_end_distance", T::Float, Float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
         row("minecraft:visual/sky_fog_end_distance", T::Float, Float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
         row("minecraft:visual/cloud_fog_end_distance", T::Float, Float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row("minecraft:visual/water_fog_color", T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
         row("minecraft:visual/water_fog_start_distance", T::Float, Float(-8.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/water_fog_end_distance", T::Float, Float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/sky_light_factor", T::Float, Float(1.0), R::UNIT, SYNC | INTERP),
-        row("minecraft:visual/star_brightness", T::Float, Float(0.0), R::UNIT, SYNC | INTERP),
+        row("minecraft:visual/sky_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/sunrise_sunset_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/cloud_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/cloud_height", T::Float, Float(192.33), R::Any, SYNC | INTERP),
         row("minecraft:visual/sun_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/moon_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/star_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/moon_phase", T::MoonPhase, Opaque(json!("full_moon")), R::Any, SYNC),
-        row("minecraft:visual/ambient_particles", T::AmbientParticles, List(Vec::new()), R::Any, SYNC),
+        row("minecraft:visual/star_brightness", T::Float, Float(0.0), R::UNIT, SYNC | INTERP),
+        row("minecraft:visual/has_sky_occluder", T::Boolean, Bool(false), R::Any, SYNC),
+        row("minecraft:visual/block_light_tint", T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
+        row("minecraft:visual/sky_light_color", T::RgbColor, color(-1), R::Any, SYNC | INTERP),
+        row("minecraft:visual/sky_light_factor", T::Float, Float(1.0), R::UNIT, SYNC | INTERP),
+        row("minecraft:visual/night_vision_color", T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
+        row("minecraft:visual/ambient_light_color", T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
         row("minecraft:visual/default_dripstone_particle", T::Particle, Opaque(json!({"type": "minecraft:dripping_dripstone_water"})), R::Any, SYNC),
-
+        row("minecraft:visual/ambient_particles", T::AmbientParticles, List(Vec::new()), R::Any, SYNC),
         row("minecraft:audio/background_music", T::BackgroundMusic, Opaque(json!({})), R::Any, SYNC),
-        row("minecraft:audio/ambient_sounds", T::AmbientSounds, Opaque(json!({})), R::Any, SYNC),
         row("minecraft:audio/music_volume", T::Float, Float(1.0), R::UNIT, SYNC),
+        row("minecraft:audio/ambient_sounds", T::AmbientSounds, Opaque(json!({})), R::Any, SYNC),
         row("minecraft:audio/firefly_bush_sounds", T::Boolean, Bool(false), R::Any, SYNC),
-
         row("minecraft:gameplay/sky_light_level", T::Float, Float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/fast_lava", T::Boolean, Bool(false), R::Any, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/water_evaporates", T::Boolean, Bool(false), R::Any, SYNC),
-        row("minecraft:gameplay/piglins_zombify", T::Boolean, Bool(true), R::Any, SYNC),
-        row("minecraft:gameplay/creaking_active", T::Boolean, Bool(false), R::Any, SYNC),
-        row("minecraft:gameplay/natural_mob_spawns", T::MobSpawnSettings, MobSpawns(Box::default()), R::Any, 0),
         row("minecraft:gameplay/can_start_raid", T::Boolean, Bool(true), R::Any, 0),
-        row("minecraft:gameplay/can_pillager_patrol_spawn", T::Boolean, Bool(true), R::Any, 0),
-        row("minecraft:gameplay/bees_stay_in_hive", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/monsters_burn", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/snow_golem_melts", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/increased_fire_burnout", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/nether_portal_spawns_piglin", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/respawn_anchor_works", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/eyeblossom_open", T::TriState, Opaque(json!("default")), R::Any, 0),
+        row("minecraft:gameplay/water_evaporates", T::Boolean, Bool(false), R::Any, SYNC),
         row("minecraft:gameplay/bed_rule", T::BedRule, bed_rule("always", false), R::Any, 0),
         row("minecraft:gameplay/straw_bed_rule", T::BedRule, bed_rule("never", true), R::Any, 0),
+        row("minecraft:gameplay/respawn_anchor_works", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/nether_portal_spawns_piglin", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/fast_lava", T::Boolean, Bool(false), R::Any, SYNC | NOT_POSITIONAL),
+        row("minecraft:gameplay/increased_fire_burnout", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/eyeblossom_open", T::TriState, Opaque(json!("default")), R::Any, 0),
+        row("minecraft:gameplay/turtle_egg_hatch_chance", T::Float, Float(0.002), R::UNIT, 0),
+        row("minecraft:gameplay/piglins_zombify", T::Boolean, Bool(true), R::Any, SYNC),
+        row("minecraft:gameplay/snow_golem_melts", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/creaking_active", T::Boolean, Bool(false), R::Any, SYNC),
+        row("minecraft:gameplay/surface_slime_spawn_chance", T::Float, Float(0.0), R::UNIT, 0),
+        row("minecraft:gameplay/cat_waking_up_gift_chance", T::Float, Float(0.0), R::UNIT, 0),
+        row("minecraft:gameplay/bees_stay_in_hive", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/monsters_burn", T::Boolean, Bool(false), R::Any, 0),
+        row("minecraft:gameplay/can_pillager_patrol_spawn", T::Boolean, Bool(true), R::Any, 0),
+        row("minecraft:gameplay/natural_mob_spawns", T::MobSpawnSettings, MobSpawns(Box::default()), R::Any, 0),
+        row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, Float(0.1), R::UNIT_EPSILON, 0),
         row("minecraft:gameplay/villager_activity", T::Activity, Opaque(json!("minecraft:idle")), R::Any, 0),
         row("minecraft:gameplay/baby_villager_activity", T::Activity, Opaque(json!("minecraft:idle")), R::Any, 0),
-        row("minecraft:gameplay/cat_waking_up_gift_chance", T::Float, Float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/surface_slime_spawn_chance", T::Float, Float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/turtle_egg_hatch_chance", T::Float, Float(0.002), R::UNIT, 0),
-        row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, Float(0.1), R::UNIT_EPSILON, 0),
     ]
 }
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_registry::StaticRegistryTable;
+
     use super::*;
 
     #[test]
     fn registry_holds_every_attribute() {
-        assert_eq!(ENVIRONMENT_ATTRIBUTES.len(), 51);
-        assert_eq!(table().len(), 51, "ids must be unique");
+        assert_eq!(
+            table().len(),
+            ENVIRONMENT_ATTRIBUTES.len(),
+            "ids must be unique"
+        );
 
         let syncable: Vec<_> = ENVIRONMENT_ATTRIBUTES
             .values()
             .filter(|spec| spec.syncable)
             .collect();
-        assert_eq!(syncable.len(), 33);
+        assert_eq!(syncable.len(), 34);
         assert!(
             syncable
                 .iter()
@@ -611,6 +615,24 @@ mod tests {
                 spec.id
             );
         }
+    }
+
+    #[test]
+    fn the_table_is_the_registry_in_names_and_order() {
+        let report = StaticRegistryTable::load(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/mcrs/reports/registries.json"),
+        )
+        .unwrap();
+        let registry: Vec<String> = report
+            .registry("environment_attribute")
+            .unwrap()
+            .names()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let ours: Vec<String> = table().iter().map(|spec| spec.id.to_owned()).collect();
+        assert_eq!(ours, registry);
     }
 
     #[test]
