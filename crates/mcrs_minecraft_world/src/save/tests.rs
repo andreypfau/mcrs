@@ -64,7 +64,7 @@ fn level_dat(data_version: i32, with_uuid: bool) -> Vec<u8> {
 
 fn level_dat_with_spawn(spawn: NbtCompound) -> Vec<u8> {
     let mut data = NbtCompound::new();
-    data.put_int("DataVersion", WORLD_VERSION);
+    data.put_int("DataVersion", VERSION.world_version);
     data.put_string("LevelName", "New World".to_string());
     data.put_long("Time", 25);
     data.put(
@@ -143,7 +143,7 @@ fn player_data(data_version: i32) -> Vec<u8> {
 
 #[test]
 fn level_dat_reads_the_fields_we_consume() {
-    let level = parse_level_dat(&level_dat(WORLD_VERSION, true), path()).unwrap();
+    let level = parse_level_dat(&level_dat(VERSION.world_version, true), path()).unwrap();
     assert_eq!(level.level_name, "New World");
     assert_eq!(level.time, 25);
     assert_eq!(
@@ -160,7 +160,7 @@ fn level_dat_reads_the_fields_we_consume() {
 #[test]
 fn level_dat_wrapped_like_a_saved_data_file_is_an_error() {
     let mut root = NbtCompound::new();
-    root.put_component("data", level_data(WORLD_VERSION, true));
+    root.put_component("data", level_data(VERSION.world_version, true));
     let err = parse_level_dat(&gzip(root), path()).unwrap_err();
     assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
 }
@@ -169,14 +169,14 @@ fn level_dat_wrapped_like_a_saved_data_file_is_an_error() {
 fn saved_data_wrapped_like_level_dat_is_an_error() {
     let mut root = NbtCompound::new();
     root.put_component("Data", weather_payload());
-    root.put_int("DataVersion", WORLD_VERSION);
+    root.put_int("DataVersion", VERSION.world_version);
     let err = parse_weather(&gzip(root), path()).unwrap_err();
     assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
 }
 
 #[test]
 fn player_data_has_no_wrapper() {
-    let player = player::parse_player_dat(&player_data(WORLD_VERSION), path()).unwrap();
+    let player = player::parse_player_dat(&player_data(VERSION.world_version), path()).unwrap();
     assert_eq!(
         player.pos,
         [48.8682436000792, 73.02442408821369, -28.14235365298639]
@@ -187,8 +187,11 @@ fn player_data_has_no_wrapper() {
 
 #[test]
 fn omitted_clock_fields_take_the_codec_defaults() {
-    let clocks =
-        parse_world_clocks(&saved_data(WORLD_VERSION, world_clocks_payload()), path()).unwrap();
+    let clocks = parse_world_clocks(
+        &saved_data(VERSION.world_version, world_clocks_payload()),
+        path(),
+    )
+    .unwrap();
 
     assert_eq!(
         clocks[&clock("minecraft:overworld")],
@@ -218,7 +221,7 @@ fn a_zero_clock_rate_is_rejected() {
     let mut payload = NbtCompound::new();
     payload.put_component("minecraft:overworld", overworld);
 
-    let err = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
+    let err = parse_world_clocks(&saved_data(VERSION.world_version, payload), path()).unwrap_err();
     assert!(
         matches!(err, SaveError::OutOfRange { field: "rate", .. }),
         "{err}"
@@ -249,8 +252,11 @@ fn a_clock_state_writes_back_only_what_the_save_held() {
 
 #[test]
 fn a_clock_state_round_trips_through_the_save_shape() {
-    let clocks =
-        parse_world_clocks(&saved_data(WORLD_VERSION, world_clocks_payload()), path()).unwrap();
+    let clocks = parse_world_clocks(
+        &saved_data(VERSION.world_version, world_clocks_payload()),
+        path(),
+    )
+    .unwrap();
 
     let mut payload = NbtCompound::new();
     for (id, state) in &clocks {
@@ -259,7 +265,7 @@ fn a_clock_state_round_trips_through_the_save_shape() {
             mcrs_minecraft_nbt::to_nbt_compound(state).unwrap(),
         );
     }
-    let reread = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+    let reread = parse_world_clocks(&saved_data(VERSION.world_version, payload), path()).unwrap();
 
     assert_eq!(clocks, reread);
 }
@@ -273,7 +279,8 @@ fn a_non_finite_clock_rate_is_rejected() {
         let mut payload = NbtCompound::new();
         payload.put_component("minecraft:overworld", overworld);
 
-        let err = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
+        let err =
+            parse_world_clocks(&saved_data(VERSION.world_version, payload), path()).unwrap_err();
         assert!(
             matches!(err, SaveError::OutOfRange { field: "rate", .. }),
             "rate {rate} accepted: {err}"
@@ -322,7 +329,11 @@ fn a_spawn_position_of_the_wrong_length_is_rejected() {
 
 #[test]
 fn weather_reads_all_five_fields() {
-    let weather = parse_weather(&saved_data(WORLD_VERSION, weather_payload()), path()).unwrap();
+    let weather = parse_weather(
+        &saved_data(VERSION.world_version, weather_payload()),
+        path(),
+    )
+    .unwrap();
     assert_eq!(
         weather,
         WeatherData {
@@ -341,18 +352,21 @@ fn weather_missing_a_required_field_is_an_error() {
     payload
         .child_tags
         .retain(|(name, _)| name != "thunder_time");
-    let err = parse_weather(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
+    let err = parse_weather(&saved_data(VERSION.world_version, payload), path()).unwrap_err();
     assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
 }
 
 #[test]
 fn advance_time_defaults_to_true_and_unrelated_rules_are_ignored() {
-    let rules =
-        parse_game_rules(&saved_data(WORLD_VERSION, game_rules_payload(None)), path()).unwrap();
+    let rules = parse_game_rules(
+        &saved_data(VERSION.world_version, game_rules_payload(None)),
+        path(),
+    )
+    .unwrap();
     assert!(rules.advance_time);
 
     let rules = parse_game_rules(
-        &saved_data(WORLD_VERSION, game_rules_payload(Some(false))),
+        &saved_data(VERSION.world_version, game_rules_payload(Some(false))),
         path(),
     )
     .unwrap();
@@ -363,13 +377,13 @@ fn advance_time_defaults_to_true_and_unrelated_rules_are_ignored() {
 fn an_unnamespaced_advance_time_key_is_not_the_rule() {
     let mut payload = NbtCompound::new();
     payload.put_bool("advance_time", false);
-    let rules = parse_game_rules(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+    let rules = parse_game_rules(&saved_data(VERSION.world_version, payload), path()).unwrap();
     assert!(rules.advance_time);
 }
 
 #[test]
 fn singleplayer_uuid_ints_name_the_player_file() {
-    let level = parse_level_dat(&level_dat(WORLD_VERSION, true), path()).unwrap();
+    let level = parse_level_dat(&level_dat(VERSION.world_version, true), path()).unwrap();
     assert_eq!(
         level.singleplayer_uuid.unwrap().hyphenated().to_string(),
         OBSERVED_UUID_FILE_NAME
@@ -378,38 +392,89 @@ fn singleplayer_uuid_ints_name_the_player_file() {
 
 #[test]
 fn a_world_no_player_has_opened_has_no_singleplayer_uuid() {
-    let level = parse_level_dat(&level_dat(WORLD_VERSION, false), path()).unwrap();
+    let level = parse_level_dat(&level_dat(VERSION.world_version, false), path()).unwrap();
     assert!(level.singleplayer_uuid.is_none());
 }
 
+fn world_gen_settings_payload() -> NbtCompound {
+    let mut generator = NbtCompound::new();
+    generator.put_string("type", "minecraft:noise".to_string());
+    generator.put_string("settings", "minecraft:overworld".to_string());
+    let mut overworld = NbtCompound::new();
+    overworld.put_string("type", "minecraft:overworld".to_string());
+    overworld.put_component("generator", generator);
+    let mut dimensions = NbtCompound::new();
+    dimensions.put_component("minecraft:overworld", overworld);
+
+    let mut payload = NbtCompound::new();
+    payload.put_bool("bonus_chest", false);
+    payload.put_long("seed", 2);
+    payload.put_bool("generate_structures", true);
+    payload.put_component("dimensions", dimensions);
+    payload
+}
+
+fn every_file_kind_at(data_version: i32) -> [Result<(), SaveError>; 6] {
+    [
+        parse_level_dat(&level_dat(data_version, true), path()).map(drop),
+        parse_world_clocks(&saved_data(data_version, world_clocks_payload()), path()).map(drop),
+        parse_world_gen_settings(
+            &saved_data(data_version, world_gen_settings_payload()),
+            path(),
+        )
+        .map(drop),
+        parse_weather(&saved_data(data_version, weather_payload()), path()).map(drop),
+        parse_game_rules(&saved_data(data_version, game_rules_payload(None)), path()).map(drop),
+        player::parse_player_dat(&player_data(data_version), path()).map(drop),
+    ]
+}
+
 #[test]
-fn the_previous_data_version_is_rejected_by_name_on_every_file_kind() {
-    let stale = 4903;
-    let errors = [
-        parse_level_dat(&level_dat(stale, true), path()).unwrap_err(),
-        parse_world_clocks(&saved_data(stale, world_clocks_payload()), path()).unwrap_err(),
-        parse_weather(&saved_data(stale, weather_payload()), path()).unwrap_err(),
-        parse_game_rules(&saved_data(stale, game_rules_payload(None)), path()).unwrap_err(),
-        player::parse_player_dat(&player_data(stale), path()).unwrap_err(),
-    ];
-    for err in errors {
-        assert!(
-            matches!(
-                err,
-                SaveError::DataVersion {
-                    found: 4903,
-                    expected: WORLD_VERSION,
-                    ..
-                }
-            ),
-            "{err}"
-        );
-        let message = err.to_string();
-        assert!(
-            message.contains("4903") && message.contains("5015"),
-            "{message}"
-        );
+fn every_file_kind_loads_at_the_world_version() {
+    for result in every_file_kind_at(VERSION.world_version) {
+        result.unwrap();
     }
+}
+
+#[test]
+fn a_data_version_other_than_the_world_version_is_rejected_by_name_on_every_file_kind() {
+    let current = VERSION.world_version;
+    for found in [4903, current - 1, current + 1] {
+        for result in every_file_kind_at(found) {
+            let err = result.unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    SaveError::DataVersion { found: f, expected, .. }
+                        if f == found && expected == current
+                ),
+                "{err}"
+            );
+            let message = err.to_string();
+            assert!(
+                message.ends_with(&format!("DataVersion {found}, expected {current}")),
+                "{message}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_refused_player_file_is_left_byte_identical() {
+    let world = std::env::temp_dir().join(format!("mcrs_save_refused_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&world);
+    let uuid = Uuid::from_u128(0x77);
+    let dir = world.join("players/data");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join(format!("{}.dat", uuid.hyphenated()));
+    let stale = player_data(VERSION.world_version - 1);
+    std::fs::write(&file, &stale).unwrap();
+
+    let err = read_player_dat(&world, uuid).unwrap_err();
+    assert!(matches!(err, SaveError::DataVersion { .. }), "{err}");
+    assert_eq!(std::fs::read(&file).unwrap(), stale);
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+    let _ = std::fs::remove_dir_all(world);
 }
 
 #[test]
@@ -430,21 +495,8 @@ fn every_error_names_the_file() {
 
 #[test]
 fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
-    let mut generator = NbtCompound::new();
-    generator.put_string("type", "minecraft:noise".to_string());
-    generator.put_string("settings", "minecraft:overworld".to_string());
-    let mut overworld = NbtCompound::new();
-    overworld.put_string("type", "minecraft:overworld".to_string());
-    overworld.put_component("generator", generator);
-    let mut dimensions = NbtCompound::new();
-    dimensions.put_component("minecraft:overworld", overworld);
-
-    let mut payload = NbtCompound::new();
-    payload.put_bool("bonus_chest", false);
-    payload.put_long("seed", 2);
-    payload.put_bool("generate_structures", true);
-    payload.put_component("dimensions", dimensions);
-
-    let settings = parse_world_gen_settings(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+    let payload = world_gen_settings_payload();
+    let settings =
+        parse_world_gen_settings(&saved_data(VERSION.world_version, payload), path()).unwrap();
     assert_eq!(settings, WorldGenSettings { seed: 2 });
 }

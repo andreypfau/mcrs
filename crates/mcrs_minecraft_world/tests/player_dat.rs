@@ -4,10 +4,11 @@
 
 use std::path::Path;
 
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_world::save::{PlayerDat, WORLD_VERSION, read_player_dat, write_player_dat};
+use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use uuid::Uuid;
 
 const VANILLA: &[u8] = include_bytes!("fixtures/vanilla_player_5015.dat");
@@ -52,7 +53,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
     let dat = read_player_dat(&world, uuid)
         .unwrap()
         .expect("the file exists");
-    assert_eq!(dat.data_version, 5015);
+    assert_eq!(dat.data_version, VERSION.world_version);
     assert_eq!(dat.pos, [12.5, 64.0, -7.25]);
     assert_eq!(dat.rotation, [90.0, -12.5]);
     assert_eq!(dat.dimension, "minecraft:overworld");
@@ -134,7 +135,7 @@ fn a_missing_file_is_none_and_a_fresh_one_stamps_the_world_version() {
     assert!(read_player_dat(&world, uuid).unwrap().is_none());
     write_player_dat(&world, uuid, &PlayerDat::default()).unwrap();
     let written = read_player_dat(&world, uuid).unwrap().unwrap();
-    assert_eq!(written.data_version, WORLD_VERSION);
+    assert_eq!(written.data_version, VERSION.world_version);
     assert!(written.inventory.is_empty());
     assert!(
         !Path::new(

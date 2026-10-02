@@ -3,6 +3,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
@@ -11,7 +12,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use super::{SaveError, WORLD_VERSION, check_data_version};
+use super::{SaveError, check_data_version};
 
 /// The keys mcrs models, typed; every other root key rides along in `rest`
 /// so a vanilla file survives a round trip through a server that does not
@@ -31,7 +32,7 @@ pub struct PlayerDat {
 impl Default for PlayerDat {
     fn default() -> Self {
         Self {
-            data_version: WORLD_VERSION,
+            data_version: VERSION.world_version,
             pos: [0.0; 3],
             rotation: [0.0; 2],
             dimension: "minecraft:overworld".to_owned(),
