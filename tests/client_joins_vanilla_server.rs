@@ -7,7 +7,7 @@ use mcrs_minecraft_network::client::{
 use std::net::SocketAddr;
 
 mod support;
-use support::{JOIN_TIMEOUT, drive_client_until_joined};
+use support::{JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog};
 
 #[test]
 #[ignore = "needs a running vanilla server; tools/vanilla-server/run.sh starts one and runs this"]
@@ -25,6 +25,7 @@ fn the_client_logs_in_configures_and_joins_a_vanilla_server() {
         view_distance: 6,
     });
     client.add_plugins(ColumnCachePlugin);
+    insert_block_catalog(&mut client);
 
     let Some(connection) = drive_client_until_joined(&mut client) else {
         panic!("the client never reached the play state within {JOIN_TIMEOUT:?}");

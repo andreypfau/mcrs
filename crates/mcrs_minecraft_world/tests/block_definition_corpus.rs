@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
@@ -10,7 +12,9 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_protocol::section::block_direct_bits;
 use mcrs_minecraft_registry::BlockStateId;
+use serde::Deserialize;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();
@@ -65,6 +69,51 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
         }
     }
     assert!(claimed.iter().all(|&c| c), "a state is claimed by no block");
+}
+
+#[derive(Deserialize)]
+struct ReportedBlock {
+    states: Vec<ReportedState>,
+}
+
+#[derive(Deserialize)]
+struct ReportedState {
+    id: u32,
+}
+
+/// The game packs a section that dropped its palette at the smallest width
+/// that tells every block state apart, and a reader has no other way to learn
+/// that width than to count the states itself.
+#[test]
+fn the_block_container_width_is_the_one_the_blocks_report_requires() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/blocks.json");
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let report: BTreeMap<String, ReportedBlock> =
+        serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let reported_states: usize = report.values().map(|block| block.states.len()).sum();
+    let highest = report
+        .values()
+        .flat_map(|block| &block.states)
+        .map(|state| u64::from(state.id))
+        .max()
+        .expect("the report lists no state");
+    assert_eq!(
+        highest + 1,
+        reported_states as u64,
+        "the reported state ids leave a gap"
+    );
+
+    let (definitions, _) = corpus();
+    assert_eq!(definitions.state_count(), reported_states);
+    let width = block_direct_bits(definitions.state_count());
+    assert!(
+        1u64 << width > highest,
+        "state {highest} does not fit the {width} bits a direct section is packed at"
+    );
+    assert!(
+        1u64 << (width - 1) <= highest,
+        "{width} bits is wider than the game packs {reported_states} states at"
+    );
 }
 
 #[test]

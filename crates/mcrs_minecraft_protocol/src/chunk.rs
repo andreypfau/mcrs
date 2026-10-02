@@ -1,6 +1,6 @@
 use crate::section::{
-    BLOCK_DIRECT_BITS, Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue,
-    biome_direct_bits,
+    Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue, biome_direct_bits,
+    block_direct_bits,
 };
 use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
 use anyhow::{Context, bail, ensure};
@@ -336,18 +336,6 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     Ok(PalettedContainer::from_cells(&cells))
 }
 
-impl EncodeTrait for PalettedContainer<VoxelId, { Blocks::SIZE }> {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_container(self, BLOCK_DIRECT_BITS, w)
-    }
-}
-
-impl<'a> DecodeTrait<'a> for PalettedContainer<VoxelId, { Blocks::SIZE }> {
-    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        decode_container(r, BLOCK_DIRECT_BITS)
-    }
-}
-
 fn read_id<V: SectionValue>(r: &mut &[u8]) -> anyhow::Result<V> {
     V::from_registry_id(VarInt::decode(r)?.0)
 }
@@ -361,18 +349,27 @@ pub struct ChunkSection {
 }
 
 impl ChunkSection {
-    pub fn write(&self, biome_direct_bits: u32, mut w: impl Write) -> anyhow::Result<()> {
+    pub fn write(
+        &self,
+        block_direct_bits: u32,
+        biome_direct_bits: u32,
+        mut w: impl Write,
+    ) -> anyhow::Result<()> {
         self.non_empty_block_count.encode(&mut w)?;
         self.fluid_count.encode(&mut w)?;
-        self.blocks.encode(&mut w)?;
+        encode_container(&self.blocks, block_direct_bits, &mut w)?;
         encode_container(&self.biomes, biome_direct_bits, w)
     }
 
-    pub fn read(r: &mut &[u8], biome_direct_bits: u32) -> anyhow::Result<Self> {
+    pub fn read(
+        r: &mut &[u8],
+        block_direct_bits: u32,
+        biome_direct_bits: u32,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             non_empty_block_count: u16::decode(r)?,
             fluid_count: u16::decode(r)?,
-            blocks: PalettedContainer::decode(r)?,
+            blocks: decode_container(r, block_direct_bits)?,
             biomes: decode_container(r, biome_direct_bits)?,
         })
     }
@@ -380,19 +377,22 @@ impl ChunkSection {
 
 impl<'a> ChunkData<'a> {
     /// The column's sections, in wire order from the dimension's lowest section
-    /// upwards. `section_count` comes from the dimension's height and
+    /// upwards. `section_count` comes from the dimension's height,
+    /// `block_state_count` from the block states the reader knows and
     /// `biome_registry_len` from the registry the connection received: the blob
-    /// carries neither and nothing in it can recover them.
+    /// carries none of them and nothing in it can recover them.
     pub fn sections(
         &self,
         section_count: usize,
+        block_state_count: usize,
         biome_registry_len: usize,
     ) -> anyhow::Result<Vec<ChunkSection>> {
+        let block_direct_bits = block_direct_bits(block_state_count);
         let biome_direct_bits = biome_direct_bits(biome_registry_len);
         let mut r = self.data;
         let sections = (0..section_count)
             .map(|index| {
-                ChunkSection::read(&mut r, biome_direct_bits)
+                ChunkSection::read(&mut r, block_direct_bits, biome_direct_bits)
                     .with_context(|| format!("chunk section {index}"))
             })
             .collect::<anyhow::Result<Vec<_>>>()?;

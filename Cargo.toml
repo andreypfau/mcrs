@@ -122,7 +122,7 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
-mcrs_minecraft_worldgen_generator.workspace = true
+mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true

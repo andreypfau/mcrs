@@ -6,10 +6,11 @@ use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::message::{Message, MessageWriter};
-use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, ResMut, Resource, Single};
+use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, Res, ResMut, Resource, Single};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
@@ -296,10 +297,11 @@ impl Column {
         data: &ChunkData<'_>,
         light: &LightData<'_>,
         extent: Extent,
+        block_state_count: usize,
         biome_registry_len: usize,
     ) -> Result<Column> {
         let sections = data
-            .sections(extent.sections, biome_registry_len)?
+            .sections(extent.sections, block_state_count, biome_registry_len)?
             .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -549,6 +551,7 @@ impl Arrivals {
 fn receive_column_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<(&ConnectionState, &ReceivedRegistries)>,
+    blocks: Res<Blocks>,
     mut arrivals: ResMut<Arrivals>,
 ) {
     let Ok((state, registries)) = connections.get(event.entity) else {
@@ -567,6 +570,7 @@ fn receive_column_packets(
             return;
         };
         let data = event.data.clone();
+        let block_state_count = blocks.state_count();
         let biome_registry_len = biome_registry_len(&registries.0);
         let task = AsyncComputeTaskPool::get().spawn(async move {
             let mut bytes = &data[..];
@@ -576,6 +580,7 @@ fn receive_column_packets(
                 &packet.chunk_data,
                 &packet.light_data,
                 extent,
+                block_state_count,
                 biome_registry_len,
             )
             .with_context(|| format!("column {:?}", packet.pos))?;
@@ -650,7 +655,7 @@ mod tests {
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_network::client::RegistryEntry;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
-    use mcrs_minecraft_protocol::section::biome_direct_bits;
+    use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
 
@@ -665,12 +670,17 @@ mod tests {
         bytes
     }
 
+    const BLOCK_STATE_COUNT: usize = 40_000;
     const BIOME_REGISTRY_LEN: usize = 16;
 
     fn written(section: &ChunkSection) -> Vec<u8> {
         let mut bytes = Vec::new();
         section
-            .write(biome_direct_bits(BIOME_REGISTRY_LEN), &mut bytes)
+            .write(
+                block_direct_bits(BLOCK_STATE_COUNT),
+                biome_direct_bits(BIOME_REGISTRY_LEN),
+                &mut bytes,
+            )
             .expect("write section");
         bytes
     }
@@ -760,6 +770,7 @@ mod tests {
             &packet.chunk_data,
             &packet.light_data,
             EXTENT,
+            BLOCK_STATE_COUNT,
             BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");
@@ -815,6 +826,7 @@ mod tests {
             },
             &light,
             EXTENT,
+            BLOCK_STATE_COUNT,
             BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");

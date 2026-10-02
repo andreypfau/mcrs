@@ -4,7 +4,9 @@ use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 
 pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
-pub const BLOCK_DIRECT_BITS: u32 = 15;
+pub fn block_direct_bits(block_state_count: usize) -> u32 {
+    ceillog2(block_state_count)
+}
 
 pub fn biome_direct_bits(registry_len: usize) -> u32 {
     ceillog2(registry_len)
@@ -98,6 +100,8 @@ mod tests {
 
     #[test]
     fn the_width_table_matches_the_strategy_configurations() {
+        let block_states = 40_000;
+        let direct = block_direct_bits(block_states);
         let blocks = [
             (1, 0, Single),
             (2, 4, Indirect { bits: 4 }),
@@ -107,12 +111,12 @@ mod tests {
             (16, 4, Indirect { bits: 4 }),
             (17, 5, Indirect { bits: 5 }),
             (256, 8, Indirect { bits: 8 }),
-            (257, 9, Direct { bits: 15 }),
+            (257, 9, Direct { bits: direct }),
         ];
         for (len, storage, form) in blocks {
             assert_eq!(Blocks::storage_bits(len), storage, "block palette of {len}");
             assert_eq!(
-                Blocks::network_form(len, BLOCK_DIRECT_BITS),
+                Blocks::network_form(len, direct),
                 form,
                 "block palette of {len}"
             );
@@ -139,6 +143,24 @@ mod tests {
                 Biomes::network_form(len, direct),
                 form,
                 "biome palette of {len}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_block_direct_width_follows_the_state_count() {
+        let widths = [
+            (16_384, 14),
+            (16_385, 15),
+            (32_768, 15),
+            (32_769, 16),
+            (65_536, 16),
+        ];
+        for (block_state_count, bits) in widths {
+            assert_eq!(
+                block_direct_bits(block_state_count),
+                bits,
+                "{block_state_count} block states"
             );
         }
     }

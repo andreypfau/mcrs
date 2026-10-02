@@ -8,6 +8,12 @@ use std::time::{Duration, Instant};
 
 pub const JOIN_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// A column cannot be decoded without the number of block states: it fixes the
+/// width a section's states are packed at once the section drops its palette.
+pub fn insert_block_catalog(client: &mut App) {
+    client.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
+}
+
 /// Returns the connection entity once every play-state packet the flow promises
 /// has arrived, or `None` if the deadline passes first.
 pub fn drive_client_until_joined(client: &mut App) -> Option<bevy_ecs::entity::Entity> {

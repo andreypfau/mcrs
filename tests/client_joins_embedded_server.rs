@@ -13,7 +13,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 mod support;
-use support::{JOIN_TIMEOUT, drive_client_until_joined};
+use support::{JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog};
 
 #[test]
 fn the_client_logs_in_configures_and_joins_the_embedded_server() {
@@ -42,6 +42,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
         view_distance: 8,
     });
     client.add_plugins(ColumnCachePlugin);
+    insert_block_catalog(&mut client);
 
     let outcome = drive_client_until_joined(&mut client);
 
