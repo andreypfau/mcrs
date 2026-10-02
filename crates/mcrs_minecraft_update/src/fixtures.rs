@@ -27,6 +27,7 @@ pub struct Fixture {
     pub name: &'static str,
     pub project: &'static str,
     pub task: &'static str,
+    pub golden: Option<&'static str>,
     pub outputs: &'static [Output],
 }
 
@@ -49,6 +50,7 @@ pub const FIXTURES: &[Fixture] = &[
         name: "density",
         project: ORACLE,
         task: "dumpOracle",
+        golden: None,
         outputs: &[every_file(
             "crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla",
         )],
@@ -57,12 +59,14 @@ pub const FIXTURES: &[Fixture] = &[
         name: "surface",
         project: ORACLE,
         task: "dumpSurface",
+        golden: None,
         outputs: &[every_file(GENERATOR_FIXTURES)],
     },
     Fixture {
         name: "feature_steps",
         project: ORACLE,
         task: "dumpFeatureSteps",
+        golden: None,
         outputs: &[named(
             "feature_steps.bin",
             "crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla",
@@ -72,24 +76,28 @@ pub const FIXTURES: &[Fixture] = &[
         name: "ore_vein",
         project: ORACLE,
         task: "dumpOreVeins",
+        golden: None,
         outputs: &[named("ore_vein.bin", PLACE_FIXTURES)],
     },
     Fixture {
         name: "tree_geometry",
         project: ORACLE,
         task: "dumpTrees",
+        golden: None,
         outputs: &[named("tree_geometry.bin", PLACE_FIXTURES)],
     },
     Fixture {
         name: "templates",
         project: ORACLE,
         task: "dumpTemplates",
+        golden: None,
         outputs: &[named("templates.bin", GENERATOR_FIXTURES)],
     },
     Fixture {
         name: "structure_placement",
         project: ORACLE,
         task: "dumpPlacement",
+        golden: None,
         outputs: &[
             named(
                 "structure_cells.bin",
@@ -102,18 +110,21 @@ pub const FIXTURES: &[Fixture] = &[
         name: "structure_layouts",
         project: ORACLE,
         task: "dumpJigsaw",
+        golden: None,
         outputs: &[named("structure_layouts.bin", GENERATOR_FIXTURES)],
     },
     Fixture {
         name: "template_placement",
         project: ORACLE,
         task: "dumpTemplatePlacement",
+        golden: None,
         outputs: &[named("template_placement.bin", GENERATOR_FIXTURES)],
     },
     Fixture {
         name: "beard",
         project: ORACLE,
         task: "dumpBeard",
+        golden: None,
         outputs: &[named(
             "beard.bin",
             "crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla",
@@ -123,6 +134,7 @@ pub const FIXTURES: &[Fixture] = &[
         name: "registry_census",
         project: ORACLE,
         task: "dumpRegistryCensus",
+        golden: None,
         outputs: &[named(
             "registry_census.bin",
             "crates/mcrs_minecraft_world/src/entity/fixtures",
@@ -132,13 +144,32 @@ pub const FIXTURES: &[Fixture] = &[
         name: "structure_pieces",
         project: ORACLE,
         task: "dumpStructurePieces",
+        golden: None,
         outputs: &[named("structure_pieces.bin", GENERATOR_FIXTURES)],
     },
     Fixture {
         name: "structure_geometry",
         project: ORACLE,
         task: "dumpStructureGeometry",
+        golden: None,
         outputs: &[named("structure_geometry.bin", GENERATOR_FIXTURES)],
+    },
+    Fixture {
+        name: "snbt",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("snbt"),
+        outputs: &[named("snbt.json", "crates/mcrs_minecraft_nbt/src/fixtures")],
+    },
+    Fixture {
+        name: "hash_ops",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("hash_ops"),
+        outputs: &[named(
+            "hash_ops.json",
+            "crates/mcrs_minecraft_item_component/src/fixtures",
+        )],
     },
 ];
 
@@ -288,16 +319,51 @@ pub fn capture(
     result
 }
 
+fn utf8(path: &Path) -> Result<&str, String> {
+    path.to_str()
+        .ok_or_else(|| format!("{}: not valid UTF-8", path.display()))
+}
+
+fn current_file(root: &Path, fixture: &Fixture) -> Result<PathBuf, String> {
+    match fixture.outputs.first() {
+        Some(Output {
+            files: Files::Named(file),
+            to,
+        }) => Ok(root.join(to).join(file)),
+        _ => Err(format!(
+            "{}: a golden is rewritten from one named file",
+            fixture.name
+        )),
+    }
+}
+
+fn properties<'a>(
+    root: &Path,
+    fixture: &'a Fixture,
+    out: &'a Path,
+) -> Result<Vec<(&'static str, String)>, String> {
+    let out = utf8(out)?.to_owned();
+    match fixture.golden {
+        None => Ok(vec![("oracleOut", out)]),
+        Some(golden) => {
+            let current = current_file(root, fixture)?;
+            Ok(vec![
+                ("golden", golden.to_owned()),
+                ("goldenIn", utf8(&current)?.to_owned()),
+                ("goldenOut", out),
+            ])
+        }
+    }
+}
+
 pub fn recapture(root: &Path, fixture: &Fixture) -> Result<Vec<PathBuf>, String> {
     capture(root, fixture, |out| {
-        let out = out
-            .to_str()
-            .ok_or_else(|| format!("{}: not valid UTF-8", out.display()))?;
-        gradle::run(
-            &root.join(fixture.project),
-            fixture.task,
-            &[("oracleOut", out)],
-        )
+        let owned = properties(root, fixture, out)?;
+        let borrowed: Vec<(&str, &str)> = owned
+            .iter()
+            .map(|(name, value)| (*name, value.as_str()))
+            .collect();
+        gradle::run(&root.join(fixture.project), fixture.task, &borrowed)
     })
 }
 
@@ -363,12 +429,48 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_thirteen_fixtures_with_unique_names() {
+    fn the_table_has_fifteen_fixtures_with_unique_names() {
         let mut names = names();
-        assert_eq!(names.len(), 13);
+        assert_eq!(names.len(), 15);
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 13);
+        assert_eq!(names.len(), 15);
+    }
+
+    #[test]
+    fn a_dump_fixture_passes_only_the_oracle_output_directory() {
+        let root = Path::new("/repo");
+        let out = Path::new("/tmp/out");
+        assert_eq!(
+            properties(root, fixture("beard"), out).unwrap(),
+            [("oracleOut", "/tmp/out".to_owned())]
+        );
+    }
+
+    #[test]
+    fn a_golden_fixture_passes_its_name_its_current_file_and_the_output_directory() {
+        let root = Path::new("/repo");
+        let out = Path::new("/tmp/out");
+        assert_eq!(
+            properties(root, fixture("snbt"), out).unwrap(),
+            [
+                ("golden", "snbt".to_owned()),
+                (
+                    "goldenIn",
+                    "/repo/crates/mcrs_minecraft_nbt/src/fixtures/snbt.json".to_owned()
+                ),
+                ("goldenOut", "/tmp/out".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_golden_current_file_exists_in_the_repository() {
+        let root = repository();
+        for fixture in FIXTURES.iter().filter(|fixture| fixture.golden.is_some()) {
+            let current = current_file(&root, fixture).unwrap();
+            assert!(current.is_file(), "{}: {}", fixture.name, current.display());
+        }
     }
 
     #[test]
