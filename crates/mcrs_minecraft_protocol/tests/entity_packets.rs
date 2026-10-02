@@ -50,7 +50,7 @@ fn add_entity_writes_pitch_before_yaw() {
 }
 
 #[test]
-fn entity_data_uses_the_serializer_ids_of_26_3() {
+fn entity_data_uses_the_registered_serializer_ids() {
     let entries = vec![
         (0, MetaDataValue::Byte(0x20), 0),
         (1, MetaDataValue::VarInt(VarInt(300)), 1),

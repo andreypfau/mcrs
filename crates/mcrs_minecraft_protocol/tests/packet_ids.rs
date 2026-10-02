@@ -1,4 +1,4 @@
-//! Pins every packet id modelled by this crate to its 26.3 wire value.
+//! Pins every packet id modelled by this crate to its wire value.
 //!
 //! Vanilla assigns ids by registration order in the protocol builders, so a wrong
 //! id is self-consistent between our own client and server and only shows up

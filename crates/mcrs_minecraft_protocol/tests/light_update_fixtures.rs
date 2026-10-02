@@ -10,8 +10,6 @@ use std::borrow::Cow;
 const EMPTY_FIXTURE: &[u8] = include_bytes!("fixtures/clientbound_light_update_empty.bin");
 const ONE_SECTION_FIXTURE: &[u8] =
     include_bytes!("fixtures/clientbound_light_update_one_section.bin");
-const CAPTURED_FIXTURE: &[u8] =
-    include_bytes!("fixtures/clientbound_light_update_captured_26_1_2.bin");
 
 #[test]
 fn fixture_files_exist() {
@@ -22,10 +20,6 @@ fn fixture_files_exist() {
     assert!(
         !ONE_SECTION_FIXTURE.is_empty(),
         "one-section-layout fixture is zero-length"
-    );
-    assert!(
-        !CAPTURED_FIXTURE.is_empty(),
-        "captured-fixture placeholder is zero-length"
     );
 }
 
@@ -118,22 +112,5 @@ fn clientbound_light_update_one_section_round_trip() {
         &decoded.light_data.sky_light_arrays[0].0[..],
         &[0xFFu8; 2048][..],
         "populated sky-light section bytes must round-trip exactly"
-    );
-}
-
-#[test]
-#[ignore = "captures real bytes via packet capture during manual handshake; remove #[ignore] when the fixture is populated."]
-fn clientbound_light_update_captured_fixture_round_trip() {
-    let mut r: &[u8] = CAPTURED_FIXTURE;
-    let decoded = ClientboundLightUpdate::decode(&mut r).expect("decode captured-fixture payload");
-    assert!(
-        r.is_empty(),
-        "captured fixture has {} trailing bytes after decode",
-        r.len()
-    );
-    let re_encoded = encode_payload(&decoded);
-    assert_eq!(
-        re_encoded, CAPTURED_FIXTURE,
-        "captured fixture must round-trip byte-equal"
     );
 }
