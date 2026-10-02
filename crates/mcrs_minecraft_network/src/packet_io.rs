@@ -49,7 +49,7 @@ pub struct PacketIo<S> {
     stream: S,
     enc: PacketEncoder,
     dec: PacketDecoder,
-    buf: BytesMut,
+    buf: Bytes,
 }
 
 const READ_BUF_SIZE: usize = 4096;
@@ -72,7 +72,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             stream,
             enc: PacketEncoder::new(),
             dec: PacketDecoder::new(),
-            buf: BytesMut::new(),
+            buf: Bytes::new(),
         }
     }
 
@@ -87,7 +87,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
     pub async fn recv_frame(&mut self) -> anyhow::Result<(i32, Bytes)> {
         loop {
             if let Some(frame) = self.dec.try_next_packet()? {
-                return Ok((frame.id, frame.body.freeze()));
+                return Ok((frame.id, frame.body));
             }
 
             self.dec.reserve(READ_BUF_SIZE);
@@ -206,7 +206,7 @@ async fn reader_loop<R: AsyncRead + Unpin>(
         let packet = ReceivedPacket {
             timestamp,
             id: frame.id,
-            payload: frame.body.into(),
+            payload: frame.body,
         };
 
         if incoming_sender.send(packet).await.is_err() {
