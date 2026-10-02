@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Provisions the vanilla dedicated server of the corpus version under target/vanilla-server,
-# verified against the package descriptor pinned in release.json, with compression off and
-# online mode off on loopback. `serve` runs it until interrupted; `attempt` (the default) runs
-# one headless join of the MCRS client against it. Exit: 0 joined, 1 not joined, 2 provisioning
-# failed, 3 the Minecraft EULA is not accepted in this environment.
+# verified against the package descriptor pinned in release.json, with online mode off on
+# loopback and the compression threshold of VANILLA_COMPRESSION (default -1, compression off;
+# 0 and up compress packets of that size and more). `serve` runs it until interrupted; `attempt`
+# (the default) runs one headless join of the MCRS client against it. Exit: 0 joined, 1 not
+# joined, 2 provisioning failed or a bad argument, 3 the Minecraft EULA is not accepted in this
+# environment.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 release="$root/crates/mcrs_minecraft_client_jar/src/release.json"
 port="${VANILLA_PORT:-25566}"
+compression="${VANILLA_COMPRESSION:--1}"
 
 sha1_of() {
     shasum -a 1 "$1" | cut -d' ' -f1
@@ -37,6 +40,25 @@ fetch_verified() {
     check_file "$file" "$sha1" "$size"
 }
 
+server_properties() {
+    local port=$1 threshold=$2
+    cat <<EOF
+online-mode=false
+network-compression-threshold=$threshold
+server-ip=127.0.0.1
+server-port=$port
+level-seed=42
+gamemode=creative
+force-gamemode=true
+view-distance=6
+simulation-distance=6
+spawn-protection=0
+enforce-secure-profile=false
+enable-rcon=false
+enable-query=false
+EOF
+}
+
 main() {
     local mode=${1:-attempt}
     case "$mode" in
@@ -48,6 +70,11 @@ main() {
         echo "The Minecraft EULA is not accepted in this environment." >&2
         echo "Read https://aka.ms/MinecraftEULA; setting MINECRAFT_EULA=true states the acceptance." >&2
         exit 3
+    fi
+
+    if ! [[ $compression =~ ^(-1|[0-9]+)$ ]]; then
+        echo "VANILLA_COMPRESSION must be -1 or a non-negative whole number, got '$compression'" >&2
+        exit 2
     fi
 
     local id package_url package_sha1
@@ -71,21 +98,7 @@ main() {
     fetch_verified "$work/server.jar" "$server_url" "$server_sha1" "$server_size" || exit 2
 
     echo "eula=true" >"$work/eula.txt"
-    cat >"$work/server.properties" <<EOF
-online-mode=false
-network-compression-threshold=-1
-server-ip=127.0.0.1
-server-port=$port
-level-seed=42
-gamemode=creative
-force-gamemode=true
-view-distance=6
-simulation-distance=6
-spawn-protection=0
-enforce-secure-profile=false
-enable-rcon=false
-enable-query=false
-EOF
+    server_properties "$port" "$compression" >"$work/server.properties"
 
     local log="$work/server.log"
     (cd "$work" && exec java -Xmx2G -jar server.jar nogui >"$log" 2>&1 </dev/null) &
@@ -102,7 +115,7 @@ EOF
     [ -n "$up" ] || { echo "server never opened port $port, see $log" >&2; exit 2; }
 
     if [ "$mode" = serve ]; then
-        echo "vanilla $id listening on 127.0.0.1:$port, compression off; interrupt to stop"
+        echo "vanilla $id listening on 127.0.0.1:$port, compression threshold $compression; interrupt to stop"
         wait "$server"
         return
     fi
