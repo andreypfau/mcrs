@@ -192,7 +192,14 @@ macro_rules! define_in_list_number {
                 let value = self.input.$read()?;
                 return visitor.$visit::<Error>(value);
             }
-            self.deserialize_any(visitor)
+            self.read_root()?;
+            let tag = self.tag_to_deserialize_stack.unwrap();
+            match tag {
+                BYTE_ID | SHORT_ID | INT_ID | LONG_ID | FLOAT_ID | DOUBLE_ID => {
+                    NbtTag::deserialize_data(&mut self.input, tag)?.$name(visitor)
+                }
+                _ => self.deserialize_any(visitor),
+            }
         }
     };
 }

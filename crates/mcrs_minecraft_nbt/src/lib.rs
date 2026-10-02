@@ -714,6 +714,34 @@ mod test {
         assert_eq!(value, reconstructed);
     }
 
+    #[test]
+    fn a_struct_reads_an_int_field_from_another_numeric_tag() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            from_long: i32,
+            from_double: i32,
+            from_short: i32,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_long("from_long", (1 << 32) + 5);
+        root.put_double("from_double", -0.5);
+        root.put_short("from_short", -3);
+        let bytes = Nbt::new(String::new(), root.clone()).write();
+
+        let streamed: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        let in_memory: Fields = crate::from_tag(tag::NbtTag::Compound(root)).unwrap();
+        assert_eq!(
+            streamed,
+            Fields {
+                from_long: 5,
+                from_double: -1,
+                from_short: -3
+            }
+        );
+        assert_eq!(streamed, in_memory);
+    }
+
     fn compound_with_arrays() -> compound::NbtCompound {
         let mut root = compound::NbtCompound::new();
         root.put("bytes", tag::NbtTag::ByteArray(Box::new([1, 2, 255])));

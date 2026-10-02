@@ -24,7 +24,7 @@ impl<'de> de::Deserializer<'de> for NbtTag {
     type Error = Error;
 
     forward_to_deserialize_any! {
-        i8 i16 i32 i64 f32 f64 char str string seq tuple tuple_struct map struct identifier
+        i8 i16 i64 f32 f64 char str string seq tuple tuple_struct map struct identifier
         unit_struct
     }
 
@@ -65,6 +65,20 @@ impl<'de> de::Deserializer<'de> for NbtTag {
             NbtTag::Long(v) => visitor.visit_bool(v != 0),
             NbtTag::Float(v) => visitor.visit_bool(v != 0.0),
             NbtTag::Double(v) => visitor.visit_bool(v != 0.0),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
+    /// Integer tags keep their low bits; float tags floor and saturate, since
+    /// the game's number tags do not wrap a float.
+    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_i32(v as i32),
+            NbtTag::Short(v) => visitor.visit_i32(v as i32),
+            NbtTag::Int(v) => visitor.visit_i32(v),
+            NbtTag::Long(v) => visitor.visit_i32(v as i32),
+            NbtTag::Float(v) => visitor.visit_i32(v.floor() as i32),
+            NbtTag::Double(v) => visitor.visit_i32(v.floor() as i32),
             other => other.deserialize_any(visitor),
         }
     }
@@ -276,5 +290,30 @@ mod test {
         assert_eq!(from_tag::<Option<i32>>(NbtTag::Int(4)).unwrap(), Some(4));
         assert!(from_tag::<i32>(NbtTag::String("4".into())).is_err());
         assert!(from_tag::<Value>(NbtTag::Int(4)).is_err());
+    }
+
+    #[test]
+    fn an_int_is_read_from_every_numeric_tag() {
+        let int = |tag| from_tag::<i32>(tag).unwrap();
+        assert_eq!(int(NbtTag::Byte(-7)), -7);
+        assert_eq!(int(NbtTag::Short(-300)), -300);
+        assert_eq!(int(NbtTag::Int(i32::MIN)), i32::MIN);
+        assert_eq!(int(NbtTag::Long((1 << 32) + 5)), 5);
+        assert_eq!(int(NbtTag::Long(1 << 31)), i32::MIN);
+        assert_eq!(int(NbtTag::Long(-1)), -1);
+        assert_eq!(int(NbtTag::Double(2.9)), 2);
+        assert_eq!(int(NbtTag::Double(-0.5)), -1);
+        assert_eq!(int(NbtTag::Double(1e10)), i32::MAX);
+        assert_eq!(int(NbtTag::Double(-1e10)), i32::MIN);
+        assert_eq!(int(NbtTag::Double(f64::NAN)), 0);
+        assert_eq!(int(NbtTag::Double(f64::INFINITY)), i32::MAX);
+        assert_eq!(int(NbtTag::Double(f64::NEG_INFINITY)), i32::MIN);
+        assert_eq!(int(NbtTag::Float(2.9)), 2);
+        assert_eq!(int(NbtTag::Float(-0.5)), -1);
+        assert_eq!(int(NbtTag::Float(3e9)), i32::MAX);
+        assert_eq!(int(NbtTag::Float(-3e9)), i32::MIN);
+        assert_eq!(int(NbtTag::Float(f32::NAN)), 0);
+        assert_eq!(int(NbtTag::Float(f32::INFINITY)), i32::MAX);
+        assert_eq!(int(NbtTag::Float(f32::NEG_INFINITY)), i32::MIN);
     }
 }
