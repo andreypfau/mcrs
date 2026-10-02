@@ -1213,6 +1213,7 @@ fn a_malformed_missing_bedrock_reads_as_absent() {
         NbtTag::Int(7),
         NbtTag::Compound(NbtCompound::new()),
         NbtTag::List(vec![NbtTag::String("x".to_string())]),
+        NbtTag::List(vec![NbtTag::Long(1), NbtTag::String("x".to_string())]),
     ];
     for value in malformed {
         let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
@@ -1228,6 +1229,43 @@ fn a_malformed_missing_bedrock_reads_as_absent() {
         assert!(retrogen.missing_bedrock.is_empty(), "{value:?}");
         assert!(retrogen.has_below_zero_retrogen, "{value:?}");
         assert_eq!(retrogen.statuses_to_rerun, vec![ChunkStatus::Biomes]);
+    }
+}
+
+#[test]
+fn missing_bedrock_reads_an_array_or_a_list_of_numbers_element_by_element() {
+    let fixture = Fixture::new("bedrock_by_element");
+    let stored = [
+        (NbtTag::IntArray(vec![1, 2]), vec![1, 2]),
+        (NbtTag::IntArray(vec![1, 2, 3]), vec![1, 2, 3]),
+        (NbtTag::IntArray(vec![-1, 4]), vec![-1, 4]),
+        (NbtTag::ByteArray(Box::new([1; 8])), vec![1; 8]),
+        (NbtTag::ByteArray(Box::new([0xff, 2])), vec![-1, 2]),
+        (NbtTag::LongArray(vec![i64::MIN, 9]), vec![i64::MIN, 9]),
+        (
+            NbtTag::List(vec![NbtTag::Int(1), NbtTag::Int(2)]),
+            vec![1, 2],
+        ),
+        (
+            NbtTag::List(vec![NbtTag::Long(6), NbtTag::Short(-7)]),
+            vec![6, -7],
+        ),
+        (NbtTag::List(vec![NbtTag::Double(5.0)]), vec![5]),
+        (
+            NbtTag::List(vec![NbtTag::Double(-2.7), NbtTag::Float(3.9)]),
+            vec![-2, 3],
+        ),
+    ];
+    for (value, words) in stored {
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", value.clone());
+        let chunk = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_with_retrogen("minecraft:terrain", record),
+        )
+        .unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        assert_eq!(chunk.retrogen.unwrap().missing_bedrock, words, "{value:?}");
     }
 }
 

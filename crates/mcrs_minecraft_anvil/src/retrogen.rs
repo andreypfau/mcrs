@@ -83,14 +83,15 @@ impl Serialize for RetroGen {
     }
 }
 
-/// A value that is not a long array reads as absent, consumed so the rest of
-/// the record still loads; every other field of the record is strict.
+/// A list or an array of any element width reads number by number, one word
+/// per element. A value holding anything else reads as absent, consumed so the
+/// rest of the record still loads; every other field of the record is strict.
 #[derive(Default)]
 struct MissingBedrock(Vec<i64>);
 
 impl<'de> Deserialize<'de> for MissingBedrock {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_bytes(Words)
+        deserializer.deserialize_any(Words)
     }
 }
 
@@ -100,30 +101,23 @@ impl<'de> Visitor<'de> for Words {
     type Value = MissingBedrock;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("a long array")
-    }
-
-    fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<MissingBedrock, E> {
-        if !v.len().is_multiple_of(8) {
-            return Ok(MissingBedrock::default());
-        }
-        Ok(MissingBedrock(
-            v.chunks_exact(8)
-                .map(|word| i64::from_be_bytes(word.try_into().unwrap()))
-                .collect(),
-        ))
+        f.write_str("a list or an array of numbers")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<MissingBedrock, A::Error> {
         let mut words = Vec::new();
-        let mut longs_only = true;
+        let mut numbers_only = true;
         while let Some(Word(word)) = seq.next_element()? {
             match word {
                 Some(word) => words.push(word),
-                None => longs_only = false,
+                None => numbers_only = false,
             }
         }
-        Ok(MissingBedrock(if longs_only { words } else { Vec::new() }))
+        Ok(MissingBedrock(if numbers_only {
+            words
+        } else {
+            Vec::new()
+        }))
     }
 
     fn visit_bool<E>(self, _: bool) -> Result<MissingBedrock, E> {
@@ -170,7 +164,7 @@ impl<'de> Visitor<'de> for WordVisitor {
     type Value = Word;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("a long")
+        f.write_str("a number")
     }
 
     fn visit_i64<E>(self, v: i64) -> Result<Word, E> {
@@ -185,8 +179,10 @@ impl<'de> Visitor<'de> for WordVisitor {
         Ok(Word(None))
     }
 
-    fn visit_f64<E>(self, _: f64) -> Result<Word, E> {
-        Ok(Word(None))
+    // A float element narrows as a cast does: toward zero, saturating, and
+    // not floored the way a float tag read as an integer field is.
+    fn visit_f64<E>(self, v: f64) -> Result<Word, E> {
+        Ok(Word(Some(v as i64)))
     }
 
     fn visit_str<E>(self, _: &str) -> Result<Word, E> {
