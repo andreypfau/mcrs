@@ -4011,6 +4011,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_update"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_core",
+ "serde",
+ "serde_json",
+ "zip",
+]
+
+[[package]]
 name = "mcrs_minecraft_world"
 version = "0.1.0"
 dependencies = [

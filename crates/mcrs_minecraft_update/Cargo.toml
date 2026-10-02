@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_update"
+description = "Regenerates the data pack corpus and the client jar descriptor from a Minecraft version"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_client_jar.workspace = true
+mcrs_minecraft_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
