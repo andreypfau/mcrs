@@ -321,6 +321,96 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "minecraft:plains")]
+    fn a_snapshot_with_its_last_entry_missing_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p1 = make_pair("minecraft:plains", &mut assets);
+        let p2 = make_pair("minecraft:desert", &mut assets);
+        let p3 = make_pair("minecraft:forest", &mut assets);
+        assets.remove(p1.1);
+
+        RegistrySnapshot::<TestBiome>::build(vec![p1, p2, p3], &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "minecraft:desert")]
+    fn a_snapshot_with_its_only_entry_missing_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p = make_pair("minecraft:desert", &mut assets);
+        assets.remove(p.1);
+
+        RegistrySnapshot::<TestBiome>::build(vec![p], &assets, |_| Ok(NbtCompound::new().into()));
+    }
+
+    #[test]
+    fn a_snapshot_of_no_entries_builds_empty() {
+        let assets = Assets::<TestBiome>::default();
+
+        let snapshot = RegistrySnapshot::<TestBiome>::build(Vec::new(), &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
+
+        assert_eq!(snapshot.len(), 0);
+        assert!(snapshot.is_empty());
+        assert!(snapshot.by_id(0).is_none());
+    }
+
+    #[test]
+    fn two_names_for_one_asset_keep_their_own_ids() {
+        let mut assets = Assets::<TestBiome>::default();
+        let (alias_a, asset_id) = make_pair("minecraft:alias_a", &mut assets);
+        let alias_b = ResourceLocation::parse("minecraft:alias_b").unwrap();
+
+        let snapshot = RegistrySnapshot::<TestBiome>::build(
+            vec![(alias_a, asset_id), (alias_b, asset_id)],
+            &assets,
+            |_| Ok(NbtCompound::new().into()),
+        );
+
+        assert_eq!(snapshot.len(), 2);
+        assert_eq!(snapshot.by_location("minecraft:alias_a"), Some(0));
+        assert_eq!(snapshot.by_location("minecraft:alias_b"), Some(1));
+        assert_eq!(
+            snapshot.by_id(0).unwrap().location.as_str(),
+            "minecraft:alias_a"
+        );
+        assert_eq!(
+            snapshot.by_id(1).unwrap().location.as_str(),
+            "minecraft:alias_b"
+        );
+    }
+
+    #[test]
+    fn every_lookup_agrees_when_every_asset_is_present() {
+        let mut assets = Assets::<TestBiome>::default();
+        let pairs: Vec<_> = [
+            "minecraft:taiga",
+            "minecraft:plains",
+            "minecraft:swamp",
+            "minecraft:desert",
+            "minecraft:forest",
+        ]
+        .into_iter()
+        .map(|name| make_pair(name, &mut assets))
+        .collect();
+
+        let snapshot = RegistrySnapshot::<TestBiome>::build(pairs.clone(), &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
+
+        assert_eq!(snapshot.len(), 5);
+        for (location, asset_id) in pairs {
+            let by_asset = snapshot.by_asset_id(asset_id).unwrap();
+            assert_eq!(snapshot.by_location(location.as_str()), Some(by_asset));
+            let entry = snapshot.by_id(by_asset).unwrap();
+            assert_eq!(entry.location.as_str(), location.as_str());
+            assert_eq!(entry.asset_id, asset_id);
+        }
+    }
+
+    #[test]
     fn rl_from_asset_path_parses_minecraft_path() {
         let p = std::path::Path::new("minecraft/worldgen/biome/plains.json");
         let rl = rl_from_asset_path(p, "minecraft:worldgen/biome").unwrap();
