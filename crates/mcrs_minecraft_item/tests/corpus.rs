@@ -1,6 +1,6 @@
 mod common;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
@@ -12,7 +12,9 @@ use mcrs_minecraft_protocol::item::{
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
     TooltipDisplay, UseEffects,
 };
-use mcrs_minecraft_registry::ItemId;
+use mcrs_minecraft_registry::{ItemId, StaticRegistryTable};
+use serde::Deserialize;
+use serde::de::IgnoredAny;
 
 use common::{corpus, items};
 
@@ -209,4 +211,113 @@ fn a_repeated_identifier_fails_to_load() {
         ),
         "{error}"
     );
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawFile {
+    #[allow(dead_code)]
+    format_version: IgnoredAny,
+    #[serde(rename = "minecraft:item")]
+    item: RawItem,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawItem {
+    description: RawDescription,
+    components: BTreeMap<String, IgnoredAny>,
+    #[allow(dead_code)]
+    block_placer: Option<IgnoredAny>,
+    #[allow(dead_code)]
+    crafting_remainder: Option<IgnoredAny>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawDescription {
+    identifier: String,
+    protocol_id: u32,
+}
+
+fn raw_files() -> Vec<(String, RawFile)> {
+    files()
+        .into_iter()
+        .map(|(path, bytes)| {
+            let file = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
+            (path, file)
+        })
+        .collect()
+}
+
+fn assert_no_mismatches(what: &str, mismatches: Vec<String>) {
+    assert!(
+        mismatches.is_empty(),
+        "{} {what}:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+#[test]
+fn definition_files_are_named_after_their_identifier() {
+    let files = raw_files();
+    assert!(!files.is_empty(), "no item definition was read");
+    let mismatches = files
+        .iter()
+        .filter_map(|(path, file)| {
+            let identifier = &file.item.description.identifier;
+            let stem = std::path::Path::new(path).file_stem()?.to_str()?;
+            (identifier.strip_prefix("minecraft:") != Some(stem))
+                .then(|| format!("{path}: identifier is {identifier}"))
+        })
+        .collect();
+    assert_no_mismatches("files not named after their identifier", mismatches);
+}
+
+#[test]
+fn definition_prototypes_state_no_removal_key() {
+    let files = raw_files();
+    assert!(!files.is_empty(), "no item definition was read");
+    let mismatches = files
+        .iter()
+        .flat_map(|(path, file)| {
+            file.item
+                .components
+                .keys()
+                .filter(|key| key.starts_with('!'))
+                .map(move |key| format!("{path}: {key}"))
+        })
+        .collect();
+    assert_no_mismatches("removal keys in a prototype", mismatches);
+}
+
+#[test]
+fn definition_protocol_ids_match_the_registries_report() {
+    let files = raw_files();
+    assert!(!files.is_empty(), "no item definition was read");
+    let registries = StaticRegistryTable::load(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/reports/registries.json"
+    ))
+    .unwrap();
+    let items = registries
+        .registry("item")
+        .expect("the registries report has no item registry");
+    let mismatches = files
+        .iter()
+        .filter_map(|(path, file)| {
+            let description = &file.item.description;
+            let registered = items.names().get(description.protocol_id as usize);
+            (registered.map(|name| name.as_str()) != Some(description.identifier.as_str())).then(
+                || {
+                    format!(
+                        "{path}: protocol_id {} is {registered:?} in the registries report",
+                        description.protocol_id
+                    )
+                },
+            )
+        })
+        .collect();
+    assert_no_mismatches("items with a different protocol id", mismatches);
 }
