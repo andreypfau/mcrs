@@ -301,6 +301,13 @@ pub const FIXTURES: &[Fixture] = &[
         outputs: &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
     },
     Fixture {
+        name: "frames",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("frames"),
+        outputs: &[named("frames_golden.txt", PROTOCOL_FIXTURES)],
+    },
+    Fixture {
         name: "vanilla_player",
         project: ORACLE,
         task: "dumpGolden",
