@@ -59,7 +59,7 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
     root.put_int("xPos", x);
     root.put_int("zPos", z);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
+    root.put_string("status", "minecraft:full".to_string());
     root.put_list("sections", sections);
     root.put_component("Heightmaps", heightmaps());
     root.put_bool("isLightOn", true);

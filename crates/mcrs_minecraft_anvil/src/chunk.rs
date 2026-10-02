@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
+use crate::status::ChunkStatus;
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -30,7 +31,7 @@ pub struct Chunk {
     pub pos: ColumnPos,
     /// `yPos`: the section Y the saved section array starts at.
     pub min_section_y: i32,
-    pub status: String,
+    pub status: ChunkStatus,
     pub is_light_on: bool,
     pub inhabited_time: i64,
     pub last_update: i64,
@@ -115,8 +116,7 @@ pub(crate) struct RawChunk {
     pub(crate) z_pos: i32,
     #[serde(rename = "yPos")]
     pub(crate) y_pos: i32,
-    #[serde(rename = "Status")]
-    pub(crate) status: String,
+    pub(crate) status: ChunkStatus,
     #[serde(default)]
     pub(crate) sections: Vec<RawSection>,
     #[serde(

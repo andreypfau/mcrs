@@ -176,7 +176,7 @@ pub fn write_chunk(
         x_pos: chunk.pos.x,
         z_pos: chunk.pos.z,
         y_pos: chunk.min_section_y,
-        status: chunk.status.clone(),
+        status: chunk.status,
         sections,
         heightmaps: chunk.heightmaps.clone(),
         is_light_on: chunk.is_light_on,

@@ -13,7 +13,7 @@ use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 use mcrs_minecraft_chunk::{SectionKind, VoxelId};
 use std::cell::Cell;
 
-use crate::{AnvilError, ErrorKind, PaletteLookup, Properties, RegionFile};
+use crate::{AnvilError, ChunkStatus, ErrorKind, PaletteLookup, Properties, RegionFile};
 use mcrs_minecraft_core::VERSION;
 
 const GZIP: u8 = 1;
@@ -155,12 +155,22 @@ fn chunk_nbt(x: i32, z: i32, sections: Vec<NbtTag>) -> NbtCompound {
 }
 
 fn chunk_nbt_versioned(x: i32, z: i32, sections: Vec<NbtTag>, data_version: i32) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(x, z, sections, data_version);
+    root.put_string("status", "minecraft:full".to_string());
+    root
+}
+
+fn chunk_nbt_without_status(
+    x: i32,
+    z: i32,
+    sections: Vec<NbtTag>,
+    data_version: i32,
+) -> NbtCompound {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", data_version);
     root.put_int("xPos", x);
     root.put_int("zPos", z);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
     root.put_bool("isLightOn", true);
     root.put_long("InhabitedTime", 42);
     root.put_long("LastUpdate", 1757);
@@ -1005,6 +1015,25 @@ fn an_older_layout_reports_its_version_not_its_first_odd_field() {
 }
 
 #[test]
+fn a_chunk_with_an_unregistered_status_is_a_load_error() {
+    let fixture = Fixture::new("unregistered_status");
+    let mut root = chunk_nbt(0, 0, Vec::new());
+    root.put_string("status", "minecraft:not_a_status".to_string());
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+}
+
+#[test]
+fn a_current_chunk_with_the_old_status_key_is_refused_for_the_missing_field() {
+    let fixture = Fixture::new("old_status_key");
+    let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
+    root.put_string("Status", "minecraft:full".to_string());
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+    assert!(err.to_string().contains("status"), "{err}");
+}
+
+#[test]
 fn the_vanilla_shaped_extra_fields_are_accepted() {
     let fixture = Fixture::new("vanilla_extras");
     let mut root = chunk_nbt(0, 0, Vec::new());
@@ -1025,7 +1054,7 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
 
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     assert_eq!(chunk.min_section_y, -4);
-    assert_eq!(chunk.status, "minecraft:full");
+    assert_eq!(chunk.status, ChunkStatus::Full);
     assert!(chunk.is_light_on);
     assert_eq!(chunk.inhabited_time, 42);
     assert_eq!(chunk.heightmaps["MOTION_BLOCKING"].len(), 37);

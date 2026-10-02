@@ -3447,7 +3447,9 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
