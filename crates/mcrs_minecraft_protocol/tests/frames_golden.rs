@@ -2,9 +2,9 @@
 mod common;
 
 use bytes::BytesMut;
-use mcrs_minecraft_protocol::CompressionThreshold;
 use mcrs_minecraft_protocol::decode::PacketDecoder;
 use mcrs_minecraft_protocol::frame::{decompress, split_frame};
+use mcrs_minecraft_protocol::{CompressionThreshold, Decode, VarInt};
 
 const GOLDEN: &str = include_str!("fixtures/frames_golden.txt");
 
@@ -74,5 +74,48 @@ fn every_frame_the_game_wrote_decodes_to_its_body() {
         assert_eq!(&packet.body[..], &expected[1..], "{label}");
         seen += 1;
     }
-    assert!(seen >= 1);
+    assert!(seen >= 8, "only {seen} single-frame labels");
+}
+
+fn stated_data_length(label: &str) -> i32 {
+    let (_, bytes) = single_frames()
+        .find(|(candidate, _)| *candidate == label)
+        .unwrap_or_else(|| panic!("{label} is missing from the golden"));
+    let frame = split_frame(&mut BytesMut::from(&bytes[..])).unwrap();
+    VarInt::decode(&mut &frame[..]).unwrap().0
+}
+
+#[test]
+fn the_golden_holds_a_frame_compressed_at_exactly_its_threshold() {
+    for label in ["t256_256", "t1_1"] {
+        let (_, size) = threshold_and_size(label);
+        assert_eq!(stated_data_length(label), size as i32, "{label}");
+    }
+}
+
+#[test]
+fn the_game_leaves_a_body_below_the_threshold_uncompressed() {
+    assert_eq!(stated_data_length("t256_255"), 0);
+}
+
+#[test]
+fn a_stream_the_game_wrote_decodes_across_its_compression_switch() {
+    let (_, bytes) = frames()
+        .into_iter()
+        .find(|(label, _)| *label == "stream_off_3_then_t256_300")
+        .expect("the stream label is missing from the golden");
+
+    let mut decoder = PacketDecoder::new();
+    decoder.queue_bytes(BytesMut::from(&bytes[..]));
+
+    let first = decoder.try_next_packet().unwrap().unwrap();
+    assert_eq!(first.id, 0);
+    assert_eq!(&first.body[..], &body(3)[1..]);
+
+    decoder.set_compression(CompressionThreshold(256));
+    let second = decoder.try_next_packet().unwrap().unwrap();
+    assert_eq!(second.id, 0);
+    assert_eq!(&second.body[..], &body(300)[1..]);
+
+    assert!(decoder.try_next_packet().unwrap().is_none());
 }

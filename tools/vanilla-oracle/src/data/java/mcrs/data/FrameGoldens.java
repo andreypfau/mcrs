@@ -63,7 +63,15 @@ public final class FrameGoldens {
 
     static void frames(final Path current, final Path output) throws Exception {
         Map<String, Supplier<String>> labels = new LinkedHashMap<>();
+        labels.put("off_255", () -> single(NO_COMPRESSION, 255));
+        labels.put("off_256", () -> single(NO_COMPRESSION, 256));
+        labels.put("off_257", () -> single(NO_COMPRESSION, 257));
+        labels.put("t256_255", () -> single(256, 255));
         labels.put("t256_256", () -> single(256, 256));
+        labels.put("t256_257", () -> single(256, 257));
+        labels.put("t256_6000", () -> single(256, 6000));
+        labels.put("t1_1", () -> single(1, 1));
+        labels.put("stream_off_3_then_t256_300", () -> single(NO_COMPRESSION, 3) + single(256, 300));
         StringBuilder text = new StringBuilder();
         labels.forEach((label, hex) -> text.append(label).append(' ').append(hex.get()).append('\n'));
         Files.writeString(output, text.toString(), StandardCharsets.UTF_8);
