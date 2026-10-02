@@ -159,3 +159,11 @@ tasks.register('dumpReports', JavaExec) {
 	workingDir = temporaryDir
 	args = ['--reports', '--output', project.findProperty('reportsOut') ?: "${layout.buildDirectory.get()}/reports-out".toString()]
 }
+
+tasks.register('dumpDefinitions', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockDefinitionDumper'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
+}
