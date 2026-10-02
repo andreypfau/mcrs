@@ -20,6 +20,7 @@ pub mod rotation;
 pub mod section_pos;
 pub mod tag_key;
 pub mod value_provider;
+pub mod version;
 pub mod voxel_shape;
 
 pub use block_pos::BlockPos;
@@ -37,3 +38,6 @@ pub use resource_location::ResourceLocation;
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::{TagKey, TaggedRegistry};
+pub use version::{
+    CorpusVersionError, PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version,
+};

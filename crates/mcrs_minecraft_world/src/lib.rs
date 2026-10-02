@@ -425,6 +425,20 @@ impl Plugin for MinecraftWorldPlugin {
     fn finish(&self, app: &mut App) {
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
+            let source = asset_server
+                .get_source(bevy_asset::io::AssetSourceId::Default)
+                .expect("default AssetSource missing");
+            let path = std::path::Path::new("minecraft/version.json");
+            let bytes = bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
+                source.reader(),
+                path,
+            ))
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            mcrs_minecraft_core::check_corpus_version(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        }
+        {
+            let asset_server = app.world().resource::<AssetServer>().clone();
             let (definitions, report) =
                 mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
                     .expect("the block definition corpus loads");
