@@ -15,6 +15,7 @@ const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text"
 const ITEM_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/item";
 const PROTOCOL_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures";
 const ANVIL_FIXTURES: &str = "crates/mcrs_minecraft_anvil/src/fixtures/vanilla";
+const WORLD_FIXTURES: &str = "crates/mcrs_minecraft_world/tests/fixtures";
 const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla";
 
 pub enum Files {
@@ -298,6 +299,13 @@ pub const FIXTURES: &[Fixture] = &[
         task: "dumpGolden",
         golden: Some("join_packets"),
         outputs: &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
+    },
+    Fixture {
+        name: "vanilla_player",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("vanilla_player"),
+        outputs: &[named("vanilla_player.dat", WORLD_FIXTURES)],
     },
 ];
 
@@ -794,8 +802,8 @@ mod tests {
             .into_iter()
             .map(|n| (n.into(), "26.4".into()))
             .collect();
-        manifest.insert("vanilla_player".into(), "26.4".into());
-        assert_eq!(stale(&manifest, FIXTURES, "26.4"), ["vanilla_player"]);
+        manifest.insert("no_such_fixture".into(), "26.4".into());
+        assert_eq!(stale(&manifest, FIXTURES, "26.4"), ["no_such_fixture"]);
     }
 
     #[test]

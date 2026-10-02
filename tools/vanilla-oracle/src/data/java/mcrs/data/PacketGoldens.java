@@ -150,14 +150,14 @@ public final class PacketGoldens {
 
     private PacketGoldens() {}
 
-    private record Session(RegistryAccess.Frozen access, RegistryOps<JsonElement> json, RegistryOps<HashCode> hash) {}
+    record Session(RegistryAccess.Frozen access, RegistryOps<JsonElement> json, RegistryOps<HashCode> hash) {}
 
     @FunctionalInterface
-    private interface Body {
+    interface Body {
         void write(Session session) throws Exception;
     }
 
-    private static void withSession(final Body body) throws Exception {
+    static void withSession(final Body body) throws Exception {
         try (MultiPackResourceManager resources = new MultiPackResourceManager(
                 PackType.SERVER_DATA, List.of(ServerPacksSource.createVanillaPackSource().fullResources())
             )) {

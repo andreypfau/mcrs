@@ -33,6 +33,7 @@ public final class CodecGoldens {
         GOLDENS.put("particles", PacketGoldens::particles);
         GOLDENS.put("inventory_packets", PacketGoldens::inventoryPackets);
         GOLDENS.put("join_packets", PacketGoldens::joinPackets);
+        GOLDENS.put("vanilla_player", PlayerGoldens::vanillaPlayer);
     }
 
     private CodecGoldens() {}
