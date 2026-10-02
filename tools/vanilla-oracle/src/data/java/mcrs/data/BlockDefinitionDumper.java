@@ -9,11 +9,16 @@ import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.JsonOps;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -23,16 +28,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.Bootstrap;
@@ -51,11 +59,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.EmptyBlockGetter;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DropExperienceBlock;
+import net.minecraft.world.level.block.DropExperienceEntityBlock;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
@@ -107,10 +118,11 @@ public final class BlockDefinitionDumper {
             )) {
             LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
             RegistryAccess.Frozen loaded = loadWorldRegistries(resources, layers);
+            Map<Block, TagKey<Block>> placementFilters = derivePlacementFilters();
             RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLD, loaded).compositeAccess();
             BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(access).forEach(pending -> pending.apply());
 
-            List<String> failed = new ArrayList<>(dump(outDir.resolve("block_definition")));
+            List<String> failed = new ArrayList<>(dump(outDir.resolve("block_definition"), placementFilters));
             failed.addAll(ItemDefinitionDumper.dump(access, outDir.resolve("item_definition")));
             if (!failed.isEmpty()) {
                 System.err.println("failed: " + failed.size() + " " + failed);
@@ -135,7 +147,7 @@ public final class BlockDefinitionDumper {
         return loaded;
     }
 
-    private static List<String> dump(final Path root) throws IOException {
+    private static List<String> dump(final Path root, final Map<Block, TagKey<Block>> placementFilters) throws IOException {
         Files.createDirectories(root);
         BlockGetter level = EmptyBlockGetter.INSTANCE;
 
@@ -148,7 +160,7 @@ public final class BlockDefinitionDumper {
                 List<BlockState> states = block.getStateDefinition().getPossibleStates();
                 List<Map<String, JsonElement>> perState = new ArrayList<>(states.size());
                 for (BlockState state : states) {
-                    perState.add(componentsOf(state, level, PROBE_POS));
+                    perState.add(componentsOf(state, level, PROBE_POS, placementFilters.get(block)));
                 }
 
                 int baseStateId = Block.getId(states.get(0));
@@ -171,7 +183,7 @@ public final class BlockDefinitionDumper {
             }
         }
 
-        Files.writeString(root.resolve("README.md"), readme(), StandardCharsets.UTF_8);
+        Files.writeString(root.resolve("README.md"), readme(placementFilters), StandardCharsets.UTF_8);
 
         int distinctStateIds = Block.BLOCK_STATE_REGISTRY.size();
         boolean contiguous = coveredStateIds.cardinality() == distinctStateIds && coveredStateIds.nextClearBit(0) == distinctStateIds;
@@ -326,7 +338,9 @@ public final class BlockDefinitionDumper {
         return false;
     }
 
-    private static Map<String, JsonElement> componentsOf(BlockState state, BlockGetter level, BlockPos pos) {
+    private static Map<String, JsonElement> componentsOf(
+        BlockState state, BlockGetter level, BlockPos pos, TagKey<Block> placementFilter
+    ) {
         Map<String, JsonElement> components = new LinkedHashMap<>();
         Block block = state.getBlock();
 
@@ -372,6 +386,10 @@ public final class BlockDefinitionDumper {
                     BuiltInRegistries.BLOCK.getKey(block) + " experience_drop: " + error)));
         }
 
+        if (placementFilter != null) {
+            components.put("minecraft:placement_filter", placementFilterOf(placementFilter));
+        }
+
         components.put("mcrs:use_shape_for_light_occlusion", new JsonPrimitive(state.useShapeForLightOcclusion()));
         components.put("mcrs:occlusion_shape", boxes(state.getOcclusionShape()));
         components.put("mcrs:emissive_rendering", new JsonPrimitive(state.emissiveRendering()));
@@ -390,16 +408,204 @@ public final class BlockDefinitionDumper {
     }
 
     private static IntProvider experienceRange(Block block) {
-        if (!(block instanceof DropExperienceBlock)) {
+        Class<?> owner = block instanceof DropExperienceBlock ? DropExperienceBlock.class
+            : block instanceof DropExperienceEntityBlock ? DropExperienceEntityBlock.class : null;
+        if (owner == null) {
             return null;
         }
         try {
-            Field field = DropExperienceBlock.class.getDeclaredField("xpRange");
+            Field field = owner.getDeclaredField("xpRange");
             field.setAccessible(true);
             return (IntProvider) field.get(block);
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException(BuiltInRegistries.BLOCK.getKey(block) + " has no readable xpRange", failure);
         }
+    }
+
+    private static JsonObject placementFilterOf(TagKey<Block> tag) {
+        JsonArray faces = new JsonArray();
+        faces.add("up");
+        JsonArray blocks = new JsonArray();
+        blocks.add("#" + tag.location());
+        JsonObject condition = new JsonObject();
+        condition.add("allowed_faces", faces);
+        condition.add("block_filter", blocks);
+        JsonArray conditions = new JsonArray();
+        conditions.add(condition);
+        JsonObject filter = new JsonObject();
+        filter.add("conditions", conditions);
+        return filter;
+    }
+
+    private record Group(List<TagKey<Block>> tags, List<Block> blocks) {}
+
+    private static final class LevelRead extends RuntimeException {
+        LevelRead() {
+            super(null, null, false, false);
+        }
+    }
+
+    private static final class SupportProbe implements InvocationHandler {
+        private final BlockPos support = PROBE_POS.below();
+        private final LevelReader level = (LevelReader) Proxy.newProxyInstance(
+            LevelReader.class.getClassLoader(), new Class<?>[] {LevelReader.class}, this
+        );
+        private BlockState supporting;
+
+        boolean survives(BlockState subject, BlockState supporting) {
+            this.supporting = supporting;
+            return subject.canSurvive(level, PROBE_POS);
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (method.getDeclaringClass() == Object.class) {
+                return switch (method.getName()) {
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> "support probe level";
+                };
+            }
+            if (method.getName().equals("getBlockState") && support.equals(args[0])) {
+                return supporting;
+            }
+            if (method.isDefault()) {
+                return InvocationHandler.invokeDefault(proxy, method, args);
+            }
+            throw new LevelRead();
+        }
+    }
+
+    private static Map<Block, TagKey<Block>> derivePlacementFilters() {
+        List<Block> blocks = BuiltInRegistries.BLOCK.stream().toList();
+        Map<TagKey<Block>, List<Holder<Block>>> resolved = new TreeMap<>(Comparator.comparing(tag -> tag.location().toString()));
+        BuiltInRegistries.BLOCK.getTags().forEach(named -> resolved.put(named.key(), named.stream().toList()));
+        Map<TagKey<Block>, Set<Block>> originalMembers = new HashMap<>();
+        resolved.keySet().forEach(tag -> originalMembers.put(tag, liveMembers(tag)));
+
+        Map<Set<Block>, List<TagKey<Block>>> tagsByMembers = new HashMap<>();
+        resolved.keySet().forEach(tag -> tagsByMembers.computeIfAbsent(originalMembers.get(tag), members -> new ArrayList<>()).add(tag));
+
+        SupportProbe probe = new SupportProbe();
+        Map<String, Group> groups = new TreeMap<>();
+        int overriding = 0;
+        int readsLevel = 0;
+        int matchesNoTag = 0;
+        for (Block block : blocks) {
+            if (!overridesSurvivalTest(block)) {
+                continue;
+            }
+            overriding++;
+            Set<Block> accepted;
+            try {
+                accepted = acceptedSupports(probe, block, blocks);
+            } catch (LevelRead read) {
+                readsLevel++;
+                continue;
+            }
+            List<TagKey<Block>> candidates = accepted.isEmpty() ? null : tagsByMembers.get(accepted);
+            if (candidates == null) {
+                matchesNoTag++;
+                continue;
+            }
+            groups.computeIfAbsent(candidates.toString(), key -> new Group(candidates, new ArrayList<>())).blocks().add(block);
+        }
+
+        Map<Block, TagKey<Block>> named = new HashMap<>();
+        try {
+            for (Group group : groups.values()) {
+                Set<Block> members = originalMembers.get(group.tags().get(0));
+                List<Block> markers = blocks.stream().filter(block -> !members.contains(block)).limit(group.tags().size()).toList();
+                if (markers.size() != group.tags().size()) {
+                    throw new IllegalStateException("not enough marker blocks for " + group.tags());
+                }
+                Map<TagKey<Block>, List<Holder<Block>>> overlay = new HashMap<>(resolved);
+                for (int i = 0; i < markers.size(); i++) {
+                    List<Holder<Block>> widened = new ArrayList<>(resolved.get(group.tags().get(i)));
+                    widened.add(BuiltInRegistries.BLOCK.wrapAsHolder(markers.get(i)));
+                    overlay.put(group.tags().get(i), widened);
+                }
+                rebindBlockTags(overlay);
+
+                List<Block> candidates = blocks.stream().filter(block -> members.contains(block) || markers.contains(block)).toList();
+                for (Block block : group.blocks()) {
+                    Set<Block> accepted;
+                    try {
+                        accepted = acceptedSupports(probe, block, candidates);
+                    } catch (LevelRead read) {
+                        matchesNoTag++;
+                        continue;
+                    }
+                    List<TagKey<Block>> matching = group.tags().stream().filter(tag -> liveMembers(tag).equals(accepted)).toList();
+                    if (matching.size() > 1) {
+                        throw new IllegalStateException(BuiltInRegistries.BLOCK.getKey(block) + " matches " + matching + " under the marker overlay");
+                    }
+                    if (matching.isEmpty()) {
+                        matchesNoTag++;
+                    } else {
+                        named.put(block, matching.get(0));
+                    }
+                }
+                System.out.println("placement filter group " + group.tags().stream().map(tag -> tag.location().toString()).toList()
+                    + " markers " + markers.stream().map(marker -> BuiltInRegistries.BLOCK.getKey(marker).toString()).toList());
+                group.blocks().forEach(block -> System.out.println(
+                    "  " + BuiltInRegistries.BLOCK.getKey(block) + " -> " + (named.containsKey(block) ? named.get(block).location() : "none")));
+            }
+        } finally {
+            rebindBlockTags(resolved);
+        }
+        resolved.keySet().forEach(tag -> {
+            if (!liveMembers(tag).equals(originalMembers.get(tag))) {
+                throw new IllegalStateException("block tag " + tag.location() + " was not restored after the marker probe");
+            }
+        });
+
+        System.out.println(
+            "placement filters: " + named.size() + " blocks carry one, " + overriding + " override the survival test, "
+                + readsLevel + " read the level, " + matchesNoTag + " accept no tag's members"
+        );
+        return named;
+    }
+
+    private static boolean overridesSurvivalTest(Block block) {
+        for (Class<?> type = block.getClass(); type != BlockBehaviour.class; type = type.getSuperclass()) {
+            try {
+                type.getDeclaredMethod("canSurvive", BlockState.class, LevelReader.class, BlockPos.class);
+                return true;
+            } catch (NoSuchMethodException none) {
+            }
+        }
+        return false;
+    }
+
+    private static Set<Block> acceptedSupports(SupportProbe probe, Block subject, List<Block> candidates) {
+        BlockState state = subject.defaultBlockState();
+        Set<Block> accepted = new HashSet<>();
+        for (Block candidate : candidates) {
+            boolean everyState = true;
+            for (BlockState supporting : candidate.getStateDefinition().getPossibleStates()) {
+                if (!probe.survives(state, supporting)) {
+                    everyState = false;
+                    break;
+                }
+            }
+            if (everyState) {
+                accepted.add(candidate);
+            }
+        }
+        return accepted;
+    }
+
+    private static Set<Block> liveMembers(TagKey<Block> tag) {
+        Set<Block> members = new HashSet<>();
+        for (Holder<Block> holder : BuiltInRegistries.BLOCK.getTagOrEmpty(tag)) {
+            members.add(holder.value());
+        }
+        return members;
+    }
+
+    private static void rebindBlockTags(Map<TagKey<Block>, List<Holder<Block>>> tags) {
+        BuiltInRegistries.BLOCK.prepareTagReload(new TagLoader.LoadResult<>(Registries.BLOCK, tags)).apply();
     }
 
     private static JsonObject movable(BlockState state) {
@@ -572,8 +778,17 @@ public final class BlockDefinitionDumper {
         return Util.getPropertyName((Property) property, value);
     }
 
-    private static String readme() {
-        return """
+    private static String readme(Map<Block, TagKey<Block>> placementFilters) {
+        StringBuilder carriers = new StringBuilder();
+        placementFilters.entrySet().stream()
+            .sorted(Comparator.comparing(entry -> BuiltInRegistries.BLOCK.getKey(entry.getKey()).toString()))
+            .forEach(entry -> carriers
+                .append("| `").append(BuiltInRegistries.BLOCK.getKey(entry.getKey()))
+                .append("` | `#").append(entry.getValue().location()).append("` |\n"));
+        return README.replace("{placement_filter_carriers}", carriers.toString());
+    }
+
+    private static final String README = """
             # mcrs block definition corpus
 
             Generated from the game's own registries by the `dumpDefinitions` task of
@@ -626,6 +841,7 @@ public final class BlockDefinitionDumper {
             | `minecraft:flammable` | `BlockState.ignitedByLava` as `lava_flammable`, absent when lava cannot ignite it |
             | `minecraft:block_entity` | `BlockState.hasBlockEntity`, with `container.slot_count` when the block entity is a `Container` |
             | `minecraft:loot` | `Block.getLootTable`, absent when the block has none |
+            | `minecraft:placement_filter` | `BlockState.canSurvive`, see below |
 
             A producer whose power lives in its block entity (comparator, sculk sensor)
             reports `power: 0`, which is what it emits with no block entity present.
@@ -639,6 +855,36 @@ public final class BlockDefinitionDumper {
             `destroy_speed` repeats the hardness because Java applies its harvest bonus as a
             divisor rather than a second hardness.
 
+            ## Placement filter
+
+            `minecraft:placement_filter` states which supporting blocks let a block stay
+            where it is: one condition whose `allowed_faces` is `up` and whose
+            `block_filter` is one block tag. It is derived by asking the game, never
+            written by hand.
+
+            For each block that overrides `BlockState.canSurvive` the dump calls it on the
+            default state with a stand-in level that answers one question, the state of the
+            block directly below, and tries every state of every block there. The blocks it
+            accepts are the accepted set. A block whose survival test asks the level
+            anything else (a fluid, the light, a neighbour, the block above) gets no
+            component, and neither does a block whose accepted set is no tag's members;
+            nothing is answered with a made-up value. The protected `mayPlaceOn` is not
+            called: a class can inherit it and never use it, so only the survival test says
+            what the game accepts.
+
+            Several block tags can hold the same members, and equal members do not say
+            which tag the game tests. The dump groups the block tags by members on every
+            run and probes each group: it rebinds the block tags with one distinct marker
+            block added to each tag of the group, asks the game again, and names the one tag
+            whose members under that overlay equal the accepted set under it. The tags are
+            rebound unchanged before anything else reads them. When no tag matches, the
+            block gets no component.
+
+            The blocks that carry the component:
+
+            | Block | Tag |
+            | --- | --- |
+            {placement_filter_carriers}
             ## What the loader recomputes
 
             Values Java itself derives, or that another asset already states, are not written
@@ -664,7 +910,7 @@ public final class BlockDefinitionDumper {
             | `mcrs:use_shape_for_light_occlusion` | `BlockState.useShapeForLightOcclusion` | `LightEngine.isEmptyShape` reads it to decide whether the occlusion shape counts at all, so it is behaviour and not a hint. Bedrock's light model is one integer per block and has no occlusion shape to switch on |
             | `mcrs:emissive_rendering` | `BlockState.emissiveRendering` | The nearest Bedrock field, `material_instances.face_dimming`, turns off directional shading rather than lighting, and lives in a component that must accompany `minecraft:geometry` |
             | `mcrs:fluid_state` | `BlockState.getFluidState` | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
-            | `mcrs:experience_drop` | `DropExperienceBlock.xpRange`, encoded by `IntProviders.CODEC` | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is Java's `IntProvider`, so a constant is a bare integer and anything else is the dispatched object. Absent for a block that is not a `DropExperienceBlock`: `RedStoneOreBlock`, `SpawnerBlock`, `CreakingHeartBlock` and the sculk sensor, catalyst and shrieker compute their amount in `spawnAfterBreak` rather than holding a range |
+            | `mcrs:experience_drop` | `xpRange` of `DropExperienceBlock` or of `DropExperienceEntityBlock`, encoded by `IntProviders.CODEC` | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is Java's `IntProvider`, so a constant is a bare integer and anything else is the dispatched object. Absent for a block that is neither: `SpawnerBlock` and `CreakingHeartBlock` compute their amount in code rather than holding a range |
 
             ## Java block properties this corpus does not write
 
@@ -694,5 +940,4 @@ public final class BlockDefinitionDumper {
             permutation that would state nothing is not written. A loader applies
             `components` first, then every matching permutation in order.
             """;
-    }
 }

@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
@@ -49,6 +50,12 @@ public final class ItemDefinitionDumper {
         return failed;
     }
 
+    private static JsonObject sortedByKey(final JsonObject object) {
+        JsonObject sorted = new JsonObject();
+        new TreeMap<>(object.asMap()).forEach(sorted::add);
+        return sorted;
+    }
+
     private static JsonObject definitionOf(final Item item, final Identifier id, final RegistryOps<JsonElement> ops) {
         Holder.Reference<Item> holder = item.builtInRegistryHolder();
         if (!holder.areComponentsBound()) {
@@ -61,7 +68,7 @@ public final class ItemDefinitionDumper {
 
         JsonObject definition = new JsonObject();
         definition.add("description", description);
-        definition.add("components", DataComponentMap.CODEC.encodeStart(ops, holder.components()).getOrThrow());
+        definition.add("components", sortedByKey(DataComponentMap.CODEC.encodeStart(ops, holder.components()).getOrThrow().getAsJsonObject()));
         if (item instanceof BlockItem blockItem) {
             definition.addProperty("block_placer", BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()).toString());
         }
