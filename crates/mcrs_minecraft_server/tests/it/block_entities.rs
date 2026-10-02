@@ -93,7 +93,7 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
     root.put_int("xPos", 2);
     root.put_int("zPos", -1);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
+    root.put_string("status", "minecraft:full".to_string());
     root.put_list(
         "block_entities",
         block_entities

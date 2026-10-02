@@ -113,7 +113,7 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     root.put_int("xPos", 0);
     root.put_int("zPos", 0);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
+    root.put_string("status", "minecraft:full".to_string());
     root.put_bool("isLightOn", true);
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
