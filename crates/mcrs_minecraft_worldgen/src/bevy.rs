@@ -10,7 +10,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{
     BlockState, DensityFunctionHolder, ProtoDensityFunction,
@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 use mcrs_minecraft_worldgen_feature::proto::{
     Feature, Holder, PlacedFeature, StructureProcessorList,
 };
-use mcrs_minecraft_worldgen_feature::template::{TEMPLATE_DATA_VERSION, Template};
+use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
@@ -382,8 +382,12 @@ pub enum TemplateLoaderError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Nbt(#[from] mcrs_minecraft_nbt::Error),
-    #[error("{path}: DataVersion {found}, expected {TEMPLATE_DATA_VERSION}")]
-    DataVersion { path: String, found: i32 },
+    #[error("{path}: DataVersion {found}, expected {expected}")]
+    DataVersion {
+        path: String,
+        found: i32,
+        expected: i32,
+    },
 }
 
 #[derive(Default, TypePath)]
@@ -403,10 +407,11 @@ impl AssetLoader for TemplateLoader {
         let bytes = read_all(reader).await?;
         let template =
             mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes::<Template, _>(bytes.as_slice())?;
-        if template.data_version != TEMPLATE_DATA_VERSION {
+        if template.data_version != VERSION.world_version {
             return Err(TemplateLoaderError::DataVersion {
                 path: load_context.path().to_string(),
                 found: template.data_version,
+                expected: VERSION.world_version,
             });
         }
         Ok(TemplateAsset { template })

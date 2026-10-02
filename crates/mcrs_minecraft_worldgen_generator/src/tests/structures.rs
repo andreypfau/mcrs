@@ -7,14 +7,14 @@ use std::sync::{Arc, LazyLock};
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::DynTagRegistry;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
-    PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,
+    PaletteState, ResolvedState, Template, TemplateBlock,
 };
 use mcrs_minecraft_worldgen_structure::{
     MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
@@ -580,7 +580,7 @@ fn template_with_a_jigsaw_to(pool: &str) -> Template {
             properties: Some([("orientation".to_owned(), "north_up".to_owned())].into()),
         }]),
         palettes: None,
-        data_version: TEMPLATE_DATA_VERSION,
+        data_version: VERSION.world_version,
     }
 }
 

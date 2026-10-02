@@ -10,9 +10,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use serde::{Deserialize, Serialize};
 
-use mcrs_minecraft_core::{Mirror, Rotation};
-
-pub const TEMPLATE_DATA_VERSION: i32 = 5023;
+use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -270,8 +268,12 @@ pub fn data_markers<'a>(
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum TemplateError {
-    #[error("{id}: DataVersion {found}, expected {TEMPLATE_DATA_VERSION}")]
-    DataVersion { id: ResourceLocation, found: i32 },
+    #[error("{id}: DataVersion {found}, expected {expected}")]
+    DataVersion {
+        id: ResourceLocation,
+        found: i32,
+        expected: i32,
+    },
     #[error("{id}: has both `palette` and `palettes`")]
     BothPalettes { id: ResourceLocation },
     #[error("{id}: has neither `palette` nor `palettes`")]
@@ -413,10 +415,11 @@ impl Template {
         resolve: &dyn Fn(&PaletteState) -> Option<ResolvedState>,
     ) -> Result<(FrozenTemplate, TemplateManifest), TemplateError> {
         let err_id = || id.clone();
-        if self.data_version != TEMPLATE_DATA_VERSION {
+        if self.data_version != VERSION.world_version {
             return Err(TemplateError::DataVersion {
                 id: err_id(),
                 found: self.data_version,
+                expected: VERSION.world_version,
             });
         }
         let palettes: Vec<&[PaletteState]> = match (&self.palette, &self.palettes) {
@@ -751,7 +754,7 @@ mod tests {
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             assert_eq!(
                 template.data_version,
-                TEMPLATE_DATA_VERSION,
+                VERSION.world_version,
                 "{}",
                 path.display()
             );
@@ -822,7 +825,7 @@ mod tests {
             blocks,
             palette: Some(palette),
             palettes: None,
-            data_version: TEMPLATE_DATA_VERSION,
+            data_version: VERSION.world_version,
         }
     }
 
@@ -990,17 +993,20 @@ mod tests {
         let ok = template(vec![planks.clone()], vec![block([0, 0, 0], 0, None)]);
         let freeze = |t: &Template| t.freeze(&id(), &resolve).unwrap_err();
 
-        let t = Template {
-            data_version: TEMPLATE_DATA_VERSION + 1,
-            ..ok.clone()
-        };
-        assert_eq!(
-            freeze(&t),
-            TemplateError::DataVersion {
-                id: id(),
-                found: TEMPLATE_DATA_VERSION + 1
-            }
-        );
+        for found in [VERSION.world_version + 1, VERSION.world_version - 1] {
+            let t = Template {
+                data_version: found,
+                ..ok.clone()
+            };
+            assert_eq!(
+                freeze(&t),
+                TemplateError::DataVersion {
+                    id: id(),
+                    found,
+                    expected: VERSION.world_version
+                }
+            );
+        }
 
         let t = Template {
             palettes: Some(vec![vec![planks.clone()]]),
