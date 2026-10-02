@@ -178,6 +178,26 @@ fn chunk_nbt_without_status(
     root
 }
 
+fn retrogen_record(target_status: &str, rerun: &[&str]) -> NbtCompound {
+    let mut record = NbtCompound::new();
+    record.put_string("target_status", target_status.to_string());
+    record.put_list(
+        "statuses_to_rerun",
+        rerun
+            .iter()
+            .map(|status| NbtTag::String(status.to_string()))
+            .collect(),
+    );
+    record
+}
+
+fn chunk_with_retrogen(status: &str, record: NbtCompound) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
+    root.put_string("status", status.to_string());
+    root.put_component("retrogen", record);
+    root
+}
+
 fn single_slot(version: u8, root: &NbtCompound) -> Vec<(i32, i32, u8, Vec<u8>)> {
     vec![(0, 0, version, compress(version, &nbt_bytes(root)))]
 }
@@ -1173,7 +1193,7 @@ mod write {
 
     use super::*;
     use crate::fixture::{self, region_chunks};
-    use crate::{Chunk, PaletteId, PaletteNames, write_chunk};
+    use crate::{Chunk, PaletteId, PaletteNames, RetroGen, write_chunk};
 
     struct Named {
         chunk: Chunk,
@@ -1251,13 +1271,15 @@ mod write {
                 a.inhabited_time,
                 a.last_update,
                 &a.heightmaps,
-                &a.block_entities
+                &a.block_entities,
+                &a.retrogen
             ),
             (
                 b.inhabited_time,
                 b.last_update,
                 &b.heightmaps,
-                &b.block_entities
+                &b.block_entities,
+                &b.retrogen
             ),
             "{what}"
         );
@@ -1371,6 +1393,31 @@ mod write {
                 "chunk {pos:?}: a written palette entry differs in text from every original one"
             );
         }
+    }
+
+    #[test]
+    fn a_retrogen_with_all_four_fields_round_trips() {
+        let (src, dst) = (Fixture::new("retrogen_src"), Fixture::new("retrogen_dst"));
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put_bool("has_below_zero_retrogen", true);
+        record.put("missing_bedrock", NbtTag::LongArray(vec![5, 9]));
+        let root_in = chunk_with_retrogen("minecraft:terrain", record);
+        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let original = read_named(&region, pos);
+        assert_eq!(
+            original.chunk.retrogen,
+            Some(RetroGen {
+                target_status: ChunkStatus::Full,
+                statuses_to_rerun: vec![ChunkStatus::Biomes],
+                has_below_zero_retrogen: true,
+                missing_bedrock: vec![5, 9],
+            })
+        );
+
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        assert_same_chunk(&read, &original, "retrogen");
     }
 
     #[test]

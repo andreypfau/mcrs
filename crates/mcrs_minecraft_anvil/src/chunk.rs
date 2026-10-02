@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
+use crate::retrogen::RetroGen;
 use crate::status::ChunkStatus;
 
 pub const LIGHT_BYTES: usize = 2048;
@@ -37,6 +38,7 @@ pub struct Chunk {
     pub last_update: i64,
     pub heightmaps: BTreeMap<String, Vec<i64>>,
     pub block_entities: Vec<NbtCompound>,
+    pub retrogen: Option<RetroGen>,
     pub sections: Vec<Section>,
 }
 
@@ -135,6 +137,8 @@ pub(crate) struct RawChunk {
     pub(crate) inhabited_time: i64,
     #[serde(rename = "LastUpdate", default)]
     pub(crate) last_update: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) retrogen: Option<RetroGen>,
 }
 
 fn is_false(flag: &bool) -> bool {
@@ -202,6 +206,7 @@ pub fn parse(
         last_update: raw.last_update,
         heightmaps: raw.heightmaps,
         block_entities: raw.block_entities,
+        retrogen: raw.retrogen,
         sections: raw
             .sections
             .into_iter()

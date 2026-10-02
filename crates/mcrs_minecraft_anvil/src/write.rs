@@ -183,6 +183,7 @@ pub fn write_chunk(
         block_entities: chunk.block_entities.clone(),
         inhabited_time: chunk.inhabited_time,
         last_update: chunk.last_update,
+        retrogen: chunk.retrogen.clone(),
     };
     let mut out = Vec::new();
     mcrs_minecraft_nbt::to_bytes(&raw, &mut out)?;

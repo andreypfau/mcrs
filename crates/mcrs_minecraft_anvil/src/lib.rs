@@ -3,6 +3,7 @@ mod chunk;
 pub mod fixture;
 mod palette;
 mod region;
+mod retrogen;
 mod status;
 mod write;
 
@@ -12,6 +13,7 @@ mod tests;
 pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
+pub use retrogen::RetroGen;
 pub use status::ChunkStatus;
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
