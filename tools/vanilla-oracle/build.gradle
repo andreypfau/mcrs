@@ -167,3 +167,18 @@ tasks.register('dumpDefinitions', JavaExec) {
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
 }
+
+tasks.register('dumpGolden', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.CodecGoldens'
+	jvmArgs '-Xmx2G'
+	doFirst {
+		def golden = project.findProperty('golden')
+		def goldenIn = project.findProperty('goldenIn')
+		if (golden == null || goldenIn == null) {
+			throw new GradleException('-Pgolden names the golden and -PgoldenIn its current file')
+		}
+		args = [project.findProperty('goldenOut') ?: "${layout.buildDirectory.get()}/golden-out".toString(), golden.toString(), goldenIn.toString()]
+	}
+}
