@@ -8,8 +8,9 @@ use serde::{Deserialize, forward_to_deserialize_any};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// A declared length is a claim the input has yet to back: nothing sized by one
-/// is set aside further than this past the bytes that have actually arrived.
+/// A declared length is a claim the input has yet to back: a buffer sized by
+/// one grows this far at a time, so the room set aside stays within about
+/// twice the bytes that have actually arrived.
 const READ_STEP: usize = 64 * 1024;
 
 /// The room to set aside for a declared number of elements before any of them
