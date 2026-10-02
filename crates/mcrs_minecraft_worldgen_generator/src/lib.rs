@@ -868,6 +868,48 @@ fn beta_biome_palette(
     biomes
 }
 
+/// The quart grid of a Beta column: one row, its own sixteen cells and the ring
+/// of twenty around them, each the biome its climate answers at the position
+/// the column owning that cell samples it at.
+pub fn beta_biome_grid(
+    noise_router: &NoiseRouter,
+    biome_source: &BiomeSource,
+    biome_registry: &RegistrySnapshot<Biome>,
+    block_x: i32,
+    block_z: i32,
+) -> BiomeGrid {
+    let volume = SampleGrid::new(
+        IVec3::new(6, 1, 6),
+        IVec3::new(block_x - 4, 0, block_z - 4),
+        IVec3::new(4, 1, 4),
+    );
+    let points = volume.len();
+    let mut values = vec![0.0f32; 2 * points];
+    noise_router.fill_roots(
+        &mut Workspace::new(),
+        &volume,
+        &[TEMPERATURE, VEGETATION],
+        &mut values,
+    );
+    let ids = (0..points)
+        .map(|at| {
+            let location = biome_source.beta_biome_location(values[at], values[points + at]);
+            match biome_registry
+                .by_location(location.as_str())
+                .and_then(|id| u8::try_from(id).ok())
+            {
+                Some(id) => id,
+                None => {
+                    tracing::error!(biome = %location.as_str(), "beta biome not present in registry snapshot");
+                    debug_assert!(false, "unresolved beta biome location");
+                    0
+                }
+            }
+        })
+        .collect();
+    BiomeGrid { volume, ids }
+}
+
 /// The per-chunk seed Beta derives for its population passes: two odd multipliers
 /// drawn once from the world seed, dotted with the chunk coordinate.
 ///

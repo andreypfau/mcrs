@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod base_height;
+#[cfg(test)]
+mod beta_biome_grid;
 mod beta_biome_palette;
 #[cfg(test)]
 mod beta_cave_parity;
