@@ -8,6 +8,16 @@ use serde::{Deserialize, forward_to_deserialize_any};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// A declared length is a claim the input has yet to back: nothing sized by one
+/// is set aside further than this past the bytes that have actually arrived.
+const READ_STEP: usize = 64 * 1024;
+
+/// The room to set aside for a declared number of elements before any of them
+/// has been read.
+pub(crate) fn cautious_capacity<T>(declared: usize) -> usize {
+    declared.min(READ_STEP / size_of::<T>().max(1))
+}
+
 #[derive(Debug)]
 pub struct NbtReadHelper<R: Read + Seek> {
     reader: R,
@@ -85,8 +95,14 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     /// Fills `buf` with `count` bytes, reusing its allocation.
     pub fn read_into(&mut self, buf: &mut Vec<u8>, count: usize) -> Result<()> {
         buf.clear();
-        buf.resize(count, 0);
-        self.reader.read_exact(buf).map_err(Error::Incomplete)
+        while buf.len() < count {
+            let filled = buf.len();
+            buf.resize(count.min(filled + READ_STEP), 0);
+            self.reader
+                .read_exact(&mut buf[filled..])
+                .map_err(Error::Incomplete)?;
+        }
+        Ok(())
     }
 
     pub fn position(&mut self) -> Result<u64> {
@@ -101,11 +117,8 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     }
 
     pub fn read_boxed_slice(&mut self, count: usize) -> Result<Box<[u8]>> {
-        let mut buf = vec![0u8; count];
-        self.reader
-            .read_exact(&mut buf)
-            .map_err(Error::Incomplete)?;
-
+        let mut buf = Vec::with_capacity(cautious_capacity::<u8>(count));
+        self.read_into(&mut buf, count)?;
         Ok(buf.into())
     }
 }
@@ -489,6 +502,8 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for MapKey<'_, R> {
     }
 }
 
+const MAX_SIZE_HINT: usize = 4096;
+
 struct ListAccess<'a, R: Read + Seek> {
     de: &'a mut Deserializer<R>,
     remaining_values: usize,
@@ -498,8 +513,10 @@ struct ListAccess<'a, R: Read + Seek> {
 impl<'de, R: Read + Seek> SeqAccess<'de> for ListAccess<'_, R> {
     type Error = Error;
 
+    // The count is the list's own claim, so a visitor that reserves by this
+    // hint must not be handed more than a bounded number of elements.
     fn size_hint(&self) -> Option<usize> {
-        Some(self.remaining_values)
+        Some(self.remaining_values.min(MAX_SIZE_HINT))
     }
 
     fn next_element_seed<E: DeserializeSeed<'de>>(&mut self, seed: E) -> Result<Option<E::Value>> {

@@ -1,5 +1,5 @@
 use compound::NbtCompound;
-use deserializer::NbtReadHelper;
+use deserializer::{NbtReadHelper, cautious_capacity};
 use io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use serializer::WriteAdaptor;
@@ -238,8 +238,14 @@ impl NbtTag {
                     return Err(Error::NegativeLength(len));
                 }
 
+                // Every other element type takes input to read, so only this one
+                // could grow a list without bound from a five-byte header.
+                if tag_type_id == END_ID && len > 0 {
+                    return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
+                }
+
                 reader.push_depth()?;
-                let mut list = Vec::with_capacity(len as usize);
+                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len as usize));
                 for _ in 0..len {
                     list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
                         NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
@@ -264,7 +270,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut int_array = Vec::with_capacity(len);
+                let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len));
                 for _ in 0..len {
                     let int = reader.get_i32_be()?;
                     int_array.push(int);
@@ -278,7 +284,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut long_array = Vec::with_capacity(len);
+                let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len));
                 for _ in 0..len {
                     let long = reader.get_i64_be()?;
                     long_array.push(long);
