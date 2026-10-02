@@ -201,4 +201,22 @@ mod tests {
             .to_string();
         assert!(error.contains("minecraft:has_water"), "{error}");
     }
+
+    #[test]
+    fn every_registered_predicate_type_is_a_variant() {
+        let table = mcrs_minecraft_registry::StaticRegistryTable::load(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/mcrs/reports/registries.json"),
+        )
+        .unwrap();
+        let names = table.registry("block_predicate_type").unwrap().names();
+        assert!(!names.is_empty());
+        for name in names {
+            let json = format!(r#"{{"type":"{name}"}}"#);
+            if let Err(error) = serde_json::from_str::<BlockPredicate>(&json) {
+                let error = error.to_string();
+                assert!(!error.contains("unknown variant"), "{name}: {error}");
+            }
+        }
+    }
 }
