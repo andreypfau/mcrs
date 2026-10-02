@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -23,9 +23,6 @@ const MAGIC: &[u8; 8] = b"MCDFORCL";
 const DIVERGENCE_BUDGET: Option<f32> = None;
 #[cfg(feature = "fast")]
 const DIVERGENCE_BUDGET: Option<f32> = Some(1.0e-5);
-/// `SharedConstants.WORLD_VERSION` of the snapshot the dumps came from. Asserted
-/// rather than skipped, so a corpus bump cannot silently invalidate the oracle.
-const WORLD_VERSION: u32 = 5119;
 
 struct DumpVolume {
     name: String,
@@ -77,10 +74,12 @@ fn read_dump(path: &Path) -> Dump {
     };
     assert_eq!(r.take(8), MAGIC, "{} is not an oracle dump", path.display());
     assert_eq!(r.u32(), 1, "unsupported oracle format version");
+    let found = r.u32();
+    let expected = u32::try_from(VERSION.world_version).expect("the world version is negative");
     assert_eq!(
-        r.u32(),
-        WORLD_VERSION,
-        "{} was dumped from a different snapshot than this corpus targets",
+        found,
+        expected,
+        "{}: dumped at world version {found}, the corpus is at {expected}",
         path.display()
     );
     let _settings_id = r.string();

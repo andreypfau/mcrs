@@ -1,7 +1,7 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -136,10 +136,6 @@ pub fn dump_string(r: &mut impl bytes::Buf) -> String {
     String::from_utf8(r.copy_to_bytes(len).to_vec()).unwrap()
 }
 
-/// `SharedConstants.WORLD_VERSION` of the snapshot every oracle dump came from,
-/// so a corpus bump cannot silently invalidate a fixture.
-pub const WORLD_VERSION: u32 = 5119;
-
 /// One of the oracle's little-endian dumps past its header: the eight-byte
 /// `magic`, format version 1, and the world version.
 pub fn open_dump(path: &Path, magic: &[u8; 8]) -> bytes::Bytes {
@@ -154,10 +150,12 @@ pub fn open_dump(path: &Path, magic: &[u8; 8]) -> bytes::Bytes {
         String::from_utf8_lossy(magic)
     );
     assert_eq!(r.get_u32_le(), 1, "unsupported oracle format version");
+    let found = r.get_u32_le();
+    let expected = u32::try_from(VERSION.world_version).expect("the world version is negative");
     assert_eq!(
-        r.get_u32_le(),
-        WORLD_VERSION,
-        "{} was dumped from a different snapshot than this corpus targets",
+        found,
+        expected,
+        "{}: dumped at world version {found}, the corpus is at {expected}",
         path.display()
     );
     r
