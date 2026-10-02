@@ -19,8 +19,8 @@ impl HeightContext {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum VerticalAnchor {
     Absolute(i32),
     AboveBottom(i32),
@@ -28,7 +28,42 @@ pub enum VerticalAnchor {
     RelativeToSeaLevel(i32),
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+enum RawVerticalAnchor {
+    Absolute(i32),
+    AboveBottom(i32),
+    BelowTop(i32),
+    RelativeToSeaLevel(i32),
+}
+
+impl<'de> Deserialize<'de> for VerticalAnchor {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let (anchor, offset) = match RawVerticalAnchor::deserialize(deserializer)? {
+            RawVerticalAnchor::Absolute(offset) => (Self::Absolute(offset), offset),
+            RawVerticalAnchor::AboveBottom(offset) => (Self::AboveBottom(offset), offset),
+            RawVerticalAnchor::BelowTop(offset) => (Self::BelowTop(offset), offset),
+            RawVerticalAnchor::RelativeToSeaLevel(offset) => {
+                (Self::RelativeToSeaLevel(offset), offset)
+            }
+        };
+        if !(Self::MIN_OFFSET..=Self::MAX_OFFSET).contains(&offset) {
+            return Err(D::Error::custom(format!(
+                "vertical anchor offset {offset} is outside [{};{}]",
+                Self::MIN_OFFSET,
+                Self::MAX_OFFSET
+            )));
+        }
+        Ok(anchor)
+    }
+}
+
 impl VerticalAnchor {
+    const PACKED_Y_BITS: u32 = 12;
+    const Y_SIZE: i32 = (1 << Self::PACKED_Y_BITS) - 32;
+    pub const MAX_OFFSET: i32 = (Self::Y_SIZE >> 1) - 1;
+    pub const MIN_OFFSET: i32 = Self::MAX_OFFSET - Self::Y_SIZE + 1;
+
     pub fn resolve_y(self, context: HeightContext) -> i32 {
         match self {
             VerticalAnchor::Absolute(y) => y,
@@ -705,7 +740,7 @@ mod tests {
         );
     }
 
-    /// Every shape the 26.3 feature and placed_feature corpus carries, verbatim.
+    /// Every shape the feature and placed_feature corpus carries, verbatim.
     #[test]
     fn the_feature_registry_forms_round_trip() {
         round_trip::<IntProvider>(r#"{"type":"minecraft:trapezoid","max":7,"min":-7,"plateau":0}"#);
@@ -730,6 +765,59 @@ mod tests {
         round_trip::<HeightProvider>(
             r#"{"type":"minecraft:very_biased_to_bottom","inner":8,"max_inclusive":{"below_top":8},"min_inclusive":{"above_bottom":0}}"#,
         );
+    }
+
+    #[test]
+    fn a_vertical_anchor_with_two_keys_or_none_is_a_load_error() {
+        for anchor in [r#"{"absolute":1,"above_bottom":2}"#, "{}"] {
+            assert!(
+                serde_json::from_str::<VerticalAnchor>(anchor).is_err(),
+                "{anchor} as text"
+            );
+            let tagged = format!(
+                r#"{{"type":"minecraft:uniform","min_inclusive":{anchor},"max_inclusive":{{"absolute":0}}}}"#
+            );
+            assert!(
+                serde_json::from_str::<HeightProvider>(&tagged).is_err(),
+                "{anchor} inside a tagged height provider"
+            );
+            assert!(
+                serde_json::from_str::<HeightProvider>(anchor).is_err(),
+                "{anchor} as a bare height provider"
+            );
+        }
+    }
+
+    #[test]
+    fn a_vertical_anchor_offset_is_bounded_as_the_reference_bounds_it() {
+        for key in [
+            "absolute",
+            "above_bottom",
+            "below_top",
+            "relative_to_sea_level",
+        ] {
+            for offset in [-2032, 2031] {
+                let json = format!(r#"{{"{key}":{offset}}}"#);
+                round_trip::<VerticalAnchor>(&json);
+                round_trip::<HeightProvider>(&json);
+            }
+            for offset in [-2033, 2032] {
+                let json = format!(r#"{{"{key}":{offset}}}"#);
+                assert!(
+                    serde_json::from_str::<VerticalAnchor>(&json).is_err(),
+                    "{json} as text"
+                );
+                assert!(
+                    serde_json::from_str::<HeightProvider>(&json).is_err(),
+                    "{json} as a bare height provider"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unknown_anchor_key_is_a_load_error() {
+        assert!(serde_json::from_str::<VerticalAnchor>(r#"{"below_surface":1}"#).is_err());
     }
 
     /// `plateau` and `inner` are `optionalFieldOf` in the reference, so their
