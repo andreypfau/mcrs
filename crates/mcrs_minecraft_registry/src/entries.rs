@@ -1,8 +1,45 @@
+use crate::id::Id;
+use crate::registry::{Registry, RegistryError};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use std::marker::PhantomData;
+use std::ops::Index;
+
+pub struct Entries<R, T> {
+    values: Box<[T]>,
+    _marker: PhantomData<fn() -> R>,
+}
+
+impl<R: RegistryKey, T> Entries<R, T> {
+    pub fn new(registry: &Registry<R>, values: Vec<T>) -> Result<Self, RegistryError> {
+        if values.len() != registry.len() {
+            return Err(RegistryError::LengthMismatch {
+                registry: R::KEY,
+                expected: registry.len(),
+                found: values.len(),
+            });
+        }
+        Ok(Entries {
+            values: values.into_boxed_slice(),
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn get(&self, id: Id<R>) -> Option<&T> {
+        self.values.get(id.index())
+    }
+}
+
+impl<R, T> Index<Id<R>> for Entries<R, T> {
+    type Output = T;
+
+    fn index(&self, id: Id<R>) -> &T {
+        &self.values[id.index()]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::{Registry, RegistryError};
-    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::resource_location::ResourceLocation;
     use mcrs_minecraft_core::rl;
 

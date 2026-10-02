@@ -10,6 +10,7 @@ pub mod static_table;
 
 pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
+pub use entries::Entries;
 pub use holder::*;
 pub use id::{BlockStateId, Id, ItemId};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
