@@ -83,7 +83,7 @@ fn the_stored_biomes_match_the_reference_block_for_block() {
     for column in &columns {
         let router = build_settings_router("overworld", column.seed);
         let sections = column.section_ys();
-        let (containers, _) = multi_noise_palettes(
+        let containers = multi_noise_palettes(
             &router,
             &table,
             column.chunk_x * 16,

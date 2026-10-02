@@ -5,7 +5,7 @@ use crate::surface::{Visit, descend_strip, set_block};
 use crate::task::CancellationToken;
 use crate::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes, spans_dimension,
+    multi_noise_grid, multi_noise_palettes, spans_dimension,
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
@@ -214,7 +214,7 @@ pub(super) fn surfaced_column(
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let (biomes, _) =
+    let biomes =
         multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
@@ -374,7 +374,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let (biomes, _) =
+        let biomes =
             multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
@@ -511,10 +511,10 @@ fn grid_biomes(
         |biome| u8::try_from(ids[biome]).ok(),
     )
     .expect("the overworld preset resolves");
-    let (_, grid) =
-        multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
+        .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
-    for id in &grid.expect("the multi-noise fill widens a grid").ids {
+    for id in &grid.ids {
         present[*id as usize] = true;
     }
     present.iter().filter(|seen| **seen).count()

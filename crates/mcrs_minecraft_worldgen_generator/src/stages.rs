@@ -378,8 +378,8 @@ pub fn fill_column(
             let mut carving = modern_mask.as_ref().map(|mask| {
                 TerrainCarving::new(mask, carver_blocks, &mut filled.fluid, router, col.x, col.z)
             });
-            let surfaced = match (surface, filled.biome_grid.as_ref(), ctx.material.as_deref()) {
-                (Some(ids), Some(_), Some(material)) => {
+            let surfaced = match (surface, ctx.material.as_deref()) {
+                (Some(ids), Some(material)) if filled.material_surface => {
                     thread_local! {
                         static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
                     }

@@ -275,9 +275,9 @@ pub struct FilledColumn<'a> {
     /// Highest non-air block per strip, indexed `z * 16 + x`, `NO_TOP` where
     /// the strip holds none.
     pub tops: [i32; 256],
-    /// `None` outside the multi-noise path, which is the only one that needs
-    /// the zoom.
-    pub biome_grid: Option<BiomeGrid>,
+    /// Whether the material rules run for the column: a multi-noise source
+    /// with a table and a fixed source, never a Beta column.
+    pub material_surface: bool,
     /// The fluid field over the column, for the stages after the fill that
     /// still ask it.
     pub fluid: FluidField<'a>,
@@ -650,20 +650,24 @@ fn column_biome_palettes(
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
+) -> (Vec<BiomePalette>, bool) {
     match biome_context {
         Some((BiomeSource::MultiNoise(_), _)) => match multi_noise {
-            Some(table) => multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-            None => (vec![BiomePalette::default(); y_sections.len()], None),
+            Some(table) => (
+                multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
+                true,
+            ),
+            None => (vec![BiomePalette::default(); y_sections.len()], false),
         },
-        Some((BiomeSource::Fixed { biome_id, .. }, registry)) => {
-            fixed_biome_palettes(biome_id.as_str(), registry, block_x, block_z, y_sections)
-        }
+        Some((BiomeSource::Fixed { biome_id, .. }, registry)) => (
+            fixed_biome_palettes(biome_id.as_str(), registry, y_sections),
+            true,
+        ),
         Some((source @ BiomeSource::Beta { .. }, registry)) => {
             let grid = beta_biome_grid(noise_router, source, registry, block_x, block_z);
-            (upscale_column(&grid, noise_router, y_sections), None)
+            (upscale_column(&grid, noise_router, y_sections), false)
         }
-        _ => (vec![BiomePalette::default(); y_sections.len()], None),
+        _ => (vec![BiomePalette::default(); y_sections.len()], false),
     }
 }
 
@@ -679,30 +683,29 @@ fn upscale_column(
     FIDDLE.with_borrow_mut(|fiddle| upscale_biomes(grid, zoom_seed, y_sections, fiddle))
 }
 
-/// The biome at every quart cell of the column and of the ring of cells around
-/// it, with their palettes.
-///
-/// The ring is horizontal: above and below the column a pick reads the edge
-/// row, so the grid holds the column's own rows only.
-///
-/// The density program fills a whole strided volume in one pass, so asking for
-/// the column's cells at once costs a fraction of evaluating them one by one.
+/// The stored containers of a multi-noise column: the quart grid of
+/// `multi_noise_grid` upscaled to block resolution.
 pub fn multi_noise_palettes(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
-) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
+) -> Vec<BiomePalette> {
     let Some(grid) = multi_noise_grid(noise_router, table, block_x, block_z, y_sections) else {
-        return (Vec::new(), None);
+        return Vec::new();
     };
-    let palettes = upscale_column(&grid, noise_router, y_sections);
-    (palettes, Some(grid))
+    upscale_column(&grid, noise_router, y_sections)
 }
 
 /// The quart grid of a multi-noise column: its own rows, and one cell of ring
 /// on each horizontal side.
+///
+/// The ring is horizontal: above and below the column a pick reads the edge
+/// row, so the grid holds the column's own rows only.
+///
+/// The density program fills a whole strided volume in one pass, so asking for
+/// the column's cells at once costs a fraction of evaluating them one by one.
 pub fn multi_noise_grid(
     noise_router: &NoiseRouter,
     table: &MultiNoiseBiomeTable,
@@ -742,29 +745,20 @@ pub fn multi_noise_grid(
     Some(BiomeGrid { volume, ids })
 }
 
-/// The palettes and grid of a `minecraft:fixed` source, which answers the same
-/// biome at every quart cell however it is asked.
-///
-/// The grid keeps the shape `multi_noise_palettes` produces — the column's
-/// cells plus the horizontal ring around them — so the surface stage's zoom
-/// reads it exactly as it reads a sampled one.
+/// The containers of a `minecraft:fixed` source, which answers the same biome
+/// at every block however it is asked.
 fn fixed_biome_palettes(
     biome_id: &str,
     registry: &RegistrySnapshot<Biome>,
-    block_x: i32,
-    block_z: i32,
     y_sections: &[i32],
-) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
-    let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
-        return (Vec::new(), None);
-    };
+) -> Vec<BiomePalette> {
     let network_id = match registry
         .by_location(biome_id)
         .and_then(|id| u8::try_from(id).ok())
     {
         Some(id) => id,
         None => {
-            // Returning no grid would skip the material stage entirely and hand
+            // Answering nothing would skip the material stage entirely and hand
             // back a column of bare stone, so this degrades the way the Beta
             // palette degrades on the same failure rather than silently
             // dropping every rule the column owes.
@@ -777,17 +771,7 @@ fn fixed_biome_palettes(
         }
     };
 
-    let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4, 6),
-        IVec3::new(block_x - 4, first * 16, block_z - 4),
-        IVec3::splat(4),
-    );
-    let ids = vec![network_id; volume.len()];
-
-    (
-        vec![BiomePalette::homogeneous(network_id); y_sections.len()],
-        Some(BiomeGrid { volume, ids }),
-    )
+    vec![BiomePalette::homogeneous(network_id); y_sections.len()]
 }
 
 /// The quart grid of a Beta column: one row, its own sixteen cells and the ring
@@ -905,7 +889,7 @@ pub fn fill_column_dense_any<'a>(
 ) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let (biomes, biome_grid) = column_biome_palettes(
+    let (biomes, material_surface) = column_biome_palettes(
         noise_router,
         biome_context,
         multi_noise,
@@ -932,7 +916,7 @@ pub fn fill_column_dense_any<'a>(
     Some(FilledColumn {
         biomes,
         tops,
-        biome_grid,
+        material_surface,
         fluid,
     })
 }

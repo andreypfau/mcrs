@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use super::build_settings_router;
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
-use crate::multi_noise_palettes;
+use crate::{multi_noise_grid, multi_noise_palettes};
 use bevy_math::IVec3;
 
 /// The preset's biomes numbered in the order the preset names them, which is
@@ -59,10 +59,10 @@ fn the_batched_column_agrees_with_sampling_each_cell() {
     let sections = y_sections();
     let (chunk_x, chunk_z) = (26, 90);
 
-    let (palettes, grid) =
-        multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let palettes = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
     assert_eq!(palettes.len(), sections.len());
-    let grid = grid.expect("the multi-noise path builds a grid");
+    let grid = multi_noise_grid(&router, &table, chunk_x * 16, chunk_z * 16, &sections)
+        .expect("the multi-noise path builds a grid");
     let first = sections[0];
 
     let mut ws = Workspace::new();
@@ -97,8 +97,9 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome() {
     let (table, ids) = overworld_table();
     let sections = y_sections();
 
-    let (palettes, grid) = multi_noise_palettes(&router, &table, 0, 0, &sections);
-    let grid = grid.expect("the multi-noise path builds a grid");
+    let palettes = multi_noise_palettes(&router, &table, 0, 0, &sections);
+    let grid = multi_noise_grid(&router, &table, 0, 0, &sections)
+        .expect("the multi-noise path builds a grid");
     let first = sections[0];
     let column: Vec<u8> = sections
         .iter()
@@ -249,9 +250,9 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
     let (chunk_x, chunk_z) = (26, 90);
     let first = sections[0];
 
-    let (palettes, grid) =
-        multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
-    let grid = grid.expect("the multi-noise path builds a grid");
+    let palettes = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
+    let grid = multi_noise_grid(&router, &table, chunk_x * 16, chunk_z * 16, &sections)
+        .expect("the multi-noise path builds a grid");
     assert_eq!(
         grid.volume.size(),
         IVec3::new(6, sections.len() as i32 * 4, 6)

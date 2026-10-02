@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes,
+    multi_noise_grid, multi_noise_palettes,
 };
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -174,11 +174,11 @@ fn main() {
         .unwrap();
         s.fill = t.elapsed();
         let t = Instant::now();
-        let (biomes, grid) = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
+        let biomes = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
         s.biomes = t.elapsed();
 
         let dominant = {
-            let g = grid.as_ref().unwrap();
+            let g = multi_noise_grid(&router, &table, x * 16, z * 16, &y_sections).unwrap();
             let mut counts = [0u32; 256];
             for cz in 0..4i32 {
                 for cx in 0..4i32 {

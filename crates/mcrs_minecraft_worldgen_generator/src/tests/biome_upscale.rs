@@ -11,7 +11,7 @@ use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use super::build_settings_router;
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
-use crate::multi_noise_palettes;
+use crate::multi_noise_grid;
 
 fn overworld_table() -> MultiNoiseBiomeTable {
     let mut ids: HashMap<String, u8> = HashMap::new();
@@ -36,8 +36,8 @@ fn the_upscale_equals_the_plain_zoom_at_every_block() {
 
     let mut found = None;
     for chunk_x in 0..64 {
-        let (_, grid) = multi_noise_palettes(&router, &table, chunk_x * 16, 0, &sections);
-        let grid = grid.expect("the multi-noise path builds a grid");
+        let grid = multi_noise_grid(&router, &table, chunk_x * 16, 0, &sections)
+            .expect("the multi-noise path builds a grid");
         let containers = upscale_biomes(&grid, zoom_seed, &sections, &mut FiddleCache::default());
         let mixed = containers.iter().any(|container| {
             let mut distinct = 0;
