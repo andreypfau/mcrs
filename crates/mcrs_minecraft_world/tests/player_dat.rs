@@ -1,4 +1,4 @@
-//! A player file written by vanilla 26.3-snapshot-10 (DataVersion 5015) reads,
+//! A player file written by vanilla reads,
 //! re-writes, and comes back structurally equal, with every unmodelled root key
 //! intact. Compound key order is not compared: vanilla's own compound is a hash map.
 
@@ -11,7 +11,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use uuid::Uuid;
 
-const VANILLA: &[u8] = include_bytes!("fixtures/vanilla_player_5015.dat");
+const VANILLA: &[u8] = include_bytes!("fixtures/vanilla_player.dat");
 
 fn temp_world(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("mcrs_player_dat_{name}_{}", std::process::id()));

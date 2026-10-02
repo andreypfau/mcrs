@@ -26,9 +26,8 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
 
-const GOLDEN: &str = include_str!(
-    "../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_26_3_snapshot_10.txt"
-);
+const GOLDEN: &str =
+    include_str!("../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_golden.txt");
 
 fn golden() -> &'static HashMap<&'static str, Vec<u8>> {
     static PACKETS: OnceLock<HashMap<&'static str, Vec<u8>>> = OnceLock::new();
