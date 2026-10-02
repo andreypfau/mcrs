@@ -350,6 +350,19 @@ mod tests {
     }
 
     #[test]
+    fn every_fixture_was_captured_on_the_corpus_version() {
+        assert!(!FIXTURES.is_empty());
+        let manifest = read_manifest(&repository().join(MANIFEST)).unwrap();
+        let behind = stale(&manifest, FIXTURES, id());
+        assert!(
+            behind.is_empty(),
+            "not captured on {}: {}",
+            id(),
+            behind.join(", ")
+        );
+    }
+
+    #[test]
     fn the_table_has_thirteen_fixtures_with_unique_names() {
         let mut names = names();
         assert_eq!(names.len(), 13);
