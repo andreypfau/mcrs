@@ -179,4 +179,111 @@ mod tests {
         let registry = registry(&UNSORTED);
         assert!(registry.get("minecraft:absent").is_none());
     }
+
+    fn build(names: &[&str], tags: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
+        Registry::new(
+            names.iter().map(|text| name(text)),
+            tags.iter().map(|text| name(text)),
+        )
+    }
+
+    #[test]
+    fn a_failed_lookup_names_registry_and_entry() {
+        let registry = registry(&UNSORTED);
+        let error = registry.require("minecraft:absent").unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("minecraft:test_registry"), "{message}");
+        assert!(message.contains("minecraft:absent"), "{message}");
+        assert_eq!(error.registry, TestRegistry::KEY);
+        assert_eq!(error.name, "minecraft:absent");
+        assert_eq!(
+            registry.require("minecraft:desert").unwrap(),
+            registry.get("minecraft:desert").unwrap()
+        );
+    }
+
+    #[test]
+    fn a_duplicate_name_does_not_build() {
+        let error = build(&["minecraft:a", "minecraft:b", "minecraft:a"], &[])
+            .err()
+            .unwrap();
+        let message = error.to_string();
+        assert!(
+            matches!(error, RegistryError::DuplicateEntry { .. }),
+            "{message}"
+        );
+        assert!(message.contains("minecraft:a"), "{message}");
+        assert!(message.contains("minecraft:test_registry"), "{message}");
+    }
+
+    #[test]
+    fn a_duplicate_tag_does_not_build() {
+        let error = build(&["minecraft:a"], &["minecraft:t", "minecraft:t"])
+            .err()
+            .unwrap();
+        let message = error.to_string();
+        assert!(
+            matches!(error, RegistryError::DuplicateTag { .. }),
+            "{message}"
+        );
+        assert!(message.contains("minecraft:t"), "{message}");
+    }
+
+    #[test]
+    fn an_empty_registry_builds_and_holds_nothing() {
+        let registry = registry(&[]);
+        assert_eq!(registry.len(), 0);
+        assert!(registry.is_empty());
+        assert_eq!(registry.ids().count(), 0);
+        assert!(registry.get("minecraft:anything").is_none());
+        assert!(registry.require("minecraft:anything").is_err());
+    }
+
+    #[test]
+    fn a_registry_knows_its_tag_names() {
+        let registry = build(&["minecraft:a"], &["minecraft:t", "minecraft:u"]).unwrap();
+        assert!(registry.has_tag("minecraft:t"));
+        assert!(registry.has_tag("minecraft:u"));
+        assert!(!registry.has_tag("minecraft:v"));
+    }
+
+    #[test]
+    fn a_tag_name_is_not_an_entry_name() {
+        let registry = build(&["minecraft:a"], &["minecraft:t"]).unwrap();
+        assert!(!registry.has_tag("minecraft:a"));
+        assert!(registry.get("minecraft:t").is_none());
+    }
+
+    #[test]
+    fn names_compare_as_the_exact_text() {
+        let registry = registry(&["minecraft:alpha"]);
+        assert!(registry.get("minecraft:alpha").is_some());
+        assert!(registry.get("alpha").is_none());
+        assert!(registry.get("Minecraft:alpha").is_none());
+        assert!(registry.get("minecraft:Alpha").is_none());
+        assert!(registry.require("alpha").is_err());
+    }
+
+    #[test]
+    fn an_id_of_a_larger_registry_has_no_name_in_a_smaller_one() {
+        let larger = registry(&UNSORTED);
+        let smaller = registry(&["minecraft:plains"]);
+        let first = larger.get("minecraft:plains").unwrap();
+        let second = larger.get("minecraft:desert").unwrap();
+        let third = larger.get("minecraft:forest").unwrap();
+        assert!(smaller.key(first).is_some());
+        assert!(smaller.key(second).is_none());
+        assert!(smaller.key(third).is_none());
+    }
+
+    #[test]
+    fn the_first_and_the_last_id_bound_the_table() {
+        let registry = registry(&UNSORTED);
+        let ids: Vec<Id<TestRegistry>> = registry.ids().collect();
+        assert_eq!(ids.len(), registry.len());
+        assert_eq!(ids.first().unwrap().index(), 0);
+        assert_eq!(ids.last().unwrap().index(), registry.len() - 1);
+        assert_eq!(registry.get("minecraft:plains"), ids.first().copied());
+        assert_eq!(registry.get("minecraft:forest"), ids.last().copied());
+    }
 }
