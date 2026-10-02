@@ -418,7 +418,7 @@ pub mod clientbound {
         pub entity_ids: Vec<VarInt>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
     #[packet(id=0x54, state=Game)]
     pub struct ClientboundRespawn<'a> {
         pub player_spawn_info: PlayerSpawnInfo<'a>,

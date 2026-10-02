@@ -7,11 +7,13 @@ mod common;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{BlockPos, ResourceLocation, VERSION};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_mode::OptGameMode;
+use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
-use mcrs_minecraft_protocol::{Decode, Encode, GameMode, VarInt};
+use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, VarInt};
 
 const GOLDEN: &str = include_str!("fixtures/join_packets_golden.txt");
 
@@ -100,4 +102,103 @@ fn login_carries_no_seed_and_equals_the_reference_bytes() {
         enforces_secure_chat: true,
     };
     check(&fixture, "login", expected);
+}
+
+#[test]
+fn respawn_equals_the_reference_bytes() {
+    let fixture = fixture();
+    let expected = ClientboundRespawn {
+        player_spawn_info: PlayerSpawnInfo {
+            dimension_type_id: VarInt(id(&fixture, "dimension_type", "minecraft:the_nether")),
+            dimension: ResourceLocation::from(mcrs_minecraft_core::rl!("minecraft:the_nether")),
+            game_mode: GameMode::Survival,
+            prev_game_mode: OptGameMode(None),
+            is_debug: false,
+            is_flat: true,
+            last_depth_location: Some(GlobalPos {
+                dimension_name: overworld(),
+                position: BlockPos::new(1, 64, -3),
+            }),
+            portal_cooldown: VarInt(0),
+            sea_level: VarInt(32),
+        },
+        data_to_keep: 3,
+    };
+    check(&fixture, "respawn", expected);
+}
+
+fn handshake<'a>(host: &'a str, intent: Intent) -> ServerboundHandshake<'a> {
+    ServerboundHandshake {
+        protocol_version: VarInt(VERSION.protocol_version),
+        server_address: Bounded(host),
+        server_port: 25565,
+        intent,
+    }
+}
+
+fn handshake_frame(host: &str) -> Vec<u8> {
+    let mut frame = Vec::new();
+    VarInt(VERSION.protocol_version).encode(&mut frame).unwrap();
+    VarInt(host.len() as i32).encode(&mut frame).unwrap();
+    frame.extend_from_slice(host.as_bytes());
+    frame.extend_from_slice(&25565u16.to_be_bytes());
+    VarInt(1).encode(&mut frame).unwrap();
+    frame
+}
+
+fn decode_handshake(frame: &[u8]) -> anyhow::Result<ServerboundHandshake<'_>> {
+    let mut r = frame;
+    ServerboundHandshake::decode(&mut r)
+}
+
+#[test]
+fn the_handshake_equals_the_reference_bytes() {
+    let fixture = fixture();
+    let at_bound = "a".repeat(1024);
+    check(&fixture, "intention", handshake("example.org", Intent::Login));
+    check(
+        &fixture,
+        "intention_host_at_bound",
+        handshake(&at_bound, Intent::Status),
+    );
+}
+
+#[test]
+fn a_host_at_the_bound_round_trips_and_one_past_it_is_refused() {
+    let at_bound = "a".repeat(1024);
+    let packet = handshake(&at_bound, Intent::Status);
+    let bytes = encoded(&packet);
+    assert_eq!(decode_handshake(&bytes).unwrap(), packet);
+
+    let past = "a".repeat(1025);
+    assert!(
+        handshake(&past, Intent::Status)
+            .encode(&mut Vec::new())
+            .is_err()
+    );
+    assert!(decode_handshake(&handshake_frame(&past)).is_err());
+}
+
+#[test]
+fn the_host_bound_counts_utf16_units() {
+    let at_bound = "\u{1F600}".repeat(512);
+    assert_eq!(at_bound.len(), 2048);
+    let packet = handshake(&at_bound, Intent::Status);
+    let bytes = encoded(&packet);
+    assert_eq!(decode_handshake(&bytes).unwrap(), packet);
+
+    let past = "\u{1F600}".repeat(513);
+    assert!(
+        handshake(&past, Intent::Status)
+            .encode(&mut Vec::new())
+            .is_err()
+    );
+    assert!(decode_handshake(&handshake_frame(&past)).is_err());
+}
+
+#[test]
+fn an_empty_host_round_trips() {
+    let packet = handshake("", Intent::Login);
+    let bytes = encoded(&packet);
+    assert_eq!(decode_handshake(&bytes).unwrap(), packet);
 }

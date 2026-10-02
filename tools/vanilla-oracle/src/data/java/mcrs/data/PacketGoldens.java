@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Supplier;
+import net.minecraft.SharedConstants;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
@@ -71,6 +72,7 @@ import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.protocol.game.ClientboundRecipeBookAddPacket;
 import net.minecraft.network.protocol.game.ClientboundRecipeBookRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundRecipeBookSettingsPacket;
+import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import net.minecraft.network.protocol.game.ClientboundSetCursorItemPacket;
 import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacket;
@@ -92,6 +94,8 @@ import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
 import net.minecraft.network.protocol.game.ServerboundSeenAdvancementsPacket;
 import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
+import net.minecraft.network.protocol.handshake.ClientIntent;
+import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
@@ -371,6 +375,43 @@ public final class PacketGoldens {
                         false,
                         true
                     )
+                )
+            );
+            labels.put(
+                "respawn",
+                () -> hex(
+                    session,
+                    ClientboundRespawnPacket.STREAM_CODEC,
+                    new ClientboundRespawnPacket(
+                        new CommonPlayerSpawnInfo(
+                            dimensionType(session, "the_nether"),
+                            dimension("the_nether"),
+                            GameType.SURVIVAL,
+                            Optional.empty(),
+                            false,
+                            true,
+                            Optional.of(GlobalPos.of(dimension("overworld"), new BlockPos(1, 64, -3))),
+                            0,
+                            32
+                        ),
+                        ClientboundRespawnPacket.KEEP_ALL_DATA
+                    )
+                )
+            );
+            labels.put(
+                "intention",
+                () -> hex(
+                    session,
+                    ClientIntentionPacket.STREAM_CODEC,
+                    new ClientIntentionPacket(SharedConstants.getProtocolVersion(), "example.org", 25565, ClientIntent.LOGIN)
+                )
+            );
+            labels.put(
+                "intention_host_at_bound",
+                () -> hex(
+                    session,
+                    ClientIntentionPacket.STREAM_CODEC,
+                    new ClientIntentionPacket(SharedConstants.getProtocolVersion(), "a".repeat(1024), 25565, ClientIntent.STATUS)
                 )
             );
             rewriteLabelled(session, current, output, labels);

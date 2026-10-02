@@ -1,6 +1,6 @@
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
-#[derive(Clone, Copy, Debug, Encode, Decode)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
 pub enum Intent {
     #[packet(tag = 1)]
     Status = 1,
