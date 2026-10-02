@@ -3,16 +3,19 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use mcrs_minecraft_client_jar::{Directory, get, official_dir};
-use mcrs_minecraft_update::{corpus, gradle, registries, release};
+use mcrs_minecraft_update::{corpus, definitions, gradle, registries, release};
 
 const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
-descriptor, runs the data generator and replaces the reports in assets/mcrs/reports. The
-protocol_id diff against the previous registries report is printed and, with --diff-out,
-written to protocol_id.txt in that directory. Two runs against one working tree at the
-same time are not supported.";
+descriptor, runs the data generator and replaces the reports in assets/mcrs/reports, then
+dumps the block and item definitions and replaces assets/mcrs/block_definition and
+assets/mcrs/item_definition. The protocol_id diff against the previous registries report is
+printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
+of the definitions is printed and written to definitions.txt there. Each diff is computed
+before the files it describes are replaced. Two runs against one working tree at the same
+time are not supported.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
@@ -24,6 +27,8 @@ const REPORT_FILES: [&str; 4] = [
     "blocks.json",
     "datapack.json",
 ];
+const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
+const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
 struct Options {
     id: String,
@@ -104,7 +109,8 @@ fn run(options: &Options) -> Result<(), String> {
         report.kept.len()
     );
 
-    update_reports(&root, options.diff_out.as_deref())
+    update_reports(&root, options.diff_out.as_deref())?;
+    update_definitions(&root, options.diff_out.as_deref())
 }
 
 fn update_reports(root: &Path, diff_out: Option<&Path>) -> Result<(), String> {
@@ -148,6 +154,49 @@ fn replace_reports(root: &Path, generated: &Path, diff_out: Option<&Path>) -> Re
         let bytes = fs::read(&from).map_err(|error| format!("{}: {error}", from.display()))?;
         let to = stored.join(name);
         fs::write(&to, bytes).map_err(|error| format!("{}: {error}", to.display()))?;
+    }
+    Ok(())
+}
+
+fn update_definitions(root: &Path, diff_out: Option<&Path>) -> Result<(), String> {
+    let dumped =
+        std::env::temp_dir().join(format!("mcrs-update-definitions-{}", std::process::id()));
+    let result = dump(root, &dumped).and_then(|()| replace_definitions(root, &dumped, diff_out));
+    let _ = fs::remove_dir_all(&dumped);
+    result
+}
+
+fn dump(root: &Path, dumped: &Path) -> Result<(), String> {
+    fs::create_dir_all(dumped).map_err(|error| format!("{}: {error}", dumped.display()))?;
+    let out = dumped
+        .to_str()
+        .ok_or_else(|| format!("{}: not valid UTF-8", dumped.display()))?;
+    gradle::run(
+        &root.join("tools/vanilla-oracle"),
+        "dumpDefinitions",
+        &[("definitionsOut", out)],
+    )
+}
+
+fn replace_definitions(root: &Path, dumped: &Path, diff_out: Option<&Path>) -> Result<(), String> {
+    let stored = root.join(DEFINITIONS_ROOT);
+    let mut text = String::new();
+    for name in DEFINITIONS {
+        text.push_str(&definitions::diff(&stored.join(name), &dumped.join(name))?.summary(name));
+    }
+    print!("{text}");
+    if let Some(directory) = diff_out {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("{}: {error}", directory.display()))?;
+        write(&directory.join("definitions.txt"), &text)?;
+    }
+    for name in DEFINITIONS {
+        let report = definitions::replace(&stored.join(name), &dumped.join(name))?;
+        println!(
+            "{name}: {} written, {} deleted",
+            report.written.len(),
+            report.deleted.len()
+        );
     }
     Ok(())
 }

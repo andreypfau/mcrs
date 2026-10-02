@@ -43,11 +43,11 @@ pub fn entry_path(name: &str) -> Result<Option<String>, String> {
     Ok(Some(path.to_owned()))
 }
 
-fn io(path: &Path, error: std::io::Error) -> String {
+pub(crate) fn io(path: &Path, error: std::io::Error) -> String {
     format!("{}: {error}", path.display())
 }
 
-fn write_if_changed(dir: &Path, path: &str, bytes: &[u8]) -> Result<bool, String> {
+pub(crate) fn write_if_changed(dir: &Path, path: &str, bytes: &[u8]) -> Result<bool, String> {
     let full = dir.join(path);
     if fs::read(&full).is_ok_and(|held| held == bytes) {
         return Ok(false);
@@ -59,7 +59,7 @@ fn write_if_changed(dir: &Path, path: &str, bytes: &[u8]) -> Result<bool, String
     Ok(true)
 }
 
-fn files_below(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
+pub(crate) fn files_below(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
