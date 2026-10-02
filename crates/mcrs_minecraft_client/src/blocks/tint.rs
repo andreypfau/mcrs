@@ -251,7 +251,7 @@ fn surface_biome(store: &impl BlockSource, column: ColumnPos, x: usize, z: usize
     let Some(extent) = store.extent() else {
         return 0;
     };
-    let cell = (x / 4, 3, z / 4);
+    let cell = (x, 15, z);
     for step in (0..extent.sections).rev() {
         let sy = extent.min_section_y + step as i32;
         if store.section(column.x, sy, column.z).is_some() {

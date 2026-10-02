@@ -1,11 +1,9 @@
 use bytes::Buf;
-use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::path::PathBuf;
 
 use super::build_settings_router;
 use super::multi_noise_biomes::overworld_table;
-use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_palettes;
 
 const MAGIC: &[u8; 8] = b"MCBIOME0";
@@ -85,19 +83,12 @@ fn the_stored_biomes_match_the_reference_block_for_block() {
     for column in &columns {
         let router = build_settings_router("overworld", column.seed);
         let sections = column.section_ys();
-        let (_, grid) = multi_noise_palettes(
+        let (containers, _) = multi_noise_palettes(
             &router,
             &table,
             column.chunk_x * 16,
             column.chunk_z * 16,
             &sections,
-        );
-        let grid = grid.expect("the multi-noise path builds a grid");
-        let containers = upscale_biomes(
-            &grid,
-            obfuscate_seed(router.world_seed as i64),
-            &sections,
-            &mut FiddleCache::default(),
         );
         assert_eq!(containers.len(), sections.len());
 

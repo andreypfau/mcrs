@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use mcrs_minecraft_biome::climate::ClimateParameters;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
@@ -57,12 +59,14 @@ fn the_batched_column_agrees_with_sampling_each_cell() {
     let sections = y_sections();
     let (chunk_x, chunk_z) = (26, 90);
 
-    let (palettes, _) =
+    let (palettes, grid) =
         multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
     assert_eq!(palettes.len(), sections.len());
+    let grid = grid.expect("the multi-noise path builds a grid");
+    let first = sections[0];
 
     let mut ws = Workspace::new();
-    for (index, &section_y) in sections.iter().enumerate() {
+    for &section_y in &sections {
         for cx in 0..4 {
             for cy in 0..4 {
                 for cz in 0..4 {
@@ -74,7 +78,7 @@ fn the_batched_column_agrees_with_sampling_each_cell() {
                         chunk_z * 4 + cz,
                     );
                     assert_eq!(
-                        palettes[index].get_cell(cx as usize, cy as usize, cz as usize),
+                        grid.get(cx + 1, (section_y - first) * 4 + cy, cz + 1),
                         table.biome_at(target),
                         "cell {cx},{cy},{cz} of section {section_y}"
                     );
@@ -93,9 +97,20 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome() {
     let (table, ids) = overworld_table();
     let sections = y_sections();
 
-    let (palettes, _) = multi_noise_palettes(&router, &table, 0, 0, &sections);
-    let column: Vec<u8> = palettes.iter().map(|p| p.get_cell(0, 0, 0)).collect();
+    let (palettes, grid) = multi_noise_palettes(&router, &table, 0, 0, &sections);
+    let grid = grid.expect("the multi-noise path builds a grid");
+    let first = sections[0];
+    let column: Vec<u8> = sections
+        .iter()
+        .map(|&section_y| grid.get(1, (section_y - first) * 4, 1))
+        .collect();
     let distinct: std::collections::BTreeSet<u8> = column.iter().copied().collect();
+    let mut stored = std::collections::BTreeSet::new();
+    for palette in &palettes {
+        palette.for_each_distinct(|biome| {
+            stored.insert(biome);
+        });
+    }
 
     let name_of = |biome: &str| *ids.get(biome).expect("the preset names it");
     assert_eq!(
@@ -107,6 +122,11 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome() {
         .into_iter()
         .collect::<std::collections::BTreeSet<u8>>(),
         "the column should hold a surface biome over a cave biome"
+    );
+    assert!(
+        stored.contains(&name_of("minecraft:forest"))
+            && stored.contains(&name_of("minecraft:dripstone_caves")),
+        "the stored column should hold both: {stored:?}"
     );
 }
 
@@ -241,14 +261,28 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
         IVec3::new(chunk_x * 16 - 4, first * 16, chunk_z * 16 - 4)
     );
 
+    let zoom_seed = obfuscate_seed(router.world_seed as i64);
+    let min = grid.volume.min_block();
+    let origin = IVec3::new(min.x >> 2, min.y >> 2, min.z >> 2);
+    let (first_row, last_row) = (first * 4, sections[sections.len() - 1] * 4 + 3);
+    let plain_pick = |block: BlockPos| {
+        let quart = quart_cell(zoom_seed, block);
+        let row = quart.y.clamp(first_row, last_row) - origin.y;
+        grid.get(quart.x - origin.x, row, quart.z - origin.z)
+    };
     for (index, &section_y) in sections.iter().enumerate() {
-        for cx in 0..4 {
-            for cy in 0..4 {
-                for cz in 0..4 {
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let block = BlockPos::new(
+                        chunk_x * 16 + x as i32,
+                        section_y * 16 + y as i32,
+                        chunk_z * 16 + z as i32,
+                    );
                     assert_eq!(
-                        grid.get(cx + 1, (section_y - first) * 4 + cy, cz + 1),
-                        palettes[index].get_cell(cx as usize, cy as usize, cz as usize),
-                        "cell {cx},{cy},{cz} of section {section_y}"
+                        palettes[index].get_cell(x, y, z),
+                        plain_pick(block),
+                        "block {x},{y},{z} of section {section_y}"
                     );
                 }
             }

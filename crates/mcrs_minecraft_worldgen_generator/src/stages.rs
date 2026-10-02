@@ -1,14 +1,14 @@
-use mcrs_minecraft_core::{BlockPos, LocalPos, QuartPos, SectionPos};
+use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use std::cell::RefCell;
 use std::sync::Arc;
 
+use crate::stored_biomes::column_cell;
 use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell, uniform_corners};
 use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
@@ -455,7 +455,6 @@ pub struct ColumnRegion<'a> {
     blocks: &'a ColumnBlocks,
     ctx: &'a FillContext,
     maps: Option<ColumnHeightmapSet>,
-    zoom_seed: i64,
     own: Vec<(u32, VoxelId)>,
     ring: [FxHashMap<u32, VoxelId>; 9],
     /// What the generators asked the world to remember about a block they
@@ -479,7 +478,6 @@ impl<'a> ColumnRegion<'a> {
             blocks,
             ctx,
             maps: snapshots[4].maps.clone(),
-            zoom_seed: obfuscate_seed(ctx.router.world_seed as i64),
             own: Vec::new(),
             ring: Default::default(),
             block_entities: Vec::new(),
@@ -526,27 +524,27 @@ impl<'a> ColumnRegion<'a> {
         Some(heights.get(lx, lz))
     }
 
-    /// The block-resolution biome, read through the zoom off the stored
-    /// palettes: this stage holds the ring, so nothing re-evaluates climate.
-    ///
-    /// A quart cell the zoom picks outside the 3x3 falls back to the cell the
-    /// position sits in, which is always inside it.
+    /// The stored biome of the block, with the height clamped to the column.
     fn biome_at(&self, p: BlockPos) -> u32 {
-        if let Some(Some(biome)) = uniform_corners(p, |quart| self.quart_biome(quart)) {
-            return biome;
-        }
-        self.quart_biome(quart_cell(self.zoom_seed, p))
-            .or_else(|| self.quart_biome(QuartPos::of(p)))
-            .unwrap_or_default()
-    }
-
-    fn quart_biome(&self, quart: QuartPos) -> Option<u32> {
-        let slot = region_slot(self.center, quart.column())?;
+        let Some(slot) = region_slot(
+            self.center,
+            ColumnPos::new(p.x.div_euclid(16), p.z.div_euclid(16)),
+        ) else {
+            return 0;
+        };
         let snapshot = &self.snapshots[slot];
-        let section = snapshot.slot(quart.min_block_y())?;
-        let (_, biomes) = snapshot.sections[section].as_ref()?;
-        let [x, y, z] = quart.section_local();
-        Some(biomes.0.get(x, y, z) as u32)
+        let Some(&first) = snapshot.y_sections.first() else {
+            return 0;
+        };
+        let (section, y) = column_cell(first, snapshot.y_sections.len(), p.y);
+        let Some((_, biomes)) = snapshot.sections.get(section).and_then(Option::as_ref) else {
+            return 0;
+        };
+        u32::from(
+            biomes
+                .0
+                .get(p.x.rem_euclid(16) as usize, y, p.z.rem_euclid(16) as usize),
+        )
     }
 
     /// One delta per column this unit wrote into, its own included: the merge of

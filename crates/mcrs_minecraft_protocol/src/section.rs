@@ -88,7 +88,7 @@ impl NetworkSectionKind for Blocks {
 }
 
 impl NetworkSectionKind for Biomes {
-    const MAX_INDIRECT_BITS: u32 = 3;
+    const MAX_INDIRECT_BITS: u32 = 8;
 }
 
 #[cfg(test)]
@@ -127,7 +127,11 @@ mod tests {
             (4, 2, Indirect { bits: 2 }),
             (5, 3, Indirect { bits: 3 }),
             (8, 3, Indirect { bits: 3 }),
-            (9, 4, Direct { bits: direct }),
+            (9, 4, Indirect { bits: 4 }),
+            (16, 4, Indirect { bits: 4 }),
+            (17, 5, Indirect { bits: 5 }),
+            (256, 8, Indirect { bits: 8 }),
+            (257, 9, Direct { bits: direct }),
         ];
         for (len, storage, form) in biomes {
             assert_eq!(Biomes::storage_bits(len), storage, "biome palette of {len}");
@@ -163,6 +167,6 @@ mod tests {
     #[test]
     fn section_entry_counts_match_the_axis_bits() {
         assert_eq!(Blocks::ENTRY_COUNT, 4096);
-        assert_eq!(Biomes::ENTRY_COUNT, 64);
+        assert_eq!(Biomes::ENTRY_COUNT, 4096);
     }
 }

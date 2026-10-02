@@ -15,7 +15,7 @@ impl SectionKind for Blocks {
 }
 
 impl SectionKind for Biomes {
-    const AXIS_BITS: u32 = 2;
+    const AXIS_BITS: u32 = 4;
     const MIN_INDIRECT_BITS: u32 = 1;
 }
 

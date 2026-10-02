@@ -1289,10 +1289,10 @@ fn the_index_formulas_match_the_reference() {
     assert_eq!(Blocks::ENTRY_COUNT, 4096);
 
     assert_eq!(Biomes::index(1, 0, 0), 1);
-    assert_eq!(Biomes::index(0, 0, 1), 4);
-    assert_eq!(Biomes::index(0, 1, 0), 16);
-    assert_eq!(Biomes::index(3, 3, 3), 63);
-    assert_eq!(Biomes::ENTRY_COUNT, 64);
+    assert_eq!(Biomes::index(0, 0, 1), 16);
+    assert_eq!(Biomes::index(0, 1, 0), 256);
+    assert_eq!(Biomes::index(15, 15, 15), 4095);
+    assert_eq!(Biomes::ENTRY_COUNT, 4096);
 
     assert_eq!(NoiseBiomes::index(1, 0, 0), 1);
     assert_eq!(NoiseBiomes::index(0, 0, 1), 4);

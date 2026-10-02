@@ -100,9 +100,15 @@ fn the_three_forms_are_the_ones_under_test() {
         "no palette list"
     );
 
+    let biome_indirect = encoded_biomes(&biomes(&biome_ids(40)));
     assert_eq!(
-        encoded_biomes(&biomes(&biome_ids(40)))[0],
-        biome_direct_bits(BIOME_REGISTRY_LEN) as u8
+        biome_indirect[..2],
+        [6, 40],
+        "six bits, then a palette of forty"
+    );
+    assert_eq!(
+        biome_indirect.len(),
+        2 + 40 + 8 * packed_len(6, Biomes::ENTRY_COUNT)
     );
 }
 

@@ -1,3 +1,5 @@
+use mcrs_minecraft_chunk::SectionKind;
+use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -83,7 +85,7 @@ fn section(y: i8, rng: &mut Rng) -> NbtCompound {
         "biomes",
         container(
             if rng.percent(78) { 1 } else { 2 + rng.below(3) },
-            64,
+            Biomes::ENTRY_COUNT,
             1,
             biome_entry,
             rng,
