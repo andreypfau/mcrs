@@ -25,7 +25,7 @@ use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -33,7 +33,6 @@ use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::MINECRAFT_VERSION;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -373,7 +372,7 @@ fn on_configuration_enter(
             known_packs: vec![KnownPack {
                 namespace: "minecraft",
                 id: "core",
-                version: MINECRAFT_VERSION,
+                version: VERSION.id.as_str(),
             }],
         });
         commands.entity(entity).insert(AwaitingKnownPacks);

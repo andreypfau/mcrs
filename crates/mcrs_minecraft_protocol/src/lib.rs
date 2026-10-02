@@ -105,10 +105,6 @@ pub const MAX_PACKET_SIZE: i32 = 2097152;
 /// The Minecraft protocol version this library currently targets.
 pub const PROTOCOL_VERSION: i32 = 777;
 
-/// The stringified name of the Minecraft version this library currently
-/// targets.
-pub const MINECRAFT_VERSION: &str = "26.3";
-
 /// How large a packet should be before it is compressed by the packet encoder.
 ///
 /// If the inner value is >= 0, then packets with encoded lengths >= to this
