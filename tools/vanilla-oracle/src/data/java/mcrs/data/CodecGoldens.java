@@ -29,6 +29,9 @@ public final class CodecGoldens {
         GOLDENS.put("item_holders", ItemGoldens::holders);
         GOLDENS.put("item_registry_refs", ItemGoldens::registryRefs);
         GOLDENS.put("item_records", ItemGoldens::records);
+        GOLDENS.put("recipe_packets", PacketGoldens::recipePackets);
+        GOLDENS.put("particles", PacketGoldens::particles);
+        GOLDENS.put("inventory_packets", PacketGoldens::inventoryPackets);
     }
 
     private CodecGoldens() {}
