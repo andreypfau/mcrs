@@ -555,7 +555,8 @@ fn report_unsettled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columns::{BIOME_CELLS, Dimension, Section};
+    use crate::columns::{Dimension, Section};
+    use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_light_color::colors::LightType;
     use std::time::Duration;
 
@@ -662,7 +663,7 @@ mod tests {
         store.enter(EXTENT);
         let stone = Section {
             blocks: Box::new([1; SECTION_VOLUME]),
-            biomes: Box::new([0; BIOME_CELLS]),
+            biomes: PalettedContainer::Homogeneous(0),
             states: vec![1],
         };
         let at = ColumnPos::new(2, -1);
@@ -783,7 +784,7 @@ mod tests {
                     blocks[0] = lamp;
                     Section {
                         blocks,
-                        biomes: Box::new([0; BIOME_CELLS]),
+                        biomes: PalettedContainer::Homogeneous(0),
                         states: vec![AIR, lamp],
                     }
                 })

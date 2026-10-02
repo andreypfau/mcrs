@@ -10,7 +10,8 @@ use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, ResMut, Resource
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use mcrs_minecraft_chunk::PalettedContainer;
+use mcrs_minecraft_chunk::section::Biomes;
+use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -30,8 +31,6 @@ use mcrs_minecraft_network::client::{
     ClientConnection, ClientNetworkSystems, ReceivedRegistries, ReceivedRegistry,
 };
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-
-pub const BIOME_CELLS: usize = 64;
 
 pub const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 
@@ -69,7 +68,7 @@ impl From<Extent> for Dimension {
 #[derive(Clone)]
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
-    pub biomes: Box<[u8; BIOME_CELLS]>,
+    pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
     /// Every state the blocks hold.
     pub states: Vec<u16>,
 }
@@ -274,9 +273,9 @@ pub trait BlockSource {
         self.column(sx, sz)?.section(sy)
     }
 
-    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: usize) -> u8 {
+    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: (usize, usize, usize)) -> u8 {
         match self.section(sx, sy, sz) {
-            Some(section) => section.biomes[cell],
+            Some(section) => section.biomes.get(cell.0, cell.1, cell.2),
             None => 0,
         }
     }
@@ -301,7 +300,7 @@ impl Column {
     ) -> Result<Column> {
         let sections = data
             .sections(extent.sections, biome_registry_len)?
-            .iter()
+            .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
                     return None;
@@ -314,11 +313,9 @@ impl Column {
                         data.palette.iter().map(|id| id.0).collect()
                     }
                 };
-                let mut biomes = Box::new([0u8; BIOME_CELLS]);
-                expand(&section.biomes, biomes.as_mut_slice(), |id| id);
                 Some(Section {
                     blocks,
-                    biomes,
+                    biomes: section.biomes,
                     states,
                 })
             })
@@ -784,7 +781,7 @@ mod tests {
             "a section of nothing but air is not resident"
         );
         assert!(store.section(1, 0, -2).is_some());
-        assert_eq!(store.biome(1, 0, -2, 0), 3);
+        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
 
         store.remove(packet.pos);
         assert!(store.is_empty(), "the forget packet takes the column back");

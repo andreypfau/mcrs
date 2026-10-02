@@ -1547,6 +1547,7 @@ fn biome_names(registries: &Query<&ReceivedRegistries>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
 
     fn loader() -> Loader {
@@ -1942,7 +1943,7 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
+                    biomes: PalettedContainer::Homogeneous(0),
                     states: vec![1],
                 })],
             )
@@ -1995,7 +1996,7 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
+                    biomes: PalettedContainer::Homogeneous(0),
                     states: vec![1],
                 })],
             )
@@ -2069,7 +2070,7 @@ mod tests {
                 0,
                 vec![Some(Section {
                     blocks: Box::new([1; crate::columns::SECTION_VOLUME]),
-                    biomes: Box::new([0; crate::columns::BIOME_CELLS]),
+                    biomes: PalettedContainer::Homogeneous(0),
                     states: vec![1],
                 })],
             ),
