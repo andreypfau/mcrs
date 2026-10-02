@@ -352,3 +352,59 @@ impl WritePacket for RawConnection {
         self.enc.write_packet_fallible(packet)
     }
 }
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_protocol::VarInt;
+    use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
+    use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
+    use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
+    use std::time::Duration;
+
+    fn body_of<P: Encode>(packet: &P) -> Vec<u8> {
+        let mut body = Vec::new();
+        packet.encode(&mut body).unwrap();
+        body
+    }
+
+    #[test]
+    fn packets_cross_a_duplex_stream_with_the_threshold_set_between_two() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let (near, far) = tokio::io::duplex(64 * 1024);
+            let mut writer = PacketIo::new(near);
+            let mut reader = PacketIo::new(far);
+            let json = "a".repeat(1000);
+            let ping = PingRequest { payload: 7 };
+            let status = StatusResponse { json: &json };
+
+            tokio::time::timeout(Duration::from_secs(10), async {
+                writer
+                    .send_packet(&LoginCompression {
+                        threshold: VarInt(256),
+                    })
+                    .await
+                    .unwrap();
+                writer.set_compression(CompressionThreshold(256));
+                writer.send_packet(&ping).await.unwrap();
+                writer.send_packet(&status).await.unwrap();
+
+                let (id, frame) = reader.recv_frame().await.unwrap();
+                assert_eq!(id, LoginCompression::ID);
+                let compression = LoginCompression::decode(&mut &frame[..]).unwrap();
+                reader.set_compression(CompressionThreshold(compression.threshold.0));
+
+                let (id, frame) = reader.recv_frame().await.unwrap();
+                assert_eq!(id, PingRequest::ID);
+                assert_eq!(&frame[..], &body_of(&ping)[..]);
+
+                let (id, frame) = reader.recv_frame().await.unwrap();
+                assert_eq!(id, StatusResponse::ID);
+                assert_eq!(&frame[..], &body_of(&status)[..]);
+            })
+            .await
+            .unwrap();
+        });
+    }
+}
