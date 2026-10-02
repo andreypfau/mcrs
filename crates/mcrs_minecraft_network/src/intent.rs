@@ -1,6 +1,6 @@
 use crate::SharedNetworkState;
 use crate::packet_io::{ByteStream, PacketIo};
-use mcrs_minecraft_protocol::PROTOCOL_VERSION;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::ping::clientbound::PongResponse;
@@ -26,7 +26,7 @@ pub(crate) async fn handle_intent<S: ByteStream>(
             let json = json!({
                 "version": {
                     "name": "mcrs",
-                    "protocol": PROTOCOL_VERSION
+                    "protocol": VERSION.protocol_version
                 },
                 "players": {
                     "max": 0,

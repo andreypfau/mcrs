@@ -10,7 +10,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -36,8 +36,7 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 };
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::{
-    Bounded, CompressionThreshold, Decode, Encode, Look, PROTOCOL_VERSION, Packet, VarInt,
-    WritePacket, uuid::Uuid,
+    Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
 };
 use mcrs_minecraft_registry::{LookupIndex, RegistryLookup};
 use md5::{Digest, Md5};
@@ -303,7 +302,7 @@ async fn log_in<S: ByteStream>(
     profile_id: Uuid,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
     io.send_packet(&ServerboundHandshake {
-        protocol_version: VarInt(PROTOCOL_VERSION),
+        protocol_version: VarInt(VERSION.protocol_version),
         server_address: Bounded(host.as_str()),
         server_port: port,
         intent: Intent::Login,

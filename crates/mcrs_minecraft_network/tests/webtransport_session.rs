@@ -1,11 +1,12 @@
 use bevy_app::{App, FixedPreUpdate};
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::packet_io::PacketIo;
 use mcrs_minecraft_network::{NetworkPlugin, ServerSideConnection, WebTransportEndpoint};
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest;
-use mcrs_minecraft_protocol::{Bounded, PROTOCOL_VERSION, VarInt};
+use mcrs_minecraft_protocol::{Bounded, VarInt};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::Duration;
 use wtransport::endpoint::endpoint_side::Client;
@@ -37,7 +38,7 @@ async fn open_session(
     let mut io = PacketIo::new(BiStream::join((send, recv)));
 
     io.send_packet(&ServerboundHandshake {
-        protocol_version: VarInt(PROTOCOL_VERSION),
+        protocol_version: VarInt(VERSION.protocol_version),
         server_address: Bounded("127.0.0.1"),
         server_port: server.address.port(),
         intent,
@@ -82,7 +83,7 @@ fn a_browser_transport_session_drives_a_status_exchange_and_a_login() {
         .expect("the status exchange failed")
     });
     assert!(
-        json.contains(&PROTOCOL_VERSION.to_string()),
+        json.contains(&VERSION.protocol_version.to_string()),
         "the status response did not carry the protocol version: {json}"
     );
 
