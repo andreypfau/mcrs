@@ -1,5 +1,5 @@
-//! The modern ore vein against `OreOracle`, which lifts `OreFeature.doPlace`
-//! verbatim over a world that is stone everywhere.
+//! The modern ore vein against `OreOracle`, which runs the game's own
+//! `OreFeature.place` over a world that is stone everywhere.
 
 use bytes::Buf;
 use mcrs_minecraft_chunk::VoxelId;
@@ -184,7 +184,7 @@ fn every_dumped_vein_matches_block_for_block() {
 /// The probe box is the one thing the flat-world dump cannot pin, because the
 /// oracle stands `getHeight` in for a constant. At size 20 from (0, 64, 0) the
 /// reference's arithmetic gives a spread of 2.5 rounded up to 3 and a max radius
-/// of 2, so columns -5..=5 are tested against y 60.
+/// of 2, so columns -5..=4 are tested against y 60.
 #[test]
 #[ignore = "reference parity check; run with --ignored"]
 fn the_probe_box_is_the_reference_box() {
@@ -209,7 +209,8 @@ fn the_probe_box_is_the_reference_box() {
     };
     assert!(!probe(None), "every column below y 60 must abort the vein");
     assert!(probe(Some([-5, -5])), "the box starts at -5");
-    assert!(probe(Some([5, 5])), "the box ends at 5");
+    assert!(probe(Some([4, 4])), "the box ends at 4");
+    assert!(!probe(Some([5, 5])), "the box does not reach 5");
     assert!(!probe(Some([-6, 0])), "the box does not reach -6");
     assert!(!probe(Some([0, 6])), "the box does not reach 6");
 }
