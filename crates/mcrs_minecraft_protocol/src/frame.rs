@@ -336,6 +336,8 @@ mod tests {
 
     use flate2::Compression;
     use flate2::write::ZlibEncoder;
+    use rand::rngs::StdRng;
+    use rand::{RngExt, SeedableRng};
 
     use super::*;
     use crate::Encode;
@@ -1116,6 +1118,107 @@ mod tests {
                 uncompressed_by_threshold.len(),
                 body + width,
                 "below the threshold, body {body}"
+            );
+        }
+    }
+
+    const SWITCH_AFTER_FRAME: usize = 1;
+
+    fn five_frame_stream() -> (Vec<u8>, Vec<Bytes>) {
+        let sizes_and_thresholds = [(20, -1), (60, -1), (100, 256), (400, 256), (1000, 256)];
+        let mut stream = BytesMut::new();
+        let mut deflate = None;
+        let mut packets = Vec::new();
+        for (index, (size, threshold)) in sizes_and_thresholds.into_iter().enumerate() {
+            let mut packet = pattern(size);
+            packet[0] = index as u8;
+            let start = stream.len();
+            stream.extend_from_slice(&packet);
+            encode_frame(
+                &mut stream,
+                start,
+                CompressionThreshold(threshold),
+                &mut deflate,
+            )
+            .unwrap();
+            packets.push(Bytes::from(packet));
+        }
+        (stream.to_vec(), packets)
+    }
+
+    fn cut<'a>(stream: &'a [u8], offsets: &[usize]) -> Vec<&'a [u8]> {
+        let mut parts = Vec::new();
+        let mut from = 0;
+        for &offset in offsets {
+            parts.push(&stream[from..offset]);
+            from = offset;
+        }
+        parts.push(&stream[from..]);
+        parts
+    }
+
+    fn decode_in_parts(parts: &[&[u8]]) -> Result<Vec<Bytes>, String> {
+        let mut buf = BytesMut::new();
+        let mut threshold = CompressionThreshold(-1);
+        let mut inflater = None;
+        let mut packets = Vec::new();
+        for (index, part) in parts.iter().enumerate() {
+            buf.extend_from_slice(part);
+            loop {
+                let before = buf.clone();
+                match split_frame(&mut buf) {
+                    Ok(frame) => {
+                        let packet = decompress(frame, threshold, &mut inflater)
+                            .map_err(|error| format!("part {index}: {error:?}"))?;
+                        packets.push(packet);
+                        if packets.len() == SWITCH_AFTER_FRAME + 1 {
+                            threshold = CompressionThreshold(256);
+                        }
+                    }
+                    Err(error) if error.is_incomplete() => {
+                        if buf != before {
+                            return Err(format!("part {index}: {error:?} changed the buffer"));
+                        }
+                        break;
+                    }
+                    Err(error) => return Err(format!("part {index}: {error:?}")),
+                }
+            }
+        }
+        if !buf.is_empty() {
+            return Err(format!("{} bytes left over", buf.len()));
+        }
+        Ok(packets)
+    }
+
+    #[test]
+    fn a_stream_cut_anywhere_decodes_to_the_same_frames() {
+        let (stream, packets) = five_frame_stream();
+
+        assert_eq!(decode_in_parts(&[&stream]), Ok(packets.clone()));
+
+        for offset in 1..stream.len() {
+            assert_eq!(
+                decode_in_parts(&cut(&stream, &[offset])),
+                Ok(packets.clone()),
+                "cut at {offset} of {}",
+                stream.len()
+            );
+        }
+
+        for seed in 0..200u64 {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let count = rng.random_range(2..=12);
+            let mut offsets: Vec<usize> = (0..count)
+                .map(|_| rng.random_range(1..stream.len()))
+                .collect();
+            offsets.sort_unstable();
+            offsets.dedup();
+            assert_eq!(
+                decode_in_parts(&cut(&stream, &offsets)),
+                Ok(packets.clone()),
+                "seed {seed}, cuts {offsets:?} of {}",
+                stream.len()
             );
         }
     }
