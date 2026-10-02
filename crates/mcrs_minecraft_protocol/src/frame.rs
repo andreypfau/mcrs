@@ -1,5 +1,5 @@
-use bytes::{Buf, Bytes, BytesMut};
-use flate2::{Decompress, FlushDecompress, Status};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use thiserror::Error;
 
 use crate::CompressionThreshold;
@@ -11,7 +11,13 @@ pub const MAX_UNCOMPRESSED_PACKET: usize = 8_388_608;
 
 const MAX_LENGTH_BYTES: usize = 3;
 
+const MAX_DATA_LENGTH_BYTES: usize = 4;
+
 const MIN_INFLATE_STEP: usize = 4096;
+
+const MIN_DEFLATE_STEP: usize = 4096;
+
+const COMPRESSION_LEVEL: u32 = 4;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Error)]
 pub enum FrameError {
@@ -35,12 +41,156 @@ pub enum FrameError {
     TrailingData,
     #[error("corrupt compressed stream")]
     CorruptStream,
+    #[error("a packet must hold at least its id")]
+    EmptyPacket,
+    #[error("packet of {len} bytes is above the maximum")]
+    PacketTooLarge { len: usize },
+    #[error("frame of {len} bytes is wider than its length can state")]
+    FrameTooLarge { len: usize },
+    #[error("the compressor refused the packet")]
+    CompressionFailed,
 }
 
 impl FrameError {
     pub fn is_incomplete(&self) -> bool {
         matches!(self, Self::IncompleteLength | Self::ShortBody { .. })
     }
+}
+
+pub struct Deflate {
+    compress: Compress,
+    // chisle: keeps the capacity of the largest packet compressed so far; release it if that ever shows up in memory use
+    scratch: Vec<u8>,
+}
+
+impl Deflate {
+    fn new() -> Self {
+        Self {
+            compress: Compress::new(Compression::new(COMPRESSION_LEVEL), true),
+            scratch: Vec::new(),
+        }
+    }
+
+    fn deflate(&mut self, packet: &[u8]) -> Result<(), FrameError> {
+        self.scratch.clear();
+        let result = deflate_stream(&mut self.compress, packet, &mut self.scratch);
+        self.compress.reset();
+        result
+    }
+}
+
+fn deflate_stream(
+    compress: &mut Compress,
+    packet: &[u8],
+    out: &mut Vec<u8>,
+) -> Result<(), FrameError> {
+    let start_in = compress.total_in();
+    loop {
+        if out.capacity() - out.len() < MIN_DEFLATE_STEP {
+            out.reserve(out.len().max(MIN_DEFLATE_STEP));
+        }
+        let read = (compress.total_in() - start_in) as usize;
+        let out_before = compress.total_out();
+        let status = compress
+            .compress_vec(&packet[read..], out, FlushCompress::Finish)
+            .map_err(|_| FrameError::CompressionFailed)?;
+        if status == Status::StreamEnd {
+            return Ok(());
+        }
+        let progressed =
+            compress.total_out() != out_before || (compress.total_in() - start_in) as usize != read;
+        if !progressed {
+            return Err(FrameError::CompressionFailed);
+        }
+    }
+}
+
+pub fn encode_frame(
+    buf: &mut BytesMut,
+    start: usize,
+    threshold: CompressionThreshold,
+    deflate: &mut Option<Deflate>,
+) -> Result<(), FrameError> {
+    let result = frame_in_place(buf, start, threshold, deflate);
+    if result.is_err() {
+        buf.truncate(start);
+    }
+    result
+}
+
+fn frame_in_place(
+    buf: &mut BytesMut,
+    start: usize,
+    threshold: CompressionThreshold,
+    deflate: &mut Option<Deflate>,
+) -> Result<(), FrameError> {
+    let len = buf.len() - start;
+    if len == 0 {
+        return Err(FrameError::EmptyPacket);
+    }
+
+    let Ok(threshold) = usize::try_from(threshold.0) else {
+        check_body(len)?;
+        insert_before_packet(buf, start, body_prefix(len, None));
+        return Ok(());
+    };
+
+    if len < threshold {
+        check_body(len + 1)?;
+        insert_before_packet(buf, start, body_prefix(len + 1, Some(0)));
+        return Ok(());
+    }
+
+    if len > MAX_UNCOMPRESSED_PACKET {
+        return Err(FrameError::PacketTooLarge { len });
+    }
+    let deflate = deflate.get_or_insert_with(Deflate::new);
+    deflate.deflate(&buf[start..])?;
+    let body = VarInt(len as i32).written_size() + deflate.scratch.len();
+    check_body(body)?;
+    buf.truncate(start);
+    let (prefix, width) = body_prefix(body, Some(len));
+    buf.extend_from_slice(&prefix[..width]);
+    buf.extend_from_slice(&deflate.scratch);
+    Ok(())
+}
+
+fn check_body(len: usize) -> Result<(), FrameError> {
+    if len > MAX_FRAME_BODY {
+        return Err(FrameError::FrameTooLarge { len });
+    }
+    Ok(())
+}
+
+type Prefix = ([u8; MAX_LENGTH_BYTES + MAX_DATA_LENGTH_BYTES], usize);
+
+fn body_prefix(body: usize, data_length: Option<usize>) -> Prefix {
+    let mut prefix = [0u8; MAX_LENGTH_BYTES + MAX_DATA_LENGTH_BYTES];
+    let mut width = put_var_int(&mut prefix, 0, body);
+    if let Some(data_length) = data_length {
+        width = put_var_int(&mut prefix, width, data_length);
+    }
+    (prefix, width)
+}
+
+fn put_var_int(dst: &mut [u8], mut at: usize, mut value: usize) -> usize {
+    loop {
+        let low = (value & 0x7f) as u8;
+        value >>= 7;
+        if value == 0 {
+            dst[at] = low;
+            return at + 1;
+        }
+        dst[at] = low | 0x80;
+        at += 1;
+    }
+}
+
+fn insert_before_packet(buf: &mut BytesMut, start: usize, (prefix, width): Prefix) {
+    let end = buf.len();
+    buf.put_bytes(0, width);
+    buf.copy_within(start..end, start + width);
+    buf[start..start + width].copy_from_slice(&prefix[..width]);
 }
 
 pub fn split_frame(buf: &mut BytesMut) -> Result<Bytes, FrameError> {
@@ -304,6 +454,10 @@ mod tests {
             ),
             (FrameError::TrailingData, false),
             (FrameError::CorruptStream, false),
+            (FrameError::EmptyPacket, false),
+            (FrameError::PacketTooLarge { len: 1 }, false),
+            (FrameError::FrameTooLarge { len: 1 }, false),
+            (FrameError::CompressionFailed, false),
         ];
         for (error, incomplete) in cases {
             assert_eq!(error.is_incomplete(), incomplete, "{error:?}");
@@ -613,5 +767,67 @@ mod tests {
             ),
             Ok(Bytes::new())
         );
+    }
+
+    fn written(packet: &[u8], threshold: i32) -> BytesMut {
+        let mut buf = BytesMut::from(packet);
+        encode_frame(&mut buf, 0, CompressionThreshold(threshold), &mut None).unwrap();
+        buf
+    }
+
+    fn read_back(buf: &mut BytesMut, threshold: i32) -> Result<Bytes, FrameError> {
+        let frame = split_frame(buf)?;
+        decompress(frame, CompressionThreshold(threshold), &mut None)
+    }
+
+    fn data_length(frame: &Bytes) -> usize {
+        let mut rest = &frame[..];
+        VarInt::decode_partial(&mut rest).unwrap() as usize
+    }
+
+    #[test]
+    fn a_packet_becomes_a_frame_and_reads_back_with_compression_off() {
+        let packet = pattern(300);
+        let mut buf = written(&packet, -1);
+        assert_eq!(&buf[..2], &[0xAC, 0x02]);
+        assert_eq!(&buf[2..], &packet[..]);
+        assert_eq!(read_back(&mut buf, -1), Ok(Bytes::from(packet)));
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn a_packet_below_the_threshold_is_framed_uncompressed_and_reads_back() {
+        let packet = pattern(255);
+        let mut buf = written(&packet, 256);
+        let frame = split_frame(&mut buf.clone()).unwrap();
+        assert_eq!(data_length(&frame), 0);
+        assert_eq!(&frame[1..], &packet[..]);
+        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(packet)));
+    }
+
+    #[test]
+    fn a_packet_at_the_threshold_is_compressed_and_reads_back() {
+        let packet = pattern(256);
+        let mut buf = written(&packet, 256);
+        let frame = split_frame(&mut buf.clone()).unwrap();
+        assert_eq!(data_length(&frame), 256);
+        assert_eq!(frame[2], 0x78);
+        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(packet)));
+    }
+
+    #[test]
+    fn a_frame_is_appended_after_what_the_buffer_already_holds() {
+        let first = pattern(40);
+        let second = pattern(400);
+        let mut buf = BytesMut::new();
+        let mut deflate = None;
+        for packet in [&first, &second] {
+            let start = buf.len();
+            buf.extend_from_slice(packet);
+            encode_frame(&mut buf, start, CompressionThreshold(256), &mut deflate).unwrap();
+        }
+        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(first)));
+        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(second)));
+        assert!(buf.is_empty());
     }
 }
