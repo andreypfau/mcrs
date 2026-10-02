@@ -742,6 +742,102 @@ mod test {
         assert_eq!(streamed, in_memory);
     }
 
+    #[test]
+    fn a_struct_reads_five_field_types_from_other_numeric_tags() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            byte: i8,
+            short: i16,
+            long: i64,
+            float: f32,
+            double: f64,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_short("byte", 128);
+        root.put_int("short", 32768);
+        root.put_int("long", -9);
+        root.put_double("float", 0.5);
+        root.put_float("double", 0.25);
+        let bytes = Nbt::new(String::new(), root.clone()).write();
+
+        let streamed: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        let in_memory: Fields = crate::from_tag(tag::NbtTag::Compound(root)).unwrap();
+        assert_eq!(
+            streamed,
+            Fields {
+                byte: -128,
+                short: -32768,
+                long: -9,
+                float: 0.5,
+                double: 0.25
+            }
+        );
+        assert_eq!(streamed, in_memory);
+    }
+
+    #[test]
+    fn a_struct_reads_each_numeric_type_from_a_float_tag() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            byte: i8,
+            short: i16,
+            int: i32,
+            long: i64,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_double("byte", -128.5);
+        root.put_float("short", f32::INFINITY);
+        root.put_double("int", f64::NAN);
+        root.put_float("long", -0.5);
+        let bytes = Nbt::new(String::new(), root).write();
+
+        let read: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(
+            read,
+            Fields {
+                byte: -128,
+                short: i16::MAX,
+                int: 0,
+                long: -1
+            }
+        );
+    }
+
+    #[test]
+    fn a_string_tag_is_no_number_on_the_stream() {
+        #[derive(Deserialize, Debug)]
+        struct Fields {
+            #[allow(dead_code)]
+            value: i64,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_string("value", "4".to_string());
+        let bytes = Nbt::new(String::new(), root).write();
+        assert!(from_bytes::<Fields>(Cursor::new(bytes)).is_err());
+    }
+
+    #[test]
+    fn a_long_array_reads_straight_into_a_vector_of_longs() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            longs: Vec<i64>,
+            ints: Vec<i32>,
+        }
+
+        let longs: Vec<i64> = (0..4096).map(|i| i64::MIN + i * 0x0123_4567_89ab).collect();
+        let ints: Vec<i32> = (0..4096).map(|i| i32::MIN + i * 0x0001_2345).collect();
+        let mut root = compound::NbtCompound::new();
+        root.put("longs", tag::NbtTag::LongArray(longs.clone()));
+        root.put("ints", tag::NbtTag::IntArray(ints.clone()));
+        let bytes = Nbt::new(String::new(), root).write();
+
+        let read: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(read, Fields { longs, ints });
+    }
+
     fn compound_with_arrays() -> compound::NbtCompound {
         let mut root = compound::NbtCompound::new();
         root.put("bytes", tag::NbtTag::ByteArray(Box::new([1, 2, 255])));

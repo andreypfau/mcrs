@@ -24,8 +24,7 @@ impl<'de> de::Deserializer<'de> for NbtTag {
     type Error = Error;
 
     forward_to_deserialize_any! {
-        i8 i16 i64 f32 f64 char str string seq tuple tuple_struct map struct identifier
-        unit_struct
+        char str string seq tuple tuple_struct map struct identifier unit_struct
     }
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -69,6 +68,30 @@ impl<'de> de::Deserializer<'de> for NbtTag {
         }
     }
 
+    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_i8(v),
+            NbtTag::Short(v) => visitor.visit_i8(v as i8),
+            NbtTag::Int(v) => visitor.visit_i8(v as i8),
+            NbtTag::Long(v) => visitor.visit_i8(v as i8),
+            NbtTag::Float(v) => visitor.visit_i8(v.floor() as i8),
+            NbtTag::Double(v) => visitor.visit_i8(v.floor() as i8),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
+    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_i16(v as i16),
+            NbtTag::Short(v) => visitor.visit_i16(v),
+            NbtTag::Int(v) => visitor.visit_i16(v as i16),
+            NbtTag::Long(v) => visitor.visit_i16(v as i16),
+            NbtTag::Float(v) => visitor.visit_i16(v.floor() as i16),
+            NbtTag::Double(v) => visitor.visit_i16(v.floor() as i16),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
     /// Integer tags keep their low bits; float tags floor and saturate, since
     /// the game's number tags do not wrap a float.
     fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -79,6 +102,42 @@ impl<'de> de::Deserializer<'de> for NbtTag {
             NbtTag::Long(v) => visitor.visit_i32(v as i32),
             NbtTag::Float(v) => visitor.visit_i32(v.floor() as i32),
             NbtTag::Double(v) => visitor.visit_i32(v.floor() as i32),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
+    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_i64(v as i64),
+            NbtTag::Short(v) => visitor.visit_i64(v as i64),
+            NbtTag::Int(v) => visitor.visit_i64(v as i64),
+            NbtTag::Long(v) => visitor.visit_i64(v),
+            NbtTag::Float(v) => visitor.visit_i64(v.floor() as i64),
+            NbtTag::Double(v) => visitor.visit_i64(v.floor() as i64),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
+    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_f32(v as f32),
+            NbtTag::Short(v) => visitor.visit_f32(v as f32),
+            NbtTag::Int(v) => visitor.visit_f32(v as f32),
+            NbtTag::Long(v) => visitor.visit_f32(v as f32),
+            NbtTag::Float(v) => visitor.visit_f32(v),
+            NbtTag::Double(v) => visitor.visit_f32(v as f32),
+            other => other.deserialize_any(visitor),
+        }
+    }
+
+    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        match self {
+            NbtTag::Byte(v) => visitor.visit_f64(v as f64),
+            NbtTag::Short(v) => visitor.visit_f64(v as f64),
+            NbtTag::Int(v) => visitor.visit_f64(v as f64),
+            NbtTag::Long(v) => visitor.visit_f64(v as f64),
+            NbtTag::Float(v) => visitor.visit_f64(v as f64),
+            NbtTag::Double(v) => visitor.visit_f64(v),
             other => other.deserialize_any(visitor),
         }
     }
@@ -290,6 +349,110 @@ mod test {
         assert_eq!(from_tag::<Option<i32>>(NbtTag::Int(4)).unwrap(), Some(4));
         assert!(from_tag::<i32>(NbtTag::String("4".into())).is_err());
         assert!(from_tag::<Value>(NbtTag::Int(4)).is_err());
+    }
+
+    #[test]
+    fn a_byte_is_read_from_every_numeric_tag() {
+        let byte = |tag| from_tag::<i8>(tag).unwrap();
+        assert_eq!(byte(NbtTag::Byte(-5)), -5);
+        assert_eq!(byte(NbtTag::Short(127)), 127);
+        assert_eq!(byte(NbtTag::Short(128)), -128);
+        assert_eq!(byte(NbtTag::Short(-129)), 127);
+        assert_eq!(byte(NbtTag::Int(0x1234_5681_u32 as i32)), -127);
+        assert_eq!(byte(NbtTag::Long(0x7fff_0000_0000_0080)), -128);
+        assert_eq!(byte(NbtTag::Float(127.9)), 127);
+        assert_eq!(byte(NbtTag::Float(128.0)), 127);
+        assert_eq!(byte(NbtTag::Float(-128.5)), -128);
+        assert_eq!(byte(NbtTag::Float(-0.5)), -1);
+        assert_eq!(byte(NbtTag::Float(f32::NAN)), 0);
+        assert_eq!(byte(NbtTag::Double(1000.0)), 127);
+        assert_eq!(byte(NbtTag::Double(f64::INFINITY)), 127);
+        assert_eq!(byte(NbtTag::Double(f64::NEG_INFINITY)), -128);
+        assert_eq!(byte(NbtTag::Double(f64::NAN)), 0);
+    }
+
+    #[test]
+    fn a_short_is_read_from_every_numeric_tag() {
+        let short = |tag| from_tag::<i16>(tag).unwrap();
+        assert_eq!(short(NbtTag::Byte(-5)), -5);
+        assert_eq!(short(NbtTag::Short(i16::MIN)), i16::MIN);
+        assert_eq!(short(NbtTag::Int(32767)), 32767);
+        assert_eq!(short(NbtTag::Int(32768)), -32768);
+        assert_eq!(short(NbtTag::Int(-32769)), 32767);
+        assert_eq!(short(NbtTag::Long((7 << 16) + 9)), 9);
+        assert_eq!(short(NbtTag::Long(1 << 15)), i16::MIN);
+        assert_eq!(short(NbtTag::Double(32767.9)), 32767);
+        assert_eq!(short(NbtTag::Double(32768.0)), 32767);
+        assert_eq!(short(NbtTag::Double(-0.5)), -1);
+        assert_eq!(short(NbtTag::Double(-40000.0)), i16::MIN);
+        assert_eq!(short(NbtTag::Double(f64::INFINITY)), i16::MAX);
+        assert_eq!(short(NbtTag::Double(f64::NEG_INFINITY)), i16::MIN);
+        assert_eq!(short(NbtTag::Double(f64::NAN)), 0);
+        assert_eq!(short(NbtTag::Float(32768.0)), 32767);
+        assert_eq!(short(NbtTag::Float(f32::NAN)), 0);
+    }
+
+    #[test]
+    fn a_long_is_read_from_every_numeric_tag() {
+        let long = |tag| from_tag::<i64>(tag).unwrap();
+        assert_eq!(long(NbtTag::Byte(-5)), -5);
+        assert_eq!(long(NbtTag::Short(-300)), -300);
+        assert_eq!(long(NbtTag::Int(i32::MIN)), i64::from(i32::MIN));
+        assert_eq!(long(NbtTag::Long(i64::MIN)), i64::MIN);
+        assert_eq!(long(NbtTag::Float(-0.5)), -1);
+        assert_eq!(long(NbtTag::Float(2.9)), 2);
+        assert_eq!(long(NbtTag::Float(1e30)), i64::MAX);
+        assert_eq!(long(NbtTag::Double(1e19)), i64::MAX);
+        assert_eq!(long(NbtTag::Double(-1e19)), i64::MIN);
+        assert_eq!(long(NbtTag::Double(f64::INFINITY)), i64::MAX);
+        assert_eq!(long(NbtTag::Double(f64::NEG_INFINITY)), i64::MIN);
+        assert_eq!(long(NbtTag::Double(f64::NAN)), 0);
+        assert_eq!(long(NbtTag::Float(f32::NAN)), 0);
+    }
+
+    #[test]
+    fn a_float_is_read_from_every_numeric_tag() {
+        let float = |tag| from_tag::<f32>(tag).unwrap();
+        assert_eq!(float(NbtTag::Byte(-5)), -5.0);
+        assert_eq!(float(NbtTag::Short(300)), 300.0);
+        assert_eq!(float(NbtTag::Int(1 << 24)), 16_777_216.0);
+        assert_eq!(float(NbtTag::Long(-(1 << 40))), -1_099_511_627_776.0);
+        assert_eq!(float(NbtTag::Float(1.5)), 1.5);
+        assert_eq!(float(NbtTag::Double(0.1)), 0.1_f64 as f32);
+        assert_eq!(float(NbtTag::Double(1e300)), f32::INFINITY);
+    }
+
+    #[test]
+    fn a_double_is_read_from_every_numeric_tag() {
+        let double = |tag| from_tag::<f64>(tag).unwrap();
+        assert_eq!(double(NbtTag::Byte(-5)), -5.0);
+        assert_eq!(double(NbtTag::Short(300)), 300.0);
+        assert_eq!(double(NbtTag::Int(i32::MIN)), f64::from(i32::MIN));
+        assert_eq!(double(NbtTag::Long(1 << 53)), 9_007_199_254_740_992.0);
+        assert_eq!(double(NbtTag::Float(0.1)), f64::from(0.1_f32));
+        assert_eq!(double(NbtTag::Double(0.1)), 0.1);
+    }
+
+    #[test]
+    fn an_unsigned_read_keeps_the_bits_of_its_own_tag() {
+        assert_eq!(from_tag::<u8>(NbtTag::Byte(-1)).unwrap(), 255);
+        assert_eq!(from_tag::<u16>(NbtTag::Short(-1)).unwrap(), u16::MAX);
+        assert_eq!(from_tag::<u32>(NbtTag::Int(-1)).unwrap(), u32::MAX);
+        assert_eq!(from_tag::<u64>(NbtTag::Long(-1)).unwrap(), u64::MAX);
+        assert!(from_tag::<u32>(NbtTag::Double(1.0)).is_err());
+    }
+
+    #[test]
+    fn a_non_numeric_tag_is_no_number_of_any_type() {
+        let text = || NbtTag::String("4".into());
+        assert!(from_tag::<i8>(text()).is_err());
+        assert!(from_tag::<i16>(text()).is_err());
+        assert!(from_tag::<i32>(text()).is_err());
+        assert!(from_tag::<i64>(text()).is_err());
+        assert!(from_tag::<f32>(text()).is_err());
+        assert!(from_tag::<f64>(text()).is_err());
+        assert!(from_tag::<i32>(NbtTag::List(vec![NbtTag::Int(1)])).is_err());
+        assert!(from_tag::<i64>(NbtTag::Compound(NbtCompound::new())).is_err());
     }
 
     #[test]
