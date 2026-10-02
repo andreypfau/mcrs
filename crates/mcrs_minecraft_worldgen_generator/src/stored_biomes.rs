@@ -30,3 +30,37 @@ pub fn stored_biome(sections: &[Container], first_section_y: i32, x: i32, y: i32
         z.rem_euclid(EDGE) as usize,
     )
 }
+
+pub fn stored_biomes_between(
+    sections: &[Container],
+    first_section_y: i32,
+    lo: i32,
+    hi: i32,
+    out: &mut Vec<u32>,
+) {
+    out.clear();
+    if sections.is_empty() {
+        return;
+    }
+    let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+    let (first, _) = column_cell(first_section_y, sections.len(), lo);
+    let (last, _) = column_cell(first_section_y, sections.len(), hi);
+    for section in &sections[first..=last] {
+        section.for_each_distinct(|biome| {
+            let biome = u32::from(biome);
+            if !out.contains(&biome) {
+                out.push(biome);
+            }
+        });
+    }
+}
+
+pub fn present_biomes(sections: &[Container]) -> Vec<u32> {
+    let mut present = Vec::new();
+    for section in sections {
+        section.for_each_distinct(|biome| present.push(u32::from(biome)));
+    }
+    present.sort_unstable();
+    present.dedup();
+    present
+}
