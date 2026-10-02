@@ -1,18 +1,18 @@
 {
-  "id": "26.3",
+  "id": "26.4-snapshot-2",
   "jar": {
-    "url": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
-    "sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
-    "size": 41483720
+    "url": "https://piston-data.mojang.com/v1/objects/57390e151851510972714846a752c6b8307f7fae/client.jar",
+    "sha1": "57390e151851510972714846a752c6b8307f7fae",
+    "size": 41582220
   },
   "directory": {
-    "url": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
-    "sha1": "b7b2254d2554e90574714be5a7c05b5285a30078",
-    "size": 3557135
+    "url": "https://piston-data.mojang.com/v1/objects/57390e151851510972714846a752c6b8307f7fae/client.jar",
+    "sha1": "db74016238fa5ed8e6f53fb228d6e6af96850cf9",
+    "size": 3561984
   },
   "json": {
-    "url": "https://piston-meta.mojang.com/v1/packages/bc098d111a72e9f6178801544a42099bdfbb0cf2/26.3.json",
-    "sha1": "bc098d111a72e9f6178801544a42099bdfbb0cf2",
-    "size": 44992
+    "url": "https://piston-meta.mojang.com/v1/packages/655c2da7d6815e84864a0f9a055c90e36337b0b4/26.4-snapshot-2.json",
+    "sha1": "655c2da7d6815e84864a0f9a055c90e36337b0b4",
+    "size": 45004
   }
 }
