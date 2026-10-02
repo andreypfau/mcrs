@@ -1,14 +1,14 @@
 # Fixture Capture Procedure — `tree_geometry.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started.
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/{TreeOracle,StubLevel}.java`
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpTrees --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture tree_geometry
 ```
 
 Output is deterministic: re-running produces a byte-identical file.
@@ -30,7 +30,7 @@ rest write blocks its hand-built block table does not model.
 Unlike `ore_vein.bin`, nothing here is copied. `TreeFeature.place`, all ten trunk
 placers, all twelve foliage placers, every decorator, every state provider,
 `FeatureSize`, `FoliagePlacer.tryPlaceLeaf` and `TreeFeature.updateLeaves` are
-the real 26.4 classes, constructed by the real codecs and called. Lifting them
+the real game classes, constructed by the real codecs and called. Lifting them
 verbatim would be a port of its own; the level is stubbed instead.
 
 `StubLevel` starts with every `WorldGenLevel` method throwing

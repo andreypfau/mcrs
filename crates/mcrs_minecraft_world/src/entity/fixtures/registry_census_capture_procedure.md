@@ -1,14 +1,14 @@
 # Fixture Capture Procedure — `registry_census.bin`
 
-**Source of truth:** vanilla `26.3-snapshot-10`, `world_version` 5015, read
-through Fabric Loom's mapped jar. No server and no client is started.
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/RegistryCensusOracle.java`
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpRegistryCensus --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_world/src/entity/fixtures
+cargo run -p mcrs_minecraft_update -- recapture registry_census
 ```
 
 Output is deterministic: re-running produces a byte-identical file (56 875

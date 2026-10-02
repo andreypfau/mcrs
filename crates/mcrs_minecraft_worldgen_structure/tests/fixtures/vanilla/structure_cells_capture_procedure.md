@@ -1,18 +1,19 @@
 # Fixture Capture Procedure — `structure_cells.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started. The structure sets,
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started. The structure sets,
 structures and biome tags are the jar's own data pack, loaded through the same
 `RegistryDataLoader` path a dedicated server takes, so every `#minecraft:has_structure/*`
 tag is bound.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/PlacementOracle.java`
-(writes this file and `structure_sites.bin` in one run)
+(writes this file and `structure_sites.bin` in one run; one recapture puts each
+in the crate that reads it)
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
-cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/
+cargo run -p mcrs_minecraft_update -- recapture structure_placement
 ```
 
 Output is deterministic: re-running produces a byte-identical file (2 866 650
@@ -54,7 +55,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCPLACE0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
 seed_count       u32   5
 repeated seed_count times, seeds in the order 1, 42, 12345, -7, 0x7FFF_FFFF_0000_0001:

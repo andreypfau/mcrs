@@ -1,14 +1,14 @@
 # Fixture Capture Procedure — `ore_vein.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started.
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/OreOracle.java`
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpOreVeins --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture ore_vein
 ```
 
 Output is deterministic: re-running produces a byte-identical file.
