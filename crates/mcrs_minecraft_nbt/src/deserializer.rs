@@ -230,7 +230,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     type Error = Error;
 
     forward_to_deserialize_any! {
-        char str string unit unit_struct seq tuple tuple_struct
+        char str string unit unit_struct seq tuple tuple_struct identifier
     }
 
     fn deserialize_newtype_struct<V: Visitor<'de>>(
@@ -389,6 +389,9 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         visitor: V,
     ) -> Result<V::Value> {
         self.read_root()?;
+        if self.tag_to_deserialize_stack != Some(STRING_ID) {
+            return self.deserialize_any(visitor);
+        }
         let variant = get_nbt_string(&mut self.input)?;
         visitor.visit_enum(variant.into_deserializer())
     }
@@ -417,12 +420,6 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         visitor: V,
     ) -> Result<V::Value> {
         self.deserialize_map(visitor)
-    }
-
-    fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let name = self.read_str()?;
-        visitor.visit_str(&name)
     }
 
     fn is_human_readable(&self) -> bool {
