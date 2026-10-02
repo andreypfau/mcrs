@@ -1,4 +1,12 @@
+use crate::registry::Registry;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+use serde::de::{self, Visitor};
+use serde::ser::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::any::type_name;
+use std::fmt;
 use std::marker::PhantomData;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
@@ -97,6 +105,45 @@ impl<R> Id<R> {
 
     pub fn index(self) -> usize {
         self.number as usize
+    }
+}
+
+impl<R: RegistryKey> Serialize for Id<R> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.key(*self) {
+            Some(name) => serializer.serialize_str(name.as_str()),
+            None => Err(S::Error::custom(format_args!(
+                "registry {} holds no entry numbered {}",
+                R::KEY,
+                self.index()
+            ))),
+        })
+        .unwrap_or_else(|error| Err(S::Error::custom(error)))
+    }
+}
+
+impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct IdVisitor<R>(PhantomData<fn() -> R>);
+
+        impl<R: RegistryKey> Visitor<'_> for IdVisitor<R> {
+            type Value = Id<R>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "the name of an entry of registry {}", R::KEY)
+            }
+
+            fn visit_str<E: de::Error>(self, text: &str) -> Result<Id<R>, E> {
+                let name = ResourceLocation::read(text).map_err(E::custom)?;
+                Registry::<R>::in_scope(type_name::<Id<R>>(), |registry| {
+                    registry.require(name.as_str())
+                })
+                .map_err(E::custom)?
+                .map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_str(IdVisitor(PhantomData))
     }
 }
 

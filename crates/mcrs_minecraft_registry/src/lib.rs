@@ -5,6 +5,7 @@ pub mod holder;
 pub mod id;
 pub mod lookup;
 pub mod registry;
+pub mod set;
 pub mod static_registry;
 pub mod static_table;
 
@@ -15,5 +16,6 @@ pub use holder::*;
 pub use id::{BlockStateId, Id, ItemId};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use registry::{Registry, RegistryError, UnknownEntry};
+pub use set::{RegistrySet, ScopeError};
 pub use static_registry::{StaticId, StaticRegistry};
 pub use static_table::{StaticRegistryEntries, StaticRegistryTable};

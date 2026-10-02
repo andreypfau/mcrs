@@ -1,4 +1,5 @@
 use crate::id::{Id, id_number};
+use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::collections::{HashMap, HashSet};
@@ -24,6 +25,9 @@ pub enum RegistryError {
         registry: ResourceLocation<&'static str>,
         expected: usize,
         found: usize,
+    },
+    DuplicateRegistry {
+        registry: ResourceLocation<&'static str>,
     },
 }
 
@@ -51,6 +55,9 @@ impl fmt::Display for RegistryError {
                     f,
                     "registry {registry} has {expected} entries but {found} values were given"
                 )
+            }
+            RegistryError::DuplicateRegistry { registry } => {
+                write!(f, "a registry set already holds the registry {registry}")
             }
         }
     }
@@ -163,6 +170,21 @@ impl<R: RegistryKey> Registry<R> {
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {
         (0..self.len()).filter_map(id_number).map(Id::from_number)
+    }
+
+    pub fn in_scope<T>(
+        parsing: &'static str,
+        run: impl FnOnce(&Registry<R>) -> T,
+    ) -> Result<T, ScopeError> {
+        let set = set::current().ok_or(ScopeError::NoScope {
+            parsing,
+            registry: R::KEY,
+        })?;
+        let registry = set.registry::<R>().ok_or(ScopeError::MissingRegistry {
+            parsing,
+            registry: R::KEY,
+        })?;
+        Ok(run(&registry))
     }
 }
 
