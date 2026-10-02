@@ -2,7 +2,7 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use crate::columns::{
-    BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
+    BIOME_REGISTRY, BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
 };
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::{HashMap, HashSet};
@@ -30,8 +30,6 @@ use mcrs_minecraft_render::{
 };
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
-
-const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 
 #[derive(Resource, Clone, Copy)]
 pub struct MeshPacing {

@@ -33,6 +33,8 @@ use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
 pub const BIOME_CELLS: usize = 64;
 
+pub const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
+
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
 pub const AIR: u16 = 0;
@@ -291,9 +293,14 @@ impl Column {
         }
     }
 
-    pub fn decode(data: &ChunkData<'_>, light: &LightData<'_>, extent: Extent) -> Result<Column> {
+    pub fn decode(
+        data: &ChunkData<'_>,
+        light: &LightData<'_>,
+        extent: Extent,
+        biome_registry_len: usize,
+    ) -> Result<Column> {
         let sections = data
-            .sections(extent.sections)?
+            .sections(extent.sections, biome_registry_len)?
             .iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -405,6 +412,13 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32
         out[index * 2] = (out[index * 2] & keep) | ((byte & 0x0f) << shift);
         out[index * 2 + 1] = (out[index * 2 + 1] & keep) | ((byte >> 4) << shift);
     }
+}
+
+fn biome_registry_len(registries: &[ReceivedRegistry]) -> usize {
+    registries
+        .iter()
+        .find(|registry| registry.registry == BIOME_REGISTRY)
+        .map_or(0, |registry| registry.entries.len())
 }
 
 fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<Extent> {
@@ -556,12 +570,18 @@ fn receive_column_packets(
             return;
         };
         let data = event.data.clone();
+        let biome_registry_len = biome_registry_len(&registries.0);
         let task = AsyncComputeTaskPool::get().spawn(async move {
             let mut bytes = &data[..];
             let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
                 .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
-            let column = Column::decode(&packet.chunk_data, &packet.light_data, extent)
-                .with_context(|| format!("column {:?}", packet.pos))?;
+            let column = Column::decode(
+                &packet.chunk_data,
+                &packet.light_data,
+                extent,
+                biome_registry_len,
+            )
+            .with_context(|| format!("column {:?}", packet.pos))?;
             Ok((packet.pos, column))
         });
         arrivals.queue.push_back(Arrival::Column(task));
@@ -633,6 +653,7 @@ mod tests {
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_network::client::RegistryEntry;
     use mcrs_minecraft_protocol::chunk::ChunkSection;
+    use mcrs_minecraft_protocol::section::biome_direct_bits;
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
 
@@ -644,6 +665,16 @@ mod tests {
     fn encoded<T: Encode>(value: &T) -> Vec<u8> {
         let mut bytes = Vec::new();
         value.encode(&mut bytes).expect("encode");
+        bytes
+    }
+
+    const BIOME_REGISTRY_LEN: usize = 16;
+
+    fn written(section: &ChunkSection) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        section
+            .write(biome_direct_bits(BIOME_REGISTRY_LEN), &mut bytes)
+            .expect("write section");
         bytes
     }
 
@@ -702,7 +733,7 @@ mod tests {
         states[cell] = 42;
         let blob = [air_section(), section_of_states(&states)]
             .iter()
-            .flat_map(encoded)
+            .flat_map(written)
             .collect::<Vec<u8>>();
 
         let lit_row = 1u64 << 2;
@@ -728,8 +759,13 @@ mod tests {
 
         let mut store = ColumnStore::default();
         store.enter(EXTENT);
-        let column = Column::decode(&packet.chunk_data, &packet.light_data, EXTENT)
-            .expect("decode the column");
+        let column = Column::decode(
+            &packet.chunk_data,
+            &packet.light_data,
+            EXTENT,
+            BIOME_REGISTRY_LEN,
+        )
+        .expect("decode the column");
         store.insert(packet.pos, column);
 
         let (x, z) = (1 * SECTION_SIZE as i32 + 3, -2 * SECTION_SIZE as i32 + 7);
@@ -759,7 +795,7 @@ mod tests {
     fn lit_store() -> (ColumnStore, ColumnPos) {
         let blob = [air_section(), air_section()]
             .iter()
-            .flat_map(encoded)
+            .flat_map(written)
             .collect::<Vec<u8>>();
         let rows = (1u64 << 1) | (1u64 << 2);
         let light = LightData {
@@ -782,6 +818,7 @@ mod tests {
             },
             &light,
             EXTENT,
+            BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);

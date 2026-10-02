@@ -4,6 +4,12 @@ use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 
 pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
+pub const BLOCK_DIRECT_BITS: u32 = 15;
+
+pub fn biome_direct_bits(registry_len: usize) -> u32 {
+    ceillog2(registry_len)
+}
+
 /// Which of the palette configurations a container of a given size lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteForm {
@@ -22,22 +28,18 @@ pub enum PaletteForm {
 /// the network, which the stored form does not share.
 pub trait NetworkSectionKind: SectionKind {
     const MAX_INDIRECT_BITS: u32;
-    /// `Strategy.globalPaletteBitsInMemory`, the width the wire uses once the
-    /// palette outgrows the indirect configurations.
-    const DIRECT_BITS: u32;
 
     /// The form the network format uses, where a palette past
-    /// `MAX_INDIRECT_BITS` is dropped in favour of raw registry ids.
+    /// `MAX_INDIRECT_BITS` is dropped in favour of raw registry ids packed at
+    /// `direct_bits`.
     #[inline]
-    fn network_form(palette_len: usize) -> PaletteForm {
+    fn network_form(palette_len: usize, direct_bits: u32) -> PaletteForm {
         match ceillog2(palette_len) {
             0 => PaletteForm::Single,
             bits if bits <= Self::MAX_INDIRECT_BITS => PaletteForm::Indirect {
                 bits: bits.max(Self::MIN_INDIRECT_BITS),
             },
-            _ => PaletteForm::Direct {
-                bits: Self::DIRECT_BITS,
-            },
+            _ => PaletteForm::Direct { bits: direct_bits },
         }
     }
 
@@ -45,12 +47,12 @@ pub trait NetworkSectionKind: SectionKind {
     /// byte, which a sender is free to state narrower than the configuration it
     /// selects.
     #[inline]
-    fn wire_storage_bits(declared: u8) -> u32 {
+    fn wire_storage_bits(declared: u8, direct_bits: u32) -> u32 {
         match declared as u32 {
             0 => 0,
             bits if bits <= Self::MIN_INDIRECT_BITS => Self::MIN_INDIRECT_BITS,
             bits if bits <= Self::MAX_INDIRECT_BITS => bits,
-            _ => Self::DIRECT_BITS,
+            _ => direct_bits,
         }
     }
 }
@@ -83,12 +85,10 @@ impl SectionValue for u8 {
 
 impl NetworkSectionKind for Blocks {
     const MAX_INDIRECT_BITS: u32 = 8;
-    const DIRECT_BITS: u32 = 15;
 }
 
 impl NetworkSectionKind for Biomes {
     const MAX_INDIRECT_BITS: u32 = 3;
-    const DIRECT_BITS: u32 = 7;
 }
 
 #[cfg(test)]
@@ -111,9 +111,15 @@ mod tests {
         ];
         for (len, storage, form) in blocks {
             assert_eq!(Blocks::storage_bits(len), storage, "block palette of {len}");
-            assert_eq!(Blocks::network_form(len), form, "block palette of {len}");
+            assert_eq!(
+                Blocks::network_form(len, BLOCK_DIRECT_BITS),
+                form,
+                "block palette of {len}"
+            );
         }
 
+        let registry_len = 100;
+        let direct = biome_direct_bits(registry_len);
         let biomes = [
             (1, 0, Single),
             (2, 1, Indirect { bits: 1 }),
@@ -121,11 +127,36 @@ mod tests {
             (4, 2, Indirect { bits: 2 }),
             (5, 3, Indirect { bits: 3 }),
             (8, 3, Indirect { bits: 3 }),
-            (9, 4, Direct { bits: 7 }),
+            (9, 4, Direct { bits: direct }),
         ];
         for (len, storage, form) in biomes {
             assert_eq!(Biomes::storage_bits(len), storage, "biome palette of {len}");
-            assert_eq!(Biomes::network_form(len), form, "biome palette of {len}");
+            assert_eq!(
+                Biomes::network_form(len, direct),
+                form,
+                "biome palette of {len}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_biome_direct_width_follows_the_registry_length() {
+        let widths = [
+            (0, 0),
+            (1, 0),
+            (64, 6),
+            (65, 7),
+            (128, 7),
+            (129, 8),
+            (256, 8),
+            (257, 9),
+        ];
+        for (registry_len, bits) in widths {
+            assert_eq!(
+                biome_direct_bits(registry_len),
+                bits,
+                "registry of {registry_len}"
+            );
         }
     }
 

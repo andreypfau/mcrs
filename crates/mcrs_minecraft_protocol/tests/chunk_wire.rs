@@ -1,12 +1,14 @@
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId, pack_from, packed_len};
-use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection};
+use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection, decode_container, encode_container};
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
-use mcrs_minecraft_protocol::section::{Biomes, Blocks};
+use mcrs_minecraft_protocol::section::{Biomes, Blocks, biome_direct_bits};
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use std::borrow::Cow;
 
 type BlockContainer = PalettedContainer<VoxelId, { Blocks::SIZE }>;
 type BiomeContainer = PalettedContainer<u8, { Biomes::SIZE }>;
+
+const BIOME_REGISTRY_LEN: usize = 100;
 
 fn encoded<T: Encode>(value: &T) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -36,6 +38,12 @@ fn biome_ids(distinct: u32) -> Vec<u32> {
         .collect()
 }
 
+fn encoded_biomes(container: &BiomeContainer) -> Vec<u8> {
+    let mut buf = Vec::new();
+    encode_container(container, biome_direct_bits(BIOME_REGISTRY_LEN), &mut buf).expect("encode");
+    buf
+}
+
 fn round_trip<C>(container: C)
 where
     C: Encode + for<'a> Decode<'a> + PartialEq + std::fmt::Debug,
@@ -48,15 +56,25 @@ where
     assert_eq!(encoded(&decoded), bytes);
 }
 
+fn round_trip_biomes(container: BiomeContainer) {
+    let bytes = encoded_biomes(&container);
+    let mut r = bytes.as_slice();
+    let decoded: BiomeContainer =
+        decode_container(&mut r, biome_direct_bits(BIOME_REGISTRY_LEN)).expect("decode container");
+    assert!(r.is_empty(), "{} bytes left unread", r.len());
+    assert_eq!(decoded, container);
+    assert_eq!(encoded_biomes(&decoded), bytes);
+}
+
 #[test]
 fn every_palette_form_round_trips_byte_for_byte() {
     round_trip(blocks(&block_ids(1)));
     round_trip(blocks(&block_ids(9)));
     round_trip(blocks(&block_ids(400)));
 
-    round_trip(biomes(&biome_ids(1)));
-    round_trip(biomes(&biome_ids(3)));
-    round_trip(biomes(&biome_ids(40)));
+    round_trip_biomes(biomes(&biome_ids(1)));
+    round_trip_biomes(biomes(&biome_ids(3)));
+    round_trip_biomes(biomes(&biome_ids(40)));
 }
 
 #[test]
@@ -82,7 +100,10 @@ fn the_three_forms_are_the_ones_under_test() {
         "no palette list"
     );
 
-    assert_eq!(encoded(&biomes(&biome_ids(40)))[0], 7);
+    assert_eq!(
+        encoded_biomes(&biomes(&biome_ids(40)))[0],
+        biome_direct_bits(BIOME_REGISTRY_LEN) as u8
+    );
 }
 
 #[test]
@@ -98,6 +119,31 @@ fn a_palette_index_past_the_palette_is_an_error() {
         word.encode(&mut bytes).unwrap();
     }
     assert!(BlockContainer::decode(&mut bytes.as_slice()).is_err());
+}
+
+fn a_hand_built_direct_biome_container(declared_bits: u8) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    declared_bits.encode(&mut bytes).unwrap();
+    for _ in 0..packed_len(declared_bits as u32, Biomes::ENTRY_COUNT) {
+        0i64.encode(&mut bytes).unwrap();
+    }
+    bytes
+}
+
+#[test]
+fn a_direct_container_from_a_registry_of_one_biome_is_a_decode_error() {
+    let bytes = a_hand_built_direct_biome_container(9);
+    let decoded: anyhow::Result<BiomeContainer> =
+        decode_container(&mut bytes.as_slice(), biome_direct_bits(1));
+    assert!(decoded.is_err());
+}
+
+#[test]
+fn a_direct_width_past_sixteen_bits_is_a_decode_error() {
+    let bytes = a_hand_built_direct_biome_container(9);
+    let decoded: anyhow::Result<BiomeContainer> =
+        decode_container(&mut bytes.as_slice(), biome_direct_bits(70000));
+    assert!(decoded.is_err());
 }
 
 fn column(section_count: usize) -> Vec<ChunkSection> {
@@ -119,7 +165,12 @@ fn write_column_the_way_the_server_does(sections: &[ChunkSection]) -> Vec<u8> {
         section.non_empty_block_count.encode(&mut data).unwrap();
         section.fluid_count.encode(&mut data).unwrap();
         section.blocks.encode(&mut data).unwrap();
-        section.biomes.encode(&mut data).unwrap();
+        encode_container(
+            &section.biomes,
+            biome_direct_bits(BIOME_REGISTRY_LEN),
+            &mut data,
+        )
+        .unwrap();
     }
     data
 }
@@ -134,7 +185,9 @@ fn a_multi_section_blob_decodes_back_to_its_sections() {
             ..Default::default()
         };
 
-        let decoded = chunk.sections(section_count).expect("decode sections");
+        let decoded = chunk
+            .sections(section_count, BIOME_REGISTRY_LEN)
+            .expect("decode sections");
         assert_eq!(decoded, sections);
         assert_eq!(write_column_the_way_the_server_does(&decoded), data);
     }
@@ -151,7 +204,7 @@ fn a_truncated_blob_is_an_error() {
             ..Default::default()
         };
         assert!(
-            chunk.sections(3).is_err(),
+            chunk.sections(3, BIOME_REGISTRY_LEN).is_err(),
             "{cut} bytes short decoded anyway"
         );
     }
@@ -166,9 +219,9 @@ fn an_over_long_blob_is_an_error() {
         data: &data,
         ..Default::default()
     };
-    assert!(chunk.sections(3).is_err());
+    assert!(chunk.sections(3, BIOME_REGISTRY_LEN).is_err());
     assert!(
-        chunk.sections(2).is_err(),
+        chunk.sections(2, BIOME_REGISTRY_LEN).is_err(),
         "a short section count leaves the tail unread"
     );
 }

@@ -11,6 +11,8 @@ use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
@@ -29,13 +31,14 @@ use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as Eng
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
+use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_container};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchFinished;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchStart;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelChunk;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
+use mcrs_minecraft_protocol::section::biome_direct_bits;
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 
 use crate::world::aoi::ColumnHeld;
@@ -606,12 +609,14 @@ pub(crate) fn send_column_queue(
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
     lighting: Res<crate::Lighting>,
+    biome_registry: Res<RegistrySnapshot<Biome>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut nearest: Local<Vec<ColumnPos>>,
     mut batch: Local<Vec<PacketPayload>>,
 ) {
+    let biome_direct_bits = biome_direct_bits(biome_registry.len() as usize);
     players
         .iter_mut()
         .for_each(|(player, mut chunk_view, in_dim, host_anchor)| {
@@ -719,9 +724,7 @@ pub(crate) fn send_column_queue(
                         .0
                         .encode(&mut data)
                         .expect("Failed to encode chunk block data");
-                    biomes
-                        .0
-                        .encode(&mut data)
+                    encode_container(&biomes.0, biome_direct_bits, &mut data)
                         .expect("Failed to encode chunk biome data");
                 }
                 let light_data = if *lighting == crate::Lighting::FullSky {
@@ -908,6 +911,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
+        world.init_resource::<RegistrySnapshot<Biome>>();
 
         Fixture {
             dim,
