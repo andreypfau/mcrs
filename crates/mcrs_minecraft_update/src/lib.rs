@@ -1,4 +1,6 @@
 pub mod corpus;
+pub mod gradle;
+pub mod registries;
 pub mod release;
 
 #[cfg(test)]

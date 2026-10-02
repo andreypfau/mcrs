@@ -1,32 +1,60 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use mcrs_minecraft_client_jar::{Directory, get, official_dir};
-use mcrs_minecraft_update::{corpus, release};
+use mcrs_minecraft_update::{corpus, gradle, registries, release};
 
 const USAGE: &str = "\
-usage: mcrs_minecraft_update <version id> [--allow-dirty]
+usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
 
-Replaces assets/minecraft from the client jar of the version and writes the client jar
-descriptor. Two runs against one working tree at the same time are not supported.";
+Replaces assets/minecraft from the client jar of the version, writes the client jar
+descriptor, runs the data generator and replaces the reports in assets/mcrs/reports. The
+protocol_id diff against the previous registries report is printed and, with --diff-out,
+written to protocol_id.txt in that directory. Two runs against one working tree at the
+same time are not supported.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
+const REPORTS: &str = "assets/mcrs/reports";
+const REPORT_FILES: [&str; 4] = [
+    "registries.json",
+    "packets.json",
+    "blocks.json",
+    "datapack.json",
+];
+
+struct Options {
+    id: String,
+    allow_dirty: bool,
+    diff_out: Option<PathBuf>,
+}
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let (id, allow_dirty) = match args.as_slice() {
-        [id] if !id.starts_with('-') => (*id, false),
-        [id, "--allow-dirty"] | ["--allow-dirty", id] if !id.starts_with('-') => (*id, true),
-        _ => usage(),
-    };
-    if let Err(error) = run(id, allow_dirty) {
+    let options = parse(std::env::args().skip(1)).unwrap_or_else(|| usage());
+    if let Err(error) = run(&options) {
         eprintln!("error: {error}");
         std::process::exit(1);
     }
+}
+
+fn parse(args: impl Iterator<Item = String>) -> Option<Options> {
+    let mut args = args;
+    let (mut id, mut allow_dirty, mut diff_out) = (None, false, None);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--allow-dirty" => allow_dirty = true,
+            "--diff-out" if diff_out.is_none() => diff_out = Some(PathBuf::from(args.next()?)),
+            _ if !arg.starts_with('-') && id.is_none() => id = Some(arg),
+            _ => return None,
+        }
+    }
+    Some(Options {
+        id: id?,
+        allow_dirty,
+        diff_out,
+    })
 }
 
 fn usage() -> ! {
@@ -34,9 +62,10 @@ fn usage() -> ! {
     std::process::exit(2);
 }
 
-fn run(id: &str, allow_dirty: bool) -> Result<(), String> {
+fn run(options: &Options) -> Result<(), String> {
+    let id = options.id.as_str();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    release::refuse_dirty(&status(&root)?, allow_dirty)?;
+    release::refuse_dirty(&status(&root)?, options.allow_dirty)?;
 
     let manifest = get(release::MANIFEST_URL)?;
     let listing = release::resolve(&manifest, id)?;
@@ -74,6 +103,52 @@ fn run(id: &str, allow_dirty: bool) -> Result<(), String> {
         report.deleted.len(),
         report.kept.len()
     );
+
+    update_reports(&root, options.diff_out.as_deref())
+}
+
+fn update_reports(root: &Path, diff_out: Option<&Path>) -> Result<(), String> {
+    let generated =
+        std::env::temp_dir().join(format!("mcrs-update-reports-{}", std::process::id()));
+    let result =
+        generate(root, &generated).and_then(|()| replace_reports(root, &generated, diff_out));
+    let _ = fs::remove_dir_all(&generated);
+    result
+}
+
+fn generate(root: &Path, generated: &Path) -> Result<(), String> {
+    fs::create_dir_all(generated).map_err(|error| format!("{}: {error}", generated.display()))?;
+    let out = generated
+        .to_str()
+        .ok_or_else(|| format!("{}: not valid UTF-8", generated.display()))?;
+    gradle::run(
+        &root.join("tools/vanilla-oracle"),
+        "dumpReports",
+        &[("reportsOut", out)],
+    )
+}
+
+fn replace_reports(root: &Path, generated: &Path, diff_out: Option<&Path>) -> Result<(), String> {
+    let stored = root.join(REPORTS);
+    let old = registries::read(&stored.join("registries.json"))?;
+    let new = registries::read(&generated.join("reports/registries.json"))?;
+    let rows = registries::diff(&old, &new);
+    let text: String = rows.iter().map(|row| format!("{row}\n")).collect();
+
+    println!("protocol_id diff: {} rows", rows.len());
+    print!("{text}");
+    if let Some(directory) = diff_out {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("{}: {error}", directory.display()))?;
+        write(&directory.join("protocol_id.txt"), &text)?;
+    }
+
+    for name in REPORT_FILES {
+        let from = generated.join("reports").join(name);
+        let bytes = fs::read(&from).map_err(|error| format!("{}: {error}", from.display()))?;
+        let to = stored.join(name);
+        fs::write(&to, bytes).map_err(|error| format!("{}: {error}", to.display()))?;
+    }
     Ok(())
 }
 
