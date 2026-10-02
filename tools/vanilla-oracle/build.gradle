@@ -56,6 +56,14 @@ tasks.register('findIcebergs', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString(), 'ice']
 }
 
+tasks.register('dumpBiomes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.BiomeOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
 tasks.register('dumpFeatureSteps', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.main.runtimeClasspath

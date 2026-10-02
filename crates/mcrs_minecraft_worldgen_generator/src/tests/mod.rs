@@ -13,6 +13,8 @@ pub(crate) mod beta_surface;
 #[cfg(test)]
 mod beta_surface_parity;
 #[cfg(test)]
+mod biome_parity;
+#[cfg(test)]
 mod biome_upscale;
 #[cfg(test)]
 mod cell_census;

@@ -225,7 +225,7 @@ public final class SurfaceOracle {
      * only a level owns; the pieces it takes from it are an id map over the
      * biomes and the plains holder.
      */
-    private static PalettedContainerFactory containerFactory(final HolderLookup.RegistryLookup<Biome> biomes) {
+    static PalettedContainerFactory containerFactory(final HolderLookup.RegistryLookup<Biome> biomes) {
         List<Holder<Biome>> all = new ArrayList<>(biomes.listElements().map(h -> (Holder<Biome>)h).toList());
         Map<Holder<Biome>, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < all.size(); i++) {

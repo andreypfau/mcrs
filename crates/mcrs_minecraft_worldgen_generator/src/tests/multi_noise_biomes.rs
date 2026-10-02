@@ -13,7 +13,7 @@ use bevy_math::IVec3;
 
 /// The preset's biomes numbered in the order the preset names them, which is
 /// all a palette needs of a registry: distinct ids that round-trip.
-fn preset_ids() -> HashMap<String, u8> {
+pub(super) fn preset_ids() -> HashMap<String, u8> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
         let next = ids.len() as u8;
@@ -22,7 +22,7 @@ fn preset_ids() -> HashMap<String, u8> {
     ids
 }
 
-fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
+pub(super) fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
     let ids = preset_ids();
     let source = MultiNoiseBiomeSource {
         preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:overworld").unwrap()),

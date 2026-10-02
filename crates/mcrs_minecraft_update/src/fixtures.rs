@@ -66,6 +66,13 @@ pub const FIXTURES: &[Fixture] = &[
         outputs: &[every_file(GENERATOR_FIXTURES)],
     },
     Fixture {
+        name: "biome_containers",
+        project: ORACLE,
+        task: "dumpBiomes",
+        golden: None,
+        outputs: &[named("biome_containers.bin", GENERATOR_FIXTURES)],
+    },
+    Fixture {
         name: "feature_steps",
         project: ORACLE,
         task: "dumpFeatureSteps",
