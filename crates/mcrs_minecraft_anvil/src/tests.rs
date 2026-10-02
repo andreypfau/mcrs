@@ -13,9 +13,8 @@ use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 use mcrs_minecraft_chunk::{SectionKind, VoxelId};
 use std::cell::Cell;
 
-use crate::{
-    AnvilError, DATA_VERSION, ErrorKind, OLDEST_DATA_VERSION, PaletteLookup, Properties, RegionFile,
-};
+use crate::{AnvilError, ErrorKind, PaletteLookup, Properties, RegionFile};
+use mcrs_minecraft_core::VERSION;
 
 const GZIP: u8 = 1;
 const ZLIB: u8 = 2;
@@ -152,7 +151,7 @@ fn section(y: i8, block_states: NbtCompound) -> NbtCompound {
 }
 
 fn chunk_nbt(x: i32, z: i32, sections: Vec<NbtTag>) -> NbtCompound {
-    chunk_nbt_versioned(x, z, sections, DATA_VERSION)
+    chunk_nbt_versioned(x, z, sections, VERSION.world_version)
 }
 
 fn chunk_nbt_versioned(x: i32, z: i32, sections: Vec<NbtTag>, data_version: i32) -> NbtCompound {
@@ -894,17 +893,50 @@ fn a_stale_data_version_is_a_loud_error() {
             err.kind,
             ErrorKind::DataVersion {
                 found: 4903,
-                expected: DATA_VERSION
-            }
+                expected
+            } if expected == VERSION.world_version
         ),
         "{err}"
     );
     assert!(
         err.to_string().ends_with(&format!(
-            "DataVersion 4903, expected {OLDEST_DATA_VERSION} to {DATA_VERSION}"
+            "DataVersion 4903, expected {}",
+            VERSION.world_version
         )),
         "{err}"
     );
+}
+
+#[test]
+fn a_chunk_one_data_version_off_either_way_is_refused_and_the_current_one_loads() {
+    let fixture = Fixture::new("data_version_adjacent");
+    let current = VERSION.world_version;
+    read_one(
+        &fixture,
+        ZLIB,
+        &chunk_nbt_versioned(0, 0, Vec::new(), current),
+    )
+    .unwrap();
+    for found in [current - 1, current + 1] {
+        let err = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_nbt_versioned(0, 0, Vec::new(), found),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err.kind,
+                ErrorKind::DataVersion { found: f, expected } if f == found && expected == current
+            ),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .ends_with(&format!("DataVersion {found}, expected {current}")),
+            "{err}"
+        );
+    }
 }
 
 /// Vanilla reads the fields it names off the compound and ignores the rest, and
@@ -937,10 +969,15 @@ fn a_chunk_older_than_the_version_tag_says_so() {
     assert!(
         matches!(
             err.kind,
-            ErrorKind::MissingDataVersion {
-                expected: DATA_VERSION
-            }
+            ErrorKind::MissingDataVersion { expected } if expected == VERSION.world_version
         ),
+        "{err}"
+    );
+    assert!(
+        err.to_string().ends_with(&format!(
+            "no DataVersion, expected {}",
+            VERSION.world_version
+        )),
         "{err}"
     );
 }
@@ -960,8 +997,8 @@ fn an_older_layout_reports_its_version_not_its_first_odd_field() {
             err.kind,
             ErrorKind::DataVersion {
                 found: 1343,
-                expected: DATA_VERSION
-            }
+                expected
+            } if expected == VERSION.world_version
         ),
         "{err}"
     );
@@ -1358,7 +1395,7 @@ mod write {
                 0,
                 container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
             ))],
-            OLDEST_DATA_VERSION,
+            VERSION.world_version,
         );
         let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
         let pos = ColumnPos::new(0, 0);
@@ -1374,7 +1411,10 @@ mod write {
             .unwrap();
         let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
 
-        assert_eq!(root(&nbt).get_int("DataVersion"), Some(DATA_VERSION));
+        assert_eq!(
+            root(&nbt).get_int("DataVersion"),
+            Some(VERSION.world_version)
+        );
         let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
         assert!(!read.chunk.is_light_on);
     }

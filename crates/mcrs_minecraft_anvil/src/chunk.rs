@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, VERSION};
 use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
@@ -8,8 +8,8 @@ use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use serde::{Deserialize, Serialize, Serializer};
 
+use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
-use crate::{DATA_VERSION, ErrorKind, accepts_data_version};
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -168,11 +168,11 @@ fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
     let raw: RawChunkVersion = mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)).ok()?;
     match raw.data_version {
         None => Some(ErrorKind::MissingDataVersion {
-            expected: DATA_VERSION,
+            expected: VERSION.world_version,
         }),
-        Some(found) if !accepts_data_version(found) => Some(ErrorKind::DataVersion {
+        Some(found) if found != VERSION.world_version => Some(ErrorKind::DataVersion {
             found,
-            expected: DATA_VERSION,
+            expected: VERSION.world_version,
         }),
         Some(_) => None,
     }
@@ -187,10 +187,10 @@ pub fn parse(
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
     };
-    if !accepts_data_version(raw.data_version) {
+    if raw.data_version != VERSION.world_version {
         return Err(ErrorKind::DataVersion {
             found: raw.data_version,
-            expected: DATA_VERSION,
+            expected: VERSION.world_version,
         });
     }
     Ok(Chunk {
