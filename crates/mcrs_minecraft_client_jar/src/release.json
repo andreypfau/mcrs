@@ -1,0 +1,18 @@
+{
+  "id": "26.3",
+  "jar": {
+    "url": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+    "sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+    "size": 41483720
+  },
+  "directory": {
+    "url": "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
+    "sha1": "b7b2254d2554e90574714be5a7c05b5285a30078",
+    "size": 3557135
+  },
+  "json": {
+    "url": "https://piston-meta.mojang.com/v1/packages/bc098d111a72e9f6178801544a42099bdfbb0cf2/26.3.json",
+    "sha1": "bc098d111a72e9f6178801544a42099bdfbb0cf2",
+    "size": 44992
+  }
+}

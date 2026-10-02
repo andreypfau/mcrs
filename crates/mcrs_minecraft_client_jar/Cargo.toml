@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_client_jar"
-description = "Locates, downloads and unpacks the vanilla 26.3 client jar"
+description = "Locates, downloads and unpacks the vanilla client jar"
 version.workspace = true
 edition.workspace = true
 

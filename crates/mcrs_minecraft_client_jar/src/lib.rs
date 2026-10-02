@@ -1,9 +1,10 @@
 use std::fmt::Write;
 use std::io::Read;
 use std::ops::Range;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicU64;
+use std::sync::{LazyLock, Mutex};
 
+use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 
 mod fonts;
@@ -19,11 +20,23 @@ pub use native::*;
 #[cfg(target_family = "wasm")]
 pub use web::fetch;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Artifact<'a> {
     pub url: &'a str,
     pub sha1: &'a str,
     pub size: u64,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Descriptor<'a> {
+    pub id: &'a str,
+    #[serde(borrow)]
+    pub jar: Artifact<'a>,
+    #[serde(borrow)]
+    pub directory: Artifact<'a>,
+    #[serde(borrow)]
+    pub json: Artifact<'a>,
 }
 
 /// A release's client jar and what the launcher keeps next to it.
@@ -38,27 +51,22 @@ pub struct Release<'a> {
     pub font_hint: &'a str,
 }
 
-pub const CLIENT_JAR: Artifact<'static> = Artifact {
-    url: "https://piston-data.mojang.com/v1/objects/e877b6a07acd633fb3bb475002175cec036e7b87/client.jar",
-    sha1: "e877b6a07acd633fb3bb475002175cec036e7b87",
-    size: 41483720,
-};
-
-pub const RELEASE: Release<'static> = Release {
-    id: "26.3",
-    jar: CLIENT_JAR,
-    directory: Artifact {
-        url: CLIENT_JAR.url,
-        sha1: "b7b2254d2554e90574714be5a7c05b5285a30078",
-        size: 3557135,
-    },
-    json: Artifact {
-        url: "https://piston-meta.mojang.com/v1/packages/bc098d111a72e9f6178801544a42099bdfbb0cf2/26.3.json",
-        sha1: "bc098d111a72e9f6178801544a42099bdfbb0cf2",
-        size: 44992,
-    },
-    font_hint: include_str!("font_hint.json"),
-};
+pub static RELEASE: LazyLock<Release<'static>> = LazyLock::new(|| {
+    let Descriptor {
+        id,
+        jar,
+        directory,
+        json,
+    } = serde_json::from_str(include_str!("release.json"))
+        .unwrap_or_else(|error| panic!("release.json is not a client jar descriptor: {error}"));
+    Release {
+        id,
+        jar,
+        directory,
+        json,
+        font_hint: include_str!("font_hint.json"),
+    }
+});
 
 #[derive(Default, Debug)]
 pub struct Progress {

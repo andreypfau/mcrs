@@ -21,7 +21,7 @@ const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
 
-/// The picked `assets/` files of the 26.3 client jar, fetched in priority order by Range
+/// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
 /// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
 pub async fn fetch(
     progress: &Progress,
@@ -234,7 +234,11 @@ async fn work(source: Rc<WebSource>, id: usize) {
             sleep(IDLE_MS).await;
             continue;
         };
-        if source.queue.borrow().holds(std::slice::from_ref(&chunk.range)) {
+        if source
+            .queue
+            .borrow()
+            .holds(std::slice::from_ref(&chunk.range))
+        {
             continue;
         }
         tracing::debug!(
