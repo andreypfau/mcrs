@@ -32,6 +32,7 @@ public final class CodecGoldens {
         GOLDENS.put("recipe_packets", PacketGoldens::recipePackets);
         GOLDENS.put("particles", PacketGoldens::particles);
         GOLDENS.put("inventory_packets", PacketGoldens::inventoryPackets);
+        GOLDENS.put("join_packets", PacketGoldens::joinPackets);
     }
 
     private CodecGoldens() {}

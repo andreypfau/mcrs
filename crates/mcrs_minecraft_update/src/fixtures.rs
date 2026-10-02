@@ -272,6 +272,13 @@ pub const FIXTURES: &[Fixture] = &[
         golden: Some("inventory_packets"),
         outputs: &[named("inventory_packets_golden.txt", PROTOCOL_FIXTURES)],
     },
+    Fixture {
+        name: "join_packets",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("join_packets"),
+        outputs: &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
+    },
 ];
 
 pub type Manifest = BTreeMap<String, String>;
@@ -530,12 +537,12 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_twenty_nine_fixtures_with_unique_names() {
+    fn fixture_names_are_unique() {
         let mut names = names();
-        assert_eq!(names.len(), 29);
+        let all = names.len();
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 29);
+        assert_eq!(names.len(), all);
     }
 
     #[test]

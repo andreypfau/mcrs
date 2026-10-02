@@ -37,6 +37,7 @@ import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.ClientAsset;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.LayeredRegistryAccess;
@@ -64,6 +65,7 @@ import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket;
+import net.minecraft.network.protocol.game.ClientboundLoginPacket;
 import net.minecraft.network.protocol.game.ClientboundMerchantOffersPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.protocol.game.ClientboundRecipeBookAddPacket;
@@ -75,6 +77,7 @@ import net.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacket;
 import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
+import net.minecraft.network.protocol.game.CommonPlayerSpawnInfo;
 import net.minecraft.network.protocol.game.ServerboundContainerButtonClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
@@ -125,10 +128,13 @@ import net.minecraft.world.item.equipment.trim.TrimPattern;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.dimension.DimensionType;
 
 public final class PacketGoldens {
     private static final HexFormat HEX = HexFormat.of();
@@ -331,6 +337,54 @@ public final class PacketGoldens {
             labels.put("container_click", () -> hex(session, ServerboundContainerClickPacket.STREAM_CODEC, containerClick(session)));
             rewriteLabelled(session, current, output, labels);
         });
+    }
+
+    static void joinPackets(final Path current, final Path output) throws Exception {
+        withSession(session -> {
+            Map<String, Supplier<String>> labels = new LinkedHashMap<>();
+            labels.put(
+                "login",
+                () -> hex(
+                    session,
+                    ClientboundLoginPacket.STREAM_CODEC,
+                    new ClientboundLoginPacket(
+                        7,
+                        false,
+                        Set.of(dimension("overworld")),
+                        20,
+                        10,
+                        8,
+                        false,
+                        true,
+                        false,
+                        new CommonPlayerSpawnInfo(
+                            dimensionType(session, "overworld"),
+                            dimension("overworld"),
+                            GameType.CREATIVE,
+                            Optional.of(GameType.SURVIVAL),
+                            false,
+                            false,
+                            Optional.empty(),
+                            5,
+                            63
+                        ),
+                        false,
+                        true
+                    )
+                )
+            );
+            rewriteLabelled(session, current, output, labels);
+        });
+    }
+
+    private static Holder<DimensionType> dimensionType(final Session session, final String path) {
+        return session.access()
+            .lookupOrThrow(Registries.DIMENSION_TYPE)
+            .getOrThrow(ResourceKey.create(Registries.DIMENSION_TYPE, Identifier.withDefaultNamespace(path)));
+    }
+
+    private static ResourceKey<Level> dimension(final String path) {
+        return ResourceKey.create(Registries.DIMENSION, Identifier.withDefaultNamespace(path));
     }
 
     static void particles(final Path current, final Path output) throws Exception {
