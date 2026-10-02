@@ -830,4 +830,293 @@ mod tests {
         assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(second)));
         assert!(buf.is_empty());
     }
+
+    #[derive(Clone, Copy, Debug)]
+    enum Direction {
+        Write,
+        ReadCompressed,
+        ReadUncompressed,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum Outcome {
+        Uncompressed,
+        Compressed,
+        Accepted,
+        Refused(FrameError),
+    }
+
+    #[test]
+    fn every_rule_holds_at_its_boundary_in_both_directions() {
+        use Direction::*;
+        use Outcome::*;
+
+        let below = |declared, threshold| {
+            Refused(FrameError::BelowThreshold {
+                declared,
+                threshold,
+            })
+        };
+        let rows = [
+            (Write, 1, 0, Refused(FrameError::EmptyPacket)),
+            (Write, 1, 1, Compressed),
+            (Write, 1, 2, Compressed),
+            (ReadCompressed, 1, 0, Uncompressed),
+            (ReadCompressed, 1, 1, Accepted),
+            (ReadCompressed, 1, 2, Accepted),
+            (ReadUncompressed, 1, 0, Accepted),
+            (ReadUncompressed, 1, 1, Accepted),
+            (ReadUncompressed, 1, 2, Accepted),
+            (Write, 64, 63, Uncompressed),
+            (Write, 64, 64, Compressed),
+            (Write, 64, 65, Compressed),
+            (ReadCompressed, 64, 63, below(63, 64)),
+            (ReadCompressed, 64, 64, Accepted),
+            (ReadCompressed, 64, 65, Accepted),
+            (ReadUncompressed, 64, 63, Accepted),
+            (ReadUncompressed, 64, 64, Accepted),
+            (ReadUncompressed, 64, 65, Accepted),
+            (Write, 256, 255, Uncompressed),
+            (Write, 256, 256, Compressed),
+            (Write, 256, 257, Compressed),
+            (ReadCompressed, 256, 255, below(255, 256)),
+            (ReadCompressed, 256, 256, Accepted),
+            (ReadCompressed, 256, 257, Accepted),
+            (ReadUncompressed, 256, 255, Accepted),
+            (ReadUncompressed, 256, 256, Accepted),
+            (ReadUncompressed, 256, 257, Accepted),
+        ];
+
+        let mut ran = 0;
+        for (direction, threshold, size, outcome) in rows {
+            let context = format!("{direction:?} threshold {threshold} size {size}");
+            let packet = pattern(size);
+            match (direction, outcome) {
+                (Write, Refused(error)) => {
+                    let mut buf = BytesMut::from(&packet[..]);
+                    let result =
+                        encode_frame(&mut buf, 0, CompressionThreshold(threshold), &mut None);
+                    assert_eq!(result, Err(error), "{context}");
+                    assert!(buf.is_empty(), "{context}");
+                }
+                (Write, Uncompressed | Compressed) => {
+                    let mut buf = written(&packet, threshold);
+                    let frame = split_frame(&mut buf.clone()).unwrap();
+                    let expected = if matches!(outcome, Compressed) {
+                        size
+                    } else {
+                        0
+                    };
+                    assert_eq!(data_length(&frame), expected, "{context}");
+                    assert_eq!(
+                        read_back(&mut buf, threshold),
+                        Ok(Bytes::from(packet)),
+                        "{context}"
+                    );
+                    assert!(buf.is_empty(), "{context}");
+                }
+                (ReadCompressed, _) => {
+                    let stream = deflate(&packet);
+                    let frame = compressed_frame(size as i32, &stream);
+                    let expected = match outcome {
+                        Accepted => Ok(Bytes::from(packet)),
+                        Uncompressed => Ok(Bytes::from(stream)),
+                        Refused(error) => Err(error),
+                        Compressed => unreachable!("{context}"),
+                    };
+                    let result = decompress(frame, CompressionThreshold(threshold), &mut None);
+                    assert_eq!(result, expected, "{context}");
+                }
+                (ReadUncompressed, Accepted) => {
+                    let result = decompress(
+                        uncompressed_frame(&packet),
+                        CompressionThreshold(threshold),
+                        &mut None,
+                    );
+                    assert_eq!(result, Ok(Bytes::from(packet)), "{context}");
+                }
+                _ => unreachable!("{context}"),
+            }
+            ran += 1;
+        }
+        assert_eq!(ran, 27);
+        assert_eq!(rows.len(), 27);
+    }
+
+    fn incompressible(len: usize) -> Vec<u8> {
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        (0..len)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                (state >> 32) as u8
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_frame_and_packet_limits_hold_on_write() {
+        let off = -1;
+        let largest_body = vec![0xA5; MAX_FRAME_BODY];
+        let mut buf = written(&largest_body, off);
+        assert_eq!(&buf[..3], &[0xFF, 0xFF, 0x7F]);
+        assert_eq!(read_back(&mut buf, off), Ok(Bytes::from(largest_body)));
+
+        let mut buf = BytesMut::from(&vec![0xA5; MAX_FRAME_BODY + 1][..]);
+        assert_eq!(
+            encode_frame(&mut buf, 0, CompressionThreshold(off), &mut None),
+            Err(FrameError::FrameTooLarge {
+                len: MAX_FRAME_BODY + 1
+            })
+        );
+
+        let on = 256;
+        let at_maximum = vec![0u8; MAX_UNCOMPRESSED_PACKET];
+        let mut buf = written(&at_maximum, on);
+        let inflated = read_back(&mut buf, on).unwrap();
+        assert_eq!(inflated.len(), MAX_UNCOMPRESSED_PACKET);
+        assert!(inflated.iter().all(|&byte| byte == 0));
+
+        let mut buf = BytesMut::from(&vec![0u8; MAX_UNCOMPRESSED_PACKET + 1][..]);
+        assert_eq!(
+            encode_frame(&mut buf, 0, CompressionThreshold(on), &mut None),
+            Err(FrameError::PacketTooLarge {
+                len: MAX_UNCOMPRESSED_PACKET + 1
+            })
+        );
+
+        let above_every_packet = 3_000_000;
+        let fits = vec![0xA5; MAX_FRAME_BODY - 1];
+        let mut buf = written(&fits, above_every_packet);
+        assert_eq!(
+            read_back(&mut buf, above_every_packet),
+            Ok(Bytes::from(fits))
+        );
+
+        let too_long_by_the_data_length = vec![0xA5; MAX_FRAME_BODY];
+        let mut buf = BytesMut::from(&too_long_by_the_data_length[..]);
+        assert_eq!(
+            encode_frame(
+                &mut buf,
+                0,
+                CompressionThreshold(above_every_packet),
+                &mut None
+            ),
+            Err(FrameError::FrameTooLarge {
+                len: MAX_FRAME_BODY + 1
+            })
+        );
+
+        let mut buf = BytesMut::from(&incompressible(MAX_FRAME_BODY + 1)[..]);
+        assert!(matches!(
+            encode_frame(&mut buf, 0, CompressionThreshold(on), &mut None),
+            Err(FrameError::FrameTooLarge { len }) if len > MAX_FRAME_BODY
+        ));
+    }
+
+    #[test]
+    fn an_empty_packet_is_refused_on_write() {
+        for threshold in [-1, 0, 1] {
+            let mut buf = BytesMut::from(&[9, 8, 7][..]);
+            assert_eq!(
+                encode_frame(&mut buf, 3, CompressionThreshold(threshold), &mut None),
+                Err(FrameError::EmptyPacket),
+                "threshold {threshold}"
+            );
+            assert_eq!(&buf[..], &[9, 8, 7], "threshold {threshold}");
+        }
+    }
+
+    #[test]
+    fn a_refused_packet_leaves_nothing_in_the_buffer() {
+        let before = [9u8, 8, 7];
+        let cases = [
+            (-1, vec![0xA5; MAX_FRAME_BODY + 1]),
+            (3_000_000, vec![0xA5; MAX_FRAME_BODY]),
+            (256, vec![0u8; MAX_UNCOMPRESSED_PACKET + 1]),
+            (256, incompressible(MAX_FRAME_BODY + 1)),
+            (1, Vec::new()),
+        ];
+        for (threshold, packet) in cases {
+            let mut deflate = None;
+            let mut buf = BytesMut::from(&before[..]);
+            buf.extend_from_slice(&packet);
+            let result = encode_frame(&mut buf, 3, CompressionThreshold(threshold), &mut deflate);
+            assert!(
+                result.is_err(),
+                "threshold {threshold}, {} bytes",
+                packet.len()
+            );
+            assert_eq!(
+                &buf[..],
+                &before[..],
+                "threshold {threshold}, {} bytes",
+                packet.len()
+            );
+
+            let next = pattern(300);
+            buf.extend_from_slice(&next);
+            encode_frame(&mut buf, 3, CompressionThreshold(threshold), &mut deflate).unwrap();
+            assert_eq!(&buf[..3], &before[..]);
+            let mut frame = buf.split_off(3);
+            assert_eq!(read_back(&mut frame, threshold), Ok(Bytes::from(next)));
+        }
+    }
+
+    #[test]
+    fn the_compressor_is_created_on_first_use_and_reused() {
+        let mut deflate = None;
+        for (threshold, size) in [(-1, 300), (256, 255)] {
+            let mut buf = BytesMut::from(&pattern(size)[..]);
+            encode_frame(&mut buf, 0, CompressionThreshold(threshold), &mut deflate).unwrap();
+            assert!(deflate.is_none(), "threshold {threshold}, size {size}");
+        }
+
+        let first = incompressible(20_000);
+        let mut buf = BytesMut::from(&first[..]);
+        encode_frame(&mut buf, 0, CompressionThreshold(256), &mut deflate).unwrap();
+        let capacity = deflate.as_ref().unwrap().scratch.capacity();
+        assert!(capacity > MIN_DEFLATE_STEP);
+        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(first)));
+
+        let second = pattern(700);
+        let mut reused = BytesMut::from(&second[..]);
+        encode_frame(&mut reused, 0, CompressionThreshold(256), &mut deflate).unwrap();
+        assert_eq!(deflate.as_ref().unwrap().scratch.capacity(), capacity);
+        assert_eq!(reused, written(&second, 256));
+        assert_eq!(read_back(&mut reused, 256), Ok(Bytes::from(second)));
+    }
+
+    fn prefix_width(frame: &[u8]) -> usize {
+        frame.iter().position(|byte| byte & 0x80 == 0).unwrap() + 1
+    }
+
+    #[test]
+    fn the_length_prefix_is_as_short_as_its_value_allows() {
+        let bodies = [
+            (127, 1),
+            (128, 2),
+            (16_383, 2),
+            (16_384, 3),
+            (MAX_FRAME_BODY, 3),
+        ];
+        for (body, width) in bodies {
+            let off = written(&pattern(body), -1);
+            assert_eq!(prefix_width(&off), width, "off, body {body}");
+            assert_eq!(off.len(), body + width, "off, body {body}");
+
+            let uncompressed_by_threshold = written(&pattern(body - 1), 3_000_000);
+            assert_eq!(
+                prefix_width(&uncompressed_by_threshold),
+                width,
+                "below the threshold, body {body}"
+            );
+            assert_eq!(
+                uncompressed_by_threshold.len(),
+                body + width,
+                "below the threshold, body {body}"
+            );
+        }
+    }
 }
