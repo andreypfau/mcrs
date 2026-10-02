@@ -11,6 +11,7 @@ pub const MANIFEST: &str = "tools/captures.json";
 const VERSION_FILE: &str = "assets/minecraft/version.json";
 const ORACLE: &str = "tools/vanilla-oracle";
 const GENERATOR_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures";
+const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text";
 const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla";
 
 pub enum Files {
@@ -170,6 +171,34 @@ pub const FIXTURES: &[Fixture] = &[
             "hash_ops.json",
             "crates/mcrs_minecraft_item_component/src/fixtures",
         )],
+    },
+    Fixture {
+        name: "text_vanilla",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("text_vanilla"),
+        outputs: &[named("vanilla.json", TEXT_FIXTURES)],
+    },
+    Fixture {
+        name: "text_probe",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("text_probe"),
+        outputs: &[named("probe.json", TEXT_FIXTURES)],
+    },
+    Fixture {
+        name: "text_nbt",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("text_nbt"),
+        outputs: &[named("nbt.json", TEXT_FIXTURES)],
+    },
+    Fixture {
+        name: "text_wire",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("text_wire"),
+        outputs: &[named("wire.json", TEXT_FIXTURES)],
     },
 ];
 
@@ -429,12 +458,12 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_fifteen_fixtures_with_unique_names() {
+    fn the_table_has_nineteen_fixtures_with_unique_names() {
         let mut names = names();
-        assert_eq!(names.len(), 15);
+        assert_eq!(names.len(), 19);
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 15);
+        assert_eq!(names.len(), 19);
     }
 
     #[test]
