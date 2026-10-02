@@ -6,8 +6,8 @@ use std::borrow::Cow;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_anvil::{DATA_VERSION, PaletteLookup, Properties, parse_chunk};
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_anvil::{PaletteLookup, Properties, parse_chunk};
+use mcrs_minecraft_core::{SectionPos, VERSION};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
@@ -89,7 +89,7 @@ impl<V> PaletteLookup<V> for NoPalette {
 
 fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", DATA_VERSION);
+    root.put_int("DataVersion", VERSION.world_version);
     root.put_int("xPos", 2);
     root.put_int("zPos", -1);
     root.put_int("yPos", -4);

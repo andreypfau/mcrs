@@ -5,10 +5,11 @@ use std::marker::PhantomData;
 
 use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
+use mcrs_minecraft_core::VERSION;
 
+use crate::ErrorKind;
 use crate::chunk::{Chunk, PackedData, RawChunk, RawLight, RawPalettedContainer, RawSection};
 use crate::palette::{BlockStateList, PaletteLookup, Properties};
-use crate::{DATA_VERSION, ErrorKind};
 
 /// An id a [`PaletteNames`] can hand out; the width bounds how many distinct
 /// entries one table holds.
@@ -171,7 +172,7 @@ pub fn write_chunk(
         })
         .collect::<Result<_, ErrorKind>>()?;
     let raw = RawChunk {
-        data_version: DATA_VERSION,
+        data_version: VERSION.world_version,
         x_pos: chunk.pos.x,
         z_pos: chunk.pos.z,
         y_pos: chunk.min_section_y,

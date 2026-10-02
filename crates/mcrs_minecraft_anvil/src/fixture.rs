@@ -1,7 +1,8 @@
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use crate::{DATA_VERSION, LIGHT_BYTES};
+use crate::LIGHT_BYTES;
 
 pub const CHUNKS: usize = 1024;
 pub const SECTIONS_PER_CHUNK: usize = 24;
@@ -54,7 +55,7 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
         .collect();
 
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", DATA_VERSION);
+    root.put_int("DataVersion", VERSION.world_version);
     root.put_int("xPos", x);
     root.put_int("zPos", z);
     root.put_int("yPos", -4);

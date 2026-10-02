@@ -109,7 +109,7 @@ fn section_with_light(y: i8, palette: Vec<NbtTag>, sky: u8, block: u8) -> NbtTag
 
 fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", mcrs_minecraft_anvil::DATA_VERSION);
+    root.put_int("DataVersion", mcrs_minecraft_core::VERSION.world_version);
     root.put_int("xPos", 0);
     root.put_int("zPos", 0);
     root.put_int("yPos", -4);
