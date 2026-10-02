@@ -13,6 +13,7 @@ const ORACLE: &str = "tools/vanilla-oracle";
 const GENERATOR_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures";
 const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text";
 const ITEM_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/item";
+const PROTOCOL_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures";
 const PLACE_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla";
 
 pub enum Files {
@@ -249,6 +250,27 @@ pub const FIXTURES: &[Fixture] = &[
         task: "dumpGolden",
         golden: Some("item_records"),
         outputs: &[named("vanilla_records.txt", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "recipe_packets",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("recipe_packets"),
+        outputs: &[named("recipe_packets_golden.txt", PROTOCOL_FIXTURES)],
+    },
+    Fixture {
+        name: "particles",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("particles"),
+        outputs: &[named("particles_golden.txt", PROTOCOL_FIXTURES)],
+    },
+    Fixture {
+        name: "inventory_packets",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("inventory_packets"),
+        outputs: &[named("inventory_packets_golden.txt", PROTOCOL_FIXTURES)],
     },
 ];
 
@@ -508,12 +530,12 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_twenty_six_fixtures_with_unique_names() {
+    fn the_table_has_twenty_nine_fixtures_with_unique_names() {
         let mut names = names();
-        assert_eq!(names.len(), 26);
+        assert_eq!(names.len(), 29);
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 26);
+        assert_eq!(names.len(), 29);
     }
 
     #[test]
