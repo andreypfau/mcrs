@@ -57,11 +57,10 @@ impl<T: Asset> RegistrySnapshot<T> {
 
         for (network_id, (location, asset_id)) in pairs.into_iter().enumerate() {
             let Some(value) = assets.get(asset_id) else {
-                tracing::warn!(
-                    rl = %location.as_str(),
-                    "RegistrySnapshot::build skipping missing asset"
+                panic!(
+                    "{} is paired with an asset that is not present",
+                    location.as_str()
                 );
-                continue;
             };
             let nbt = serialize(value).unwrap_or_else(|e| {
                 panic!("{} does not encode for the network: {e}", location.as_str())
@@ -305,6 +304,20 @@ mod tests {
                 entry.location.as_str()
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "minecraft:forest")]
+    fn a_snapshot_with_an_entry_missing_from_the_middle_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p1 = make_pair("minecraft:plains", &mut assets);
+        let p2 = make_pair("minecraft:desert", &mut assets);
+        let p3 = make_pair("minecraft:forest", &mut assets);
+        assets.remove(p3.1);
+
+        RegistrySnapshot::<TestBiome>::build(vec![p1, p2, p3], &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
     }
 
     #[test]
