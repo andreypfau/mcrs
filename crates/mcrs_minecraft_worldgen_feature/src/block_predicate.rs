@@ -8,6 +8,8 @@ use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 
+use crate::placement::HeightmapName;
+
 /// `Vec3i.offsetCodec(16)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize)]
 #[serde(transparent)]
@@ -103,6 +105,8 @@ pub enum BlockPredicate {
     },
     #[serde(rename = "minecraft:volume_match")]
     VolumeMatch(VolumeMatch),
+    #[serde(rename = "minecraft:below_heightmap")]
+    BelowHeightmap { heightmap: HeightmapName },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -167,6 +171,7 @@ mod tests {
         round_trip(
             r#"{"type":"minecraft:volume_match","min":[-2,-2,-2],"max":[2,-1,2],"match":{"type":"minecraft:true"}}"#,
         );
+        round_trip(r#"{"type":"minecraft:below_heightmap","heightmap":"MOTION_BLOCKING"}"#);
     }
 
     #[test]
