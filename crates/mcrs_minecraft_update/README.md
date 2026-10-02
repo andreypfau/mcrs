@@ -110,10 +110,11 @@ entry is not the id in `assets/minecraft/version.json`, for a fixture missing
 from the file and for an entry that names no fixture. After an update that test
 is the list of fixtures to recapture.
 
-One fixture, `text_vanilla`, is not recaptured at the moment: its case
-`click_show_dialog` names a dialog that the corpus does not define, the game
-rejects it, and the run stops. Until that case is settled the test names
-`text_vanilla` as stale.
+A golden that carries its own cases is rewritten from them: the inputs are
+kept and the game supplies every expected value. When the game rejects an input
+it accepted at the previous capture, or accepts one it rejected, the run stops
+and names the case (a golden without named cases prints the input itself), the
+file stays as it was and nothing is recorded.
 
 Not regenerated from the current game and outside the fixture table: the Beta
 fixtures (`beta_surface_corpus.json`, `beta_climate.json`,

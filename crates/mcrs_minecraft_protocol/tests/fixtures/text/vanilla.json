@@ -390,18 +390,18 @@
       "text": "x",
       "click_event": {
         "action": "show_dialog",
-        "dialog": "minecraft:test"
+        "dialog": "minecraft:server_links"
       }
     },
     "json": {
       "text": "x",
       "click_event": {
-        "dialog": "minecraft:test",
+        "dialog": "minecraft:server_links",
         "action": "show_dialog"
       }
     },
-    "nbt": "0a0a000b636c69636b5f6576656e740800066469616c6f67000e6d696e6563726166743a74657374080006616374696f6e000b73686f775f6469616c6f67000800047465787400017800",
-    "snbt": "{click_event:{action:\"show_dialog\",dialog:\"minecraft:test\"},text:\"x\"}"
+    "nbt": "0a0a000b636c69636b5f6576656e740800066469616c6f6700166d696e6563726166743a7365727665725f6c696e6b73080006616374696f6e000b73686f775f6469616c6f67000800047465787400017800",
+    "snbt": "{click_event:{action:\"show_dialog\",dialog:\"minecraft:server_links\"},text:\"x\"}"
   },
   {
     "name": "click_change_page",
