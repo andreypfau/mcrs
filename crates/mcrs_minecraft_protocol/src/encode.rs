@@ -1,14 +1,13 @@
-use anyhow::ensure;
 use bytes::{BufMut, BytesMut};
 use tracing::warn;
 
-use crate::var_int::VarInt;
-use crate::{CompressionThreshold, Encode, MAX_PACKET_SIZE, Packet};
+use crate::frame::{Deflate, encode_frame};
+use crate::{CompressionThreshold, Encode, Packet};
 
 #[derive(Default)]
 pub struct PacketEncoder {
     buf: BytesMut,
-    compress_buf: Vec<u8>,
+    deflate: Option<Deflate>,
     threshold: CompressionThreshold,
 }
 
@@ -21,84 +20,14 @@ impl PacketEncoder {
     where
         P: Packet + Encode,
     {
-        let start_len = self.buf.len();
+        let start = self.buf.len();
 
-        pkt.encode_with_id((&mut self.buf).writer())?;
-
-        let data_len = self.buf.len() - start_len;
-
-        if self.threshold.0 >= 0 {
-            use std::io::Read;
-
-            use flate2::Compression;
-            use flate2::bufread::ZlibEncoder;
-
-            if data_len > self.threshold.0 as usize {
-                let mut z = ZlibEncoder::new(&self.buf[start_len..], Compression::new(4));
-
-                self.compress_buf.clear();
-
-                let data_len_size = VarInt(data_len as i32).written_size();
-
-                let packet_len = data_len_size + z.read_to_end(&mut self.compress_buf)?;
-
-                ensure!(
-                    packet_len <= MAX_PACKET_SIZE as usize,
-                    "packet exceeds maximum length"
-                );
-
-                drop(z);
-
-                self.buf.truncate(start_len);
-
-                let mut writer = (&mut self.buf).writer();
-
-                VarInt(packet_len as i32).encode(&mut writer)?;
-                VarInt(data_len as i32).encode(&mut writer)?;
-                self.buf.extend_from_slice(&self.compress_buf);
-            } else {
-                let data_len_size = 1;
-                let packet_len = data_len_size + data_len;
-
-                ensure!(
-                    packet_len <= MAX_PACKET_SIZE as usize,
-                    "packet exceeds maximum length"
-                );
-
-                let packet_len_size = VarInt(packet_len as i32).written_size();
-
-                let data_prefix_len = packet_len_size + data_len_size;
-
-                self.buf.put_bytes(0, data_prefix_len);
-                self.buf
-                    .copy_within(start_len..start_len + data_len, start_len + data_prefix_len);
-
-                let mut front = &mut self.buf[start_len..];
-
-                VarInt(packet_len as i32).encode(&mut front)?;
-                // Zero for no compression on this packet.
-                VarInt(0).encode(front)?;
-            }
-
-            return Ok(());
+        if let Err(error) = pkt.encode_with_id((&mut self.buf).writer()) {
+            self.buf.truncate(start);
+            return Err(error);
         }
 
-        let packet_len = data_len;
-
-        ensure!(
-            packet_len <= MAX_PACKET_SIZE as usize,
-            "packet exceeds maximum length"
-        );
-
-        let packet_len_size = VarInt(packet_len as i32).written_size();
-
-        self.buf.put_bytes(0, packet_len_size);
-        self.buf
-            .copy_within(start_len..start_len + data_len, start_len + packet_len_size);
-
-        let front = &mut self.buf[start_len..];
-        VarInt(packet_len as i32).encode(front)?;
-
+        encode_frame(&mut self.buf, start, self.threshold, &mut self.deflate)?;
         Ok(())
     }
 
@@ -152,6 +81,7 @@ mod tests {
 
     use super::*;
     use crate::frame::{FrameError, MAX_FRAME_BODY, MAX_UNCOMPRESSED_PACKET, split_frame};
+    use crate::var_int::VarInt;
     use crate::{ConnectionState, PacketDecoder, PacketSide};
 
     #[derive(Debug)]
@@ -233,6 +163,29 @@ mod tests {
             );
             assert_eq!(read_all(&mut encoder, 256), [expected(&packet)]);
         }
+    }
+
+    #[test]
+    fn the_compressor_exists_only_once_compression_is_used() {
+        let mut off = encoder(-1);
+        for len in [10, 300, 3000] {
+            off.append_packet(&packet_of(len)).unwrap();
+        }
+        assert!(off.deflate.is_none());
+
+        let mut on = encoder(256);
+        on.append_packet(&packet_of(255)).unwrap();
+        assert!(on.deflate.is_none());
+
+        let first = packet_of(256);
+        let second = packet_of(1000);
+        on.append_packet(&first).unwrap();
+        assert!(on.deflate.is_some());
+        on.append_packet(&second).unwrap();
+        assert_eq!(
+            read_all(&mut on, 256).split_off(1),
+            [expected(&first), expected(&second)]
+        );
     }
 
     #[test]
