@@ -264,6 +264,9 @@ fn surface_biome(store: &impl BlockSource, column: ColumnPos, x: usize, z: usize
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
+    use mcrs_minecraft_chunk::section::Biomes;
+    use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 
     fn tints_of(biome: &str) -> BiomeTint {
         let mut catalog = crate::blocks::empty();
@@ -315,6 +318,38 @@ mod tests {
             .map(|(x, z)| swamp.grass_at(x, z))
             .collect();
         assert_eq!(seen, [SWAMP_DARK, SWAMP_LIGHT].into_iter().collect());
+    }
+
+    fn section_holding(biomes: PalettedContainer<u8, { Biomes::SIZE }>) -> Section {
+        Section {
+            blocks: Box::new([0; SECTION_VOLUME]),
+            biomes,
+            states: vec![0],
+        }
+    }
+
+    #[test]
+    fn the_tint_reads_the_biome_of_the_top_block_of_the_highest_section() {
+        let mut cells = vec![2u8; Biomes::ENTRY_COUNT];
+        cells[Biomes::index(3, 15, 7)] = 1;
+        cells[Biomes::index(3, 0, 7)] = 5;
+        let highest = section_holding(PalettedContainer::from_cells(&cells));
+        let lower = section_holding(PalettedContainer::Homogeneous(3));
+
+        let extent = Extent {
+            min_section_y: 0,
+            sections: 3,
+        };
+        let column = ColumnPos::new(0, 0);
+        let mut store = ColumnStore::default();
+        store.enter(extent);
+        store.insert(
+            column,
+            Column::unlit(0, vec![Some(lower), Some(highest), None]),
+        );
+
+        assert_eq!(surface_biome(&store, column, 3, 7), 1);
+        assert_eq!(surface_biome(&store, column, 4, 7), 2);
     }
 
     #[test]

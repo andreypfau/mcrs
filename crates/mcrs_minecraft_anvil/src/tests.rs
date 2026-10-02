@@ -722,6 +722,39 @@ fn a_two_entry_biome_palette_is_stored_at_one_bit() {
 }
 
 #[test]
+fn a_biome_container_of_the_old_entry_count_is_a_load_error() {
+    let fixture = Fixture::new("biome_old_entry_count");
+    let mut s = section(
+        0,
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
+    s.put_component(
+        "biomes",
+        container(
+            vec![
+                NbtTag::String("minecraft:plains".to_string()),
+                NbtTag::String("minecraft:desert".to_string()),
+            ],
+            Some(vec![0i64; 1]),
+        ),
+    );
+
+    let err = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap_err();
+    assert!(
+        matches!(
+            err.kind,
+            ErrorKind::DataLength {
+                found: 1,
+                expected: 64,
+                bits: 1,
+                ..
+            }
+        ),
+        "{err}"
+    );
+}
+
+#[test]
 fn a_missing_data_array_is_an_error_not_an_empty_section() {
     let fixture = Fixture::new("missing_data");
     let root = chunk_nbt(

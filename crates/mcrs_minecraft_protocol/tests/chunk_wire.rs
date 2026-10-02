@@ -113,6 +113,16 @@ fn the_three_forms_are_the_ones_under_test() {
 }
 
 #[test]
+fn biome_palettes_of_every_indirect_width_round_trip_byte_for_byte() {
+    for (distinct, bits) in [(16, 4u8), (17, 5), (256, 8)] {
+        let container = biomes(&biome_ids(distinct));
+        let bytes = encoded_biomes(&container);
+        assert_eq!(bytes[0], bits, "a palette of {distinct}");
+        round_trip_biomes(container);
+    }
+}
+
+#[test]
 fn a_palette_index_past_the_palette_is_an_error() {
     let mut indices = vec![0u16; Blocks::ENTRY_COUNT];
     indices[17] = 5;
