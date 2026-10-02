@@ -38,6 +38,7 @@ mod difficulty;
 mod direction;
 pub mod encode;
 pub mod entity;
+pub mod frame;
 pub mod game_event;
 pub mod game_mode;
 mod global_pos;
