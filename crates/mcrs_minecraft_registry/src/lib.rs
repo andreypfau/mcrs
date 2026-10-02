@@ -1,5 +1,6 @@
 pub mod bitset;
 pub mod dyn_index;
+pub mod entries;
 pub mod holder;
 pub mod id;
 pub mod lookup;
