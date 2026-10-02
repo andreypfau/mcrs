@@ -22,6 +22,10 @@ public final class CodecGoldens {
         GOLDENS.put("text_probe", TextGoldens::probe);
         GOLDENS.put("text_nbt", TextGoldens::nbt);
         GOLDENS.put("text_wire", TextGoldens::wire);
+        GOLDENS.put("item_plain", ItemGoldens::plain);
+        GOLDENS.put("item_nested", ItemGoldens::nested);
+        GOLDENS.put("item_predicate", ItemGoldens::predicate);
+        GOLDENS.put("item_kinds", ItemGoldens::kinds);
     }
 
     private CodecGoldens() {}
