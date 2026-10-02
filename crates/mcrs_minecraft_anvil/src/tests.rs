@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ColumnPos;
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
 use mcrs_minecraft_chunk::PalettedContainer::Homogeneous;
-use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{SectionKind, VoxelId};
 use std::cell::Cell;
 
@@ -195,6 +195,31 @@ fn chunk_with_retrogen(status: &str, record: NbtCompound) -> NbtCompound {
     let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
     root.put_string("status", status.to_string());
     root.put_component("retrogen", record);
+    root
+}
+
+fn quart_biomes(entries: &[u16]) -> NbtCompound {
+    container(
+        vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ],
+        Some(pack(entries, 1)),
+    )
+}
+
+fn section_with_noise_biomes(y: i8, noise_biomes: NbtCompound) -> NbtCompound {
+    let mut s = section(
+        y,
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
+    s.put_component("noise_biomes", noise_biomes);
+    s
+}
+
+fn chunk_at(status: &str, sections: Vec<NbtTag>) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(0, 0, sections, VERSION.world_version);
+    root.put_string("status", status.to_string());
     root
 }
 
@@ -1268,6 +1293,82 @@ fn the_index_formulas_match_the_reference() {
     assert_eq!(Biomes::index(0, 1, 0), 16);
     assert_eq!(Biomes::index(3, 3, 3), 63);
     assert_eq!(Biomes::ENTRY_COUNT, 64);
+
+    assert_eq!(NoiseBiomes::index(1, 0, 0), 1);
+    assert_eq!(NoiseBiomes::index(0, 0, 1), 4);
+    assert_eq!(NoiseBiomes::index(0, 1, 0), 16);
+    assert_eq!(NoiseBiomes::index(3, 3, 3), 63);
+    assert_eq!(NoiseBiomes::ENTRY_COUNT, 64);
+}
+
+#[test]
+fn a_section_reads_its_noise_biomes_at_the_quart_size() {
+    let fixture = Fixture::new("noise_biomes_read");
+    let mut entries = vec![0u16; NoiseBiomes::ENTRY_COUNT];
+    entries[NoiseBiomes::index(0, 0, 0)] = 1;
+    entries[NoiseBiomes::index(3, 3, 3)] = 1;
+    entries[NoiseBiomes::index(1, 2, 3)] = 1;
+    let section = section_with_noise_biomes(0, quart_biomes(&entries));
+    let chunk = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_at("minecraft:terrain", vec![NbtTag::Compound(section)]),
+    )
+    .unwrap();
+    let noise = chunk.sections[0].noise_biomes.as_ref().unwrap();
+    assert_eq!(noise.get(0, 0, 0), DESERT);
+    assert_eq!(noise.get(3, 3, 3), DESERT);
+    assert_eq!(noise.get(1, 2, 3), DESERT);
+    assert_eq!(noise.get(2, 0, 0), PLAINS);
+    assert_eq!(noise.get(1, 2, 2), PLAINS);
+    assert!(chunk.sections[0].biomes.is_none());
+}
+
+#[test]
+fn a_full_chunk_keeps_no_noise_biomes() {
+    let fixture = Fixture::new("noise_biomes_full");
+    let section = section_with_noise_biomes(0, quart_biomes(&[0; NoiseBiomes::ENTRY_COUNT]));
+    let chunk = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_at("minecraft:full", vec![NbtTag::Compound(section)]),
+    )
+    .unwrap();
+    assert!(chunk.sections[0].noise_biomes.is_none());
+}
+
+#[test]
+fn a_malformed_noise_biomes_container_is_a_load_error() {
+    let fixture = Fixture::new("noise_biomes_malformed");
+    let short = container(
+        vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ],
+        Some(vec![0, 0]),
+    );
+    for status in ["minecraft:terrain", "minecraft:full"] {
+        let section = section_with_noise_biomes(0, short.clone());
+        let err = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_at(status, vec![NbtTag::Compound(section)]),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err.kind,
+                ErrorKind::DataLength {
+                    field: "noise_biomes",
+                    found: 2,
+                    expected: 1,
+                    bits: 1,
+                    ..
+                }
+            ),
+            "{status}: {err}"
+        );
+    }
 }
 
 mod write {
@@ -1345,6 +1446,18 @@ mod write {
         }
     }
 
+    fn biome_cells_of(
+        container: &Option<PalettedContainer<u8, { NoiseBiomes::SIZE }>>,
+        table: Option<&[u8]>,
+    ) -> Option<Vec<u8>> {
+        container.as_ref().map(|c| {
+            cells(c)
+                .into_iter()
+                .map(|v| table.map_or(v, |t| t[v.index()]))
+                .collect()
+        })
+    }
+
     fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
         let blocks = translation(&read.blocks, &original.blocks);
         let biomes = translation(&read.biomes, &original.biomes);
@@ -1400,6 +1513,12 @@ mod write {
                 biome_cells(sa, Some(&biomes)),
                 biome_cells(sb, None),
                 "{what}, section {}",
+                sa.y
+            );
+            assert_eq!(
+                biome_cells_of(&sa.noise_biomes, Some(&biomes)),
+                biome_cells_of(&sb.noise_biomes, None),
+                "{what}, section {}, noise biomes",
                 sa.y
             );
             assert_eq!(sa.block_light, sb.block_light, "{what}, section {}", sa.y);
@@ -1552,6 +1671,42 @@ mod write {
             written.get("missing_bedrock"),
             Some(&NbtTag::LongArray(vec![3]))
         );
+    }
+
+    #[test]
+    fn noise_biomes_are_written_back_only_when_held() {
+        let (src, dst) = (Fixture::new("noise_src"), Fixture::new("noise_dst"));
+        let mut entries = vec![0u16; NoiseBiomes::ENTRY_COUNT];
+        entries[NoiseBiomes::index(2, 1, 3)] = 1;
+        let held = section_with_noise_biomes(0, quart_biomes(&entries));
+        let bare = section(
+            1,
+            container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+        );
+        let root_in = chunk_at(
+            "minecraft:terrain",
+            vec![NbtTag::Compound(held), NbtTag::Compound(bare)],
+        );
+        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let original = read_named(&region, pos);
+        assert!(original.chunk.sections[0].noise_biomes.is_some());
+        assert!(original.chunk.sections[1].noise_biomes.is_none());
+
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let written = root(&nbt);
+        let sections = written.get_list("sections").unwrap();
+        let has_key = |index: usize| {
+            let NbtTag::Compound(section) = &sections[index] else {
+                panic!("a section is not a compound");
+            };
+            section.get("noise_biomes").is_some()
+        };
+        assert!(has_key(0));
+        assert!(!has_key(1));
+
+        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        assert_same_chunk(&read, &original, "noise biomes");
     }
 
     #[test]

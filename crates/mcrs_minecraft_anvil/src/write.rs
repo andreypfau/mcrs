@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_core::VERSION;
 
@@ -165,6 +165,11 @@ pub fn write_chunk(
                     .biomes
                     .as_ref()
                     .map(|c| pack::<Biomes, _, _>(c, biomes, y, "biomes"))
+                    .transpose()?,
+                noise_biomes: section
+                    .noise_biomes
+                    .as_ref()
+                    .map(|c| pack::<NoiseBiomes, _, _>(c, biomes, y, "noise_biomes"))
                     .transpose()?,
                 block_light: section.block_light.as_ref().map(|l| RawLight(l.0.to_vec())),
                 sky_light: section.sky_light.as_ref().map(|l| RawLight(l.0.to_vec())),

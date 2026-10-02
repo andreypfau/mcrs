@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
 
-use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use serde::{Deserialize, Serialize, Serializer};
@@ -23,6 +23,7 @@ pub struct Section {
     pub y: i8,
     pub block_states: Option<PalettedContainer<VoxelId, { Blocks::SIZE }>>,
     pub biomes: Option<PalettedContainer<u8, { Biomes::SIZE }>>,
+    pub noise_biomes: Option<PalettedContainer<u8, { NoiseBiomes::SIZE }>>,
     pub block_light: Option<Light>,
     pub sky_light: Option<Light>,
 }
@@ -102,6 +103,8 @@ pub(crate) struct RawSection {
     pub(crate) block_states: Option<RawPalettedContainer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) biomes: Option<RawPalettedContainer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) noise_biomes: Option<RawPalettedContainer>,
     #[serde(rename = "BlockLight", skip_serializing_if = "Option::is_none")]
     pub(crate) block_light: Option<RawLight>,
     #[serde(rename = "SkyLight", skip_serializing_if = "Option::is_none")]
@@ -197,6 +200,7 @@ pub fn parse(
             expected: VERSION.world_version,
         });
     }
+    let keeps_noise_biomes = raw.status != ChunkStatus::Full;
     Ok(Chunk {
         pos: ColumnPos::new(raw.x_pos, raw.z_pos),
         min_section_y: raw.y_pos,
@@ -210,13 +214,14 @@ pub fn parse(
         sections: raw
             .sections
             .into_iter()
-            .map(|section| parse_section(section, blocks, biomes))
+            .map(|section| parse_section(section, keeps_noise_biomes, blocks, biomes))
             .collect::<Result<_, _>>()?,
     })
 }
 
 fn parse_section(
     raw: RawSection,
+    keeps_noise_biomes: bool,
     blocks: &impl PaletteLookup<VoxelId>,
     biomes: &impl PaletteLookup<u8>,
 ) -> Result<Section, ErrorKind> {
@@ -231,6 +236,11 @@ fn parse_section(
             .biomes
             .map(|c| unpack::<Biomes, _, _>(c, biomes, y, "biomes"))
             .transpose()?,
+        noise_biomes: raw
+            .noise_biomes
+            .map(|c| unpack::<NoiseBiomes, _, _>(c, biomes, y, "noise_biomes"))
+            .transpose()?
+            .filter(|_| keeps_noise_biomes),
         block_light: raw
             .block_light
             .map(|bytes| light(bytes.0, y, "BlockLight"))
