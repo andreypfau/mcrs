@@ -42,8 +42,14 @@ fn spawn_compound() -> NbtCompound {
 }
 
 fn level_data(data_version: i32, with_uuid: bool) -> NbtCompound {
+    level_data_tagged(Some(NbtTag::Int(data_version)), with_uuid)
+}
+
+fn level_data_tagged(data_version: Option<NbtTag>, with_uuid: bool) -> NbtCompound {
     let mut data = NbtCompound::new();
-    data.put_int("DataVersion", data_version);
+    if let Some(tag) = data_version {
+        data.put("DataVersion", tag);
+    }
     data.put_string("LevelName", "New World".to_string());
     data.put_long("Time", 25);
     if with_uuid {
@@ -57,8 +63,12 @@ fn level_data(data_version: i32, with_uuid: bool) -> NbtCompound {
 }
 
 fn level_dat(data_version: i32, with_uuid: bool) -> Vec<u8> {
+    level_dat_tagged(Some(NbtTag::Int(data_version)), with_uuid)
+}
+
+fn level_dat_tagged(data_version: Option<NbtTag>, with_uuid: bool) -> Vec<u8> {
     let mut root = NbtCompound::new();
-    root.put_component("Data", level_data(data_version, with_uuid));
+    root.put_component("Data", level_data_tagged(data_version, with_uuid));
     gzip(root)
 }
 
@@ -78,9 +88,15 @@ fn level_dat_with_spawn(spawn: NbtCompound) -> Vec<u8> {
 }
 
 fn saved_data(data_version: i32, payload: NbtCompound) -> Vec<u8> {
+    saved_data_tagged(Some(NbtTag::Int(data_version)), payload)
+}
+
+fn saved_data_tagged(data_version: Option<NbtTag>, payload: NbtCompound) -> Vec<u8> {
     let mut root = NbtCompound::new();
     root.put_component("data", payload);
-    root.put_int("DataVersion", data_version);
+    if let Some(tag) = data_version {
+        root.put("DataVersion", tag);
+    }
     gzip(root)
 }
 
@@ -122,8 +138,14 @@ fn game_rules_payload(advance_time: Option<bool>) -> NbtCompound {
 }
 
 fn player_data(data_version: i32) -> Vec<u8> {
+    player_data_tagged(Some(NbtTag::Int(data_version)))
+}
+
+fn player_data_tagged(data_version: Option<NbtTag>) -> Vec<u8> {
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", data_version);
+    if let Some(tag) = data_version {
+        root.put("DataVersion", tag);
+    }
     root.put_list(
         "Pos",
         vec![
@@ -415,17 +437,22 @@ fn world_gen_settings_payload() -> NbtCompound {
 }
 
 fn every_file_kind_at(data_version: i32) -> [Result<(), SaveError>; 6] {
+    every_file_kind_tagged(Some(NbtTag::Int(data_version)))
+}
+
+fn every_file_kind_tagged(data_version: Option<NbtTag>) -> [Result<(), SaveError>; 6] {
+    let tag = || data_version.clone();
     [
-        parse_level_dat(&level_dat(data_version, true), path()).map(drop),
-        parse_world_clocks(&saved_data(data_version, world_clocks_payload()), path()).map(drop),
+        parse_level_dat(&level_dat_tagged(tag(), true), path()).map(drop),
+        parse_world_clocks(&saved_data_tagged(tag(), world_clocks_payload()), path()).map(drop),
         parse_world_gen_settings(
-            &saved_data(data_version, world_gen_settings_payload()),
+            &saved_data_tagged(tag(), world_gen_settings_payload()),
             path(),
         )
         .map(drop),
-        parse_weather(&saved_data(data_version, weather_payload()), path()).map(drop),
-        parse_game_rules(&saved_data(data_version, game_rules_payload(None)), path()).map(drop),
-        player::parse_player_dat(&player_data(data_version), path()).map(drop),
+        parse_weather(&saved_data_tagged(tag(), weather_payload()), path()).map(drop),
+        parse_game_rules(&saved_data_tagged(tag(), game_rules_payload(None)), path()).map(drop),
+        player::parse_player_dat(&player_data_tagged(tag()), path()).map(drop),
     ]
 }
 
@@ -456,6 +483,20 @@ fn a_data_version_other_than_the_world_version_is_rejected_by_name_on_every_file
                 "{message}"
             );
         }
+    }
+}
+
+#[test]
+fn a_file_without_a_data_version_is_rejected_on_every_file_kind() {
+    for (kind, result) in every_file_kind_tagged(None).into_iter().enumerate() {
+        let Err(err) = result else {
+            panic!("file kind {kind} loaded without a DataVersion");
+        };
+        assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
+        assert!(
+            err.to_string().contains("missing field `DataVersion`"),
+            "{err}"
+        );
     }
 }
 
