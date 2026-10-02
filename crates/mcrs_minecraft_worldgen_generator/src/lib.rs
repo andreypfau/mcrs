@@ -691,8 +691,11 @@ fn column_biome_palettes(
     )
 }
 
-/// The climate at every quart cell of the column and of the ring of cells
-/// around it, resolved to a biome.
+/// The biome at every quart cell of the column and of the ring of cells around
+/// it, with their palettes.
+///
+/// The ring is horizontal: above and below the column a pick reads the edge
+/// row, so the grid holds the column's own rows only.
 ///
 /// The density program fills a whole strided volume in one pass, so asking for
 /// the column's cells at once costs a fraction of evaluating them one by one.
@@ -703,12 +706,48 @@ pub fn multi_noise_palettes(
     block_z: i32,
     y_sections: &[i32],
 ) -> (Vec<BiomePalette>, Option<BiomeGrid>) {
-    let (Some(&first), Some(&last)) = (y_sections.first(), y_sections.last()) else {
+    let Some(grid) = multi_noise_grid(noise_router, table, block_x, block_z, y_sections) else {
         return (Vec::new(), None);
     };
+    let first = y_sections[0];
+
+    let palettes = y_sections
+        .iter()
+        .map(|&section_y| {
+            let mut biomes = BiomePalette::default();
+            let base_y = (section_y - first) * 4;
+            for cx in 0..4 {
+                for cy in 0..4 {
+                    for cz in 0..4 {
+                        biomes.set_cell(
+                            cx as usize,
+                            cy as usize,
+                            cz as usize,
+                            grid.get(cx + 1, base_y + cy, cz + 1),
+                        );
+                    }
+                }
+            }
+            biomes
+        })
+        .collect();
+
+    (palettes, Some(grid))
+}
+
+/// The quart grid of a multi-noise column: its own rows, and one cell of ring
+/// on each horizontal side.
+pub fn multi_noise_grid(
+    noise_router: &NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    block_x: i32,
+    block_z: i32,
+    y_sections: &[i32],
+) -> Option<BiomeGrid> {
+    let (&first, &last) = (y_sections.first()?, y_sections.last()?);
     let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
-        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
+        IVec3::new(6, (last - first + 1) * 4, 6),
+        IVec3::new(block_x - 4, first * 16, block_z - 4),
         IVec3::splat(4),
     );
     let roots = [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
@@ -734,32 +773,15 @@ pub fn multi_noise_palettes(
         })
         .collect();
 
-    let palettes = y_sections
-        .iter()
-        .map(|&section_y| {
-            let mut biomes = BiomePalette::default();
-            let base_y = (section_y - first) * 4 + 1;
-            for cx in 0..4 {
-                for cy in 0..4 {
-                    for cz in 0..4 {
-                        let at = volume.index_unchecked(cx + 1, base_y + cy, cz + 1);
-                        biomes.set_cell(cx as usize, cy as usize, cz as usize, ids[at]);
-                    }
-                }
-            }
-            biomes
-        })
-        .collect();
-
-    (palettes, Some(BiomeGrid { volume, ids }))
+    Some(BiomeGrid { volume, ids })
 }
 
 /// The palettes and grid of a `minecraft:fixed` source, which answers the same
 /// biome at every quart cell however it is asked.
 ///
 /// The grid keeps the shape `multi_noise_palettes` produces — the column's
-/// cells plus the ring around them — so the surface stage's zoom reads it
-/// exactly as it reads a sampled one.
+/// cells plus the horizontal ring around them — so the surface stage's zoom
+/// reads it exactly as it reads a sampled one.
 fn fixed_biome_palettes(
     biome_id: &str,
     registry: &RegistrySnapshot<Biome>,
@@ -790,8 +812,8 @@ fn fixed_biome_palettes(
     };
 
     let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
-        IVec3::new(block_x - 4, first * 16 - 4, block_z - 4),
+        IVec3::new(6, (last - first + 1) * 4, 6),
+        IVec3::new(block_x - 4, first * 16, block_z - 4),
         IVec3::splat(4),
     );
     let ids = vec![network_id; volume.len()];

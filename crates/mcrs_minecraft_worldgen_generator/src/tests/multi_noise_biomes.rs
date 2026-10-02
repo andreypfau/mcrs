@@ -218,8 +218,9 @@ fn measure_multi_noise_palettes() {
 }
 
 /// The zoom reads eight quart corners around a block and they reach outside the
-/// column on all three axes, so the grid carries a ring of cells the palette
-/// does not store — and the palette must still come from the cells it used to.
+/// column horizontally, so the grid carries a ring of cells the palette does
+/// not store; vertically the grid is the column, and the palette comes from its
+/// cells.
 #[test]
 fn the_grid_rings_the_column_by_one_quart_cell() {
     let router = build_settings_router("overworld", 2);
@@ -233,11 +234,11 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
     let grid = grid.expect("the multi-noise path builds a grid");
     assert_eq!(
         grid.volume.size(),
-        IVec3::new(6, sections.len() as i32 * 4 + 2, 6)
+        IVec3::new(6, sections.len() as i32 * 4, 6)
     );
     assert_eq!(
         grid.volume.min_block(),
-        IVec3::new(chunk_x * 16 - 4, first * 16 - 4, chunk_z * 16 - 4)
+        IVec3::new(chunk_x * 16 - 4, first * 16, chunk_z * 16 - 4)
     );
 
     for (index, &section_y) in sections.iter().enumerate() {
@@ -245,7 +246,7 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
             for cy in 0..4 {
                 for cz in 0..4 {
                     assert_eq!(
-                        grid.get(cx + 1, (section_y - first) * 4 + cy + 1, cz + 1),
+                        grid.get(cx + 1, (section_y - first) * 4 + cy, cz + 1),
                         palettes[index].get_cell(cx as usize, cy as usize, cz as usize),
                         "cell {cx},{cy},{cz} of section {section_y}"
                     );

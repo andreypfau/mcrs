@@ -431,8 +431,8 @@ fn reachable_biomes(
 fn grid_biome(grid: &BiomeGrid, quart: QuartPos) -> u32 {
     let min = grid.volume.min_block();
     let size = grid.volume.size();
-    // A strip with no blocks at all starts its descent below the sections this
-    // dispatch carries, which is the one lookup the grid does not span.
+    // A lookup above or below the column reads its edge row, as the game's
+    // noise biome chunk answers it.
     let origin = QuartPos::of(min.into());
     let at = IVec3::new(quart.x - origin.x, quart.y - origin.y, quart.z - origin.z)
         .clamp(IVec3::ZERO, size - IVec3::ONE);

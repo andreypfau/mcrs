@@ -27,7 +27,6 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.biome.BiomeManager;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterList;
@@ -143,9 +142,7 @@ public final class SurfaceOracle {
                 RandomState randomState = RandomState.create(noises, seed, settings.value());
                 for (int cx = centre[1] - 8; cx <= centre[1] + 8; cx++) {
                     for (int cz = centre[2] - 8; cz <= centre[2] + 8; cz++) {
-                        ProtoChunk chunk = generate(
-                            generator, biomeSource, containers, randomState, new Column(seed, cx, cz)
-                        );
+                        ProtoChunk chunk = generate(generator, containers, randomState, new Column(seed, cx, cz));
                         for (int y = 60; y < 110; y++) {
                             for (int x = 0; x < 16; x++) {
                                 for (int z = 0; z < 16; z++) {
@@ -167,7 +164,7 @@ public final class SurfaceOracle {
 
         for (Column column : columns) {
             RandomState randomState = RandomState.create(noises, column.seed(), settings.value());
-            ProtoChunk chunk = generate(generator, biomeSource, containers, randomState, column);
+            ProtoChunk chunk = generate(generator, containers, randomState, column);
 
             Path file = outDir.resolve(
                 "surface_s" + column.seed() + "_c" + column.chunkX() + "_" + column.chunkZ() + ".bin"
@@ -179,24 +176,11 @@ public final class SurfaceOracle {
 
     private static ProtoChunk generate(
         final NoiseBasedChunkGenerator generator,
-        final MultiNoiseBiomeSource biomeSource,
         final PalettedContainerFactory containers,
         final RandomState randomState,
         final Column column
     ) {
-        ProtoChunk chunk = new ProtoChunk(
-            new ChunkPos(column.chunkX(), column.chunkZ()),
-            UpgradeData.EMPTY,
-            LevelHeightAccessor.create(MIN_Y, HEIGHT),
-            containers,
-            null
-        );
-        chunk.setPersistedStatus(net.minecraft.world.level.chunk.status.ChunkStatus.BIOMES);
-        chunk.fillBiomes(
-            new net.minecraft.world.level.biome.CachedChunkBiomeResolver(
-                chunk, biomeSource.createUncachedResolver(randomState), BiomeManager.obfuscateSeed(column.seed())
-            )
-        );
+        ProtoChunk chunk = BiomeOracle.fillBiomes(generator, containers, randomState, column.chunkX(), column.chunkZ());
         generator.buildTerrain(
                 chunk,
                 Blender.empty(),
