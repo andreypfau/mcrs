@@ -59,11 +59,19 @@ macro_rules! define_get_number_be {
 }
 
 impl<R: Read + Seek> NbtReadHelper<R> {
+    // A seek lands past the end of the input without complaint, so the last
+    // byte skipped is read: a skip the input cannot back fails here, and a
+    // loop of skips cannot outrun the input.
     pub fn skip_bytes(&mut self, count: i64) -> Result<()> {
-        self.reader
-            .by_ref()
-            .seek(SeekFrom::Current(count))
-            .map_err(Error::Incomplete)?;
+        if count > 1 {
+            self.reader
+                .by_ref()
+                .seek(SeekFrom::Current(count - 1))
+                .map_err(Error::Incomplete)?;
+        }
+        if count > 0 {
+            self.get_u8_be()?;
+        }
         Ok(())
     }
 
@@ -294,24 +302,26 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                 "Trying to deserialize an END tag!".to_string(),
             )),
             LIST_ID | INT_ARRAY_ID | LONG_ARRAY_ID | BYTE_ARRAY_ID => {
-                let list_type = match tag_to_deserialize {
-                    LIST_ID => self.input.get_u8_be()?,
-                    INT_ARRAY_ID => INT_ID,
-                    LONG_ARRAY_ID => LONG_ID,
-                    BYTE_ARRAY_ID => BYTE_ID,
-                    _ => unreachable!(),
+                let (list_type, remaining_values) = if tag_to_deserialize == LIST_ID {
+                    tag::read_list_header(&mut self.input)?
+                } else {
+                    let list_type = match tag_to_deserialize {
+                        INT_ARRAY_ID => INT_ID,
+                        LONG_ARRAY_ID => LONG_ID,
+                        _ => BYTE_ID,
+                    };
+                    let count = self.input.get_i32_be()?;
+                    if count < 0 {
+                        return Err(Error::NegativeLength(count));
+                    }
+                    (list_type, count as usize)
                 };
-
-                let remaining_values = self.input.get_i32_be()?;
-                if remaining_values < 0 {
-                    return Err(Error::NegativeLength(remaining_values));
-                }
 
                 self.input.push_depth()?;
                 let result = visitor.visit_seq(ListAccess {
                     de: self,
                     list_type,
-                    remaining_values: remaining_values as usize,
+                    remaining_values,
                 });
                 self.input.pop_depth();
                 result

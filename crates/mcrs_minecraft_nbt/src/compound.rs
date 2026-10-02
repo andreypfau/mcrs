@@ -5,7 +5,7 @@ use crate::deserializer::NbtReadHelper;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
 use crate::{END_ID, Error, Nbt, get_nbt_string};
-use std::io::{ErrorKind, Read, Seek, Write};
+use std::io::{Read, Seek, Write};
 use std::vec::IntoIter;
 
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
@@ -22,22 +22,7 @@ impl NbtCompound {
 
     pub fn skip_content<R: Read + Seek>(reader: &mut NbtReadHelper<R>) -> Result<(), Error> {
         loop {
-            let tag_id = match reader.get_u8_be() {
-                Ok(id) => id,
-                Err(err) => match err {
-                    Error::Incomplete(err) => match err.kind() {
-                        ErrorKind::UnexpectedEof => {
-                            break;
-                        }
-                        _ => {
-                            return Err(Error::Incomplete(err));
-                        }
-                    },
-                    _ => {
-                        return Err(err);
-                    }
-                },
-            };
+            let tag_id = reader.get_u8_be()?;
             if tag_id == END_ID {
                 break;
             }
@@ -57,22 +42,7 @@ impl NbtCompound {
         let mut compound = NbtCompound::new();
 
         loop {
-            let tag_id = match reader.get_u8_be() {
-                Ok(id) => id,
-                Err(err) => match err {
-                    Error::Incomplete(err) => match err.kind() {
-                        ErrorKind::UnexpectedEof => {
-                            break;
-                        }
-                        _ => {
-                            return Err(Error::Incomplete(err));
-                        }
-                    },
-                    _ => {
-                        return Err(err);
-                    }
-                },
-            };
+            let tag_id = reader.get_u8_be()?;
             if tag_id == END_ID {
                 break;
             }

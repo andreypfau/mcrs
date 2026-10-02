@@ -1,15 +1,15 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
-use std::io::Cursor;
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{
-    BYTE_ARRAY_ID, COMPOUND_ID, END_ID, Error, INT_ARRAY_ID, LIST_ID, LONG_ARRAY_ID, LONG_ID,
-    from_bytes,
+    BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
+    LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, from_bytes,
 };
 use serde::Deserialize;
-use serde::de::{SeqAccess, Visitor};
+use serde::de::{DeserializeOwned, IgnoredAny, SeqAccess, Visitor};
 
 thread_local! {
     static LARGEST_REQUEST: Cell<usize> = const { Cell::new(0) };
@@ -190,4 +190,186 @@ fn an_array_longer_than_one_read_step_comes_back_whole() {
     bytes.extend(truncated(BYTE_ARRAY_ID, payload.len() as i32, &payload));
     let read = NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(&bytes)));
     assert_eq!(read.unwrap(), NbtTag::ByteArray(payload.into()));
+}
+
+/// Counts the calls that reach the input: the work a read does, measured
+/// without a clock.
+struct Counted<'a> {
+    input: Cursor<&'a [u8]>,
+    calls: &'a Cell<usize>,
+}
+
+impl Read for Counted<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.calls.set(self.calls.get() + 1);
+        self.input.read(buf)
+    }
+}
+
+impl Seek for Counted<'_> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.calls.set(self.calls.get() + 1);
+        self.input.seek(pos)
+    }
+}
+
+fn counted<T: DeserializeOwned>(bytes: &[u8]) -> (Result<T, Error>, usize) {
+    let calls = Cell::new(0);
+    let read = from_bytes(Counted {
+        input: Cursor::new(bytes),
+        calls: &calls,
+    });
+    (read, calls.get())
+}
+
+const A_HANDFUL_OF_CALLS: usize = 64;
+
+fn list_of(element: u8, declared: i32, present: &[u8]) -> Vec<u8> {
+    let mut bytes = vec![element];
+    bytes.extend_from_slice(&declared.to_be_bytes());
+    bytes.extend_from_slice(present);
+    bytes
+}
+
+/// A named root compound holding `fields` in order, closed.
+fn root(fields: &[(u8, &str, &[u8])]) -> Vec<u8> {
+    let mut bytes = vec![COMPOUND_ID, 0, 0];
+    for (tag, name, payload) in fields {
+        bytes.push(*tag);
+        bytes.extend_from_slice(&(name.len() as u16).to_be_bytes());
+        bytes.extend_from_slice(name.as_bytes());
+        bytes.extend_from_slice(payload);
+    }
+    bytes.push(END_ID);
+    bytes
+}
+
+/// Reads `kept` and passes over every other field.
+#[derive(Deserialize, Debug)]
+struct Kept {
+    kept: i32,
+}
+
+#[derive(Deserialize, Debug)]
+struct Elements {
+    #[serde(rename = "data")]
+    _data: Vec<IgnoredAny>,
+}
+
+fn refuses_an_end_list<T>(read: &Result<T, Error>) -> bool {
+    matches!(read, Err(Error::SerdeError(reason)) if reason.contains("TAG_End"))
+}
+
+#[test]
+fn a_list_of_end_tags_is_refused_on_every_path_that_meets_one() {
+    let end_list = list_of(END_ID, i32::MAX, &[]);
+    let seven = 7i32.to_be_bytes();
+
+    let skipped = root(&[(LIST_ID, "skipped", &end_list), (INT_ID, "kept", &seven)]);
+    assert!(skipped.len() < 40);
+    let (read, _) = counted::<Kept>(&skipped);
+    assert!(refuses_an_end_list(&read), "a skipped field: {read:?}");
+
+    let eight = list_of(LIST_ID, 8, &end_list.repeat(8));
+    let nested = root(&[(LIST_ID, "skipped", &eight), (INT_ID, "kept", &seven)]);
+    assert!(nested.len() < 80);
+    let (read, _) = counted::<Kept>(&nested);
+    assert!(
+        refuses_an_end_list(&read),
+        "a skipped list of lists: {read:?}"
+    );
+
+    let (read, _) = counted::<Elements>(&root(&[(LIST_ID, "data", &end_list)]));
+    assert!(refuses_an_end_list(&read), "element by element: {read:?}");
+
+    let mut wrapper = vec![LIST_ID, 0, 0];
+    wrapper.extend_from_slice(&end_list);
+    wrapper.push(END_ID);
+    let wrapped = list_of(COMPOUND_ID, 1, &wrapper);
+    let (read, _) = counted::<Elements>(&root(&[(LIST_ID, "data", &wrapped)]));
+    assert!(refuses_an_end_list(&read), "a wrapped element: {read:?}");
+}
+
+#[test]
+fn an_empty_list_of_end_tags_is_still_an_empty_list() {
+    #[derive(Deserialize)]
+    struct Numbers {
+        data: Vec<i32>,
+    }
+
+    let empty = list_of(END_ID, 0, &[]);
+    let seven = 7i32.to_be_bytes();
+
+    let skipped = root(&[(LIST_ID, "skipped", &empty), (INT_ID, "kept", &seven)]);
+    assert_eq!(counted::<Kept>(&skipped).0.unwrap().kept, 7);
+
+    let read = counted::<Numbers>(&root(&[(LIST_ID, "data", &empty)])).0;
+    assert!(read.unwrap().data.is_empty());
+}
+
+const FIXED_SIZE: [(u8, usize); 6] = [
+    (BYTE_ID, 1),
+    (SHORT_ID, 2),
+    (INT_ID, 4),
+    (LONG_ID, 8),
+    (FLOAT_ID, 4),
+    (DOUBLE_ID, 8),
+];
+
+#[test]
+fn a_skipped_list_of_fixed_size_elements_is_passed_in_one_step() {
+    let seven = 7i32.to_be_bytes();
+    for (element, size) in FIXED_SIZE {
+        let list = list_of(element, 100_000, &vec![0x5a; 100_000 * size]);
+        let bytes = root(&[(LIST_ID, "skipped", &list), (INT_ID, "kept", &seven)]);
+
+        let (read, calls) = counted::<Kept>(&bytes);
+        assert_eq!(read.unwrap().kept, 7, "element {element}");
+        assert!(
+            calls < A_HANDFUL_OF_CALLS,
+            "element {element} went to the input {calls} times"
+        );
+    }
+}
+
+#[test]
+fn a_list_declaring_more_than_the_input_holds_stops_at_the_first_missing_element() {
+    let elements = FIXED_SIZE.map(|(element, _)| element);
+    for element in elements.into_iter().chain([COMPOUND_ID]) {
+        let bytes = chunk_like(LIST_ID, &list_of(element, i32::MAX, &[]));
+        assert!(bytes.len() < 20);
+
+        let (read, calls) = counted::<Kept>(&bytes);
+        assert!(
+            matches!(read, Err(Error::Incomplete(_))),
+            "skipped, element {element}: {read:?}"
+        );
+        assert!(
+            calls < A_HANDFUL_OF_CALLS,
+            "skipped, element {element} went to the input {calls} times"
+        );
+
+        let (read, calls) = counted::<Elements>(&bytes);
+        assert!(
+            matches!(read, Err(Error::Incomplete(_))),
+            "element by element, element {element}: {read:?}"
+        );
+        assert!(
+            calls < A_HANDFUL_OF_CALLS,
+            "element by element, element {element} went to the input {calls} times"
+        );
+    }
+}
+
+#[test]
+fn a_compound_the_input_ends_inside_is_an_error_and_not_an_empty_compound() {
+    let read = NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(&[COMPOUND_ID])));
+    assert!(matches!(read, Err(Error::Incomplete(_))), "{read:?}");
+
+    let mut bytes = vec![LIST_ID];
+    bytes.extend(list_of(COMPOUND_ID, i32::MAX, &[]));
+    let (read, largest) =
+        largest_request(|| NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(&bytes))));
+    assert!(matches!(read, Err(Error::Incomplete(_))));
+    assert!(largest < A_MEGABYTE, "asked for {largest} bytes at once");
 }
