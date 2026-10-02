@@ -12,7 +12,7 @@ use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{
-    Entries, Id, LoadReport, Registry, RegistryError, RegistrySet, ScopeError,
+    Entries, Id, LoadReport, Registry, RegistryError, RegistrySet, ScopeError, UnknownEntry,
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
@@ -615,7 +615,9 @@ fn a_consumer_resolves_its_entries_once_into_one_resource() {
 
 #[test]
 fn a_missing_entry_lands_in_the_report_and_no_resource_is_inserted() {
-    let world = load_clocks(clock_registry_of(&["minecraft:overworld"]));
+    let registry = clock_registry_of(&["minecraft:overworld"]);
+    let miss: UnknownEntry = Registry::require(&registry, "minecraft:the_end").unwrap_err();
+    let world = load_clocks(registry);
 
     assert!(world.get_resource::<Clocks>().is_none());
     let report = &world.resource::<ClockReport>().0;
@@ -625,6 +627,7 @@ fn a_missing_entry_lands_in_the_report_and_no_resource_is_inserted() {
     assert!(text.contains("minecraft:world_clock"), "{text}");
     assert!(text.contains("minecraft:the_end"), "{text}");
     assert!(!text.contains("minecraft:overworld"), "{text}");
+    assert_eq!(text, format!("{}/{}: {miss}", miss.registry, miss.name));
 }
 
 #[test]
