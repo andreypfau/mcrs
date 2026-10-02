@@ -12,6 +12,6 @@ pub use dyn_index::DynRegistryIndex;
 pub use holder::*;
 pub use id::{BlockStateId, Id, ItemId};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
-pub use registry::{Registry, RegistryError};
+pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use static_registry::{StaticId, StaticRegistry};
 pub use static_table::{StaticRegistryEntries, StaticRegistryTable};

@@ -58,6 +58,24 @@ impl fmt::Display for RegistryError {
 
 impl std::error::Error for RegistryError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnknownEntry {
+    pub registry: ResourceLocation<&'static str>,
+    pub name: String,
+}
+
+impl fmt::Display for UnknownEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "registry {} holds no entry named {}",
+            self.registry, self.name
+        )
+    }
+}
+
+impl std::error::Error for UnknownEntry {}
+
 struct Table {
     names: Vec<ResourceLocation<Arc<str>>>,
     numbers: HashMap<ResourceLocation<Arc<str>>, u32>,
@@ -97,11 +115,20 @@ impl<R: RegistryKey> Registry<R> {
                 });
             }
         }
+        let mut tag_names = HashSet::new();
+        for tag in tags {
+            if !tag_names.insert(tag.clone()) {
+                return Err(RegistryError::DuplicateTag {
+                    registry: R::KEY,
+                    tag,
+                });
+            }
+        }
         Ok(Registry {
             table: Arc::new(Table {
                 names,
                 numbers,
-                tags: tags.into_iter().collect(),
+                tags: tag_names,
             }),
             _marker: PhantomData,
         })
@@ -121,6 +148,17 @@ impl<R: RegistryKey> Registry<R> {
 
     pub fn get(&self, name: &str) -> Option<Id<R>> {
         self.table.numbers.get(name).copied().map(Id::from_number)
+    }
+
+    pub fn require(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
+        self.get(name).ok_or_else(|| UnknownEntry {
+            registry: R::KEY,
+            name: name.to_owned(),
+        })
+    }
+
+    pub fn has_tag(&self, name: &str) -> bool {
+        self.table.tags.contains(name)
     }
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {
