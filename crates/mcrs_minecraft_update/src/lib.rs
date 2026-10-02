@@ -1,5 +1,6 @@
 pub mod corpus;
 pub mod definitions;
+pub mod fixtures;
 pub mod gradle;
 pub mod registries;
 pub mod release;

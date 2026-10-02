@@ -3,10 +3,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use mcrs_minecraft_client_jar::{Directory, get, official_dir};
-use mcrs_minecraft_update::{corpus, definitions, gradle, registries, release};
+use mcrs_minecraft_update::{corpus, definitions, fixtures, gradle, registries, release};
 
 const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
+       mcrs_minecraft_update recapture <fixture name | --all>
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
 descriptor, runs the data generator and replaces the reports in assets/mcrs/reports, then
@@ -15,7 +16,12 @@ assets/mcrs/item_definition. The protocol_id diff against the previous registrie
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
 of the definitions is printed and written to definitions.txt there. Each diff is computed
 before the files it describes are replaced. Two runs against one working tree at the same
-time are not supported.";
+time are not supported.
+
+recapture runs the oracle task of one fixture into a temporary directory, copies the files
+it wrote to their fixture directories and records the version id of assets/minecraft in
+tools/captures.json. With --all it recaptures every fixture one after another, goes on after
+a failure and exits non-zero if any fixture failed. It never updates the corpus.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
@@ -37,10 +43,66 @@ struct Options {
 }
 
 fn main() {
-    let options = parse(std::env::args().skip(1)).unwrap_or_else(|| usage());
-    if let Err(error) = run(&options) {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let result = match args.first().map(String::as_str) {
+        Some("recapture") => recapture(&args[1..]),
+        _ => {
+            let options = parse(args.into_iter()).unwrap_or_else(|| usage());
+            run(&options)
+        }
+    };
+    if let Err(error) = result {
         eprintln!("error: {error}");
         std::process::exit(1);
+    }
+}
+
+fn recapture(args: &[String]) -> Result<(), String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    match args {
+        [all] if all == "--all" => {
+            let failed: Vec<&str> = fixtures::FIXTURES
+                .iter()
+                .filter(|fixture| !recapture_one(&root, fixture))
+                .map(|fixture| fixture.name)
+                .collect();
+            if failed.is_empty() {
+                Ok(())
+            } else {
+                Err(format!("recapture failed for {}", failed.join(", ")))
+            }
+        }
+        [name] if !name.starts_with('-') => {
+            let fixture = fixtures::lookup(name)?;
+            if recapture_one(&root, fixture) {
+                Ok(())
+            } else {
+                Err(format!("recapture failed for {name}"))
+            }
+        }
+        _ => usage(),
+    }
+}
+
+fn recapture_one(root: &Path, fixture: &fixtures::Fixture) -> bool {
+    match fixtures::recapture(root, fixture) {
+        Ok(copied) => {
+            let paths: Vec<String> = copied
+                .iter()
+                .map(|path| {
+                    path.strip_prefix(root)
+                        .unwrap_or(path)
+                        .display()
+                        .to_string()
+                })
+                .collect();
+            println!("recapture {}: recaptured {}", fixture.name, paths.join(" "));
+            true
+        }
+        Err(error) => {
+            println!("recapture {}: failed {error}", fixture.name);
+            false
+        }
     }
 }
 
