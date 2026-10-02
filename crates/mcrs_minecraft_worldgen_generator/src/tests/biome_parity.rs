@@ -127,3 +127,29 @@ fn the_stored_biomes_match_the_reference_block_for_block() {
         "a block went uncompared"
     );
 }
+
+#[test]
+#[ignore = "reference parity check; run with --ignored"]
+fn the_dump_holds_a_section_with_more_than_one_biome() {
+    let columns = read_dump();
+
+    let mixed_section = columns.iter().any(|column| {
+        column
+            .sections
+            .iter()
+            .any(|cells| cells.iter().any(|&id| id != cells[0]))
+    });
+    assert!(mixed_section, "every section of the dump is one biome");
+
+    let mixed_layer = columns.iter().any(|column| {
+        column.sections.iter().any(|cells| {
+            cells
+                .chunks(16 * 16)
+                .any(|layer| layer.iter().any(|&id| id != layer[0]))
+        })
+    });
+    assert!(
+        mixed_layer,
+        "no horizontal layer of the dump holds two biomes"
+    );
+}
