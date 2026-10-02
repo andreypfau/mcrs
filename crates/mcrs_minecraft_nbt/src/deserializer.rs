@@ -245,7 +245,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
             Some(BYTE_ARRAY_ID) => NBT_BYTE_ARRAY_TAG,
             Some(INT_ARRAY_ID) => NBT_INT_ARRAY_TAG,
             Some(LONG_ARRAY_ID) => NBT_LONG_ARRAY_TAG,
-            _ => return self.deserialize_any(visitor),
+            _ => return visitor.visit_newtype_struct(self),
         };
         visitor.visit_enum(ArrayAccess { de: self, variant })
     }
@@ -347,14 +347,13 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        if self.in_list {
+        if self.in_list && self.tag_to_deserialize_stack == Some(BYTE_ID) {
             let value = self.input.get_u8_be()?;
-            visitor.visit_u8::<Error>(value)
-        } else {
-            Err(Error::UnsupportedType(
-                "u8; NBT only supports signed values".to_string(),
-            ))
+            return visitor.visit_u8::<Error>(value);
         }
+        Err(Error::UnsupportedType(
+            "u8; NBT only supports signed values".to_string(),
+        ))
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {

@@ -206,6 +206,119 @@ impl_array!(nbt_int_array, NBT_INT_ARRAY_TAG);
 impl_array!(nbt_long_array, NBT_LONG_ARRAY_TAG);
 impl_array!(nbt_byte_array, NBT_BYTE_ARRAY_TAG);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArrayKind {
+    Byte,
+    Int,
+    Long,
+}
+
+pub trait ArrayVisitor<'de>: Sized {
+    type Value;
+
+    /// `payload` is the array's elements as stored: big-endian, end to end.
+    fn visit_array<E: de::Error>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E>;
+
+    /// The value is no array and nothing of it has been read yet.
+    fn visit_other<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error>;
+}
+
+/// Takes an array whole, as `deserialize_bytes` does, and says which of the
+/// three arrays it was: the bytes alone do not carry their element width.
+pub fn nbt_array<'de, D, V>(deserializer: D, visitor: V) -> Result<V::Value, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    V: ArrayVisitor<'de>,
+{
+    deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, Tagged(visitor))
+}
+
+struct Tagged<V>(V);
+
+impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Tagged<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an NBT value")
+    }
+
+    fn visit_newtype_struct<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<V::Value, D::Error> {
+        self.0.visit_other(deserializer)
+    }
+
+    fn visit_enum<A: de::EnumAccess<'de>>(self, data: A) -> Result<V::Value, A::Error> {
+        let (kind, payload) = data.variant_seed(Kind)?;
+        de::VariantAccess::newtype_variant_seed(
+            payload,
+            Payload {
+                kind,
+                visitor: self.0,
+            },
+        )
+    }
+}
+
+struct Kind;
+
+impl<'de> de::DeserializeSeed<'de> for Kind {
+    type Value = ArrayKind;
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, variant: D) -> Result<ArrayKind, D::Error> {
+        variant.deserialize_identifier(self)
+    }
+}
+
+impl de::Visitor<'_> for Kind {
+    type Value = ArrayKind;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an NBT array tag")
+    }
+
+    fn visit_str<E: de::Error>(self, variant: &str) -> Result<ArrayKind, E> {
+        match variant {
+            NBT_BYTE_ARRAY_TAG => Ok(ArrayKind::Byte),
+            NBT_INT_ARRAY_TAG => Ok(ArrayKind::Int),
+            NBT_LONG_ARRAY_TAG => Ok(ArrayKind::Long),
+            other => Err(E::unknown_variant(
+                other,
+                &[NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG],
+            )),
+        }
+    }
+}
+
+struct Payload<V> {
+    kind: ArrayKind,
+    visitor: V,
+}
+
+impl<'de, V: ArrayVisitor<'de>> de::DeserializeSeed<'de> for Payload<V> {
+    type Value = V::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, payload: D) -> Result<V::Value, D::Error> {
+        payload.deserialize_bytes(self)
+    }
+}
+
+impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Payload<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("the payload of an NBT array")
+    }
+
+    fn visit_bytes<E: de::Error>(self, payload: &[u8]) -> Result<V::Value, E> {
+        self.visitor.visit_array(self.kind, payload)
+    }
+}
+
 /// NBT has no boolean, so a flag is a byte. A tagged enum buffers the compound
 /// before it knows the variant, and a buffered byte never reaches
 /// `deserialize_bool`, so a `bool` field inside one reads through this.

@@ -6,11 +6,13 @@ use std::io::Cursor;
 use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use serde::{Deserialize, Serialize, Serializer};
+use mcrs_minecraft_nbt::{ArrayKind, ArrayVisitor};
+use serde::de::IgnoredAny;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
-use crate::retrogen::RetroGen;
+use crate::retrogen::{RetroGen, Words};
 use crate::status::ChunkStatus;
 
 pub const LIGHT_BYTES: usize = 2048;
@@ -91,7 +93,11 @@ impl Chunk {
 #[serde(deny_unknown_fields)]
 pub(crate) struct RawPalettedContainer {
     pub(crate) palette: BlockStateList,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "packed_data",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub(crate) data: Option<PackedData>,
 }
 
@@ -105,9 +111,19 @@ pub(crate) struct RawSection {
     pub(crate) biomes: Option<RawPalettedContainer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) noise_biomes: Option<RawPalettedContainer>,
-    #[serde(rename = "BlockLight", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "BlockLight",
+        default,
+        deserialize_with = "light_bytes",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub(crate) block_light: Option<RawLight>,
-    #[serde(rename = "SkyLight", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "SkyLight",
+        default,
+        deserialize_with = "light_bytes",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub(crate) sky_light: Option<RawLight>,
 }
 
@@ -333,8 +349,6 @@ fn resolve<V>(
         })
 }
 
-/// Asks the deserializer for the long array whole; read as a sequence it costs
-/// a visitor round trip per element.
 pub(crate) struct PackedData(pub(crate) Box<[i64]>);
 
 impl Serialize for PackedData {
@@ -343,46 +357,39 @@ impl Serialize for PackedData {
     }
 }
 
-impl<'de> Deserialize<'de> for PackedData {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct Longs;
+/// A long array is taken whole; read as a sequence it costs a visitor round
+/// trip per element. Any other array or list of numbers is one word per
+/// element, and a value that is neither reads as absent.
+fn packed_data<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<PackedData>, D::Error> {
+    struct Storage;
 
-        impl<'de> serde::de::Visitor<'de> for Longs {
-            type Value = PackedData;
+    impl<'de> ArrayVisitor<'de> for Storage {
+        type Value = Option<PackedData>;
 
-            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str("a long array")
-            }
-
-            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<PackedData, E> {
-                if !v.len().is_multiple_of(8) {
-                    return Err(E::invalid_length(v.len(), &self));
-                }
-                Ok(PackedData(
-                    v.chunks_exact(8)
-                        .map(|word| i64::from_be_bytes(word.try_into().unwrap()))
-                        .collect(),
-                ))
-            }
-
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<PackedData, A::Error> {
-                let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-                while let Some(word) = seq.next_element::<i64>()? {
-                    out.push(word);
-                }
-                Ok(PackedData(out.into_boxed_slice()))
-            }
+        fn visit_array<E>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E> {
+            let words = match kind {
+                ArrayKind::Long => payload
+                    .chunks_exact(8)
+                    .map(|word| i64::from_be_bytes(word.try_into().unwrap()))
+                    .collect(),
+                ArrayKind::Int => payload
+                    .chunks_exact(4)
+                    .map(|word| i64::from(i32::from_be_bytes(word.try_into().unwrap())))
+                    .collect(),
+                ArrayKind::Byte => payload.iter().map(|&byte| i64::from(byte as i8)).collect(),
+            };
+            Ok(Some(PackedData(words)))
         }
 
-        d.deserialize_bytes(Longs)
+        fn visit_other<D: Deserializer<'de>>(self, value: D) -> Result<Self::Value, D::Error> {
+            let words = value.deserialize_any(Words)?;
+            Ok(words.map(|words| PackedData(words.into_boxed_slice())))
+        }
     }
+
+    mcrs_minecraft_nbt::nbt_array(deserializer, Storage)
 }
 
-/// Asks the deserializer for the byte array whole. Reading it as a sequence
-/// costs a visitor round trip per byte, and every section carries two of them.
 pub(crate) struct RawLight(pub(crate) Vec<u8>);
 
 impl Serialize for RawLight {
@@ -391,35 +398,26 @@ impl Serialize for RawLight {
     }
 }
 
-impl<'de> Deserialize<'de> for RawLight {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct Bytes;
+/// The byte array is taken whole: read as a sequence it costs a visitor round
+/// trip per byte, and every section carries two of them. Light held in
+/// anything but a byte array reads as absent.
+fn light_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<RawLight>, D::Error> {
+    struct Bytes;
 
-        impl<'de> serde::de::Visitor<'de> for Bytes {
-            type Value = RawLight;
+    impl<'de> ArrayVisitor<'de> for Bytes {
+        type Value = Option<RawLight>;
 
-            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str("a byte array")
-            }
-
-            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<RawLight, E> {
-                Ok(RawLight(v.to_vec()))
-            }
-
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(
-                self,
-                mut seq: A,
-            ) -> Result<RawLight, A::Error> {
-                let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(LIGHT_BYTES));
-                while let Some(byte) = seq.next_element::<u8>()? {
-                    out.push(byte);
-                }
-                Ok(RawLight(out))
-            }
+        fn visit_array<E>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E> {
+            Ok((kind == ArrayKind::Byte).then(|| RawLight(payload.to_vec())))
         }
 
-        d.deserialize_bytes(Bytes)
+        fn visit_other<D: Deserializer<'de>>(self, value: D) -> Result<Self::Value, D::Error> {
+            IgnoredAny::deserialize(value)?;
+            Ok(None)
+        }
     }
+
+    mcrs_minecraft_nbt::nbt_array(deserializer, Bytes)
 }
 
 fn light(bytes: Vec<u8>, y: i8, field: &'static str) -> Result<Light, ErrorKind> {

@@ -91,20 +91,22 @@ struct MissingBedrock(Vec<i64>);
 
 impl<'de> Deserialize<'de> for MissingBedrock {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(Words)
+        let words = deserializer.deserialize_any(Words)?;
+        Ok(MissingBedrock(words.unwrap_or_default()))
     }
 }
 
-struct Words;
+/// Answers `None` for a value that is no list of numbers.
+pub(crate) struct Words;
 
 impl<'de> Visitor<'de> for Words {
-    type Value = MissingBedrock;
+    type Value = Option<Vec<i64>>;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("a list or an array of numbers")
     }
 
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<MissingBedrock, A::Error> {
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
         let mut words = Vec::new();
         let mut numbers_only = true;
         while let Some(Word(word)) = seq.next_element()? {
@@ -113,40 +115,36 @@ impl<'de> Visitor<'de> for Words {
                 None => numbers_only = false,
             }
         }
-        Ok(MissingBedrock(if numbers_only {
-            words
-        } else {
-            Vec::new()
-        }))
+        Ok(numbers_only.then_some(words))
     }
 
-    fn visit_bool<E>(self, _: bool) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_i64<E>(self, _: i64) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_u64<E>(self, _: u64) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_f64<E>(self, _: f64) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_str<E>(self, _: &str) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_unit<E>(self) -> Result<MissingBedrock, E> {
-        Ok(MissingBedrock::default())
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(None)
     }
 
-    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<MissingBedrock, A::Error> {
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
         IgnoredAny.visit_map(map)?;
-        Ok(MissingBedrock::default())
+        Ok(None)
     }
 }
 

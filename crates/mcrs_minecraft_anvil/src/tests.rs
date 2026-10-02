@@ -971,6 +971,230 @@ fn light_arrays_must_be_2048_bytes() {
     );
 }
 
+/// A section whose `BlockLight` holds `value`, written ahead of a good
+/// `SkyLight`, the block states and a second section, so a value read at the
+/// wrong width shows in what follows it.
+fn chunk_with_block_light(value: NbtTag) -> NbtCompound {
+    let mut sky = vec![0u8; LIGHT_BYTES];
+    sky[0] = 0x0f;
+    let mut first = NbtCompound::new();
+    first.put_byte("Y", 0);
+    first.put("BlockLight", value);
+    first.put("SkyLight", NbtTag::ByteArray(sky.into_boxed_slice()));
+    first.put_component(
+        "block_states",
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
+    let second = section(
+        1,
+        container(vec![NbtTag::Compound(block("minecraft:air"))], None),
+    );
+    chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(first), NbtTag::Compound(second)],
+    )
+}
+
+fn assert_block_light_is_absent(fixture: &Fixture, stored: Vec<(&str, NbtTag)>) {
+    for (shape, value) in stored {
+        let chunk = read_one(fixture, ZLIB, &chunk_with_block_light(value))
+            .unwrap_or_else(|err| panic!("{shape}: {err}"));
+        assert_eq!(chunk.sections.len(), 2, "{shape}");
+        let first = &chunk.sections[0];
+        assert_eq!(first.block_light, None, "{shape}");
+        let sky = first
+            .sky_light
+            .as_ref()
+            .unwrap_or_else(|| panic!("{shape}"));
+        assert_eq!(sky.get(0, 0, 0), 15, "{shape}");
+        assert_eq!(first.block_states, Some(Homogeneous(STONE)), "{shape}");
+        assert_eq!(chunk.sections[1].y, 1, "{shape}");
+    }
+}
+
+#[test]
+fn light_stored_as_another_array_reads_as_absent() {
+    let fixture = Fixture::new("light_other_array");
+    assert_block_light_is_absent(
+        &fixture,
+        vec![
+            (
+                "an int array",
+                NbtTag::IntArray(vec![0x0f0f_0f0f; LIGHT_BYTES / 4]),
+            ),
+            (
+                "a long array",
+                NbtTag::LongArray(vec![0x0f0f_0f0f_0f0f_0f0f; LIGHT_BYTES / 8]),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn light_stored_as_a_list_reads_as_absent_and_the_section_reads_on() {
+    let fixture = Fixture::new("light_list");
+    assert_block_light_is_absent(
+        &fixture,
+        vec![
+            ("a list of longs", NbtTag::List(vec![NbtTag::Long(0); 4])),
+            (
+                "a list of bytes",
+                NbtTag::List(vec![NbtTag::Byte(15); LIGHT_BYTES]),
+            ),
+        ],
+    );
+}
+
+#[test]
+fn light_that_is_no_collection_reads_as_absent() {
+    let fixture = Fixture::new("light_no_collection");
+    assert_block_light_is_absent(
+        &fixture,
+        vec![
+            ("a string", NbtTag::String("bright".to_string())),
+            ("an int", NbtTag::Int(7)),
+            ("a compound", NbtTag::Compound(NbtCompound::new())),
+        ],
+    );
+}
+
+fn air_and_stone() -> Vec<NbtTag> {
+    vec![
+        NbtTag::Compound(block("minecraft:air")),
+        NbtTag::Compound(block("minecraft:stone")),
+    ]
+}
+
+fn container_holding(palette: Vec<NbtTag>, data: NbtTag) -> NbtCompound {
+    let mut c = container(palette, None);
+    c.put("data", data);
+    c
+}
+
+/// Two entries pack sixteen cells into a word, so a word of one puts stone in
+/// the first cell of its row and air in the rest.
+#[test]
+fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
+    let fixture = Fixture::new("block_data_by_element");
+    let stored = [
+        ("a long array", NbtTag::LongArray(vec![1; 256])),
+        ("an int array", NbtTag::IntArray(vec![1; 256])),
+        (
+            "a byte array",
+            NbtTag::ByteArray(vec![1u8; 256].into_boxed_slice()),
+        ),
+        ("a list of ints", NbtTag::List(vec![NbtTag::Int(1); 256])),
+        (
+            "a list of doubles",
+            NbtTag::List(vec![NbtTag::Double(1.9); 256]),
+        ),
+    ];
+    for (shape, value) in stored {
+        let states = container_holding(air_and_stone(), value);
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, states))]);
+        let chunk = read_one(&fixture, ZLIB, &root).unwrap_or_else(|err| panic!("{shape}: {err}"));
+        let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+        for index in 0..Blocks::ENTRY_COUNT {
+            let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
+            let expected = if x == 0 { STONE } else { AIR };
+            assert_eq!(blocks.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+        }
+    }
+}
+
+#[test]
+fn an_int_array_of_twice_the_words_is_a_length_error_and_not_fused_pairs() {
+    let fixture = Fixture::new("block_data_fused");
+    let states = container_holding(air_and_stone(), NbtTag::IntArray(vec![0; 512]));
+    let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, states))]);
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(
+        matches!(
+            err.kind,
+            ErrorKind::DataLength {
+                found: 512,
+                expected: 256,
+                ..
+            }
+        ),
+        "{err}"
+    );
+}
+
+/// One bit per cell packs 64 biome cells into a word, so the sign an element
+/// widens with and the way a float narrows both show in the cells: -2 clears a
+/// word's first cell and sets every other.
+#[test]
+fn biome_data_widens_each_element_as_a_signed_number() {
+    let fixture = Fixture::new("biome_data_by_element");
+    let stored = [
+        ("a long array", NbtTag::LongArray(vec![-2; 64])),
+        ("an int array", NbtTag::IntArray(vec![-2; 64])),
+        ("a byte array", NbtTag::ByteArray(Box::new([0xfe; 64]))),
+        (
+            "a list of shorts",
+            NbtTag::List(vec![NbtTag::Short(-2); 64]),
+        ),
+        (
+            "a list of doubles",
+            NbtTag::List(vec![NbtTag::Double(-2.7); 64]),
+        ),
+    ];
+    for (shape, value) in stored {
+        let mut s = section(
+            0,
+            container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+        );
+        let palette = vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ];
+        s.put_component("biomes", container_holding(palette, value));
+        let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)]))
+            .unwrap_or_else(|err| panic!("{shape}: {err}"));
+        let biomes = chunk.sections[0].biomes.as_ref().unwrap();
+        for index in 0..Biomes::ENTRY_COUNT {
+            let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
+            let expected = if index % 64 == 0 { PLAINS } else { DESERT };
+            assert_eq!(biomes.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+        }
+    }
+}
+
+#[test]
+fn packed_data_that_is_no_list_of_numbers_reads_as_absent() {
+    let fixture = Fixture::new("packed_data_malformed");
+    let malformed = [
+        NbtTag::String("not a long stream".to_string()),
+        NbtTag::Int(7),
+        NbtTag::Compound(NbtCompound::new()),
+        NbtTag::List(vec![NbtTag::String("x".to_string())]),
+        NbtTag::List(vec![NbtTag::Long(1), NbtTag::String("x".to_string())]),
+    ];
+    for value in malformed {
+        let needed = container_holding(air_and_stone(), value.clone());
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, needed))]);
+        let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+        assert!(
+            matches!(err.kind, ErrorKind::MissingData { bits: 4, .. }),
+            "{value:?}: {err}"
+        );
+
+        let stone = vec![NbtTag::Compound(block("minecraft:stone"))];
+        let unneeded = container_holding(stone, value.clone());
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(1, unneeded))]);
+        let chunk =
+            read_one(&fixture, ZLIB, &root).unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        assert_eq!(chunk.sections[0].y, 1, "{value:?}");
+        assert_eq!(
+            chunk.sections[0].block_states,
+            Some(Homogeneous(STONE)),
+            "{value:?}"
+        );
+    }
+}
+
 #[test]
 fn a_stale_data_version_is_a_loud_error() {
     let fixture = Fixture::new("data_version");

@@ -5,8 +5,9 @@ use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{
-    BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
-    LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, from_bytes,
+    ArrayKind, ArrayVisitor, BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error,
+    FLOAT_ID, INT_ARRAY_ID, INT_ID, LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, from_bytes,
+    nbt_array,
 };
 use serde::Deserialize;
 use serde::de::{DeserializeOwned, IgnoredAny, SeqAccess, Visitor};
@@ -372,4 +373,49 @@ fn a_compound_the_input_ends_inside_is_an_error_and_not_an_empty_compound() {
         largest_request(|| NbtTag::deserialize(&mut NbtReadHelper::new(Cursor::new(&bytes))));
     assert!(matches!(read, Err(Error::Incomplete(_))));
     assert!(largest < A_MEGABYTE, "asked for {largest} bytes at once");
+}
+
+struct PayloadLength(usize);
+
+impl<'de> Deserialize<'de> for PayloadLength {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Measure;
+
+        impl<'de> ArrayVisitor<'de> for Measure {
+            type Value = PayloadLength;
+
+            fn visit_array<E>(self, _: ArrayKind, payload: &[u8]) -> Result<PayloadLength, E> {
+                Ok(PayloadLength(payload.len()))
+            }
+
+            fn visit_other<D: serde::Deserializer<'de>>(
+                self,
+                _: D,
+            ) -> Result<PayloadLength, D::Error> {
+                Err(serde::de::Error::custom("not an array"))
+            }
+        }
+
+        nbt_array(deserializer, Measure)
+    }
+}
+
+#[test]
+fn an_array_read_with_its_kind_goes_to_the_input_once_a_step_and_not_once_an_element() {
+    #[derive(Deserialize)]
+    struct Measured {
+        data: PayloadLength,
+    }
+
+    for (tag, width) in [(BYTE_ARRAY_ID, 1), (INT_ARRAY_ID, 4), (LONG_ARRAY_ID, 8)] {
+        let payload = vec![0x5a; 100_000 * width];
+        let field = truncated(tag, 100_000, &payload);
+
+        let (read, calls) = counted::<Measured>(&root(&[(tag, "data", &field)]));
+        assert_eq!(read.unwrap().data.0, payload.len(), "tag {tag}");
+        assert!(
+            calls < A_HANDFUL_OF_CALLS,
+            "tag {tag} went to the input {calls} times"
+        );
+    }
 }

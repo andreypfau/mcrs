@@ -173,6 +173,12 @@ impl<'de> de::Deserializer<'de> for NbtTag {
     fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self {
             NbtTag::ByteArray(v) => visitor.visit_bytes(&v),
+            NbtTag::IntArray(v) => {
+                visitor.visit_byte_buf(v.into_iter().flat_map(i32::to_be_bytes).collect())
+            }
+            NbtTag::LongArray(v) => {
+                visitor.visit_byte_buf(v.into_iter().flat_map(i64::to_be_bytes).collect())
+            }
             other => other.deserialize_any(visitor),
         }
     }
