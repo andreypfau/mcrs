@@ -1149,6 +1149,7 @@ pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;
 pub use beta_caves::{BetaCaveBlockIds, apply_beta_carvers};
 pub mod beta_ores;
+pub mod biome_upscale;
 pub mod feature_program;
 pub mod features;
 pub mod modern_carvers;
