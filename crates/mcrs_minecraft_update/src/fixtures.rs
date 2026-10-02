@@ -229,6 +229,27 @@ pub const FIXTURES: &[Fixture] = &[
         golden: Some("item_kinds"),
         outputs: &[named("kinds.json", ITEM_FIXTURES)],
     },
+    Fixture {
+        name: "item_holders",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_holders"),
+        outputs: &[named("holders_golden.txt", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "item_registry_refs",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_registry_refs"),
+        outputs: &[named("registry_refs_golden.txt", ITEM_FIXTURES)],
+    },
+    Fixture {
+        name: "item_records",
+        project: ORACLE,
+        task: "dumpGolden",
+        golden: Some("item_records"),
+        outputs: &[named("vanilla_records.txt", ITEM_FIXTURES)],
+    },
 ];
 
 pub type Manifest = BTreeMap<String, String>;
@@ -487,12 +508,12 @@ mod tests {
     }
 
     #[test]
-    fn the_table_has_twenty_three_fixtures_with_unique_names() {
+    fn the_table_has_twenty_six_fixtures_with_unique_names() {
         let mut names = names();
-        assert_eq!(names.len(), 23);
+        assert_eq!(names.len(), 26);
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 23);
+        assert_eq!(names.len(), 26);
     }
 
     #[test]
