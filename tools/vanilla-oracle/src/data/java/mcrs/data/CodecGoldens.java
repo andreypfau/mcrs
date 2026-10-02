@@ -18,6 +18,10 @@ public final class CodecGoldens {
     static {
         GOLDENS.put("snbt", NbtGoldens::snbt);
         GOLDENS.put("hash_ops", NbtGoldens::hashOps);
+        GOLDENS.put("text_vanilla", TextGoldens::vanilla);
+        GOLDENS.put("text_probe", TextGoldens::probe);
+        GOLDENS.put("text_nbt", TextGoldens::nbt);
+        GOLDENS.put("text_wire", TextGoldens::wire);
     }
 
     private CodecGoldens() {}

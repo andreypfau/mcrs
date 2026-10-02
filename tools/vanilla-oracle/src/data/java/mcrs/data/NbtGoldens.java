@@ -218,7 +218,7 @@ final class NbtGoldens {
         }
     }
 
-    private static String binary(final Tag tag) throws IOException {
+    static String binary(final Tag tag) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         NbtIo.writeAnyTag(tag, new DataOutputStream(bytes));
         return HEX.formatHex(bytes.toByteArray());

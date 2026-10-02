@@ -132,7 +132,7 @@ public final class BlockDefinitionDumper {
         return 0;
     }
 
-    private static RegistryAccess.Frozen loadWorldRegistries(
+    static RegistryAccess.Frozen loadWorldRegistries(
         final MultiPackResourceManager resources, final LayeredRegistryAccess<RegistryLayer> initialLayers
     ) {
         List<Registry.PendingTags<?>> staticLayerTags = TagLoader.loadTagsForExistingRegistries(
