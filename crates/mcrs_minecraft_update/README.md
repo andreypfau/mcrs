@@ -114,7 +114,9 @@ A golden that carries its own cases is rewritten from them: the inputs are
 kept and the game supplies every expected value. When the game rejects an input
 it accepted at the previous capture, or accepts one it rejected, the run stops
 and names the case (a golden without named cases prints the input itself), the
-file stays as it was and nothing is recorded.
+file stays as it was and nothing is recorded. The vanilla player file is such a
+golden: its item stacks are rewritten through the game's item codecs and the
+file is stamped with the game's data version.
 
 Not regenerated from the current game and outside the fixture table: the Beta
 fixtures (`beta_surface_corpus.json`, `beta_climate.json`,
