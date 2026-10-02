@@ -1404,7 +1404,7 @@ fn a_malformed_noise_biomes_container_is_a_load_error() {
     }
 }
 
-mod write {
+pub(crate) mod write {
     use std::collections::HashMap;
     use std::io::Cursor;
     use std::path::Path;
@@ -1417,10 +1417,10 @@ mod write {
     use crate::fixture::{self, region_chunks};
     use crate::{Chunk, PaletteId, PaletteNames, RetroGen, write_chunk};
 
-    struct Named {
-        chunk: Chunk,
-        blocks: PaletteNames<VoxelId>,
-        biomes: PaletteNames<u8>,
+    pub(crate) struct Named {
+        pub(crate) chunk: Chunk,
+        pub(crate) blocks: PaletteNames<VoxelId>,
+        pub(crate) biomes: PaletteNames<u8>,
     }
 
     fn read_named(region: &RegionFile, pos: ColumnPos) -> Named {
@@ -1451,7 +1451,7 @@ mod write {
         RegionFile::open(fixture.region(0, 0, &slots)).unwrap()
     }
 
-    fn root(nbt: &[u8]) -> NbtCompound {
+    pub(crate) fn root(nbt: &[u8]) -> NbtCompound {
         mcrs_minecraft_nbt::Nbt::read(&mut NbtReadHelper::new(Cursor::new(nbt)))
             .unwrap()
             .root_tag
@@ -1491,7 +1491,7 @@ mod write {
         })
     }
 
-    fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
+    pub(crate) fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
         let blocks = translation(&read.blocks, &original.blocks);
         let biomes = translation(&read.biomes, &original.biomes);
         let (a, b) = (&read.chunk, &original.chunk);
