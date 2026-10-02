@@ -38,6 +38,8 @@ mod perf;
 #[cfg(test)]
 mod rungs;
 #[cfg(test)]
+mod stored_biomes;
+#[cfg(test)]
 mod structure_geometry;
 #[cfg(test)]
 mod structure_index;

@@ -1220,6 +1220,7 @@ pub mod modern_carvers;
 pub mod multi_noise_biomes;
 pub mod stages;
 pub mod staging;
+pub mod stored_biomes;
 pub mod structures;
 pub mod surface;
 pub mod trees;
