@@ -1064,7 +1064,10 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
     root.put_list("entities", Vec::new());
     root.put_component("UpgradeData", NbtCompound::new());
     root.put_component("blending_data", NbtCompound::new());
-    root.put_component("below_zero_retrogen", NbtCompound::new());
+    root.put_component(
+        "retrogen",
+        retrogen_record("minecraft:full", &["minecraft:features"]),
+    );
     let mut heightmaps = NbtCompound::new();
     heightmaps.put("MOTION_BLOCKING", NbtTag::LongArray(vec![7i64; 37]));
     root.put_component("Heightmaps", heightmaps);
@@ -1083,6 +1086,91 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
         chunk.block_entities[0].get_string("id"),
         Some("minecraft:chest")
     );
+    assert_eq!(
+        chunk.retrogen,
+        Some(crate::RetroGen {
+            target_status: ChunkStatus::Full,
+            statuses_to_rerun: vec![ChunkStatus::Features],
+            has_below_zero_retrogen: false,
+            missing_bedrock: Vec::new(),
+        })
+    );
+}
+
+fn retrogen_error(name: &str, record: NbtCompound) -> String {
+    let fixture = Fixture::new(name);
+    let err = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_with_retrogen("minecraft:terrain", record),
+    )
+    .unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+    err.to_string()
+}
+
+#[test]
+fn an_empty_target_status_is_a_load_error() {
+    let err = retrogen_error(
+        "retrogen_empty_target",
+        retrogen_record("minecraft:empty", &["minecraft:biomes"]),
+    );
+    assert!(err.contains("target_status cannot be empty"), "{err}");
+}
+
+#[test]
+fn an_empty_status_to_rerun_is_a_load_error() {
+    let err = retrogen_error(
+        "retrogen_empty_rerun",
+        retrogen_record("minecraft:full", &["minecraft:biomes", "minecraft:empty"]),
+    );
+    assert!(err.contains("statuses_to_rerun cannot be empty"), "{err}");
+}
+
+#[test]
+fn an_unregistered_status_in_retrogen_is_a_load_error() {
+    retrogen_error(
+        "retrogen_unregistered_target",
+        retrogen_record("minecraft:not_a_status", &[]),
+    );
+    retrogen_error(
+        "retrogen_unregistered_rerun",
+        retrogen_record("minecraft:full", &["minecraft:not_a_status"]),
+    );
+}
+
+#[test]
+fn an_unknown_key_in_retrogen_is_a_load_error() {
+    let mut record = retrogen_record("minecraft:full", &[]);
+    record.put_int("surprise", 1);
+    let err = retrogen_error("retrogen_unknown_key", record);
+    assert!(err.contains("surprise"), "{err}");
+}
+
+#[test]
+fn a_malformed_missing_bedrock_reads_as_absent() {
+    let fixture = Fixture::new("malformed_bedrock");
+    let malformed = [
+        NbtTag::String("not a bit set".to_string()),
+        NbtTag::Int(7),
+        NbtTag::Compound(NbtCompound::new()),
+        NbtTag::List(vec![NbtTag::String("x".to_string())]),
+    ];
+    for value in malformed {
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put_bool("has_below_zero_retrogen", true);
+        record.put("missing_bedrock", value.clone());
+        let chunk = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_with_retrogen("minecraft:terrain", record),
+        )
+        .unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        let retrogen = chunk.retrogen.unwrap();
+        assert!(retrogen.missing_bedrock.is_empty(), "{value:?}");
+        assert!(retrogen.has_below_zero_retrogen, "{value:?}");
+        assert_eq!(retrogen.statuses_to_rerun, vec![ChunkStatus::Biomes]);
+    }
 }
 
 #[test]
@@ -1418,6 +1506,52 @@ mod write {
         let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
         let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
         assert_same_chunk(&read, &original, "retrogen");
+    }
+
+    fn written_retrogen(record: NbtCompound, dir: &Fixture, name: &str) -> NbtCompound {
+        let src = Fixture::new(name);
+        let region = RegionFile::open(src.region(
+            0,
+            0,
+            &single_slot(ZLIB, &chunk_with_retrogen("minecraft:terrain", record)),
+        ))
+        .unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let original = read_named(&region, pos);
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let read = read_named(&rewrite(&region, &[(pos, nbt.clone())], &dir.dir), pos);
+        assert_same_chunk(&read, &original, name);
+        root(&nbt).get_compound("retrogen").unwrap().clone()
+    }
+
+    #[test]
+    fn a_retrogen_with_only_the_required_fields_round_trips_and_invents_no_key() {
+        let dst = Fixture::new("retrogen_required_dst");
+        let written = written_retrogen(
+            retrogen_record("minecraft:full", &["minecraft:biomes"]),
+            &dst,
+            "retrogen_required_src",
+        );
+        let mut keys: Vec<&str> = written.child_tags.iter().map(|(k, _)| k.as_str()).collect();
+        keys.sort();
+        assert_eq!(keys, ["statuses_to_rerun", "target_status"]);
+    }
+
+    #[test]
+    fn an_empty_missing_bedrock_is_not_written() {
+        let dst = Fixture::new("retrogen_empty_dst");
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", NbtTag::LongArray(Vec::new()));
+        let written = written_retrogen(record, &dst, "retrogen_empty_src");
+        assert!(written.get("missing_bedrock").is_none());
+
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", NbtTag::LongArray(vec![3, 0, 0]));
+        let written = written_retrogen(record, &dst, "retrogen_zero_words_src");
+        assert_eq!(
+            written.get("missing_bedrock"),
+            Some(&NbtTag::LongArray(vec![3]))
+        );
     }
 
     #[test]
