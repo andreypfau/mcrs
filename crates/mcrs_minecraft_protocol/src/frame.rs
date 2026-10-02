@@ -1,5 +1,8 @@
 use bytes::{Buf, Bytes, BytesMut};
+use flate2::Decompress;
 use thiserror::Error;
+
+use crate::CompressionThreshold;
 
 pub const MAX_FRAME_BODY: usize = 2_097_151;
 
@@ -64,9 +67,63 @@ pub fn split_frame(buf: &mut BytesMut) -> Result<Bytes, FrameError> {
     Ok(buf.split_to(length).freeze())
 }
 
+pub fn decompress(
+    frame: Bytes,
+    threshold: CompressionThreshold,
+    inflater: &mut Option<Decompress>,
+) -> Result<Bytes, FrameError> {
+    let _ = (frame, threshold, inflater);
+    Ok(Bytes::new())
+}
+
+fn inflate(
+    input: &[u8],
+    declared: usize,
+    inflater: &mut Decompress,
+    out: &mut Vec<u8>,
+) -> Result<(), FrameError> {
+    let _ = (input, declared, inflater, out);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
+    use flate2::Compression;
+    use flate2::write::ZlibEncoder;
+
     use super::*;
+    use crate::Encode;
+    use crate::var_int::VarInt;
+
+    fn deflate(data: &[u8]) -> Vec<u8> {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    fn var_int(value: i32) -> Vec<u8> {
+        let mut out = Vec::new();
+        VarInt(value).encode(&mut out).unwrap();
+        out
+    }
+
+    fn pattern(len: usize) -> Vec<u8> {
+        (0..len).map(|i| (i * 7 % 251) as u8).collect()
+    }
+
+    fn compressed_frame(declared: i32, stream: &[u8]) -> Bytes {
+        let mut frame = var_int(declared);
+        frame.extend_from_slice(stream);
+        Bytes::from(frame)
+    }
+
+    fn uncompressed_frame(rest: &[u8]) -> Bytes {
+        let mut frame = vec![0x00];
+        frame.extend_from_slice(rest);
+        Bytes::from(frame)
+    }
 
     fn framed(body: &[u8]) -> BytesMut {
         let mut buf = BytesMut::new();
@@ -214,5 +271,253 @@ mod tests {
         assert_eq!(frame.len(), MAX_FRAME_BODY);
         assert_eq!(&frame[..], &body[..]);
         assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn a_negative_threshold_returns_the_frame_unchanged() {
+        let mut inflater = None;
+        for frame in [vec![1, 2, 3, 4], vec![0x80], vec![0x00, 9], vec![]] {
+            let frame = Bytes::from(frame);
+            assert_eq!(
+                decompress(frame.clone(), CompressionThreshold(-1), &mut inflater),
+                Ok(frame)
+            );
+        }
+        assert!(inflater.is_none());
+    }
+
+    #[test]
+    fn uncompressed_frames_pass_at_any_size() {
+        let mut inflater = None;
+        for threshold in [1usize, 64, 256] {
+            for size in [threshold - 1, threshold, threshold + 1, 100_000] {
+                let rest = pattern(size);
+                assert_eq!(
+                    decompress(
+                        uncompressed_frame(&rest),
+                        CompressionThreshold(threshold as i32),
+                        &mut inflater
+                    ),
+                    Ok(Bytes::from(rest)),
+                    "threshold {threshold}, size {size}"
+                );
+            }
+        }
+        assert!(inflater.is_none());
+    }
+
+    #[test]
+    fn compressed_frames_are_accepted_at_the_threshold_and_refused_below_it() {
+        let rows: [(i32, usize, bool); 8] = [
+            (1, 1, true),
+            (1, 2, true),
+            (64, 63, false),
+            (64, 64, true),
+            (64, 65, true),
+            (256, 255, false),
+            (256, 256, true),
+            (256, 257, true),
+        ];
+        for (threshold, declared, accepted) in rows {
+            let data = pattern(declared);
+            let frame = compressed_frame(declared as i32, &deflate(&data));
+            let result = decompress(frame, CompressionThreshold(threshold), &mut None);
+            if accepted {
+                assert_eq!(result, Ok(Bytes::from(data)), "{threshold} {declared}");
+            } else {
+                assert_eq!(
+                    result,
+                    Err(FrameError::BelowThreshold {
+                        declared,
+                        threshold: threshold as usize
+                    }),
+                    "{threshold} {declared}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_declared_size_at_the_maximum_is_accepted_and_one_past_it_refused() {
+        let threshold = CompressionThreshold(256);
+        let at_maximum = vec![0u8; MAX_UNCOMPRESSED_PACKET];
+        let frame = compressed_frame(MAX_UNCOMPRESSED_PACKET as i32, &deflate(&at_maximum));
+        let inflated = decompress(frame, threshold, &mut None).unwrap();
+        assert_eq!(inflated.len(), MAX_UNCOMPRESSED_PACKET);
+
+        let mut inflater = None;
+        let frame = compressed_frame(MAX_UNCOMPRESSED_PACKET as i32 + 1, &deflate(&[0; 16]));
+        assert_eq!(
+            decompress(frame, threshold, &mut inflater),
+            Err(FrameError::AboveMaximum {
+                declared: MAX_UNCOMPRESSED_PACKET + 1
+            })
+        );
+        assert!(inflater.is_none());
+    }
+
+    #[test]
+    fn a_malformed_or_oversized_declared_size_is_refused_before_inflating() {
+        let stream = deflate(&[0; 16]);
+        let cases = [
+            (
+                compressed_frame(-1, &stream),
+                FrameError::MalformedDataLength,
+            ),
+            (Bytes::from_static(&[0x80]), FrameError::MalformedDataLength),
+            (Bytes::new(), FrameError::MalformedDataLength),
+            (
+                Bytes::from_static(&[0xFF; 6]),
+                FrameError::MalformedDataLength,
+            ),
+            (
+                compressed_frame(i32::MAX, &stream),
+                FrameError::AboveMaximum {
+                    declared: i32::MAX as usize,
+                },
+            ),
+        ];
+        for (frame, error) in cases {
+            let mut inflater = None;
+            assert_eq!(
+                decompress(frame, CompressionThreshold(64), &mut inflater),
+                Err(error)
+            );
+            assert!(inflater.is_none(), "{error:?} created an inflater");
+        }
+    }
+
+    #[test]
+    fn a_padded_data_length_is_read_by_its_bytes() {
+        let threshold = CompressionThreshold(1);
+        let mut inflater = None;
+        for padding in [&[0x80, 0x00][..], &[0x80, 0x80, 0x00][..]] {
+            let mut frame = padding.to_vec();
+            frame.extend_from_slice(&[9, 9, 9]);
+            assert_eq!(
+                decompress(Bytes::from(frame), threshold, &mut inflater),
+                Ok(Bytes::from_static(&[9, 9, 9]))
+            );
+        }
+
+        let data = pattern(10);
+        let mut frame = vec![0x8A, 0x00];
+        frame.extend_from_slice(&deflate(&data));
+        assert_eq!(
+            decompress(Bytes::from(frame), threshold, &mut inflater),
+            Ok(Bytes::from(data))
+        );
+    }
+
+    #[test]
+    fn a_stream_shorter_than_declared_is_refused() {
+        let frame = compressed_frame(20, &deflate(&pattern(10)));
+        assert_eq!(
+            decompress(frame, CompressionThreshold(1), &mut None),
+            Err(FrameError::ShortStream {
+                declared: 20,
+                inflated: 10
+            })
+        );
+    }
+
+    #[test]
+    fn a_stream_longer_than_declared_is_refused() {
+        let frame = compressed_frame(10, &deflate(&pattern(20)));
+        assert_eq!(
+            decompress(frame, CompressionThreshold(1), &mut None),
+            Err(FrameError::TrailingData)
+        );
+    }
+
+    #[test]
+    fn bytes_after_the_end_of_the_stream_are_refused() {
+        let mut stream = deflate(&pattern(10));
+        stream.push(0);
+        assert_eq!(
+            decompress(
+                compressed_frame(10, &stream),
+                CompressionThreshold(1),
+                &mut None
+            ),
+            Err(FrameError::TrailingData)
+        );
+    }
+
+    #[test]
+    fn a_corrupt_stream_is_refused() {
+        let frame = compressed_frame(10, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01]);
+        assert_eq!(
+            decompress(frame, CompressionThreshold(1), &mut None),
+            Err(FrameError::CorruptStream)
+        );
+    }
+
+    #[test]
+    fn a_truncated_stream_is_refused() {
+        let stream = deflate(&pattern(10));
+        for cut in [1, 2, 4] {
+            let frame = compressed_frame(10, &stream[..stream.len() - cut]);
+            assert_eq!(
+                decompress(frame, CompressionThreshold(1), &mut None),
+                Err(FrameError::CorruptStream),
+                "cut {cut}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_inflater_is_usable_after_a_refused_frame() {
+        let threshold = CompressionThreshold(1);
+        let mut truncated = deflate(&pattern(10));
+        truncated.truncate(truncated.len() - 2);
+        let mut trailing = deflate(&pattern(10));
+        trailing.push(0);
+        let refused = [
+            compressed_frame(20, &deflate(&pattern(10))),
+            compressed_frame(10, &deflate(&pattern(20))),
+            compressed_frame(10, &trailing),
+            compressed_frame(10, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01]),
+            compressed_frame(10, &truncated),
+        ];
+
+        let mut inflater = None;
+        for frame in refused {
+            assert!(decompress(frame, threshold, &mut inflater).is_err());
+            let data = pattern(300);
+            let valid = compressed_frame(300, &deflate(&data));
+            assert_eq!(
+                decompress(valid, threshold, &mut inflater),
+                Ok(Bytes::from(data))
+            );
+        }
+        assert!(inflater.is_some());
+    }
+
+    #[test]
+    fn a_small_frame_declaring_the_maximum_does_not_reserve_it() {
+        let input = deflate(&pattern(10));
+        let mut inflater = Decompress::new(true);
+        let mut out = Vec::new();
+        assert_eq!(
+            inflate(&input, MAX_UNCOMPRESSED_PACKET, &mut inflater, &mut out),
+            Err(FrameError::ShortStream {
+                declared: MAX_UNCOMPRESSED_PACKET,
+                inflated: 10
+            })
+        );
+        assert!(out.capacity() < 1 << 20, "capacity {}", out.capacity());
+    }
+
+    #[test]
+    fn an_empty_rest_is_returned_as_an_empty_packet() {
+        assert_eq!(
+            decompress(
+                Bytes::from_static(&[0x00]),
+                CompressionThreshold(64),
+                &mut None
+            ),
+            Ok(Bytes::new())
+        );
     }
 }
