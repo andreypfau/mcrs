@@ -90,6 +90,12 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
 
 pub type Files = Vec<(String, Vec<u8>)>;
 
+/// The SHA-1 and the size of a jar's central directory and end record, which are its last bytes.
+pub fn directory_digest(jar: &[u8]) -> Result<(String, u64), String> {
+    let start = Directory::of(jar)?.start() as usize;
+    Ok((sha1_hex(&jar[start..]), (jar.len() - start) as u64))
+}
+
 const CENTRAL_HEADER: u32 = 0x0201_4b50;
 const LOCAL_HEADER: u32 = 0x0403_4b50;
 const END_OF_DIRECTORY: [u8; 4] = [0x50, 0x4b, 0x05, 0x06];
@@ -206,9 +212,25 @@ impl Directory {
         spans
     }
 
-    #[cfg(test)]
-    pub(crate) fn start(&self) -> u64 {
+    pub fn start(&self) -> u64 {
         self.start
+    }
+
+    /// The picked entries of `zip`, keyed by their full entry name and checked against their
+    /// CRC-32. Folder entries are never returned.
+    pub fn read(&self, zip: &[u8], mut pick: impl FnMut(&str) -> bool) -> Result<Files, String> {
+        let mut files = Vec::new();
+        for entry in &self.entries {
+            if entry.name.ends_with('/') || !pick(&entry.name) {
+                continue;
+            }
+            let local = usize::try_from(entry.offset)
+                .ok()
+                .and_then(|offset| zip.get(offset..))
+                .ok_or_else(|| format!("{} lies past the end", entry.name))?;
+            files.push((entry.name.clone(), inflate(entry, local)?));
+        }
+        Ok(files)
     }
 
     /// The picked `assets/` files, keyed by their path below `assets/` and checked against
@@ -339,6 +361,12 @@ pub(crate) mod tests {
             br#"{"providers":[{"type":"bitmap","file":"minecraft:font/ascii.png","ascent":7,"chars":["a"]},{"type":"space","advances":{" ":4}}]}"#,
         );
         file("data/minecraft/textures/fake.png", deflated, b"data");
+        file(
+            "data/minecraft/tags/block/fake.json",
+            stored,
+            br#"{"values":[]}"#,
+        );
+        file("version.json", stored, br#"{"id":"sample"}"#);
         file("net/minecraft/Other.class", deflated, &noise(4, 150_000));
         file(
             "assets/minecraft/textures/font/ascii.png",
@@ -409,6 +437,76 @@ pub(crate) mod tests {
         let error = directory.unpack(&[(0, &jar)], |_| true).unwrap_err();
 
         assert!(error.contains("CRC-32"), "{error}");
+    }
+
+    #[test]
+    fn read_returns_a_root_entry_under_its_name() {
+        let jar = sample_jar();
+
+        let files = Directory::of(&jar)
+            .unwrap()
+            .read(&jar, |name| name == "version.json")
+            .unwrap();
+
+        assert_eq!(
+            files,
+            [("version.json".to_owned(), br#"{"id":"sample"}"#.to_vec())]
+        );
+    }
+
+    #[test]
+    fn read_returns_the_files_under_a_prefix_by_full_name() {
+        let jar = sample_jar();
+        let directory = Directory::of(&jar).unwrap();
+
+        let data = directory
+            .read(&jar, |name| name.starts_with("data/minecraft/"))
+            .unwrap();
+        let names: Vec<&str> = data.iter().map(|(name, _)| name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "data/minecraft/textures/fake.png",
+                "data/minecraft/tags/block/fake.json"
+            ]
+        );
+        assert_eq!(data[0].1, b"data");
+
+        let textures = directory
+            .read(&jar, |name| name.starts_with("assets/minecraft/textures/"))
+            .unwrap();
+        assert_eq!(textures.len(), 3);
+        assert!(textures.iter().all(|(name, _)| !name.ends_with('/')));
+    }
+
+    #[test]
+    fn read_names_the_entry_that_fails_its_crc() {
+        let mut jar = sample_jar();
+        let directory = Directory::of(&jar).unwrap();
+        let lang = directory.entry("assets/minecraft/lang/en_us.json").unwrap();
+        let local = lang.offset as usize;
+        let data = local + 30 + lang.name.len() + u16_at(&jar, local + 28) as usize;
+        jar[data] ^= 0xff;
+
+        let error = directory.read(&jar, |_| true).unwrap_err();
+
+        assert!(
+            error.contains("assets/minecraft/lang/en_us.json"),
+            "{error}"
+        );
+        assert!(error.contains("CRC-32"), "{error}");
+    }
+
+    #[test]
+    fn the_directory_digest_covers_the_bytes_from_the_directory_start() {
+        let jar = sample_jar();
+        let start = Directory::of(&jar).unwrap().start() as usize;
+
+        assert_eq!(
+            directory_digest(&jar).unwrap(),
+            (sha1_hex(&jar[start..]), (jar.len() - start) as u64)
+        );
+        assert!(directory_digest(b"not a zip").is_err());
     }
 
     #[test]

@@ -331,6 +331,20 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
+/// One request, no retry: a caller that is given a wrong address must see the error. The body
+/// is not checked against anything.
+pub fn get(url: &str) -> Result<Vec<u8>, String> {
+    agent()
+        .get(url)
+        .call()
+        .map_err(|error| error.to_string())?
+        .into_body()
+        .with_config()
+        .limit(u64::MAX)
+        .read_to_vec()
+        .map_err(|error| error.to_string())
+}
+
 fn work(shared: &Shared, id: usize) {
     let agent = agent();
     let mut backoff = MIN_BACKOFF;
@@ -550,8 +564,8 @@ mod tests {
 
     use crate::fonts::{FontHint, is_texture};
     use crate::schedule::{ASSETS, DIRECTORY, FONTS, HINTED_FONTS, TEXTURES};
-    use crate::sha1_hex;
     use crate::tests::{entries, sample_jar};
+    use crate::{directory_digest, sha1_hex};
 
     use super::*;
 
@@ -666,7 +680,7 @@ mod tests {
     }
 
     fn release(jar: &[u8], url: &str, hint: String) -> &'static Release<'static> {
-        let start = Directory::of(jar).unwrap().start();
+        let (directory_sha1, directory_size) = directory_digest(jar).unwrap();
         let jar_url = leak(format!("{url}/client.jar"));
         Box::leak(Box::new(Release {
             id: "sample",
@@ -677,8 +691,8 @@ mod tests {
             },
             directory: Artifact {
                 url: jar_url,
-                sha1: leak(sha1_hex(&jar[start as usize..])),
-                size: jar.len() as u64 - start,
+                sha1: leak(directory_sha1),
+                size: directory_size,
             },
             json: Artifact {
                 url: leak(format!("{url}/sample.json")),
@@ -1009,23 +1023,45 @@ mod tests {
     }
 
     #[test]
+    fn get_returns_the_body_of_an_existing_path() {
+        let server = serve(&sample_jar(), JSON, Behaviour::default());
+
+        assert_eq!(get(&format!("{}/sample.json", server.url)).unwrap(), JSON);
+    }
+
+    #[test]
+    fn get_fails_a_missing_path_after_one_attempt() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/missing.json", listener.local_addr().unwrap());
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let counted = attempts.clone();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                counted.fetch_add(1, Ordering::SeqCst);
+                let mut head = [0; 1024];
+                let _ = stream.read(&mut head);
+                let _ = stream.write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                );
+            }
+        });
+
+        let error = get(&url).unwrap_err();
+
+        assert!(error.contains("404"), "{error}");
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
     fn the_font_hint_matches_the_pinned_jar() {
         let jar = locate(&candidates(), &RELEASE.jar, &Progress::default()).expect(
             "a pinned client jar installed by a launcher, or downloaded by one run of the client",
         );
         let generated = FontHint::of(&jar, RELEASE.jar.sha1).unwrap();
-        if std::env::var_os("MCRS_WRITE_FONT_HINT").is_some() {
-            let text = serde_json::to_string_pretty(&generated).unwrap() + "\n";
-            fs::write(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/font_hint.json"),
-                text,
-            )
-            .unwrap();
-        }
         assert_eq!(
             serde_json::from_str::<FontHint>(RELEASE.font_hint).unwrap(),
             generated,
-            "src/font_hint.json is stale; rerun this test with MCRS_WRITE_FONT_HINT=1"
+            "src/font_hint.json does not match the pinned jar; the update tool rewrites it"
         );
     }
 
