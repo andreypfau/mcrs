@@ -686,9 +686,9 @@ mod test {
 
     #[test]
     fn json_numbers_are_typed_like_json_ops() {
-        for (json, expected) in crate::snbt_golden::JSON_TYPING {
-            let tag: tag::NbtTag = serde_json::from_str(json).unwrap();
-            assert_eq!(crate::snbt::write(&tag), *expected, "{json}");
+        for case in &crate::snbt_golden::GOLDEN.json_typing {
+            let tag: tag::NbtTag = serde_json::from_str(&case.json).unwrap();
+            assert_eq!(crate::snbt::write(&tag), case.tag, "{}", case.json);
         }
         let nbt_long: tag::NbtTag =
             from_bytes_unnamed(Cursor::new(unhex("040000000000000001"))).unwrap();

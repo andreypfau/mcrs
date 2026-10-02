@@ -750,7 +750,7 @@ mod test {
     use std::io::Cursor;
 
     use super::*;
-    use crate::snbt_golden::*;
+    use crate::snbt_golden::GOLDEN;
     use crate::test::unhex;
 
     fn hex(tag: &NbtTag) -> String {
@@ -767,17 +767,18 @@ mod test {
     /// tag decoded from them is compared through the key-sorted SNBT form.
     #[test]
     fn parses_like_vanilla() {
-        for (input, expected_hex, expected_snbt) in PARSES {
+        for case in &GOLDEN.parses {
+            let input = &case.input;
             let tag = parse_tag(input).unwrap_or_else(|e| panic!("{input:?}: {e}"));
-            assert_eq!(write(&tag), *expected_snbt, "snbt of {input:?}");
+            assert_eq!(write(&tag), case.snbt, "snbt of {input:?}");
             assert_eq!(
-                write(&read(&unhex(expected_hex))),
-                *expected_snbt,
+                write(&read(&unhex(&case.hex))),
+                case.snbt,
                 "bytes of {input:?}"
             );
             assert_eq!(
-                write(&parse_tag(expected_snbt).unwrap()),
-                *expected_snbt,
+                write(&parse_tag(&case.snbt).unwrap()),
+                case.snbt,
                 "round trip of {input:?}"
             );
         }
@@ -785,26 +786,26 @@ mod test {
 
     #[test]
     fn rejects_like_vanilla() {
-        for input in REJECTS {
+        for input in &GOLDEN.rejects {
             assert!(parse_tag(input).is_err(), "{input:?} should not parse");
         }
     }
 
     #[test]
     fn formats_numbers_like_java() {
-        for (bits, expected) in DOUBLES {
-            assert_eq!(java_double(f64::from_bits(*bits)), *expected);
+        for case in &GOLDEN.doubles {
+            assert_eq!(java_double(f64::from_bits(case.bits)), case.text);
         }
-        for (bits, expected) in FLOATS {
-            assert_eq!(java_float(f32::from_bits(*bits)), *expected);
+        for case in &GOLDEN.floats {
+            assert_eq!(java_float(f32::from_bits(case.bits)), case.text);
         }
     }
 
     #[test]
     fn writes_like_vanilla_and_round_trips_its_bytes() {
-        let tag = read(&unhex(PRETTY_HEX));
-        assert_eq!(write(&tag), PRETTY);
-        assert_eq!(hex(&tag), PRETTY_HEX);
+        let tag = read(&unhex(&GOLDEN.pretty_hex));
+        assert_eq!(write(&tag), GOLDEN.pretty);
+        assert_eq!(hex(&tag), GOLDEN.pretty_hex);
     }
 
     #[test]
