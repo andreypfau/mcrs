@@ -1,13 +1,13 @@
 //! Every overworld biome's surface rules over one fixed patch of terrain.
 //!
-//! The biome grid is an argument to `apply_material_surface`, so pinning it to a
-//! single id runs that biome's rules exactly, over terrain the climate would
-//! never have paired it with. That measures the rules, not the landscape — see
+//! The stored biomes are an argument to `apply_material_surface`, so pinning
+//! them to a single biome runs that biome's rules exactly, over terrain the
+//! climate would never have paired it with. That measures the rules, not the landscape — see
 //! the `natural` mode, which quantifies how much the difference matters.
 //!
 //! usage: cargo bench --bench biome_matrix -- [mode] [columns_per_side] [seed] [offset]
 //!   mode = matrix   per-biome surface cost over one fixed patch of terrain
-//!        = natural  same columns with the real grid vs. the pinned grid
+//!        = natural  same columns with the real biomes vs. the pinned biome
 
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -252,17 +252,14 @@ fn run_pinned(
             ) else {
                 continue;
             };
-            let grid = filled
-                .biome_grid
-                .take()
-                .expect("a fixed source produces a grid");
             let t = Instant::now();
             apply_material_surface(
                 column,
                 cx,
                 cz,
                 &mut filled.tops,
-                &grid,
+                &filled.biomes,
+                y_sections[0],
                 router,
                 material,
                 ids,
@@ -391,7 +388,7 @@ fn natural(
     for z in 0..side {
         for x in 0..side {
             let (cx, cz) = (offset + x, offset + z);
-            let Some(mut filled) = fill_column_dense_any(
+            let Some(filled) = fill_column_dense_any(
                 &mut column,
                 cx,
                 cz,
@@ -404,15 +401,18 @@ fn natural(
             ) else {
                 continue;
             };
-            let Some(grid) = filled.biome_grid.take() else {
-                continue;
-            };
-
-            // The biome the column is mostly made of, over the whole grid rather
-            // than the surface alone, since that is what the pinned run replaces.
+            // The biome the column is mostly made of, over every stored block
+            // rather than the surface alone, since that is what the pinned run
+            // replaces.
             let mut counts = [0u32; 256];
-            for id in &grid.ids {
-                counts[*id as usize] += 1;
+            for section in &filled.biomes {
+                for y in 0..16 {
+                    for z in 0..16 {
+                        for x in 0..16 {
+                            counts[section.get_cell(x, y, z) as usize] += 1;
+                        }
+                    }
+                }
             }
             let dominant = counts
                 .iter()
@@ -428,7 +428,8 @@ fn natural(
                 cx,
                 cz,
                 &mut tops,
-                &grid,
+                &filled.biomes,
+                y_sections[0],
                 router,
                 material,
                 ids,
@@ -438,7 +439,7 @@ fn natural(
             let real = t.elapsed().as_secs_f64() * 1e3;
 
             let source = fixed_source(&names[dominant as usize]);
-            let pinned_grid = fill_column_dense_any(
+            let pinned_fill = fill_column_dense_any(
                 &mut column,
                 cx,
                 cz,
@@ -449,8 +450,7 @@ fn natural(
                 None,
                 cancel,
             )
-            .and_then(|f| f.biome_grid)
-            .expect("a fixed source produces a grid");
+            .expect("a fixed source fills the column");
             let mut tops = filled.tops;
             let t = Instant::now();
             apply_material_surface(
@@ -458,7 +458,8 @@ fn natural(
                 cx,
                 cz,
                 &mut tops,
-                &pinned_grid,
+                &pinned_fill.biomes,
+                y_sections[0],
                 router,
                 material,
                 ids,

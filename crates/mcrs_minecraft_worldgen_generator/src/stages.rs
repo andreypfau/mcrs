@@ -379,7 +379,7 @@ pub fn fill_column(
                 TerrainCarving::new(mask, carver_blocks, &mut filled.fluid, router, col.x, col.z)
             });
             let surfaced = match (surface, filled.biome_grid.as_ref(), ctx.material.as_deref()) {
-                (Some(ids), Some(grid), Some(material)) => {
+                (Some(ids), Some(_), Some(material)) => {
                     thread_local! {
                         static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
                     }
@@ -393,7 +393,8 @@ pub fn fill_column(
                             col.x,
                             col.z,
                             &mut filled.tops,
-                            grid,
+                            &filled.biomes,
+                            y_sections.first().copied().unwrap_or(0),
                             router,
                             material,
                             ids,

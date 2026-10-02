@@ -214,7 +214,7 @@ pub(super) fn surfaced_column(
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let (_, grid) =
+    let (biomes, _) =
         multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
@@ -224,7 +224,8 @@ pub(super) fn surfaced_column(
         section_x,
         section_z,
         &mut filled.tops,
-        &grid.expect("the multi-noise fill widens a grid"),
+        &biomes,
+        y_sections[0],
         router,
         material,
         &surface_ids(ids),
@@ -373,7 +374,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let (_, grid) =
+        let (biomes, _) =
             multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
@@ -381,7 +382,8 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             section_x,
             section_z,
             &mut filled.tops,
-            &grid.expect("the multi-noise fill widens a grid"),
+            &biomes,
+            y_sections[0],
             &router,
             &material,
             &surface_ids(&ids),
@@ -638,9 +640,9 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
                 continue;
             };
             palette.0.for_each(|state| states.push(state));
-            for cx in 0..4 {
-                for cy in 0..4 {
-                    for cz in 0..4 {
+            for cx in 0..16 {
+                for cy in 0..16 {
+                    for cz in 0..16 {
                         biomes.push(biome_palette.get_cell(cx, cy, cz));
                     }
                 }
@@ -678,7 +680,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     );
 }
 
-/// The same column under a constant biome grid, with the shortcuts on and off.
+/// The same column under constant biome containers, with the shortcuts on and off.
 fn surfaced_column_fixed(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -689,9 +691,7 @@ fn surfaced_column_fixed(
     y_sections: &[i32],
     bypass_shortcuts: bool,
 ) -> ColumnBlocks {
-    use crate::multi_noise_biomes::BiomeGrid;
-    use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+    use mcrs_minecraft_level::palette::BiomePalette;
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut filled = fill_column_dense_any(
@@ -707,17 +707,8 @@ fn surfaced_column_fixed(
     )
     .expect("the column fills");
 
-    let (first, last) = (y_sections[0], y_sections[y_sections.len() - 1]);
-    let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
-        IVec3::new(section_x * 16 - 4, first * 16 - 4, section_z * 16 - 4),
-        IVec3::splat(4),
-    );
     let id = u8::try_from(ids[biome]).expect("a biome id the palette can store");
-    let grid = BiomeGrid {
-        ids: vec![id; volume.len()],
-        volume,
-    };
+    let biomes = vec![BiomePalette::homogeneous(id); y_sections.len()];
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -726,7 +717,8 @@ fn surfaced_column_fixed(
         section_x,
         section_z,
         &mut filled.tops,
-        &grid,
+        &biomes,
+        y_sections[0],
         router,
         material,
         &surface_ids(ids),
