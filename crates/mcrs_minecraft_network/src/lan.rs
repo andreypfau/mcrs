@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 
 pub const GROUP: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(224, 0, 2, 60), 4445);
@@ -40,6 +40,28 @@ pub fn announcement(motd: &str, port: u16) -> Result<String, DatagramError> {
         return Err(DatagramError::TooLong { len: text.len() });
     }
     Ok(text)
+}
+
+pub fn announce_port(_bound: SocketAddr, _enabled: bool) -> Option<u16> {
+    None
+}
+
+pub fn source_address(bound: SocketAddr) -> SocketAddr {
+    bound
+}
+
+pub fn enabled(_value: Option<&str>) -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendLog {
+    Failed,
+    Recovered,
+}
+
+pub fn after_send(_failing: bool, _sent: bool) -> (bool, Option<SendLog>) {
+    (false, None)
 }
 
 #[cfg(test)]
@@ -179,5 +201,91 @@ mod tests {
         assert_eq!(GROUP.port(), 4445);
         assert_eq!(INTERVAL, Duration::from_millis(1500));
         assert_eq!(MAX_DATAGRAM, 1024);
+    }
+
+    fn addr(text: &str) -> SocketAddr {
+        text.parse().unwrap()
+    }
+
+    #[test]
+    fn a_loopback_listener_never_announces() {
+        for bound in ["127.0.0.1:25565", "[::1]:25565"] {
+            for setting in [true, false] {
+                assert_eq!(
+                    announce_port(addr(bound), setting),
+                    None,
+                    "{bound} {setting}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_network_listener_announces_its_bound_port_unless_the_setting_is_off() {
+        for bound in ["0.0.0.0:25565", "192.168.1.20:25565", "[::]:25565"] {
+            assert_eq!(announce_port(addr(bound), true), Some(25565), "{bound}");
+            assert_eq!(announce_port(addr(bound), false), None, "{bound}");
+        }
+    }
+
+    #[test]
+    fn the_announcement_socket_binds_the_listeners_address() {
+        assert_eq!(source_address(addr("0.0.0.0:25565")), addr("0.0.0.0:0"));
+        assert_eq!(
+            source_address(addr("192.168.1.20:25565")),
+            addr("192.168.1.20:0")
+        );
+        assert_eq!(source_address(addr("[::]:25565")), addr("0.0.0.0:0"));
+    }
+
+    #[test]
+    fn the_setting_is_off_only_for_its_off_spellings() {
+        for on in [
+            None,
+            Some(""),
+            Some("on"),
+            Some("1"),
+            Some("yes"),
+            Some("anything"),
+        ] {
+            assert!(enabled(on), "{on:?}");
+        }
+        for off in ["off", "0", "false", "no", "  off  "] {
+            assert!(!enabled(Some(off)), "{off:?}");
+        }
+    }
+
+    #[test]
+    fn a_send_result_is_logged_only_when_the_state_changes() {
+        assert_eq!(after_send(false, true), (false, None));
+        assert_eq!(after_send(false, false), (true, Some(SendLog::Failed)));
+        assert_eq!(after_send(true, false), (true, None));
+        assert_eq!(after_send(true, true), (false, Some(SendLog::Recovered)));
+    }
+
+    #[test]
+    fn a_run_of_failures_logs_once_and_a_recovery_once() {
+        let sent = [true, false, false, false, true, true, false];
+        let mut failing = false;
+        let steps: Vec<Option<SendLog>> = sent
+            .into_iter()
+            .map(|sent| {
+                let (next, log) = after_send(failing, sent);
+                failing = next;
+                log
+            })
+            .collect();
+        assert_eq!(
+            steps,
+            [
+                None,
+                Some(SendLog::Failed),
+                None,
+                None,
+                Some(SendLog::Recovered),
+                None,
+                Some(SendLog::Failed),
+            ]
+        );
     }
 }
