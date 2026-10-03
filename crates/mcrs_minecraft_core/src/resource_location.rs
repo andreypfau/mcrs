@@ -20,6 +20,8 @@ pub struct ResourceLocation<S = Arc<str>> {
     colon_pos: u16,
 }
 
+pub type StaticResourceLocation = ResourceLocation<&'static str>;
+
 // Copy for &'static str variant
 impl Copy for ResourceLocation<&'static str> {}
 

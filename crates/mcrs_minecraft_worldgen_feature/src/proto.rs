@@ -30,6 +30,12 @@ pub enum Holder<T> {
     Inline(Box<T>),
 }
 
+impl<T> From<mcrs_minecraft_core::ResourceKey<T, &'static str>> for Holder<T> {
+    fn from(key: mcrs_minecraft_core::ResourceKey<T, &'static str>) -> Self {
+        Holder::Reference((*key.location()).into())
+    }
+}
+
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Holder<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct HolderVisitor<T>(PhantomData<T>);

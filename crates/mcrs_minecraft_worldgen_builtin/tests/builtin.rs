@@ -1,8 +1,10 @@
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use mcrs_minecraft_worldgen_structure::TemplatePool;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
@@ -51,6 +53,11 @@ fn reads_back<T: DeserializeOwned + PartialEq + Debug>(
 }
 
 #[test]
+fn biomes_read_back() {
+    reads_back::<Biome>("biome", builtin::biomes(), 67, &[]);
+}
+
+#[test]
 fn density_functions_read_back() {
     reads_back::<DensityFunctionHolder>("density_function", builtin::density_functions(), 65, &[]);
 }
@@ -66,8 +73,13 @@ fn noises_read_back() {
 }
 
 #[test]
+fn template_pools_read_back() {
+    reads_back::<TemplatePool>("template_pool", builtin::template_pools(), 245, &[]);
+}
+
+#[test]
 fn a_path_outside_the_built_in_folders_is_not_served() {
-    assert_eq!(builtin::asset("minecraft/worldgen/biome/plains.json"), None);
+    assert_eq!(builtin::asset("minecraft/worldgen/structure/igloo.json"), None);
     assert_eq!(
         builtin::asset("minecraft/worldgen/noise/no_such_noise.json"),
         None

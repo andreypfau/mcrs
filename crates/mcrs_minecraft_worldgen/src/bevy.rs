@@ -107,8 +107,8 @@ impl AssetReader for BuiltinFallback {
         self.0.read_meta(path).await
     }
 
-    // chisle: a directory listing shows files only. Nothing enumerates the
-    // folders that have built-ins; merging the listings lifts it.
+    // chisle: a directory listing shows files only. The registry loader adds
+    // the built-in paths itself; merging the listings here lifts that.
     async fn read_directory<'a>(
         &'a self,
         path: &'a Path,
@@ -740,13 +740,10 @@ mod tests {
     /// Every shipped biome, numbered by its position in the registry directory,
     /// which is all the material rules need of a biome id.
     fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u32> {
-        json_files(&worldgen_dir().join("biome"))
-            .iter()
+        registry::<serde::de::IgnoredAny>("biome")
+            .into_keys()
             .enumerate()
-            .map(|(index, path)| {
-                let name = path.file_stem().unwrap().to_str().unwrap();
-                (ResourceLocation::minecraft(name), index as u32)
-            })
+            .map(|(index, id)| (id, index as u32))
             .collect()
     }
 

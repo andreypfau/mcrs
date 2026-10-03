@@ -26,6 +26,11 @@ fn run_to_playing() -> App {
         task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
     });
     app.add_plugins(StatesPlugin);
+    bevy_asset::AssetApp::register_asset_source(
+        &mut app,
+        bevy_asset::io::AssetSourceId::Default,
+        mcrs_minecraft_worldgen::bevy::asset_source("assets"),
+    );
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
         ..Default::default()

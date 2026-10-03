@@ -54,15 +54,10 @@ const END: [&str; 5] = [
 /// hold would fall back to a substitute id and quietly make those rules
 /// unreachable.
 fn corpus_biome_ids() -> Vec<String> {
-    let dir = worldgen_dir().join("biome");
-    let mut names: Vec<String> = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
-        .filter_map(|e| {
-            let path = e.ok()?.path();
-            (path.extension()? == "json").then(|| path.file_stem()?.to_str().map(str::to_owned))?
-        })
+    let names: Vec<String> = registry::<serde::de::IgnoredAny>("biome")
+        .into_keys()
+        .map(|id| id.path().to_owned())
         .collect();
-    names.sort();
     assert!(names.len() <= 256, "the biome grid stores a u8");
     names
 }
@@ -148,7 +143,7 @@ fn biome_registry(names: &[String]) -> (RegistrySnapshot<Biome>, bevy_asset::Ass
                     water_color: None,
                     foliage_color: None,
                     grass_color: None,
-                    grass_color_modifier: None,
+                    grass_color_modifier: Default::default(),
                     dry_foliage_color: None,
                 },
                 carvers: Vec::new(),

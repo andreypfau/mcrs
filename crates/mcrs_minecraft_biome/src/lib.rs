@@ -9,11 +9,16 @@ use std::sync::Arc;
 use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::de::{self, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings};
+use mcrs_minecraft_core::codec::{HexRgb, is_default};
+use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_environment::attribute::{
+    EnvironmentAttributeMap, MobSpawnSettings, Operation, id,
+};
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_structure::DecorationStep;
 
 pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
 
@@ -26,7 +31,7 @@ pub enum TemperatureModifier {
     Frozen,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TypePath)]
 pub struct Biome {
     pub temperature: f32,
     pub downfall: f32,
@@ -36,7 +41,11 @@ pub struct Biome {
     pub effects: BiomeEffects,
     #[serde(default)]
     pub attributes: EnvironmentAttributeMap,
-    #[serde(default, deserialize_with = "one_or_many")]
+    #[serde(
+        default,
+        deserialize_with = "one_or_many",
+        serialize_with = "one_or_list"
+    )]
     pub carvers: Vec<ResourceLocation<Arc<str>>>,
     #[serde(default)]
     pub features: Vec<FeatureStepList>,
@@ -94,18 +103,146 @@ impl VisitAssetDependencies for Biome {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GrassColorModifier {
+    #[default]
+    None,
+    DarkForest,
+    Swamp,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BiomeEffects {
-    #[serde(default)]
-    pub water_color: Option<String>,
-    #[serde(default)]
-    pub foliage_color: Option<String>,
-    #[serde(default)]
-    pub grass_color: Option<String>,
-    #[serde(default)]
-    pub grass_color_modifier: Option<String>,
-    #[serde(default)]
-    pub dry_foliage_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub water_color: Option<HexRgb>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub foliage_color: Option<HexRgb>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grass_color: Option<HexRgb>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub grass_color_modifier: GrassColorModifier,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dry_foliage_color: Option<HexRgb>,
+}
+
+impl BiomeEffects {
+    pub fn water(color: i32) -> Self {
+        BiomeEffects {
+            water_color: Some(HexRgb::of(color)),
+            ..Default::default()
+        }
+    }
+
+    pub fn foliage(mut self, color: i32) -> Self {
+        self.foliage_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn grass(mut self, color: i32) -> Self {
+        self.grass_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn dry_foliage(mut self, color: i32) -> Self {
+        self.dry_foliage_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn grass_modifier(mut self, modifier: GrassColorModifier) -> Self {
+        self.grass_color_modifier = modifier;
+        self
+    }
+}
+
+pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
+
+/// The carvers and the per-step placed features of a biome, in the order they
+/// were added. A step is listed up to the last one that was given a feature.
+#[derive(Debug, Default)]
+pub struct BiomeGeneration {
+    carvers: Vec<StaticResourceLocation>,
+    features: Vec<Vec<PlacedFeatureKey>>,
+}
+
+impl BiomeGeneration {
+    pub fn carver(&mut self, id: StaticResourceLocation) -> &mut Self {
+        self.carvers.push(id);
+        self
+    }
+
+    pub fn feature(&mut self, step: DecorationStep, key: PlacedFeatureKey) -> &mut Self {
+        self.features(step, &[key])
+    }
+
+    pub fn features(&mut self, step: DecorationStep, keys: &[PlacedFeatureKey]) -> &mut Self {
+        let step = step as usize;
+        if self.features.len() <= step {
+            self.features.resize_with(step + 1, Vec::new);
+        }
+        self.features[step].extend_from_slice(keys);
+        self
+    }
+}
+
+impl Biome {
+    pub const NORMAL_WATER_COLOR: i32 = 4159204;
+
+    pub fn new(
+        has_precipitation: bool,
+        temperature: f32,
+        downfall: f32,
+        mobs: MobSpawnSettings,
+        generation: BiomeGeneration,
+    ) -> Self {
+        let features = generation.features.into_iter().map(|step| {
+            HolderSet::List(step.into_iter().map(Into::into).collect())
+        });
+        Biome {
+            temperature,
+            downfall,
+            has_precipitation,
+            temperature_modifier: None,
+            effects: BiomeEffects::water(Self::NORMAL_WATER_COLOR),
+            attributes: Default::default(),
+            carvers: generation.carvers.into_iter().map(Into::into).collect(),
+            features: features.collect(),
+        }
+        .modified(id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
+    }
+
+    /// Panics on an argument the attribute does not take: a description
+    /// written in code is wrong at the point it is written.
+    pub fn with(self, attribute: StaticResourceLocation, value: impl Serialize) -> Self {
+        self.modified(attribute, Operation::Override, value)
+    }
+
+    pub fn modified(
+        mut self,
+        attribute: StaticResourceLocation,
+        modifier: Operation,
+        argument: impl Serialize,
+    ) -> Self {
+        if let Err(error) = self.attributes.modify(attribute, modifier, argument) {
+            panic!("{attribute}: {error}");
+        }
+        self
+    }
+
+    pub fn effects(mut self, effects: BiomeEffects) -> Self {
+        self.effects = effects;
+        self
+    }
+
+    pub fn precipitation(mut self, has_precipitation: bool) -> Self {
+        self.has_precipitation = has_precipitation;
+        self
+    }
+
+    pub fn temperature_modifier(mut self, modifier: TemperatureModifier) -> Self {
+        self.temperature_modifier = Some(modifier);
+        self
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +292,13 @@ where
     deserializer.deserialize_any(OneOrManyVisitor(std::marker::PhantomData))
 }
 
+fn one_or_list<S: Serializer, T: Serialize>(items: &[T], serializer: S) -> Result<S::Ok, S::Error> {
+    match items {
+        [item] => item.serialize(serializer),
+        items => items.serialize(serializer),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Asset loader
 // ---------------------------------------------------------------------------
@@ -162,33 +306,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::assets_dir;
 
     #[test]
     fn deserialize_all_biomes() {
-        for (path, biome) in
-            mcrs_minecraft_worldgen_testing::parse_all::<Biome>("minecraft/worldgen/biome")
-        {
-            let raw: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-            let attributes = raw
-                .get("attributes")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!({}));
-            assert_eq!(
-                serde_json::to_value(&biome.attributes).unwrap(),
-                attributes,
-                "{} attributes must round-trip unchanged",
-                path.display()
-            );
+        let biomes = mcrs_minecraft_worldgen_testing::registry::<Biome>("biome");
+        assert!(biomes.len() >= 78, "{} biomes", biomes.len());
+        for (id, biome) in biomes {
+            let encoded = serde_json::to_string(&biome).unwrap();
+            let read: Biome = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(read, biome, "{id} must round-trip unchanged");
         }
     }
 
     #[test]
     fn network_biome_omits_server_fields() {
-        let bytes =
-            std::fs::read(assets_dir().join("minecraft/worldgen/biome/plains.json")).unwrap();
-        let biome: Biome = serde_json::from_slice(&bytes).unwrap();
+        let biome: Biome =
+            mcrs_minecraft_worldgen_testing::read("biome", &ResourceLocation::minecraft("plains"));
         let network = NetworkBiome::from(&biome);
 
         let json = serde_json::to_value(&network).unwrap();
@@ -229,9 +362,8 @@ mod tests {
 
     #[test]
     fn deserialize_plains_biome() {
-        let bytes =
-            std::fs::read(assets_dir().join("minecraft/worldgen/biome/plains.json")).unwrap();
-        let biome: Biome = serde_json::from_slice(&bytes).unwrap();
+        let biome: Biome =
+            mcrs_minecraft_worldgen_testing::read("biome", &ResourceLocation::minecraft("plains"));
 
         assert!((biome.temperature - 0.8).abs() < f32::EPSILON);
         assert!((biome.downfall - 0.4).abs() < f32::EPSILON);

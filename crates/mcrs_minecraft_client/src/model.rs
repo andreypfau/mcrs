@@ -29,6 +29,19 @@ const RESOURCE_FOLDERS: [&str; 7] = [
 /// Biome tints come from the data pack, whose `beta_*` biomes exist only in the repo.
 const DATA_FOLDERS: [&str; 1] = ["worldgen/biome"];
 
+/// The data folder entries the code builds, for the paths the pack holds no file at.
+fn add_built_in(files: &mut HashMap<String, Vec<u8>>) {
+    for directory in DATA_FOLDERS {
+        let Some(folder) = directory.strip_prefix("worldgen/") else {
+            continue;
+        };
+        for (id, bytes) in mcrs_minecraft_worldgen_builtin::assets(folder) {
+            let path = format!("{}/{directory}/{}.json", id.namespace(), id.path());
+            files.entry(path).or_insert(bytes);
+        }
+    }
+}
+
 pub fn is_resource(path: &str) -> bool {
     path.split_once('/').is_some_and(|(_, rest)| {
         RESOURCE_FOLDERS.iter().any(|folder| {
@@ -56,6 +69,7 @@ impl Pack {
                 .map_err(|error| format!("no {source} asset source: {error}"))?;
             Self::walk(reader.reader(), folders, &mut files).await?;
         }
+        add_built_in(&mut files);
         Ok(Self { files })
     }
 
@@ -166,6 +180,7 @@ impl Pack {
                     files.insert(relative.to_string_lossy().into_owned(), bytes);
                 }
             }
+            add_built_in(&mut files);
             Pack { files }
         });
         &CORPUS

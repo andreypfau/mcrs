@@ -32,7 +32,7 @@ pub use quart_pos::QuartPos;
 pub use region_pos::RegionPos;
 pub use registry_key::RegistryKey;
 pub use resource_key::ResourceKey;
-pub use resource_location::ResourceLocation;
+pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::{TagKey, TaggedRegistry};

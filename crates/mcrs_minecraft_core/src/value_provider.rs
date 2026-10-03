@@ -312,6 +312,15 @@ impl IntProvider {
         })
     }
 
+    /// A constant where the bounds meet, a uniform range otherwise.
+    pub fn between(min_inclusive: i32, max_inclusive: i32) -> Self {
+        if min_inclusive == max_inclusive {
+            IntProvider::Constant(min_inclusive)
+        } else {
+            IntProvider::uniform(min_inclusive, max_inclusive)
+        }
+    }
+
     /// `getMinValue` / `getMaxValue`, which a few features read rather than
     /// sample.
     pub fn bounds(&self) -> (i32, i32) {

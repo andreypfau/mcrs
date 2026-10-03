@@ -46,7 +46,8 @@ pub(crate) mod registry_files {
 /// this picks up files that the active source can enumerate, including
 /// future resource packs mounted as file-system folders or ZIPs.
 /// Falls back to the build-time manifest baked from the vanilla `assets/`
-/// tree for sources that cannot list directories (HTTP/WASM).
+/// tree for sources that cannot list directories (HTTP/WASM). Either listing
+/// names files only, so the entries the code builds are added to it.
 fn list_registry_files(
     asset_server: &AssetServer,
     folder: &str,
@@ -68,13 +69,15 @@ fn list_registry_files(
         }
     };
 
-    if !dynamic.is_empty() {
-        let mut sorted = dynamic;
-        sorted.sort();
-        return sorted;
+    let mut files: std::collections::BTreeSet<String> = if dynamic.is_empty() {
+        fallback.iter().map(|s| (*s).to_owned()).collect()
+    } else {
+        dynamic.into_iter().collect()
+    };
+    if extension == "json" {
+        files.extend(mcrs_minecraft_worldgen_builtin::paths(folder));
     }
-
-    fallback.iter().map(|s| (*s).to_owned()).collect()
+    files.into_iter().collect()
 }
 
 fn request_registry<T: Asset>(

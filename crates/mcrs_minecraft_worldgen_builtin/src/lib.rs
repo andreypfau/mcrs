@@ -1,14 +1,25 @@
+// TODO: a built-in is built as a typed value, encoded to JSON and parsed back
+// by the loader, and the values it builds hold `ResourceLocation<Arc<str>>`,
+// so every reference costs one allocation. Once the loader takes typed values
+// and `Holder` is `Reference(Id<T>)`, hand the values over directly, resolve
+// the static keys to ids, and type the remaining bare `rl!` ids (entity types,
+// carvers, sounds, particles, templates).
 mod beta;
+mod biome;
 mod density;
+mod keys;
 mod noises;
 mod settings;
+mod template_pool;
 mod terrain;
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use mcrs_minecraft_worldgen_structure::TemplatePool;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -16,6 +27,10 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     let mut noises = noises::noises();
     noises.extend(beta::noises());
     noises
+}
+
+pub fn biomes() -> BTreeMap<ResourceLocation, Biome> {
+    biome::all().map(|(id, build)| (id, build())).collect()
 }
 
 pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
@@ -31,36 +46,71 @@ pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
     settings
 }
 
+pub fn template_pools() -> BTreeMap<ResourceLocation, TemplatePool> {
+    template_pool::keys()
+        .map(|id| {
+            let pool = template_pool::build(&id).expect("a listed pool builds");
+            (id, pool)
+        })
+        .collect()
+}
+
+fn json<T: Serialize>(value: &T) -> Vec<u8> {
+    serde_json::to_vec(value).expect("a built-in encodes as JSON")
+}
+
+fn encode<T: Serialize>(
+    registry: BTreeMap<ResourceLocation, T>,
+) -> BTreeMap<ResourceLocation, Vec<u8>> {
+    registry
+        .into_iter()
+        .map(|(id, value)| (id, json(&value)))
+        .collect()
+}
+
 /// Every built-in entry of one `worldgen` folder as the JSON it would ship as.
 /// A folder with no built-ins is empty.
 pub fn assets(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    fn encode<T: Serialize>(
-        registry: BTreeMap<ResourceLocation, T>,
-    ) -> BTreeMap<ResourceLocation, Vec<u8>> {
-        registry
-            .into_iter()
-            .map(|(id, value)| {
-                let json = serde_json::to_vec(&value).expect("a built-in encodes as JSON");
-                (id, json)
-            })
-            .collect()
-    }
-
     match folder {
+        "biome" => encode(biomes()),
         "density_function" => encode(density_functions()),
         "noise_settings" => encode(noise_settings()),
         "noise" => encode(noises()),
+        "template_pool" => encode(template_pools()),
         _ => BTreeMap::new(),
     }
 }
 
+/// The asset path of every built-in entry of one registry directory,
+/// `<namespace>/worldgen/<folder>`.
+pub fn paths(directory: &str) -> Vec<String> {
+    let Some((namespace, folder)) = directory.split_once("/worldgen/") else {
+        return Vec::new();
+    };
+    let ids: Vec<ResourceLocation> = match folder {
+        "biome" => biome::all().map(|(id, _)| id).collect(),
+        "template_pool" => template_pool::keys().collect(),
+        _ => assets(folder).into_keys().collect(),
+    };
+    ids.into_iter()
+        .filter(|id| id.namespace() == namespace)
+        .map(|id| format!("{directory}/{}.json", id.path()))
+        .collect()
+}
+
 /// One built-in entry, addressed the way the asset server addresses the file:
 /// `<namespace>/worldgen/<folder>/<path>.json`.
-// chisle: builds the whole folder to answer for one entry, which is paid once
-// per entry at load. A per-entry builder lifts it if a pack ever loads thousands.
+// chisle: the density, noise and noise settings folders build whole to answer
+// for one entry or to list their ids, because their definitions share
+// sub-expressions: 65 density functions served one by one take about 50 ms in
+// release. Loading each registry once lifts it.
 pub fn asset(path: &str) -> Option<Vec<u8>> {
     let (namespace, rest) = path.split_once("/worldgen/")?;
     let (folder, name) = rest.strip_suffix(".json")?.split_once('/')?;
-    let id = ResourceLocation::parse(&format!("{namespace}:{name}")).ok()?;
-    assets(folder).remove(&id)
+    let id = ResourceLocation::new(namespace, name);
+    match folder {
+        "biome" => biome::build(&id).map(|biome| json(&biome)),
+        "template_pool" => template_pool::build(&id).map(|pool| json(&pool)),
+        _ => assets(folder).remove(&id),
+    }
 }

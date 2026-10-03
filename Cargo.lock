@@ -3559,6 +3559,7 @@ dependencies = [
  "mcrs_minecraft_render_probe",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
+ "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_noise",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
@@ -4049,6 +4050,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_testing",
@@ -4090,9 +4092,13 @@ dependencies = [
 name = "mcrs_minecraft_worldgen_builtin"
 version = "0.1.0"
 dependencies = [
+ "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_environment",
  "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_structure",
  "serde",
  "serde_json",
 ]

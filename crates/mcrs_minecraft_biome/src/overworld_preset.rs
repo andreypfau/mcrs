@@ -1330,27 +1330,11 @@ mod tests {
     use super::*;
     use crate::climate::TargetPoint;
     use std::collections::BTreeSet;
-    use std::path::PathBuf;
 
     fn shipped_biomes() -> BTreeSet<String> {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets/minecraft/worldgen/biome");
-        std::fs::read_dir(dir)
-            .expect("biome dir must exist")
-            .filter_map(|entry| {
-                let path = entry.unwrap().path();
-                if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                    return None;
-                }
-                Some(format!(
-                    "minecraft:{}",
-                    path.file_stem().unwrap().to_string_lossy()
-                ))
-            })
+        mcrs_minecraft_worldgen_testing::registry::<crate::Biome>("biome")
+            .into_keys()
+            .map(|id| id.as_str().to_owned())
             .collect()
     }
 
@@ -1410,34 +1394,12 @@ mod tests {
     /// neither is wrong.
     #[test]
     fn the_table_names_exactly_the_biomes_with_overworld_carvers() {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets/minecraft/worldgen/biome");
-        let mut with_overworld_carvers = BTreeSet::new();
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let raw: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-            let carvers: Vec<&str> = match raw.get("carvers") {
-                Some(serde_json::Value::String(one)) => vec![one.as_str()],
-                Some(serde_json::Value::Array(many)) => {
-                    many.iter().filter_map(|v| v.as_str()).collect()
-                }
-                _ => Vec::new(),
-            };
-            if carvers.contains(&"minecraft:cave") {
-                with_overworld_carvers.insert(format!(
-                    "minecraft:{}",
-                    path.file_stem().unwrap().to_string_lossy()
-                ));
-            }
-        }
+        let with_overworld_carvers: BTreeSet<String> =
+            mcrs_minecraft_worldgen_testing::registry::<crate::Biome>("biome")
+                .into_iter()
+                .filter(|(_, biome)| biome.carvers.iter().any(|c| c.as_str() == "minecraft:cave"))
+                .map(|(id, _)| id.as_str().to_owned())
+                .collect();
 
         let table = overworld_parameter_list();
         let named: BTreeSet<String> = table

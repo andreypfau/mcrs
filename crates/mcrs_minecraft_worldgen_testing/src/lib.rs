@@ -127,26 +127,30 @@ pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
     serde_json::from_str(&serde_json::to_string(value).unwrap()).unwrap()
 }
 
-/// Every file in one `minecraft/worldgen` folder, parsed and written back,
-/// which must equal what was read. Returns how many files were checked, so a
-/// caller can pin the count and see a corpus change as a failure.
+/// Every entry of one `minecraft/worldgen` registry, shipped or built in,
+/// parsed and written back, which must equal what was read. Returns how many
+/// entries were checked, so a caller can pin the count and see a corpus change
+/// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
     let base = worldgen_dir().join(folder);
-    let paths = json_files(&base);
-    for path in &paths {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let raw: serde_json::Value =
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let parsed: T =
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        assert_eq!(
-            reencode(&parsed),
-            raw,
-            "{} does not round-trip",
-            path.display()
-        );
+    let mut entries = builtin::assets(folder);
+    let shipped = if base.is_dir() {
+        json_files(&base)
+    } else {
+        Vec::new()
+    };
+    for path in shipped {
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        entries.insert(id_of(&base, &path), bytes);
     }
-    paths.len()
+    for (id, bytes) in &entries {
+        let raw: serde_json::Value =
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+        let parsed: T =
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+        assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
+    }
+    entries.len()
 }
 
 /// A length-prefixed string of one of the oracle's little-endian dumps.

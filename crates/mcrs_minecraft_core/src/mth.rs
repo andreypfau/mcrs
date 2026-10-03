@@ -201,6 +201,25 @@ pub fn map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -
     to_min + (value - from_min) / (from_max - from_min) * (to_max - to_min)
 }
 
+/// `Mth.hsvToRgb`: packed `0xRRGGBB`, each channel truncated to eight bits.
+pub fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> i32 {
+    let h = (hue * 6.0) as i32 % 6;
+    let f = hue * 6.0 - h as f32;
+    let p = value * (1.0 - saturation);
+    let q = value * (1.0 - f * saturation);
+    let t = value * (1.0 - (1.0 - f) * saturation);
+    let (red, green, blue) = match h {
+        0 => (value, t, p),
+        1 => (q, value, p),
+        2 => (p, value, t),
+        3 => (p, q, value),
+        4 => (t, p, value),
+        _ => (value, p, q),
+    };
+    let channel = |c: f32| ((c * 255.0) as i32).clamp(0, 255);
+    channel(red) << 16 | channel(green) << 8 | channel(blue)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

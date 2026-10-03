@@ -1,3 +1,4 @@
+pub mod id;
 pub mod lerp;
 pub mod mob_spawns;
 pub mod modifier;
@@ -39,6 +40,34 @@ impl EnvironmentAttributeMap {
             Some(entry) => serde_json::from_value(entry.argument.clone()).map(Some),
             None => Ok(None),
         }
+    }
+
+    pub fn set(
+        &mut self,
+        id: ResourceLocation<&'static str>,
+        value: impl Serialize,
+    ) -> Result<(), AttributeError> {
+        self.modify(id, Operation::Override, value)
+    }
+
+    /// Checked against the attribute's type and modifier library, as a parsed
+    /// entry is.
+    pub fn modify(
+        &mut self,
+        id: ResourceLocation<&'static str>,
+        modifier: Operation,
+        argument: impl Serialize,
+    ) -> Result<(), AttributeError> {
+        let spec = attribute(id.as_str())
+            .ok_or_else(|| AttributeError::UnknownAttribute(id.as_str().to_owned()))?;
+        // Through text rather than `to_value`, which widens an `f32` to the
+        // nearest `f64` and so prints 0.07 as 0.07000000029802322.
+        let argument: Value = serde_json::to_string(&argument)
+            .and_then(|text| serde_json::from_str(&text))
+            .map_err(|error| spec::malformed(spec.id, error.to_string()))?;
+        spec.parse_argument(modifier, &argument)?;
+        self.0.insert(id.into(), AttributeEntry { argument, modifier });
+        Ok(())
     }
 
     pub fn filter_syncable(&self) -> Self {

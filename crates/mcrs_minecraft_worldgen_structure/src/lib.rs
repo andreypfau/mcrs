@@ -20,7 +20,9 @@ use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted}
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature, StructureProcessorList};
+use mcrs_minecraft_worldgen_feature::proto::{
+    Holder, PlacedFeature, StructureProcessorList, WrappedProcessors,
+};
 use mcrs_minecraft_worldgen_feature::tree::{PositiveFloat, UnitFloat, non_empty};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -263,6 +265,19 @@ pub enum MobCategory {
     WaterCreature,
     WaterAmbient,
     Misc,
+}
+
+impl MobCategory {
+    pub const ALL: [MobCategory; 8] = [
+        MobCategory::Monster,
+        MobCategory::Creature,
+        MobCategory::Ambient,
+        MobCategory::Axolotls,
+        MobCategory::UndergroundWaterCreature,
+        MobCategory::WaterCreature,
+        MobCategory::WaterAmbient,
+        MobCategory::Misc,
+    ];
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -523,6 +538,26 @@ pub struct SingleElement {
     pub projection: Projection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub override_liquid_settings: Option<LiquidSettings>,
+}
+
+impl SingleElement {
+    /// No processor list is an empty list written in place, not a reference.
+    pub fn new(
+        location: impl Into<ResourceLocation>,
+        processors: Option<Holder<StructureProcessorList>>,
+        projection: Projection,
+    ) -> Self {
+        SingleElement {
+            location: location.into(),
+            processors: processors.unwrap_or_else(|| {
+                Holder::Inline(Box::new(Either::Left(WrappedProcessors {
+                    processors: Vec::new(),
+                })))
+            }),
+            projection,
+            override_liquid_settings: None,
+        }
+    }
 }
 
 #[cfg(test)]

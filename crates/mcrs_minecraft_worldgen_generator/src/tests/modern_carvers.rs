@@ -28,20 +28,13 @@ fn y_sections() -> Vec<i32> {
 
 /// The carver list a biome actually ships, read the way the loader would.
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = worldgen_dir().join(format!(
-        "biome/{}.json",
-        biome.strip_prefix("minecraft:").unwrap_or(biome)
-    ));
-    let raw: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&path).expect("biome must exist")).unwrap();
-    let names: Vec<String> = match raw.get("carvers") {
-        Some(serde_json::Value::String(one)) => vec![one.clone()],
-        Some(serde_json::Value::Array(many)) => many
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect(),
-        _ => Vec::new(),
-    };
+    let id = mcrs_minecraft_core::ResourceLocation::parse(biome).expect("a biome id");
+    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let names: Vec<String> = biome
+        .carvers
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect();
     names
         .iter()
         .map(|name| {
@@ -336,25 +329,15 @@ fn asset_maps() -> (
     std::collections::HashMap<String, CarverConfig>,
 ) {
     let mut carvers_by_biome = std::collections::HashMap::new();
-    for entry in std::fs::read_dir(worldgen_dir().join("biome")).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let raw: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        let names: Vec<String> = match raw.get("carvers") {
-            Some(serde_json::Value::String(one)) => vec![one.clone()],
-            Some(serde_json::Value::Array(many)) => many
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect(),
-            _ => Vec::new(),
-        };
-        carvers_by_biome.insert(
-            format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy()),
-            names,
-        );
+    for (id, biome) in
+        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome::Biome>("biome")
+    {
+        let names = biome
+            .carvers
+            .iter()
+            .map(|c| c.as_str().to_owned())
+            .collect();
+        carvers_by_biome.insert(id.as_str().to_owned(), names);
     }
 
     let mut config_by_location = std::collections::HashMap::new();

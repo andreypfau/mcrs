@@ -1,0 +1,123 @@
+use super::Piece::*;
+use super::Pool;
+use crate::keys::{placed, processors};
+use mcrs_minecraft_core::rl;
+use mcrs_minecraft_worldgen_feature::template::Projection::*;
+
+#[rustfmt::skip]
+pub const POOLS: &[Pool] = &[
+    Pool {
+        name: rl!("minecraft:ancient_city/city/entrance"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_connector"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_path_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_path_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_path_3"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_path_4"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city/entrance/entrance_path_5"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/city_center"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (SingleWith(rl!("minecraft:ancient_city/city_center/city_center_1"), processors::ANCIENT_CITY_START_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/city_center_2"), processors::ANCIENT_CITY_START_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/city_center_3"), processors::ANCIENT_CITY_START_DEGRADATION), 1),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/city_center/walls"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/bottom_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/bottom_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/bottom_left_corner"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/bottom_right_corner_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/bottom_right_corner_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/left"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/right"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/top"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/top_right_corner"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/city_center/walls/top_left_corner"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/sculk"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (Feature(placed::SCULK_PATCH_ANCIENT_CITY), 6),
+            (Empty, 1),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/structures"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (Empty, 7),
+            (SingleWith(rl!("minecraft:ancient_city/structures/barracks"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/chamber_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/chamber_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/chamber_3"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/sauna_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/small_statue"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/structures/large_ruin_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/tall_ruin_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/tall_ruin_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/tall_ruin_3"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 2),
+            (SingleWith(rl!("minecraft:ancient_city/structures/tall_ruin_4"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 2),
+            (List(&[SingleWith(rl!("minecraft:ancient_city/structures/camp_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), SingleWith(rl!("minecraft:ancient_city/structures/camp_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), SingleWith(rl!("minecraft:ancient_city/structures/camp_3"), processors::ANCIENT_CITY_GENERIC_DEGRADATION)]), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/medium_ruin_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/medium_ruin_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/small_ruin_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/small_ruin_2"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/large_pillar_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/structures/medium_pillar_1"), processors::ANCIENT_CITY_GENERIC_DEGRADATION), 1),
+            (List(&[Single(rl!("minecraft:ancient_city/structures/ice_box_1"))]), 1),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/walls"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_corner_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_intersection_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_lshape_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_3"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_4"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 4),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_passage_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 3),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_corner_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_corner_wall_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_horizontal_wall_stairs_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 2),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_horizontal_wall_stairs_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 2),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_horizontal_wall_stairs_3"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 3),
+            (SingleWith(rl!("minecraft:ancient_city/walls/ruined_horizontal_wall_stairs_4"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 3),
+        ],
+    },
+    Pool {
+        name: rl!("minecraft:ancient_city/walls/no_corners"),
+        fallback: rl!("minecraft:empty"),
+        projection: Rigid,
+        pieces: &[
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_1"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_2"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_3"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_4"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+            (SingleWith(rl!("minecraft:ancient_city/walls/intact_horizontal_wall_bridge"), processors::ANCIENT_CITY_WALLS_DEGRADATION), 1),
+        ],
+    },
+];
