@@ -246,6 +246,12 @@ fn flatten_tag_file(
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks;
 
+/// Marker for a connection that has been sent `ClientboundFinishConfiguration`. Its client
+/// already decodes play, while the server stays in Configuration until the client acknowledges.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct AwaitingFinishConfiguration;
+
 /// True iff the entry's NBT body should be omitted from `ClientboundRegistryData`
 /// because the client already has the pack that sourced it.
 ///
@@ -386,7 +392,7 @@ fn on_configuration_enter(
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
 /// reconfiguration.
-fn on_known_packs_response(
+pub fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
@@ -604,7 +610,10 @@ fn on_known_packs_response(
 
     con.write_packet(&ClientboundFinishConfiguration);
 
-    commands.entity(entity).remove::<AwaitingKnownPacks>();
+    commands
+        .entity(entity)
+        .remove::<AwaitingKnownPacks>()
+        .insert(AwaitingFinishConfiguration);
 }
 
 pub fn on_configuration_ack(
@@ -641,6 +650,9 @@ pub fn on_configuration_ack(
     };
     if !duplicate {
         *state = ConnectionState::Game;
+        commands
+            .entity(event.entity)
+            .remove::<AwaitingFinishConfiguration>();
         return;
     }
     // The game switches its side to play before this check, so it refuses with a play packet.

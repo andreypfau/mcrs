@@ -2,7 +2,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Insert;
 use bevy_ecs::prelude::{On, Query};
-use bevy_ecs::query::{With, Without};
+use bevy_ecs::query::{Has, With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
@@ -20,6 +20,7 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, Text, WritePacket, uuid};
 use std::borrow::Cow;
 
+use crate::configuration::AwaitingFinishConfiguration;
 use crate::disconnect::Departing;
 use crate::world::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
@@ -116,7 +117,24 @@ pub fn duplicate_login_reason() -> Text {
     Text::translate("multiplayer.disconnect.duplicate_login", Vec::new())
 }
 
-/// Writes the disconnect packet of the connection's protocol state; the caller closes it.
+/// The protocol the client decodes. It switches on receiving the packet that ends a phase, while
+/// the server's state follows only on the client's acknowledgement.
+pub fn client_protocol(
+    state: ConnectionState,
+    login: Option<&LoginState>,
+    finishing_configuration: bool,
+) -> ConnectionState {
+    match state {
+        ConnectionState::Login if login == Some(&LoginState::Accepted) => {
+            ConnectionState::Configuration
+        }
+        ConnectionState::Configuration if finishing_configuration => ConnectionState::Game,
+        state => state,
+    }
+}
+
+/// Writes the disconnect packet of the protocol the client decodes; the caller closes the
+/// connection.
 pub fn disconnect(con: &mut ServerSideConnection, state: ConnectionState, reason: Text) {
     match state {
         ConnectionState::Login => {
@@ -193,7 +211,12 @@ fn finish_login(con: &mut ServerSideConnection, profile: &GameProfile, session_i
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
-    mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
+    mut session_connections: Query<(
+        &mut ServerSideConnection,
+        &ConnectionState,
+        &LoginState,
+        Has<AwaitingFinishConfiguration>,
+    )>,
     sessions: SessionsById,
     session_id: Res<ChatSessionId>,
     host: Option<Res<SingleplayerProfile>>,
@@ -227,11 +250,16 @@ pub fn handle_hello_packet(
         let Some(connection) = connection else {
             continue;
         };
-        let Ok((mut other, &state)) = session_connections.get_mut(connection) else {
+        let Ok((mut other, &state, login, finishing)) = session_connections.get_mut(connection)
+        else {
             continue;
         };
         tracing::info!(name = %profile.username, "a new login under the same id ends the session");
-        disconnect(&mut other, state, duplicate_login_reason());
+        disconnect(
+            &mut other,
+            client_protocol(state, Some(login), finishing),
+            duplicate_login_reason(),
+        );
         commands.entity(connection).remove::<ServerSideConnection>();
     }
     if must_wait {
