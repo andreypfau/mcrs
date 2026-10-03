@@ -298,8 +298,9 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
     }
 }
 
-/// Singleplayer, the way the vanilla client plays it: a server of our own on a
-/// loopback port, which the client then joins like any other.
+/// Singleplayer, the way the vanilla client plays it: a server of our own, which the client then
+/// joins over loopback like any other. It listens on loopback only, unless `MCRS_OPEN_TO_LAN=1`
+/// opens it to the local network, where it then announces itself.
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 fn host_integrated_server(
     world: Option<&Path>,
