@@ -42,16 +42,19 @@ pub fn announcement(motd: &str, port: u16) -> Result<String, DatagramError> {
     Ok(text)
 }
 
-pub fn announce_port(_bound: SocketAddr, _enabled: bool) -> Option<u16> {
-    None
+pub fn announce_port(bound: SocketAddr, enabled: bool) -> Option<u16> {
+    (enabled && !bound.ip().to_canonical().is_loopback()).then_some(bound.port())
 }
 
 pub fn source_address(bound: SocketAddr) -> SocketAddr {
-    bound
+    match bound {
+        SocketAddr::V4(v4) => SocketAddr::new((*v4.ip()).into(), 0),
+        SocketAddr::V6(_) => SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0),
+    }
 }
 
-pub fn enabled(_value: Option<&str>) -> bool {
-    true
+pub fn enabled(value: Option<&str>) -> bool {
+    !matches!(value.map(str::trim), Some("off" | "0" | "false" | "no"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,8 +63,13 @@ pub enum SendLog {
     Recovered,
 }
 
-pub fn after_send(_failing: bool, _sent: bool) -> (bool, Option<SendLog>) {
-    (false, None)
+pub fn after_send(failing: bool, sent: bool) -> (bool, Option<SendLog>) {
+    let log = match (failing, sent) {
+        (false, false) => Some(SendLog::Failed),
+        (true, true) => Some(SendLog::Recovered),
+        _ => None,
+    };
+    (!sent, log)
 }
 
 #[cfg(test)]
@@ -209,7 +217,7 @@ mod tests {
 
     #[test]
     fn a_loopback_listener_never_announces() {
-        for bound in ["127.0.0.1:25565", "[::1]:25565"] {
+        for bound in ["127.0.0.1:25565", "[::1]:25565", "[::ffff:127.0.0.1]:25565"] {
             for setting in [true, false] {
                 assert_eq!(
                     announce_port(addr(bound), setting),
