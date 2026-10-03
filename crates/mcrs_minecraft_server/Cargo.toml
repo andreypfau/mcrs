@@ -15,6 +15,7 @@ mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_dimension.workspace = true

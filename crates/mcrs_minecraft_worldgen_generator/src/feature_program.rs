@@ -2101,10 +2101,7 @@ fn spring_state(state: &BlockState, blocks: &dyn BlockResolver) -> Option<VoxelI
     {
         return None;
     }
-    blocks.state(&BlockState {
-        name: state.name.clone(),
-        properties: None,
-    })
+    blocks.state(&BlockState::bare(state.name.clone()))
 }
 
 fn unsupported(what: &str) -> FeatureCompileError {

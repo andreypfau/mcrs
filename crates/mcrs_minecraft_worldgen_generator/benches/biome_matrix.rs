@@ -81,9 +81,10 @@ fn overworld_subset(names: &[String]) -> Vec<(usize, String)> {
 }
 
 fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram) {
-    let path = worldgen_dir().join("noise_settings/overworld.json");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft("overworld"),
+    );
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");

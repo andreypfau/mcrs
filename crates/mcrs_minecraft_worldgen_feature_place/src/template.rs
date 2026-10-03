@@ -539,10 +539,7 @@ fn compile_processor(
 fn default_state(blocks: &dyn BlockResolver, name: &str) -> Result<VoxelId, FeatureCompileError> {
     state_of(
         blocks,
-        &BlockState {
-            name: ResourceLocation::minecraft(name),
-            properties: None,
-        },
+        &BlockState::minecraft(name),
     )
 }
 

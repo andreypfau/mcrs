@@ -32,7 +32,7 @@ pub fn blocks() -> &'static Blocks {
     })
 }
 
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::registry;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
@@ -48,10 +48,10 @@ pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
 }
 
 pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
-    let path = worldgen_dir().join(format!("noise_settings/{settings_name}.json"));
-    let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_str(&json).unwrap_or_else(|e| panic!("{settings_name}: {e}"));
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft(settings_name),
+    );
     build_router(
         &settings,
         &registry("density_function"),
@@ -91,17 +91,9 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     let functions = registry("density_function");
     let noises = registry("noise");
 
-    let dir = worldgen_dir().join("noise_settings");
     let mut seen = 0;
-    for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
-        let json = std::fs::read_to_string(&path).unwrap();
-        let settings: NoiseGeneratorSettings =
-            serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
+    for (id, settings) in registry::<NoiseGeneratorSettings>("noise_settings") {
+        let name = id.path();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,

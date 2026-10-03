@@ -116,6 +116,15 @@ impl MinecraftServerPlugin {
 
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
+        bevy_asset::AssetApp::register_asset_source(
+            app,
+            bevy_asset::io::AssetSourceId::Default,
+            mcrs_minecraft_worldgen::bevy::asset_source(
+                self.asset_path
+                    .as_deref()
+                    .unwrap_or(&bevy_asset::AssetPlugin::default().file_path),
+            ),
+        );
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,

@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_worldgen_builtin"
+description = "The density functions, noises and noise settings the game and the beta preset define, built by code"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+serde.workspace = true
+serde_json.workspace = true

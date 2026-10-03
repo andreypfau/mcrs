@@ -3981,6 +3981,7 @@ dependencies = [
  "mcrs_minecraft_registry",
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen",
+ "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
@@ -4072,6 +4073,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
@@ -4082,6 +4084,17 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_worldgen_builtin"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_worldgen_density",
+ "mcrs_minecraft_worldgen_noise",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4272,6 +4285,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_worldgen_builtin",
  "serde",
  "serde_json",
 ]

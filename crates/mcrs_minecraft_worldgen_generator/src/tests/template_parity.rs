@@ -881,10 +881,7 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     let flag = |name: &str| fields[name] == "true";
     let (cold, air_pocket, blackstone) = (flag("cold"), flag("air_pocket"), flag("blackstone"));
     let mossiness: f32 = fields["mossiness"].parse().unwrap();
-    let state = |name: &str| BlockState {
-        name: ResourceLocation::minecraft(name),
-        properties: None,
-    };
+    let state = BlockState::minecraft;
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {

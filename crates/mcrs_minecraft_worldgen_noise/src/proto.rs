@@ -112,6 +112,46 @@ impl Validate for NoiseParam {
 }
 
 impl NoiseParam {
+    /// `octave_count` octaves from `base_octave` up, none of them reweighted.
+    pub fn uniform(base_octave: i32, octave_count: usize) -> Self {
+        NoiseParam {
+            base_octave,
+            base_amplitude: HashableF64(1.0),
+            octave_count,
+            normalize: Normalization::Enabled,
+            amplitude_modifiers: Vec::new(),
+        }
+    }
+
+    /// The parameters whose sampler matches a noise given as bare octave
+    /// amplitudes and normalized over its octave span. This shape normalizes
+    /// over the octaves' deviation instead, so the base amplitude carries the
+    /// ratio between the two factors.
+    pub fn parity(base_octave: i32, amplitudes: &[f64]) -> Self {
+        let unit = NoiseParam {
+            base_octave,
+            base_amplitude: HashableF64(1.0),
+            octave_count: amplitudes.len(),
+            normalize: Normalization::Enabled,
+            amplitude_modifiers: if amplitudes.iter().all(|a| *a == 1.0) {
+                Vec::new()
+            } else {
+                amplitudes.iter().copied().map(HashableF64).collect()
+            },
+        };
+        let factor = unit.octaves().factor;
+        if factor == 0.0 {
+            return unit;
+        }
+        let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
+        let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
+        let span_factor = parity_normalization_factor(1.0, (highest - lowest) as f64);
+        NoiseParam {
+            base_amplitude: HashableF64(span_factor / factor),
+            ..unit
+        }
+    }
+
     /// `getAmplitudeModifier`: an empty list means every octave is unmodified.
     /// A non-empty one is validated at load to have exactly `octave_count`
     /// entries, so indexing can never miss.

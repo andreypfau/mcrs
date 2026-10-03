@@ -58,10 +58,8 @@ impl OceanRuinBlocks {
                 "minecraft:archaeology/ocean_ruin_cold",
             ),
         };
-        let bare = |name: &str| BlockState {
-            name: ResourceLocation::parse(name).expect("a literal id"),
-            properties: None,
-        };
+        let bare =
+            |name: &str| BlockState::bare(ResourceLocation::parse(name).expect("a literal id"));
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {

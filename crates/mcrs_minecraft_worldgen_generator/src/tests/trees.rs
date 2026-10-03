@@ -89,10 +89,10 @@ fn material_router(
     registry: &RegistrySnapshot<Biome>,
     seed: u64,
 ) -> (NoiseRouter, MaterialProgram) {
-    let path =
-        mcrs_minecraft_worldgen_testing::worldgen_dir().join("noise_settings/overworld.json");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft("overworld"),
+    );
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> =
         mcrs_minecraft_worldgen_testing::registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =

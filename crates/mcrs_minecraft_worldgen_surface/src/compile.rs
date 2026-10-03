@@ -673,10 +673,7 @@ impl<'r> Builder<'_, '_, 'r> {
     }
 
     fn named_block(&mut self, name: &str) -> Result<VoxelId, CompileError> {
-        self.block(&BlockState {
-            name: ResourceLocation::minecraft(name),
-            properties: None,
-        })
+        self.block(&BlockState::minecraft(name))
     }
 }
 

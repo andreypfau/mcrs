@@ -384,6 +384,13 @@ pub fn spawn_dim_subapp(
     // Dropping a notify fsevents watcher joins its CFRunLoop thread and can
     // block forever; one recursive watch over the 22k-file corpus per dimension
     // also costs more than the whole sub-app spawn. Nothing here hot-reloads.
+    sub_app
+        .world_mut()
+        .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
+        .insert(
+            bevy_asset::io::AssetSourceId::Default,
+            mcrs_minecraft_worldgen::bevy::asset_source(&asset_root),
+        );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
         file_path: asset_root,

@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::registry;
 use std::collections::{BTreeMap, HashMap};
 
 const AIR: VoxelId = VoxelId(0);
@@ -143,9 +143,10 @@ pub fn overworld_material_router(
     seed: u64,
     ids: &HashMap<String, u32>,
 ) -> (NoiseRouter, MaterialProgram) {
-    let path = worldgen_dir().join("noise_settings/overworld.json");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft("overworld"),
+    );
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
@@ -214,8 +215,7 @@ pub(super) fn surfaced_column(
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let biomes =
-        multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let biomes = multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);

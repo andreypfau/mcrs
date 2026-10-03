@@ -1,6 +1,7 @@
 use mcrs_minecraft_level::palette::non_air_block_count;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -9,38 +10,16 @@ use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
-    let path = format!(
-        "{}/../../assets/minecraft/worldgen/noise_settings/{}.json",
-        env!("CARGO_MANIFEST_DIR"),
-        name
-    );
-    let json = std::fs::read_to_string(&path)
-        .unwrap_or_else(|_| panic!("noise_settings/{}.json must exist", name));
-    serde_json::from_str(&json)
-        .unwrap_or_else(|e| panic!("noise_settings/{}.json must deserialize: {}", name, e))
+    builtin::noise_settings()
+        .remove(&ResourceLocation::minecraft(name))
+        .unwrap_or_else(|| panic!("noise_settings/{name} must be built in"))
 }
 
 fn load_beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
-    let dir = format!(
-        "{}/../../assets/minecraft/worldgen/density_function/beta",
-        env!("CARGO_MANIFEST_DIR"),
-    );
-    let mut map = BTreeMap::new();
-    for entry in std::fs::read_dir(&dir).expect("density_function/beta must exist") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let json = std::fs::read_to_string(&path).expect("density function must be readable");
-        let holder = serde_json::from_str::<DensityFunctionHolder>(&json)
-            .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e));
-        let stem = path.file_stem().unwrap().to_string_lossy();
-        let ident = format!("minecraft:beta/{}", stem)
-            .parse::<ResourceLocation>()
-            .expect("valid ident");
-        map.insert(ident, holder);
-    }
-    map
+    builtin::density_functions()
+        .into_iter()
+        .filter(|(id, _)| id.path().starts_with("beta/"))
+        .collect()
 }
 
 /// Under the beta noise settings (min_y=0, height=128), `generate_column` must

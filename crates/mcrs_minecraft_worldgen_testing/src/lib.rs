@@ -2,6 +2,7 @@
 //! engine against every file the game ships rather than against a fixture.
 
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -53,20 +54,32 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-/// One `minecraft/worldgen` registry, parsed. Every file in the folder must
+/// One `minecraft/worldgen` registry, parsed: the files the corpus ships, and
+/// the built-in entries it ships no file for. Every file in the folder must
 /// parse: dropping the ones that do not would let a test read "the whole corpus
 /// compiles" off a corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
     let base = worldgen_dir().join(folder);
-    json_files(&base)
+    let mut entries: BTreeMap<ResourceLocation, T> = builtin::assets(folder)
         .into_iter()
-        .map(|path| {
-            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let parsed = serde_json::from_slice::<T>(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            (id_of(&base, &path), parsed)
+        .map(|(id, bytes)| {
+            let parsed = serde_json::from_slice(&bytes)
+                .unwrap_or_else(|e| panic!("built-in {folder}/{id}: {e}"));
+            (id, parsed)
         })
-        .collect()
+        .collect();
+    let shipped = if base.is_dir() {
+        json_files(&base)
+    } else {
+        Vec::new()
+    };
+    for path in shipped {
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let parsed = serde_json::from_slice::<T>(&bytes)
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        entries.insert(id_of(&base, &path), parsed);
+    }
+    entries
 }
 
 /// Every `.json` under `assets/<dir>`, parsed. Panics naming every file that
@@ -92,12 +105,18 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
     parsed
 }
 
-/// One named `minecraft/worldgen` asset, which must parse.
+/// One named `minecraft/worldgen` asset, which must parse: the file the corpus
+/// ships, or the built-in entry where it ships none.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
     let path = worldgen_dir()
         .join(folder)
         .join(format!("{}.json", id.path()));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(e) => builtin::assets(folder)
+            .remove(id)
+            .unwrap_or_else(|| panic!("{}: {e}", path.display())),
+    };
     serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 

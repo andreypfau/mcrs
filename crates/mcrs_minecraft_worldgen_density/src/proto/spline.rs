@@ -38,6 +38,79 @@ impl ProtoSpline {
     }
 }
 
+impl ProtoSpline {
+    pub fn points(coordinate: &DensityFunctionHolder) -> SplinePoints {
+        SplinePoints {
+            coordinate: coordinate.clone(),
+            locations: Vec::new(),
+            values: Vec::new(),
+            derivatives: Vec::new(),
+        }
+    }
+
+    /// The same spline with every constant it bottoms out in passed through `f`.
+    pub fn map_values(self, f: impl Fn(f32) -> f32 + Copy) -> Self {
+        match self {
+            ProtoSpline::Constant(value) => ProtoSpline::Constant(f(value)),
+            ProtoSpline::Multipoint(mut multipoint) => {
+                multipoint.values = multipoint
+                    .values
+                    .into_vec()
+                    .into_iter()
+                    .map(|value| value.map_values(f))
+                    .collect();
+                ProtoSpline::Multipoint(multipoint)
+            }
+        }
+    }
+}
+
+/// The points of one multipoint spline, added in ascending location order.
+pub struct SplinePoints {
+    coordinate: DensityFunctionHolder,
+    locations: Vec<f32>,
+    values: Vec<ProtoSpline>,
+    derivatives: Vec<f32>,
+}
+
+impl SplinePoints {
+    fn push(mut self, location: f32, value: ProtoSpline, derivative: f32) -> Self {
+        assert!(
+            self.locations.last().is_none_or(|last| location > *last),
+            "spline points are added in ascending order"
+        );
+        self.locations.push(location);
+        self.values.push(value);
+        self.derivatives.push(derivative);
+        self
+    }
+
+    pub fn value(self, location: f32, value: f32) -> Self {
+        self.sloped(location, value, 0.0)
+    }
+
+    pub fn sloped(self, location: f32, value: f32, derivative: f32) -> Self {
+        self.push(location, ProtoSpline::Constant(value), derivative)
+    }
+
+    pub fn spline(self, location: f32, spline: &ProtoSpline) -> Self {
+        self.push(location, spline.clone(), 0.0)
+    }
+
+    pub fn build(self) -> ProtoSpline {
+        assert!(
+            !self.locations.is_empty(),
+            "a spline has at least one point"
+        );
+        ProtoSpline::Multipoint(Box::new(ProtoMultipoint {
+            coordinate: self.coordinate,
+            locations: self.locations.into(),
+            values: self.values.into(),
+            derivatives: self.derivatives.into(),
+        }))
+    }
+}
+
 impl PartialEq for ProtoSpline {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

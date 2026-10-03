@@ -339,6 +339,7 @@ fn contains_beardifier(
 mod tests {
     use super::*;
     use bevy_math::IVec3;
+    use mcrs_minecraft_worldgen_density::proto::build::Df;
 
     const CHUNK: ColumnPos = ColumnPos::new(0, 0);
 
@@ -599,32 +600,8 @@ mod tests {
         assert!(out.iter().any(|&v| v != 0.0));
     }
 
-    fn owned(function: ProtoDensityFunction) -> DensityFunctionHolder {
-        DensityFunctionHolder::Owned(Box::new(function))
-    }
-
-    fn add(left: DensityFunctionHolder, right: DensityFunctionHolder) -> DensityFunctionHolder {
-        owned(ProtoDensityFunction::Add(
-            mcrs_minecraft_worldgen_density::proto::args::TwoArgumentFunction { left, right },
-        ))
-    }
-
-    fn squeeze(input: DensityFunctionHolder) -> DensityFunctionHolder {
-        owned(ProtoDensityFunction::Squeeze(
-            mcrs_minecraft_worldgen_density::proto::args::SingleArgumentFunction { input },
-        ))
-    }
-
-    fn beardifier() -> DensityFunctionHolder {
-        owned(ProtoDensityFunction::Beardifier)
-    }
-
-    fn terrain() -> DensityFunctionHolder {
-        squeeze(DensityFunctionHolder::Value(0.5.into()))
-    }
-
-    fn reference(id: &str) -> DensityFunctionHolder {
-        DensityFunctionHolder::Reference(ResourceLocation::minecraft(id))
+    fn terrain() -> Df {
+        Df::from(0.5).squeeze()
     }
 
     fn placement(
@@ -641,11 +618,11 @@ mod tests {
     #[test]
     fn a_beardifier_added_at_the_root_is_accepted_on_either_side() {
         assert_eq!(
-            placement(add(terrain(), beardifier()), &[]),
+            placement(terrain() + Df::beardifier(), &[]),
             BeardifierPlacement::RootAddend
         );
         assert_eq!(
-            placement(add(beardifier(), terrain()), &[]),
+            placement(Df::beardifier() + terrain(), &[]),
             BeardifierPlacement::RootAddend
         );
     }
@@ -653,11 +630,11 @@ mod tests {
     #[test]
     fn the_root_and_its_addend_resolve_through_references() {
         let registry = [
-            ("final", add(terrain(), reference("beard"))),
-            ("beard", beardifier()),
+            ("final", terrain() + Df::reference("beard")),
+            ("beard", Df::beardifier()),
         ];
         assert_eq!(
-            placement(reference("final"), &registry),
+            placement(Df::reference("final"), &registry),
             BeardifierPlacement::RootAddend
         );
     }
@@ -665,34 +642,37 @@ mod tests {
     #[test]
     fn a_beardifier_below_the_root_is_misplaced() {
         assert_eq!(
-            placement(squeeze(add(terrain(), beardifier())), &[]),
+            placement((terrain() + Df::beardifier()).squeeze(), &[]),
             BeardifierPlacement::Misplaced
         );
         assert_eq!(
-            placement(add(squeeze(beardifier()), terrain()), &[]),
+            placement(Df::beardifier().squeeze() + terrain(), &[]),
             BeardifierPlacement::Misplaced
         );
         assert_eq!(
-            placement(add(beardifier(), beardifier()), &[]),
+            placement(Df::beardifier() + Df::beardifier(), &[]),
             BeardifierPlacement::Misplaced
         );
-        let registry = [("shared", add(terrain(), beardifier()))];
+        let registry = [("shared", terrain() + Df::beardifier())];
         assert_eq!(
-            placement(add(reference("shared"), beardifier()), &registry),
+            placement(Df::reference("shared") + Df::beardifier(), &registry),
             BeardifierPlacement::Misplaced
         );
-        assert_eq!(placement(beardifier(), &[]), BeardifierPlacement::Misplaced);
+        assert_eq!(
+            placement(Df::beardifier(), &[]),
+            BeardifierPlacement::Misplaced
+        );
     }
 
     #[test]
     fn a_graph_without_a_beardifier_is_absent_even_through_a_cycle() {
         assert_eq!(placement(terrain(), &[]), BeardifierPlacement::Absent);
         let registry = [
-            ("a", squeeze(reference("b"))),
-            ("b", squeeze(reference("a"))),
+            ("a", Df::reference("b").squeeze()),
+            ("b", Df::reference("a").squeeze()),
         ];
         assert_eq!(
-            placement(add(reference("a"), terrain()), &registry),
+            placement(Df::reference("a") + terrain(), &registry),
             BeardifierPlacement::Absent
         );
     }

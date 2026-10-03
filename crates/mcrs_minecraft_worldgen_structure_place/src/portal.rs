@@ -119,10 +119,7 @@ impl RuinedPortalBlocks {
 
 /// `RuinedPortalPiece.makeSettings`' processor list.
 fn processors(placement: PortalPlacement, p: &PortalProperties) -> Vec<StructureProcessor> {
-    let block = |name: &str| BlockState {
-        name: ResourceLocation::minecraft(name),
-        properties: None,
-    };
+    let block = BlockState::minecraft;
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
