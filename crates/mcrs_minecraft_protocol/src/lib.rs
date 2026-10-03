@@ -100,9 +100,6 @@ pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
 
-/// The maximum number of bytes in a single Minecraft packet.
-pub const MAX_PACKET_SIZE: i32 = 2097152;
-
 /// How large a packet should be before it is compressed by the packet encoder.
 ///
 /// If the inner value is >= 0, then packets with encoded lengths >= to this
