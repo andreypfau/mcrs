@@ -453,7 +453,7 @@ mod tests {
         let listening = |open| {
             let mut bound = integrated_bind_address(open);
             bound.set_port(40123);
-            mcrs_minecraft_network::lan::announce_port(bound, true)
+            mcrs_minecraft_network::lan::announce_port(bound, true).ok()
         };
         assert_eq!(listening(false), None);
         assert_eq!(listening(true), Some(40123));

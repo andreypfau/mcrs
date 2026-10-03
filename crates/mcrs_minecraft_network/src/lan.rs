@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::Sender;
@@ -47,14 +47,32 @@ pub fn announcement(motd: &str, port: u16) -> Result<String, DatagramError> {
     Ok(text)
 }
 
-pub fn announce_port(bound: SocketAddr, enabled: bool) -> Option<u16> {
-    (enabled && !bound.ip().to_canonical().is_loopback()).then_some(bound.port())
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unannounced {
+    Off,
+    Loopback,
+    NoIpv4,
+}
+
+/// The game announces over IPv4 only, and its client joins the address the datagram came from,
+/// so a listener that accepts no IPv4 would be listed at an address nothing listens on.
+pub fn announce_port(bound: SocketAddr, enabled: bool) -> Result<u16, Unannounced> {
+    let ip = bound.ip().to_canonical();
+    if !enabled {
+        Err(Unannounced::Off)
+    } else if ip.is_loopback() {
+        Err(Unannounced::Loopback)
+    } else if !(ip.is_ipv4() || ip.is_unspecified()) {
+        Err(Unannounced::NoIpv4)
+    } else {
+        Ok(bound.port())
+    }
 }
 
 pub fn source_address(bound: SocketAddr) -> SocketAddr {
-    match bound {
-        SocketAddr::V4(v4) => SocketAddr::new((*v4.ip()).into(), 0),
-        SocketAddr::V6(_) => SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0),
+    match bound.ip().to_canonical() {
+        IpAddr::V4(ip) => SocketAddr::new(ip.into(), 0),
+        IpAddr::V6(_) => SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0),
     }
 }
 
@@ -284,21 +302,49 @@ mod tests {
     #[test]
     fn a_loopback_listener_never_announces() {
         for bound in ["127.0.0.1:25565", "[::1]:25565", "[::ffff:127.0.0.1]:25565"] {
-            for setting in [true, false] {
-                assert_eq!(
-                    announce_port(addr(bound), setting),
-                    None,
-                    "{bound} {setting}"
-                );
-            }
+            assert_eq!(
+                announce_port(addr(bound), true),
+                Err(Unannounced::Loopback),
+                "{bound}"
+            );
+            assert_eq!(
+                announce_port(addr(bound), false),
+                Err(Unannounced::Off),
+                "{bound}"
+            );
         }
     }
 
     #[test]
     fn a_network_listener_announces_its_bound_port_unless_the_setting_is_off() {
-        for bound in ["0.0.0.0:25565", "192.168.1.20:25565", "[::]:25565"] {
-            assert_eq!(announce_port(addr(bound), true), Some(25565), "{bound}");
-            assert_eq!(announce_port(addr(bound), false), None, "{bound}");
+        for bound in [
+            "0.0.0.0:25565",
+            "192.168.1.20:25565",
+            "[::]:25565",
+            "[::ffff:192.168.1.20]:25565",
+        ] {
+            assert_eq!(announce_port(addr(bound), true), Ok(25565), "{bound}");
+            assert_eq!(
+                announce_port(addr(bound), false),
+                Err(Unannounced::Off),
+                "{bound}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_listener_on_one_ipv6_address_never_announces() {
+        for bound in ["[2001:db8::5]:25565", "[fe80::1]:25565", "[fd00::1]:25565"] {
+            assert_eq!(
+                announce_port(addr(bound), true),
+                Err(Unannounced::NoIpv4),
+                "{bound}"
+            );
+            assert_eq!(
+                announce_port(addr(bound), false),
+                Err(Unannounced::Off),
+                "{bound}"
+            );
         }
     }
 
@@ -310,6 +356,10 @@ mod tests {
             addr("192.168.1.20:0")
         );
         assert_eq!(source_address(addr("[::]:25565")), addr("0.0.0.0:0"));
+        assert_eq!(
+            source_address(addr("[::ffff:192.168.1.20]:25565")),
+            addr("192.168.1.20:0")
+        );
     }
 
     #[test]

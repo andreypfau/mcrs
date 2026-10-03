@@ -11,7 +11,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::{Sender, channel};
-use tracing::warn;
+use tracing::{info, warn};
 
 pub struct NetworkPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
@@ -110,18 +110,25 @@ fn build_plugin(app: &mut App, address: SocketAddr, announce_on_lan: bool) -> an
         let Some(listener) = listener.take() else {
             return;
         };
-        if let Some(port) = lan::announce_port(bound, announce_on_lan) {
-            let started = lan::start(
-                lan::source_address(bound),
-                lan::GROUP.into(),
-                lan::INTERVAL,
-                intent::MOTD,
-                port,
-                shared_state.0.new_connections_send.clone(),
-            );
-            if let Err(error) = started {
-                warn!("LAN announcement not started: {error}");
+        match lan::announce_port(bound, announce_on_lan) {
+            Ok(port) => {
+                let started = lan::start(
+                    lan::source_address(bound),
+                    lan::GROUP.into(),
+                    lan::INTERVAL,
+                    intent::MOTD,
+                    port,
+                    shared_state.0.new_connections_send.clone(),
+                );
+                if let Err(error) = started {
+                    warn!("LAN announcement not started: {error}");
+                }
             }
+            Err(lan::Unannounced::NoIpv4) => info!(
+                "LAN announcement not started: the server listens on {bound}, which accepts no \
+                 IPv4, and a LAN client joins the IPv4 address the announcement comes from"
+            ),
+            Err(lan::Unannounced::Off | lan::Unannounced::Loopback) => {}
         }
         tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
