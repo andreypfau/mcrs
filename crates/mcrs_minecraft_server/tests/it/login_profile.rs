@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished,
 };
 use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundHello;
-use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Packet, Text};
 use mcrs_minecraft_server::configuration::on_configuration_ack;
 use mcrs_minecraft_server::dim::pump_channels;
@@ -25,21 +25,15 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::session::HostAnchorRef;
-use md5::{Digest, Md5};
 use tokio::sync::mpsc;
 
 use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(0x0bad_cafe_0000_4000_8000_0000_0000_0001);
 
-/// `UUID.nameUUIDFromBytes("OfflinePlayer:" + name)`: an MD5 of the bytes with
-/// the version set to 3 and the variant to IETF.
-fn reference_offline_id(name: &str) -> Uuid {
-    let mut bytes: [u8; 16] = Md5::digest(format!("OfflinePlayer:{name}").as_bytes()).into();
-    bytes[6] = (bytes[6] & 0x0f) | 0x30;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    Uuid::from_bytes(bytes)
-}
+/// The game's offline ids of `Steve` and `Guest`.
+const STEVE: Uuid = uuid!("5627dd98-e6be-3c21-b8a8-e92344183641");
+const GUEST: Uuid = uuid!("404198aa-cc64-3021-9fdf-8766c0d0096c");
 
 fn server(host: Option<SingleplayerProfile>) -> App {
     let mut app = App::new();
@@ -183,7 +177,7 @@ fn a_hello_plays_under_the_offline_id_of_its_name_whatever_id_it_carries() {
     let mut app = server(None);
     let claimed = hello(&mut app, "Steve", OPERATOR);
     let other = hello(&mut app, "Steve", Uuid::new_v4());
-    assert_eq!(claimed.id, reference_offline_id("Steve"));
+    assert_eq!(claimed.id, STEVE);
     assert_eq!(other.id, claimed.id);
     assert_ne!(claimed.id, OPERATOR);
     assert_eq!(claimed.username, "Steve");
@@ -201,7 +195,7 @@ fn a_hello_under_the_hosts_name_in_any_case_plays_as_the_host() {
     assert_eq!((owner.id, owner.username.as_str()), (host.id, "Host"));
 
     let guest = hello(&mut app, "Guest", host.id);
-    assert_eq!(guest.id, reference_offline_id("Guest"));
+    assert_eq!(guest.id, GUEST);
 }
 
 #[test]
@@ -252,7 +246,6 @@ fn a_hello_under_an_empty_name_is_accepted_as_in_the_game() {
 fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_is_saved() {
     let mut app = server(None);
     let (dim, to_dim, from_dim) = dimension(&mut app);
-    let steve = reference_offline_id("Steve");
 
     let mut first = connect(&mut app);
     send_hello(&mut app, &first, "Steve", Uuid::new_v4());
@@ -292,7 +285,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
         app.world().get::<LoginState>(second.connection),
         Some(&LoginState::AwaitingDeparture)
     );
-    assert!(sessions_under(&mut app, steve).is_empty());
+    assert!(sessions_under(&mut app, STEVE).is_empty());
 
     from_dim
         .send(FromDim::Released {
@@ -307,7 +300,7 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
         [ClientboundLoginFinished::ID]
     );
     assert!(connected(&app, &second));
-    assert_eq!(sessions_under(&mut app, steve), [anchor(&app, &second)]);
+    assert_eq!(sessions_under(&mut app, STEVE), [anchor(&app, &second)]);
 }
 
 #[test]
@@ -354,7 +347,7 @@ fn a_session_finishing_configuration_while_another_under_its_id_plays_is_refused
     let mut app = server(None);
     app.add_observer(on_configuration_ack);
     let profile = GameProfile {
-        id: reference_offline_id("Steve"),
+        id: STEVE,
         username: "Steve".to_owned(),
         properties: Vec::new(),
     };
