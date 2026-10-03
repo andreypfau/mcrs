@@ -514,6 +514,8 @@ mod tests {
             task.abort();
             assert_eq!(first, expected());
             assert_eq!(second, expected());
+            let first_after = first_at - started;
+            assert!(first_after < Duration::from_millis(1000), "{first_after:?}");
             let since_start = second_at - started;
             assert!(since_start >= INTERVAL, "{since_start:?}");
             // A receiver that wakes late for the first datagram shortens the gap, so its lower bound
