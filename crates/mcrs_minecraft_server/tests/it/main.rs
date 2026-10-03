@@ -41,6 +41,7 @@ mod inventory_click;
 mod inventory_sync;
 mod light_engine_e2e;
 mod login_handshake_e2e;
+mod login_profile;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 mod move_durability;

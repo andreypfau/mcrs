@@ -19,7 +19,7 @@ pub mod world_options;
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
-use crate::login::LoginPlugin;
+use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
@@ -53,6 +53,7 @@ pub struct MinecraftServerPlugin {
     pub default_op_level: u8,
     /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
+    pub singleplayer_profile: Option<SingleplayerProfile>,
 }
 
 /// Whether dimensions propagate light. Without it the block light table is never built, so
@@ -96,6 +97,7 @@ impl Default for MinecraftServerPlugin {
             lighting: Lighting::from_env(),
             default_op_level: 0,
             announce_on_lan: lan_announce_from_env(),
+            singleplayer_profile: None,
         }
     }
 }
@@ -143,6 +145,9 @@ impl Plugin for MinecraftServerPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
         });
+        if let Some(host) = &self.singleplayer_profile {
+            app.insert_resource(host.clone());
+        }
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);

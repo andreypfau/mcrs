@@ -141,7 +141,7 @@ pub fn fullscreen() -> bool {
 
 /// `OPEN_TO_LAN=1` makes the integrated server listen on every interface and announce itself on
 /// the local network. The server has no authentication, so anyone on that network can join under
-/// any name.
+/// any name, and whoever takes the host's name plays as the host, operator level included.
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 pub fn open_to_lan() -> bool {
     flag("OPEN_TO_LAN", false)

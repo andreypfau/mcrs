@@ -4,6 +4,7 @@ use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::Without;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Res, ResMut};
+use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
@@ -66,10 +67,33 @@ impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile
     }
 }
 
+/// The player hosting an integrated server.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct SingleplayerProfile {
+    pub name: String,
+    pub id: uuid::Uuid,
+}
+
+/// The server authenticates nobody, so the id a hello carries is never trusted: a hello under
+/// the host's name, in any case, plays as the host, and any other plays under the offline id of
+/// its name.
+pub fn hello_profile(username: &str, host: Option<&SingleplayerProfile>) -> GameProfile {
+    let (id, username) = match host {
+        Some(host) if host.name.eq_ignore_ascii_case(username) => (host.id, host.name.clone()),
+        _ => (offline_player_uuid(username), username.to_owned()),
+    };
+    GameProfile {
+        id,
+        username,
+        properties: Vec::new(),
+    }
+}
+
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
     session_id: Res<ChatSessionId>,
+    host: Option<Res<SingleplayerProfile>>,
     mut commands: Commands,
 ) {
     let Ok((mut con, state)) = query.get_mut(event.entity) else {
@@ -81,11 +105,7 @@ pub fn handle_hello_packet(
     let Some(pkt) = event.decode::<ServerboundHello>() else {
         return;
     };
-    let profile = GameProfile {
-        id: pkt.profile_id,
-        username: pkt.username.to_string(),
-        properties: Vec::new(),
-    };
+    let profile = hello_profile(&pkt.username, host.as_deref());
     tracing::debug!(?profile, "login hello");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),

@@ -38,8 +38,12 @@ use mcrs_minecraft_client::{
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
@@ -187,6 +191,7 @@ fn main() -> AppExit {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
+    let username = config::username();
     #[cfg(feature = "singleplayer")]
     let server = server_address().unwrap_or_else(|| {
         #[cfg(feature = "dev")]
@@ -197,14 +202,20 @@ fn main() -> AppExit {
         };
         #[cfg(not(feature = "dev"))]
         let traces = None;
-        host_integrated_server(world.as_deref(), &assets, traces)
+        let host = SingleplayerProfile {
+            name: username.clone(),
+            id: save_data
+                .player_uuid
+                .unwrap_or_else(|| offline_player_uuid(&username)),
+        };
+        host_integrated_server(world.as_deref(), &assets, traces, host)
     });
     #[cfg(not(feature = "singleplayer"))]
     let server = server_address()
         .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
-        username: config::username(),
+        username,
         profile_id: save_data.player_uuid,
         view_distance: config::view_distance(),
     });
@@ -294,6 +305,7 @@ fn host_integrated_server(
     world: Option<&Path>,
     assets: &str,
     traces: Option<ColumnTraceSink>,
+    host: SingleplayerProfile,
 ) -> SocketAddr {
     let open_to_lan = config::open_to_lan();
     let mut server = App::new();
@@ -302,6 +314,7 @@ fn host_integrated_server(
         asset_path: Some(assets.to_owned()),
         world: world.map(Path::to_path_buf),
         column_traces: traces,
+        singleplayer_profile: Some(host),
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;

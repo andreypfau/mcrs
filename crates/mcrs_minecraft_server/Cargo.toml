@@ -59,6 +59,7 @@ mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-suppor
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"
 proptest = "1.11.0"
+md-5.workspace = true
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
