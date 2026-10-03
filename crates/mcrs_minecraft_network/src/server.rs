@@ -1,5 +1,5 @@
 use crate::{ConnectionState, NetworkSet, RawConnection};
-use crate::{connect, event, webtransport};
+use crate::{connect, event, intent, lan, webtransport};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
@@ -11,17 +11,21 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::{Sender, channel};
+use tracing::warn;
 
 pub struct NetworkPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
     /// [`BoundAddress`].
     pub address: SocketAddr,
+    /// A listener beyond loopback announces itself on the local network.
+    pub announce_on_lan: bool,
 }
 
 impl Default for NetworkPlugin {
     fn default() -> Self {
         Self {
             address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
+            announce_on_lan: true,
         }
     }
 }
@@ -54,11 +58,12 @@ impl WebTransportEndpoint {
 
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut App) {
-        build_plugin(app, self.address).expect("Failed to build network plugin");
+        build_plugin(app, self.address, self.announce_on_lan)
+            .expect("Failed to build network plugin");
     }
 }
 
-fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
+fn build_plugin(app: &mut App, address: SocketAddr, announce_on_lan: bool) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
 
@@ -105,6 +110,19 @@ fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
         let Some(listener) = listener.take() else {
             return;
         };
+        if let Some(port) = lan::announce_port(bound, announce_on_lan) {
+            let started = lan::start(
+                lan::source_address(bound),
+                lan::GROUP.into(),
+                lan::INTERVAL,
+                intent::MOTD,
+                port,
+                shared_state.0.new_connections_send.clone(),
+            );
+            if let Err(error) = started {
+                warn!("LAN announcement not started: {error}");
+            }
+        }
         tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
     let spawn_new_raw_connections = move |world: &mut World| {

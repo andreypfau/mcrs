@@ -51,6 +51,8 @@ pub struct MinecraftServerPlugin {
     pub lighting: Lighting,
     /// Operator level of a player who has no entry in `ops.json`.
     pub default_op_level: u8,
+    /// A server that listens beyond loopback announces itself on the local network.
+    pub announce_on_lan: bool,
 }
 
 /// Whether dimensions propagate light. Without it the block light table is never built, so
@@ -74,6 +76,11 @@ impl Lighting {
     }
 }
 
+/// `MCRS_LAN_ANNOUNCE=off` turns the LAN announcement off.
+fn lan_announce_from_env() -> bool {
+    mcrs_minecraft_network::lan::enabled(std::env::var("MCRS_LAN_ANNOUNCE").ok().as_deref())
+}
+
 /// The world folder the server reads its saved chunks from.
 #[derive(Resource, Clone)]
 pub struct WorldSave(pub PathBuf);
@@ -88,6 +95,7 @@ impl Default for MinecraftServerPlugin {
             column_traces: None,
             lighting: Lighting::from_env(),
             default_op_level: 0,
+            announce_on_lan: lan_announce_from_env(),
         }
     }
 }
@@ -133,6 +141,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
+            announce_on_lan: self.announce_on_lan,
         });
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);

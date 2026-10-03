@@ -57,6 +57,7 @@ fn a_browser_transport_session_drives_a_status_exchange_and_a_login() {
     let mut app = App::new();
     app.add_plugins(NetworkPlugin {
         address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+        announce_on_lan: false,
     });
 
     let server = *app.world().resource::<WebTransportEndpoint>();
