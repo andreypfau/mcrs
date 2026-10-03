@@ -11,9 +11,13 @@ doctest = false
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true

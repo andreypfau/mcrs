@@ -99,7 +99,8 @@ fn main() -> AppExit {
     {
         use bevy::render::settings::InstanceFlags;
         #[cfg(not(target_os = "windows"))]
-        wgpu.instance_flags.remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
+        wgpu.instance_flags
+            .remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
         wgpu.instance_flags = (wgpu.instance_flags | InstanceFlags::DISCARD_HAL_LABELS).with_env();
     }
     let mut task_pool_options = bevy::app::TaskPoolOptions::default();
@@ -329,7 +330,7 @@ fn host_integrated_server(
         ),
         None => info!(%address, "hosting an integrated server"),
     }
-    config::integrated_join_address(address)
+    SocketAddr::new(std::net::Ipv4Addr::LOCALHOST.into(), address.port())
 }
 
 /// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.

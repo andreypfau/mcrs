@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::codec::NonNegativeInt;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,10 @@ impl MobSpawnSettings {
     pub fn no_spawns() -> Self {
         MobSpawnSettings {
             spawn_costs: BTreeMap::new(),
-            spawns_by_category: MobCategory::ALL.map(|category| (category, Vec::new())).into(),
+            spawns_by_category: MobCategory::ALL
+                .iter()
+                .map(|category| (*category, Vec::new()))
+                .collect(),
         }
     }
 
@@ -35,7 +38,7 @@ impl MobSpawnSettings {
         &mut self,
         category: MobCategory,
         entity: impl Into<ResourceLocation>,
-        weight: i32,
+        weight: NonNegativeInt,
         count: IntProvider,
     ) {
         self.spawns_by_category
@@ -44,11 +47,16 @@ impl MobSpawnSettings {
             .push(SpawnerData {
                 entity: entity.into(),
                 count,
-                weight: Bounded(weight),
+                weight,
             });
     }
 
-    pub fn add_cost(&mut self, entity: impl Into<ResourceLocation>, charge: f64, energy_budget: f64) {
+    pub fn add_cost(
+        &mut self,
+        entity: impl Into<ResourceLocation>,
+        charge: f64,
+        energy_budget: f64,
+    ) {
         self.spawn_costs.insert(
             entity.into(),
             SpawnCost {

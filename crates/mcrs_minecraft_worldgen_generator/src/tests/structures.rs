@@ -1,7 +1,6 @@
 use mcrs_minecraft_worldgen_testing::registry;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
@@ -27,11 +26,8 @@ use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resol
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
-    let path = assets_dir()
-        .join("minecraft/structure")
-        .join(format!("{}.nbt", id.path()));
-    let file = File::open(&path).ok()?;
-    let template = from_gzip_bytes(file).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let bytes = mcrs_minecraft_worldgen_testing::template(id)?;
+    let template = from_gzip_bytes(bytes.as_slice()).unwrap_or_else(|e| panic!("{id}: {e}"));
     Some(Cow::Owned(template))
 }
 

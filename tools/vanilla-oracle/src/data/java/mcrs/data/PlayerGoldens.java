@@ -6,7 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.RegistryOps;
@@ -18,8 +17,8 @@ final class PlayerGoldens {
 
     static void vanillaPlayer(final Path current, final Path output) throws Exception {
         CompoundTag player = NbtIo.readCompressed(current, NbtAccounter.unlimitedHeap());
-        PacketGoldens.withSession(session -> {
-            RegistryOps<Tag> ops = session.access().createSerializationContext(NbtOps.INSTANCE);
+        CodecGoldens.withSession(session -> {
+            RegistryOps<Tag> ops = session.nbt();
             for (String list : new String[] {"Inventory", "EnderItems"}) {
                 if (!player.contains(list)) {
                     continue;

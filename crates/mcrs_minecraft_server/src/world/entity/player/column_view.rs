@@ -14,7 +14,6 @@ use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -30,9 +29,11 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog}
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_container};
+use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_section};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchFinished;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchStart;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
@@ -40,7 +41,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelC
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
-use mcrs_minecraft_protocol::{ColumnPos, Encode};
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
@@ -484,7 +484,11 @@ pub(crate) fn project_touched_columns(
     mut inputs: ReadyInputs,
     touched: Query<
         &SectionPos,
-        Or<(Changed<SectionStage>, Changed<BlockLight>, Changed<SkyLight>)>,
+        Or<(
+            Changed<SectionStage>,
+            Changed<BlockLight>,
+            Changed<SkyLight>,
+        )>,
     >,
     mut candidates: Local<FxHashSet<ColumnPos>>,
 ) {
@@ -716,15 +720,16 @@ pub(crate) fn send_column_queue(
                         }
                     }
                     // section and turns the rest of the column into garbage.
-                    non_air_block_count(blocks)
-                        .encode(&mut data)
-                        .expect("Failed to encode chunk block count");
-                    0u16.encode(&mut data)
-                        .expect("Failed to encode chunk fluid count");
-                    encode_container(&blocks.0.0, block_direct_bits, &mut data)
-                        .expect("Failed to encode chunk block data");
-                    encode_container(&biomes.0, biome_direct_bits, &mut data)
-                        .expect("Failed to encode chunk biome data");
+                    encode_section(
+                        non_air_block_count(blocks),
+                        0,
+                        &blocks.0.0,
+                        &biomes.0,
+                        block_direct_bits,
+                        biome_direct_bits,
+                        &mut data,
+                    )
+                    .expect("Failed to encode chunk section");
                 }
                 let light_data = if *lighting == crate::Lighting::FullSky {
                     build_fullbright_light_data(wire_light_rows)

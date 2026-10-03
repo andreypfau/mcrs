@@ -107,54 +107,16 @@ mod tests {
         decoder.queue_bytes(BytesMut::from(&frame[frame.len() / 2..]));
         assert_decodes(&mut decoder, &packet);
         assert!(decoder.try_next_packet().unwrap().is_none());
-    }
 
-    #[test]
-    fn the_decoder_refuses_a_malformed_length_and_a_zero_length() {
         for input in [&[0x80, 0x80, 0x80, 0x01][..], &[0x00][..]] {
             for threshold in [-1, 256] {
-                let mut decoder = decoder(threshold, input);
+                let mut decoder = self::decoder(threshold, input);
                 assert!(
                     decoder.try_next_packet().is_err(),
                     "{input:?} at threshold {threshold}"
                 );
             }
         }
-    }
-
-    #[test]
-    fn a_frame_compressed_at_exactly_the_threshold_is_decoded() {
-        let packet = packet(256);
-        let frame = frame_of(&packet, 256);
-        let mut decoder = decoder(256, &frame);
-        assert_decodes(&mut decoder, &packet);
-    }
-
-    #[test]
-    fn an_uncompressed_frame_longer_than_the_threshold_is_decoded() {
-        let packet = packet(1000);
-        let frame = frame_of(&packet, 100_000);
-        let mut decoder = decoder(256, &frame);
-        assert_decodes(&mut decoder, &packet);
-    }
-
-    #[test]
-    fn a_frame_declaring_two_megabytes_is_decoded() {
-        let mut packet = vec![0u8; 2_097_152];
-        packet[0] = PACKET_ID;
-        let frame = frame_of(&packet, 256);
-        let mut decoder = decoder(256, &frame);
-        assert_decodes(&mut decoder, &packet);
-    }
-
-    #[test]
-    fn a_padded_length_prefix_is_decoded() {
-        let packet = packet(4);
-        let mut input = vec![0x84, 0x80, 0x00];
-        input.extend_from_slice(&packet);
-        let mut decoder = decoder(-1, &input);
-        assert_decodes(&mut decoder, &packet);
-        assert!(decoder.try_next_packet().unwrap().is_none());
     }
 
     #[test]

@@ -2,9 +2,10 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::{Add, Insert};
 use bevy_ecs::prelude::{On, Query};
-use bevy_ecs::query::{Has, With, Without};
+use bevy_ecs::query::{With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -21,7 +22,6 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, Text, WritePacket, uuid};
 use std::borrow::Cow;
 
-use crate::configuration::AwaitingFinishConfiguration;
 use crate::disconnect::Departing;
 use crate::world::session::{HostAnchorRef, SessionBundle, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
@@ -44,7 +44,9 @@ impl bevy_app::Plugin for LoginPlugin {
         // A login ended as slow must be closed before a release in the same tick could finish it.
         app.add_systems(
             bevy_app::Update,
-            (end_slow_logins, finish_awaiting_logins).chain(),
+            (end_slow_logins, finish_awaiting_logins)
+                .chain()
+                .run_if(any_with_component::<LoginStarted>),
         );
     }
 }
@@ -54,11 +56,11 @@ const MAX_TICKS_BEFORE_LOGIN: u64 = 600;
 
 /// Ticks the server has run, one per update.
 #[derive(Resource, Default, Debug, Clone, Copy)]
-pub struct ServerTicks(pub u64);
+struct ServerTicks(u64);
 
-/// The tick on which the connection began its login.
+/// The tick on which the connection began its login, held until the client acknowledges it.
 #[derive(Component, Debug, Clone, Copy)]
-pub struct LoginStarted(u64);
+struct LoginStarted(u64);
 
 fn advance_server_ticks(mut ticks: ResMut<ServerTicks>) {
     ticks.0 += 1;
@@ -122,7 +124,7 @@ pub struct SingleplayerProfile {
 /// The server authenticates nobody, so the id a hello carries is never trusted: a hello under
 /// the host's name, in any case, plays as the host, and any other plays under the offline id of
 /// its name.
-pub fn hello_profile(username: &str, host: Option<&SingleplayerProfile>) -> GameProfile {
+fn hello_profile(username: &str, host: Option<&SingleplayerProfile>) -> GameProfile {
     let (id, username) = match host {
         Some(host) if host.name.eq_ignore_ascii_case(username) => (host.id, host.name.clone()),
         _ => (offline_player_uuid(username), username.to_owned()),
@@ -154,16 +156,11 @@ pub fn duplicate_login_reason() -> Text {
 
 /// The protocol the client decodes. It switches on receiving the packet that ends a phase, while
 /// the server's state follows only on the client's acknowledgement.
-pub fn client_protocol(
-    state: ConnectionState,
-    login: Option<&LoginState>,
-    finishing_configuration: bool,
-) -> ConnectionState {
+fn client_protocol(state: ConnectionState, login: Option<&LoginState>) -> ConnectionState {
     match state {
         ConnectionState::Login if login == Some(&LoginState::Accepted) => {
             ConnectionState::Configuration
         }
-        ConnectionState::Configuration if finishing_configuration => ConnectionState::Game,
         state => state,
     }
 }
@@ -221,17 +218,18 @@ impl SessionsById<'_, '_> {
         self.departing.iter().any(|departing| departing.id == id)
     }
 
-    /// A login under `id` waits while a session under it lives or its player is not yet saved.
-    pub fn must_wait(&self, id: uuid::Uuid) -> bool {
-        self.of(id).next().is_some() || self.saving(id)
-    }
-
     /// Whether a player under `id`, other than the session on `own`, is in the world: placed in
     /// a dimension, in play, or not yet saved.
-    pub fn in_world(&self, id: uuid::Uuid, own: Entity, in_play: impl Fn(Entity) -> bool) -> bool {
+    pub fn in_world(
+        &self,
+        id: uuid::Uuid,
+        own: Option<Entity>,
+        in_play: impl Fn(Entity) -> bool,
+    ) -> bool {
         self.saving(id)
             || self.of(id).any(|(anchor, place, connection)| {
-                anchor != own && (place != Place::Unplaced || connection.is_some_and(&in_play))
+                Some(anchor) != own
+                    && (place != Place::Unplaced || connection.is_some_and(&in_play))
             })
     }
 }
@@ -246,12 +244,7 @@ fn finish_login(con: &mut ServerSideConnection, profile: &GameProfile, session_i
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
-    mut session_connections: Query<(
-        &mut ServerSideConnection,
-        &ConnectionState,
-        &LoginState,
-        Has<AwaitingFinishConfiguration>,
-    )>,
+    mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
     sessions: SessionsById,
     session_id: Res<ChatSessionId>,
     host: Option<Res<SingleplayerProfile>>,
@@ -280,22 +273,22 @@ pub fn handle_hello_packet(
     }
     let profile = hello_profile(&pkt.username, host.as_deref());
     tracing::debug!(?profile, "login hello");
-    let must_wait = sessions.must_wait(profile.id);
-    for (_, _, connection) in sessions.of(profile.id) {
-        let Some(connection) = connection else {
+    let mut must_wait = sessions.saving(profile.id);
+    for (_, place, connection) in sessions.of(profile.id) {
+        let other = connection.and_then(|entity| {
+            let (con, &state) = session_connections.get_mut(entity).ok()?;
+            Some((entity, con, state))
+        });
+        let in_play = matches!(other, Some((_, _, ConnectionState::Game)));
+        if place == Place::Unplaced && !in_play {
             continue;
-        };
-        let Ok((mut other, &state, login, finishing)) = session_connections.get_mut(connection)
-        else {
-            continue;
-        };
-        tracing::info!(name = %profile.username, "a new login under the same id ends the session");
-        disconnect(
-            &mut other,
-            client_protocol(state, Some(login), finishing),
-            duplicate_login_reason(),
-        );
-        commands.entity(connection).remove::<ServerSideConnection>();
+        }
+        must_wait = true;
+        if let Some((connection, mut other, state)) = other {
+            tracing::info!(name = %profile.username, "a new login under the same id ends the session");
+            disconnect(&mut other, state, duplicate_login_reason());
+            commands.entity(connection).remove::<ServerSideConnection>();
+        }
     }
     if must_wait {
         commands
@@ -315,7 +308,7 @@ fn slow_login_reason() -> Text {
 
 /// A held login that runs out of time also gives up on the saves it was waiting for, or every
 /// later login under its id would wait for them too.
-pub fn end_slow_logins(
+fn end_slow_logins(
     mut logins: Query<(
         Entity,
         &mut ServerSideConnection,
@@ -333,11 +326,7 @@ pub fn end_slow_logins(
             continue;
         }
         tracing::info!(name = ?profile.map(|profile| &profile.username), "login timed out");
-        disconnect(
-            &mut con,
-            client_protocol(state, login, false),
-            slow_login_reason(),
-        );
+        disconnect(&mut con, client_protocol(state, login), slow_login_reason());
         commands.entity(connection).remove::<ServerSideConnection>();
         let (Some(LoginState::AwaitingDeparture), Some(profile)) = (login, profile) else {
             continue;
@@ -355,14 +344,20 @@ pub fn end_slow_logins(
     }
 }
 
-pub fn finish_awaiting_logins(
-    mut logins: Query<(Entity, &mut ServerSideConnection, &GameProfile, &LoginState)>,
+fn finish_awaiting_logins(
+    mut logins: Query<
+        (Entity, &mut ServerSideConnection, &GameProfile, &LoginState),
+        With<LoginStarted>,
+    >,
+    states: Query<&ConnectionState>,
     sessions: SessionsById,
     session_id: Res<ChatSessionId>,
     mut commands: Commands,
 ) {
     for (connection, mut con, profile, state) in &mut logins {
-        if *state == LoginState::AwaitingDeparture && !sessions.must_wait(profile.id) {
+        let in_play = |connection| states.get(connection) == Ok(&ConnectionState::Game);
+        if *state == LoginState::AwaitingDeparture && !sessions.in_world(profile.id, None, in_play)
+        {
             finish_login(&mut con, profile, session_id.0);
             commands.entity(connection).insert(LoginState::Accepted);
         }
@@ -385,6 +380,7 @@ pub fn handle_login_acknowledged(
     };
     commands
         .entity(event.entity)
+        .remove::<LoginStarted>()
         .insert(ConnectionState::Configuration);
 }
 

@@ -1,10 +1,9 @@
-use std::io::{Read, Write};
+use std::io::Write;
 
 use anyhow::bail;
 use byteorder::ReadBytesExt;
 use derive_more::{Deref, DerefMut, From, Into};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::{Decode, Encode};
 
@@ -49,27 +48,6 @@ impl VarInt {
             n => (31 - n.leading_zeros() as usize) / 7 + 1,
         }
     }
-
-    pub fn decode_partial(mut r: impl Read) -> Result<i32, VarIntDecodeError> {
-        let mut val = 0;
-        for i in 0..Self::MAX_SIZE {
-            let byte = r.read_u8().map_err(|_| VarIntDecodeError::Incomplete)?;
-            val |= (byte as i32 & 0b01111111) << (i * 7);
-            if byte & 0b10000000 == 0 {
-                return Ok(val);
-            }
-        }
-
-        Err(VarIntDecodeError::TooLarge)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Error)]
-pub enum VarIntDecodeError {
-    #[error("incomplete VarInt decode")]
-    Incomplete,
-    #[error("VarInt is too large")]
-    TooLarge,
 }
 
 impl Encode for VarInt {

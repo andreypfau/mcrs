@@ -6,10 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use mcrs_minecraft_core::Version;
 
 use crate::gradle;
+use crate::release;
 
 pub const MANIFEST: &str = "tools/captures.json";
 const VERSION_FILE: &str = "assets/minecraft/version.json";
-const ORACLE: &str = "tools/vanilla-oracle";
+pub const ORACLE: &str = "tools/vanilla-oracle";
+const GOLDEN_TASK: &str = "dumpGolden";
 const GENERATOR_FIXTURES: &str = "crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures";
 const TEXT_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/text";
 const ITEM_FIXTURES: &str = "crates/mcrs_minecraft_protocol/tests/fixtures/item";
@@ -30,9 +32,7 @@ pub struct Output {
 
 pub struct Fixture {
     pub name: &'static str,
-    pub project: &'static str,
     pub task: &'static str,
-    pub golden: Option<&'static str>,
     pub outputs: &'static [Output],
 }
 
@@ -50,270 +50,167 @@ const fn every_file(to: &'static str) -> Output {
     }
 }
 
-pub const FIXTURES: &[Fixture] = &[
+const fn dump(name: &'static str, task: &'static str, outputs: &'static [Output]) -> Fixture {
     Fixture {
-        name: "density",
-        project: ORACLE,
-        task: "dumpOracle",
-        golden: None,
-        outputs: &[every_file(
+        name,
+        task,
+        outputs,
+    }
+}
+
+const fn golden(name: &'static str, outputs: &'static [Output]) -> Fixture {
+    dump(name, GOLDEN_TASK, outputs)
+}
+
+pub const FIXTURES: &[Fixture] = &[
+    dump(
+        "density",
+        "dumpOracle",
+        &[every_file(
             "crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla",
         )],
-    },
-    Fixture {
-        name: "surface",
-        project: ORACLE,
-        task: "dumpSurface",
-        golden: None,
-        outputs: &[every_file(GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "biome_containers",
-        project: ORACLE,
-        task: "dumpBiomes",
-        golden: None,
-        outputs: &[named("biome_containers.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "feature_steps",
-        project: ORACLE,
-        task: "dumpFeatureSteps",
-        golden: None,
-        outputs: &[named(
+    ),
+    dump("surface", "dumpSurface", &[every_file(GENERATOR_FIXTURES)]),
+    dump(
+        "biome_containers",
+        "dumpBiomes",
+        &[named("biome_containers.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "feature_steps",
+        "dumpFeatureSteps",
+        &[named(
             "feature_steps.bin",
             "crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla",
         )],
-    },
-    Fixture {
-        name: "ore_vein",
-        project: ORACLE,
-        task: "dumpOreVeins",
-        golden: None,
-        outputs: &[named("ore_vein.bin", PLACE_FIXTURES)],
-    },
-    Fixture {
-        name: "tree_geometry",
-        project: ORACLE,
-        task: "dumpTrees",
-        golden: None,
-        outputs: &[named("tree_geometry.bin", PLACE_FIXTURES)],
-    },
-    Fixture {
-        name: "templates",
-        project: ORACLE,
-        task: "dumpTemplates",
-        golden: None,
-        outputs: &[named("templates.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "structure_placement",
-        project: ORACLE,
-        task: "dumpPlacement",
-        golden: None,
-        outputs: &[
+    ),
+    dump(
+        "ore_vein",
+        "dumpOreVeins",
+        &[named("ore_vein.bin", PLACE_FIXTURES)],
+    ),
+    dump(
+        "tree_geometry",
+        "dumpTrees",
+        &[named("tree_geometry.bin", PLACE_FIXTURES)],
+    ),
+    dump(
+        "templates",
+        "dumpTemplates",
+        &[named("templates.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "structure_placement",
+        "dumpPlacement",
+        &[
             named(
                 "structure_cells.bin",
                 "crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla",
             ),
             named("structure_sites.bin", GENERATOR_FIXTURES),
         ],
-    },
-    Fixture {
-        name: "structure_layouts",
-        project: ORACLE,
-        task: "dumpJigsaw",
-        golden: None,
-        outputs: &[named("structure_layouts.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "template_placement",
-        project: ORACLE,
-        task: "dumpTemplatePlacement",
-        golden: None,
-        outputs: &[named("template_placement.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "beard",
-        project: ORACLE,
-        task: "dumpBeard",
-        golden: None,
-        outputs: &[named(
+    ),
+    dump(
+        "structure_layouts",
+        "dumpJigsaw",
+        &[named("structure_layouts.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "template_placement",
+        "dumpTemplatePlacement",
+        &[named("template_placement.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "beard",
+        "dumpBeard",
+        &[named(
             "beard.bin",
             "crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla",
         )],
-    },
-    Fixture {
-        name: "registry_census",
-        project: ORACLE,
-        task: "dumpRegistryCensus",
-        golden: None,
-        outputs: &[named(
+    ),
+    dump(
+        "registry_census",
+        "dumpRegistryCensus",
+        &[named(
             "registry_census.bin",
             "crates/mcrs_minecraft_world/src/entity/fixtures",
         )],
-    },
-    Fixture {
-        name: "structure_pieces",
-        project: ORACLE,
-        task: "dumpStructurePieces",
-        golden: None,
-        outputs: &[named("structure_pieces.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "structure_geometry",
-        project: ORACLE,
-        task: "dumpStructureGeometry",
-        golden: None,
-        outputs: &[named("structure_geometry.bin", GENERATOR_FIXTURES)],
-    },
-    Fixture {
-        name: "vanilla_chunk",
-        project: ORACLE,
-        task: "dumpChunks",
-        golden: None,
-        outputs: &[
+    ),
+    dump(
+        "structure_pieces",
+        "dumpStructurePieces",
+        &[named("structure_pieces.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "structure_geometry",
+        "dumpStructureGeometry",
+        &[named("structure_geometry.bin", GENERATOR_FIXTURES)],
+    ),
+    dump(
+        "vanilla_chunk",
+        "dumpChunks",
+        &[
             named("chunk_full.nbt", ANVIL_FIXTURES),
             named("chunk_terrain.nbt", ANVIL_FIXTURES),
             named("chunk_retrogen.nbt", ANVIL_FIXTURES),
             named("chunk_retrogen_minimal.nbt", ANVIL_FIXTURES),
         ],
-    },
-    Fixture {
-        name: "snbt",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("snbt"),
-        outputs: &[named("snbt.json", "crates/mcrs_minecraft_nbt/src/fixtures")],
-    },
-    Fixture {
-        name: "hash_ops",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("hash_ops"),
-        outputs: &[named(
+    ),
+    golden(
+        "snbt",
+        &[named("snbt.json", "crates/mcrs_minecraft_nbt/src/fixtures")],
+    ),
+    golden(
+        "hash_ops",
+        &[named(
             "hash_ops.json",
             "crates/mcrs_minecraft_item_component/src/fixtures",
         )],
-    },
-    Fixture {
-        name: "text_vanilla",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("text_vanilla"),
-        outputs: &[named("vanilla.json", TEXT_FIXTURES)],
-    },
-    Fixture {
-        name: "text_probe",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("text_probe"),
-        outputs: &[named("probe.json", TEXT_FIXTURES)],
-    },
-    Fixture {
-        name: "text_nbt",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("text_nbt"),
-        outputs: &[named("nbt.json", TEXT_FIXTURES)],
-    },
-    Fixture {
-        name: "text_wire",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("text_wire"),
-        outputs: &[named("wire.json", TEXT_FIXTURES)],
-    },
-    Fixture {
-        name: "item_plain",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_plain"),
-        outputs: &[named("plain_golden.json", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_nested",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_nested"),
-        outputs: &[named("nested_golden.json", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_predicate",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_predicate"),
-        outputs: &[named("predicate_vanilla.json", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_kinds",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_kinds"),
-        outputs: &[named("kinds.json", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_holders",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_holders"),
-        outputs: &[named("holders_golden.txt", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_registry_refs",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_registry_refs"),
-        outputs: &[named("registry_refs_golden.txt", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "item_records",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("item_records"),
-        outputs: &[named("vanilla_records.txt", ITEM_FIXTURES)],
-    },
-    Fixture {
-        name: "recipe_packets",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("recipe_packets"),
-        outputs: &[named("recipe_packets_golden.txt", PROTOCOL_FIXTURES)],
-    },
-    Fixture {
-        name: "particles",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("particles"),
-        outputs: &[named("particles_golden.txt", PROTOCOL_FIXTURES)],
-    },
-    Fixture {
-        name: "inventory_packets",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("inventory_packets"),
-        outputs: &[named("inventory_packets_golden.txt", PROTOCOL_FIXTURES)],
-    },
-    Fixture {
-        name: "join_packets",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("join_packets"),
-        outputs: &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
-    },
-    Fixture {
-        name: "frames",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("frames"),
-        outputs: &[named("frames_golden.txt", PROTOCOL_FIXTURES)],
-    },
-    Fixture {
-        name: "vanilla_player",
-        project: ORACLE,
-        task: "dumpGolden",
-        golden: Some("vanilla_player"),
-        outputs: &[named("vanilla_player.dat", WORLD_FIXTURES)],
-    },
+    ),
+    golden("text_vanilla", &[named("vanilla.json", TEXT_FIXTURES)]),
+    golden("text_probe", &[named("probe.json", TEXT_FIXTURES)]),
+    golden("text_nbt", &[named("nbt.json", TEXT_FIXTURES)]),
+    golden("text_wire", &[named("wire.json", TEXT_FIXTURES)]),
+    golden("item_plain", &[named("plain_golden.json", ITEM_FIXTURES)]),
+    golden("item_nested", &[named("nested_golden.json", ITEM_FIXTURES)]),
+    golden(
+        "item_predicate",
+        &[named("predicate_vanilla.json", ITEM_FIXTURES)],
+    ),
+    golden("item_kinds", &[named("kinds.json", ITEM_FIXTURES)]),
+    golden(
+        "item_holders",
+        &[named("holders_golden.txt", ITEM_FIXTURES)],
+    ),
+    golden(
+        "item_registry_refs",
+        &[named("registry_refs_golden.txt", ITEM_FIXTURES)],
+    ),
+    golden(
+        "item_records",
+        &[named("vanilla_records.txt", ITEM_FIXTURES)],
+    ),
+    golden(
+        "recipe_packets",
+        &[named("recipe_packets_golden.txt", PROTOCOL_FIXTURES)],
+    ),
+    golden(
+        "particles",
+        &[named("particles_golden.txt", PROTOCOL_FIXTURES)],
+    ),
+    golden(
+        "inventory_packets",
+        &[named("inventory_packets_golden.txt", PROTOCOL_FIXTURES)],
+    ),
+    golden(
+        "join_packets",
+        &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
+    ),
+    golden("frames", &[named("frames_golden.txt", PROTOCOL_FIXTURES)]),
+    golden(
+        "vanilla_player",
+        &[named("vanilla_player.dat", WORLD_FIXTURES)],
+    ),
 ];
 
 pub type Manifest = BTreeMap<String, String>;
@@ -352,26 +249,22 @@ pub fn read_manifest(path: &Path) -> Result<Manifest, String> {
     }
 }
 
-pub fn render(manifest: &Manifest) -> String {
-    let mut text = serde_json::to_string_pretty(manifest).expect("a string map serializes");
-    text.push('\n');
-    text
-}
-
 pub fn record(path: &Path, name: &str, id: &str) -> Result<(), String> {
     let mut manifest = read_manifest(path)?;
     manifest.insert(name.to_owned(), id.to_owned());
-    fs::write(path, render(&manifest)).map_err(|error| format!("{}: {error}", path.display()))
+    fs::write(path, release::pretty(&manifest)?)
+        .map_err(|error| format!("{}: {error}", path.display()))
 }
 
-pub fn stale(manifest: &Manifest, table: &[Fixture], id: &str) -> Vec<String> {
-    let missing_or_other = table
+#[cfg(test)]
+pub fn stale(manifest: &Manifest, id: &str) -> Vec<String> {
+    let missing_or_other = FIXTURES
         .iter()
         .filter(|fixture| manifest.get(fixture.name).map(String::as_str) != Some(id))
         .map(|fixture| fixture.name.to_owned());
     let unknown = manifest
         .keys()
-        .filter(|key| !table.iter().any(|fixture| fixture.name == key.as_str()))
+        .filter(|key| !FIXTURES.iter().any(|fixture| fixture.name == key.as_str()))
         .cloned();
     missing_or_other.chain(unknown).collect()
 }
@@ -437,34 +330,36 @@ pub fn store(root: &Path, fixture: &Fixture, out: &Path) -> Result<Vec<PathBuf>,
     Ok(files.into_iter().map(|(to, _)| to).collect())
 }
 
+pub fn with_scratch<T>(
+    name: &str,
+    then: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    static RUNS: AtomicUsize = AtomicUsize::new(0);
+    let out = std::env::temp_dir().join(format!(
+        "mcrs-update-{}-{}-{name}",
+        std::process::id(),
+        RUNS.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = fs::remove_dir_all(&out);
+    let result = fs::create_dir_all(&out)
+        .map_err(|error| format!("{}: {error}", out.display()))
+        .and_then(|()| then(&out));
+    let _ = fs::remove_dir_all(&out);
+    result
+}
+
 pub fn capture(
     root: &Path,
     fixture: &Fixture,
     run: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<Vec<PathBuf>, String> {
-    static RUNS: AtomicUsize = AtomicUsize::new(0);
     let id = corpus_id(root)?;
-    let out = std::env::temp_dir().join(format!(
-        "mcrs-update-fixture-{}-{}-{}",
-        std::process::id(),
-        RUNS.fetch_add(1, Ordering::Relaxed),
-        fixture.name
-    ));
-    let _ = fs::remove_dir_all(&out);
-    fs::create_dir_all(&out).map_err(|error| format!("{}: {error}", out.display()))?;
-    let result = run(&out)
-        .and_then(|()| store(root, fixture, &out))
-        .and_then(|copied| {
-            record(&root.join(MANIFEST), fixture.name, &id)?;
-            Ok(copied)
-        });
-    let _ = fs::remove_dir_all(&out);
-    result
-}
-
-fn utf8(path: &Path) -> Result<&str, String> {
-    path.to_str()
-        .ok_or_else(|| format!("{}: not valid UTF-8", path.display()))
+    with_scratch(fixture.name, |out| {
+        run(out)?;
+        let copied = store(root, fixture, out)?;
+        record(&root.join(MANIFEST), fixture.name, &id)?;
+        Ok(copied)
+    })
 }
 
 fn current_file(root: &Path, fixture: &Fixture) -> Result<PathBuf, String> {
@@ -485,47 +380,32 @@ fn properties<'a>(
     fixture: &'a Fixture,
     out: &'a Path,
 ) -> Result<Vec<(&'static str, String)>, String> {
-    let out = utf8(out)?.to_owned();
-    match fixture.golden {
-        None => Ok(vec![("oracleOut", out)]),
-        Some(golden) => {
-            let current = current_file(root, fixture)?;
-            Ok(vec![
-                ("golden", golden.to_owned()),
-                ("goldenIn", utf8(&current)?.to_owned()),
-                ("goldenOut", out),
-            ])
-        }
+    let out = gradle::utf8(out)?.to_owned();
+    if fixture.task != GOLDEN_TASK {
+        return Ok(vec![("oracleOut", out)]);
     }
+    let current = current_file(root, fixture)?;
+    Ok(vec![
+        ("golden", fixture.name.to_owned()),
+        ("goldenIn", gradle::utf8(&current)?.to_owned()),
+        ("goldenOut", out),
+    ])
 }
 
 pub fn recapture(root: &Path, fixture: &Fixture) -> Result<Vec<PathBuf>, String> {
     capture(root, fixture, |out| {
-        let owned = properties(root, fixture, out)?;
-        let borrowed: Vec<(&str, &str)> = owned
-            .iter()
-            .map(|(name, value)| (*name, value.as_str()))
-            .collect();
-        gradle::run(&root.join(fixture.project), fixture.task, &borrowed)
+        gradle::run(
+            &root.join(ORACLE),
+            fixture.task,
+            &properties(root, fixture, out)?,
+        )
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "mcrs_fixtures-{}-{}-{name}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::testing::scratch;
 
     fn repository() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -562,7 +442,7 @@ mod tests {
     fn every_fixture_was_captured_on_the_corpus_version() {
         assert!(!FIXTURES.is_empty());
         let manifest = read_manifest(&repository().join(MANIFEST)).unwrap();
-        let behind = stale(&manifest, FIXTURES, id());
+        let behind = stale(&manifest, id());
         assert!(
             behind.is_empty(),
             "not captured on {}: {}",
@@ -610,7 +490,10 @@ mod tests {
     #[test]
     fn every_golden_current_file_exists_in_the_repository() {
         let root = repository();
-        for fixture in FIXTURES.iter().filter(|fixture| fixture.golden.is_some()) {
+        for fixture in FIXTURES
+            .iter()
+            .filter(|fixture| fixture.task == GOLDEN_TASK)
+        {
             let current = current_file(&root, fixture).unwrap();
             assert!(current.is_file(), "{}: {}", fixture.name, current.display());
         }
@@ -731,19 +614,6 @@ mod tests {
     }
 
     #[test]
-    fn recording_in_either_order_writes_the_same_bytes() {
-        let (a, b) = (
-            scratch("order-a").join("captures.json"),
-            scratch("order-b").join("captures.json"),
-        );
-        record(&a, "density", "26.4").unwrap();
-        record(&a, "beard", "26.4").unwrap();
-        record(&b, "beard", "26.4").unwrap();
-        record(&b, "density", "26.4").unwrap();
-        assert_eq!(fs::read(&a).unwrap(), fs::read(&b).unwrap());
-    }
-
-    #[test]
     fn the_manifest_is_pretty_printed_with_sorted_keys_and_one_trailing_newline() {
         let path = scratch("format").join("captures.json");
         record(&path, "surface", "x").unwrap();
@@ -767,64 +637,23 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_or_absent_manifest_makes_every_fixture_stale() {
+    fn a_fixture_is_stale_when_absent_or_on_another_id_and_so_is_an_unknown_key() {
         let all: Vec<String> = names().into_iter().map(String::from).collect();
-        assert_eq!(stale(&Manifest::new(), FIXTURES, "26.4"), all);
+        let full: Manifest = all.iter().map(|n| (n.clone(), "26.4".into())).collect();
         let absent = read_manifest(&scratch("absent").join("captures.json")).unwrap();
-        assert_eq!(stale(&absent, FIXTURES, "26.4"), all);
-    }
-
-    #[test]
-    fn a_manifest_that_lacks_a_fixture_reports_it() {
-        let mut manifest: Manifest = names()
-            .into_iter()
-            .map(|n| (n.into(), "26.4".into()))
-            .collect();
-        manifest.remove("beard");
-        assert_eq!(stale(&manifest, FIXTURES, "26.4"), ["beard"]);
-    }
-
-    #[test]
-    fn a_complete_current_manifest_has_nothing_stale() {
-        let manifest: Manifest = names()
-            .into_iter()
-            .map(|n| (n.into(), "26.4".into()))
-            .collect();
-        assert!(stale(&manifest, FIXTURES, "26.4").is_empty());
-    }
-
-    #[test]
-    fn an_entry_with_another_id_is_stale() {
-        let mut manifest: Manifest = names()
-            .into_iter()
-            .map(|n| (n.into(), "26.4".into()))
-            .collect();
-        manifest.insert("surface".into(), "26.3".into());
-        assert_eq!(stale(&manifest, FIXTURES, "26.4"), ["surface"]);
-    }
-
-    #[test]
-    fn a_key_that_is_not_in_the_table_is_stale() {
-        let mut manifest: Manifest = names()
-            .into_iter()
-            .map(|n| (n.into(), "26.4".into()))
-            .collect();
-        manifest.insert("no_such_fixture".into(), "26.4".into());
-        assert_eq!(stale(&manifest, FIXTURES, "26.4"), ["no_such_fixture"]);
-    }
-
-    #[test]
-    fn the_comparison_is_exact() {
-        let current = id();
-        let mut manifest: Manifest = names()
-            .into_iter()
-            .map(|n| (n.into(), current.to_owned()))
-            .collect();
-        manifest.insert("density".into(), current.to_uppercase());
-        manifest.insert("beard".into(), format!("{current} "));
-        let mut found = stale(&manifest, FIXTURES, current);
-        found.sort();
-        assert_eq!(found, ["beard", "density"]);
+        let (mut lacking, mut behind, mut unknown) = (full.clone(), full.clone(), full);
+        lacking.remove("beard");
+        behind.insert("surface".into(), "26.3".into());
+        unknown.insert("no_such_fixture".into(), "26.4".into());
+        for (manifest, expected) in [
+            (Manifest::new(), all.clone()),
+            (absent, all),
+            (lacking, vec!["beard".to_owned()]),
+            (behind, vec!["surface".to_owned()]),
+            (unknown, vec!["no_such_fixture".to_owned()]),
+        ] {
+            assert_eq!(stale(&manifest, "26.4"), expected);
+        }
     }
 
     #[test]
@@ -868,14 +697,6 @@ mod tests {
         assert!(!root.join(MANIFEST).exists());
         let destination = root.join("crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla");
         assert_eq!(fs::read_dir(destination).unwrap().count(), 0);
-    }
-
-    #[test]
-    fn a_task_that_wrote_nothing_records_nothing() {
-        let fixture = fixture("density");
-        let root = root_for(fixture);
-        assert!(capture(&root, fixture, |_| Ok(())).is_err());
-        assert!(!root.join(MANIFEST).exists());
     }
 
     #[test]

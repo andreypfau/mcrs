@@ -11,12 +11,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// A declared length is a claim the input has yet to back: a buffer sized by
 /// one grows this far at a time, so the room set aside stays within about
 /// twice the bytes that have actually arrived.
-const READ_STEP: usize = 64 * 1024;
+pub(crate) const READ_STEP: usize = 64 * 1024;
 
 /// The room to set aside for a declared number of elements before any of them
 /// has been read.
-pub(crate) fn cautious_capacity<T>(declared: usize) -> usize {
-    declared.min(READ_STEP / size_of::<T>().max(1))
+pub fn cautious_capacity<T>(declared: usize, max_bytes: usize) -> usize {
+    declared.min(max_bytes / size_of::<T>().max(1))
 }
 
 #[derive(Debug)]
@@ -126,7 +126,7 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     }
 
     pub fn read_boxed_slice(&mut self, count: usize) -> Result<Box<[u8]>> {
-        let mut buf = Vec::with_capacity(cautious_capacity::<u8>(count));
+        let mut buf = Vec::with_capacity(cautious_capacity::<u8>(count, READ_STEP));
         self.read_into(&mut buf, count)?;
         Ok(buf.into())
     }

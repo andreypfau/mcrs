@@ -3,9 +3,9 @@ use super::{Generation, Mobs, carver, placed};
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 macro_rules! feature_sets {
-    ($($name:ident => $step:ident [$($key:ident),+];)*) => {$(
+    ($($name:ident => $($step:ident [$($key:ident),+])+;)*) => {$(
         pub fn $name(g: &mut Generation) {
-            g.features($step, &[$(placed::$key),+]);
+            $(g.features($step, &[$(placed::$key),+]);)+
         }
     )*};
 }
@@ -40,8 +40,6 @@ feature_sets! {
     lush_caves_special_ores => UndergroundOres [ORE_CLAY];
     mountain_trees => VegetalDecoration [TREES_WINDSWEPT_HILLS];
     mountain_forest_trees => VegetalDecoration [TREES_WINDSWEPT_FOREST];
-    jungle_trees => VegetalDecoration [TREES_JUNGLE];
-    sparse_jungle_trees => VegetalDecoration [TREES_SPARSE_JUNGLE];
     badlands_trees => VegetalDecoration [TREES_BADLANDS];
     snowy_trees => VegetalDecoration [TREES_SNOWY];
     jungle_grass => VegetalDecoration [PATCH_GRASS_JUNGLE];
@@ -69,8 +67,6 @@ feature_sets! {
     near_water_vegetation => VegetalDecoration [PATCH_SUGAR_CANE, PATCH_FIREFLY_BUSH_NEAR_WATER];
     leaf_litter_patch => VegetalDecoration [PATCH_LEAF_LITTER];
     badland_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_BADLANDS, PATCH_PUMPKIN, PATCH_CACTUS_DECORATED, PATCH_FIREFLY_BUSH_NEAR_WATER];
-    jungle_melons => VegetalDecoration [PATCH_MELON];
-    sparse_jungle_melons => VegetalDecoration [PATCH_MELON_SPARSE];
     jungle_vines => VegetalDecoration [VINES];
     desert_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_DESERT, PATCH_PUMPKIN, PATCH_CACTUS_DESERT];
     swamp_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_SWAMP, PATCH_PUMPKIN, PATCH_FIREFLY_BUSH_SWAMP, PATCH_FIREFLY_BUSH_NEAR_WATER_SWAMP];
@@ -86,6 +82,18 @@ feature_sets! {
     surface_freezing => TopLayerModification [FREEZE_TOP_LAYER];
     ancient_debris => UndergroundDecoration [ORE_ANCIENT_DEBRIS_LARGE, ORE_DEBRIS_SMALL];
     default_crystal_formations => LocalModifications [AMETHYST_GEODE];
+    pumpkin_patches => VegetalDecoration [PATCH_PUMPKIN];
+    default_underground_variety => UndergroundOres [ORE_DIRT, ORE_GRAVEL, ORE_GRANITE_UPPER, ORE_GRANITE_LOWER, ORE_DIORITE_UPPER, ORE_DIORITE_LOWER, ORE_ANDESITE_UPPER, ORE_ANDESITE_LOWER, ORE_TUFF] VegetalDecoration [GLOW_LICHEN];
+    dripstone => LocalModifications [LARGE_DRIPSTONE] UndergroundDecoration [DRIPSTONE_CLUSTER, POINTED_DRIPSTONE];
+    sulfur_caves_features => Lakes [ROOTED_SULFUR_SPRING, SULFUR_POOL] UndergroundDecoration [SULFUR_SPIKE_CLUSTER, SULFUR_SPIKE];
+}
+
+macro_rules! set_groups {
+    ($($name:ident => [$($part:ident),+];)*) => {$(
+        pub fn $name(g: &mut Generation) {
+            $($part(g);)+
+        }
+    )*};
 }
 
 pub fn default_carvers(g: &mut Generation) {
@@ -99,32 +107,6 @@ pub fn default_carvers_and_lakes(g: &mut Generation) {
     g.features(
         Lakes,
         &[placed::LAKE_LAVA_UNDERGROUND, placed::LAKE_LAVA_SURFACE],
-    );
-}
-
-pub fn default_underground_variety(g: &mut Generation) {
-    g.features(
-        UndergroundOres,
-        &[
-            placed::ORE_DIRT,
-            placed::ORE_GRAVEL,
-            placed::ORE_GRANITE_UPPER,
-            placed::ORE_GRANITE_LOWER,
-            placed::ORE_DIORITE_UPPER,
-            placed::ORE_DIORITE_LOWER,
-            placed::ORE_ANDESITE_UPPER,
-            placed::ORE_ANDESITE_LOWER,
-            placed::ORE_TUFF,
-        ],
-    );
-    g.feature(VegetalDecoration, placed::GLOW_LICHEN);
-}
-
-pub fn dripstone(g: &mut Generation) {
-    g.feature(LocalModifications, placed::LARGE_DRIPSTONE);
-    g.features(
-        UndergroundDecoration,
-        &[placed::DRIPSTONE_CLUSTER, placed::POINTED_DRIPSTONE],
     );
 }
 
@@ -161,21 +143,6 @@ fn ores(g: &mut Generation, copper: crate::keys::PlacedKey) {
     );
 }
 
-pub fn sulfur_caves_features(g: &mut Generation) {
-    g.features(Lakes, &[placed::ROOTED_SULFUR_SPRING, placed::SULFUR_POOL]);
-    g.features(
-        UndergroundDecoration,
-        &[placed::SULFUR_SPIKE_CLUSTER, placed::SULFUR_SPIKE],
-    );
-}
-
-pub fn default_extra_vegetation(g: &mut Generation, near_water: bool) {
-    g.feature(VegetalDecoration, placed::PATCH_PUMPKIN);
-    if near_water {
-        near_water_vegetation(g);
-    }
-}
-
 pub fn nether_default_ores(g: &mut Generation) {
     g.features(
         UndergroundDecoration,
@@ -189,114 +156,134 @@ pub fn nether_default_ores(g: &mut Generation) {
     ancient_debris(g);
 }
 
-pub fn farm_animals(m: &mut Mobs) {
-    m.spawn(SHEEP, 12, 4, 4)
-        .spawn(PIG, 10, 4, 4)
-        .spawn(CHICKEN, 10, 4, 4)
-        .spawn(COW, 8, 4, 4);
-}
-
-pub fn cave_spawns(m: &mut Mobs) {
-    m.spawn(BAT, 10, 8, 8).spawn(GLOW_SQUID, 10, 4, 6);
-}
-
-pub fn common_spawns(m: &mut Mobs) {
-    common_spawns_with_skeletons(m, 100);
-}
-
-pub fn common_spawns_with_skeletons(m: &mut Mobs, skeleton_weight: i32) {
-    cave_spawns(m);
-    monsters(m, 95, 5, 0, skeleton_weight);
-}
-
-pub fn common_spawn_with_zombie_horse(m: &mut Mobs) {
-    cave_spawns(m);
-    monsters(m, 90, 5, 5, 100);
-}
-
-pub fn swamp_spawns(m: &mut Mobs, swamp_skeleton_weight: i32) {
-    common_spawns_with_skeletons(m, swamp_skeleton_weight);
-    m.spawn(SLIME, 1, 1, 1)
-        .spawn(BOGGED, 30, 4, 4)
-        .spawn(FROG, 10, 2, 5);
-}
-
-pub fn ocean_spawns(m: &mut Mobs, squid_weight: i32, squid_max_count: i32, cod_weight: i32) {
-    m.spawn(SQUID, squid_weight, 1, squid_max_count)
-        .spawn(COD, cod_weight, 3, 6);
-    common_spawns(m);
-    m.spawn(DROWNED, 5, 1, 1);
-}
-
-pub fn warm_ocean_spawns(m: &mut Mobs, squid_weight: i32, squid_min_count: i32) {
-    m.spawn(SQUID, squid_weight, squid_min_count, 4)
-        .spawn(TROPICAL_FISH, 25, 8, 8)
-        .spawn(DOLPHIN, 2, 1, 2)
-        .spawn(DROWNED, 5, 1, 1);
-    common_spawns(m);
-}
-
-pub fn plains_spawns(m: &mut Mobs) {
-    farm_animals(m);
-    m.spawn(HORSE, 5, 2, 6).spawn(DONKEY, 1, 1, 3);
-    common_spawn_with_zombie_horse(m);
-}
-
-pub fn snowy_spawns(m: &mut Mobs, zombie_horse: bool) {
-    m.spawn(RABBIT, 10, 2, 3).spawn(POLAR_BEAR, 1, 1, 2);
-    cave_spawns(m);
-    if zombie_horse {
-        monsters(m, 90, 5, 5, 20);
-    } else {
-        monsters(m, 95, 5, 0, 20);
+impl Mobs {
+    pub fn farm_animals(&mut self) -> &mut Self {
+        self.spawn(SHEEP, 12, 4, 4)
+            .spawn(PIG, 10, 4, 4)
+            .spawn(CHICKEN, 10, 4, 4)
+            .spawn(COW, 8, 4, 4)
     }
-    m.spawn(STRAY, 80, 4, 4);
-}
 
-pub fn desert_spawns(m: &mut Mobs) {
-    m.spawn(RABBIT, 12, 2, 3).spawn(CAMEL, 1, 1, 1);
-    cave_spawns(m);
-    monsters(m, 19, 1, 0, 50);
-    m.spawn(HUSK, 80, 4, 4).spawn(PARCHED, 50, 4, 4);
-}
-
-pub fn dripstone_caves_spawns(m: &mut Mobs) {
-    cave_spawns(m);
-    monsters(m, 95, 5, 0, 100);
-    m.spawn(DROWNED, 95, 4, 4);
-}
-
-pub fn monsters(
-    m: &mut Mobs,
-    zombie_weight: i32,
-    zombie_villager_weight: i32,
-    zombie_horse_weight: i32,
-    skeleton_weight: i32,
-) {
-    m.spawn(SPIDER, 100, 4, 4)
-        .spawn(ZOMBIE, zombie_weight, 4, 4)
-        .spawn(ZOMBIE_VILLAGER, zombie_villager_weight, 1, 1);
-    if zombie_horse_weight > 0 {
-        m.spawn(ZOMBIE_HORSE, zombie_horse_weight, 1, 1);
+    pub fn taiga_animals(&mut self) -> &mut Self {
+        self.farm_animals()
+            .spawn(WOLF, 8, 4, 4)
+            .spawn(RABBIT, 4, 2, 3)
+            .spawn(FOX, 8, 2, 4)
     }
-    m.spawn(SKELETON, skeleton_weight, 4, 4)
-        .spawn(CREEPER, 100, 4, 4)
-        .spawn(SLIME, 100, 4, 4)
-        .spawn(ENDERMAN, 10, 1, 4)
-        .spawn(WITCH, 5, 1, 1);
+
+    pub fn cave_spawns(&mut self) -> &mut Self {
+        self.spawn(BAT, 10, 8, 8).spawn(GLOW_SQUID, 10, 4, 6)
+    }
+
+    pub fn common_spawns(&mut self) -> &mut Self {
+        self.common_spawns_with_skeletons(100)
+    }
+
+    pub fn common_spawns_with_skeletons(&mut self, skeleton_weight: i32) -> &mut Self {
+        self.cave_spawns().monsters(95, 5, 0, skeleton_weight)
+    }
+
+    pub fn common_spawn_with_zombie_horse(&mut self) -> &mut Self {
+        self.cave_spawns().monsters(90, 5, 5, 100)
+    }
+
+    pub fn swamp_spawns(&mut self, swamp_skeleton_weight: i32) -> &mut Self {
+        self.common_spawns_with_skeletons(swamp_skeleton_weight)
+            .spawn(SLIME, 1, 1, 1)
+            .spawn(BOGGED, 30, 4, 4)
+            .spawn(FROG, 10, 2, 5)
+    }
+
+    pub fn ocean_spawns(
+        &mut self,
+        squid_weight: i32,
+        squid_max_count: i32,
+        cod_weight: i32,
+    ) -> &mut Self {
+        self.spawn(SQUID, squid_weight, 1, squid_max_count)
+            .spawn(COD, cod_weight, 3, 6)
+            .common_spawns()
+            .spawn(DROWNED, 5, 1, 1)
+    }
+
+    pub fn warm_ocean_spawns(&mut self, squid_weight: i32, squid_min_count: i32) -> &mut Self {
+        self.spawn(SQUID, squid_weight, squid_min_count, 4)
+            .spawn(TROPICAL_FISH, 25, 8, 8)
+            .spawn(DOLPHIN, 2, 1, 2)
+            .spawn(DROWNED, 5, 1, 1)
+            .common_spawns()
+    }
+
+    pub fn plains_spawns(&mut self) -> &mut Self {
+        self.farm_animals()
+            .spawn(HORSE, 5, 2, 6)
+            .spawn(DONKEY, 1, 1, 3)
+            .common_spawn_with_zombie_horse()
+    }
+
+    pub fn snowy_spawns(&mut self, zombie_horse: bool) -> &mut Self {
+        let (zombie_weight, zombie_horse_weight) = if zombie_horse { (90, 5) } else { (95, 0) };
+        self.spawn(RABBIT, 10, 2, 3)
+            .spawn(POLAR_BEAR, 1, 1, 2)
+            .cave_spawns()
+            .monsters(zombie_weight, 5, zombie_horse_weight, 20)
+            .spawn(STRAY, 80, 4, 4)
+    }
+
+    pub fn desert_spawns(&mut self) -> &mut Self {
+        self.spawn(RABBIT, 12, 2, 3)
+            .spawn(CAMEL, 1, 1, 1)
+            .cave_spawns()
+            .monsters(19, 1, 0, 50)
+            .spawn(HUSK, 80, 4, 4)
+            .spawn(PARCHED, 50, 4, 4)
+    }
+
+    pub fn dripstone_caves_spawns(&mut self) -> &mut Self {
+        self.common_spawns().spawn(DROWNED, 95, 4, 4)
+    }
+
+    pub fn monsters(
+        &mut self,
+        zombie_weight: i32,
+        zombie_villager_weight: i32,
+        zombie_horse_weight: i32,
+        skeleton_weight: i32,
+    ) -> &mut Self {
+        self.spawn(SPIDER, 100, 4, 4)
+            .spawn(ZOMBIE, zombie_weight, 4, 4)
+            .spawn(ZOMBIE_VILLAGER, zombie_villager_weight, 1, 1);
+        if zombie_horse_weight > 0 {
+            self.spawn(ZOMBIE_HORSE, zombie_horse_weight, 1, 1);
+        }
+        self.spawn(SKELETON, skeleton_weight, 4, 4)
+            .spawn(CREEPER, 100, 4, 4)
+            .spawn(SLIME, 100, 4, 4)
+            .spawn(ENDERMAN, 10, 1, 4)
+            .spawn(WITCH, 5, 1, 1)
+    }
+
+    pub fn mooshroom_spawns(&mut self) -> &mut Self {
+        self.spawn(MOOSHROOM, 8, 4, 8).cave_spawns()
+    }
+
+    pub fn base_jungle_spawns(&mut self) -> &mut Self {
+        self.farm_animals().spawn(CHICKEN, 10, 4, 4).common_spawns()
+    }
+
+    pub fn end_spawns(&mut self) -> &mut Self {
+        self.spawn(ENDERMAN, 10, 4, 4)
+    }
 }
 
-pub fn mooshroom_spawns(m: &mut Mobs) {
-    m.spawn(MOOSHROOM, 8, 4, 8);
-    cave_spawns(m);
-}
-
-pub fn base_jungle_spawns(m: &mut Mobs) {
-    farm_animals(m);
-    m.spawn(CHICKEN, 10, 4, 4);
-    common_spawns(m);
-}
-
-pub fn end_spawns(m: &mut Mobs) {
-    m.spawn(ENDERMAN, 10, 4, 4);
+#[rustfmt::skip]
+set_groups! {
+    mountain_ores => [extra_emeralds, infested_stone];
+    default_extra_vegetation => [pumpkin_patches, near_water_vegetation];
+    mushrooms_and_extra_vegetation => [default_mushrooms, default_extra_vegetation];
+    default_vegetation => [default_flowers, default_grass, mushrooms_and_extra_vegetation];
+    ocean_vegetation => [water_trees, default_vegetation];
+    global_overworld_generation => [default_carvers_and_lakes, default_crystal_formations, default_monster_room, default_underground_variety, default_springs, surface_freezing];
+    overworld_features => [global_overworld_generation, default_ores, default_soft_disks];
+    cave_plains_vegetation => [plain_grass, plain_vegetation, default_mushrooms, pumpkin_patches];
 }

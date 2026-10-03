@@ -44,6 +44,43 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Every structure template as the gzip NBT it ships as, keyed by its path
+/// under `minecraft/structure`: the files the corpus ships, and the built-in
+/// ones it ships no file for.
+pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
+    let base = assets_dir().join("minecraft/structure");
+    let mut templates: BTreeMap<PathBuf, Vec<u8>> = builtin::paths("minecraft/structure")
+        .into_iter()
+        .map(|path| {
+            let bytes = builtin::asset(&path).expect("a listed built-in template builds");
+            let relative = Path::new(&path)
+                .strip_prefix("minecraft/structure")
+                .expect("a template path is under the structure directory");
+            (relative.to_owned(), bytes)
+        })
+        .collect();
+    for path in nbt_files(&base) {
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let relative = path
+            .strip_prefix(&base)
+            .expect("the file is under the base");
+        templates.insert(relative.to_owned(), bytes);
+    }
+    templates
+}
+
+/// One structure template as the gzip NBT it ships as: the corpus file, or the
+/// built-in when the corpus ships none.
+pub fn template(id: &ResourceLocation) -> Option<Vec<u8>> {
+    let shipped = assets_dir()
+        .join(id.namespace())
+        .join("structure")
+        .join(format!("{}.nbt", id.path()));
+    std::fs::read(shipped)
+        .ok()
+        .or_else(|| builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())))
+}
+
 /// The id a corpus file carries: its path under `base`, without the extension.
 fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     let relative = path.strip_prefix(base).expect("the file is under the base");
@@ -54,32 +91,32 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-/// One `minecraft/worldgen` registry, parsed: the files the corpus ships, and
-/// the built-in entries it ships no file for. Every file in the folder must
-/// parse: dropping the ones that do not would let a test read "the whole corpus
-/// compiles" off a corpus quietly missing the entries that broke.
-pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+/// One `minecraft/worldgen` registry as the JSON each entry ships as: the
+/// built-in entries, overridden by the files the corpus ships.
+fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     let base = worldgen_dir().join(folder);
-    let mut entries: BTreeMap<ResourceLocation, T> = builtin::assets(folder)
-        .into_iter()
-        .map(|(id, bytes)| {
-            let parsed = serde_json::from_slice(&bytes)
-                .unwrap_or_else(|e| panic!("built-in {folder}/{id}: {e}"));
-            (id, parsed)
-        })
-        .collect();
-    let shipped = if base.is_dir() {
-        json_files(&base)
-    } else {
-        Vec::new()
-    };
-    for path in shipped {
-        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let parsed = serde_json::from_slice::<T>(&bytes)
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        entries.insert(id_of(&base, &path), parsed);
+    let mut entries = builtin::assets(folder);
+    if base.is_dir() {
+        for path in json_files(&base) {
+            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            entries.insert(id_of(&base, &path), bytes);
+        }
     }
     entries
+}
+
+/// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
+/// the ones that do not would let a test read "the whole corpus compiles" off a
+/// corpus quietly missing the entries that broke.
+pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+    entries(folder)
+        .into_iter()
+        .map(|(id, bytes)| {
+            let parsed =
+                serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+            (id, parsed)
+        })
+        .collect()
 }
 
 /// Every `.json` under `assets/<dir>`, parsed. Panics naming every file that
@@ -108,16 +145,12 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
 /// One named `minecraft/worldgen` asset, which must parse: the file the corpus
 /// ships, or the built-in entry where it ships none.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
-    let path = worldgen_dir()
-        .join(folder)
-        .join(format!("{}.json", id.path()));
-    let bytes = match std::fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(e) => builtin::assets(folder)
-            .remove(id)
-            .unwrap_or_else(|| panic!("{}: {e}", path.display())),
-    };
-    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
+    let bytes = std::fs::read(assets_dir().join(&path))
+        .ok()
+        .or_else(|| builtin::asset(&path))
+        .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
 /// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`
@@ -132,17 +165,7 @@ pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
 /// entries were checked, so a caller can pin the count and see a corpus change
 /// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
-    let base = worldgen_dir().join(folder);
-    let mut entries = builtin::assets(folder);
-    let shipped = if base.is_dir() {
-        json_files(&base)
-    } else {
-        Vec::new()
-    };
-    for path in shipped {
-        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        entries.insert(id_of(&base, &path), bytes);
-    }
+    let entries = entries(folder);
     for (id, bytes) in &entries {
         let raw: serde_json::Value =
             serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));

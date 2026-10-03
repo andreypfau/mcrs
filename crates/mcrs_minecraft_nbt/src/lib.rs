@@ -206,10 +206,14 @@ impl_array!(nbt_int_array, NBT_INT_ARRAY_TAG);
 impl_array!(nbt_long_array, NBT_LONG_ARRAY_TAG);
 impl_array!(nbt_byte_array, NBT_BYTE_ARRAY_TAG);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(variant_identifier)]
 pub enum ArrayKind {
+    #[serde(rename = "__nbt_byte_array")]
     Byte,
+    #[serde(rename = "__nbt_int_array")]
     Int,
+    #[serde(rename = "__nbt_long_array")]
     Long,
 }
 
@@ -253,7 +257,7 @@ impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Tagged<V> {
     }
 
     fn visit_enum<A: de::EnumAccess<'de>>(self, data: A) -> Result<V::Value, A::Error> {
-        let (kind, payload) = data.variant_seed(Kind)?;
+        let (kind, payload) = data.variant()?;
         de::VariantAccess::newtype_variant_seed(
             payload,
             Payload {
@@ -261,36 +265,6 @@ impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Tagged<V> {
                 visitor: self.0,
             },
         )
-    }
-}
-
-struct Kind;
-
-impl<'de> de::DeserializeSeed<'de> for Kind {
-    type Value = ArrayKind;
-
-    fn deserialize<D: serde::Deserializer<'de>>(self, variant: D) -> Result<ArrayKind, D::Error> {
-        variant.deserialize_identifier(self)
-    }
-}
-
-impl de::Visitor<'_> for Kind {
-    type Value = ArrayKind;
-
-    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("an NBT array tag")
-    }
-
-    fn visit_str<E: de::Error>(self, variant: &str) -> Result<ArrayKind, E> {
-        match variant {
-            NBT_BYTE_ARRAY_TAG => Ok(ArrayKind::Byte),
-            NBT_INT_ARRAY_TAG => Ok(ArrayKind::Int),
-            NBT_LONG_ARRAY_TAG => Ok(ArrayKind::Long),
-            other => Err(E::unknown_variant(
-                other,
-                &[NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG],
-            )),
-        }
     }
 }
 

@@ -3,14 +3,14 @@ use std::hint::black_box;
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
-use mcrs_minecraft_protocol::chunk::{LightChunk, encode_container};
+use mcrs_minecraft_protocol::chunk::{LightChunk, encode_section};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLevelChunkWithLight, ClientboundMoveEntityPosRot, VecDelta,
 };
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_protocol::{
-    ByteAngle, ChunkData, ColumnPos, CompressionThreshold, Encode, LightData, PacketDecoder,
-    PacketEncoder, VarInt,
+    ByteAngle, ChunkData, ColumnPos, CompressionThreshold, LightData, PacketDecoder, PacketEncoder,
+    VarInt,
 };
 
 const BLOCK_STATE_COUNT: usize = 40_000;
@@ -45,16 +45,12 @@ fn column_blob() -> Vec<u8> {
             Some(&distinct) => (distinct, 1 + section as u32 % 4),
             None => (1, 1),
         };
-        (section as u16 * 7).encode(&mut data).unwrap();
-        0u16.encode(&mut data).unwrap();
-        encode_container(
+        encode_section(
+            section as u16 * 7,
+            0,
             &blocks(block_palette),
-            block_direct_bits(BLOCK_STATE_COUNT),
-            &mut data,
-        )
-        .unwrap();
-        encode_container(
             &biomes(biome_palette),
+            block_direct_bits(BLOCK_STATE_COUNT),
             biome_direct_bits(BIOME_REGISTRY_LEN),
             &mut data,
         )

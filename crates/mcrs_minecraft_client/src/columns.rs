@@ -654,7 +654,7 @@ mod tests {
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_network::client::RegistryEntry;
-    use mcrs_minecraft_protocol::chunk::ChunkSection;
+    use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
     use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
@@ -675,13 +675,16 @@ mod tests {
 
     fn written(section: &ChunkSection) -> Vec<u8> {
         let mut bytes = Vec::new();
-        section
-            .write(
-                block_direct_bits(BLOCK_STATE_COUNT),
-                biome_direct_bits(BIOME_REGISTRY_LEN),
-                &mut bytes,
-            )
-            .expect("write section");
+        encode_section(
+            section.non_empty_block_count,
+            section.fluid_count,
+            &section.blocks,
+            &section.biomes,
+            block_direct_bits(BLOCK_STATE_COUNT),
+            biome_direct_bits(BIOME_REGISTRY_LEN),
+            &mut bytes,
+        )
+        .expect("write section");
         bytes
     }
 

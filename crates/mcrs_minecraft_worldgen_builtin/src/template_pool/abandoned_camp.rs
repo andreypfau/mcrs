@@ -1,8 +1,7 @@
-use super::{Piece, element, single};
 use crate::keys::{PlacedKey, placed};
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
-use mcrs_minecraft_worldgen_structure::{PoolElement, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{PoolElement, SingleElement, TemplatePool};
 
 const BIOME_VARIANTS: [&str; 18] = [
     "savanna",
@@ -55,18 +54,19 @@ const NUM_OF_DEFAULT_CAMPSITES: i32 = 15;
 const NUM_OF_TENTS: i32 = 10;
 
 fn pool(elements: impl IntoIterator<Item = PoolElement>) -> TemplatePool {
-    super::pool(
-        rl!("minecraft:empty"),
-        elements.into_iter().map(|element| (element, 1)),
-    )
+    super::entries_pool("empty", elements.into_iter().map(|element| (element, 1)))
 }
 
 fn legacy(location: String) -> PoolElement {
-    PoolElement::LegacySingle(single(ResourceLocation::minecraft(&location), None, Rigid))
+    let location = ResourceLocation::minecraft(&location);
+    PoolElement::LegacySingle(SingleElement::new(location, None, Rigid))
 }
 
 fn tree(feature: PlacedKey) -> TemplatePool {
-    pool([element(Piece::Feature(feature), Rigid)])
+    pool([PoolElement::Feature {
+        feature: feature.into(),
+        projection: Rigid,
+    }])
 }
 
 fn tents(biome: &str) -> TemplatePool {
@@ -101,6 +101,13 @@ pub fn keys() -> impl Iterator<Item = ResourceLocation> {
     trees
         .chain(campsites)
         .map(|name| ResourceLocation::minecraft(&name))
+}
+
+pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {
+    keys().map(|id| {
+        let pool = build(&id).expect("a listed camp pool builds");
+        (id, pool)
+    })
 }
 
 pub fn build(id: &ResourceLocation) -> Option<TemplatePool> {

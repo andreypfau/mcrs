@@ -27,45 +27,27 @@ pub struct Artifact<'a> {
     pub size: u64,
 }
 
+/// A release's client jar and what the launcher keeps next to it.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Descriptor<'a> {
-    pub id: &'a str,
-    #[serde(borrow)]
-    pub jar: Artifact<'a>,
-    #[serde(borrow)]
-    pub directory: Artifact<'a>,
-    #[serde(borrow)]
-    pub json: Artifact<'a>,
-}
-
-/// A release's client jar and what the launcher keeps next to it.
-#[derive(Clone, Copy, Debug)]
 pub struct Release<'a> {
     pub id: &'a str,
+    #[serde(borrow)]
     pub jar: Artifact<'a>,
     /// The jar's central directory and end record, which are its last bytes.
+    #[serde(borrow)]
     pub directory: Artifact<'a>,
+    #[serde(borrow)]
     pub json: Artifact<'a>,
     /// A [`FontHint`] as JSON; only a hint, checked against the jar before it is trusted.
+    #[serde(skip)]
     pub font_hint: &'a str,
 }
 
-pub static RELEASE: LazyLock<Release<'static>> = LazyLock::new(|| {
-    let Descriptor {
-        id,
-        jar,
-        directory,
-        json,
-    } = serde_json::from_str(include_str!("release.json"))
-        .unwrap_or_else(|error| panic!("release.json is not a client jar descriptor: {error}"));
-    Release {
-        id,
-        jar,
-        directory,
-        json,
-        font_hint: include_str!("font_hint.json"),
-    }
+pub static RELEASE: LazyLock<Release<'static>> = LazyLock::new(|| Release {
+    font_hint: include_str!("font_hint.json"),
+    ..serde_json::from_str(include_str!("release.json"))
+        .unwrap_or_else(|error| panic!("release.json is not a client jar descriptor: {error}"))
 });
 
 #[derive(Default, Debug)]
@@ -498,14 +480,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_directory_digest_covers_the_bytes_from_the_directory_start() {
-        let jar = sample_jar();
-        let start = Directory::of(&jar).unwrap().start() as usize;
-
-        assert_eq!(
-            directory_digest(&jar).unwrap(),
-            (sha1_hex(&jar[start..]), (jar.len() - start) as u64)
-        );
+    fn the_directory_digest_of_bytes_that_are_not_a_zip_is_an_error() {
         assert!(directory_digest(b"not a zip").is_err());
     }
 

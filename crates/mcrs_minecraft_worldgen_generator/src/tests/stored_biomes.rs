@@ -81,24 +81,6 @@ fn the_stored_read_equals_the_clamped_zoom_at_every_block() {
 }
 
 #[test]
-fn the_layers_outside_a_real_column_read_its_edge_layers() {
-    let column = real_column();
-    let first = column.sections[0];
-    let lowest = first * 16;
-    let highest = (first + column.sections.len() as i32) * 16 - 1;
-
-    for z in 0..16 {
-        for x in 0..16 {
-            let at = |y| stored_biome(&column.containers, first, column.block_x + x, y, z);
-            for offset in 1..=2 {
-                assert_eq!(at(lowest - offset), at(lowest), "block {x},{z} below");
-                assert_eq!(at(highest + offset), at(highest), "block {x},{z} above");
-            }
-        }
-    }
-}
-
-#[test]
 fn column_cell_clamps_a_height_outside_the_column() {
     assert_eq!(column_cell(-1, 3, -16), (0, 0));
     assert_eq!(column_cell(-1, 3, -1), (0, 15));

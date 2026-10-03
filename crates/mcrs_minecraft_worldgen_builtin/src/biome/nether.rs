@@ -1,6 +1,7 @@
 use super::defaults::*;
 use super::mob::*;
 use super::*;
+use crate::keys::PlacedKey;
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 #[derive(Serialize)]
@@ -60,8 +61,58 @@ fn ambient_particle(particle: Id, probability: f32) -> AmbientParticle {
     }
 }
 
+macro_rules! id {
+    ($($part:expr),+) => {
+        const { Id::new_static(concat!($($part),+)) }
+    };
+}
+
+macro_rules! nether_biome {
+    ($name:literal, $fog_color:expr, $mobs:expr, $generation:expr) => {
+        base_biome($mobs, $generation)
+            .with(FOG_COLOR, HexRgb::of($fog_color))
+            .music(id!("minecraft:music.nether.", $name))
+            .modified(
+                AMBIENT_SOUNDS,
+                Operation::Override,
+                ambient_sounds(
+                    id!("minecraft:ambient.", $name, ".loop"),
+                    id!("minecraft:ambient.", $name, ".mood"),
+                    id!("minecraft:ambient.", $name, ".additions"),
+                ),
+            )
+    };
+}
+
 fn base_biome(mobs: Mobs, generation: Generation) -> Biome {
-    biome(false, 2.0, 0.0, mobs, generation)
+    Biome::new(false, 2.0, 0.0)
+        .spawns(mobs.0)
+        .generation(generation)
+}
+
+fn nether_generation(soul_fire: bool, patches: &[PlacedKey], ores: &[PlacedKey]) -> Generation {
+    let mut g = Generation::default();
+    g.carver(carver::NETHER_CAVE)
+        .feature(VegetalDecoration, placed::SPRING_LAVA)
+        .features(
+            UndergroundDecoration,
+            &[placed::SPRING_OPEN, placed::PATCH_FIRE],
+        );
+    if soul_fire {
+        g.feature(UndergroundDecoration, placed::PATCH_SOUL_FIRE);
+    }
+    g.features(
+        UndergroundDecoration,
+        &[placed::GLOWSTONE_EXTRA, placed::GLOWSTONE],
+    )
+    .features(UndergroundDecoration, patches)
+    .features(
+        UndergroundDecoration,
+        &[placed::ORE_MAGMA, placed::SPRING_CLOSED],
+    )
+    .features(UndergroundDecoration, ores);
+    nether_default_ores(&mut g);
+    g
 }
 
 pub fn nether_wastes() -> Biome {
@@ -72,36 +123,13 @@ pub fn nether_wastes() -> Biome {
         .spawn(ENDERMAN, 1, 4, 4)
         .spawn(PIGLIN, 15, 4, 4)
         .spawn(STRIDER, 60, 1, 2);
-    let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed::SPRING_LAVA);
-    default_mushrooms(&mut g);
-    g.features(
-        UndergroundDecoration,
-        &[
-            placed::SPRING_OPEN,
-            placed::PATCH_FIRE,
-            placed::PATCH_SOUL_FIRE,
-            placed::GLOWSTONE_EXTRA,
-            placed::GLOWSTONE,
-            placed::BROWN_MUSHROOM_NETHER,
-            placed::RED_MUSHROOM_NETHER,
-            placed::ORE_MAGMA,
-            placed::SPRING_CLOSED,
-        ],
+    let mut g = nether_generation(
+        true,
+        &[placed::BROWN_MUSHROOM_NETHER, placed::RED_MUSHROOM_NETHER],
+        &[],
     );
-    nether_default_ores(&mut g);
-    base_biome(m, g)
-        .with(FOG_COLOR, HexRgb::of(-13432824))
-        .music(rl!("minecraft:music.nether.nether_wastes"))
-        .with(
-            AMBIENT_SOUNDS,
-            ambient_sounds(
-                rl!("minecraft:ambient.nether_wastes.loop"),
-                rl!("minecraft:ambient.nether_wastes.mood"),
-                rl!("minecraft:ambient.nether_wastes.additions"),
-            ),
-        )
+    default_mushrooms(&mut g);
+    nether_biome!("nether_wastes", -13432824, m, g)
 }
 
 pub fn soul_sand_valley() -> Biome {
@@ -109,46 +137,21 @@ pub fn soul_sand_valley() -> Biome {
     m.spawn(SKELETON, 20, 5, 5)
         .spawn(GHAST, 50, 4, 4)
         .spawn(ENDERMAN, 1, 4, 4)
-        .spawn(STRIDER, 60, 1, 2)
-        .cost(SKELETON, 0.7, 0.15)
-        .cost(GHAST, 0.7, 0.15)
-        .cost(ENDERMAN, 0.7, 0.15)
-        .cost(STRIDER, 0.7, 0.15);
-    let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed::SPRING_LAVA)
-        .feature(LocalModifications, placed::BASALT_PILLAR)
-        .features(
-            UndergroundDecoration,
-            &[
-                placed::SPRING_OPEN,
-                placed::PATCH_FIRE,
-                placed::PATCH_SOUL_FIRE,
-                placed::GLOWSTONE_EXTRA,
-                placed::GLOWSTONE,
-                placed::PATCH_CRIMSON_ROOTS,
-                placed::ORE_MAGMA,
-                placed::SPRING_CLOSED,
-                placed::ORE_SOUL_SAND,
-            ],
-        );
-    nether_default_ores(&mut g);
-    base_biome(m, g)
-        .with(FOG_COLOR, HexRgb::of(-14989499))
-        .music(rl!("minecraft:music.nether.soul_sand_valley"))
-        .modified(
-            AMBIENT_PARTICLES,
-            Operation::Append,
-            [ambient_particle(rl!("minecraft:ash"), 0.00625)],
-        )
-        .with(
-            AMBIENT_SOUNDS,
-            ambient_sounds(
-                rl!("minecraft:ambient.soul_sand_valley.loop"),
-                rl!("minecraft:ambient.soul_sand_valley.mood"),
-                rl!("minecraft:ambient.soul_sand_valley.additions"),
-            ),
-        )
+        .spawn(STRIDER, 60, 1, 2);
+    for mob in [SKELETON, GHAST, ENDERMAN, STRIDER] {
+        m.cost(mob, 0.7, 0.15);
+    }
+    let mut g = nether_generation(
+        true,
+        &[placed::PATCH_CRIMSON_ROOTS],
+        &[placed::ORE_SOUL_SAND],
+    );
+    g.feature(LocalModifications, placed::BASALT_PILLAR);
+    nether_biome!("soul_sand_valley", -14989499, m, g).modified(
+        AMBIENT_PARTICLES,
+        Operation::Append,
+        [ambient_particle(rl!("minecraft:ash"), 0.00625)],
+    )
 }
 
 pub fn basalt_deltas() -> Biome {
@@ -185,22 +188,11 @@ pub fn basalt_deltas() -> Biome {
             ],
         );
     ancient_debris(&mut g);
-    base_biome(m, g)
-        .with(FOG_COLOR, HexRgb::of(-9937040))
-        .modified(
-            AMBIENT_PARTICLES,
-            Operation::Append,
-            [ambient_particle(rl!("minecraft:white_ash"), 0.118093334)],
-        )
-        .music(rl!("minecraft:music.nether.basalt_deltas"))
-        .with(
-            AMBIENT_SOUNDS,
-            ambient_sounds(
-                rl!("minecraft:ambient.basalt_deltas.loop"),
-                rl!("minecraft:ambient.basalt_deltas.mood"),
-                rl!("minecraft:ambient.basalt_deltas.additions"),
-            ),
-        )
+    nether_biome!("basalt_deltas", -9937040, m, g).modified(
+        AMBIENT_PARTICLES,
+        Operation::Append,
+        [ambient_particle(rl!("minecraft:white_ash"), 0.118093334)],
+    )
 }
 
 pub fn crimson_forest() -> Biome {
@@ -209,22 +201,9 @@ pub fn crimson_forest() -> Biome {
         .spawn(HOGLIN, 9, 3, 4)
         .spawn(PIGLIN, 5, 3, 4)
         .spawn(STRIDER, 60, 1, 2);
-    let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed::SPRING_LAVA);
+    let mut g = nether_generation(false, &[], &[]);
     default_mushrooms(&mut g);
     g.features(
-        UndergroundDecoration,
-        &[
-            placed::SPRING_OPEN,
-            placed::PATCH_FIRE,
-            placed::GLOWSTONE_EXTRA,
-            placed::GLOWSTONE,
-            placed::ORE_MAGMA,
-            placed::SPRING_CLOSED,
-        ],
-    )
-    .features(
         VegetalDecoration,
         &[
             placed::WEEPING_VINES,
@@ -232,23 +211,11 @@ pub fn crimson_forest() -> Biome {
             placed::CRIMSON_FOREST_VEGETATION,
         ],
     );
-    nether_default_ores(&mut g);
-    base_biome(m, g)
-        .with(FOG_COLOR, HexRgb::of(-13434109))
-        .music(rl!("minecraft:music.nether.crimson_forest"))
-        .modified(
-            AMBIENT_PARTICLES,
-            Operation::Append,
-            [ambient_particle(rl!("minecraft:crimson_spore"), 0.025)],
-        )
-        .with(
-            AMBIENT_SOUNDS,
-            ambient_sounds(
-                rl!("minecraft:ambient.crimson_forest.loop"),
-                rl!("minecraft:ambient.crimson_forest.mood"),
-                rl!("minecraft:ambient.crimson_forest.additions"),
-            ),
-        )
+    nether_biome!("crimson_forest", -13434109, m, g).modified(
+        AMBIENT_PARTICLES,
+        Operation::Append,
+        [ambient_particle(rl!("minecraft:crimson_spore"), 0.025)],
+    )
 }
 
 pub fn warped_forest() -> Biome {
@@ -256,23 +223,9 @@ pub fn warped_forest() -> Biome {
     m.spawn(ENDERMAN, 1, 4, 4)
         .spawn(STRIDER, 60, 1, 2)
         .cost(ENDERMAN, 1.0, 0.12);
-    let mut g = Generation::default();
-    g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed::SPRING_LAVA);
+    let mut g = nether_generation(true, &[], &[]);
     default_mushrooms(&mut g);
     g.features(
-        UndergroundDecoration,
-        &[
-            placed::SPRING_OPEN,
-            placed::PATCH_FIRE,
-            placed::PATCH_SOUL_FIRE,
-            placed::GLOWSTONE_EXTRA,
-            placed::GLOWSTONE,
-            placed::ORE_MAGMA,
-            placed::SPRING_CLOSED,
-        ],
-    )
-    .features(
         VegetalDecoration,
         &[
             placed::WARPED_FUNGI,
@@ -281,21 +234,9 @@ pub fn warped_forest() -> Biome {
             placed::TWISTING_VINES,
         ],
     );
-    nether_default_ores(&mut g);
-    base_biome(m, g)
-        .with(FOG_COLOR, HexRgb::of(-15071974))
-        .music(rl!("minecraft:music.nether.warped_forest"))
-        .modified(
-            AMBIENT_PARTICLES,
-            Operation::Append,
-            [ambient_particle(rl!("minecraft:warped_spore"), 0.01428)],
-        )
-        .with(
-            AMBIENT_SOUNDS,
-            ambient_sounds(
-                rl!("minecraft:ambient.warped_forest.loop"),
-                rl!("minecraft:ambient.warped_forest.mood"),
-                rl!("minecraft:ambient.warped_forest.additions"),
-            ),
-        )
+    nether_biome!("warped_forest", -15071974, m, g).modified(
+        AMBIENT_PARTICLES,
+        Operation::Append,
+        [ambient_particle(rl!("minecraft:warped_spore"), 0.01428)],
+    )
 }

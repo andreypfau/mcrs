@@ -42,14 +42,6 @@ impl EnvironmentAttributeMap {
         }
     }
 
-    pub fn set(
-        &mut self,
-        id: ResourceLocation<&'static str>,
-        value: impl Serialize,
-    ) -> Result<(), AttributeError> {
-        self.modify(id, Operation::Override, value)
-    }
-
     /// Checked against the attribute's type and modifier library, as a parsed
     /// entry is.
     pub fn modify(
@@ -66,7 +58,8 @@ impl EnvironmentAttributeMap {
             .and_then(|text| serde_json::from_str(&text))
             .map_err(|error| spec::malformed(spec.id, error.to_string()))?;
         spec.parse_argument(modifier, &argument)?;
-        self.0.insert(id.into(), AttributeEntry { argument, modifier });
+        self.0
+            .insert(id.into(), AttributeEntry { argument, modifier });
         Ok(())
     }
 

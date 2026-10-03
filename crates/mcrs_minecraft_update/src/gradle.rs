@@ -1,7 +1,12 @@
 use std::path::Path;
 use std::process::Command;
 
-pub fn arguments(task: &str, properties: &[(&str, &str)]) -> Vec<String> {
+pub fn utf8(path: &Path) -> Result<&str, String> {
+    path.to_str()
+        .ok_or_else(|| format!("{}: not valid UTF-8", path.display()))
+}
+
+pub fn arguments(task: &str, properties: &[(&str, impl AsRef<str>)]) -> Vec<String> {
     let mut arguments = vec![
         task.to_owned(),
         "--console=plain".into(),
@@ -10,12 +15,16 @@ pub fn arguments(task: &str, properties: &[(&str, &str)]) -> Vec<String> {
     arguments.extend(
         properties
             .iter()
-            .map(|(name, value)| format!("-P{name}={value}")),
+            .map(|(name, value)| format!("-P{name}={}", value.as_ref())),
     );
     arguments
 }
 
-pub fn run(project: &Path, task: &str, properties: &[(&str, &str)]) -> Result<(), String> {
+pub fn run(
+    project: &Path,
+    task: &str,
+    properties: &[(&str, impl AsRef<str>)],
+) -> Result<(), String> {
     let status = Command::new(project.join("gradlew"))
         .args(arguments(task, properties))
         .current_dir(project)
@@ -35,7 +44,7 @@ mod tests {
     #[test]
     fn a_task_without_properties_has_the_fixed_flags() {
         assert_eq!(
-            arguments("dumpReports", &[]),
+            arguments("dumpReports", &[] as &[(&str, &str)]),
             ["dumpReports", "--console=plain", "--no-daemon"]
         );
     }

@@ -2,17 +2,27 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use mcrs_minecraft_client_jar::{Directory, get, official_dir};
-use mcrs_minecraft_update::{corpus, definitions, fixtures, gradle, registries, release};
+use mcrs_minecraft_client_jar::{get, official_dir};
+
+mod blocks;
+mod corpus;
+mod definitions;
+mod fixtures;
+mod gradle;
+mod registries;
+mod release;
+#[cfg(test)]
+mod testing;
 
 const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
        mcrs_minecraft_update recapture <fixture name | --all>
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
-descriptor, runs the data generator and replaces the reports in assets/mcrs/reports, then
-dumps the block and item definitions and replaces assets/mcrs/block_definition and
-assets/mcrs/item_definition. The protocol_id diff against the previous registries report is
+descriptor, runs the data generator and dumps the block and item definitions, stops if the
+block definitions disagree with the blocks report of the generator, then replaces the reports
+in assets/mcrs/reports and assets/mcrs/block_definition and assets/mcrs/item_definition. The
+blocks report is checked and not stored. The protocol_id diff against the previous registries report is
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
 of the definitions is printed and written to definitions.txt there. Each diff is computed
 before the files it describes are replaced. Two runs against one working tree at the same
@@ -27,12 +37,7 @@ const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
-const REPORT_FILES: [&str; 4] = [
-    "registries.json",
-    "packets.json",
-    "blocks.json",
-    "datapack.json",
-];
+const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
 const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
@@ -141,19 +146,9 @@ fn run(options: &Options) -> Result<(), String> {
     let download = release::client(&package)?;
     let jar = release::jar(&official_dir(), &listing.id, &download, get)?;
 
-    let directory = Directory::of(&jar)?;
-    let version = directory
-        .read(&jar, |name| name == "version.json")?
-        .pop()
-        .ok_or("the jar has no version.json")?
-        .1;
+    let (files, version) = corpus::from_jar(&jar)?;
+    let (files, built_in, diverged) = corpus::without_built_in(files);
     release::check_version(&version, &listing.id)?;
-    let mut files = Vec::new();
-    for (name, bytes) in directory.read(&jar, |name| name.starts_with("data/minecraft/"))? {
-        if let Some(path) = corpus::entry_path(&name)? {
-            files.push((path, bytes));
-        }
-    }
     let descriptor = release::descriptor(&download, &jar, &listing, &package)?;
     let font_hint = release::font_hint(&jar)?;
 
@@ -164,6 +159,10 @@ fn run(options: &Options) -> Result<(), String> {
     for path in &report.deleted {
         println!("deleted {path}");
     }
+    for path in &diverged {
+        println!("differs from the built-in, kept as a file: {path}");
+    }
+    println!("{CORPUS}: {built_in} entries are built by code and ship no file");
     println!(
         "{CORPUS}: {} written, {} deleted, {} kept",
         report.written.len(),
@@ -171,29 +170,41 @@ fn run(options: &Options) -> Result<(), String> {
         report.kept.len()
     );
 
-    update_reports(&root, options.diff_out.as_deref())?;
-    update_definitions(&root, options.diff_out.as_deref())
+    let diff_out = options.diff_out.as_deref();
+    with_gradle_output(&root, "dumpReports", "reportsOut", |generated| {
+        with_gradle_output(&root, "dumpDefinitions", "definitionsOut", |dumped| {
+            blocks::check(
+                &generated.join("reports/blocks.json"),
+                &dumped.join("block_definition"),
+            )?;
+            replace_reports(&root, generated, diff_out)?;
+            replace_definitions(&root, dumped, diff_out)
+        })
+    })
 }
 
-fn update_reports(root: &Path, diff_out: Option<&Path>) -> Result<(), String> {
-    let generated =
-        std::env::temp_dir().join(format!("mcrs-update-reports-{}", std::process::id()));
-    let result =
-        generate(root, &generated).and_then(|()| replace_reports(root, &generated, diff_out));
-    let _ = fs::remove_dir_all(&generated);
-    result
+fn with_gradle_output(
+    root: &Path,
+    task: &str,
+    property: &str,
+    then: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    fixtures::with_scratch(task, |out| {
+        gradle::run(
+            &root.join(fixtures::ORACLE),
+            task,
+            &[(property, gradle::utf8(out)?)],
+        )?;
+        then(out)
+    })
 }
 
-fn generate(root: &Path, generated: &Path) -> Result<(), String> {
-    fs::create_dir_all(generated).map_err(|error| format!("{}: {error}", generated.display()))?;
-    let out = generated
-        .to_str()
-        .ok_or_else(|| format!("{}: not valid UTF-8", generated.display()))?;
-    gradle::run(
-        &root.join("tools/vanilla-oracle"),
-        "dumpReports",
-        &[("reportsOut", out)],
-    )
+fn write_diff(diff_out: Option<&Path>, name: &str, text: &str) -> Result<(), String> {
+    let Some(directory) = diff_out else {
+        return Ok(());
+    };
+    fs::create_dir_all(directory).map_err(|error| corpus::io(directory, error))?;
+    write(&directory.join(name), text)
 }
 
 fn replace_reports(root: &Path, generated: &Path, diff_out: Option<&Path>) -> Result<(), String> {
@@ -205,39 +216,14 @@ fn replace_reports(root: &Path, generated: &Path, diff_out: Option<&Path>) -> Re
 
     println!("protocol_id diff: {} rows", rows.len());
     print!("{text}");
-    if let Some(directory) = diff_out {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("{}: {error}", directory.display()))?;
-        write(&directory.join("protocol_id.txt"), &text)?;
-    }
+    write_diff(diff_out, "protocol_id.txt", &text)?;
 
     for name in REPORT_FILES {
-        let from = generated.join("reports").join(name);
-        let bytes = fs::read(&from).map_err(|error| format!("{}: {error}", from.display()))?;
-        let to = stored.join(name);
-        fs::write(&to, bytes).map_err(|error| format!("{}: {error}", to.display()))?;
+        let (from, to) = (generated.join("reports").join(name), stored.join(name));
+        fs::copy(&from, &to)
+            .map_err(|error| format!("{} to {}: {error}", from.display(), to.display()))?;
     }
     Ok(())
-}
-
-fn update_definitions(root: &Path, diff_out: Option<&Path>) -> Result<(), String> {
-    let dumped =
-        std::env::temp_dir().join(format!("mcrs-update-definitions-{}", std::process::id()));
-    let result = dump(root, &dumped).and_then(|()| replace_definitions(root, &dumped, diff_out));
-    let _ = fs::remove_dir_all(&dumped);
-    result
-}
-
-fn dump(root: &Path, dumped: &Path) -> Result<(), String> {
-    fs::create_dir_all(dumped).map_err(|error| format!("{}: {error}", dumped.display()))?;
-    let out = dumped
-        .to_str()
-        .ok_or_else(|| format!("{}: not valid UTF-8", dumped.display()))?;
-    gradle::run(
-        &root.join("tools/vanilla-oracle"),
-        "dumpDefinitions",
-        &[("definitionsOut", out)],
-    )
 }
 
 fn replace_definitions(root: &Path, dumped: &Path, diff_out: Option<&Path>) -> Result<(), String> {
@@ -247,11 +233,7 @@ fn replace_definitions(root: &Path, dumped: &Path, diff_out: Option<&Path>) -> R
         text.push_str(&definitions::diff(&stored.join(name), &dumped.join(name))?.summary(name));
     }
     print!("{text}");
-    if let Some(directory) = diff_out {
-        fs::create_dir_all(directory)
-            .map_err(|error| format!("{}: {error}", directory.display()))?;
-        write(&directory.join("definitions.txt"), &text)?;
-    }
+    write_diff(diff_out, "definitions.txt", &text)?;
     for name in DEFINITIONS {
         let report = definitions::replace(&stored.join(name), &dumped.join(name))?;
         println!(
@@ -288,4 +270,15 @@ fn status(root: &Path) -> Result<String, String> {
 
 fn write(path: &Path, text: &str) -> Result<(), String> {
     fs::write(path, text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_descriptor_names_the_corpus_version() {
+        assert_eq!(
+            mcrs_minecraft_client_jar::RELEASE.id,
+            mcrs_minecraft_core::VERSION.id
+        );
+    }
 }

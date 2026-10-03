@@ -351,38 +351,7 @@ mod tests {
 
     use super::{HashSerializer, hash};
 
-    #[derive(serde::Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Golden {
-        empty: i32,
-        empty_map: i32,
-        empty_list: i32,
-        a_byte_1: i32,
-        a_int_1: i32,
-        a_short_neg2: i32,
-        str_empty: i32,
-        str_hello: i32,
-        str_astral: i32,
-        list_ints: i32,
-        nested: i32,
-        int_array: i32,
-        long_array: i32,
-        byte_array: i32,
-        float: i32,
-        double: i32,
-        long: i32,
-        bool_true: i32,
-        bool_false: i32,
-        byte_true: i32,
-        list_of_bools: i32,
-        sixteen_keys: i32,
-        mixed_sign_keys: i32,
-        key_a: i32,
-        key_h: i32,
-        key_p: i32,
-    }
-
-    static GOLDEN: LazyLock<Golden> =
+    static GOLDEN: LazyLock<BTreeMap<String, i32>> =
         LazyLock::new(|| serde_json::from_str(include_str!("fixtures/hash_ops.json")).unwrap());
 
     fn map<V: Serialize + Clone>(entries: &[(&str, V)]) -> BTreeMap<String, V> {
@@ -394,41 +363,41 @@ mod tests {
 
     #[test]
     fn scalars_match_vanilla() {
-        assert_eq!(hash(&1.5f32).unwrap(), GOLDEN.float);
-        assert_eq!(hash(&-2.25f64).unwrap(), GOLDEN.double);
-        assert_eq!(hash(&1234567890123i64).unwrap(), GOLDEN.long);
-        assert_eq!(hash(&true).unwrap(), GOLDEN.bool_true);
-        assert_eq!(hash(&false).unwrap(), GOLDEN.bool_false);
-        assert_eq!(hash(&1i8).unwrap(), GOLDEN.byte_true);
-        assert_eq!(hash(&"").unwrap(), GOLDEN.str_empty);
-        assert_eq!(hash(&"hello").unwrap(), GOLDEN.str_hello);
-        assert_eq!(hash(&"a\u{1F600}b").unwrap(), GOLDEN.str_astral);
+        assert_eq!(hash(&1.5f32).unwrap(), GOLDEN["float"]);
+        assert_eq!(hash(&-2.25f64).unwrap(), GOLDEN["double"]);
+        assert_eq!(hash(&1234567890123i64).unwrap(), GOLDEN["long"]);
+        assert_eq!(hash(&true).unwrap(), GOLDEN["bool_true"]);
+        assert_eq!(hash(&false).unwrap(), GOLDEN["bool_false"]);
+        assert_eq!(hash(&1i8).unwrap(), GOLDEN["byte_true"]);
+        assert_eq!(hash(&"").unwrap(), GOLDEN["str_empty"]);
+        assert_eq!(hash(&"hello").unwrap(), GOLDEN["str_hello"]);
+        assert_eq!(hash(&"a\u{1F600}b").unwrap(), GOLDEN["str_astral"]);
     }
 
     #[test]
     fn empties_match_vanilla() {
-        assert_eq!(hash(&()).unwrap(), GOLDEN.empty);
-        assert_eq!(hash(&None::<i32>).unwrap(), GOLDEN.empty);
+        assert_eq!(hash(&()).unwrap(), GOLDEN["empty"]);
+        assert_eq!(hash(&None::<i32>).unwrap(), GOLDEN["empty"]);
         assert_eq!(
             hash(&BTreeMap::<String, i32>::new()).unwrap(),
-            GOLDEN.empty_map
+            GOLDEN["empty_map"]
         );
-        assert_eq!(hash(&Vec::<i32>::new()).unwrap(), GOLDEN.empty_list);
+        assert_eq!(hash(&Vec::<i32>::new()).unwrap(), GOLDEN["empty_list"]);
     }
 
     #[test]
     fn single_entry_maps_match_vanilla() {
-        assert_eq!(hash(&map(&[("a", 1i8)])).unwrap(), GOLDEN.a_byte_1);
-        assert_eq!(hash(&map(&[("a", 1i32)])).unwrap(), GOLDEN.a_int_1);
-        assert_eq!(hash(&map(&[("a", -2i16)])).unwrap(), GOLDEN.a_short_neg2);
+        assert_eq!(hash(&map(&[("a", 1i8)])).unwrap(), GOLDEN["a_byte_1"]);
+        assert_eq!(hash(&map(&[("a", 1i32)])).unwrap(), GOLDEN["a_int_1"]);
+        assert_eq!(hash(&map(&[("a", -2i16)])).unwrap(), GOLDEN["a_short_neg2"]);
     }
 
     #[test]
     fn lists_match_vanilla() {
-        assert_eq!(hash(&vec![1i32, -2, 300]).unwrap(), GOLDEN.list_ints);
-        assert_eq!(hash(&(1i32, -2i32, 300i32)).unwrap(), GOLDEN.list_ints);
-        assert_eq!(hash(&[1i32, -2, 300]).unwrap(), GOLDEN.list_ints);
-        assert_eq!(hash(&[true, false]).unwrap(), GOLDEN.list_of_bools);
+        assert_eq!(hash(&vec![1i32, -2, 300]).unwrap(), GOLDEN["list_ints"]);
+        assert_eq!(hash(&(1i32, -2i32, 300i32)).unwrap(), GOLDEN["list_ints"]);
+        assert_eq!(hash(&[1i32, -2, 300]).unwrap(), GOLDEN["list_ints"]);
+        assert_eq!(hash(&[true, false]).unwrap(), GOLDEN["list_of_bools"]);
     }
 
     #[test]
@@ -440,19 +409,19 @@ mod tests {
             mcrs_minecraft_nbt::nbt_int_array(&ints, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
-            GOLDEN.int_array
+            GOLDEN["int_array"]
         );
         assert_eq!(
             mcrs_minecraft_nbt::nbt_long_array(longs, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
-            GOLDEN.long_array
+            GOLDEN["long_array"]
         );
         assert_eq!(
             mcrs_minecraft_nbt::nbt_byte_array(&bytes, HashSerializer)
                 .unwrap()
                 .unwrap() as i32,
-            GOLDEN.byte_array
+            GOLDEN["byte_array"]
         );
         assert!(mcrs_minecraft_nbt::nbt_int_array([1i64], HashSerializer).is_err());
         assert!(mcrs_minecraft_nbt::nbt_int_array(["x"], HashSerializer).is_err());
@@ -477,24 +446,24 @@ mod tests {
             flag: 1,
             pos: vec![1, 2, 3],
         };
-        assert_eq!(hash(&value).unwrap(), GOLDEN.nested);
+        assert_eq!(hash(&value).unwrap(), GOLDEN["nested"]);
     }
 
     #[test]
     fn map_entries_sort_as_unsigned() {
-        assert_eq!(hash(&"a").unwrap(), GOLDEN.key_a);
-        assert_eq!(hash(&"h").unwrap(), GOLDEN.key_h);
-        assert_eq!(hash(&"p").unwrap(), GOLDEN.key_p);
-        assert!(GOLDEN.key_h < GOLDEN.key_p && GOLDEN.key_p < GOLDEN.key_a);
+        assert_eq!(hash(&"a").unwrap(), GOLDEN["key_a"]);
+        assert_eq!(hash(&"h").unwrap(), GOLDEN["key_h"]);
+        assert_eq!(hash(&"p").unwrap(), GOLDEN["key_p"]);
+        assert!(GOLDEN["key_h"] < GOLDEN["key_p"] && GOLDEN["key_p"] < GOLDEN["key_a"]);
         assert!(
-            (GOLDEN.key_p as u32) < (GOLDEN.key_a as u32)
-                && (GOLDEN.key_a as u32) < (GOLDEN.key_h as u32)
+            (GOLDEN["key_p"] as u32) < (GOLDEN["key_a"] as u32)
+                && (GOLDEN["key_a"] as u32) < (GOLDEN["key_h"] as u32)
         );
         let sixteen: BTreeMap<String, i32> =
             ('a'..='p').map(|c| (c.to_string(), c as i32)).collect();
-        assert_eq!(hash(&sixteen).unwrap(), GOLDEN.sixteen_keys);
+        assert_eq!(hash(&sixteen).unwrap(), GOLDEN["sixteen_keys"]);
         let mixed = map(&[("k", "v"), ("k2", "v2"), ("count", "1"), ("id", "x")]);
-        assert_eq!(hash(&mixed).unwrap(), GOLDEN.mixed_sign_keys);
+        assert_eq!(hash(&mixed).unwrap(), GOLDEN["mixed_sign_keys"]);
     }
 
     #[test]
@@ -524,22 +493,22 @@ mod tests {
         }
         assert_eq!(
             hash(&Optional { a: None, b: () }).unwrap(),
-            GOLDEN.empty_map
+            GOLDEN["empty_map"]
         );
         assert_eq!(
             hash(&Optional { a: Some(1), b: () }).unwrap(),
-            GOLDEN.a_int_1
+            GOLDEN["a_int_1"]
         );
         assert_eq!(
             hash(&map(&[("a", Some(1i32)), ("b", None)])).unwrap(),
-            GOLDEN.a_int_1
+            GOLDEN["a_int_1"]
         );
     }
 
     #[test]
     fn absent_list_elements_hash_as_empty() {
         assert_eq!(hash(&[None::<i32>]).unwrap(), hash(&[()]).unwrap());
-        assert_ne!(hash(&[None::<i32>]).unwrap(), GOLDEN.empty_list);
+        assert_ne!(hash(&[None::<i32>]).unwrap(), GOLDEN["empty_list"]);
     }
 
     #[test]

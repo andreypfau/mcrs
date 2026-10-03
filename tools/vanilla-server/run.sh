@@ -47,25 +47,6 @@ valid_compression() {
     [[ $1 =~ ^0*([0-9]{1,10})$ ]] && ((10#${BASH_REMATCH[1]} <= 2147483647))
 }
 
-server_properties() {
-    local port=$1 threshold=$2
-    cat <<EOF
-online-mode=false
-network-compression-threshold=$threshold
-server-ip=127.0.0.1
-server-port=$port
-level-seed=42
-gamemode=creative
-force-gamemode=true
-view-distance=6
-simulation-distance=6
-spawn-protection=0
-enforce-secure-profile=false
-enable-rcon=false
-enable-query=false
-EOF
-}
-
 main() {
     local mode=${1:-attempt}
     case "$mode" in
@@ -105,7 +86,21 @@ main() {
     fetch_verified "$work/server.jar" "$server_url" "$server_sha1" "$server_size" || exit 2
 
     echo "eula=true" >"$work/eula.txt"
-    server_properties "$port" "$compression" >"$work/server.properties"
+    cat >"$work/server.properties" <<EOF
+online-mode=false
+network-compression-threshold=$compression
+server-ip=127.0.0.1
+server-port=$port
+level-seed=42
+gamemode=creative
+force-gamemode=true
+view-distance=6
+simulation-distance=6
+spawn-protection=0
+enforce-secure-profile=false
+enable-rcon=false
+enable-query=false
+EOF
 
     local log="$work/server.log"
     (cd "$work" && exec java -Xmx2G -jar server.jar nogui >"$log" 2>&1 </dev/null) &

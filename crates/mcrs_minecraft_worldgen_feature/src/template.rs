@@ -354,38 +354,42 @@ fn orientation(name: &str) -> Option<(Direction, Direction)> {
 
 /// `id[k=v,…]`; anything after the closing `]` is ignored, as the block-state
 /// parser never asserts end of input.
-fn parse_final_state(text: &str) -> Result<PaletteState, String> {
-    let text = text.trim();
-    let (id, rest) = match text.split_once('[') {
-        Some((id, rest)) => (id, Some(rest)),
-        None => (text, None),
-    };
-    let id = ResourceLocation::parse(id.trim()).map_err(|e| e.to_string())?;
-    let Some(rest) = rest else {
-        return Ok(PaletteState {
-            id,
-            properties: None,
-        });
-    };
-    let Some((inner, _)) = rest.split_once(']') else {
-        return Err(format!("`{text}` has no closing `]`"));
-    };
-    let mut properties = BTreeMap::new();
-    for pair in inner.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-        let Some((key, value)) = pair.split_once('=') else {
-            return Err(format!("`{text}`: `{pair}` is not `key=value`"));
+impl std::str::FromStr for PaletteState {
+    type Err = String;
+
+    fn from_str(text: &str) -> Result<PaletteState, String> {
+        let text = text.trim();
+        let (id, rest) = match text.split_once('[') {
+            Some((id, rest)) => (id, Some(rest)),
+            None => (text, None),
         };
-        if properties
-            .insert(key.trim().to_owned(), value.trim().to_owned())
-            .is_some()
-        {
-            return Err(format!("`{text}`: duplicate property `{}`", key.trim()));
+        let id = ResourceLocation::parse(id.trim()).map_err(|e| e.to_string())?;
+        let Some(rest) = rest else {
+            return Ok(PaletteState {
+                id,
+                properties: None,
+            });
+        };
+        let Some((inner, _)) = rest.split_once(']') else {
+            return Err(format!("`{text}` has no closing `]`"));
+        };
+        let mut properties = BTreeMap::new();
+        for pair in inner.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            let Some((key, value)) = pair.split_once('=') else {
+                return Err(format!("`{text}`: `{pair}` is not `key=value`"));
+            };
+            if properties
+                .insert(key.trim().to_owned(), value.trim().to_owned())
+                .is_some()
+            {
+                return Err(format!("`{text}`: duplicate property `{}`", key.trim()));
+            }
         }
+        Ok(PaletteState {
+            id,
+            properties: Some(properties),
+        })
     }
-    Ok(PaletteState {
-        id,
-        properties: Some(properties),
-    })
 }
 
 fn int_or_zero(nbt: &NbtCompound, key: &str) -> Result<i32, String> {
@@ -577,9 +581,11 @@ impl Template {
                     None if front.is_vertical() => Joint::Rollable,
                     None => Joint::Aligned,
                 };
-                let final_state =
-                    parse_final_state(nbt.get_string("final_state").unwrap_or("minecraft:air"))
-                        .map_err(|e| jigsaw(format!("final_state {e}")))?;
+                let final_state = nbt
+                    .get_string("final_state")
+                    .unwrap_or("minecraft:air")
+                    .parse::<PaletteState>()
+                    .map_err(|e| jigsaw(format!("final_state {e}")))?;
                 let final_state = if final_state.id.as_str() == STRUCTURE_VOID {
                     None
                 } else {
@@ -722,7 +728,7 @@ mod tests {
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, nbt_files};
+    use mcrs_minecraft_worldgen_testing::templates;
     use std::io::Cursor;
 
     fn canonical(compound: &NbtCompound) -> NbtCompound {
@@ -745,10 +751,9 @@ mod tests {
 
     #[test]
     fn every_template_round_trips_and_is_pinned() {
-        let files = nbt_files(&assets_dir().join("minecraft/structure"));
+        let files = templates();
         let (mut with_palettes, mut with_entities) = (0, 0);
-        for path in &files {
-            let bytes = std::fs::read(path).unwrap();
+        for (path, bytes) in &files {
             let direct = read_gzip_compound_tag(Cursor::new(&bytes)).unwrap();
             let template: Template = from_gzip_bytes(Cursor::new(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
@@ -1353,9 +1358,8 @@ mod tests {
         };
         let mut found = std::collections::BTreeSet::new();
         let mut count = 0;
-        for path in nbt_files(&assets_dir().join("minecraft/structure")) {
-            let template: Template =
-                from_gzip_bytes(Cursor::new(std::fs::read(&path).unwrap())).unwrap();
+        for (path, bytes) in templates() {
+            let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
             let (frozen, _) = template
                 .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
                 .unwrap_or_else(|e| panic!("{e}"));
@@ -1373,21 +1377,23 @@ mod tests {
 
     #[test]
     fn final_state_grammar() {
-        let parsed = parse_final_state(" minecraft:stone [ a = 1 , b = two ] ] trailing").unwrap();
+        let parsed = " minecraft:stone [ a = 1 , b = two ] ] trailing"
+            .parse::<PaletteState>()
+            .unwrap();
         assert_eq!(
             parsed,
             state("minecraft:stone", &[("a", "1"), ("b", "two")])
         );
         assert_eq!(
-            parse_final_state("minecraft:stone[]").unwrap(),
+            "minecraft:stone[]".parse::<PaletteState>().unwrap(),
             PaletteState {
                 id: ResourceLocation::minecraft("stone"),
                 properties: Some(BTreeMap::new())
             }
         );
-        assert!(parse_final_state("minecraft:stone[a=1,a=2]").is_err());
-        assert!(parse_final_state("minecraft:stone[a]").is_err());
-        assert!(parse_final_state("stone").is_err());
+        assert!("minecraft:stone[a=1,a=2]".parse::<PaletteState>().is_err());
+        assert!("minecraft:stone[a]".parse::<PaletteState>().is_err());
+        assert!("stone".parse::<PaletteState>().is_err());
     }
 
     #[test]

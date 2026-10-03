@@ -74,9 +74,7 @@ fn list_registry_files(
     } else {
         dynamic.into_iter().collect()
     };
-    if extension == "json" {
-        files.extend(mcrs_minecraft_worldgen_builtin::paths(folder));
-    }
+    files.extend(mcrs_minecraft_worldgen_builtin::paths(folder));
     files.into_iter().collect()
 }
 

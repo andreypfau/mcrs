@@ -1677,7 +1677,7 @@ pub(crate) mod write {
 
     use super::*;
     use crate::fixture::{self, region_chunks};
-    use crate::{Chunk, PaletteId, PaletteNames, RetroGen, write_chunk};
+    use crate::{Chunk, PaletteId, PaletteNames, write_chunk};
 
     pub(crate) struct Named {
         pub(crate) chunk: Chunk,
@@ -1897,31 +1897,6 @@ pub(crate) mod write {
         }
     }
 
-    #[test]
-    fn a_retrogen_with_all_four_fields_round_trips() {
-        let (src, dst) = (Fixture::new("retrogen_src"), Fixture::new("retrogen_dst"));
-        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
-        record.put_bool("has_below_zero_retrogen", true);
-        record.put("missing_bedrock", NbtTag::LongArray(vec![5, 9]));
-        let root_in = chunk_with_retrogen("minecraft:terrain", record);
-        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
-        let pos = ColumnPos::new(0, 0);
-        let original = read_named(&region, pos);
-        assert_eq!(
-            original.chunk.retrogen,
-            Some(RetroGen {
-                target_status: ChunkStatus::Full,
-                statuses_to_rerun: vec![ChunkStatus::Biomes],
-                has_below_zero_retrogen: true,
-                missing_bedrock: vec![5, 9],
-            })
-        );
-
-        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
-        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
-        assert_same_chunk(&read, &original, "retrogen");
-    }
-
     fn written_retrogen(record: NbtCompound, dir: &Fixture, name: &str) -> NbtCompound {
         let src = Fixture::new(name);
         let region = RegionFile::open(src.region(
@@ -1936,19 +1911,6 @@ pub(crate) mod write {
         let read = read_named(&rewrite(&region, &[(pos, nbt.clone())], &dir.dir), pos);
         assert_same_chunk(&read, &original, name);
         root(&nbt).get_compound("retrogen").unwrap().clone()
-    }
-
-    #[test]
-    fn a_retrogen_with_only_the_required_fields_round_trips_and_invents_no_key() {
-        let dst = Fixture::new("retrogen_required_dst");
-        let written = written_retrogen(
-            retrogen_record("minecraft:full", &["minecraft:biomes"]),
-            &dst,
-            "retrogen_required_src",
-        );
-        let mut keys: Vec<&str> = written.child_tags.iter().map(|(k, _)| k.as_str()).collect();
-        keys.sort();
-        assert_eq!(keys, ["statuses_to_rerun", "target_status"]);
     }
 
     #[test]

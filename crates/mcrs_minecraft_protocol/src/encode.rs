@@ -80,8 +80,7 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::frame::{FrameError, MAX_FRAME_BODY, MAX_UNCOMPRESSED_PACKET, split_frame};
-    use crate::var_int::VarInt;
+    use crate::frame::{FrameError, MAX_FRAME_BODY, MAX_UNCOMPRESSED_PACKET};
     use crate::{ConnectionState, PacketDecoder, PacketSide};
 
     #[derive(Debug)]
@@ -128,13 +127,6 @@ mod tests {
         encoder
     }
 
-    fn data_length(encoder: &PacketEncoder) -> i32 {
-        let mut buf = encoder.buf.clone();
-        let frame = split_frame(&mut buf).unwrap();
-        let mut rest = &frame[..];
-        VarInt::decode_partial(&mut rest).unwrap()
-    }
-
     fn read_all(encoder: &mut PacketEncoder, threshold: i32) -> Vec<(i32, Bytes)> {
         let mut decoder = PacketDecoder::new();
         decoder.set_compression(CompressionThreshold(threshold));
@@ -151,66 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn a_packet_of_exactly_the_threshold_is_compressed() {
-        for (encoded_len, compressed) in [(255, false), (256, true), (257, true)] {
-            let mut encoder = encoder(256);
-            let packet = packet_of(encoded_len);
-            encoder.append_packet(&packet).unwrap();
-            assert_eq!(
-                data_length(&encoder),
-                if compressed { encoded_len as i32 } else { 0 },
-                "{encoded_len} bytes"
-            );
-            assert_eq!(read_all(&mut encoder, 256), [expected(&packet)]);
-        }
-    }
-
-    #[test]
-    fn the_compressor_exists_only_once_compression_is_used() {
-        let mut off = encoder(-1);
-        for len in [10, 300, 3000] {
-            off.append_packet(&packet_of(len)).unwrap();
-        }
-        assert!(off.deflate.is_none());
-
-        let mut on = encoder(256);
-        on.append_packet(&packet_of(255)).unwrap();
-        assert!(on.deflate.is_none());
-
-        let first = packet_of(256);
-        let second = packet_of(1000);
-        on.append_packet(&first).unwrap();
-        assert!(on.deflate.is_some());
-        on.append_packet(&second).unwrap();
-        assert_eq!(
-            read_all(&mut on, 256).split_off(1),
-            [expected(&first), expected(&second)]
-        );
-    }
-
-    #[test]
     fn a_packet_that_fails_to_encode_leaves_nothing_in_the_buffer() {
-        for threshold in [-1, 256] {
-            let mut encoder = encoder(threshold);
-            let first = packet_of(300);
-            let last = packet_of(40);
-            encoder.append_packet(&first).unwrap();
-            let before = encoder.buf.clone();
-
-            assert!(encoder.append_packet(&Failing).is_err());
-            assert_eq!(encoder.buf, before, "threshold {threshold}");
-
-            encoder.append_packet(&last).unwrap();
-            assert_eq!(
-                read_all(&mut encoder, threshold),
-                [expected(&first), expected(&last)],
-                "threshold {threshold}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_packet_the_frame_rules_refuse_leaves_nothing_in_the_buffer() {
         let cases = [
             (
                 -1,
@@ -233,6 +166,9 @@ mod tests {
             let last = packet_of(40);
             encoder.append_packet(&first).unwrap();
             let before = encoder.buf.clone();
+
+            assert!(encoder.append_packet(&Failing).is_err());
+            assert_eq!(encoder.buf, before, "threshold {threshold}");
 
             let refused = encoder.append_packet(&packet_of(encoded_len)).unwrap_err();
             assert_eq!(

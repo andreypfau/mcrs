@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap};
-use std::fs::File;
 use std::path::PathBuf;
 
 use bytes::Buf;
@@ -9,7 +8,7 @@ use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, Joint, PaletteState, Template, TemplateManifest,
 };
-use mcrs_minecraft_worldgen_testing::{assets_dir, dump_placements, dump_string, open_dump};
+use mcrs_minecraft_worldgen_testing::{dump_placements, dump_string, open_dump};
 
 use super::corpus;
 use crate::structures::{DYNAMIC_SHAPE_BLOCKS, resolve_palette_state};
@@ -139,12 +138,10 @@ pub(super) fn resolve(state: &PaletteState) -> VoxelId {
 
 pub(super) fn freeze(id: &str) -> (Template, FrozenTemplate, TemplateManifest) {
     let id = ResourceLocation::parse(id).unwrap();
-    let path = assets_dir()
-        .join("minecraft/structure")
-        .join(format!("{}.nbt", id.path()));
-    let file = File::open(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let bytes = mcrs_minecraft_worldgen_testing::template(&id)
+        .unwrap_or_else(|| panic!("{id}: no such template"));
     let template: Template =
-        from_gzip_bytes(file).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        from_gzip_bytes(bytes.as_slice()).unwrap_or_else(|e| panic!("{id}: {e}"));
     let (frozen, manifest) = template
         .freeze(&id, &|state| resolve_palette_state(corpus(), state))
         .unwrap_or_else(|e| panic!("{e}"));

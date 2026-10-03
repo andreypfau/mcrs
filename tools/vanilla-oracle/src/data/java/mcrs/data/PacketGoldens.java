@@ -1,12 +1,9 @@
 package mcrs.data;
 
-import com.google.common.hash.HashCode;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
+import static mcrs.data.CodecGoldens.hex;
+
 import com.google.gson.JsonParser;
 import com.mojang.serialization.DataResult;
-import com.mojang.serialization.JsonOps;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -17,7 +14,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,6 +22,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Supplier;
+import mcrs.data.CodecGoldens.Session;
 import net.minecraft.SharedConstants;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
@@ -41,9 +38,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
-import net.minecraft.core.LayeredRegistryAccess;
-import net.minecraft.core.Registry;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentExactPredicate;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
@@ -54,13 +48,10 @@ import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.HashedPatchMap;
 import net.minecraft.network.HashedStack;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.game.ClientboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket;
@@ -97,15 +88,9 @@ import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.network.protocol.handshake.ClientIntent;
 import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraft.resources.Identifier;
-import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.RegistryLayer;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.repository.ServerPacksSource;
-import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.stats.RecipeBookSettings;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.util.HashOps;
 import net.minecraft.util.Unit;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
@@ -141,41 +126,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.dimension.DimensionType;
 
 public final class PacketGoldens {
-    private static final HexFormat HEX = HexFormat.of();
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
     private static final Map<String, String> PARSE_ERROR_INPUTS = Map.of(
         "geyser_zero", "{\"type\":\"minecraft:geyser\",\"water_blocks\":0}",
         "trail_zero", "{\"type\":\"minecraft:trail\",\"target\":[0,0,0],\"color\":1,\"duration\":0}"
     );
 
     private PacketGoldens() {}
-
-    record Session(RegistryAccess.Frozen access, RegistryOps<JsonElement> json, RegistryOps<HashCode> hash) {}
-
-    @FunctionalInterface
-    interface Body {
-        void write(Session session) throws Exception;
-    }
-
-    static void withSession(final Body body) throws Exception {
-        try (MultiPackResourceManager resources = new MultiPackResourceManager(
-                PackType.SERVER_DATA, List.of(ServerPacksSource.createVanillaPackSource().fullResources())
-            )) {
-            LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
-            RegistryAccess.Frozen loaded = BlockDefinitionDumper.loadWorldRegistries(resources, layers);
-            RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLD, loaded).compositeAccess();
-            BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(access).forEach(pending -> pending.apply());
-            body.write(new Session(
-                access,
-                access.createSerializationContext(JsonOps.INSTANCE),
-                access.createSerializationContext(HashOps.CRC32C_INSTANCE)
-            ));
-        }
-    }
-
-    private static void writeLines(final Path output, final List<String> lines) throws Exception {
-        Files.writeString(output, String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
-    }
 
     private static void rewriteLabelled(
         final Session session, final Path current, final Path output, final Map<String, Supplier<String>> labels
@@ -184,7 +140,7 @@ public final class PacketGoldens {
         Set<String> used = new LinkedHashSet<>();
         for (String line : Files.readAllLines(current, StandardCharsets.UTF_8)) {
             if (line.startsWith("id ")) {
-                out.add(idLine(session, line));
+                out.add(CodecGoldens.idLine(session, line, false));
                 continue;
             }
             String label = line.substring(0, line.indexOf(' '));
@@ -198,11 +154,11 @@ public final class PacketGoldens {
         if (!used.equals(labels.keySet())) {
             throw new IllegalStateException("labels with inputs but not in the file: " + labels.keySet().stream().filter(label -> !used.contains(label)).toList());
         }
-        writeLines(output, out);
+        CodecGoldens.writeLines(output, out);
     }
 
     static void recipePackets(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             Map<String, Supplier<String>> labels = new LinkedHashMap<>();
             labels.put("recipe_book_add", () -> "wire " + hex(session, ClientboundRecipeBookAddPacket.STREAM_CODEC, recipeBookAdd(session)));
             labels.put("update_recipes", () -> "wire " + hex(session, ClientboundUpdateRecipesPacket.STREAM_CODEC, updateRecipes(session)));
@@ -239,7 +195,7 @@ public final class PacketGoldens {
     }
 
     static void inventoryPackets(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             Map<String, Supplier<String>> labels = new LinkedHashMap<>();
             labels.put(
                 "container_set_slot",
@@ -344,7 +300,7 @@ public final class PacketGoldens {
     }
 
     static void joinPackets(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             Map<String, Supplier<String>> labels = new LinkedHashMap<>();
             labels.put(
                 "login",
@@ -429,7 +385,7 @@ public final class PacketGoldens {
     }
 
     static void particles(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
             Map<String, String> old = new LinkedHashMap<>();
             for (String line : in) {
@@ -463,7 +419,7 @@ public final class PacketGoldens {
             if (!typesWritten) {
                 throw new IllegalStateException("the file has no type lines");
             }
-            writeLines(output, out);
+            CodecGoldens.writeLines(output, out);
         });
     }
 
@@ -883,33 +839,7 @@ public final class PacketGoldens {
         return session.access().lookupOrThrow(Registries.ITEM).getOrThrow(ResourceKey.create(Registries.ITEM, Identifier.withDefaultNamespace(path)));
     }
 
-    private static String idLine(final Session session, final String line) {
-        String[] parts = line.split(" ");
-        if (parts.length != 4) {
-            throw new IllegalStateException("malformed id line: " + line);
-        }
-        Registry<?> registry = session.access().lookupOrThrow(ResourceKey.createRegistryKey(Identifier.withDefaultNamespace(parts[1])));
-        Object entry = registry.getValue(Identifier.parse(parts[2]));
-        if (entry == null) {
-            throw new IllegalStateException("registry " + parts[1] + " has no entry " + parts[2]);
-        }
-        return "id " + parts[1] + " " + parts[2] + " " + rawId(registry, entry);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static int rawId(final Registry<?> registry, final Object entry) {
-        return ((Registry<Object>) registry).getId(entry);
-    }
-
-    private static <T> String hex(final Session session, final StreamCodec<? super RegistryFriendlyByteBuf, T> codec, final T value) {
-        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), session.access());
-        codec.encode(buffer, value);
-        byte[] bytes = new byte[buffer.readableBytes()];
-        buffer.readBytes(bytes);
-        return HEX.formatHex(bytes);
-    }
-
     private static <T> String json(final Session session, final com.mojang.serialization.Codec<T> codec, final T value) {
-        return GSON.toJson(codec.encodeStart(session.json(), value).getOrThrow(IllegalStateException::new));
+        return CodecGoldens.GSON.toJson(codec.encodeStart(session.json(), value).getOrThrow(IllegalStateException::new));
     }
 }

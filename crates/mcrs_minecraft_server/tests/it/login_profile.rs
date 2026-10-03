@@ -1,10 +1,6 @@
 use bevy_app::App;
-use bevy_asset::Assets;
 use bevy_ecs::entity::Entity;
 use bytes::{Bytes, BytesMut};
-use mcrs_minecraft_assets::RegistryAccess;
-use mcrs_minecraft_assets::tag::file::TagFile;
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -12,23 +8,15 @@ use mcrs_minecraft_level::world::channels::{
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
-use mcrs_minecraft_protocol::packets::configuration;
-use mcrs_minecraft_protocol::packets::configuration::ClientboundFinishConfiguration;
-use mcrs_minecraft_protocol::packets::configuration::serverbound::{
-    ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
-};
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished,
 };
-use mcrs_minecraft_protocol::packets::login::serverbound::{
-    ServerboundHello, ServerboundLoginAcknowledged,
-};
+use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundHello;
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Packet, Text};
-use mcrs_minecraft_server::configuration::{
-    AwaitingKnownPacks, DynamicRegistryTagFiles, on_configuration_ack, on_known_packs_response,
-};
+use mcrs_minecraft_server::configuration::on_configuration_ack;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::disconnect::DisconnectProtocolPlugin;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState, SingleplayerProfile};
@@ -39,7 +27,7 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, 
 use mcrs_minecraft_server::world::session::HostAnchorRef;
 use tokio::sync::mpsc;
 
-use crate::{mock_connection, support};
+use crate::mock_connection;
 
 const OPERATOR: Uuid = Uuid::from_u128(0x0bad_cafe_0000_4000_8000_0000_0000_0001);
 
@@ -191,16 +179,6 @@ fn login_disconnect_reason(frames: &[PacketFrame]) -> serde_json::Value {
     assert_eq!(frame.id, ClientboundLoginDisconnect::ID);
     let packet = ClientboundLoginDisconnect::decode(&mut &frame.body[..]).unwrap();
     serde_json::from_str(packet.reason.0).unwrap()
-}
-
-fn configuration_disconnect_reason(frames: &[PacketFrame]) -> Text {
-    let [frame] = frames else {
-        panic!("{frames:?}");
-    };
-    assert_eq!(frame.id, configuration::ClientboundDisconnect::ID);
-    configuration::ClientboundDisconnect::decode(&mut &frame.body[..])
-        .unwrap()
-        .reason
 }
 
 #[test]
@@ -391,11 +369,15 @@ fn a_login_under_the_hosts_name_in_another_case_ends_the_hosts_session() {
         [ClientboundLoginFinished::ID]
     );
 
+    app.world_mut()
+        .entity_mut(owner.connection)
+        .insert(ConnectionState::Game);
+
     let mut guest = connect(&mut app);
     send_hello(&mut app, &guest, "hOST", Uuid::new_v4());
 
     assert_eq!(
-        configuration_disconnect_reason(&owner.received(&mut app)),
+        play_disconnect_reason(&owner.received(&mut app)),
         duplicate_login()
     );
     assert!(!connected(&app, &owner));
@@ -409,45 +391,22 @@ fn a_login_under_the_hosts_name_in_another_case_ends_the_hosts_session() {
 }
 
 #[test]
-fn a_session_sent_the_end_of_configuration_is_ended_with_the_play_disconnect() {
+fn a_second_login_under_a_name_leaves_a_session_that_is_not_yet_in_the_world() {
     let mut app = server(None);
-    app.add_observer(on_known_packs_response);
-    app.insert_resource(RegistryAccess::default());
-    app.init_resource::<Assets<DimensionType>>();
-    app.init_resource::<Assets<TagFile>>();
-    app.init_resource::<DynamicRegistryTagFiles>();
-    support::insert_corpus(&mut app);
 
     let mut first = connect(&mut app);
     send_hello(&mut app, &first, "Steve", Uuid::new_v4());
-    send(&mut app, &first, &ServerboundLoginAcknowledged);
-    app.world_mut()
-        .entity_mut(first.connection)
-        .insert(AwaitingKnownPacks);
-    send(
-        &mut app,
-        &first,
-        &ServerboundSelectKnownPacks {
-            known_packs: Vec::new(),
-        },
-    );
-    assert_eq!(
-        first.received(&mut app).last().map(|frame| frame.id),
-        Some(ClientboundFinishConfiguration::ID)
-    );
-    assert_eq!(
-        app.world().get::<ConnectionState>(first.connection),
-        Some(&ConnectionState::Configuration)
-    );
+    first.received(&mut app);
 
-    let second = connect(&mut app);
+    let mut second = connect(&mut app);
     send_hello(&mut app, &second, "Steve", Uuid::new_v4());
 
+    assert!(first.received(&mut app).is_empty());
+    assert!(connected(&app, &first));
     assert_eq!(
-        play_disconnect_reason(&first.received(&mut app)),
-        duplicate_login()
+        ids(&second.received(&mut app)),
+        [ClientboundLoginFinished::ID]
     );
-    assert!(!connected(&app, &first));
 }
 
 #[test]

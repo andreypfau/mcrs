@@ -217,7 +217,9 @@ pub fn apply_material_surface(
                         }
                         match state {
                             Some(state) if state == stone => {}
-                            state => set_block(column, tops, min_y, x, y, z, state.unwrap_or_default()),
+                            state => {
+                                set_block(column, tops, min_y, x, y, z, state.unwrap_or_default())
+                            }
                         }
                     }
                 },

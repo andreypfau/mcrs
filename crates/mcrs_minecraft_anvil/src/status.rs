@@ -26,22 +26,6 @@ pub enum ChunkStatus {
     Full,
 }
 
-impl ChunkStatus {
-    pub const ALL: [Self; 11] = [
-        Self::Empty,
-        Self::StructureStarts,
-        Self::StructureReferences,
-        Self::NoiseBiomes,
-        Self::Biomes,
-        Self::Terrain,
-        Self::Features,
-        Self::InitializeLight,
-        Self::Light,
-        Self::Spawn,
-        Self::Full,
-    ];
-}
-
 #[cfg(test)]
 mod tests {
     use super::ChunkStatus;
@@ -70,9 +54,16 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .collect();
-        let actual: Vec<String> = ChunkStatus::ALL.iter().map(serde_name).collect();
+        let statuses: Vec<ChunkStatus> = expected
+            .iter()
+            .map(|name| {
+                serde_json::from_value(serde_json::Value::String(name.clone()))
+                    .unwrap_or_else(|error| panic!("{name} is no chunk status: {error}"))
+            })
+            .collect();
+        let actual: Vec<String> = statuses.iter().map(serde_name).collect();
         assert_eq!(actual, expected);
-        for pair in ChunkStatus::ALL.windows(2) {
+        for pair in statuses.windows(2) {
             assert!(
                 pair[0] < pair[1],
                 "{:?} is not before {:?}",

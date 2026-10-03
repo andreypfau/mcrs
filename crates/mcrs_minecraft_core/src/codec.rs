@@ -75,6 +75,14 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Default for Bounded<MIN
 }
 
 impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Bounded<MIN, MAX, DEFAULT> {
+    pub fn new(value: i32) -> Result<Self, String> {
+        if (MIN..=MAX).contains(&value) {
+            Ok(Bounded(value))
+        } else {
+            Err(Self::out_of_range(value))
+        }
+    }
+
     fn out_of_range(value: i32) -> String {
         match (MIN, MAX) {
             (0, i32::MAX) => format!("Value must be non-negative: {value}"),

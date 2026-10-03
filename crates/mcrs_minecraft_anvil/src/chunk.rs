@@ -148,7 +148,11 @@ pub(crate) struct RawChunk {
     )]
     pub(crate) heightmaps: BTreeMap<String, Vec<i64>>,
     /// Vanilla writes the flag only when set.
-    #[serde(rename = "isLightOn", default, skip_serializing_if = "is_false")]
+    #[serde(
+        rename = "isLightOn",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub(crate) is_light_on: bool,
     #[serde(default)]
     pub(crate) block_entities: Vec<NbtCompound>,
@@ -158,10 +162,6 @@ pub(crate) struct RawChunk {
     pub(crate) last_update: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) retrogen: Option<RetroGen>,
-}
-
-fn is_false(flag: &bool) -> bool {
-    !*flag
 }
 
 fn long_array_map<S: Serializer>(
@@ -382,7 +382,7 @@ fn packed_data<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Pack
         }
 
         fn visit_other<D: Deserializer<'de>>(self, value: D) -> Result<Self::Value, D::Error> {
-            let words = value.deserialize_any(Words)?;
+            let words = Words::deserialize(value)?.0;
             Ok(words.map(|words| PackedData(words.into_boxed_slice())))
         }
     }

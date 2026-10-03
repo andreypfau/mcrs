@@ -1,5 +1,5 @@
 use compound::NbtCompound;
-use deserializer::{NbtReadHelper, cautious_capacity};
+use deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
 use io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use serializer::WriteAdaptor;
@@ -231,7 +231,7 @@ impl NbtTag {
                 let (tag_type_id, len) = read_list_header(reader)?;
 
                 reader.push_depth()?;
-                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len));
+                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
                 for _ in 0..len {
                     list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
                         NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
@@ -256,7 +256,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len));
+                let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
                 for _ in 0..len {
                     let int = reader.get_i32_be()?;
                     int_array.push(int);
@@ -270,7 +270,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len));
+                let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len, READ_STEP));
                 for _ in 0..len {
                     let long = reader.get_i64_be()?;
                     long_array.push(long);

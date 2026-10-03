@@ -10,4 +10,4 @@ It differs from the game on purpose:
 
 - The game announces only a singleplayer world that was opened to LAN. A dedicated MCRS server announces itself by default.
 - The game stops announcing for good after one failed send. This server keeps trying on every interval, and logs once when sending starts to fail and once when it recovers.
-- A MOTD that the client's parser cannot read, one that contains `[/MOTD]` or that makes the datagram longer than the 1024 bytes the client reads, is not sent. The reason is logged once.
+- A MOTD that the client's parser cannot read, one that contains `[/MOTD]`, is not sent. The reason is logged once. The datagram length is not checked: the MOTD is a constant far below the 1024 bytes the client reads.

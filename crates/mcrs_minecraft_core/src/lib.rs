@@ -36,6 +36,4 @@ pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::{TagKey, TaggedRegistry};
-pub use version::{
-    CorpusVersionError, PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version,
-};
+pub use version::{PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version};

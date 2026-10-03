@@ -13,16 +13,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
-use mcrs_minecraft_environment::attribute::{
-    EnvironmentAttributeMap, MobSpawnSettings, Operation, id,
-};
+use mcrs_minecraft_environment::attribute::id::{self, Attribute};
+use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_structure::DecorationStep;
 
 pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
-
-pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -65,7 +62,7 @@ impl Biome {
     }
 
     pub fn natural_mob_spawns(&self) -> serde_json::Result<Option<MobSpawnSettings>> {
-        self.attributes.argument(NATURAL_MOB_SPAWNS)
+        self.attributes.argument(id::NATURAL_MOB_SPAWNS.id.as_str())
     }
 }
 
@@ -126,35 +123,6 @@ pub struct BiomeEffects {
     pub dry_foliage_color: Option<HexRgb>,
 }
 
-impl BiomeEffects {
-    pub fn water(color: i32) -> Self {
-        BiomeEffects {
-            water_color: Some(HexRgb::of(color)),
-            ..Default::default()
-        }
-    }
-
-    pub fn foliage(mut self, color: i32) -> Self {
-        self.foliage_color = Some(HexRgb::of(color));
-        self
-    }
-
-    pub fn grass(mut self, color: i32) -> Self {
-        self.grass_color = Some(HexRgb::of(color));
-        self
-    }
-
-    pub fn dry_foliage(mut self, color: i32) -> Self {
-        self.dry_foliage_color = Some(HexRgb::of(color));
-        self
-    }
-
-    pub fn grass_modifier(mut self, modifier: GrassColorModifier) -> Self {
-        self.grass_color_modifier = modifier;
-        self
-    }
-}
-
 pub type PlacedFeatureKey = ResourceKey<PlacedFeature, &'static str>;
 
 /// The carvers and the per-step placed features of a biome, in the order they
@@ -188,49 +156,48 @@ impl BiomeGeneration {
 impl Biome {
     pub const NORMAL_WATER_COLOR: i32 = 4159204;
 
-    pub fn new(
-        has_precipitation: bool,
-        temperature: f32,
-        downfall: f32,
-        mobs: MobSpawnSettings,
-        generation: BiomeGeneration,
-    ) -> Self {
-        let features = generation.features.into_iter().map(|step| {
-            HolderSet::List(step.into_iter().map(Into::into).collect())
-        });
+    pub fn new(has_precipitation: bool, temperature: f32, downfall: f32) -> Self {
         Biome {
             temperature,
             downfall,
             has_precipitation,
             temperature_modifier: None,
-            effects: BiomeEffects::water(Self::NORMAL_WATER_COLOR),
+            effects: BiomeEffects::default(),
             attributes: Default::default(),
-            carvers: generation.carvers.into_iter().map(Into::into).collect(),
-            features: features.collect(),
+            carvers: Vec::new(),
+            features: Vec::new(),
         }
-        .modified(id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
+        .water(Self::NORMAL_WATER_COLOR)
     }
 
-    /// Panics on an argument the attribute does not take: a description
-    /// written in code is wrong at the point it is written.
-    pub fn with(self, attribute: StaticResourceLocation, value: impl Serialize) -> Self {
-        self.modified(attribute, Operation::Override, value)
+    pub fn spawns(self, mobs: MobSpawnSettings) -> Self {
+        self.modified(id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
     }
 
-    pub fn modified(
-        mut self,
-        attribute: StaticResourceLocation,
-        modifier: Operation,
-        argument: impl Serialize,
-    ) -> Self {
-        if let Err(error) = self.attributes.modify(attribute, modifier, argument) {
-            panic!("{attribute}: {error}");
-        }
+    pub fn generation(mut self, generation: BiomeGeneration) -> Self {
+        self.carvers = generation.carvers.into_iter().map(Into::into).collect();
+        let steps = generation.features.into_iter();
+        self.features = steps
+            .map(|step| HolderSet::List(step.into_iter().map(Into::into).collect()))
+            .collect();
         self
     }
 
-    pub fn effects(mut self, effects: BiomeEffects) -> Self {
-        self.effects = effects;
+    pub fn with<T: Serialize>(self, attribute: Attribute<T>, value: T) -> Self {
+        self.modified(attribute, Operation::Override, value)
+    }
+
+    /// Panics on an argument the attribute or the modifier does not take: a
+    /// description written in code is wrong at the point it is written.
+    pub fn modified<T>(
+        mut self,
+        attribute: Attribute<T>,
+        modifier: Operation,
+        argument: impl Serialize,
+    ) -> Self {
+        if let Err(error) = self.attributes.modify(attribute.id, modifier, argument) {
+            panic!("{}: {error}", attribute.id);
+        }
         self
     }
 
@@ -241,6 +208,31 @@ impl Biome {
 
     pub fn temperature_modifier(mut self, modifier: TemperatureModifier) -> Self {
         self.temperature_modifier = Some(modifier);
+        self
+    }
+
+    pub fn water(mut self, color: i32) -> Self {
+        self.effects.water_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn foliage(mut self, color: i32) -> Self {
+        self.effects.foliage_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn grass(mut self, color: i32) -> Self {
+        self.effects.grass_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn dry_foliage(mut self, color: i32) -> Self {
+        self.effects.dry_foliage_color = Some(HexRgb::of(color));
+        self
+    }
+
+    pub fn grass_modifier(mut self, modifier: GrassColorModifier) -> Self {
+        self.effects.grass_color_modifier = modifier;
         self
     }
 }
@@ -299,10 +291,6 @@ fn one_or_list<S: Serializer, T: Serialize>(items: &[T], serializer: S) -> Resul
     }
 }
 
-// ---------------------------------------------------------------------------
-// Asset loader
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,7 +326,7 @@ mod tests {
             "#78a7ff"
         );
         assert!(
-            attributes.get(NATURAL_MOB_SPAWNS).is_none(),
+            attributes.get(id::NATURAL_MOB_SPAWNS.id.as_str()).is_none(),
             "spawns are server-only"
         );
 
@@ -376,7 +364,11 @@ mod tests {
             .expect("plains has spawns");
         assert!(!spawns.spawns_by_category[&MobCategory::Creature].is_empty());
         assert_eq!(
-            biome.attributes.get(NATURAL_MOB_SPAWNS).unwrap().modifier,
+            biome
+                .attributes
+                .get(id::NATURAL_MOB_SPAWNS.id.as_str())
+                .unwrap()
+                .modifier,
             mcrs_minecraft_environment::attribute::Operation::Overlay
         );
         assert_eq!(

@@ -11,36 +11,174 @@ mod village_savanna;
 mod village_snowy;
 mod village_taiga;
 
-use crate::keys::{Id, PlacedKey, ProcessorsKey};
+use crate::keys::{PlacedKey, ProcessorsKey};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_structure::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 
+/// A template named relative to its pool's directory. `numbers` makes one row
+/// stand for the templates `name<lo>` to `name<hi>`, zero-padded to a width.
+#[derive(Clone, Copy)]
+pub struct Template {
+    legacy: bool,
+    name: &'static str,
+    numbers: Option<(u32, u32, usize)>,
+    processors: Option<ProcessorsKey>,
+}
+
 #[derive(Clone, Copy)]
 pub enum Piece {
-    Legacy(Id),
-    LegacyWith(Id, ProcessorsKey),
-    Single(Id),
-    SingleWith(Id, ProcessorsKey),
+    Template(Template),
     Feature(PlacedKey),
     List(&'static [Piece]),
     Empty,
 }
 
+const fn template(legacy: bool, name: &'static str) -> Piece {
+    Piece::Template(Template {
+        legacy,
+        name,
+        numbers: None,
+        processors: None,
+    })
+}
+
+pub const fn legacy(name: &'static str) -> Piece {
+    template(true, name)
+}
+
+pub const fn single(name: &'static str) -> Piece {
+    template(false, name)
+}
+
+impl Piece {
+    const fn template(self) -> Template {
+        match self {
+            Piece::Template(template) => template,
+            _ => panic!("only a template row takes processors or numbers"),
+        }
+    }
+
+    pub const fn with(self, processors: ProcessorsKey) -> Self {
+        let mut template = self.template();
+        template.processors = Some(processors);
+        Piece::Template(template)
+    }
+
+    pub const fn numbered(self, lo: u32, hi: u32) -> Self {
+        self.padded(lo, hi, 0)
+    }
+
+    pub const fn padded(self, lo: u32, hi: u32, width: usize) -> Self {
+        let mut template = self.template();
+        template.numbers = Some((lo, hi, width));
+        Piece::Template(template)
+    }
+}
+
+/// A pool whose fallback is `empty`, whose pieces are rigid, sit at the root
+/// and take no processors, until a builder call says otherwise.
 pub struct Pool {
-    name: Id,
-    fallback: Id,
+    name: &'static str,
+    fallback: &'static str,
     projection: Projection,
+    dir: &'static str,
+    processors: Option<ProcessorsKey>,
     pieces: &'static [(Piece, i32)],
 }
 
-const EMPTY: &[Pool] = &[Pool {
-    name: rl!("minecraft:empty"),
-    fallback: rl!("minecraft:empty"),
-    projection: Projection::Rigid,
-    pieces: &[],
-}];
+pub const fn pool(name: &'static str) -> Pool {
+    Pool {
+        name,
+        fallback: "empty",
+        projection: Projection::Rigid,
+        dir: "",
+        processors: None,
+        pieces: &[],
+    }
+}
+
+impl Pool {
+    pub const fn fallback(mut self, fallback: &'static str) -> Self {
+        self.fallback = fallback;
+        self
+    }
+
+    pub const fn terrain_matching(mut self) -> Self {
+        self.projection = Projection::TerrainMatching;
+        self
+    }
+
+    pub const fn dir(mut self, dir: &'static str) -> Self {
+        self.dir = dir;
+        self
+    }
+
+    pub const fn processors(mut self, processors: ProcessorsKey) -> Self {
+        self.processors = Some(processors);
+        self
+    }
+
+    pub const fn pieces(mut self, pieces: &'static [(Piece, i32)]) -> Self {
+        self.pieces = pieces;
+        self
+    }
+
+    fn elements(&self, piece: Piece, out: &mut Vec<PoolElement>) {
+        let projection = self.projection;
+        match piece {
+            Piece::Template(template) => {
+                let mut push = |name: std::fmt::Arguments| {
+                    let location = ResourceLocation::minecraft(&format!("{}{name}", self.dir));
+                    let processors = template.processors.or(self.processors);
+                    let element =
+                        SingleElement::new(location, processors.map(Into::into), projection);
+                    out.push(if template.legacy {
+                        PoolElement::LegacySingle(element)
+                    } else {
+                        PoolElement::Single(element)
+                    });
+                };
+                match template.numbers {
+                    None => push(format_args!("{}", template.name)),
+                    Some((lo, hi, width)) => {
+                        for n in lo..=hi {
+                            push(format_args!("{}{n:0width$}", template.name));
+                        }
+                    }
+                }
+            }
+            Piece::Feature(feature) => out.push(PoolElement::Feature {
+                feature: feature.into(),
+                projection,
+            }),
+            Piece::List(pieces) => {
+                let mut elements = Vec::new();
+                for piece in pieces {
+                    self.elements(*piece, &mut elements);
+                }
+                out.push(PoolElement::List {
+                    elements,
+                    projection,
+                });
+            }
+            Piece::Empty => out.push(PoolElement::Empty {}),
+        }
+    }
+
+    fn build(&self) -> TemplatePool {
+        let mut entries = Vec::new();
+        for (piece, weight) in self.pieces {
+            let mut elements = Vec::new();
+            self.elements(*piece, &mut elements);
+            entries.extend(elements.into_iter().map(|element| (element, *weight)));
+        }
+        entries_pool(self.fallback, entries)
+    }
+}
+
+const EMPTY: &[Pool] = &[pool("empty")];
 
 const TABLES: [&[Pool]; 12] = [
     EMPTY,
@@ -57,46 +195,16 @@ const TABLES: [&[Pool]; 12] = [
     village_taiga::POOLS,
 ];
 
-fn single(
-    location: impl Into<ResourceLocation>,
-    processors: Option<ProcessorsKey>,
-    projection: Projection,
-) -> SingleElement {
-    SingleElement::new(location, processors.map(Into::into), projection)
-}
-
-fn element(piece: Piece, projection: Projection) -> PoolElement {
-    match piece {
-        Piece::Legacy(location) => PoolElement::LegacySingle(single(location, None, projection)),
-        Piece::LegacyWith(location, processors) => {
-            PoolElement::LegacySingle(single(location, Some(processors), projection))
-        }
-        Piece::Single(location) => PoolElement::Single(single(location, None, projection)),
-        Piece::SingleWith(location, processors) => {
-            PoolElement::Single(single(location, Some(processors), projection))
-        }
-        Piece::Feature(feature) => PoolElement::Feature {
-            feature: feature.into(),
-            projection,
-        },
-        Piece::List(pieces) => PoolElement::List {
-            elements: pieces
-                .iter()
-                .map(|piece| element(*piece, projection))
-                .collect(),
-            projection,
-        },
-        Piece::Empty => PoolElement::Empty {},
-    }
-}
-
-fn pool(fallback: Id, entries: impl IntoIterator<Item = (PoolElement, i32)>) -> TemplatePool {
+fn entries_pool(
+    fallback: &str,
+    entries: impl IntoIterator<Item = (PoolElement, i32)>,
+) -> TemplatePool {
     let entry = |(element, weight)| PoolEntry {
         element,
-        weight: Bounded(weight),
+        weight: Bounded::new(weight).expect("a pool weight is within 1..=150"),
     };
     TemplatePool {
-        fallback: fallback.into(),
+        fallback: ResourceLocation::minecraft(fallback),
         elements: entries.into_iter().map(entry).collect(),
     }
 }
@@ -107,17 +215,22 @@ fn listed() -> impl Iterator<Item = &'static Pool> {
 
 pub fn keys() -> impl Iterator<Item = ResourceLocation> {
     listed()
-        .map(|pool| pool.name.into())
+        .map(|pool| ResourceLocation::minecraft(pool.name))
         .chain(abandoned_camp::keys())
 }
 
+pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {
+    listed()
+        .map(|pool| (ResourceLocation::minecraft(pool.name), pool.build()))
+        .chain(abandoned_camp::all())
+}
+
+// chisle: a linear scan of 188 rows per pool read. A sorted table and a binary
+// search lift it if the tables grow.
 pub fn build(id: &ResourceLocation) -> Option<TemplatePool> {
-    let Some(found) = listed().find(|pool| pool.name == *id) else {
-        return abandoned_camp::build(id);
-    };
-    let entries = found
-        .pieces
-        .iter()
-        .map(|(piece, weight)| (element(*piece, found.projection), *weight));
-    Some(pool(found.fallback, entries))
+    let named = |pool: &&Pool| id.namespace() == "minecraft" && pool.name == id.path();
+    match listed().find(named) {
+        Some(pool) => Some(pool.build()),
+        None => abandoned_camp::build(id),
+    }
 }

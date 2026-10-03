@@ -1,19 +1,13 @@
 package mcrs.data;
 
-import com.google.common.hash.HashCode;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.internal.LazilyParsedNumber;
-import com.google.gson.stream.JsonWriter;
 import com.mojang.serialization.DataResult;
-import com.mojang.serialization.JsonOps;
 import io.netty.buffer.Unpooled;
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -25,17 +19,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import mcrs.data.CodecGoldens.Session;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
-import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentExactPredicate;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentPatch;
@@ -44,20 +36,13 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.RegistryLayer;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.repository.ServerPacksSource;
-import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.HashOps;
 import net.minecraft.util.Unit;
 import net.minecraft.world.entity.decoration.painting.PaintingVariant;
 import net.minecraft.world.item.ItemStack;
@@ -66,8 +51,6 @@ import net.minecraft.world.item.JukeboxPlayable;
 import net.minecraft.world.item.JukeboxSong;
 
 final class ItemGoldens {
-    private static final HexFormat HEX = HexFormat.of();
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().serializeNulls().create();
     private static final Set<Class<?>> EMBEDDED_STACKS = Set.of(
         ItemStackTemplate.class, ItemStack.class, DataComponentPatch.class, DataComponentMap.class, DataComponentExactPredicate.class
     );
@@ -119,67 +102,41 @@ final class ItemGoldens {
 
     private ItemGoldens() {}
 
-    private record Session(
-        RegistryAccess.Frozen access, RegistryOps<JsonElement> json, RegistryOps<Tag> nbt, RegistryOps<HashCode> hash
-    ) {}
-
-    @FunctionalInterface
-    private interface Body {
-        void write(Session session) throws Exception;
-    }
-
     @FunctionalInterface
     private interface Row {
         JsonObject write(Session session, JsonObject in) throws Exception;
     }
 
-    private static void withSession(final Body body) throws Exception {
-        try (MultiPackResourceManager resources = new MultiPackResourceManager(
-                PackType.SERVER_DATA, List.of(ServerPacksSource.createVanillaPackSource().fullResources())
-            )) {
-            LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
-            RegistryAccess.Frozen loaded = BlockDefinitionDumper.loadWorldRegistries(resources, layers);
-            RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLD, loaded).compositeAccess();
-            BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(access).forEach(pending -> pending.apply());
-            body.write(new Session(
-                access,
-                access.createSerializationContext(JsonOps.INSTANCE),
-                access.createSerializationContext(NbtOps.INSTANCE),
-                access.createSerializationContext(HashOps.CRC32C_INSTANCE)
-            ));
-        }
-    }
-
     static void plain(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             JsonObject in = read(current).getAsJsonObject();
             JsonObject out = new JsonObject();
             out.add("values", rows(session, in, "values", ItemGoldens::value));
             out.add("errors", rows(session, in, "errors", ItemGoldens::error));
             out.add("decodes", rows(session, in, "decodes", ItemGoldens::decoded));
             out.add("decode_errors", rows(session, in, "decode_errors", ItemGoldens::decodeError));
-            write(output, "  ", true, out);
+            CodecGoldens.writeJson(output, "  ", true, out);
         });
     }
 
     static void nested(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             JsonObject in = read(current).getAsJsonObject();
             JsonObject out = new JsonObject();
             out.add("lookup", lookup(session, in.getAsJsonObject("lookup")));
             out.add("cases", rows(session, in, "cases", ItemGoldens::nestedCase));
-            write(output, " ", false, out);
+            CodecGoldens.writeJson(output, " ", false, out);
         });
     }
 
     static void predicate(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             JsonArray out = new JsonArray();
             JsonArray in = read(current).getAsJsonArray();
             for (int index = 0; index < in.size(); index++) {
                 out.add(attempt(session, "row " + index, in.get(index).getAsJsonObject(), ItemGoldens::predicateRow));
             }
-            write(output, " ", false, out);
+            CodecGoldens.writeJson(output, " ", false, out);
         });
     }
 
@@ -204,18 +161,18 @@ final class ItemGoldens {
         }
         JsonObject out = new JsonObject();
         out.add("kinds", rows);
-        write(output, "  ", true, out);
+        CodecGoldens.writeJson(output, "  ", true, out);
     }
 
     static void holders(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
             List<String> out = new ArrayList<>();
             int index = 0;
             while (index < in.size()) {
                 String line = in.get(index);
                 if (line.startsWith("id ")) {
-                    out.add(idLine(session, line, false));
+                    out.add(CodecGoldens.idLine(session, line, false));
                     index++;
                     continue;
                 }
@@ -226,19 +183,19 @@ final class ItemGoldens {
                 }
                 out.addAll(attempt(label, group, () -> holderCase(session, label, component(holderKind(label)), group)));
             }
-            writeLines(output, out);
+            CodecGoldens.writeLines(output, out);
         });
     }
 
     static void registryRefs(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
             List<String> out = new ArrayList<>();
             int index = 0;
             while (index < in.size()) {
                 String line = in.get(index++);
                 if (line.startsWith("id ")) {
-                    out.add(idLine(session, line, true));
+                    out.add(CodecGoldens.idLine(session, line, true));
                     continue;
                 }
                 if (!line.startsWith("sample ")) {
@@ -256,12 +213,12 @@ final class ItemGoldens {
                     return referenceSample(session, component(rest.substring(0, space)), rest.substring(space + 1), group);
                 }));
             }
-            writeLines(output, out);
+            CodecGoldens.writeLines(output, out);
         });
     }
 
     static void records(final Path current, final Path output) throws Exception {
-        withSession(session -> {
+        CodecGoldens.withSession(session -> {
             List<String> in = Files.readAllLines(current, StandardCharsets.UTF_8);
             List<String> out = new ArrayList<>();
             int index = 0;
@@ -273,7 +230,7 @@ final class ItemGoldens {
                 }
                 out.addAll(attempt(label, group, () -> recordRows(session, label, component(recordKind(label)), group)));
             }
-            writeLines(output, out);
+            CodecGoldens.writeLines(output, out);
         });
     }
 
@@ -288,20 +245,6 @@ final class ItemGoldens {
         } catch (RuntimeException failure) {
             throw new IllegalStateException(label + " " + group, failure);
         }
-    }
-
-    private static String idLine(final Session session, final String line, final boolean namespacedRegistry) {
-        String[] parts = line.split(" ");
-        if (parts.length != 4) {
-            throw new IllegalStateException("malformed id line: " + line);
-        }
-        Identifier registryId = namespacedRegistry ? Identifier.parse(parts[1]) : Identifier.withDefaultNamespace(parts[1]);
-        Registry<?> registry = session.access().lookupOrThrow(ResourceKey.createRegistryKey(registryId));
-        Object entry = registry.getValue(Identifier.parse(parts[2]));
-        if (entry == null) {
-            throw new IllegalStateException("registry " + parts[1] + " has no entry " + parts[2]);
-        }
-        return "id " + parts[1] + " " + parts[2] + " " + rawId(registry, entry);
     }
 
     private static boolean isComponent(final String id) {
@@ -422,7 +365,7 @@ final class ItemGoldens {
     }
 
     private static <T> String roundtrip(final Session session, final DataComponentType<T> type, final T value) {
-        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(HEX.parseHex(wire(session, type, value))), session.access());
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(CodecGoldens.HEX.parseHex(wire(session, type, value))), session.access());
         T decoded = type.streamCodec().decode(buffer);
         return "wire_roundtrip " + json(session, type, decoded).equals(json(session, type, value)) + " remaining " + buffer.readableBytes();
     }
@@ -458,10 +401,6 @@ final class ItemGoldens {
             });
         }
         return out;
-    }
-
-    private static void writeLines(final Path output, final List<String> lines) throws Exception {
-        Files.writeString(output, String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
     }
 
     private static JsonObject attempt(final Session session, final String label, final JsonObject in, final Row row) throws Exception {
@@ -642,16 +581,11 @@ final class ItemGoldens {
                 if (entry == null) {
                     throw new IllegalStateException("registry " + registryEntry.getKey() + " has no entry " + name);
                 }
-                ids.addProperty(name, rawId(registry, entry));
+                ids.addProperty(name, CodecGoldens.rawId(registry, entry));
             }
             out.add(registryEntry.getKey(), ids);
         }
         return out;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static int rawId(final Registry<?> registry, final Object entry) {
-        return ((Registry<Object>) registry).getId(entry);
     }
 
     private static <T> JsonElement json(final Session session, final DataComponentType<T> type, final T value) {
@@ -667,15 +601,11 @@ final class ItemGoldens {
     }
 
     private static <T> String wire(final Session session, final DataComponentType<T> type, final T value) {
-        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), session.access());
-        type.streamCodec().encode(buffer, value);
-        byte[] bytes = new byte[buffer.readableBytes()];
-        buffer.readBytes(bytes);
-        return HEX.formatHex(bytes);
+        return CodecGoldens.hex(session, type.streamCodec(), value);
     }
 
     private static <T> T unwire(final Session session, final DataComponentType<T> type, final String wire) {
-        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(HEX.parseHex(wire)), session.access());
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(CodecGoldens.HEX.parseHex(wire)), session.access());
         return type.streamCodec().decode(buffer);
     }
 
@@ -791,14 +721,5 @@ final class ItemGoldens {
 
     private static JsonElement read(final Path path) throws Exception {
         return JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8));
-    }
-
-    private static void write(final Path output, final String indent, final boolean endsWithNewline, final JsonElement root) throws Exception {
-        StringWriter text = new StringWriter();
-        try (JsonWriter json = new JsonWriter(text)) {
-            json.setIndent(indent);
-            GSON.toJson(root, json);
-        }
-        Files.writeString(output, endsWithNewline ? text + "\n" : text.toString(), StandardCharsets.UTF_8);
     }
 }

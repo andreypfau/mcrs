@@ -8,6 +8,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Registry {
+    #[allow(dead_code)]
     #[serde(default)]
     pub default: Option<String>,
     pub protocol_id: u32,
@@ -22,53 +23,29 @@ pub struct Entry {
 
 pub type Report = BTreeMap<String, Registry>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Kind {
-    RegistryAdded,
-    RegistryRemoved,
-    RegistryMoved,
-    EntryAdded,
-    EntryRemoved,
-    EntryMoved,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
-    pub kind: Kind,
+    pub kind: &'static str,
     pub registry: String,
     pub entry: Option<String>,
     pub old: Option<u32>,
     pub new: Option<u32>,
 }
 
-impl Kind {
-    fn name(self) -> &'static str {
-        match self {
-            Kind::RegistryAdded => "registry_added",
-            Kind::RegistryRemoved => "registry_removed",
-            Kind::RegistryMoved => "registry_moved",
-            Kind::EntryAdded => "entry_added",
-            Kind::EntryRemoved => "entry_removed",
-            Kind::EntryMoved => "entry_moved",
-        }
-    }
-}
-
 impl Row {
-    fn key(&self) -> (&str, bool, Option<u32>, Option<&str>, Kind) {
+    fn key(&self) -> (&str, bool, Option<u32>, Option<&str>) {
         (
             &self.registry,
             self.entry.is_some(),
             self.new.or(self.old),
             self.entry.as_deref(),
-            self.kind,
         )
     }
 }
 
 impl fmt::Display for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\t{}\t", self.kind.name(), self.registry)?;
+        write!(f, "{}\t{}\t", self.kind, self.registry)?;
         match &self.entry {
             Some(entry) => write!(f, "{entry}")?,
             None => write!(f, "-")?,
@@ -100,7 +77,7 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
         match (before, after) {
             (Some(before), Some(after)) if before.protocol_id != after.protocol_id => {
                 rows.push(registry_row(
-                    Kind::RegistryMoved,
+                    "registry_moved",
                     name,
                     Some(before.protocol_id),
                     Some(after.protocol_id),
@@ -108,7 +85,7 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
             }
             (Some(before), None) => {
                 rows.push(registry_row(
-                    Kind::RegistryRemoved,
+                    "registry_removed",
                     name,
                     Some(before.protocol_id),
                     None,
@@ -116,7 +93,7 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
             }
             (None, Some(after)) => {
                 rows.push(registry_row(
-                    Kind::RegistryAdded,
+                    "registry_added",
                     name,
                     None,
                     Some(after.protocol_id),
@@ -130,17 +107,17 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
         for (entry, was) in before {
             let (kind, new) = match after.get(entry) {
                 Some(is) if is.protocol_id != was.protocol_id => {
-                    (Kind::EntryMoved, Some(is.protocol_id))
+                    ("entry_moved", Some(is.protocol_id))
                 }
                 Some(_) => continue,
-                None => (Kind::EntryRemoved, None),
+                None => ("entry_removed", None),
             };
             rows.push(entry_row(kind, name, entry, Some(was.protocol_id), new));
         }
         for (entry, is) in after {
             if !before.contains_key(entry) {
                 rows.push(entry_row(
-                    Kind::EntryAdded,
+                    "entry_added",
                     name,
                     entry,
                     None,
@@ -153,7 +130,7 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
     rows
 }
 
-fn registry_row(kind: Kind, registry: &str, old: Option<u32>, new: Option<u32>) -> Row {
+fn registry_row(kind: &'static str, registry: &str, old: Option<u32>, new: Option<u32>) -> Row {
     Row {
         kind,
         registry: registry.to_owned(),
@@ -163,7 +140,13 @@ fn registry_row(kind: Kind, registry: &str, old: Option<u32>, new: Option<u32>) 
     }
 }
 
-fn entry_row(kind: Kind, registry: &str, entry: &str, old: Option<u32>, new: Option<u32>) -> Row {
+fn entry_row(
+    kind: &'static str,
+    registry: &str,
+    entry: &str,
+    old: Option<u32>,
+    new: Option<u32>,
+) -> Row {
     Row {
         kind,
         registry: registry.to_owned(),

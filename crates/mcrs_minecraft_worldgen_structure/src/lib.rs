@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+pub mod blueprint;
 pub mod frozen;
 pub mod hardcoded;
 pub mod jigsaw;
@@ -254,9 +255,21 @@ pub struct StructureSettings {
     pub terrain_adaptation: TerrainAdaptation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MobCategory {
+macro_rules! mob_categories {
+    ($($category:ident),* $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        pub enum MobCategory {
+            $($category),*
+        }
+
+        impl MobCategory {
+            pub const ALL: &[MobCategory] = &[$(MobCategory::$category),*];
+        }
+    };
+}
+
+mob_categories! {
     Monster,
     Creature,
     Ambient,
@@ -265,19 +278,6 @@ pub enum MobCategory {
     WaterCreature,
     WaterAmbient,
     Misc,
-}
-
-impl MobCategory {
-    pub const ALL: [MobCategory; 8] = [
-        MobCategory::Monster,
-        MobCategory::Creature,
-        MobCategory::Ambient,
-        MobCategory::Axolotls,
-        MobCategory::UndergroundWaterCreature,
-        MobCategory::WaterCreature,
-        MobCategory::WaterAmbient,
-        MobCategory::Misc,
-    ];
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

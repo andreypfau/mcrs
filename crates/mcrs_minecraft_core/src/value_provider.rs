@@ -1,4 +1,4 @@
-use crate::codec::{Bounded, NonNegativeInt, is_default};
+use crate::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -19,8 +19,8 @@ impl HeightContext {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(remote = "Self", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VerticalAnchor {
     Absolute(i32),
     AboveBottom(i32),
@@ -28,33 +28,22 @@ pub enum VerticalAnchor {
     RelativeToSeaLevel(i32),
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-enum RawVerticalAnchor {
-    Absolute(i32),
-    AboveBottom(i32),
-    BelowTop(i32),
-    RelativeToSeaLevel(i32),
-}
+crate::validated!(VerticalAnchor);
 
-impl<'de> Deserialize<'de> for VerticalAnchor {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let (anchor, offset) = match RawVerticalAnchor::deserialize(deserializer)? {
-            RawVerticalAnchor::Absolute(offset) => (Self::Absolute(offset), offset),
-            RawVerticalAnchor::AboveBottom(offset) => (Self::AboveBottom(offset), offset),
-            RawVerticalAnchor::BelowTop(offset) => (Self::BelowTop(offset), offset),
-            RawVerticalAnchor::RelativeToSeaLevel(offset) => {
-                (Self::RelativeToSeaLevel(offset), offset)
-            }
-        };
+impl Validate for VerticalAnchor {
+    fn validate(&self) -> Result<(), String> {
+        let (Self::Absolute(offset)
+        | Self::AboveBottom(offset)
+        | Self::BelowTop(offset)
+        | Self::RelativeToSeaLevel(offset)) = *self;
         if !(Self::MIN_OFFSET..=Self::MAX_OFFSET).contains(&offset) {
-            return Err(D::Error::custom(format!(
+            return Err(format!(
                 "vertical anchor offset {offset} is outside [{};{}]",
                 Self::MIN_OFFSET,
                 Self::MAX_OFFSET
-            )));
+            ));
         }
-        Ok(anchor)
+        Ok(())
     }
 }
 

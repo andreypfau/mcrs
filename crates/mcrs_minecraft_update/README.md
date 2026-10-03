@@ -34,9 +34,18 @@ the client reads it from the jar that
 `crates/mcrs_minecraft_client_jar/src/release.json` describes.
 
 The local files are the ones with a path component that begins with `beta`
-(for example `worldgen/biome/beta_forest.json` and `worldgen/noise_settings/beta.json`).
+(for example `worldgen/biome/beta_forest.json`).
 An update keeps them, reports how many it kept, and refuses a jar entry that
 would land on one.
+
+Three folders ship no files: `worldgen/density_function`, `worldgen/noise_settings`
+and `worldgen/noise`. Their entries are built by
+`mcrs_minecraft_worldgen_builtin` and served to the loaders when no file
+exists, so a file at the same path overrides the built-in. An update compares
+every jar entry of these folders with what the code builds. An identical entry
+is dropped. A different one is written as a file, which keeps the game correct,
+and is printed as `differs from the built-in`: port the difference into the
+code, run the update again, and the file goes away.
 
 ## Updating
 
@@ -67,11 +76,17 @@ The steps, in order:
    the jar, its central directory and the package descriptor, and
    `crates/mcrs_minecraft_client_jar/src/font_hint.json`.
 5. Run the game's data generator through the `dumpReports` task of
-   `tools/vanilla-oracle`, and store `registries.json`, `packets.json`,
-   `blocks.json` and `datapack.json` in `assets/mcrs/reports`.
-6. Run the `dumpDefinitions` task and replace `assets/mcrs/block_definition` and
-   `assets/mcrs/item_definition` with what it wrote, including the README of the
-   block definitions.
+   `tools/vanilla-oracle` and the `dumpDefinitions` task, both into temporary
+   directories.
+6. Compare the dumped block definitions with the `blocks.json` the generator
+   wrote and stop on any disagreement: both name the same blocks, the reported
+   state ids are a gapless range, and for every block the state count, the id of
+   every state computed from the declared property order and the default state
+   agree. `blocks.json` is checked here and not stored.
+7. Store `registries.json`, `packets.json` and `datapack.json` in
+   `assets/mcrs/reports`, and replace `assets/mcrs/block_definition` and
+   `assets/mcrs/item_definition` with what the dump wrote, including the README
+   of the block definitions.
 
 Two diffs are printed, and each is computed before the files it describes are
 replaced:

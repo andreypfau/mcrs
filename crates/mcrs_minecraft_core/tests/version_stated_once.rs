@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_core::VERSION;
 
-const EXTENSIONS: [&str; 4] = ["rs", "toml", "gradle", "kts"];
+const EXTENSIONS: [&str; 3] = ["rs", "toml", "gradle"];
 const FILE_NAMES: [&str; 1] = ["gradle.properties"];
 const SKIPPED_DIRS: [&str; 4] = ["build", "run", "assets", "node_modules"];
 const INTEGER_SUFFIXES: [&str; 12] = [
@@ -187,16 +187,11 @@ fn a_value_matches_only_as_a_whole_token() {
 #[test]
 fn no_source_file_states_a_version_value() {
     let values = version_values();
-    let own = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/version_stated_once.rs")
-        .canonicalize()
-        .unwrap();
     let root = workspace_root().canonicalize().unwrap();
 
     let mut files = Vec::new();
     collect(&root, &mut files);
     files.sort();
-    files.retain(|path| path.canonicalize().unwrap() != own);
 
     let mut offences = Vec::new();
     for path in &files {

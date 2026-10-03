@@ -1,5 +1,7 @@
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId, pack_from, packed_len};
-use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkSection, decode_container, encode_container};
+use mcrs_minecraft_protocol::chunk::{
+    ChunkData, ChunkSection, decode_container, encode_container, encode_section,
+};
 use mcrs_minecraft_protocol::light_codec::{RowLight, unpack_light_data};
 use mcrs_minecraft_protocol::section::{Biomes, Blocks, biome_direct_bits, block_direct_bits};
 use mcrs_minecraft_protocol::{Encode, VarInt};
@@ -201,16 +203,12 @@ fn column(section_count: usize) -> Vec<ChunkSection> {
 fn write_column_the_way_the_server_does(sections: &[ChunkSection]) -> Vec<u8> {
     let mut data = Vec::new();
     for section in sections {
-        section.non_empty_block_count.encode(&mut data).unwrap();
-        section.fluid_count.encode(&mut data).unwrap();
-        encode_container(
+        encode_section(
+            section.non_empty_block_count,
+            section.fluid_count,
             &section.blocks,
-            block_direct_bits(BLOCK_STATE_COUNT),
-            &mut data,
-        )
-        .unwrap();
-        encode_container(
             &section.biomes,
+            block_direct_bits(BLOCK_STATE_COUNT),
             biome_direct_bits(BIOME_REGISTRY_LEN),
             &mut data,
         )

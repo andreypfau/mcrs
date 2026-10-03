@@ -13,4 +13,3 @@ impl Asset for DecoratedPotPattern {}
 impl VisitAssetDependencies for DecoratedPotPattern {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
-

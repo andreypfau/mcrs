@@ -246,12 +246,6 @@ fn flatten_tag_file(
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks;
 
-/// Marker for a connection that has been sent `ClientboundFinishConfiguration`. Its client
-/// already decodes play, while the server stays in Configuration until the client acknowledges.
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct AwaitingFinishConfiguration;
-
 /// True iff the entry's NBT body should be omitted from `ClientboundRegistryData`
 /// because the client already has the pack that sourced it.
 ///
@@ -392,7 +386,7 @@ fn on_configuration_enter(
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
 /// reconfiguration.
-pub fn on_known_packs_response(
+fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
@@ -610,10 +604,7 @@ pub fn on_known_packs_response(
 
     con.write_packet(&ClientboundFinishConfiguration);
 
-    commands
-        .entity(entity)
-        .remove::<AwaitingKnownPacks>()
-        .insert(AwaitingFinishConfiguration);
+    commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
 
 pub fn on_configuration_ack(
@@ -642,7 +633,9 @@ pub fn on_configuration_ack(
             .is_ok_and(|(state, ..)| *state == ConnectionState::Game)
     };
     let duplicate = match (profile, anchor) {
-        (Some(profile), Some(&HostAnchorRef(own))) => sessions.in_world(profile.id, own, in_play),
+        (Some(profile), Some(&HostAnchorRef(own))) => {
+            sessions.in_world(profile.id, Some(own), in_play)
+        }
         _ => false,
     };
     let Ok((mut state, _, _, con)) = connections.get_mut(event.entity) else {
@@ -650,9 +643,6 @@ pub fn on_configuration_ack(
     };
     if !duplicate {
         *state = ConnectionState::Game;
-        commands
-            .entity(event.entity)
-            .remove::<AwaitingFinishConfiguration>();
         return;
     }
     // The game switches its side to play before this check, so it refuses with a play packet.

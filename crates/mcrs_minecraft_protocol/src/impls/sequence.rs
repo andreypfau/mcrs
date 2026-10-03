@@ -5,8 +5,9 @@ use std::slice;
 
 use anyhow::ensure;
 
-use crate::impls::cautious_capacity;
+use crate::impls::MAX_PREALLOC_BYTES;
 use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
+use mcrs_minecraft_nbt::deserializer::cautious_capacity;
 
 /// Like tuples, fixed-length arrays are encoded and decoded without a VarInt
 /// length prefix.
@@ -142,7 +143,7 @@ impl<'a, T: Decode<'a>> Decode<'a> for Vec<T> {
         ensure!(len >= 0, "attempt to decode Vec with negative length");
         let len = len as usize;
 
-        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len));
+        let mut vec = Vec::with_capacity(cautious_capacity::<T>(len, MAX_PREALLOC_BYTES));
 
         for _ in 0..len {
             vec.push(T::decode(r)?);

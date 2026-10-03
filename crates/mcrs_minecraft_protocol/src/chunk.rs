@@ -348,19 +348,22 @@ pub struct ChunkSection {
     pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
 }
 
-impl ChunkSection {
-    pub fn write(
-        &self,
-        block_direct_bits: u32,
-        biome_direct_bits: u32,
-        mut w: impl Write,
-    ) -> anyhow::Result<()> {
-        self.non_empty_block_count.encode(&mut w)?;
-        self.fluid_count.encode(&mut w)?;
-        encode_container(&self.blocks, block_direct_bits, &mut w)?;
-        encode_container(&self.biomes, biome_direct_bits, w)
-    }
+pub fn encode_section(
+    non_empty_block_count: u16,
+    fluid_count: u16,
+    blocks: &PalettedContainer<VoxelId, { Blocks::SIZE }>,
+    biomes: &PalettedContainer<u8, { Biomes::SIZE }>,
+    block_direct_bits: u32,
+    biome_direct_bits: u32,
+    mut w: impl Write,
+) -> anyhow::Result<()> {
+    non_empty_block_count.encode(&mut w)?;
+    fluid_count.encode(&mut w)?;
+    encode_container(blocks, block_direct_bits, &mut w)?;
+    encode_container(biomes, biome_direct_bits, w)
+}
 
+impl ChunkSection {
     pub fn read(
         r: &mut &[u8],
         block_direct_bits: u32,

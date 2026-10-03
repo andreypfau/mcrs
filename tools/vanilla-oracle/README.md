@@ -727,7 +727,8 @@ cd tools/vanilla-oracle
 ```
 
 It writes `registries.json`, `packets.json`, `blocks.json` and `datapack.json`
-to `<dir>/reports`. The update command stores those four files in
+to `<dir>/reports`. The update command checks the dumped block definitions
+against `blocks.json` without storing it, stores the other three files in
 `assets/mcrs/reports` and prints the diff of every `protocol_id` against the
 stored `registries.json` before it replaces it.
 

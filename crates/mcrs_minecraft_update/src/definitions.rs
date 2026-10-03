@@ -7,19 +7,9 @@ use serde_json::Value;
 
 use crate::corpus::{self, Report};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    FileAdded,
-    FileRemoved,
-    Added,
-    Removed,
-    Changed,
-    Text,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
-    pub kind: Kind,
+    pub kind: &'static str,
     pub file: String,
     pub path: String,
     pub old: Option<String>,
@@ -32,19 +22,6 @@ pub struct Diff {
     pub text_only: usize,
 }
 
-impl Kind {
-    fn name(self) -> &'static str {
-        match self {
-            Kind::FileAdded => "file_added",
-            Kind::FileRemoved => "file_removed",
-            Kind::Added => "added",
-            Kind::Removed => "removed",
-            Kind::Changed => "changed",
-            Kind::Text => "text",
-        }
-    }
-}
-
 impl fmt::Display for Row {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = if self.path.is_empty() {
@@ -55,7 +32,7 @@ impl fmt::Display for Row {
         write!(
             f,
             "{}\t{}\t{}\t{}\t{}",
-            self.kind.name(),
+            self.kind,
             self.file,
             path,
             self.old.as_deref().unwrap_or("-"),
@@ -99,7 +76,13 @@ fn escape(key: &str) -> String {
     key.replace('~', "~0").replace('/', "~1")
 }
 
-fn row(kind: Kind, file: &str, path: &str, old: Option<&Value>, new: Option<&Value>) -> Row {
+fn row(
+    kind: &'static str,
+    file: &str,
+    path: &str,
+    old: Option<&Value>,
+    new: Option<&Value>,
+) -> Row {
     Row {
         kind,
         file: file.to_owned(),
@@ -124,9 +107,9 @@ fn walk(file: &str, path: &str, old: Option<&Value>, new: Option<&Value>, rows: 
                 walk(file, &path, a.get(index), b.get(index), rows);
             }
         }
-        (Some(a), Some(b)) if a != b => rows.push(row(Kind::Changed, file, path, old, new)),
-        (Some(_), None) => rows.push(row(Kind::Removed, file, path, old, None)),
-        (None, Some(_)) => rows.push(row(Kind::Added, file, path, None, new)),
+        (Some(a), Some(b)) if a != b => rows.push(row("changed", file, path, old, new)),
+        (Some(_), None) => rows.push(row("removed", file, path, old, None)),
+        (None, Some(_)) => rows.push(row("added", file, path, None, new)),
         _ => {}
     }
 }
@@ -147,11 +130,11 @@ pub fn diff(checked_in: &Path, dumped: &Path) -> Result<Diff, String> {
     for name in old_names.union(&new_names) {
         let (old, new) = (old_names.contains(name), new_names.contains(name));
         if !new {
-            diff.rows.push(row(Kind::FileRemoved, name, "", None, None));
+            diff.rows.push(row("file_removed", name, "", None, None));
             continue;
         }
         if !old {
-            diff.rows.push(row(Kind::FileAdded, name, "", None, None));
+            diff.rows.push(row("file_added", name, "", None, None));
             continue;
         }
         let (old_bytes, new_bytes) = (read(checked_in, name)?, read(dumped, name)?);
@@ -159,7 +142,7 @@ pub fn diff(checked_in: &Path, dumped: &Path) -> Result<Diff, String> {
             continue;
         }
         if !name.ends_with(".json") {
-            diff.rows.push(row(Kind::Text, name, "", None, None));
+            diff.rows.push(row("text", name, "", None, None));
             continue;
         }
         let before = diff.rows.len();
@@ -201,13 +184,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use super::*;
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mcrs_defs-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::testing::scratch;
 
     fn put(dir: &Path, name: &str, text: &str) {
         fs::write(dir.join(name), text).unwrap();

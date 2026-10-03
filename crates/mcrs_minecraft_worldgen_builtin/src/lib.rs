@@ -1,23 +1,24 @@
-// TODO: a built-in is built as a typed value, encoded to JSON and parsed back
-// by the loader, and the values it builds hold `ResourceLocation<Arc<str>>`,
-// so every reference costs one allocation. Once the loader takes typed values
-// and `Holder` is `Reference(Id<T>)`, hand the values over directly, resolve
-// the static keys to ids, and type the remaining bare `rl!` ids (entity types,
-// carvers, sounds, particles, templates).
+// chisle: a built-in is built as a typed value, encoded to JSON and parsed
+// back by the loader, and its references are `ResourceLocation<Arc<str>>`, one
+// allocation each. A loader that takes typed values and a `Holder` that is
+// `Reference(Id<T>)` lift both.
 mod beta;
 mod biome;
 mod density;
 mod keys;
 mod noises;
 mod settings;
+mod structure;
 mod template_pool;
 mod terrain;
 
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_structure::TemplatePool;
 use serde::Serialize;
@@ -47,10 +48,14 @@ pub fn noise_settings() -> BTreeMap<ResourceLocation, NoiseGeneratorSettings> {
 }
 
 pub fn template_pools() -> BTreeMap<ResourceLocation, TemplatePool> {
-    template_pool::keys()
+    template_pool::all().collect()
+}
+
+pub fn templates() -> BTreeMap<ResourceLocation, Template> {
+    structure::keys()
         .map(|id| {
-            let pool = template_pool::build(&id).expect("a listed pool builds");
-            (id, pool)
+            let template = structure::build(&id).expect("a listed template builds");
+            (id, template)
         })
         .collect()
 }
@@ -81,9 +86,15 @@ pub fn assets(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     }
 }
 
-/// The asset path of every built-in entry of one registry directory,
-/// `<namespace>/worldgen/<folder>`.
+/// The asset path of every built-in entry of one registry directory:
+/// `<namespace>/worldgen/<folder>`, or `<namespace>/structure` for templates.
 pub fn paths(directory: &str) -> Vec<String> {
+    if let Some(namespace) = directory.strip_suffix("/structure") {
+        return structure::keys()
+            .filter(|id| id.namespace() == namespace)
+            .map(|id| format!("{directory}/{}.nbt", id.path()))
+            .collect();
+    }
     let Some((namespace, folder)) = directory.split_once("/worldgen/") else {
         return Vec::new();
     };
@@ -98,13 +109,23 @@ pub fn paths(directory: &str) -> Vec<String> {
         .collect()
 }
 
+fn template(path: &str) -> Option<Vec<u8>> {
+    let (namespace, name) = path.strip_suffix(".nbt")?.split_once("/structure/")?;
+    let template = structure::build(&ResourceLocation::new(namespace, name))?;
+    Some(to_gzip_bytes_vec(&template).expect("a built-in template encodes as NBT"))
+}
+
 /// One built-in entry, addressed the way the asset server addresses the file:
-/// `<namespace>/worldgen/<folder>/<path>.json`.
+/// `<namespace>/worldgen/<folder>/<path>.json`, or
+/// `<namespace>/structure/<path>.nbt` for a template.
 // chisle: the density, noise and noise settings folders build whole to answer
 // for one entry or to list their ids, because their definitions share
 // sub-expressions: 65 density functions served one by one take about 50 ms in
 // release. Loading each registry once lifts it.
 pub fn asset(path: &str) -> Option<Vec<u8>> {
+    if path.ends_with(".nbt") {
+        return template(path);
+    }
     let (namespace, rest) = path.split_once("/worldgen/")?;
     let (folder, name) = rest.strip_suffix(".json")?.split_once('/')?;
     let id = ResourceLocation::new(namespace, name);

@@ -753,10 +753,6 @@ public final class BlockDefinitionDumper {
         return BOX.matcher(pretty).replaceAll("{ $1, $2 }");
     }
 
-    private static String serialized(Enum<?> value) {
-        return value.name().toLowerCase(Locale.ROOT);
-    }
-
     private static JsonElement valueJson(Property<?> property, Comparable<?> value) {
         String name = propertyName(property, value);
         if (property instanceof IntegerProperty) {

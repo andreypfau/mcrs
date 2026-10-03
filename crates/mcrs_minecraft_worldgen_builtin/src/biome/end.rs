@@ -1,11 +1,12 @@
-use super::defaults::end_spawns;
 use super::*;
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 pub fn end_base(generation: Generation) -> Biome {
     let mut m = Mobs::default();
-    end_spawns(&mut m);
-    biome(false, 0.5, 0.5, m, generation)
+    m.end_spawns();
+    Biome::new(false, 0.5, 0.5)
+        .spawns(m.0)
+        .generation(generation)
 }
 
 pub fn the_end() -> Biome {

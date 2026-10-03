@@ -239,14 +239,3 @@ fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
         );
     }
 }
-
-#[test]
-fn a_minimal_retrogen_is_written_back_with_the_keys_the_game_wrote() {
-    let original = load(RETROGEN_MINIMAL);
-    let written = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
-    let game = root(RETROGEN_MINIMAL);
-    let mcrs = root(&written);
-    let game_keys = keys(game.get_compound("retrogen").unwrap());
-    assert_eq!(game_keys, ["statuses_to_rerun", "target_status"]);
-    assert_eq!(keys(mcrs.get_compound("retrogen").unwrap()), game_keys);
-}

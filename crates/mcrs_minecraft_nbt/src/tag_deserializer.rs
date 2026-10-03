@@ -1,6 +1,7 @@
 use serde::de::value::{MapDeserializer, SeqDeserializer};
 use serde::de::{self, DeserializeSeed, IntoDeserializer, Visitor};
 use serde::{Deserialize, forward_to_deserialize_any};
+use std::convert::identity;
 
 use crate::tag::NbtTag;
 use crate::{Error, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG};
@@ -18,6 +19,24 @@ impl<'de> IntoDeserializer<'de, Error> for NbtTag {
     fn into_deserializer(self) -> Self {
         self
     }
+}
+
+/// Integer tags keep their low bits; float tags floor and saturate, since
+/// the game's number tags do not wrap a float.
+macro_rules! numeric_read {
+    ($name:ident, $visit:ident, $target:ty, $float:path, $double:path) => {
+        fn $name<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+            match self {
+                NbtTag::Byte(v) => visitor.$visit(v as $target),
+                NbtTag::Short(v) => visitor.$visit(v as $target),
+                NbtTag::Int(v) => visitor.$visit(v as $target),
+                NbtTag::Long(v) => visitor.$visit(v as $target),
+                NbtTag::Float(v) => visitor.$visit($float(v) as $target),
+                NbtTag::Double(v) => visitor.$visit($double(v) as $target),
+                other => other.deserialize_any(visitor),
+            }
+        }
+    };
 }
 
 impl<'de> de::Deserializer<'de> for NbtTag {
@@ -68,79 +87,12 @@ impl<'de> de::Deserializer<'de> for NbtTag {
         }
     }
 
-    fn deserialize_i8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_i8(v),
-            NbtTag::Short(v) => visitor.visit_i8(v as i8),
-            NbtTag::Int(v) => visitor.visit_i8(v as i8),
-            NbtTag::Long(v) => visitor.visit_i8(v as i8),
-            NbtTag::Float(v) => visitor.visit_i8(v.floor() as i8),
-            NbtTag::Double(v) => visitor.visit_i8(v.floor() as i8),
-            other => other.deserialize_any(visitor),
-        }
-    }
-
-    fn deserialize_i16<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_i16(v as i16),
-            NbtTag::Short(v) => visitor.visit_i16(v),
-            NbtTag::Int(v) => visitor.visit_i16(v as i16),
-            NbtTag::Long(v) => visitor.visit_i16(v as i16),
-            NbtTag::Float(v) => visitor.visit_i16(v.floor() as i16),
-            NbtTag::Double(v) => visitor.visit_i16(v.floor() as i16),
-            other => other.deserialize_any(visitor),
-        }
-    }
-
-    /// Integer tags keep their low bits; float tags floor and saturate, since
-    /// the game's number tags do not wrap a float.
-    fn deserialize_i32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_i32(v as i32),
-            NbtTag::Short(v) => visitor.visit_i32(v as i32),
-            NbtTag::Int(v) => visitor.visit_i32(v),
-            NbtTag::Long(v) => visitor.visit_i32(v as i32),
-            NbtTag::Float(v) => visitor.visit_i32(v.floor() as i32),
-            NbtTag::Double(v) => visitor.visit_i32(v.floor() as i32),
-            other => other.deserialize_any(visitor),
-        }
-    }
-
-    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_i64(v as i64),
-            NbtTag::Short(v) => visitor.visit_i64(v as i64),
-            NbtTag::Int(v) => visitor.visit_i64(v as i64),
-            NbtTag::Long(v) => visitor.visit_i64(v),
-            NbtTag::Float(v) => visitor.visit_i64(v.floor() as i64),
-            NbtTag::Double(v) => visitor.visit_i64(v.floor() as i64),
-            other => other.deserialize_any(visitor),
-        }
-    }
-
-    fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_f32(v as f32),
-            NbtTag::Short(v) => visitor.visit_f32(v as f32),
-            NbtTag::Int(v) => visitor.visit_f32(v as f32),
-            NbtTag::Long(v) => visitor.visit_f32(v as f32),
-            NbtTag::Float(v) => visitor.visit_f32(v),
-            NbtTag::Double(v) => visitor.visit_f32(v as f32),
-            other => other.deserialize_any(visitor),
-        }
-    }
-
-    fn deserialize_f64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        match self {
-            NbtTag::Byte(v) => visitor.visit_f64(v as f64),
-            NbtTag::Short(v) => visitor.visit_f64(v as f64),
-            NbtTag::Int(v) => visitor.visit_f64(v as f64),
-            NbtTag::Long(v) => visitor.visit_f64(v as f64),
-            NbtTag::Float(v) => visitor.visit_f64(v as f64),
-            NbtTag::Double(v) => visitor.visit_f64(v),
-            other => other.deserialize_any(visitor),
-        }
-    }
+    numeric_read!(deserialize_i8, visit_i8, i8, f32::floor, f64::floor);
+    numeric_read!(deserialize_i16, visit_i16, i16, f32::floor, f64::floor);
+    numeric_read!(deserialize_i32, visit_i32, i32, f32::floor, f64::floor);
+    numeric_read!(deserialize_i64, visit_i64, i64, f32::floor, f64::floor);
+    numeric_read!(deserialize_f32, visit_f32, f32, identity, identity);
+    numeric_read!(deserialize_f64, visit_f64, f64, identity, identity);
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         match self {

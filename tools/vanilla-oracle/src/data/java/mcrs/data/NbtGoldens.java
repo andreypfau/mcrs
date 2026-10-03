@@ -4,7 +4,6 @@ import com.google.common.hash.HashCode;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.stream.JsonWriter;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
@@ -13,11 +12,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -43,7 +40,6 @@ import net.minecraft.nbt.TagParser;
 import net.minecraft.util.HashOps;
 
 final class NbtGoldens {
-    private static final HexFormat HEX = HexFormat.of();
     private static final TagParser<Tag> PARSER = TagParser.create(NbtOps.INSTANCE);
 
     private NbtGoldens() {}
@@ -51,7 +47,7 @@ final class NbtGoldens {
     static void snbt(final Path current, final Path output) throws Exception {
         JsonObject in = JsonParser.parseString(Files.readString(current, StandardCharsets.UTF_8)).getAsJsonObject();
 
-        emit(output, out -> {
+        CodecGoldens.writeJson(output, "  ", true, out -> {
             out.beginObject();
 
             out.name("parses").beginArray();
@@ -111,7 +107,7 @@ final class NbtGoldens {
             out.endArray();
 
             Tag pretty = NbtIo.readAnyTag(
-                new DataInputStream(new ByteArrayInputStream(HEX.parseHex(in.get("pretty_hex").getAsString()))),
+                new DataInputStream(new ByteArrayInputStream(CodecGoldens.HEX.parseHex(in.get("pretty_hex").getAsString()))),
                 NbtAccounter.unlimitedHeap()
             );
             out.name("pretty").value(pretty.toString());
@@ -128,7 +124,7 @@ final class NbtGoldens {
             throw new IllegalStateException("the hash inputs " + inputs.keySet() + " do not match the golden's members " + in.keySet());
         }
 
-        emit(output, out -> {
+        CodecGoldens.writeJson(output, "  ", true, out -> {
             out.beginObject();
             for (Map.Entry<String, Supplier<HashCode>> input : inputs.entrySet()) {
                 out.name(input.getKey()).value(input.getValue().get().asInt());
@@ -221,21 +217,6 @@ final class NbtGoldens {
     static String binary(final Tag tag) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         NbtIo.writeAnyTag(tag, new DataOutputStream(bytes));
-        return HEX.formatHex(bytes.toByteArray());
-    }
-
-    @FunctionalInterface
-    private interface Body {
-        void write(JsonWriter out) throws Exception;
-    }
-
-    private static void emit(final Path output, final Body body) throws Exception {
-        StringWriter text = new StringWriter();
-        try (JsonWriter json = new JsonWriter(text)) {
-            json.setIndent("  ");
-            json.setHtmlSafe(false);
-            body.write(json);
-        }
-        Files.writeString(output, text + "\n", StandardCharsets.UTF_8);
+        return CodecGoldens.HEX.formatHex(bytes.toByteArray());
     }
 }

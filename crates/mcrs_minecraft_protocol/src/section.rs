@@ -4,13 +4,12 @@ use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 
 pub use mcrs_minecraft_chunk::section::{Biomes, Blocks};
 
-pub fn block_direct_bits(block_state_count: usize) -> u32 {
-    ceillog2(block_state_count)
-}
-
-pub fn biome_direct_bits(registry_len: usize) -> u32 {
+pub fn direct_bits(registry_len: usize) -> u32 {
     ceillog2(registry_len)
 }
+
+pub use self::direct_bits as biome_direct_bits;
+pub use self::direct_bits as block_direct_bits;
 
 /// Which of the palette configurations a container of a given size lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,25 +147,7 @@ mod tests {
     }
 
     #[test]
-    fn the_block_direct_width_follows_the_state_count() {
-        let widths = [
-            (16_384, 14),
-            (16_385, 15),
-            (32_768, 15),
-            (32_769, 16),
-            (65_536, 16),
-        ];
-        for (block_state_count, bits) in widths {
-            assert_eq!(
-                block_direct_bits(block_state_count),
-                bits,
-                "{block_state_count} block states"
-            );
-        }
-    }
-
-    #[test]
-    fn the_biome_direct_width_follows_the_registry_length() {
+    fn the_direct_width_follows_the_registry_length() {
         let widths = [
             (0, 0),
             (1, 0),
@@ -176,10 +157,15 @@ mod tests {
             (129, 8),
             (256, 8),
             (257, 9),
+            (16_384, 14),
+            (16_385, 15),
+            (32_768, 15),
+            (32_769, 16),
+            (65_536, 16),
         ];
         for (registry_len, bits) in widths {
             assert_eq!(
-                biome_direct_bits(registry_len),
+                direct_bits(registry_len),
                 bits,
                 "registry of {registry_len}"
             );

@@ -5,15 +5,15 @@
 )]
 
 pub mod banner_pattern;
+pub mod block_transformer;
 pub mod chat_type;
 pub mod damage_type;
 pub mod data_pack;
+pub mod decorated_pot_pattern;
 pub mod dialog;
 pub mod dimension;
 pub mod entity;
 pub mod instrument;
-pub mod block_transformer;
-pub mod decorated_pot_pattern;
 pub mod jukebox_song;
 pub mod painting_variant;
 // The save on disk is native-only; the browser receives world state over the network.
@@ -126,7 +126,9 @@ impl Plugin for MinecraftWorldPlugin {
         app.init_asset::<block_transformer::BlockTransformer>();
         app.register_asset_loader(JsonLoader::<block_transformer::BlockTransformer>::default());
         app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
-        app.register_asset_loader(JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default());
+        app.register_asset_loader(
+            JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default(),
+        );
         app.init_asset::<instrument::Instrument>();
         app.register_asset_loader(JsonLoader::<instrument::Instrument>::default());
         app.init_asset::<chat_type::ChatType>();
@@ -134,7 +136,9 @@ impl Plugin for MinecraftWorldPlugin {
         app.init_asset::<dialog::Dialog>();
         app.register_asset_loader(dialog::DialogLoader);
         app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default());
+        app.register_asset_loader(
+            JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default(),
+        );
         app.init_asset::<test_types::TestEnvironment>();
         app.register_asset_loader(JsonLoader::<test_types::TestEnvironment>::default());
         app.init_asset::<test_types::TestInstance>();
@@ -346,7 +350,9 @@ impl Plugin for MinecraftWorldPlugin {
                 (
                     decorated_pot_pattern::DecoratedPotPattern,
                     "minecraft:decorated_pot_pattern",
-                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(
+                        v
+                    ),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (

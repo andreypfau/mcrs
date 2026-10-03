@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+mod common;
 
-use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -47,31 +48,14 @@ struct Permutation {
 }
 
 fn files() -> Vec<(PathBuf, File)> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../assets")
-        .join(CORPUS_DIRECTORY);
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(&directory)
-        .unwrap_or_else(|e| panic!("{}: {e}", directory.display()))
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|e| e == "json"))
-        .collect();
-    paths.sort();
-    paths
-        .into_iter()
-        .map(|path| {
-            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let file = serde_json::from_slice(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            (path, file)
-        })
-        .collect()
+    common::definition_files()
 }
 
 #[test]
 fn a_definition_file_is_named_after_its_identifier() {
     let files = files();
     assert!(!files.is_empty(), "no block definition was read");
-    let mismatches: Vec<String> = files
+    let mismatches = files
         .iter()
         .filter_map(|(path, file)| {
             let identifier = &file.block.description.identifier;
@@ -80,12 +64,7 @@ fn a_definition_file_is_named_after_its_identifier() {
                 .then(|| format!("{}: identifier is {identifier}", path.display()))
         })
         .collect();
-    assert!(
-        mismatches.is_empty(),
-        "{} files not named after their identifier:\n{}",
-        mismatches.len(),
-        mismatches.join("\n")
-    );
+    common::assert_no_mismatches("files not named after their identifier", mismatches);
 }
 
 #[test]
@@ -110,10 +89,5 @@ fn a_component_is_not_stated_both_for_the_block_and_in_a_permutation() {
             }
         }
     }
-    assert!(
-        mismatches.is_empty(),
-        "{} components stated twice:\n{}",
-        mismatches.len(),
-        mismatches.join("\n")
-    );
+    common::assert_no_mismatches("components stated twice", mismatches);
 }

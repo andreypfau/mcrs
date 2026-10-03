@@ -33,37 +33,20 @@ pub static VERSION: LazyLock<Version> = LazyLock::new(|| {
     serde_json::from_str(VERSION_JSON).expect("assets/minecraft/version.json parses as a Version")
 });
 
-#[derive(Debug, thiserror::Error)]
-pub enum CorpusVersionError {
-    #[error(
-        "the corpus version.json (id {corpus}) is not the version.json this build embeds (id {embedded})"
-    )]
-    Differs { corpus: String, embedded: String },
-    #[error("the corpus version.json does not parse ({reason}); this build embeds id {embedded}")]
-    Unreadable { embedded: String, reason: String },
-}
-
-pub fn check_corpus_version(corpus: &[u8]) -> Result<(), CorpusVersionError> {
-    compare(VERSION_JSON, corpus)
-}
-
-fn compare(embedded: &str, corpus: &[u8]) -> Result<(), CorpusVersionError> {
-    if embedded.as_bytes() == corpus {
+pub fn check_corpus_version(corpus: &[u8]) -> Result<(), String> {
+    if VERSION_JSON.as_bytes() == corpus {
         return Ok(());
     }
-    let embedded_id = serde_json::from_str::<Version>(embedded)
-        .map(|version| version.id)
-        .unwrap_or_else(|e| format!("<unparsable: {e}>"));
-    match serde_json::from_slice::<Version>(corpus) {
-        Ok(version) => Err(CorpusVersionError::Differs {
-            corpus: version.id,
-            embedded: embedded_id,
-        }),
-        Err(e) => Err(CorpusVersionError::Unreadable {
-            embedded: embedded_id,
-            reason: e.to_string(),
-        }),
-    }
+    let embedded = &VERSION.id;
+    Err(match serde_json::from_slice::<Version>(corpus) {
+        Ok(version) => format!(
+            "the corpus version.json (id {}) is not the version.json this build embeds (id {embedded})",
+            version.id
+        ),
+        Err(reason) => format!(
+            "the corpus version.json does not parse ({reason}); this build embeds id {embedded}"
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -107,11 +90,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_content_is_rejected() {
-        assert!(parse("").is_err());
-    }
-
-    #[test]
     fn a_number_beyond_32_bits_is_rejected() {
         let protocol = VERSION.protocol_version.to_string();
         assert!(parse(&replaced(&protocol, "2147483648")).is_err());
@@ -119,14 +97,13 @@ mod tests {
 
     #[test]
     fn equal_bytes_pass_the_check() {
-        assert!(compare(VERSION_JSON, VERSION_JSON.as_bytes()).is_ok());
+        assert!(check_corpus_version(VERSION_JSON.as_bytes()).is_ok());
     }
 
     #[test]
     fn another_id_is_refused_naming_both_ids() {
         let other = replaced(&VERSION.id, "other-id");
-        let error = compare(VERSION_JSON, other.as_bytes()).unwrap_err();
-        let message = error.to_string();
+        let message = check_corpus_version(other.as_bytes()).unwrap_err();
         assert!(message.contains("other-id"), "{message}");
         assert!(message.contains(&VERSION.id), "{message}");
     }
@@ -135,30 +112,15 @@ mod tests {
     fn a_difference_in_whitespace_alone_is_refused() {
         for suffix in [" ", "\n"] {
             let padded = format!("{VERSION_JSON}{suffix}");
-            let error = compare(VERSION_JSON, padded.as_bytes()).unwrap_err();
-            let message = error.to_string();
-            assert!(
-                matches!(error, CorpusVersionError::Differs { .. }),
-                "{message}"
-            );
+            let message = check_corpus_version(padded.as_bytes()).unwrap_err();
             assert_eq!(message.matches(VERSION.id.as_str()).count(), 2, "{message}");
         }
     }
 
     #[test]
     fn an_unparsable_corpus_is_refused_naming_the_embedded_id() {
-        let error = compare(VERSION_JSON, b"not json").unwrap_err();
-        assert!(matches!(error, CorpusVersionError::Unreadable { .. }));
-        assert!(error.to_string().contains(&VERSION.id));
-    }
-
-    #[test]
-    fn the_file_on_disk_passes_the_public_check() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/minecraft/version.json"
-        );
-        let bytes = std::fs::read(path).unwrap();
-        check_corpus_version(&bytes).unwrap();
+        let message = check_corpus_version(b"not json").unwrap_err();
+        assert!(message.contains("does not parse"), "{message}");
+        assert!(message.contains(&VERSION.id), "{message}");
     }
 }

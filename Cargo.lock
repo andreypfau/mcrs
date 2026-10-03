@@ -4003,6 +4003,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_template_program"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen_builtin",
+ "mcrs_minecraft_worldgen_feature",
+ "mcrs_minecraft_worldgen_structure",
+ "rayon",
+]
+
+[[package]]
 name = "mcrs_minecraft_text"
 version = "0.1.0"
 dependencies = [
@@ -4020,8 +4033,12 @@ dependencies = [
 name = "mcrs_minecraft_update"
 version = "0.1.0"
 dependencies = [
+ "mcrs_minecraft_block",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_worldgen_builtin",
+ "mcrs_minecraft_worldgen_feature",
  "serde",
  "serde_json",
  "zip",
@@ -4095,12 +4112,14 @@ dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

@@ -1,24 +1,34 @@
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_worldgen_feature::proto::{PlacedFeature, StructureProcessorList};
+use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 
+pub use mcrs_minecraft_biome::PlacedFeatureKey as PlacedKey;
 pub use mcrs_minecraft_core::StaticResourceLocation as Id;
-pub type PlacedKey = ResourceKey<PlacedFeature, &'static str>;
 pub type ProcessorsKey = ResourceKey<StructureProcessorList, &'static str>;
 
 macro_rules! keys {
-    ($key:ty; $($name:ident = $id:literal),* $(,)?) => {$(
-        pub const $name: $key = ResourceKey::new(rl!($id));
-    )*};
+    (@ $key:ty; $($name:ident = $value:expr),*) => {
+        $(pub const $name: $key = $value;)*
+
+        #[cfg(test)]
+        pub const ALL: &[$key] = &[$($name),*];
+    };
+    (Id; $($name:ident = $id:literal),* $(,)?) => {
+        keys!(@ Id; $($name = rl!($id)),*);
+    };
+    ($key:ty; $($name:ident = $id:literal),* $(,)?) => {
+        keys!(@ $key; $($name = ResourceKey::new(rl!($id))),*);
+    };
 }
 
 pub mod carver {
-    use super::Id;
-    use mcrs_minecraft_core::rl;
+    use super::*;
 
-    pub const CAVE: Id = rl!("minecraft:cave");
-    pub const CAVE_EXTRA_UNDERGROUND: Id = rl!("minecraft:cave_extra_underground");
-    pub const CANYON: Id = rl!("minecraft:canyon");
-    pub const NETHER_CAVE: Id = rl!("minecraft:nether_cave");
+    keys! { Id;
+        CAVE = "minecraft:cave",
+        CAVE_EXTRA_UNDERGROUND = "minecraft:cave_extra_underground",
+        CANYON = "minecraft:canyon",
+        NETHER_CAVE = "minecraft:nether_cave",
+    }
 }
 
 pub mod placed {
@@ -314,5 +324,42 @@ pub mod processors {
         ZOMBIE_SAVANNA = "minecraft:zombie_savanna",
         ZOMBIE_SNOWY = "minecraft:zombie_snowy",
         ZOMBIE_TAIGA = "minecraft:zombie_taiga",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn shipped(folder: &str, id: &Id) -> bool {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets")
+            .join(id.namespace())
+            .join("worldgen")
+            .join(folder)
+            .join(format!("{}.json", id.path()))
+            .is_file()
+    }
+
+    #[test]
+    fn every_key_names_an_entry_the_pack_ships() {
+        for id in carver::ALL {
+            assert!(shipped("carver", id), "{id}");
+        }
+        for key in placed::ALL {
+            assert!(
+                shipped("placed_feature", key.location()),
+                "{}",
+                key.as_str()
+            );
+        }
+        for key in processors::ALL {
+            assert!(
+                shipped("processor_list", key.location()),
+                "{}",
+                key.as_str()
+            );
+        }
     }
 }

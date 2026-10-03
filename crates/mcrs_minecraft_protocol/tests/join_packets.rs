@@ -155,7 +155,11 @@ fn decode_handshake(frame: &[u8]) -> anyhow::Result<ServerboundHandshake<'_>> {
 fn the_handshake_equals_the_reference_bytes() {
     let fixture = fixture();
     let at_bound = "a".repeat(1024);
-    check(&fixture, "intention", handshake("example.org", Intent::Login));
+    check(
+        &fixture,
+        "intention",
+        handshake("example.org", Intent::Login),
+    );
     check(
         &fixture,
         "intention_host_at_bound",

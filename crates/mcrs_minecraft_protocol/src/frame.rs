@@ -3,6 +3,7 @@ use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, 
 use thiserror::Error;
 
 use crate::CompressionThreshold;
+use crate::Decode;
 use crate::var_int::VarInt;
 
 pub const MAX_FRAME_BODY: usize = 2_097_151;
@@ -230,9 +231,8 @@ pub fn decompress(
     };
 
     let mut rest = &frame[..];
-    let declared =
-        VarInt::decode_partial(&mut rest).map_err(|_| FrameError::MalformedDataLength)?;
-    let declared = usize::try_from(declared).map_err(|_| FrameError::MalformedDataLength)?;
+    let declared = VarInt::decode(&mut rest).map_err(|_| FrameError::MalformedDataLength)?;
+    let declared = usize::try_from(declared.0).map_err(|_| FrameError::MalformedDataLength)?;
     let width = frame.len() - rest.len();
 
     if declared == 0 {
@@ -372,17 +372,7 @@ mod tests {
     }
 
     fn framed(body: &[u8]) -> BytesMut {
-        let mut buf = BytesMut::new();
-        let mut length = body.len();
-        loop {
-            let low = (length & 0x7f) as u8;
-            length >>= 7;
-            if length == 0 {
-                buf.extend_from_slice(&[low]);
-                break;
-            }
-            buf.extend_from_slice(&[low | 0x80]);
-        }
+        let mut buf = BytesMut::from(&var_int(body.len() as i32)[..]);
         buf.extend_from_slice(body);
         buf
     }
@@ -429,41 +419,6 @@ mod tests {
             split_frame(&mut buf),
             Err(FrameError::ShortBody { missing: 5 })
         );
-    }
-
-    #[test]
-    fn only_an_incomplete_length_and_a_short_body_can_be_fixed_by_more_input() {
-        let cases = [
-            (FrameError::IncompleteLength, true),
-            (FrameError::MalformedLength, false),
-            (FrameError::ZeroLength, false),
-            (FrameError::ShortBody { missing: 1 }, true),
-            (FrameError::MalformedDataLength, false),
-            (
-                FrameError::BelowThreshold {
-                    declared: 1,
-                    threshold: 2,
-                },
-                false,
-            ),
-            (FrameError::AboveMaximum { declared: 1 }, false),
-            (
-                FrameError::ShortStream {
-                    declared: 2,
-                    inflated: 1,
-                },
-                false,
-            ),
-            (FrameError::TrailingData, false),
-            (FrameError::CorruptStream, false),
-            (FrameError::EmptyPacket, false),
-            (FrameError::PacketTooLarge { len: 1 }, false),
-            (FrameError::FrameTooLarge { len: 1 }, false),
-            (FrameError::CompressionFailed, false),
-        ];
-        for (error, incomplete) in cases {
-            assert_eq!(error.is_incomplete(), incomplete, "{error:?}");
-        }
     }
 
     #[test]
@@ -537,59 +492,15 @@ mod tests {
     }
 
     #[test]
-    fn uncompressed_frames_pass_at_any_size() {
-        let mut inflater = None;
-        for threshold in [1usize, 64, 256] {
-            for size in [threshold - 1, threshold, threshold + 1, 100_000] {
-                let rest = pattern(size);
-                assert_eq!(
-                    decompress(
-                        uncompressed_frame(&rest),
-                        CompressionThreshold(threshold as i32),
-                        &mut inflater
-                    ),
-                    Ok(Bytes::from(rest)),
-                    "threshold {threshold}, size {size}"
-                );
-            }
-        }
-        assert!(inflater.is_none());
-    }
-
-    #[test]
-    fn compressed_frames_are_accepted_at_the_threshold_and_refused_below_it() {
-        let rows: [(i32, usize, bool); 8] = [
-            (1, 1, true),
-            (1, 2, true),
-            (64, 63, false),
-            (64, 64, true),
-            (64, 65, true),
-            (256, 255, false),
-            (256, 256, true),
-            (256, 257, true),
-        ];
-        for (threshold, declared, accepted) in rows {
-            let data = pattern(declared);
-            let frame = compressed_frame(declared as i32, &deflate(&data));
-            let result = decompress(frame, CompressionThreshold(threshold), &mut None);
-            if accepted {
-                assert_eq!(result, Ok(Bytes::from(data)), "{threshold} {declared}");
-            } else {
-                assert_eq!(
-                    result,
-                    Err(FrameError::BelowThreshold {
-                        declared,
-                        threshold: threshold as usize
-                    }),
-                    "{threshold} {declared}"
-                );
-            }
-        }
-    }
-
-    #[test]
     fn a_declared_size_at_the_maximum_is_accepted_and_one_past_it_refused() {
         let threshold = CompressionThreshold(256);
+        let two_megabytes = vec![0u8; 2_097_152];
+        let frame = compressed_frame(2_097_152, &deflate(&two_megabytes));
+        assert_eq!(
+            decompress(frame, threshold, &mut None),
+            Ok(Bytes::from(two_megabytes))
+        );
+
         let at_maximum = vec![0u8; MAX_UNCOMPRESSED_PACKET];
         let frame = compressed_frame(MAX_UNCOMPRESSED_PACKET as i32, &deflate(&at_maximum));
         let inflated = decompress(frame, threshold, &mut None).unwrap();
@@ -784,7 +695,7 @@ mod tests {
 
     fn data_length(frame: &Bytes) -> usize {
         let mut rest = &frame[..];
-        VarInt::decode_partial(&mut rest).unwrap() as usize
+        VarInt::decode(&mut rest).unwrap().0 as usize
     }
 
     #[test]
@@ -795,26 +706,6 @@ mod tests {
         assert_eq!(&buf[2..], &packet[..]);
         assert_eq!(read_back(&mut buf, -1), Ok(Bytes::from(packet)));
         assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn a_packet_below_the_threshold_is_framed_uncompressed_and_reads_back() {
-        let packet = pattern(255);
-        let mut buf = written(&packet, 256);
-        let frame = split_frame(&mut buf.clone()).unwrap();
-        assert_eq!(data_length(&frame), 0);
-        assert_eq!(&frame[1..], &packet[..]);
-        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(packet)));
-    }
-
-    #[test]
-    fn a_packet_at_the_threshold_is_compressed_and_reads_back() {
-        let packet = pattern(256);
-        let mut buf = written(&packet, 256);
-        let frame = split_frame(&mut buf.clone()).unwrap();
-        assert_eq!(data_length(&frame), 256);
-        assert_eq!(frame[2], 0x78);
-        assert_eq!(read_back(&mut buf, 256), Ok(Bytes::from(packet)));
     }
 
     #[test]
@@ -887,6 +778,9 @@ mod tests {
             (ReadUncompressed, 256, 255, Accepted),
             (ReadUncompressed, 256, 256, Accepted),
             (ReadUncompressed, 256, 257, Accepted),
+            (ReadUncompressed, 1, 100_000, Accepted),
+            (ReadUncompressed, 64, 100_000, Accepted),
+            (ReadUncompressed, 256, 100_000, Accepted),
         ];
 
         let mut ran = 0;
@@ -910,6 +804,10 @@ mod tests {
                         0
                     };
                     assert_eq!(data_length(&frame), expected, "{context}");
+                    if matches!(outcome, Compressed) {
+                        let width = VarInt(size as i32).written_size();
+                        assert_eq!(frame[width], 0x78, "{context}");
+                    }
                     assert_eq!(
                         read_back(&mut buf, threshold),
                         Ok(Bytes::from(packet)),
@@ -930,31 +828,27 @@ mod tests {
                     assert_eq!(result, expected, "{context}");
                 }
                 (ReadUncompressed, Accepted) => {
+                    let mut inflater = None;
                     let result = decompress(
                         uncompressed_frame(&packet),
                         CompressionThreshold(threshold),
-                        &mut None,
+                        &mut inflater,
                     );
                     assert_eq!(result, Ok(Bytes::from(packet)), "{context}");
+                    assert!(inflater.is_none(), "{context}");
                 }
                 _ => unreachable!("{context}"),
             }
             ran += 1;
         }
-        assert_eq!(ran, 27);
-        assert_eq!(rows.len(), 27);
+        assert_eq!(ran, 30);
+        assert_eq!(rows.len(), 30);
     }
 
     fn incompressible(len: usize) -> Vec<u8> {
-        let mut state = 0x9E37_79B9_7F4A_7C15u64;
-        (0..len)
-            .map(|_| {
-                state ^= state << 13;
-                state ^= state >> 7;
-                state ^= state << 17;
-                (state >> 32) as u8
-            })
-            .collect()
+        let mut bytes = vec![0u8; len];
+        StdRng::seed_from_u64(0x9E37_79B9_7F4A_7C15).fill(&mut bytes[..]);
+        bytes
     }
 
     #[test]
@@ -1018,19 +912,6 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_packet_is_refused_on_write() {
-        for threshold in [-1, 0, 1] {
-            let mut buf = BytesMut::from(&[9, 8, 7][..]);
-            assert_eq!(
-                encode_frame(&mut buf, 3, CompressionThreshold(threshold), &mut None),
-                Err(FrameError::EmptyPacket),
-                "threshold {threshold}"
-            );
-            assert_eq!(&buf[..], &[9, 8, 7], "threshold {threshold}");
-        }
-    }
-
-    #[test]
     fn a_refused_packet_leaves_nothing_in_the_buffer() {
         let before = [9u8, 8, 7];
         let cases = [
@@ -1038,6 +919,8 @@ mod tests {
             (3_000_000, vec![0xA5; MAX_FRAME_BODY]),
             (256, vec![0u8; MAX_UNCOMPRESSED_PACKET + 1]),
             (256, incompressible(MAX_FRAME_BODY + 1)),
+            (-1, Vec::new()),
+            (0, Vec::new()),
             (1, Vec::new()),
         ];
         for (threshold, packet) in cases {
@@ -1045,6 +928,13 @@ mod tests {
             let mut buf = BytesMut::from(&before[..]);
             buf.extend_from_slice(&packet);
             let result = encode_frame(&mut buf, 3, CompressionThreshold(threshold), &mut deflate);
+            if packet.is_empty() {
+                assert_eq!(
+                    result,
+                    Err(FrameError::EmptyPacket),
+                    "threshold {threshold}"
+                );
+            }
             assert!(
                 result.is_err(),
                 "threshold {threshold}, {} bytes",

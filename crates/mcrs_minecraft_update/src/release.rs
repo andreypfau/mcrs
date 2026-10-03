@@ -1,9 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use mcrs_minecraft_client_jar::{
-    Artifact, Descriptor, FontHint, directory_digest, sha1_hex, verify,
-};
+use mcrs_minecraft_client_jar::{Artifact, FontHint, Release, directory_digest, sha1_hex, verify};
 use mcrs_minecraft_core::Version;
 use serde::{Deserialize, Serialize};
 
@@ -107,7 +105,7 @@ pub fn check_version(version: &[u8], id: &str) -> Result<(), String> {
     }
 }
 
-fn pretty(value: &impl Serialize) -> Result<String, String> {
+pub fn pretty(value: &impl Serialize) -> Result<String, String> {
     let mut text = serde_json::to_string_pretty(value).map_err(|error| error.to_string())?;
     text.push('\n');
     Ok(text)
@@ -120,7 +118,7 @@ pub fn descriptor(
     package: &[u8],
 ) -> Result<String, String> {
     let (directory_sha1, directory_size) = directory_digest(jar)?;
-    pretty(&Descriptor {
+    pretty(&Release {
         id: &listing.id,
         jar: Artifact {
             url: &download.url,
@@ -137,6 +135,7 @@ pub fn descriptor(
             sha1: &listing.sha1,
             size: package.len() as u64,
         },
+        font_hint: "",
     })
 }
 
@@ -157,13 +156,11 @@ pub fn refuse_dirty(status: &str, allow_dirty: bool) -> Result<(), String> {
 mod tests {
     use std::cell::Cell;
     use std::fs;
-    use std::io::{Cursor, Write};
-    use std::path::PathBuf;
 
-    use mcrs_minecraft_client_jar::{Descriptor, FontHint, sha1_hex};
-    use zip::write::SimpleFileOptions;
+    use mcrs_minecraft_client_jar::{FontHint, Release, sha1_hex};
 
     use super::*;
+    use crate::testing::{scratch, zipped};
 
     const MANIFEST: &str = r#"{
         "latest": {"release": "alpha", "snapshot": "beta-one"},
@@ -195,25 +192,12 @@ mod tests {
         "use_editor": false
     }"#;
 
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mcrs_update-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
     fn sample_jar() -> Vec<u8> {
-        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        let options = SimpleFileOptions::default();
-        for (name, bytes) in [
+        zipped(&[
             ("version.json", SAMPLE_VERSION.as_bytes()),
             ("assets/minecraft/font/default.json", br#"{"providers":[]}"#),
             ("data/minecraft/tags/a.json", b"{}"),
-        ] {
-            zip.start_file(name, options).unwrap();
-            zip.write_all(bytes).unwrap();
-        }
-        zip.finish().unwrap().into_inner()
+        ])
     }
 
     fn download_of(bytes: &[u8]) -> Download {
@@ -336,7 +320,7 @@ mod tests {
         let text = descriptor(&download, &jar, &listing, PACKAGE.as_bytes()).unwrap();
 
         assert!(text.ends_with("}\n") && !text.ends_with("\n\n"));
-        let parsed: Descriptor = serde_json::from_str(&text).unwrap();
+        let parsed: Release = serde_json::from_str(&text).unwrap();
         assert_eq!(parsed.id, "second");
         assert_eq!(parsed.jar.url, download.url);
         assert_eq!(parsed.jar.sha1, sha1_hex(&jar));

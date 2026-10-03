@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::cave::CaveCull;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
@@ -155,18 +155,6 @@ pub fn integrated_bind_address(open_to_lan: bool) -> SocketAddr {
         Ipv4Addr::LOCALHOST
     };
     SocketAddr::new(ip.into(), 0)
-}
-
-#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-pub fn integrated_join_address(bound: SocketAddr) -> SocketAddr {
-    if !bound.ip().is_unspecified() {
-        return bound;
-    }
-    let loopback = match bound.ip() {
-        IpAddr::V4(_) => IpAddr::V4(Ipv4Addr::LOCALHOST),
-        IpAddr::V6(_) => IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
-    };
-    SocketAddr::new(loopback, bound.port())
 }
 
 /// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.
@@ -430,32 +418,5 @@ mod tests {
         let opened = integrated_bind_address(true);
         assert_eq!(opened, "0.0.0.0:0".parse().unwrap());
         assert!(opened.ip().is_unspecified());
-    }
-
-    #[test]
-    fn the_client_joins_loopback_whatever_the_server_binds() {
-        for (bound, joined) in [
-            ("127.0.0.1:40123", "127.0.0.1:40123"),
-            ("0.0.0.0:40123", "127.0.0.1:40123"),
-            ("[::]:40123", "[::1]:40123"),
-            ("192.168.1.20:40123", "192.168.1.20:40123"),
-        ] {
-            assert_eq!(
-                integrated_join_address(bound.parse().unwrap()),
-                joined.parse::<SocketAddr>().unwrap(),
-                "joining a server bound to {bound}",
-            );
-        }
-    }
-
-    #[test]
-    fn an_opened_embedded_server_announces_and_a_default_one_does_not() {
-        let listening = |open| {
-            let mut bound = integrated_bind_address(open);
-            bound.set_port(40123);
-            mcrs_minecraft_network::lan::announce_port(bound, true).ok()
-        };
-        assert_eq!(listening(false), None);
-        assert_eq!(listening(true), Some(40123));
     }
 }
