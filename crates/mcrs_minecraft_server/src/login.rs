@@ -7,12 +7,14 @@ use bevy_ecs::system::{Commands, Res, ResMut};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
+use mcrs_minecraft_protocol::packets::login::clientbound::{
+    ClientboundLoginDisconnect, ClientboundLoginFinished,
+};
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
 use mcrs_minecraft_protocol::profile::Property;
-use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
+use mcrs_minecraft_protocol::{Bounded, Text, WritePacket, uuid};
 use std::borrow::Cow;
 
 use crate::world::session::{HostAnchorRef, SessionBundle};
@@ -89,6 +91,27 @@ pub fn hello_profile(username: &str, host: Option<&SingleplayerProfile>) -> Game
     }
 }
 
+fn is_valid_player_name(name: &str) -> bool {
+    name.len() <= 16 && name.bytes().all(|byte| (b'!'..=b'~').contains(&byte))
+}
+
+// The game refuses such a name by throwing, and its connection sends the exception as the reason.
+fn invalid_player_name_reason() -> Text {
+    Text::translate(
+        "disconnect.genericReason",
+        [Text::text(
+            "Internal Exception: java.lang.IllegalStateException: Invalid characters in username",
+        )],
+    )
+}
+
+fn refuse_login(con: &mut ServerSideConnection, reason: &Text) {
+    let reason = serde_json::to_string(reason).expect("a text component serializes to JSON");
+    con.write_packet(&ClientboundLoginDisconnect {
+        reason: Bounded(&reason),
+    });
+}
+
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
@@ -105,6 +128,14 @@ pub fn handle_hello_packet(
     let Some(pkt) = event.decode::<ServerboundHello>() else {
         return;
     };
+    if !is_valid_player_name(&pkt.username) {
+        tracing::info!(name = ?pkt.username.0, "login refused: invalid characters in username");
+        refuse_login(&mut con, &invalid_player_name_reason());
+        commands
+            .entity(event.entity)
+            .remove::<ServerSideConnection>();
+        return;
+    }
     let profile = hello_profile(&pkt.username, host.as_deref());
     tracing::debug!(?profile, "login hello");
     let response = ClientboundLoginFinished {
@@ -159,3 +190,31 @@ pub fn on_login_accepted(
 }
 
 use bevy_ecs::query::With;
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_player_name;
+
+    #[test]
+    fn a_player_name_is_printable_ascii_other_than_space() {
+        for accepted in ["!", "~", "Steve_01", "!~"] {
+            assert!(is_valid_player_name(accepted), "{accepted:?}");
+        }
+        for refused in [
+            " ", "St eve", "\u{7f}", "\u{0}", "\n", "Stеve", "§cSteve", "Ünal",
+        ] {
+            assert!(!is_valid_player_name(refused), "{refused:?}");
+        }
+    }
+
+    #[test]
+    fn a_player_name_holds_at_most_sixteen_characters() {
+        assert!(is_valid_player_name(&"a".repeat(16)));
+        assert!(!is_valid_player_name(&"a".repeat(17)));
+    }
+
+    #[test]
+    fn an_empty_player_name_is_valid_as_in_the_game() {
+        assert!(is_valid_player_name(""));
+    }
+}
