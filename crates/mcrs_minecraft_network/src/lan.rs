@@ -497,8 +497,10 @@ mod tests {
     fn the_first_datagram_leaves_at_once_and_the_next_after_the_interval() {
         Runtime::new().unwrap().block_on(async {
             let receiver = loopback().await;
+            let sender = loopback().await;
+            let started = Instant::now();
             let task = tokio::spawn(announce(
-                loopback().await,
+                sender,
                 receiver.local_addr().unwrap(),
                 INTERVAL,
                 crate::intent::MOTD,
@@ -508,11 +510,16 @@ mod tests {
             let (first, _) = receive(&receiver).await;
             let first_at = Instant::now();
             let (second, _) = receive(&receiver).await;
-            let gap = first_at.elapsed();
+            let second_at = Instant::now();
             task.abort();
             assert_eq!(first, expected());
             assert_eq!(second, expected());
-            assert!(gap >= Duration::from_millis(1400), "{gap:?}");
+            let since_start = second_at - started;
+            assert!(since_start >= INTERVAL, "{since_start:?}");
+            // A receiver that wakes late for the first datagram shortens the gap, so its lower bound
+            // only tells an interval from none.
+            let gap = second_at - first_at;
+            assert!(gap >= Duration::from_millis(1000), "{gap:?}");
             assert!(gap < Duration::from_millis(2500), "{gap:?}");
         });
     }
