@@ -9,6 +9,8 @@ use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use serde_json::json;
 use tracing::debug;
 
+pub(crate) const MOTD: &str = "mcrs Server";
+
 pub(crate) async fn handle_intent<S: ByteStream>(
     shared: SharedNetworkState,
     mut io: PacketIo<S>,
@@ -34,7 +36,7 @@ pub(crate) async fn handle_intent<S: ByteStream>(
                     "sample": []
                 },
                 "description": {
-                    "text": "mcrs Server"
+                    "text": MOTD
                 }
             })
             .to_string();
