@@ -184,6 +184,15 @@ fn play_disconnect_reason(frames: &[PacketFrame]) -> Text {
         .reason
 }
 
+fn login_disconnect_reason(frames: &[PacketFrame]) -> serde_json::Value {
+    let [frame] = frames else {
+        panic!("{frames:?}");
+    };
+    assert_eq!(frame.id, ClientboundLoginDisconnect::ID);
+    let packet = ClientboundLoginDisconnect::decode(&mut &frame.body[..]).unwrap();
+    serde_json::from_str(packet.reason.0).unwrap()
+}
+
 fn configuration_disconnect_reason(frames: &[PacketFrame]) -> Text {
     let [frame] = frames else {
         panic!("{frames:?}");
@@ -323,6 +332,48 @@ fn a_second_login_under_a_name_ends_the_first_session_and_plays_once_its_player_
     );
     assert!(connected(&app, &second));
     assert_eq!(sessions_under(&mut app, STEVE), [anchor(&app, &second)]);
+}
+
+#[test]
+fn a_login_held_for_a_save_that_never_comes_ends_after_six_hundred_ticks() {
+    let mut app = server(None);
+    let (dim, to_dim, _from_dim) = dimension(&mut app);
+
+    let mut first = connect(&mut app);
+    send_hello(&mut app, &first, "Steve", Uuid::new_v4());
+    first.received(&mut app);
+    let first_anchor = anchor(&app, &first);
+    app.world_mut()
+        .entity_mut(first.connection)
+        .insert(ConnectionState::Game);
+    app.world_mut()
+        .entity_mut(first_anchor)
+        .insert(SessionPlacement::new(Place::InDim(dim), 0));
+
+    let mut second = connect(&mut app);
+    send_hello(&mut app, &second, "Steve", Uuid::new_v4());
+    assert!(matches!(to_dim.try_recv(), Ok(ToDim::Despawn(_))));
+
+    for _ in 0..600 {
+        app.update();
+    }
+    assert!(connected(&app, &second));
+    assert!(second.received(&mut app).is_empty());
+
+    app.update();
+    assert!(!connected(&app, &second));
+    assert_eq!(
+        login_disconnect_reason(&second.received(&mut app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.slow_login"})
+    );
+
+    let mut third = connect(&mut app);
+    send_hello(&mut app, &third, "Steve", Uuid::new_v4());
+    assert_eq!(
+        ids(&third.received(&mut app)),
+        [ClientboundLoginFinished::ID]
+    );
+    assert_eq!(sessions_under(&mut app, STEVE), [anchor(&app, &third)]);
 }
 
 #[test]

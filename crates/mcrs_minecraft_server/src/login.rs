@@ -1,9 +1,10 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::lifecycle::Insert;
+use bevy_ecs::lifecycle::{Add, Insert};
 use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::{Has, With, Without};
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -34,10 +35,44 @@ pub struct LoginPlugin;
 impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.insert_resource(ChatSessionId(uuid::Uuid::new_v4()));
+        app.init_resource::<ServerTicks>();
+        app.add_systems(bevy_app::First, advance_server_ticks);
+        app.add_observer(start_login_clock);
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
-        app.add_systems(bevy_app::Update, finish_awaiting_logins);
+        // A login ended as slow must be closed before a release in the same tick could finish it.
+        app.add_systems(
+            bevy_app::Update,
+            (end_slow_logins, finish_awaiting_logins).chain(),
+        );
+    }
+}
+
+/// The game ends a login that is still pending after this many ticks.
+const MAX_TICKS_BEFORE_LOGIN: u64 = 600;
+
+/// Ticks the server has run, one per update.
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub struct ServerTicks(pub u64);
+
+/// The tick on which the connection began its login.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct LoginStarted(u64);
+
+fn advance_server_ticks(mut ticks: ResMut<ServerTicks>) {
+    ticks.0 += 1;
+}
+
+fn start_login_clock(
+    trigger: On<Add, ConnectionState>,
+    states: Query<&ConnectionState>,
+    ticks: Res<ServerTicks>,
+    mut commands: Commands,
+) {
+    let connection = trigger.event().entity;
+    if states.get(connection) == Ok(&ConnectionState::Login) {
+        commands.entity(connection).insert(LoginStarted(ticks.0));
     }
 }
 
@@ -271,6 +306,52 @@ pub fn handle_hello_packet(
         commands
             .entity(event.entity)
             .insert((profile, LoginState::Accepted));
+    }
+}
+
+fn slow_login_reason() -> Text {
+    Text::translate("multiplayer.disconnect.slow_login", Vec::new())
+}
+
+/// A held login that runs out of time also gives up on the saves it was waiting for, or every
+/// later login under its id would wait for them too.
+pub fn end_slow_logins(
+    mut logins: Query<(
+        Entity,
+        &mut ServerSideConnection,
+        &ConnectionState,
+        &LoginStarted,
+        Option<&LoginState>,
+        Option<&GameProfile>,
+    )>,
+    departing: Query<(Entity, &Departing)>,
+    ticks: Res<ServerTicks>,
+    mut commands: Commands,
+) {
+    for (connection, mut con, &state, started, login, profile) in &mut logins {
+        if state != ConnectionState::Login || ticks.0 - started.0 <= MAX_TICKS_BEFORE_LOGIN {
+            continue;
+        }
+        tracing::info!(name = ?profile.map(|profile| &profile.username), "login timed out");
+        disconnect(
+            &mut con,
+            client_protocol(state, login, false),
+            slow_login_reason(),
+        );
+        commands.entity(connection).remove::<ServerSideConnection>();
+        let (Some(LoginState::AwaitingDeparture), Some(profile)) = (login, profile) else {
+            continue;
+        };
+        for (record, departing) in &departing {
+            if departing.id == profile.id {
+                tracing::warn!(
+                    dim = ?departing.dim,
+                    session = ?departing.session,
+                    "a dimension never confirmed saving a departed player; no longer waiting for it"
+                );
+                commands.entity(record).despawn();
+            }
+        }
     }
 }
 
