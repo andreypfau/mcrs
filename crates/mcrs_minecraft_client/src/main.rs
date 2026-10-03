@@ -295,8 +295,10 @@ fn host_integrated_server(
     assets: &str,
     traces: Option<ColumnTraceSink>,
 ) -> SocketAddr {
+    let open_to_lan = config::open_to_lan();
     let mut server = App::new();
     server.add_plugins(MinecraftServerPlugin {
+        bind_address: config::integrated_bind_address(open_to_lan),
         asset_path: Some(assets.to_owned()),
         world: world.map(Path::to_path_buf),
         column_traces: traces,
@@ -313,7 +315,7 @@ fn host_integrated_server(
         ),
         None => info!(%address, "hosting an integrated server"),
     }
-    address
+    config::integrated_join_address(address)
 }
 
 /// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.
