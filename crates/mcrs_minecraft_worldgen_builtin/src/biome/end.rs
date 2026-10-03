@@ -11,20 +11,20 @@ pub fn end_base(generation: Generation) -> Biome {
 
 pub fn the_end() -> Biome {
     let mut g = Generation::default();
-    g.feature(SurfaceStructures, placed::END_SPIKE)
-        .feature(TopLayerModification, placed::END_PLATFORM);
+    g.feature(SurfaceStructures, placed!("end_spike"))
+        .feature(TopLayerModification, placed!("end_platform"));
     end_base(g)
 }
 
 pub fn end_highlands() -> Biome {
     let mut g = Generation::default();
-    g.feature(SurfaceStructures, placed::END_GATEWAY_RETURN)
-        .feature(VegetalDecoration, placed::CHORUS_PLANT);
+    g.feature(SurfaceStructures, placed!("end_gateway_return"))
+        .feature(VegetalDecoration, placed!("chorus_plant"));
     end_base(g)
 }
 
 pub fn small_end_islands() -> Biome {
     let mut g = Generation::default();
-    g.feature(RawGeneration, placed::END_ISLAND_DECORATED);
+    g.feature(RawGeneration, placed!("end_island_decorated"));
     end_base(g)
 }

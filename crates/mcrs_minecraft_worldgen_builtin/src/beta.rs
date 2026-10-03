@@ -20,10 +20,6 @@ const TOP_SLIDE: &str = "beta/top_slide";
 const CELL_WIDTH: f64 = 4.0;
 const SIMPLEX_STRETCH: f64 = 1.5;
 
-fn one_minus(input: Df) -> Df {
-    1.0 - input
-}
-
 pub fn define(f: &mut Functions) {
     let detail = Df::reference(CLIMATE_DETAIL);
     let temperature = (Df::noise(
@@ -63,18 +59,14 @@ pub fn define(f: &mut Functions) {
     );
     f.define(
         TEMPERATURE,
-        one_minus(one_minus(temperature).square())
-            .clamp(0.0, 1.0)
-            .cache(),
+        (1.0 - (1.0 - temperature).square()).clamp(0.0, 1.0).cache(),
     );
     f.define(VEGETATION, vegetation.clamp(0.0, 1.0).cache());
     f.define(
         CLIMATE_FACTOR,
-        one_minus(
-            one_minus(Df::reference(TEMPERATURE) * Df::reference(VEGETATION))
-                .square()
-                .square(),
-        ),
+        1.0 - (1.0 - Df::reference(TEMPERATURE) * Df::reference(VEGETATION))
+            .square()
+            .square(),
     );
     f.define(SCALE, (0.5 + scale.clamp(0.0, 1.0)).cache());
     f.define(

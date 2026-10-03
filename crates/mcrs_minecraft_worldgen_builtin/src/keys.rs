@@ -20,6 +20,15 @@ macro_rules! keys {
     };
 }
 
+macro_rules! placed {
+    ($path:literal) => {
+        mcrs_minecraft_core::ResourceKey::new(
+            const { crate::keys::Id::new_static(concat!("minecraft:", $path)) },
+        )
+    };
+}
+pub(crate) use placed;
+
 pub mod carver {
     use super::*;
 
@@ -28,259 +37,6 @@ pub mod carver {
         CAVE_EXTRA_UNDERGROUND = "minecraft:cave_extra_underground",
         CANYON = "minecraft:canyon",
         NETHER_CAVE = "minecraft:nether_cave",
-    }
-}
-
-pub mod placed {
-    use super::*;
-
-    keys! { PlacedKey;
-        ACACIA = "minecraft:acacia",
-        ACACIA_CHECKED = "minecraft:acacia_checked",
-        AMETHYST_GEODE = "minecraft:amethyst_geode",
-        BAMBOO = "minecraft:bamboo",
-        BAMBOO_IN_STRUCTURE = "minecraft:bamboo_in_structure",
-        BAMBOO_LIGHT = "minecraft:bamboo_light",
-        BAMBOO_VEGETATION = "minecraft:bamboo_vegetation",
-        BASALT_BLOBS = "minecraft:basalt_blobs",
-        BASALT_PILLAR = "minecraft:basalt_pillar",
-        BIRCH_BEES_002 = "minecraft:birch_bees_002",
-        BIRCH_CHECKED = "minecraft:birch_checked",
-        BIRCH_TALL = "minecraft:birch_tall",
-        BLACKSTONE_BLOBS = "minecraft:blackstone_blobs",
-        BLUE_ICE = "minecraft:blue_ice",
-        BROWN_MUSHROOM_DAPPLED_FOREST = "minecraft:brown_mushroom_dappled_forest",
-        BROWN_MUSHROOM_NETHER = "minecraft:brown_mushroom_nether",
-        BROWN_MUSHROOM_NORMAL = "minecraft:brown_mushroom_normal",
-        BROWN_MUSHROOM_OLD_GROWTH = "minecraft:brown_mushroom_old_growth",
-        BROWN_MUSHROOM_SWAMP = "minecraft:brown_mushroom_swamp",
-        BROWN_MUSHROOM_TAIGA = "minecraft:brown_mushroom_taiga",
-        CAVE_VINES = "minecraft:cave_vines",
-        CHERRY_BEES_005 = "minecraft:cherry_bees_005",
-        CHERRY_CHECKED = "minecraft:cherry_checked",
-        CHORUS_PLANT = "minecraft:chorus_plant",
-        CLASSIC_VINES_CAVE_FEATURE = "minecraft:classic_vines_cave_feature",
-        CRIMSON_FOREST_VEGETATION = "minecraft:crimson_forest_vegetation",
-        CRIMSON_FUNGI = "minecraft:crimson_fungi",
-        DARK_FOREST_VEGETATION = "minecraft:dark_forest_vegetation",
-        DELTA = "minecraft:delta",
-        DESERT_WELL = "minecraft:desert_well",
-        DISK_CLAY = "minecraft:disk_clay",
-        DISK_GRASS = "minecraft:disk_grass",
-        DISK_GRAVEL = "minecraft:disk_gravel",
-        DISK_SAND = "minecraft:disk_sand",
-        DRIPSTONE_CLUSTER = "minecraft:dripstone_cluster",
-        END_GATEWAY_RETURN = "minecraft:end_gateway_return",
-        END_ISLAND_DECORATED = "minecraft:end_island_decorated",
-        END_PLATFORM = "minecraft:end_platform",
-        END_SPIKE = "minecraft:end_spike",
-        FANCY_OAK_BEES_002 = "minecraft:fancy_oak_bees_002",
-        FANCY_OAK_CHECKED = "minecraft:fancy_oak_checked",
-        FLOWER_CHERRY = "minecraft:flower_cherry",
-        FLOWER_DEFAULT = "minecraft:flower_default",
-        FLOWER_FLOWER_FOREST = "minecraft:flower_flower_forest",
-        FLOWER_FOREST_FLOWERS = "minecraft:flower_forest_flowers",
-        FLOWER_MEADOW = "minecraft:flower_meadow",
-        FLOWER_PALE_GARDEN = "minecraft:flower_pale_garden",
-        FLOWER_PLAIN = "minecraft:flower_plain",
-        FLOWER_PLAINS = "minecraft:flower_plains",
-        FLOWER_SWAMP = "minecraft:flower_swamp",
-        FLOWER_WARM = "minecraft:flower_warm",
-        FOREST_FLOWERS = "minecraft:forest_flowers",
-        FOREST_ROCK = "minecraft:forest_rock",
-        FOSSIL_LOWER = "minecraft:fossil_lower",
-        FOSSIL_UPPER = "minecraft:fossil_upper",
-        FREEZE_TOP_LAYER = "minecraft:freeze_top_layer",
-        GLOW_LICHEN = "minecraft:glow_lichen",
-        GLOWSTONE = "minecraft:glowstone",
-        GLOWSTONE_EXTRA = "minecraft:glowstone_extra",
-        ICE_PATCH = "minecraft:ice_patch",
-        ICE_SPIKE = "minecraft:ice_spike",
-        ICEBERG_BLUE = "minecraft:iceberg_blue",
-        ICEBERG_PACKED = "minecraft:iceberg_packed",
-        JUNGLE_TREE = "minecraft:jungle_tree",
-        KELP_COLD = "minecraft:kelp_cold",
-        KELP_WARM = "minecraft:kelp_warm",
-        LAKE_LAVA_SURFACE = "minecraft:lake_lava_surface",
-        LAKE_LAVA_UNDERGROUND = "minecraft:lake_lava_underground",
-        LARGE_BASALT_COLUMNS = "minecraft:large_basalt_columns",
-        LARGE_DRIPSTONE = "minecraft:large_dripstone",
-        LUSH_CAVES_CEILING_VEGETATION = "minecraft:lush_caves_ceiling_vegetation",
-        LUSH_CAVES_CLAY = "minecraft:lush_caves_clay",
-        LUSH_CAVES_VEGETATION = "minecraft:lush_caves_vegetation",
-        MEGA_JUNGLE_TREE_CHECKED = "minecraft:mega_jungle_tree_checked",
-        MEGA_PINE_CHECKED = "minecraft:mega_pine_checked",
-        MEGA_SPRUCE_CHECKED = "minecraft:mega_spruce_checked",
-        MONSTER_ROOM = "minecraft:monster_room",
-        MONSTER_ROOM_DEEP = "minecraft:monster_room_deep",
-        MUSHROOM_ISLAND_VEGETATION = "minecraft:mushroom_island_vegetation",
-        NETHER_SPROUTS = "minecraft:nether_sprouts",
-        OAK = "minecraft:oak",
-        OAK_CHECKED = "minecraft:oak_checked",
-        ORANGE_POPLAR = "minecraft:orange_poplar",
-        ORE_ANCIENT_DEBRIS_LARGE = "minecraft:ore_ancient_debris_large",
-        ORE_ANDESITE_LOWER = "minecraft:ore_andesite_lower",
-        ORE_ANDESITE_UPPER = "minecraft:ore_andesite_upper",
-        ORE_BLACKSTONE = "minecraft:ore_blackstone",
-        ORE_CLAY = "minecraft:ore_clay",
-        ORE_COAL_LOWER = "minecraft:ore_coal_lower",
-        ORE_COAL_UPPER = "minecraft:ore_coal_upper",
-        ORE_COPPER = "minecraft:ore_copper",
-        ORE_COPPER_LARGE = "minecraft:ore_copper_large",
-        ORE_DEBRIS_SMALL = "minecraft:ore_debris_small",
-        ORE_DIAMOND = "minecraft:ore_diamond",
-        ORE_DIAMOND_BURIED = "minecraft:ore_diamond_buried",
-        ORE_DIAMOND_LARGE = "minecraft:ore_diamond_large",
-        ORE_DIAMOND_MEDIUM = "minecraft:ore_diamond_medium",
-        ORE_DIORITE_LOWER = "minecraft:ore_diorite_lower",
-        ORE_DIORITE_UPPER = "minecraft:ore_diorite_upper",
-        ORE_DIRT = "minecraft:ore_dirt",
-        ORE_EMERALD = "minecraft:ore_emerald",
-        ORE_GOLD = "minecraft:ore_gold",
-        ORE_GOLD_DELTAS = "minecraft:ore_gold_deltas",
-        ORE_GOLD_EXTRA = "minecraft:ore_gold_extra",
-        ORE_GOLD_LOWER = "minecraft:ore_gold_lower",
-        ORE_GOLD_NETHER = "minecraft:ore_gold_nether",
-        ORE_GRANITE_LOWER = "minecraft:ore_granite_lower",
-        ORE_GRANITE_UPPER = "minecraft:ore_granite_upper",
-        ORE_GRAVEL = "minecraft:ore_gravel",
-        ORE_GRAVEL_NETHER = "minecraft:ore_gravel_nether",
-        ORE_INFESTED = "minecraft:ore_infested",
-        ORE_IRON_MIDDLE = "minecraft:ore_iron_middle",
-        ORE_IRON_SMALL = "minecraft:ore_iron_small",
-        ORE_IRON_UPPER = "minecraft:ore_iron_upper",
-        ORE_LAPIS = "minecraft:ore_lapis",
-        ORE_LAPIS_BURIED = "minecraft:ore_lapis_buried",
-        ORE_MAGMA = "minecraft:ore_magma",
-        ORE_QUARTZ_DELTAS = "minecraft:ore_quartz_deltas",
-        ORE_QUARTZ_NETHER = "minecraft:ore_quartz_nether",
-        ORE_REDSTONE = "minecraft:ore_redstone",
-        ORE_REDSTONE_LOWER = "minecraft:ore_redstone_lower",
-        ORE_SOUL_SAND = "minecraft:ore_soul_sand",
-        ORE_TUFF = "minecraft:ore_tuff",
-        PALE_GARDEN_FLOWERS = "minecraft:pale_garden_flowers",
-        PALE_GARDEN_VEGETATION = "minecraft:pale_garden_vegetation",
-        PALE_MOSS_PATCH = "minecraft:pale_moss_patch",
-        PALE_OAK_CHECKED = "minecraft:pale_oak_checked",
-        PATCH_BERRY_BUSH = "minecraft:patch_berry_bush",
-        PATCH_BERRY_COMMON = "minecraft:patch_berry_common",
-        PATCH_BERRY_RARE = "minecraft:patch_berry_rare",
-        PATCH_BUSH = "minecraft:patch_bush",
-        PATCH_CACTUS = "minecraft:patch_cactus",
-        PATCH_CACTUS_DECORATED = "minecraft:patch_cactus_decorated",
-        PATCH_CACTUS_DESERT = "minecraft:patch_cactus_desert",
-        PATCH_CRIMSON_ROOTS = "minecraft:patch_crimson_roots",
-        PATCH_DEAD_BUSH = "minecraft:patch_dead_bush",
-        PATCH_DEAD_BUSH_2 = "minecraft:patch_dead_bush_2",
-        PATCH_DEAD_BUSH_BADLANDS = "minecraft:patch_dead_bush_badlands",
-        PATCH_DRY_GRASS_BADLANDS = "minecraft:patch_dry_grass_badlands",
-        PATCH_DRY_GRASS_DESERT = "minecraft:patch_dry_grass_desert",
-        PATCH_FIRE = "minecraft:patch_fire",
-        PATCH_FIREFLY_BUSH_NEAR_WATER = "minecraft:patch_firefly_bush_near_water",
-        PATCH_FIREFLY_BUSH_NEAR_WATER_SWAMP = "minecraft:patch_firefly_bush_near_water_swamp",
-        PATCH_FIREFLY_BUSH_SWAMP = "minecraft:patch_firefly_bush_swamp",
-        PATCH_GRASS_BADLANDS = "minecraft:patch_grass_badlands",
-        PATCH_GRASS_FOREST = "minecraft:patch_grass_forest",
-        PATCH_GRASS_JUNGLE = "minecraft:patch_grass_jungle",
-        PATCH_GRASS_MEADOW = "minecraft:patch_grass_meadow",
-        PATCH_GRASS_NORMAL = "minecraft:patch_grass_normal",
-        PATCH_GRASS_PLAIN = "minecraft:patch_grass_plain",
-        PATCH_GRASS_SAVANNA = "minecraft:patch_grass_savanna",
-        PATCH_GRASS_TAIGA = "minecraft:patch_grass_taiga",
-        PATCH_GRASS_TAIGA_2 = "minecraft:patch_grass_taiga_2",
-        PATCH_LARGE_FERN = "minecraft:patch_large_fern",
-        PATCH_LEAF_LITTER = "minecraft:patch_leaf_litter",
-        PATCH_MELON = "minecraft:patch_melon",
-        PATCH_MELON_SPARSE = "minecraft:patch_melon_sparse",
-        PATCH_PUMPKIN = "minecraft:patch_pumpkin",
-        PATCH_RED_SHRUB = "minecraft:patch_red_shrub",
-        PATCH_SOUL_FIRE = "minecraft:patch_soul_fire",
-        PATCH_SUGAR_CANE = "minecraft:patch_sugar_cane",
-        PATCH_SUGAR_CANE_BADLANDS = "minecraft:patch_sugar_cane_badlands",
-        PATCH_SUGAR_CANE_DESERT = "minecraft:patch_sugar_cane_desert",
-        PATCH_SUGAR_CANE_SWAMP = "minecraft:patch_sugar_cane_swamp",
-        PATCH_SUNFLOWER = "minecraft:patch_sunflower",
-        PATCH_TAIGA_GRASS = "minecraft:patch_taiga_grass",
-        PATCH_TALL_GRASS = "minecraft:patch_tall_grass",
-        PATCH_TALL_GRASS_2 = "minecraft:patch_tall_grass_2",
-        PATCH_WATERLILY = "minecraft:patch_waterlily",
-        PILE_HAY = "minecraft:pile_hay",
-        PILE_ICE = "minecraft:pile_ice",
-        PILE_MELON = "minecraft:pile_melon",
-        PILE_PUMPKIN = "minecraft:pile_pumpkin",
-        PILE_SNOW = "minecraft:pile_snow",
-        PINE = "minecraft:pine",
-        PINE_CHECKED = "minecraft:pine_checked",
-        POINTED_DRIPSTONE = "minecraft:pointed_dripstone",
-        RED_MUSHROOM_NETHER = "minecraft:red_mushroom_nether",
-        RED_MUSHROOM_NORMAL = "minecraft:red_mushroom_normal",
-        RED_MUSHROOM_OLD_GROWTH = "minecraft:red_mushroom_old_growth",
-        RED_MUSHROOM_SWAMP = "minecraft:red_mushroom_swamp",
-        RED_MUSHROOM_TAIGA = "minecraft:red_mushroom_taiga",
-        RED_POPLAR = "minecraft:red_poplar",
-        ROOTED_AZALEA_TREE = "minecraft:rooted_azalea_tree",
-        ROOTED_SULFUR_SPRING = "minecraft:rooted_sulfur_spring",
-        SCULK_PATCH_ANCIENT_CITY = "minecraft:sculk_patch_ancient_city",
-        SCULK_PATCH_DEEP_DARK = "minecraft:sculk_patch_deep_dark",
-        SCULK_VEIN = "minecraft:sculk_vein",
-        SEA_PICKLE = "minecraft:sea_pickle",
-        SEAGRASS_COLD = "minecraft:seagrass_cold",
-        SEAGRASS_DEEP = "minecraft:seagrass_deep",
-        SEAGRASS_DEEP_COLD = "minecraft:seagrass_deep_cold",
-        SEAGRASS_DEEP_WARM = "minecraft:seagrass_deep_warm",
-        SEAGRASS_NORMAL = "minecraft:seagrass_normal",
-        SEAGRASS_RIVER = "minecraft:seagrass_river",
-        SEAGRASS_SWAMP = "minecraft:seagrass_swamp",
-        SEAGRASS_WARM = "minecraft:seagrass_warm",
-        SMALL_BASALT_COLUMNS = "minecraft:small_basalt_columns",
-        SPORE_BLOSSOM = "minecraft:spore_blossom",
-        SPRING_CLOSED = "minecraft:spring_closed",
-        SPRING_CLOSED_DOUBLE = "minecraft:spring_closed_double",
-        SPRING_DELTA = "minecraft:spring_delta",
-        SPRING_LAVA = "minecraft:spring_lava",
-        SPRING_LAVA_FROZEN = "minecraft:spring_lava_frozen",
-        SPRING_OPEN = "minecraft:spring_open",
-        SPRING_WATER = "minecraft:spring_water",
-        SPRUCE = "minecraft:spruce",
-        SPRUCE_CHECKED = "minecraft:spruce_checked",
-        SPRUCE_ON_SNOW = "minecraft:spruce_on_snow",
-        SULFUR_POOL = "minecraft:sulfur_pool",
-        SULFUR_SPIKE = "minecraft:sulfur_spike",
-        SULFUR_SPIKE_CLUSTER = "minecraft:sulfur_spike_cluster",
-        SUPER_BIRCH_BEES_0002 = "minecraft:super_birch_bees_0002",
-        TREES_BADLANDS = "minecraft:trees_badlands",
-        TREES_BIRCH = "minecraft:trees_birch",
-        TREES_BIRCH_AND_OAK_LEAF_LITTER = "minecraft:trees_birch_and_oak_leaf_litter",
-        TREES_CHERRY = "minecraft:trees_cherry",
-        TREES_DAPPLED_FOREST = "minecraft:trees_dappled_forest",
-        TREES_FLOWER_FOREST = "minecraft:trees_flower_forest",
-        TREES_GROVE = "minecraft:trees_grove",
-        TREES_JUNGLE = "minecraft:trees_jungle",
-        TREES_MANGROVE = "minecraft:trees_mangrove",
-        TREES_MEADOW = "minecraft:trees_meadow",
-        TREES_OLD_GROWTH_PINE_TAIGA = "minecraft:trees_old_growth_pine_taiga",
-        TREES_OLD_GROWTH_SPRUCE_TAIGA = "minecraft:trees_old_growth_spruce_taiga",
-        TREES_PLAINS = "minecraft:trees_plains",
-        TREES_SAVANNA = "minecraft:trees_savanna",
-        TREES_SNOWY = "minecraft:trees_snowy",
-        TREES_SPARSE_JUNGLE = "minecraft:trees_sparse_jungle",
-        TREES_SWAMP = "minecraft:trees_swamp",
-        TREES_TAIGA = "minecraft:trees_taiga",
-        TREES_WATER = "minecraft:trees_water",
-        TREES_WINDSWEPT_FOREST = "minecraft:trees_windswept_forest",
-        TREES_WINDSWEPT_HILLS = "minecraft:trees_windswept_hills",
-        TREES_WINDSWEPT_SAVANNA = "minecraft:trees_windswept_savanna",
-        TWISTING_VINES = "minecraft:twisting_vines",
-        UNDERWATER_MAGMA = "minecraft:underwater_magma",
-        VINES = "minecraft:vines",
-        VOID_START_PLATFORM = "minecraft:void_start_platform",
-        WARM_OCEAN_VEGETATION = "minecraft:warm_ocean_vegetation",
-        WARPED_FOREST_VEGETATION = "minecraft:warped_forest_vegetation",
-        WARPED_FUNGI = "minecraft:warped_fungi",
-        WEEPING_VINES = "minecraft:weeping_vines",
-        WILDFLOWERS_BIRCH_FOREST = "minecraft:wildflowers_birch_forest",
-        WILDFLOWERS_MEADOW = "minecraft:wildflowers_meadow",
-        YELLOW_POPLAR = "minecraft:yellow_poplar",
     }
 }
 
@@ -330,36 +86,56 @@ pub mod processors {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature};
+    use mcrs_minecraft_worldgen_structure::PoolElement;
     use std::path::Path;
 
-    fn shipped(folder: &str, id: &Id) -> bool {
+    fn shipped(folder: &str, namespace: &str, path: &str) -> bool {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../assets")
-            .join(id.namespace())
+            .join(namespace)
             .join("worldgen")
             .join(folder)
-            .join(format!("{}.json", id.path()))
+            .join(format!("{path}.json"))
             .is_file()
     }
 
     #[test]
     fn every_key_names_an_entry_the_pack_ships() {
         for id in carver::ALL {
-            assert!(shipped("carver", id), "{id}");
-        }
-        for key in placed::ALL {
-            assert!(
-                shipped("placed_feature", key.location()),
-                "{}",
-                key.as_str()
-            );
+            assert!(shipped("carver", id.namespace(), id.path()), "{id}");
         }
         for key in processors::ALL {
-            assert!(
-                shipped("processor_list", key.location()),
-                "{}",
-                key.as_str()
-            );
+            let id = key.location();
+            assert!(shipped("processor_list", id.namespace(), id.path()), "{id}");
+        }
+    }
+
+    fn placed_in(element: &PoolElement) -> Vec<&Holder<PlacedFeature>> {
+        match element {
+            PoolElement::Feature { feature, .. } => vec![feature],
+            PoolElement::List { elements, .. } => elements.iter().flat_map(placed_in).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    #[test]
+    fn every_placed_feature_a_built_in_names_is_one_the_pack_ships() {
+        let biomes = crate::biomes();
+        let pools = crate::template_pools();
+        let by_biomes = biomes
+            .values()
+            .flat_map(|biome| &biome.features)
+            .flat_map(|step| step.entries());
+        let by_pools = pools
+            .values()
+            .flat_map(|pool| &pool.elements)
+            .flat_map(|entry| placed_in(&entry.element));
+        for holder in by_biomes.chain(by_pools) {
+            let Holder::Reference(id) = holder else {
+                panic!("a built-in writes a placed feature inline");
+            };
+            assert!(shipped("placed_feature", id.namespace(), id.path()), "{id}");
         }
     }
 }

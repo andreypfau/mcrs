@@ -1,14 +1,26 @@
 use super::Piece::*;
-use super::{Pool, legacy, pool};
+use super::{Piece, Pool, legacy, pool};
 use crate::keys::{placed, processors};
+
+const STREETS: &[(Piece, i32)] = &[
+    (legacy("corner_").padded(1, 3, 2), 2),
+    (legacy("straight_").padded(1, 2, 2), 4),
+    (legacy("straight_").padded(3, 4, 2), 7),
+    (legacy("straight_05"), 3),
+    (legacy("straight_06"), 4),
+    (legacy("crossroad_01"), 2),
+    (legacy("crossroad_02"), 1),
+    (legacy("crossroad_").padded(3, 6, 2), 2),
+    (legacy("turn_01"), 3),
+];
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
     pool("village/plains/decor").dir("village/plains/").pieces(&[
         (legacy("plains_lamp_1"), 2),
-        (Feature(placed::OAK), 1),
-        (Feature(placed::FLOWER_PLAIN), 1),
-        (Feature(placed::PILE_HAY), 1),
+        (Feature(placed!("oak")), 1),
+        (Feature(placed!("flower_plain")), 1),
+        (Feature(placed!("pile_hay")), 1),
         (Empty, 2),
     ]),
     pool("village/plains/houses").fallback("village/plains/terminators").dir("village/plains/houses/").pieces(&[
@@ -42,17 +54,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("plains_meeting_point_5"), 1),
         (Empty, 10),
     ]),
-    pool("village/plains/streets").fallback("village/plains/terminators").terrain_matching().dir("village/plains/streets/").processors(processors::STREET_PLAINS).pieces(&[
-        (legacy("corner_").padded(1, 3, 2), 2),
-        (legacy("straight_").padded(1, 2, 2), 4),
-        (legacy("straight_").padded(3, 4, 2), 7),
-        (legacy("straight_05"), 3),
-        (legacy("straight_06"), 4),
-        (legacy("crossroad_01"), 2),
-        (legacy("crossroad_02"), 1),
-        (legacy("crossroad_").padded(3, 6, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/plains/streets").fallback("village/plains/terminators").terrain_matching().dir("village/plains/streets/").processors(processors::STREET_PLAINS).pieces(STREETS),
     pool("village/plains/terminators").terrain_matching().dir("village/plains/terminators/").processors(processors::STREET_PLAINS).pieces(&[(legacy("terminator_").padded(1, 4, 2), 1)]),
     pool("village/plains/town_centers").dir("village/plains/").pieces(&[
         (legacy("town_centers/plains_fountain_01").with(processors::MOSSIFY_20_PERCENT), 50),
@@ -62,7 +64,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("zombie/town_centers/plains_fountain_01").with(processors::ZOMBIE_PLAINS), 1),
         (legacy("zombie/town_centers/plains_meeting_point_").numbered(1, 3).with(processors::ZOMBIE_PLAINS), 1),
     ]),
-    pool("village/plains/trees").pieces(&[(Feature(placed::OAK), 1)]),
+    pool("village/plains/trees").pieces(&[(Feature(placed!("oak")), 1)]),
     pool("village/plains/villagers").dir("village/plains/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("baby"), 1),
@@ -70,9 +72,9 @@ pub const POOLS: &[Pool] = &[
     ]),
     pool("village/plains/zombie/decor").dir("village/plains/").processors(processors::ZOMBIE_PLAINS).pieces(&[
         (legacy("plains_lamp_1"), 1),
-        (Feature(placed::OAK), 1),
-        (Feature(placed::FLOWER_PLAIN), 1),
-        (Feature(placed::PILE_HAY), 1),
+        (Feature(placed!("oak")), 1),
+        (Feature(placed!("flower_plain")), 1),
+        (Feature(placed!("pile_hay")), 1),
         (Empty, 2),
     ]),
     pool("village/plains/zombie/houses").fallback("village/plains/terminators").dir("village/plains/").processors(processors::ZOMBIE_PLAINS).pieces(&[
@@ -105,17 +107,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("zombie/houses/plains_meeting_point_5"), 1),
         (Empty, 10),
     ]),
-    pool("village/plains/zombie/streets").fallback("village/plains/terminators").terrain_matching().dir("village/plains/zombie/streets/").processors(processors::STREET_PLAINS).pieces(&[
-        (legacy("corner_").padded(1, 3, 2), 2),
-        (legacy("straight_").padded(1, 2, 2), 4),
-        (legacy("straight_").padded(3, 4, 2), 7),
-        (legacy("straight_05"), 3),
-        (legacy("straight_06"), 4),
-        (legacy("crossroad_01"), 2),
-        (legacy("crossroad_02"), 1),
-        (legacy("crossroad_").padded(3, 6, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/plains/zombie/streets").fallback("village/plains/terminators").terrain_matching().dir("village/plains/zombie/streets/").processors(processors::STREET_PLAINS).pieces(STREETS),
     pool("village/plains/zombie/villagers").dir("village/plains/zombie/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("unemployed"), 10),

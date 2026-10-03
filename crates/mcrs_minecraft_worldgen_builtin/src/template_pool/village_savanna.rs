@@ -1,16 +1,32 @@
 use super::Piece::*;
-use super::{Pool, legacy, pool};
+use super::{Piece, Pool, legacy, pool};
 use crate::keys::{placed, processors};
+
+const STREETS: &[(Piece, i32)] = &[
+    (legacy("corner_01"), 2),
+    (legacy("corner_03"), 2),
+    (legacy("straight_02"), 4),
+    (legacy("straight_04"), 7),
+    (legacy("straight_05"), 3),
+    (legacy("straight_06"), 4),
+    (legacy("straight_").padded(8, 11, 2), 4),
+    (legacy("crossroad_02"), 1),
+    (legacy("crossroad_").padded(3, 7, 2), 2),
+    (legacy("split_").padded(1, 2, 2), 2),
+    (legacy("turn_01"), 3),
+];
+
+const DECOR: &[(Piece, i32)] = &[
+    (legacy("savanna_lamp_post_01"), 4),
+    (Feature(placed!("acacia")), 4),
+    (Feature(placed!("pile_hay")), 4),
+    (Feature(placed!("pile_melon")), 1),
+    (Empty, 4),
+];
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
-    pool("village/savanna/decor").dir("village/savanna/").pieces(&[
-        (legacy("savanna_lamp_post_01"), 4),
-        (Feature(placed::ACACIA), 4),
-        (Feature(placed::PILE_HAY), 4),
-        (Feature(placed::PILE_MELON), 1),
-        (Empty, 4),
-    ]),
+    pool("village/savanna/decor").dir("village/savanna/").pieces(DECOR),
     pool("village/savanna/houses").fallback("village/savanna/terminators").dir("village/savanna/houses/").pieces(&[
         (legacy("savanna_small_house_").numbered(1, 8), 2),
         (legacy("savanna_medium_house_").numbered(1, 2), 2),
@@ -33,19 +49,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("savanna_animal_pen_").numbered(1, 3), 2),
         (Empty, 5),
     ]),
-    pool("village/savanna/streets").fallback("village/savanna/terminators").terrain_matching().dir("village/savanna/streets/").processors(processors::STREET_SAVANNA).pieces(&[
-        (legacy("corner_01"), 2),
-        (legacy("corner_03"), 2),
-        (legacy("straight_02"), 4),
-        (legacy("straight_04"), 7),
-        (legacy("straight_05"), 3),
-        (legacy("straight_06"), 4),
-        (legacy("straight_").padded(8, 11, 2), 4),
-        (legacy("crossroad_02"), 1),
-        (legacy("crossroad_").padded(3, 7, 2), 2),
-        (legacy("split_").padded(1, 2, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/savanna/streets").fallback("village/savanna/terminators").terrain_matching().dir("village/savanna/streets/").processors(processors::STREET_SAVANNA).pieces(STREETS),
     pool("village/savanna/terminators").terrain_matching().dir("village/").processors(processors::STREET_SAVANNA).pieces(&[
         (legacy("plains/terminators/terminator_").padded(1, 4, 2), 1),
         (legacy("savanna/terminators/terminator_05"), 1),
@@ -58,19 +62,13 @@ pub const POOLS: &[Pool] = &[
         (legacy("zombie/town_centers/savanna_meeting_point_2").with(processors::ZOMBIE_SAVANNA), 1),
         (legacy("zombie/town_centers/savanna_meeting_point_").numbered(3, 4).with(processors::ZOMBIE_SAVANNA), 3),
     ]),
-    pool("village/savanna/trees").pieces(&[(Feature(placed::ACACIA), 1)]),
+    pool("village/savanna/trees").pieces(&[(Feature(placed!("acacia")), 1)]),
     pool("village/savanna/villagers").dir("village/savanna/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("baby"), 1),
         (legacy("unemployed"), 10),
     ]),
-    pool("village/savanna/zombie/decor").dir("village/savanna/").processors(processors::ZOMBIE_SAVANNA).pieces(&[
-        (legacy("savanna_lamp_post_01"), 4),
-        (Feature(placed::ACACIA), 4),
-        (Feature(placed::PILE_HAY), 4),
-        (Feature(placed::PILE_MELON), 1),
-        (Empty, 4),
-    ]),
+    pool("village/savanna/zombie/decor").dir("village/savanna/").processors(processors::ZOMBIE_SAVANNA).pieces(DECOR),
     pool("village/savanna/zombie/houses").fallback("village/savanna/zombie/terminators").dir("village/savanna/").processors(processors::ZOMBIE_SAVANNA).pieces(&[
         (legacy("zombie/houses/savanna_small_house_").numbered(1, 8), 2),
         (legacy("zombie/houses/savanna_medium_house_").numbered(1, 2), 2),
@@ -94,19 +92,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("zombie/houses/savanna_animal_pen_").numbered(2, 3), 2),
         (Empty, 5),
     ]),
-    pool("village/savanna/zombie/streets").fallback("village/savanna/zombie/terminators").terrain_matching().dir("village/savanna/zombie/streets/").processors(processors::STREET_SAVANNA).pieces(&[
-        (legacy("corner_01"), 2),
-        (legacy("corner_03"), 2),
-        (legacy("straight_02"), 4),
-        (legacy("straight_04"), 7),
-        (legacy("straight_05"), 3),
-        (legacy("straight_06"), 4),
-        (legacy("straight_").padded(8, 11, 2), 4),
-        (legacy("crossroad_02"), 1),
-        (legacy("crossroad_").padded(3, 7, 2), 2),
-        (legacy("split_").padded(1, 2, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/savanna/zombie/streets").fallback("village/savanna/zombie/terminators").terrain_matching().dir("village/savanna/zombie/streets/").processors(processors::STREET_SAVANNA).pieces(STREETS),
     pool("village/savanna/zombie/terminators").terrain_matching().dir("village/").processors(processors::STREET_SAVANNA).pieces(&[
         (legacy("plains/terminators/terminator_").padded(1, 4, 2), 1),
         (legacy("savanna/zombie/terminators/terminator_05"), 1),

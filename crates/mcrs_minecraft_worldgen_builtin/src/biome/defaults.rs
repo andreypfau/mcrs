@@ -3,89 +3,89 @@ use super::{Generation, Mobs, carver, placed};
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 macro_rules! feature_sets {
-    ($($name:ident => $($step:ident [$($key:ident),+])+;)*) => {$(
+    ($($name:ident => $($step:ident [$($key:literal),+])+;)*) => {$(
         pub fn $name(g: &mut Generation) {
-            $(g.features($step, &[$(placed::$key),+]);)+
+            $(g.features($step, &[$(placed!($key)),+]);)+
         }
     )*};
 }
 
 #[rustfmt::skip]
 feature_sets! {
-    default_monster_room => UndergroundStructures [MONSTER_ROOM, MONSTER_ROOM_DEEP];
-    sculk => UndergroundDecoration [SCULK_VEIN, SCULK_PATCH_DEEP_DARK];
-    extra_gold => UndergroundOres [ORE_GOLD_EXTRA];
-    extra_emeralds => UndergroundOres [ORE_EMERALD];
-    infested_stone => UndergroundDecoration [ORE_INFESTED];
-    default_soft_disks => UndergroundOres [DISK_SAND, DISK_CLAY, DISK_GRAVEL];
-    swamp_clay_disk => UndergroundOres [DISK_CLAY];
-    mangrove_swamp_disks => UndergroundOres [DISK_GRASS, DISK_CLAY];
-    mossy_stone_block => LocalModifications [FOREST_ROCK];
-    ferns => VegetalDecoration [PATCH_LARGE_FERN];
-    bushes => VegetalDecoration [PATCH_BUSH];
-    rare_berry_bushes => VegetalDecoration [PATCH_BERRY_RARE];
-    common_berry_bushes => VegetalDecoration [PATCH_BERRY_COMMON];
-    light_bamboo_vegetation => VegetalDecoration [BAMBOO_LIGHT];
-    bamboo_vegetation => VegetalDecoration [BAMBOO, BAMBOO_VEGETATION];
-    taiga_trees => VegetalDecoration [TREES_TAIGA];
-    grove_trees => VegetalDecoration [TREES_GROVE];
-    water_trees => VegetalDecoration [TREES_WATER];
-    birch_trees => VegetalDecoration [TREES_BIRCH];
-    other_birch_trees => VegetalDecoration [TREES_BIRCH_AND_OAK_LEAF_LITTER];
-    tall_birch_trees => VegetalDecoration [BIRCH_TALL];
-    birch_forest_flowers => VegetalDecoration [WILDFLOWERS_BIRCH_FOREST];
-    savanna_trees => VegetalDecoration [TREES_SAVANNA];
-    shattered_savanna_trees => VegetalDecoration [TREES_WINDSWEPT_SAVANNA];
-    lush_caves_vegetation_features => VegetalDecoration [LUSH_CAVES_CEILING_VEGETATION, CAVE_VINES, LUSH_CAVES_CLAY, LUSH_CAVES_VEGETATION, ROOTED_AZALEA_TREE, SPORE_BLOSSOM, CLASSIC_VINES_CAVE_FEATURE];
-    lush_caves_special_ores => UndergroundOres [ORE_CLAY];
-    mountain_trees => VegetalDecoration [TREES_WINDSWEPT_HILLS];
-    mountain_forest_trees => VegetalDecoration [TREES_WINDSWEPT_FOREST];
-    badlands_trees => VegetalDecoration [TREES_BADLANDS];
-    snowy_trees => VegetalDecoration [TREES_SNOWY];
-    jungle_grass => VegetalDecoration [PATCH_GRASS_JUNGLE];
-    savanna_grass => VegetalDecoration [PATCH_TALL_GRASS];
-    shattered_savanna_grass => VegetalDecoration [PATCH_GRASS_NORMAL];
-    savanna_extra_grass => VegetalDecoration [PATCH_GRASS_SAVANNA];
-    badland_grass => VegetalDecoration [PATCH_GRASS_BADLANDS, PATCH_DRY_GRASS_BADLANDS, PATCH_DEAD_BUSH_BADLANDS];
-    forest_flowers => VegetalDecoration [FOREST_FLOWERS];
-    forest_grass => VegetalDecoration [PATCH_GRASS_FOREST];
-    swamp_vegetation => VegetalDecoration [TREES_SWAMP, FLOWER_SWAMP, PATCH_GRASS_NORMAL, PATCH_DEAD_BUSH, PATCH_WATERLILY, BROWN_MUSHROOM_SWAMP, RED_MUSHROOM_SWAMP];
-    dappled_forest_vegetation => VegetalDecoration [BROWN_MUSHROOM_DAPPLED_FOREST, PATCH_RED_SHRUB];
-    mangrove_swamp_vegetation => VegetalDecoration [TREES_MANGROVE, PATCH_GRASS_NORMAL, PATCH_DEAD_BUSH, PATCH_WATERLILY];
-    mushroom_field_vegetation => VegetalDecoration [MUSHROOM_ISLAND_VEGETATION, BROWN_MUSHROOM_TAIGA, RED_MUSHROOM_TAIGA];
-    plain_vegetation => VegetalDecoration [TREES_PLAINS, FLOWER_PLAINS, PATCH_GRASS_PLAIN];
-    desert_vegetation => VegetalDecoration [PATCH_DRY_GRASS_DESERT, PATCH_DEAD_BUSH_2];
-    giant_taiga_vegetation => VegetalDecoration [PATCH_GRASS_TAIGA, PATCH_DEAD_BUSH, BROWN_MUSHROOM_OLD_GROWTH, RED_MUSHROOM_OLD_GROWTH];
-    default_flowers => VegetalDecoration [FLOWER_DEFAULT];
-    cherry_grove_vegetation => VegetalDecoration [PATCH_GRASS_PLAIN, FLOWER_CHERRY, TREES_CHERRY];
-    meadow_vegetation => VegetalDecoration [PATCH_GRASS_MEADOW, FLOWER_MEADOW, TREES_MEADOW, WILDFLOWERS_MEADOW];
-    warm_flowers => VegetalDecoration [FLOWER_WARM];
-    default_grass => VegetalDecoration [PATCH_GRASS_BADLANDS];
-    taiga_grass => VegetalDecoration [PATCH_GRASS_TAIGA_2, BROWN_MUSHROOM_TAIGA, RED_MUSHROOM_TAIGA];
-    plain_grass => VegetalDecoration [PATCH_TALL_GRASS_2];
-    default_mushrooms => VegetalDecoration [BROWN_MUSHROOM_NORMAL, RED_MUSHROOM_NORMAL];
-    near_water_vegetation => VegetalDecoration [PATCH_SUGAR_CANE, PATCH_FIREFLY_BUSH_NEAR_WATER];
-    leaf_litter_patch => VegetalDecoration [PATCH_LEAF_LITTER];
-    badland_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_BADLANDS, PATCH_PUMPKIN, PATCH_CACTUS_DECORATED, PATCH_FIREFLY_BUSH_NEAR_WATER];
-    jungle_vines => VegetalDecoration [VINES];
-    desert_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_DESERT, PATCH_PUMPKIN, PATCH_CACTUS_DESERT];
-    swamp_extra_vegetation => VegetalDecoration [PATCH_SUGAR_CANE_SWAMP, PATCH_PUMPKIN, PATCH_FIREFLY_BUSH_SWAMP, PATCH_FIREFLY_BUSH_NEAR_WATER_SWAMP];
-    mangrove_swamp_extra_vegetation => VegetalDecoration [SEAGRASS_SWAMP, PATCH_FIREFLY_BUSH_NEAR_WATER];
-    desert_extra_decoration => SurfaceStructures [DESERT_WELL];
-    fossil_decoration => UndergroundStructures [FOSSIL_UPPER, FOSSIL_LOWER];
-    cold_ocean_extra_vegetation => VegetalDecoration [KELP_COLD];
-    lukewarm_kelp => VegetalDecoration [KELP_WARM];
-    default_springs => FluidSprings [SPRING_WATER, SPRING_LAVA];
-    frozen_springs => FluidSprings [SPRING_LAVA_FROZEN];
-    icebergs => LocalModifications [ICEBERG_PACKED, ICEBERG_BLUE];
-    blue_ice => SurfaceStructures [BLUE_ICE];
-    surface_freezing => TopLayerModification [FREEZE_TOP_LAYER];
-    ancient_debris => UndergroundDecoration [ORE_ANCIENT_DEBRIS_LARGE, ORE_DEBRIS_SMALL];
-    default_crystal_formations => LocalModifications [AMETHYST_GEODE];
-    pumpkin_patches => VegetalDecoration [PATCH_PUMPKIN];
-    default_underground_variety => UndergroundOres [ORE_DIRT, ORE_GRAVEL, ORE_GRANITE_UPPER, ORE_GRANITE_LOWER, ORE_DIORITE_UPPER, ORE_DIORITE_LOWER, ORE_ANDESITE_UPPER, ORE_ANDESITE_LOWER, ORE_TUFF] VegetalDecoration [GLOW_LICHEN];
-    dripstone => LocalModifications [LARGE_DRIPSTONE] UndergroundDecoration [DRIPSTONE_CLUSTER, POINTED_DRIPSTONE];
-    sulfur_caves_features => Lakes [ROOTED_SULFUR_SPRING, SULFUR_POOL] UndergroundDecoration [SULFUR_SPIKE_CLUSTER, SULFUR_SPIKE];
+    default_monster_room => UndergroundStructures ["monster_room", "monster_room_deep"];
+    sculk => UndergroundDecoration ["sculk_vein", "sculk_patch_deep_dark"];
+    extra_gold => UndergroundOres ["ore_gold_extra"];
+    extra_emeralds => UndergroundOres ["ore_emerald"];
+    infested_stone => UndergroundDecoration ["ore_infested"];
+    default_soft_disks => UndergroundOres ["disk_sand", "disk_clay", "disk_gravel"];
+    swamp_clay_disk => UndergroundOres ["disk_clay"];
+    mangrove_swamp_disks => UndergroundOres ["disk_grass", "disk_clay"];
+    mossy_stone_block => LocalModifications ["forest_rock"];
+    ferns => VegetalDecoration ["patch_large_fern"];
+    bushes => VegetalDecoration ["patch_bush"];
+    rare_berry_bushes => VegetalDecoration ["patch_berry_rare"];
+    common_berry_bushes => VegetalDecoration ["patch_berry_common"];
+    light_bamboo_vegetation => VegetalDecoration ["bamboo_light"];
+    bamboo_vegetation => VegetalDecoration ["bamboo", "bamboo_vegetation"];
+    taiga_trees => VegetalDecoration ["trees_taiga"];
+    grove_trees => VegetalDecoration ["trees_grove"];
+    water_trees => VegetalDecoration ["trees_water"];
+    birch_trees => VegetalDecoration ["trees_birch"];
+    other_birch_trees => VegetalDecoration ["trees_birch_and_oak_leaf_litter"];
+    tall_birch_trees => VegetalDecoration ["birch_tall"];
+    birch_forest_flowers => VegetalDecoration ["wildflowers_birch_forest"];
+    savanna_trees => VegetalDecoration ["trees_savanna"];
+    shattered_savanna_trees => VegetalDecoration ["trees_windswept_savanna"];
+    lush_caves_vegetation_features => VegetalDecoration ["lush_caves_ceiling_vegetation", "cave_vines", "lush_caves_clay", "lush_caves_vegetation", "rooted_azalea_tree", "spore_blossom", "classic_vines_cave_feature"];
+    lush_caves_special_ores => UndergroundOres ["ore_clay"];
+    mountain_trees => VegetalDecoration ["trees_windswept_hills"];
+    mountain_forest_trees => VegetalDecoration ["trees_windswept_forest"];
+    badlands_trees => VegetalDecoration ["trees_badlands"];
+    snowy_trees => VegetalDecoration ["trees_snowy"];
+    jungle_grass => VegetalDecoration ["patch_grass_jungle"];
+    savanna_grass => VegetalDecoration ["patch_tall_grass"];
+    shattered_savanna_grass => VegetalDecoration ["patch_grass_normal"];
+    savanna_extra_grass => VegetalDecoration ["patch_grass_savanna"];
+    badland_grass => VegetalDecoration ["patch_grass_badlands", "patch_dry_grass_badlands", "patch_dead_bush_badlands"];
+    forest_flowers => VegetalDecoration ["forest_flowers"];
+    forest_grass => VegetalDecoration ["patch_grass_forest"];
+    swamp_vegetation => VegetalDecoration ["trees_swamp", "flower_swamp", "patch_grass_normal", "patch_dead_bush", "patch_waterlily", "brown_mushroom_swamp", "red_mushroom_swamp"];
+    dappled_forest_vegetation => VegetalDecoration ["brown_mushroom_dappled_forest", "patch_red_shrub"];
+    mangrove_swamp_vegetation => VegetalDecoration ["trees_mangrove", "patch_grass_normal", "patch_dead_bush", "patch_waterlily"];
+    mushroom_field_vegetation => VegetalDecoration ["mushroom_island_vegetation", "brown_mushroom_taiga", "red_mushroom_taiga"];
+    plain_vegetation => VegetalDecoration ["trees_plains", "flower_plains", "patch_grass_plain"];
+    desert_vegetation => VegetalDecoration ["patch_dry_grass_desert", "patch_dead_bush_2"];
+    giant_taiga_vegetation => VegetalDecoration ["patch_grass_taiga", "patch_dead_bush", "brown_mushroom_old_growth", "red_mushroom_old_growth"];
+    default_flowers => VegetalDecoration ["flower_default"];
+    cherry_grove_vegetation => VegetalDecoration ["patch_grass_plain", "flower_cherry", "trees_cherry"];
+    meadow_vegetation => VegetalDecoration ["patch_grass_meadow", "flower_meadow", "trees_meadow", "wildflowers_meadow"];
+    warm_flowers => VegetalDecoration ["flower_warm"];
+    default_grass => VegetalDecoration ["patch_grass_badlands"];
+    taiga_grass => VegetalDecoration ["patch_grass_taiga_2", "brown_mushroom_taiga", "red_mushroom_taiga"];
+    plain_grass => VegetalDecoration ["patch_tall_grass_2"];
+    default_mushrooms => VegetalDecoration ["brown_mushroom_normal", "red_mushroom_normal"];
+    near_water_vegetation => VegetalDecoration ["patch_sugar_cane", "patch_firefly_bush_near_water"];
+    leaf_litter_patch => VegetalDecoration ["patch_leaf_litter"];
+    badland_extra_vegetation => VegetalDecoration ["patch_sugar_cane_badlands", "patch_pumpkin", "patch_cactus_decorated", "patch_firefly_bush_near_water"];
+    jungle_vines => VegetalDecoration ["vines"];
+    desert_extra_vegetation => VegetalDecoration ["patch_sugar_cane_desert", "patch_pumpkin", "patch_cactus_desert"];
+    swamp_extra_vegetation => VegetalDecoration ["patch_sugar_cane_swamp", "patch_pumpkin", "patch_firefly_bush_swamp", "patch_firefly_bush_near_water_swamp"];
+    mangrove_swamp_extra_vegetation => VegetalDecoration ["seagrass_swamp", "patch_firefly_bush_near_water"];
+    desert_extra_decoration => SurfaceStructures ["desert_well"];
+    fossil_decoration => UndergroundStructures ["fossil_upper", "fossil_lower"];
+    cold_ocean_extra_vegetation => VegetalDecoration ["kelp_cold"];
+    lukewarm_kelp => VegetalDecoration ["kelp_warm"];
+    default_springs => FluidSprings ["spring_water", "spring_lava"];
+    frozen_springs => FluidSprings ["spring_lava_frozen"];
+    icebergs => LocalModifications ["iceberg_packed", "iceberg_blue"];
+    blue_ice => SurfaceStructures ["blue_ice"];
+    surface_freezing => TopLayerModification ["freeze_top_layer"];
+    ancient_debris => UndergroundDecoration ["ore_ancient_debris_large", "ore_debris_small"];
+    default_crystal_formations => LocalModifications ["amethyst_geode"];
+    pumpkin_patches => VegetalDecoration ["patch_pumpkin"];
+    default_underground_variety => UndergroundOres ["ore_dirt", "ore_gravel", "ore_granite_upper", "ore_granite_lower", "ore_diorite_upper", "ore_diorite_lower", "ore_andesite_upper", "ore_andesite_lower", "ore_tuff"] VegetalDecoration ["glow_lichen"];
+    dripstone => LocalModifications ["large_dripstone"] UndergroundDecoration ["dripstone_cluster", "pointed_dripstone"];
+    sulfur_caves_features => Lakes ["rooted_sulfur_spring", "sulfur_pool"] UndergroundDecoration ["sulfur_spike_cluster", "sulfur_spike"];
 }
 
 macro_rules! set_groups {
@@ -106,39 +106,42 @@ pub fn default_carvers_and_lakes(g: &mut Generation) {
     default_carvers(g);
     g.features(
         Lakes,
-        &[placed::LAKE_LAVA_UNDERGROUND, placed::LAKE_LAVA_SURFACE],
+        &[
+            placed!("lake_lava_underground"),
+            placed!("lake_lava_surface"),
+        ],
     );
 }
 
 pub fn default_ores(g: &mut Generation) {
-    ores(g, placed::ORE_COPPER);
+    ores(g, placed!("ore_copper"));
 }
 
 pub fn default_ores_with_large_copper_blobs(g: &mut Generation) {
-    ores(g, placed::ORE_COPPER_LARGE);
+    ores(g, placed!("ore_copper_large"));
 }
 
 fn ores(g: &mut Generation, copper: crate::keys::PlacedKey) {
     g.features(
         UndergroundOres,
         &[
-            placed::ORE_COAL_UPPER,
-            placed::ORE_COAL_LOWER,
-            placed::ORE_IRON_UPPER,
-            placed::ORE_IRON_MIDDLE,
-            placed::ORE_IRON_SMALL,
-            placed::ORE_GOLD,
-            placed::ORE_GOLD_LOWER,
-            placed::ORE_REDSTONE,
-            placed::ORE_REDSTONE_LOWER,
-            placed::ORE_DIAMOND,
-            placed::ORE_DIAMOND_MEDIUM,
-            placed::ORE_DIAMOND_LARGE,
-            placed::ORE_DIAMOND_BURIED,
-            placed::ORE_LAPIS,
-            placed::ORE_LAPIS_BURIED,
+            placed!("ore_coal_upper"),
+            placed!("ore_coal_lower"),
+            placed!("ore_iron_upper"),
+            placed!("ore_iron_middle"),
+            placed!("ore_iron_small"),
+            placed!("ore_gold"),
+            placed!("ore_gold_lower"),
+            placed!("ore_redstone"),
+            placed!("ore_redstone_lower"),
+            placed!("ore_diamond"),
+            placed!("ore_diamond_medium"),
+            placed!("ore_diamond_large"),
+            placed!("ore_diamond_buried"),
+            placed!("ore_lapis"),
+            placed!("ore_lapis_buried"),
             copper,
-            placed::UNDERWATER_MAGMA,
+            placed!("underwater_magma"),
         ],
     );
 }
@@ -147,10 +150,10 @@ pub fn nether_default_ores(g: &mut Generation) {
     g.features(
         UndergroundDecoration,
         &[
-            placed::ORE_GRAVEL_NETHER,
-            placed::ORE_BLACKSTONE,
-            placed::ORE_GOLD_NETHER,
-            placed::ORE_QUARTZ_NETHER,
+            placed!("ore_gravel_nether"),
+            placed!("ore_blackstone"),
+            placed!("ore_gold_nether"),
+            placed!("ore_quartz_nether"),
         ],
     );
     ancient_debris(g);

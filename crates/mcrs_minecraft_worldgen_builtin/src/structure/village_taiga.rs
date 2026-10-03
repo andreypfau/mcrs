@@ -6,6 +6,7 @@ const PURPLE_BED: &str = "minecraft:purple_bed";
 
 const PLANKS: &str = "minecraft:spruce_planks";
 const SPRUCE_LOG: &str = "minecraft:spruce_log";
+const TRAPDOOR: &str = "minecraft:spruce_trapdoor";
 const STEP_SOUTH: &str = "minecraft:cobblestone_stairs[facing=south]";
 const STEP_EAST: &str = "minecraft:cobblestone_stairs[facing=east]";
 
@@ -48,20 +49,12 @@ kit! {
     grindstone: block("minecraft:grindstone[face=floor,facing=south]"),
 }
 
-/// An open trapdoor hanging on the block behind it, hinged at `half`.
 fn trapdoor(facing: Direction, half: &str) -> Cell {
-    block(&format!(
-        "minecraft:spruce_trapdoor[facing={},half={half},open=true,powered=false,waterlogged=false]",
-        facing.name()
-    ))
+    super::trapdoor(TRAPDOOR, facing, half, true)
 }
 
-/// A trapdoor lying shut in the `half` of its cell.
 fn shut_trapdoor(facing: Direction, half: &str) -> Cell {
-    block(&format!(
-        "minecraft:spruce_trapdoor[facing={},half={half},open=false,powered=false,waterlogged=false]",
-        facing.name()
-    ))
+    super::trapdoor(TRAPDOOR, facing, half, false)
 }
 
 /// A cobblestone wall post joined to the sides in `low` and in `tall`.
@@ -167,8 +160,8 @@ fn gate_posts(c: &mut Canvas, v: Village, height: i32, living: &Cell) {
     }
 }
 
-/// The 5x5 room of the second and third small houses under a log roof: a
-/// door on the north, a shuttered window in each other wall.
+/// A 5x5 room under a log roof: a door on the north, a shuttered window in
+/// each other wall.
 fn cottage(c: &mut Canvas, v: Village, post: &Cell, floor: &str) {
     c.walls(&S.cobble, post, [1, 0, 1], [5, 3, 5]);
     c.solid(&block(floor), [2, 0, 2], [4, 0, 4]);
@@ -611,17 +604,12 @@ fn taiga_armorer_house_1(c: &mut Canvas) {
 }
 
 fn taiga_butcher_shop_1(c: &mut Canvas) {
-    let slab = |kind: &str| {
-        block(&format!(
-            "minecraft:smooth_stone_slab[type={kind},waterlogged=false]"
-        ))
-    };
     c.boxes(&S.cobble, &[([1, 0, 1], [9, 0, 4]), ([1, 0, 5], [5, 0, 6])]);
     c.solid(&S.cobble, [2, 0, 7], [4, 0, 7]);
     c.boxes(&K.log, &[([2, 0, 3], [4, 0, 5]), ([3, 0, 2], [4, 0, 2])]);
-    c.solid(&slab("top"), [5, 0, 2], [8, 0, 3]);
-    c.solid(&slab("double"), [8, 1, 2], [8, 1, 3]);
-    c.place(&slab("double"), 7, 0, 2);
+    c.solid(&smooth_slab("top"), [5, 0, 2], [8, 0, 3]);
+    c.solid(&smooth_slab("double"), [8, 1, 2], [8, 1, 3]);
+    c.place(&smooth_slab("double"), 7, 0, 2);
     c.solid(&stairs(COBBLE_STAIRS, North), [2, 0, 8], [3, 0, 8]);
 
     c.solid(&S.grass, [6, 0, 5], [9, 0, 7]);
@@ -1505,7 +1493,7 @@ fn meeting_point_2(c: &mut Canvas, v: Village) {
     c.fill(&S.path, 3..=5, 1, [0, 8]);
     c.fill(&S.path, [0, 8], 1, 3..=5);
     for [x, z] in ends {
-        c.street_end([x, 2, z], &v.pool("streets"));
+        street_end(c, [x, 2, z], &v.pool("streets"));
     }
 
     let falling = block("minecraft:water[level=8]");

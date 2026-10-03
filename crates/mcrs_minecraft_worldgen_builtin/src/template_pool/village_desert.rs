@@ -1,16 +1,27 @@
 use super::Piece::*;
-use super::{Pool, legacy, pool};
+use super::{Piece, Pool, legacy, pool};
 use crate::keys::{placed, processors};
+
+const STREETS: &[(Piece, i32)] = &[
+    (legacy("corner_").padded(1, 2, 2), 3),
+    (legacy("straight_").padded(1, 2, 2), 4),
+    (legacy("straight_03"), 3),
+    (legacy("crossroad_").padded(1, 3, 2), 3),
+    (legacy("square_").padded(1, 2, 2), 3),
+    (legacy("turn_01"), 3),
+];
+
+const DECOR: &[(Piece, i32)] = &[
+    (legacy("desert_lamp_1"), 10),
+    (Feature(placed!("patch_cactus")), 4),
+    (Feature(placed!("pile_hay")), 4),
+    (Empty, 10),
+];
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
     pool("village/desert/camel").dir("village/desert/").pieces(&[(legacy("camel_spawn"), 1)]),
-    pool("village/desert/decor").dir("village/desert/").pieces(&[
-        (legacy("desert_lamp_1"), 10),
-        (Feature(placed::PATCH_CACTUS), 4),
-        (Feature(placed::PILE_HAY), 4),
-        (Empty, 10),
-    ]),
+    pool("village/desert/decor").dir("village/desert/").pieces(DECOR),
     pool("village/desert/houses").fallback("village/desert/terminators").dir("village/desert/houses/").pieces(&[
         (legacy("desert_small_house_").numbered(1, 5), 2),
         (legacy("desert_small_house_6"), 1),
@@ -33,14 +44,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("desert_animal_pen_").numbered(1, 2), 2),
         (Empty, 5),
     ]),
-    pool("village/desert/streets").fallback("village/desert/terminators").terrain_matching().dir("village/desert/streets/").pieces(&[
-        (legacy("corner_").padded(1, 2, 2), 3),
-        (legacy("straight_").padded(1, 2, 2), 4),
-        (legacy("straight_03"), 3),
-        (legacy("crossroad_").padded(1, 3, 2), 3),
-        (legacy("square_").padded(1, 2, 2), 3),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/desert/streets").fallback("village/desert/terminators").terrain_matching().dir("village/desert/streets/").pieces(STREETS),
     pool("village/desert/terminators").terrain_matching().dir("village/desert/terminators/").pieces(&[(legacy("terminator_").padded(1, 2, 2), 1)]),
     pool("village/desert/town_centers").dir("village/desert/").pieces(&[
         (legacy("town_centers/desert_meeting_point_").numbered(1, 2), 98),
@@ -53,12 +57,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("baby"), 1),
         (legacy("unemployed"), 10),
     ]),
-    pool("village/desert/zombie/decor").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(&[
-        (legacy("desert_lamp_1"), 10),
-        (Feature(placed::PATCH_CACTUS), 4),
-        (Feature(placed::PILE_HAY), 4),
-        (Empty, 10),
-    ]),
+    pool("village/desert/zombie/decor").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(DECOR),
     pool("village/desert/zombie/houses").fallback("village/desert/zombie/terminators").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(&[
         (legacy("zombie/houses/desert_small_house_").numbered(1, 5), 2),
         (legacy("zombie/houses/desert_small_house_6"), 1),
@@ -81,14 +80,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("houses/desert_animal_pen_").numbered(1, 2), 2),
         (Empty, 5),
     ]),
-    pool("village/desert/zombie/streets").fallback("village/desert/zombie/terminators").terrain_matching().dir("village/desert/zombie/streets/").pieces(&[
-        (legacy("corner_").padded(1, 2, 2), 3),
-        (legacy("straight_").padded(1, 2, 2), 4),
-        (legacy("straight_03"), 3),
-        (legacy("crossroad_").padded(1, 3, 2), 3),
-        (legacy("square_").padded(1, 2, 2), 3),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/desert/zombie/streets").fallback("village/desert/zombie/terminators").terrain_matching().dir("village/desert/zombie/streets/").pieces(STREETS),
     pool("village/desert/zombie/terminators").terrain_matching().dir("village/desert/").pieces(&[
         (legacy("terminators/terminator_01"), 1),
         (legacy("zombie/terminators/terminator_02"), 1),

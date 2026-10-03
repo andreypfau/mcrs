@@ -8,6 +8,7 @@ const SPRUCE_STEP: &str = "minecraft:spruce_stairs[facing=east]";
 const SNOW_BLOCK: &str = "minecraft:snow_block";
 const PLANKS: &str = "minecraft:spruce_planks";
 const FENCE: &str = "minecraft:spruce_fence";
+const GATE: &str = "minecraft:spruce_fence_gate";
 const LOG: &str = "minecraft:stripped_spruce_log";
 const WOOD: &str = "minecraft:stripped_spruce_wood";
 
@@ -90,13 +91,6 @@ fn drifts(c: &mut Canvas, piles: &[[i32; 4]]) {
     }
 }
 
-fn gate(facing: Direction) -> Cell {
-    block(&format!(
-        "minecraft:spruce_fence_gate[facing={},in_wall=false,open=false,powered=false]",
-        facing.name()
-    ))
-}
-
 /// A fence joined to `sides` whatever stands next to it.
 fn fence(sides: &[Direction]) -> Cell {
     fence_joined("minecraft:spruce_fence", sides)
@@ -130,33 +124,6 @@ fn corner_01(c: &mut Canvas, v: Village) {
     houses(c, v, East, 4, [6, 6]);
     decorations(c, v, GRASS, &[[1, 1], [6, 3], [1, 6], [9, 9], [4, 12]]);
     c.spot([1, 0, 10], CATS, GRASS);
-}
-
-fn corner_02(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[1, 0], [15, 14]]);
-    path(c, Z, 1, [0, 12]);
-    c.solid(&S.path, [1, 0, 13], [15, 0, 14]);
-    c.solid(&S.path, [3, 0, 15], [15, 0, 15]);
-    c.place(&S.path, 9, 0, 12);
-    houses(c, v, North, 12, [9, 9]);
-}
-
-fn corner_03(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[3, 1], [1, 3]]);
-    for z in 0..3 {
-        c.solid(&S.path, [2 - z, 0, z], [3, 0, z]);
-    }
-    c.solid(&S.path, [0, 0, 3], [2, 0, 3]);
-}
-
-fn crossroad_01(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[8, 0], [15, 8], [8, 15]]);
-    path(c, Z, 8, [0, 15]);
-    path(c, X, 8, [7, 15]);
-    houses(c, v, West, 7, [3, 7]);
-    houses(c, v, West, 7, [11, 12]);
-    houses(c, v, East, 9, [3, 4]);
-    decorations(c, v, DIRT, &[[13, 12]]);
 }
 
 fn crossroad_02(c: &mut Canvas, v: Village) {
@@ -204,23 +171,6 @@ fn crossroad_03(c: &mut Canvas, v: Village) {
     }
 }
 
-fn crossroad_04(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[2, 0], [0, 2], [2, 4]]);
-    path(c, Z, 2, [0, 4]);
-    c.solid(&S.path, [0, 0, 1], [0, 0, 3]);
-}
-
-fn crossroad_05_of(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[2, 0], [0, 2], [4, 2], [2, 4]]);
-    path(c, Z, 2, [0, 4]);
-    path(c, X, 2, [0, 4]);
-}
-
-fn crossroad_06(c: &mut Canvas, v: Village) {
-    crossroad_05_of(c, v);
-    decorations(c, v, GRASS, &[[2, 2]]);
-}
-
 fn square_01(c: &mut Canvas, v: Village) {
     let path = [
         17, 19, 0, 16, 19, 1, 13, 18, 2, 12, 17, 3, 11, 17, 4, 11, 17, 5, 11, 17, 6, 12, 16, 7, 13,
@@ -235,60 +185,25 @@ fn square_01(c: &mut Canvas, v: Village) {
     decorations(c, v, NOTHING, &[[19, 2]]);
 }
 
-fn straight_01(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[7, 0], [7, 15]]);
-    path(c, Z, 7, [0, 15]);
-    decorations(c, v, GRASS, &[[12, 4], [11, 6], [4, 7], [2, 13], [11, 13]]);
-}
-
-/// A street along the west edge, `length` long, with places for houses on
-/// its east side over `sockets`.
-fn straight_with_houses(c: &mut Canvas, v: Village, length: i32, sockets: [i32; 2]) {
-    street_ends(c, v, &[[1, 0], [1, length - 1]]);
-    path(c, Z, 1, [0, length - 1]);
-    houses(c, v, East, 2, sockets);
-}
-
 fn straight_03(c: &mut Canvas, v: Village) {
-    straight_with_houses(c, v, 11, [3, 7]);
+    village_plains::straight_with_houses(c, v, 11, [3, 7]);
     decorations(c, v, GRASS, &[[0, 2], [0, 8]]);
 }
 
 fn straight_04(c: &mut Canvas, v: Village) {
     c.jigsaw_layer(1);
-    straight_with_houses(c, v, 9, [4, 4]);
+    village_plains::straight_with_houses(c, v, 9, [4, 4]);
     decorations(c, v, GRASS, &[[0, 3]]);
     c.spot([1, 0, 6], CATS, PATH);
 }
 
-fn straight_06(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[8, 0], [9, 17]]);
-    path(c, Z, 8, [0, 5]);
-    path(c, Z, 9, [6, 17]);
-    houses(c, v, West, 7, [3, 4]);
-    houses(c, v, East, 9, [2, 4]);
-    for range in [[8, 9], [14, 15]] {
-        houses(c, v, West, 8, range);
-    }
-    houses(c, v, East, 10, [8, 10]);
-    houses(c, v, East, 10, [14, 15]);
-    decorations(c, v, DIRT, &[[8, 3]]);
-    decorations(c, v, GRASS, &[[9, 9], [9, 15]]);
-}
-
 fn straight_08(c: &mut Canvas, v: Village) {
-    straight_with_houses(c, v, 17, [7, 10]);
+    village_plains::straight_with_houses(c, v, 17, [7, 10]);
     decorations(c, v, GRASS, &[[1, 3], [1, 13]]);
 }
 
 fn turn_01(c: &mut Canvas, v: Village) {
-    street_ends(c, v, &[[5, 0], [8, 7]]);
-    for z in 0..3 {
-        path(c, Z, 5 + z, [z, z]);
-    }
-    path(c, Z, 8, [3, 7]);
-    houses(c, v, East, 9, [4, 4]);
-    houses(c, v, West, 7, [6, 6]);
+    village_plains::turn_01_of(c, v);
     decorations(c, v, GRASS, &[[8, 1]]);
 }
 
@@ -312,8 +227,8 @@ fn small_house_1(c: &mut Canvas, v: Village) {
     c.snow_on(&["soil"]);
 }
 
-/// The cottage three buildings share: a wooden room under a steep roof, its
-/// door on the north, and `oven` in the far corner under a cobblestone flue.
+/// A wooden room under a steep roof, its door on the north, and `oven` in the
+/// far corner under a cobblestone flue.
 fn steep_cottage(c: &mut Canvas, oven: &str) {
     c.walls(&K.wood, &K.wood, [1, 0, 1], [5, 2, 5]);
     c.fill(&K.wood_x, [1, 5], 2, 2..=4);
@@ -1616,7 +1531,13 @@ fn snowy_animal_pen_1(c: &mut Canvas) {
     c.void([0, 4, 0], [7, 5, 8]);
     c.solid(&GROUND, [2, 0, 3], [6, 0, 7]);
     c.walls(&K.log, &K.log, [1, 0, 2], [7, 0, 8]);
-    c.fence_ring(&S.spruce_fence, &gate(East), [1, 1, 2], [7, 8], &[[1, 5]]);
+    c.fence_ring(
+        &S.spruce_fence,
+        &gate(GATE, East),
+        [1, 1, 2],
+        [7, 8],
+        &[[1, 5]],
+    );
     for z in [4, 6] {
         c.torch_post(&S.spruce_fence, [1, 1, z], 2);
     }
@@ -1660,7 +1581,7 @@ fn snowy_animal_pen_2(c: &mut Canvas) {
         &[([0, 1, 3], [0, 1, 7]), ([8, 1, 3], [8, 1, 7])],
     );
     c.solid(&S.spruce_fence, [1, 1, 7], [7, 1, 7]);
-    c.place(&gate(South), 5, 1, 0);
+    c.place(&gate(GATE, South), 5, 1, 0);
     c.place(&fence(&[East, South]), 4, 1, 0);
     c.place(&K.lantern, 8, 2, 7);
     c.entrance([3, 1, 0], EMPTY, NOTHING);
@@ -1739,20 +1660,20 @@ templates! {
         "houses/snowy_small_house_6" [7, 9, 7] small_house_6;
         "houses/snowy_small_house_7" [6, 7, 7] small_house_7;
         "streets/corner_01" [13, 2, 16] corner_01;
-        "streets/corner_02" [16, 2, 16] corner_02;
-        "streets/corner_03" [4, 2, 4] corner_03;
-        "streets/crossroad_01" [16, 2, 16] crossroad_01;
+        "streets/corner_02" [16, 2, 16] village_plains::corner_02_of;
+        "streets/corner_03" [4, 2, 4] village_plains::corner_03_of;
+        "streets/crossroad_01" [16, 2, 16] village_plains::crossroad_01_of;
         "streets/crossroad_02" [16, 2, 16] crossroad_02;
         "streets/crossroad_03" [16, 2, 17] crossroad_03;
-        "streets/crossroad_04" [4, 2, 5] crossroad_04;
-        "streets/crossroad_05" [5, 2, 5] crossroad_05_of;
-        "streets/crossroad_06" [5, 2, 5] crossroad_06;
+        "streets/crossroad_04" [4, 2, 5] village_plains::crossroad_04_of;
+        "streets/crossroad_05" [5, 2, 5] village_plains::crossroad_05_of;
+        "streets/crossroad_06" [5, 2, 5] village_plains::crossroad_06_of;
         "streets/square_01" [20, 2, 17] square_01;
-        "streets/straight_01" [16, 2, 16] straight_01;
-        "streets/straight_02" [16, 2, 16] |c, v| straight_with_houses(c, v, 16, [8, 8]);
+        "streets/straight_01" [16, 2, 16] village_plains::straight_01_of;
+        "streets/straight_02" [16, 2, 16] |c, v| village_plains::straight_with_houses(c, v, 16, [8, 8]);
         "streets/straight_03" [13, 2, 11] straight_03;
         "streets/straight_04" [11, 2, 9] straight_04;
-        "streets/straight_06" [21, 2, 18] straight_06;
+        "streets/straight_06" [21, 2, 18] village_plains::straight_06_of;
         "streets/straight_08" [16, 2, 17] straight_08;
         "streets/turn_01" [18, 2, 8] turn_01;
         "town_centers/snowy_meeting_point_1" [12, 8, 8] meeting_point_1;

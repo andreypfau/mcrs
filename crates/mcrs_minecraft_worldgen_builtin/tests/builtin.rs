@@ -117,10 +117,10 @@ fn every_template_reads_back_from_the_bytes_it_is_served_as() {
     assert!(builtin::asset("minecraft/structure/igloo/top.nbt").is_none());
 }
 
-fn digest(folder: &str) -> String {
+fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
-    for (id, bytes) in builtin::assets(folder) {
+    for (id, bytes) in entries {
         hasher.update(id.as_str());
         hasher.update([0]);
         hasher.update(&bytes);
@@ -136,13 +136,22 @@ fn digest(folder: &str) -> String {
 /// encoding itself, which matched the game's files entry for entry when the
 /// files were removed, so a change to a description shows here.
 #[test]
-fn the_biomes_and_template_pools_are_the_ones_that_matched_the_game() {
+fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() {
     assert_eq!(
-        digest("biome"),
+        digest(builtin::assets("biome")),
         "f4812ebae49ea10e97ff9b40caa24de7507e0db5285501fb3cc4420c8530ae0f"
     );
     assert_eq!(
-        digest("template_pool"),
+        digest(builtin::assets("template_pool")),
         "f13af32a6f2766c69986cd799dcf0ee948023bf3592ca34c1a15d062a7620f2d"
+    );
+    let templates = builtin::templates().into_iter().map(|(id, template)| {
+        let mut nbt = Vec::new();
+        mcrs_minecraft_nbt::to_bytes(&template, &mut nbt).unwrap();
+        (id, nbt)
+    });
+    assert_eq!(
+        digest(templates),
+        "2cca7eff3d5c0fd69e04a71961f2459c37f0f37a56bd94c9f7ceef4bac222410"
     );
 }

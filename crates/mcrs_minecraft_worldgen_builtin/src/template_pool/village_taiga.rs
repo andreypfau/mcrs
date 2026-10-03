@@ -1,6 +1,16 @@
 use super::Piece::*;
-use super::{Pool, legacy, pool};
+use super::{Piece, Pool, legacy, pool};
 use crate::keys::{placed, processors};
+
+const STREETS: &[(Piece, i32)] = &[
+    (legacy("corner_").padded(1, 3, 2), 2),
+    (legacy("straight_").padded(1, 3, 2), 4),
+    (legacy("straight_").padded(4, 5, 2), 7),
+    (legacy("straight_06"), 4),
+    (legacy("crossroad_").padded(1, 2, 2), 1),
+    (legacy("crossroad_").padded(3, 6, 2), 2),
+    (legacy("turn_01"), 3),
+];
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -10,11 +20,11 @@ pub const POOLS: &[Pool] = &[
         (legacy("taiga_decoration_").numbered(2, 4), 1),
         (legacy("taiga_decoration_5"), 2),
         (legacy("taiga_decoration_6"), 1),
-        (Feature(placed::SPRUCE), 4),
-        (Feature(placed::PINE), 4),
-        (Feature(placed::PILE_PUMPKIN), 2),
-        (Feature(placed::PATCH_TAIGA_GRASS), 4),
-        (Feature(placed::PATCH_BERRY_BUSH), 1),
+        (Feature(placed!("spruce")), 4),
+        (Feature(placed!("pine")), 4),
+        (Feature(placed!("pile_pumpkin")), 2),
+        (Feature(placed!("patch_taiga_grass")), 4),
+        (Feature(placed!("patch_berry_bush")), 1),
         (Empty, 4),
     ]),
     pool("village/taiga/houses").fallback("village/taiga/terminators").dir("village/taiga/houses/").pieces(&[
@@ -38,15 +48,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("taiga_animal_pen_1").with(processors::MOSSIFY_10_PERCENT), 2),
         (Empty, 6),
     ]),
-    pool("village/taiga/streets").fallback("village/taiga/terminators").terrain_matching().dir("village/taiga/streets/").processors(processors::STREET_SNOWY_OR_TAIGA).pieces(&[
-        (legacy("corner_").padded(1, 3, 2), 2),
-        (legacy("straight_").padded(1, 3, 2), 4),
-        (legacy("straight_").padded(4, 5, 2), 7),
-        (legacy("straight_06"), 4),
-        (legacy("crossroad_").padded(1, 2, 2), 1),
-        (legacy("crossroad_").padded(3, 6, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/taiga/streets").fallback("village/taiga/terminators").terrain_matching().dir("village/taiga/streets/").processors(processors::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
     pool("village/taiga/terminators").terrain_matching().dir("village/plains/terminators/").processors(processors::STREET_SNOWY_OR_TAIGA).pieces(&[(legacy("terminator_").padded(1, 4, 2), 1)]),
     pool("village/taiga/town_centers").dir("village/taiga/").pieces(&[
         (legacy("town_centers/taiga_meeting_point_").numbered(1, 2).with(processors::MOSSIFY_10_PERCENT), 49),
@@ -60,11 +62,11 @@ pub const POOLS: &[Pool] = &[
     pool("village/taiga/zombie/decor").dir("village/taiga/").pieces(&[
         (legacy("taiga_decoration_1"), 4),
         (legacy("taiga_decoration_").numbered(2, 4), 1),
-        (Feature(placed::SPRUCE), 4),
-        (Feature(placed::PINE), 4),
-        (Feature(placed::PILE_PUMPKIN), 2),
-        (Feature(placed::PATCH_TAIGA_GRASS), 4),
-        (Feature(placed::PATCH_BERRY_BUSH), 1),
+        (Feature(placed!("spruce")), 4),
+        (Feature(placed!("pine")), 4),
+        (Feature(placed!("pile_pumpkin")), 2),
+        (Feature(placed!("patch_taiga_grass")), 4),
+        (Feature(placed!("patch_berry_bush")), 1),
         (Empty, 4),
     ]),
     pool("village/taiga/zombie/houses").fallback("village/taiga/terminators").dir("village/taiga/").processors(processors::ZOMBIE_TAIGA).pieces(&[
@@ -89,15 +91,7 @@ pub const POOLS: &[Pool] = &[
         (legacy("houses/taiga_animal_pen_1"), 2),
         (Empty, 6),
     ]),
-    pool("village/taiga/zombie/streets").fallback("village/taiga/terminators").terrain_matching().dir("village/taiga/zombie/streets/").processors(processors::STREET_SNOWY_OR_TAIGA).pieces(&[
-        (legacy("corner_").padded(1, 3, 2), 2),
-        (legacy("straight_").padded(1, 3, 2), 4),
-        (legacy("straight_").padded(4, 5, 2), 7),
-        (legacy("straight_06"), 4),
-        (legacy("crossroad_").padded(1, 2, 2), 1),
-        (legacy("crossroad_").padded(3, 6, 2), 2),
-        (legacy("turn_01"), 3),
-    ]),
+    pool("village/taiga/zombie/streets").fallback("village/taiga/terminators").terrain_matching().dir("village/taiga/zombie/streets/").processors(processors::STREET_SNOWY_OR_TAIGA).pieces(STREETS),
     pool("village/taiga/zombie/villagers").dir("village/taiga/zombie/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("unemployed"), 10),

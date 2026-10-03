@@ -68,12 +68,6 @@ fn ridged_roof(c: &mut Canvas, gable: Gable, slopes: Slopes) {
     c.roof(gable, OAK_STAIRS, Some(&K.planks), slopes);
 }
 
-fn smooth_slab(kind: &str) -> Cell {
-    block(&format!(
-        "minecraft:smooth_stone_slab[type={kind},waterlogged=false]"
-    ))
-}
-
 /// A cobblestone wall standing free of the block above it: a post joined low
 /// to `sides`.
 fn low_wall(sides: &[Direction]) -> Cell {
@@ -140,10 +134,9 @@ fn market_stall(
     }
 }
 
-/// The 5x5 room five of the small houses share, its corner post at `at`: a
-/// cobblestone sill round a plank floor, a door on the west and a window in
-/// each other wall. `flanks` stand either side of the side windows and of
-/// the back one.
+/// A 5x5 room with its corner post at `at`: a cobblestone sill round a plank
+/// floor, a door on the west and a window in each other wall. `flanks` stand
+/// either side of the side windows and of the back one.
 fn cottage(
     c: &mut Canvas,
     v: Village,
@@ -168,8 +161,8 @@ fn street_cottage(c: &mut Canvas, v: Village, walls: (&Cell, &Cell), flanks: [Op
     entrance(c, v, [0, 0, 3], OAK_STEP);
 }
 
-/// The hip roof of the first and third small houses, five of whose corner
-/// stairs are turned a quarter from the regular ring.
+/// A hip roof five of whose corner stairs are turned a quarter from the
+/// regular ring.
 fn cottage_hip_roof(c: &mut Canvas) {
     c.hip_roof(OAK_STAIRS, Some(&K.planks), [0, 4, 0], [6, 6], 3);
     c.each(&stairs(OAK_STAIRS, East), &[[1, 5, 1], [2, 6, 2]]);
@@ -444,12 +437,8 @@ fn plains_large_farm_1(c: &mut Canvas) {
     entrance(c, LIVING, [0, 0, 4], OAK_LOG);
 }
 
-/// An open trapdoor hanging on the block behind it, hinged at `half`.
 fn trapdoor(facing: Direction, half: &str) -> Cell {
-    block(&format!(
-        "minecraft:oak_trapdoor[facing={},half={half},open=true,powered=false,waterlogged=false]",
-        facing.name()
-    ))
+    super::trapdoor("minecraft:oak_trapdoor", facing, half, true)
 }
 
 /// A cobblestone step whose corner turns towards a neighbour that is not
@@ -500,7 +489,7 @@ fn plains_accessory_1(c: &mut Canvas) {
     for (z, flower) in [(1, &S.poppy), (2, &K.daisy), (3, &K.dandelion)] {
         c.place(flower, 1, 1, z);
     }
-    c.house_socket([0, 0, 0], West, &LIVING.pool("streets"));
+    house_socket(c, [0, 0, 0], West, &LIVING.pool("streets"));
 }
 
 fn plains_animal_pen_1(c: &mut Canvas) {

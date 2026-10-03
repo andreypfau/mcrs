@@ -51,11 +51,11 @@ pub fn old_growth_taiga(spruce: bool) -> Biome {
     m.taiga_animals();
     let (trees, temperature) = if spruce {
         m.common_spawns();
-        (placed::TREES_OLD_GROWTH_SPRUCE_TAIGA, 0.25)
+        (placed!("trees_old_growth_spruce_taiga"), 0.25)
     } else {
         m.cave_spawns();
         m.monsters(100, 25, 0, 100);
-        (placed::TREES_OLD_GROWTH_PINE_TAIGA, 0.3)
+        (placed!("trees_old_growth_pine_taiga"), 0.3)
     };
     let mut g = overworld_generation();
     mossy_stone_block(&mut g);
@@ -92,9 +92,12 @@ pub fn jungle(bamboo: bool) -> Biome {
 
 fn base_jungle(downfall: f32, bamboo: bool, sparse: bool, mobs: Mobs) -> Biome {
     let (trees, melons) = if sparse {
-        (placed::TREES_SPARSE_JUNGLE, placed::PATCH_MELON_SPARSE)
+        (
+            placed!("trees_sparse_jungle"),
+            placed!("patch_melon_sparse"),
+        )
     } else {
-        (placed::TREES_JUNGLE, placed::PATCH_MELON)
+        (placed!("trees_jungle"), placed!("patch_melon"))
     };
     let mut g = overworld_generation();
     if bamboo {
@@ -149,7 +152,10 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
     let biome = if snowy {
         m.snowy_spawns(!spikes);
         if spikes {
-            g.features(SurfaceStructures, &[placed::ICE_SPIKE, placed::ICE_PATCH]);
+            g.features(
+                SurfaceStructures,
+                &[placed!("ice_spike"), placed!("ice_patch")],
+            );
         }
         snowy_trees(&mut g);
         default_flowers(&mut g);
@@ -159,7 +165,7 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
         m.plains_spawns();
         plain_grass(&mut g);
         if sunflower {
-            g.feature(VegetalDecoration, placed::PATCH_SUNFLOWER);
+            g.feature(VegetalDecoration, placed!("patch_sunflower"));
         } else {
             bushes(&mut g);
         }
@@ -252,9 +258,9 @@ pub fn cold_ocean(deep: bool) -> Biome {
         .spawn(NAUTILUS, 2, 1, 1);
     let mut g = base_ocean_generation();
     let seagrass = if deep {
-        placed::SEAGRASS_DEEP_COLD
+        placed!("seagrass_deep_cold")
     } else {
-        placed::SEAGRASS_COLD
+        placed!("seagrass_cold")
     };
     g.feature(VegetalDecoration, seagrass);
     cold_ocean_extra_vegetation(&mut g);
@@ -268,9 +274,9 @@ pub fn ocean(deep: bool) -> Biome {
         .spawn(NAUTILUS, 5, 1, 1);
     let mut g = base_ocean_generation();
     let seagrass = if deep {
-        placed::SEAGRASS_DEEP
+        placed!("seagrass_deep")
     } else {
-        placed::SEAGRASS_NORMAL
+        placed!("seagrass_normal")
     };
     g.feature(VegetalDecoration, seagrass);
     cold_ocean_extra_vegetation(&mut g);
@@ -281,10 +287,10 @@ pub fn lukewarm_ocean(deep: bool) -> Biome {
     let mut m = Mobs::default();
     let seagrass = if deep {
         m.ocean_spawns(8, 4, 8);
-        placed::SEAGRASS_DEEP_WARM
+        placed!("seagrass_deep_warm")
     } else {
         m.ocean_spawns(10, 2, 15);
-        placed::SEAGRASS_WARM
+        placed!("seagrass_warm")
     };
     m.spawn(PUFFERFISH, 5, 1, 3)
         .spawn(TROPICAL_FISH, 25, 8, 8)
@@ -307,9 +313,9 @@ pub fn warm_ocean() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed::WARM_OCEAN_VEGETATION,
-            placed::SEAGRASS_WARM,
-            placed::SEA_PICKLE,
+            placed!("warm_ocean_vegetation"),
+            placed!("seagrass_warm"),
+            placed!("sea_pickle"),
         ],
     );
     base_ocean(m, g)
@@ -343,9 +349,9 @@ pub fn forest(birch: bool, tall: bool, flower: bool) -> Biome {
         g.features(
             VegetalDecoration,
             &[
-                placed::FLOWER_FOREST_FLOWERS,
-                placed::TREES_FLOWER_FOREST,
-                placed::FLOWER_FLOWER_FOREST,
+                placed!("flower_forest_flowers"),
+                placed!("trees_flower_forest"),
+                placed!("flower_flower_forest"),
             ],
         );
         default_grass(&mut g);
@@ -402,10 +408,10 @@ pub fn dark_forest(pale_garden: bool) -> Biome {
         g.features(
             VegetalDecoration,
             &[
-                placed::PALE_GARDEN_VEGETATION,
-                placed::PALE_MOSS_PATCH,
-                placed::PALE_GARDEN_FLOWERS,
-                placed::FLOWER_PALE_GARDEN,
+                placed!("pale_garden_vegetation"),
+                placed!("pale_moss_patch"),
+                placed!("pale_garden_flowers"),
+                placed!("flower_pale_garden"),
             ],
         );
         forest_grass(&mut g);
@@ -421,7 +427,7 @@ pub fn dark_forest(pale_garden: bool) -> Biome {
             .dry_foliage(10528412)
     } else {
         m.farm_animals();
-        g.feature(VegetalDecoration, placed::DARK_FOREST_VEGETATION);
+        g.feature(VegetalDecoration, placed!("dark_forest_vegetation"));
         forest_flowers(&mut g);
         default_flowers(&mut g);
         forest_grass(&mut g);
@@ -447,7 +453,7 @@ pub fn swamp() -> Biome {
     swamp_vegetation(&mut g);
     default_mushrooms(&mut g);
     swamp_extra_vegetation(&mut g);
-    g.feature(VegetalDecoration, placed::SEAGRASS_SWAMP);
+    g.feature(VegetalDecoration, placed!("seagrass_swamp"));
     swamp_biome(m, g)
         .with(WATER_FOG_COLOR, HexRgb::of(-14474473))
         .water(6388580)
@@ -486,7 +492,7 @@ pub fn river(frozen: bool) -> Biome {
         (0.0, FROZEN_WATER_COLOR)
     } else {
         m.spawn(DROWNED, 100, 1, 1);
-        g.feature(VegetalDecoration, placed::SEAGRASS_RIVER);
+        g.feature(VegetalDecoration, placed!("seagrass_river"));
         (0.5, Biome::NORMAL_WATER_COLOR)
     };
     base_biome(temperature, 0.5, m, g)
@@ -512,7 +518,7 @@ pub fn beach(snowy: bool, stony: bool) -> Biome {
 
 pub fn the_void() -> Biome {
     let mut g = Generation::default();
-    g.feature(TopLayerModification, placed::VOID_START_PLATFORM);
+    g.feature(TopLayerModification, placed!("void_start_platform"));
     base_biome(0.5, 0.5, Mobs::none(), g).precipitation(false)
 }
 
@@ -546,7 +552,7 @@ pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Biome {
 
 pub fn dappled_forest() -> Biome {
     let mut g = overworld_generation();
-    g.feature(VegetalDecoration, placed::TREES_DAPPLED_FOREST);
+    g.feature(VegetalDecoration, placed!("trees_dappled_forest"));
     dappled_forest_vegetation(&mut g);
     forest_grass(&mut g);
     let mut m = Mobs::default();

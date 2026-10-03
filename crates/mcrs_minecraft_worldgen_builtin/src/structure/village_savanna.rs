@@ -4,6 +4,7 @@ use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Coords, Hinge, Patch};
 
 const STAIRS: &str = "minecraft:acacia_stairs";
 const DOOR: &str = "minecraft:acacia_door";
+const GATE: &str = "minecraft:acacia_fence_gate";
 const ORANGE_BED: &str = "minecraft:orange_bed";
 
 const STREET: &str = "minecraft:street";
@@ -320,16 +321,7 @@ fn fence(sides: &[Direction]) -> Cell {
 }
 
 fn slab(kind: &str) -> Cell {
-    block(&format!(
-        "minecraft:acacia_slab[type={kind},waterlogged=false]"
-    ))
-}
-
-fn gate(facing: Direction) -> Cell {
-    block(&format!(
-        "minecraft:acacia_fence_gate[facing={},in_wall=false,open=false,powered=false]",
-        facing.name()
-    ))
+    super::slab("minecraft:acacia_slab", kind)
 }
 
 fn table(c: &mut Canvas, at: [i32; 3]) {
@@ -410,8 +402,7 @@ fn wood_floor(c: &mut Canvas, grain: &Cell) {
 
 const HUT_TURNED: [([i32; 3], Direction); 2] = [([1, 5, 1], East), ([5, 5, 1], South)];
 
-/// The terracotta hut of the first three small houses, on open ground with
-/// its door to the south.
+/// A terracotta hut on open ground with its door to the south.
 fn hut(c: &mut Canvas, v: Village, wall: &str) {
     let wall = block(wall);
     let tufts = [
@@ -657,8 +648,8 @@ fn small_house_8(c: &mut Canvas, v: Village) {
     decorations(c, v, GRASS, &[[0, 0]]);
 }
 
-/// One of the two rooms of the first medium house, in the 7x7 box that
-/// starts at the row `z`, with a door in its west wall.
+/// A room in the 7x7 box that starts at the row `z`, with a door in its west
+/// wall.
 fn twin_room(c: &mut Canvas, z: i32, turned: &[([i32; 3], Direction)]) {
     footing(c, [0, z]);
     c.solid(&K.planks, [2, 0, z + 2], [4, 0, z + 4]);
@@ -790,7 +781,7 @@ fn savanna_animal_pen_1(c: &mut Canvas) {
     c.fill(&S.grass, [3, 5], 0, 5);
     c.solid(&S.grass, [3, 0, 6], [5, 0, 6]);
 
-    c.fence_ring(&K.fence, &gate(South), [0, 1, 1], [8, 8], &[[4, 1]]);
+    c.fence_ring(&K.fence, &gate(GATE, South), [0, 1, 1], [8, 8], &[[4, 1]]);
     c.posts(&K.fence, &[0, 4, 8], &[4], [1, 3]);
     c.solid(&K.planks, [2, 1, 5], [6, 1, 6]);
     c.solid(&S.water, [3, 1, 6], [5, 1, 6]);
@@ -854,7 +845,7 @@ fn animal_pen_3(c: &mut Canvas, v: Village) {
     ];
     c.solid(&GROUND, [0, 0, 0], [7, 0, 8]);
     c.place(&S.grass, 4, 0, 8);
-    c.fence_ring(&K.fence, &gate(North), [0, 1, 0], [7, 8], &[[2, 8]]);
+    c.fence_ring(&K.fence, &gate(GATE, North), [0, 1, 0], [7, 8], &[[2, 8]]);
     c.posts(&K.fence, &[2, 5], &[0, 3], [1, 3]);
     c.fill(&S.torch, [3, 4], 2, 0);
     c.walls(&slab("bottom"), &slab("bottom"), [2, 4, 0], [5, 4, 3]);

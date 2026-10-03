@@ -93,22 +93,22 @@ fn base_biome(mobs: Mobs, generation: Generation) -> Biome {
 fn nether_generation(soul_fire: bool, patches: &[PlacedKey], ores: &[PlacedKey]) -> Generation {
     let mut g = Generation::default();
     g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed::SPRING_LAVA)
+        .feature(VegetalDecoration, placed!("spring_lava"))
         .features(
             UndergroundDecoration,
-            &[placed::SPRING_OPEN, placed::PATCH_FIRE],
+            &[placed!("spring_open"), placed!("patch_fire")],
         );
     if soul_fire {
-        g.feature(UndergroundDecoration, placed::PATCH_SOUL_FIRE);
+        g.feature(UndergroundDecoration, placed!("patch_soul_fire"));
     }
     g.features(
         UndergroundDecoration,
-        &[placed::GLOWSTONE_EXTRA, placed::GLOWSTONE],
+        &[placed!("glowstone_extra"), placed!("glowstone")],
     )
     .features(UndergroundDecoration, patches)
     .features(
         UndergroundDecoration,
-        &[placed::ORE_MAGMA, placed::SPRING_CLOSED],
+        &[placed!("ore_magma"), placed!("spring_closed")],
     )
     .features(UndergroundDecoration, ores);
     nether_default_ores(&mut g);
@@ -125,7 +125,10 @@ pub fn nether_wastes() -> Biome {
         .spawn(STRIDER, 60, 1, 2);
     let mut g = nether_generation(
         true,
-        &[placed::BROWN_MUSHROOM_NETHER, placed::RED_MUSHROOM_NETHER],
+        &[
+            placed!("brown_mushroom_nether"),
+            placed!("red_mushroom_nether"),
+        ],
         &[],
     );
     default_mushrooms(&mut g);
@@ -143,10 +146,10 @@ pub fn soul_sand_valley() -> Biome {
     }
     let mut g = nether_generation(
         true,
-        &[placed::PATCH_CRIMSON_ROOTS],
-        &[placed::ORE_SOUL_SAND],
+        &[placed!("patch_crimson_roots")],
+        &[placed!("ore_soul_sand")],
     );
-    g.feature(LocalModifications, placed::BASALT_PILLAR);
+    g.feature(LocalModifications, placed!("basalt_pillar"));
     nether_biome!("soul_sand_valley", -14989499, m, g).modified(
         AMBIENT_PARTICLES,
         Operation::Append,
@@ -164,27 +167,27 @@ pub fn basalt_deltas() -> Biome {
         .features(
             SurfaceStructures,
             &[
-                placed::DELTA,
-                placed::SMALL_BASALT_COLUMNS,
-                placed::LARGE_BASALT_COLUMNS,
+                placed!("delta"),
+                placed!("small_basalt_columns"),
+                placed!("large_basalt_columns"),
             ],
         )
         .features(
             UndergroundDecoration,
             &[
-                placed::BASALT_BLOBS,
-                placed::BLACKSTONE_BLOBS,
-                placed::SPRING_DELTA,
-                placed::PATCH_FIRE,
-                placed::PATCH_SOUL_FIRE,
-                placed::GLOWSTONE_EXTRA,
-                placed::GLOWSTONE,
-                placed::BROWN_MUSHROOM_NETHER,
-                placed::RED_MUSHROOM_NETHER,
-                placed::ORE_MAGMA,
-                placed::SPRING_CLOSED_DOUBLE,
-                placed::ORE_GOLD_DELTAS,
-                placed::ORE_QUARTZ_DELTAS,
+                placed!("basalt_blobs"),
+                placed!("blackstone_blobs"),
+                placed!("spring_delta"),
+                placed!("patch_fire"),
+                placed!("patch_soul_fire"),
+                placed!("glowstone_extra"),
+                placed!("glowstone"),
+                placed!("brown_mushroom_nether"),
+                placed!("red_mushroom_nether"),
+                placed!("ore_magma"),
+                placed!("spring_closed_double"),
+                placed!("ore_gold_deltas"),
+                placed!("ore_quartz_deltas"),
             ],
         );
     ancient_debris(&mut g);
@@ -206,9 +209,9 @@ pub fn crimson_forest() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed::WEEPING_VINES,
-            placed::CRIMSON_FUNGI,
-            placed::CRIMSON_FOREST_VEGETATION,
+            placed!("weeping_vines"),
+            placed!("crimson_fungi"),
+            placed!("crimson_forest_vegetation"),
         ],
     );
     nether_biome!("crimson_forest", -13434109, m, g).modified(
@@ -228,10 +231,10 @@ pub fn warped_forest() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed::WARPED_FUNGI,
-            placed::WARPED_FOREST_VEGETATION,
-            placed::NETHER_SPROUTS,
-            placed::TWISTING_VINES,
+            placed!("warped_fungi"),
+            placed!("warped_forest_vegetation"),
+            placed!("nether_sprouts"),
+            placed!("twisting_vines"),
         ],
     );
     nether_biome!("warped_forest", -15071974, m, g).modified(

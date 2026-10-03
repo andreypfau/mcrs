@@ -20,7 +20,7 @@ pub const POOLS: &[Pool] = &[
         (single("top_left_corner"), 1),
     ]),
     pool("ancient_city/sculk").pieces(&[
-        (Feature(placed::SCULK_PATCH_ANCIENT_CITY), 6),
+        (Feature(placed!("sculk_patch_ancient_city")), 6),
         (Empty, 1),
     ]),
     pool("ancient_city/structures").dir("ancient_city/structures/").pieces(&[

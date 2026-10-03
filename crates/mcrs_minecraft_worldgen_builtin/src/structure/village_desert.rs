@@ -6,6 +6,7 @@ const SAND: &str = "minecraft:sand";
 const SMOOTH: &str = "minecraft:smooth_sandstone";
 const CUT: &str = "minecraft:cut_sandstone";
 const SMOOTH_STAIRS: &str = "minecraft:smooth_sandstone_stairs";
+const SMOOTH_SLAB: &str = "minecraft:smooth_sandstone_slab";
 const SANDSTONE_STAIRS: &str = "minecraft:sandstone_stairs";
 const JUNGLE_DOOR: &str = "minecraft:jungle_door";
 const CYAN_BED: &str = "minecraft:cyan_bed";
@@ -25,25 +26,17 @@ kit! {
     terracotta: block("minecraft:terracotta"),
     sand: block(SAND),
     sandstone: block("minecraft:sandstone"),
-    slab: slab("bottom"),
-    slab_top: slab("top"),
-    slab_double: slab("double"),
+    slab: slab(SMOOTH_SLAB, "bottom"),
+    slab_top: slab(SMOOTH_SLAB, "top"),
+    slab_double: slab(SMOOTH_SLAB, "double"),
     stone_wall: settled("minecraft:sandstone_wall[waterlogged=false]"),
     potted_cactus: block("minecraft:potted_cactus"),
     potted_bush: block("minecraft:potted_dead_bush"),
     fence: settled("minecraft:jungle_fence[waterlogged=false]"),
 }
 
-fn slab(kind: &str) -> Cell {
-    block(&format!(
-        "minecraft:smooth_sandstone_slab[type={kind},waterlogged=false]"
-    ))
-}
-
 fn sandstone_slab(kind: &str) -> Cell {
-    block(&format!(
-        "minecraft:sandstone_slab[type={kind},waterlogged=false]"
-    ))
+    slab("minecraft:sandstone_slab", kind)
 }
 
 fn button(facing: Direction) -> Cell {
@@ -143,7 +136,7 @@ fn bench(c: &mut Canvas, at: [i32; 3], steps: &str, seat: &Cell) {
 }
 
 fn path(c: &mut Canvas, along: Axis, middle: i32, range: [i32; 2]) {
-    c.path_strip(&K.smooth, along, middle, range);
+    path_strip(c, &K.smooth, along, middle, range);
 }
 
 /// The west end of a street that nothing joins.

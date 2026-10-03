@@ -138,8 +138,41 @@ fn wheat(age: i32) -> Cell {
     block(&format!("minecraft:wheat[age={age}]"))
 }
 
+fn slab(id: &str, kind: &str) -> Cell {
+    block(&format!("{id}[type={kind},waterlogged=false]"))
+}
+
+fn smooth_slab(kind: &str) -> Cell {
+    slab("minecraft:smooth_stone_slab", kind)
+}
+
+fn trapdoor(id: &str, facing: Direction, half: &str, open: bool) -> Cell {
+    block(&format!(
+        "{id}[facing={},half={half},open={open},powered=false,waterlogged=false]",
+        facing.name()
+    ))
+}
+
+fn gate(id: &str, facing: Direction) -> Cell {
+    block(&format!(
+        "{id}[facing={},in_wall=false,open=false,powered=false]",
+        facing.name()
+    ))
+}
+
 fn path(c: &mut Canvas, along: Axis, middle: i32, range: [i32; 2]) {
-    c.path_strip(&S.path, along, middle, range);
+    path_strip(c, &S.path, along, middle, range);
+}
+
+/// Path three wide on the bottom layer, its middle on the line `middle`
+/// and running along `along` over `range`.
+fn path_strip(c: &mut Canvas, path: &Cell, along: Axis, middle: i32, range: [i32; 2]) {
+    let (near, far) = (middle - 1, middle + 1);
+    if along == X {
+        c.solid(path, [range[0], 0, near], [range[1], 0, far]);
+    } else {
+        c.solid(path, [near, 0, range[0]], [far, 0, range[1]]);
+    }
 }
 
 /// A village family, and whether the village is the abandoned one, whose
@@ -196,19 +229,49 @@ fn decorations(c: &mut Canvas, v: Village, soil: &str, cells: &[[i32; 2]]) {
     }
 }
 
+/// The end of a street, open to the next piece of `pool`.
+fn street_end(c: &mut Canvas, at: [i32; 3], pool: &str) {
+    c.socket(at, "minecraft:street", pool, NOTHING);
+}
+
 fn street_ends(c: &mut Canvas, v: Village, ends: &[[i32; 2]]) {
     for [x, z] in ends {
-        c.street_end([*x, 1, *z], &v.pool("streets"));
+        street_end(c, [*x, 1, *z], &v.pool("streets"));
     }
 }
 
 fn street(c: &mut Canvas, v: Village, ends: &[[i32; 2]]) {
-    c.jigsaw_layer(1);
+    // The game's snowy streets hold air above the path where the others leave it out.
+    if v.family != "snowy" {
+        c.jigsaw_layer(1);
+    }
     street_ends(c, v, ends);
 }
 
+/// A place beside a street for a building of `pool`, entered from `side`.
+fn house_socket(c: &mut Canvas, at: [i32; 3], side: Direction, pool: &str) {
+    let orientation = format!("{}_up", side.name());
+    c.socket_facing(
+        at,
+        &orientation,
+        "minecraft:building_entrance",
+        pool,
+        NOTHING,
+    );
+}
+
+/// Places for houses entered from `side`, in a row over `range` on the
+/// line `line`, one layer above the path.
 fn houses(c: &mut Canvas, v: Village, side: Direction, line: i32, range: [i32; 2]) {
-    c.house_sockets(side, line, range, &v.pool("houses"));
+    let pool = v.pool("houses");
+    for along in range[0]..=range[1] {
+        let at = if side.axis() == X {
+            [line, 1, along]
+        } else {
+            [along, 1, line]
+        };
+        house_socket(c, at, side, &pool);
+    }
 }
 
 fn chest(c: &mut Canvas, at: [i32; 3], facing: Direction, loot: &str) {
