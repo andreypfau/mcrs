@@ -53,6 +53,7 @@ fn login_ids() {
 #[test]
 fn configuration_ids() {
     pinned! {
+        0x02 => configuration::clientbound::ClientboundDisconnect, Clientbound, Configuration;
         0x03 => configuration::clientbound::ClientboundFinishConfiguration, Clientbound, Configuration;
         0x04 => configuration::clientbound::ClientboundKeepAlive, Clientbound, Configuration;
         0x07 => configuration::clientbound::ClientboundRegistryData<'_>, Clientbound, Configuration;

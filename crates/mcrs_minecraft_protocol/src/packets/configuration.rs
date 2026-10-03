@@ -1,3 +1,4 @@
+pub use self::clientbound::ClientboundDisconnect;
 pub use self::clientbound::ClientboundFinishConfiguration;
 pub use self::clientbound::ClientboundKeepAlive;
 pub use self::clientbound::ClientboundRegistryData;
@@ -10,6 +11,12 @@ pub mod clientbound {
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x02, state=Configuration)]
+    pub struct ClientboundDisconnect {
+        pub reason: crate::Text,
+    }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x03, state=Configuration)]

@@ -1,12 +1,15 @@
 use bevy_ecs::component::Component;
-use bevy_ecs::lifecycle::Add;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Insert;
 use bevy_ecs::prelude::{On, Query};
-use bevy_ecs::query::Without;
+use bevy_ecs::query::{With, Without};
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::{Commands, Res, ResMut};
+use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::packets::configuration;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished,
 };
@@ -17,8 +20,9 @@ use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, Text, WritePacket, uuid};
 use std::borrow::Cow;
 
-use crate::world::session::{HostAnchorRef, SessionBundle};
-use mcrs_minecraft_level::session::PlayerSessionCounter;
+use crate::disconnect::Departing;
+use crate::world::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 
 /// Vanilla mints one chat session id per listener and reuses it for every login.
 #[derive(Resource, Clone, Copy, Debug)]
@@ -32,6 +36,7 @@ impl bevy_app::Plugin for LoginPlugin {
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
+        app.add_systems(bevy_app::Update, finish_awaiting_logins);
     }
 }
 
@@ -39,6 +44,8 @@ impl bevy_app::Plugin for LoginPlugin {
 pub enum LoginState {
     #[default]
     Hello,
+    /// Waiting for the sessions under its id to end and their players to be saved.
+    AwaitingDeparture,
     Accepted,
 }
 
@@ -105,16 +112,89 @@ fn invalid_player_name_reason() -> Text {
     )
 }
 
-fn refuse_login(con: &mut ServerSideConnection, reason: &Text) {
-    let reason = serde_json::to_string(reason).expect("a text component serializes to JSON");
-    con.write_packet(&ClientboundLoginDisconnect {
-        reason: Bounded(&reason),
+pub fn duplicate_login_reason() -> Text {
+    Text::translate("multiplayer.disconnect.duplicate_login", Vec::new())
+}
+
+/// Writes the disconnect packet of the connection's protocol state; the caller closes it.
+pub fn disconnect(con: &mut ServerSideConnection, state: ConnectionState, reason: Text) {
+    match state {
+        ConnectionState::Login => {
+            let reason =
+                serde_json::to_string(&reason).expect("a text component serializes to JSON");
+            con.write_packet(&ClientboundLoginDisconnect {
+                reason: Bounded(&reason),
+            });
+        }
+        ConnectionState::Configuration => {
+            con.write_packet(&configuration::ClientboundDisconnect { reason })
+        }
+        ConnectionState::Game => con.write_packet(&ClientboundDisconnect { reason }),
+    }
+}
+
+/// The sessions on this server, and the players still being saved, by the id they play under.
+#[derive(SystemParam)]
+pub struct SessionsById<'w, 's> {
+    anchors: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static GameProfile,
+            &'static SessionPlacement,
+            Option<&'static SessionConnection>,
+        ),
+        With<Session>,
+    >,
+    departing: Query<'w, 's, &'static Departing>,
+}
+
+impl SessionsById<'_, '_> {
+    fn of(&self, id: uuid::Uuid) -> impl Iterator<Item = (Entity, Place, Option<Entity>)> {
+        self.anchors
+            .iter()
+            .filter(move |(_, profile, ..)| profile.id == id)
+            .map(|(anchor, _, placement, connection)| {
+                (
+                    anchor,
+                    placement.place(),
+                    connection.map(SessionConnection::entity),
+                )
+            })
+    }
+
+    fn saving(&self, id: uuid::Uuid) -> bool {
+        self.departing.iter().any(|departing| departing.id == id)
+    }
+
+    /// A login under `id` waits while a session under it lives or its player is not yet saved.
+    pub fn must_wait(&self, id: uuid::Uuid) -> bool {
+        self.of(id).next().is_some() || self.saving(id)
+    }
+
+    /// Whether a player under `id`, other than the session on `own`, is in the world: placed in
+    /// a dimension, in play, or not yet saved.
+    pub fn in_world(&self, id: uuid::Uuid, own: Entity, in_play: impl Fn(Entity) -> bool) -> bool {
+        self.saving(id)
+            || self.of(id).any(|(anchor, place, connection)| {
+                anchor != own && (place != Place::Unplaced || connection.is_some_and(&in_play))
+            })
+    }
+}
+
+fn finish_login(con: &mut ServerSideConnection, profile: &GameProfile, session_id: uuid::Uuid) {
+    con.write_packet(&ClientboundLoginFinished {
+        profile: profile.into(),
+        session_id,
     });
 }
 
 pub fn handle_hello_packet(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(&mut ServerSideConnection, &ConnectionState), Without<LoginState>>,
+    mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
+    sessions: SessionsById,
     session_id: Res<ChatSessionId>,
     host: Option<Res<SingleplayerProfile>>,
     mut commands: Commands,
@@ -130,7 +210,11 @@ pub fn handle_hello_packet(
     };
     if !is_valid_player_name(&pkt.username) {
         tracing::info!(name = ?pkt.username.0, "login refused: invalid characters in username");
-        refuse_login(&mut con, &invalid_player_name_reason());
+        disconnect(
+            &mut con,
+            ConnectionState::Login,
+            invalid_player_name_reason(),
+        );
         commands
             .entity(event.entity)
             .remove::<ServerSideConnection>();
@@ -138,25 +222,53 @@ pub fn handle_hello_packet(
     }
     let profile = hello_profile(&pkt.username, host.as_deref());
     tracing::debug!(?profile, "login hello");
-    let response = ClientboundLoginFinished {
-        profile: (&profile).into(),
-        session_id: session_id.0,
-    };
-    con.write_packet(&response);
-    commands
-        .entity(event.entity)
-        .insert((profile, LoginState::Accepted));
+    let must_wait = sessions.must_wait(profile.id);
+    for (_, _, connection) in sessions.of(profile.id) {
+        let Some(connection) = connection else {
+            continue;
+        };
+        let Ok((mut other, &state)) = session_connections.get_mut(connection) else {
+            continue;
+        };
+        tracing::info!(name = %profile.username, "a new login under the same id ends the session");
+        disconnect(&mut other, state, duplicate_login_reason());
+        commands.entity(connection).remove::<ServerSideConnection>();
+    }
+    if must_wait {
+        commands
+            .entity(event.entity)
+            .insert((profile, LoginState::AwaitingDeparture));
+    } else {
+        finish_login(&mut con, &profile, session_id.0);
+        commands
+            .entity(event.entity)
+            .insert((profile, LoginState::Accepted));
+    }
+}
+
+pub fn finish_awaiting_logins(
+    mut logins: Query<(Entity, &mut ServerSideConnection, &GameProfile, &LoginState)>,
+    sessions: SessionsById,
+    session_id: Res<ChatSessionId>,
+    mut commands: Commands,
+) {
+    for (connection, mut con, profile, state) in &mut logins {
+        if *state == LoginState::AwaitingDeparture && !sessions.must_wait(profile.id) {
+            finish_login(&mut con, profile, session_id.0);
+            commands.entity(connection).insert(LoginState::Accepted);
+        }
+    }
 }
 
 pub fn handle_login_acknowledged(
     event: On<ReceivedPacketEvent>,
-    mut query: Query<&ConnectionState, With<LoginState>>,
+    query: Query<(&ConnectionState, &LoginState)>,
     mut commands: Commands,
 ) {
-    let Ok(state) = query.get_mut(event.entity) else {
+    let Ok((state, login)) = query.get(event.entity) else {
         return;
     };
-    if ConnectionState::Login != *state {
+    if ConnectionState::Login != *state || LoginState::Accepted != *login {
         return;
     }
     let Some(_) = event.decode::<ServerboundLoginAcknowledged>() else {
@@ -168,7 +280,7 @@ pub fn handle_login_acknowledged(
 }
 
 pub fn on_login_accepted(
-    trigger: On<Add, LoginState>,
+    trigger: On<Insert, LoginState>,
     login_state: Query<(&LoginState, &GameProfile)>,
     mut session_counter: ResMut<PlayerSessionCounter>,
     mut commands: Commands,
@@ -188,8 +300,6 @@ pub fn on_login_accepted(
         .entity(connection_entity)
         .insert(HostAnchorRef(host_anchor));
 }
-
-use bevy_ecs::query::With;
 
 #[cfg(test)]
 mod tests {

@@ -2,7 +2,7 @@ use crate::WorldSave;
 use crate::client_info::ClientInfo;
 use crate::dim::send_control_or_teardown;
 use crate::disconnect::despawn_from_dims;
-use crate::login::GameProfile;
+use crate::login::{GameProfile, SessionsById, disconnect, duplicate_login_reason};
 use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
@@ -607,8 +607,18 @@ fn on_known_packs_response(
     commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
 
-fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut ConnectionState>) {
-    let Ok(mut state) = query.get_mut(event.entity) else {
+pub fn on_configuration_ack(
+    event: On<ReceivedPacketEvent>,
+    mut connections: Query<(
+        &mut ConnectionState,
+        Option<&GameProfile>,
+        Option<&HostAnchorRef>,
+        Option<&mut ServerSideConnection>,
+    )>,
+    sessions: SessionsById,
+    mut commands: Commands,
+) {
+    let Ok((state, profile, anchor, _)) = connections.get(event.entity) else {
         return;
     };
     if *state != ConnectionState::Configuration {
@@ -617,7 +627,29 @@ fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut Co
     let Some(_) = event.decode::<ServerboundFinishConfiguration>() else {
         return;
     };
-    *state = ConnectionState::Game;
+    let in_play = |connection| {
+        connections
+            .get(connection)
+            .is_ok_and(|(state, ..)| *state == ConnectionState::Game)
+    };
+    let duplicate = match (profile, anchor) {
+        (Some(profile), Some(&HostAnchorRef(own))) => sessions.in_world(profile.id, own, in_play),
+        _ => false,
+    };
+    let Ok((mut state, _, _, con)) = connections.get_mut(event.entity) else {
+        return;
+    };
+    if !duplicate {
+        *state = ConnectionState::Game;
+        return;
+    }
+    // The game switches its side to play before this check, so it refuses with a play packet.
+    if let Some(mut con) = con {
+        disconnect(&mut con, ConnectionState::Game, duplicate_login_reason());
+    }
+    commands
+        .entity(event.entity)
+        .remove::<ServerSideConnection>();
 }
 
 /// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.

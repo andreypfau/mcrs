@@ -71,6 +71,12 @@ pub struct InboundPlayerDespawn {
     pub session: PlayerSession,
 }
 
+/// The dimension has saved the player an `InboundPlayerDespawn` named and let it go.
+#[derive(Message, Clone, Debug)]
+pub struct OutboundPlayerReleased {
+    pub session: PlayerSession,
+}
+
 #[derive(Clone, Debug)]
 pub enum PacketTarget {
     SinglePlayer(Entity),

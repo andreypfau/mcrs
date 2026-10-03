@@ -3,7 +3,8 @@ use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::bus::to;
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
-    OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PlayerInfoEntry,
+    OutboundPlayerAttached, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
+    PlayerInfoEntry,
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -379,6 +380,11 @@ pub fn despawn_inbound_player(
                 });
             }
         }
+        // Queued after the save so the host never learns of the release before the file is written.
+        let session = msg.session;
+        commands.queue(move |world: &mut World| {
+            world.write_message(OutboundPlayerReleased { session });
+        });
     }
 }
 

@@ -43,6 +43,7 @@ use mcrs_minecraft_protocol::{Encode, Packet};
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::WorldSave;
 use mcrs_minecraft_server::dim::pump_channels;
+use mcrs_minecraft_server::disconnect::Departing;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
@@ -653,4 +654,43 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
         .unwrap();
     assert_ne!(content[slots::held(3) as usize], RawStack::EMPTY);
     assert_ne!(content[slots::MAIN.start as usize], RawStack::EMPTY);
+}
+
+#[test]
+fn a_dimension_releases_a_leaving_player_only_once_its_file_is_written() {
+    let mut server = Server::start();
+    server.join();
+    server.give("stone", 5, slots::MAIN.start);
+    server.ticks(1);
+    let departing = server
+        .app
+        .world_mut()
+        .spawn(Departing {
+            id: server.uuid,
+            dim: server.dim,
+            session: PlayerSession(0),
+        })
+        .id();
+    server.control(ToDim::Despawn(InboundPlayerDespawn {
+        host_anchor: server.host_anchor,
+        session: PlayerSession(0),
+    }));
+
+    for _ in 0..4 {
+        server.tick();
+        if server.app.world().get_entity(departing).is_err() {
+            let saved = read_player_dat(&server.save, server.uuid)
+                .unwrap()
+                .expect("the file is written before the release");
+            assert_eq!(
+                saved.inventory,
+                vec![ItemStackWithSlot {
+                    slot: 9,
+                    stack: value("stone", 5)
+                }]
+            );
+            return;
+        }
+    }
+    panic!("the dimension never released the player");
 }
