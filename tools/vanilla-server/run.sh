@@ -40,6 +40,13 @@ fetch_verified() {
     check_file "$file" "$sha1" "$size"
 }
 
+# The server reads the threshold with Integer.parseInt and silently falls back to 256 on a
+# value outside the int range.
+valid_compression() {
+    [[ $1 == -1 ]] && return 0
+    [[ $1 =~ ^0*([0-9]{1,10})$ ]] && ((10#${BASH_REMATCH[1]} <= 2147483647))
+}
+
 server_properties() {
     local port=$1 threshold=$2
     cat <<EOF
@@ -72,8 +79,8 @@ main() {
         exit 3
     fi
 
-    if ! [[ $compression =~ ^(-1|[0-9]+)$ ]]; then
-        echo "VANILLA_COMPRESSION must be -1 or a non-negative whole number, got '$compression'" >&2
+    if ! valid_compression "$compression"; then
+        echo "VANILLA_COMPRESSION must be -1 or a whole number from 0 to 2147483647, got '$compression'" >&2
         exit 2
     fi
 
