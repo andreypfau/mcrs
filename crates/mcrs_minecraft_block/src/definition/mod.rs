@@ -340,6 +340,12 @@ impl RegistryLookup for BlockDefinitions {
 #[derive(Debug, Clone, Resource)]
 pub struct Blocks(pub Arc<BlockDefinitions>);
 
+impl mcrs_minecraft_registry::shared::SharedResource for Blocks {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 /// Block tags are resolved against the corpus, so every block the game has can
 /// be in a tag — not only the ones a static registry happens to name.
 impl mcrs_minecraft_registry::TagSource for Blocks {

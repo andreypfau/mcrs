@@ -17,27 +17,16 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_item::Item;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::shared::share;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_world::entity::minecraft::EntityIds;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
@@ -71,24 +60,9 @@ pub fn make_host_app() -> App {
     app.init_resource::<DimChannelsResource>();
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
-    app.insert_resource(RegistryAccess::default());
-    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(DynTagRegistry::<Block>::default());
-    app.insert_resource(DynTagRegistry::<Item>::default());
-    app.insert_resource(RegistrySnapshot::<Biome>::default());
-    crate::support::insert_corpus(&mut app);
-    insert_registry_set(&mut app);
+    crate::support::insert_registries(&mut app);
 
     app
-}
-
-/// Give the host the registry set built from the real report and register it for sharing,
-/// the way the world plugin does at startup.
-pub fn insert_registry_set(app: &mut App) {
-    app.insert_resource(crate::support::registry_set().clone());
-    app.insert_resource(crate::support::entity_ids().clone());
-    share::<RegistrySet>(app.world_mut());
-    share::<EntityIds>(app.world_mut());
 }
 
 /// Give the dimensions spawned from this host a lighting engine. Production

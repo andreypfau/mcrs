@@ -54,28 +54,45 @@ impl<T> StaticId<T> {
 /// `&str` via `Borrow<str>` for zero-allocation access.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct StaticRegistry<T: 'static> {
-    entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
-    index: HashMap<ResourceLocation<Arc<str>>, u32>,
+    table: Arc<Table<T>>,
     frozen: bool,
 }
 
-// Cloning a frozen registry is the path that hands a copy to each per-dimension
-// sub-app. Values are `&'static T`, so no `T: Clone` bound is required.
+struct Table<T: 'static> {
+    entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
+    index: HashMap<ResourceLocation<Arc<str>>, u32>,
+}
+
+impl<T: 'static> Default for Table<T> {
+    fn default() -> Self {
+        Table {
+            entries: Vec::new(),
+            index: HashMap::new(),
+        }
+    }
+}
+
+// Values are `&'static T`, so no `T: Clone` bound is required.
 impl<T: 'static> Clone for StaticRegistry<T> {
     fn clone(&self) -> Self {
         Self {
-            entries: self.entries.clone(),
-            index: self.index.clone(),
+            table: Arc::clone(&self.table),
             frozen: self.frozen,
         }
+    }
+}
+
+#[cfg(feature = "bevy")]
+impl<T: Sync + 'static> crate::shared::SharedResource for StaticRegistry<T> {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.table, &other.table)
     }
 }
 
 impl<T: 'static> StaticRegistry<T> {
     pub fn new() -> Self {
         StaticRegistry {
-            entries: Vec::new(),
-            index: HashMap::new(),
+            table: Arc::default(),
             frozen: false,
         }
     }
@@ -90,13 +107,15 @@ impl<T: 'static> StaticRegistry<T> {
         value: &'static T,
     ) -> StaticId<T> {
         assert!(!self.frozen, "register() called after freeze()");
+        let table =
+            Arc::get_mut(&mut self.table).expect("register() called after the registry was cloned");
         let loc = loc.into();
-        let id = self.entries.len() as u32;
+        let id = table.entries.len() as u32;
         assert!(
-            self.index.insert(loc.clone(), id).is_none(),
+            table.index.insert(loc.clone(), id).is_none(),
             "duplicate registration: {loc}"
         );
-        self.entries.push((loc, value));
+        table.entries.push((loc, value));
         StaticId {
             id,
             _marker: PhantomData,
@@ -105,30 +124,30 @@ impl<T: 'static> StaticRegistry<T> {
 
     /// Look up by string key. Zero-alloc via `Borrow<str>`.
     pub fn get_by_loc(&self, loc: &str) -> Option<&'static T> {
-        let id = *self.index.get(loc)?;
-        self.entries.get(id as usize).map(|(_, v)| *v)
+        let id = *self.table.index.get(loc)?;
+        self.table.entries.get(id as usize).map(|(_, v)| *v)
     }
 
     /// Get the `StaticId` for a resource location string. Zero-alloc via `Borrow<str>`.
     pub fn id_of(&self, loc: &str) -> Option<StaticId<T>> {
-        self.index.get(loc).copied().map(|id| StaticId {
+        self.table.index.get(loc).copied().map(|id| StaticId {
             id,
             _marker: PhantomData,
         })
     }
 
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.table.entries.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.table.entries.is_empty()
     }
 
     pub fn freeze(&mut self) {
         assert!(!self.frozen, "freeze() called twice");
         self.frozen = true;
-        tracing::info!(count = self.entries.len(), "frozen StaticRegistry");
+        tracing::info!(count = self.table.entries.len(), "frozen StaticRegistry");
     }
 
     pub fn frozen(&self) -> bool {
@@ -138,7 +157,7 @@ impl<T: 'static> StaticRegistry<T> {
     pub fn iter(
         &self,
     ) -> impl Iterator<Item = (StaticId<T>, &ResourceLocation<Arc<str>>, &'static T)> + '_ {
-        self.entries.iter().enumerate().map(|(i, (loc, v))| {
+        self.table.entries.iter().enumerate().map(|(i, (loc, v))| {
             (
                 StaticId {
                     id: i as u32,

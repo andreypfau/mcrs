@@ -12,19 +12,11 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_item::Item;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{
     DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -55,13 +47,7 @@ fn build_host_app() -> App {
     app.init_state::<AppState>();
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
-    app.insert_resource(RegistryAccess::default());
-    crate::host_app::insert_registry_set(&mut app);
-    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(DynTagRegistry::<Block>::default());
-    app.insert_resource(DynTagRegistry::<Item>::default());
-    app.insert_resource(RegistrySnapshot::<Biome>::default());
-    support::insert_corpus(&mut app);
+    support::insert_registries(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>();
