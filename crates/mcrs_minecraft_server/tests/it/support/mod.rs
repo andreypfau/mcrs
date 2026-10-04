@@ -3,9 +3,17 @@
 use std::sync::LazyLock;
 
 use bevy_app::App;
+use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_item::{Item, Items};
 use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::shared::share;
+use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::static_registries;
@@ -21,6 +29,27 @@ pub fn insert_corpus(app: &mut App) {
     let (blocks, items) = standalone_corpus();
     app.insert_resource(blocks.clone());
     app.insert_resource(items.clone());
+}
+
+pub fn insert_registries(app: &mut App) {
+    insert_corpus(app);
+    app.insert_resource(registry_set().clone());
+    app.insert_resource(entity_ids().clone());
+    app.insert_resource(RegistryAccess::default());
+    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Item>::default());
+    app.insert_resource(RegistrySnapshot::<Biome>::default());
+    let world = app.world_mut();
+    share::<RegistrySet>(world);
+    share::<EntityIds>(world);
+    share::<RegistryAccess>(world);
+    share::<Blocks>(world);
+    share::<Items>(world);
+    share::<StaticRegistry<EnchantmentData>>(world);
+    share::<DynTagRegistry<Block>>(world);
+    share::<DynTagRegistry<Item>>(world);
+    share::<RegistrySnapshot<Biome>>(world);
 }
 
 fn registries() -> &'static (RegistrySet, EntityIds) {

@@ -137,6 +137,13 @@ impl ItemDefinitions {
 pub struct Items(pub Arc<ItemDefinitions>);
 
 #[cfg(feature = "bevy")]
+impl mcrs_minecraft_registry::shared::SharedResource for Items {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[cfg(feature = "bevy")]
 impl std::ops::Deref for Items {
     type Target = ItemDefinitions;
 

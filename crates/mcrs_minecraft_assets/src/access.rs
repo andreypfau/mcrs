@@ -5,6 +5,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use std::sync::{Arc, OnceLock};
 
@@ -169,6 +170,12 @@ impl RegistryLookup for RegistryAccess {
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
         self.lookup().name(registry, id)
+    }
+}
+
+impl SharedResource for RegistryAccess {
+    fn shares_with(&self, other: &Self) -> bool {
+        self.shares_inner_with(other)
     }
 }
 

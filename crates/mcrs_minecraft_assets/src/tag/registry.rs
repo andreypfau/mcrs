@@ -4,6 +4,7 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 use mcrs_minecraft_registry::bitset::{BitSet, TagId};
+use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{StaticId, TagSource};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
@@ -161,8 +162,8 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
             bitsets.push(BitSet::from_hash_set(&set, capacity));
         }
         TagRegistry {
-            index,
-            bitsets,
+            index: Arc::new(index),
+            bitsets: bitsets.into(),
             _marker: PhantomData,
         }
     }
@@ -174,8 +175,8 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
 /// `u64` word per 64 registry entries per tag, paid once at freeze.
 #[derive(Resource)]
 pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
-    index: HashMap<ResourceLocation<Arc<str>>, usize>,
-    bitsets: Vec<BitSet<I>>,
+    index: Arc<HashMap<ResourceLocation<Arc<str>>, usize>>,
+    bitsets: Arc<[BitSet<I>]>,
     _marker: PhantomData<fn() -> T>,
 }
 
@@ -184,8 +185,8 @@ pub type DynTagRegistry<T> = TagRegistry<T, u32>;
 impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
     fn default() -> Self {
         TagRegistry {
-            index: HashMap::new(),
-            bitsets: Vec::new(),
+            index: Arc::default(),
+            bitsets: Arc::default(),
             _marker: PhantomData,
         }
     }
@@ -194,10 +195,16 @@ impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
 impl<T: TaggedRegistry + 'static, I: TagId> Clone for TagRegistry<T, I> {
     fn clone(&self) -> Self {
         TagRegistry {
-            index: self.index.clone(),
-            bitsets: self.bitsets.clone(),
+            index: Arc::clone(&self.index),
+            bitsets: Arc::clone(&self.bitsets),
             _marker: PhantomData,
         }
+    }
+}
+
+impl<T: TaggedRegistry + 'static, I: TagId> SharedResource for TagRegistry<T, I> {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.bitsets, &other.bitsets)
     }
 }
 

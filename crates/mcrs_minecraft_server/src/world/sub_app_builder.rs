@@ -84,9 +84,6 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_item::Item as VanillaItem;
-use mcrs_minecraft_item::Items;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
@@ -95,22 +92,14 @@ use mcrs_minecraft_level::world::sub_app::{
 };
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::shared::SharedRegistries;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
-    pub registry_access: RegistryAccess,
     pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
-    pub blocks: Blocks,
-    pub items: Items,
-    pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
-    pub block_tag_registry: DynTagRegistry<Block>,
-    pub item_tag_registry: DynTagRegistry<VanillaItem>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
-    pub biome_registry: RegistrySnapshot<Biome>,
     pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
     pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub features: crate::world::generate::features::DimensionFeaturePrograms,
@@ -121,17 +110,10 @@ pub struct DimRegistryBundle {
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
-        registry_access: world.resource::<RegistryAccess>().clone(),
         light_registry: world
             .get_resource::<mcrs_minecraft_block::light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
-        blocks: world.resource::<Blocks>().clone(),
-        items: world.resource::<Items>().clone(),
-        static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
-        block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
-        item_tag_registry: world.resource::<DynTagRegistry<VanillaItem>>().clone(),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
-        biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         biome_sources: world
             .get_resource::<crate::world::generate::routers::DimensionBiomeSources>()
             .cloned()
@@ -422,7 +404,14 @@ pub fn spawn_dim_subapp(
         match registries.noise_routers.0.get(dimension) {
             Some(dimension_router) => {
                 let router = &dimension_router.router;
-                let biome_registry = std::sync::Arc::new(registries.biome_registry.clone());
+                let biome_registry = std::sync::Arc::new(
+                    sub_app
+                        .world()
+                        .resource::<RegistrySnapshot<Biome>>()
+                        .clone(),
+                );
+                let blocks = sub_app.world().resource::<Blocks>().0.clone();
+                let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
                 let features = registries
                     .features
                     .0
@@ -436,7 +425,7 @@ pub fn spawn_dim_subapp(
                 sub_app.insert_resource(FillContext::build(
                     std::sync::Arc::clone(router),
                     Some(std::sync::Arc::clone(&dimension_router.material)),
-                    registries.blocks.0.clone(),
+                    blocks,
                     dimension_y_sections(
                         router,
                         request.type_config.min_y,
@@ -456,7 +445,7 @@ pub fn spawn_dim_subapp(
                         .0
                         .get(dimension)
                         .map(std::sync::Arc::clone),
-                    Some(&registries.block_tag_registry),
+                    Some(&block_tags),
                     features,
                     registries.structures.0.get(dimension).cloned(),
                 ));
@@ -522,16 +511,9 @@ pub fn spawn_dim_subapp(
         );
     }
 
-    sub_app.insert_resource(registries.registry_access.clone());
-    sub_app.insert_resource(registries.blocks.clone());
-    sub_app.insert_resource(registries.items.clone());
-    sub_app.insert_resource(registries.static_enchantment_registry.clone());
-    sub_app.insert_resource(registries.block_tag_registry.clone());
-    sub_app.insert_resource(registries.item_tag_registry.clone());
     if let Some(predicates) = &registries.heightmap_predicates {
         sub_app.insert_resource(predicates.clone());
     }
-    sub_app.insert_resource(registries.biome_registry.clone());
     sub_app.insert_resource(registries.structures.clone());
     if let Some(save) = &registries.world_save {
         sub_app.insert_resource(save.clone());
@@ -597,8 +579,9 @@ pub fn spawn_dim_subapp(
     // ClientLevel, so the play-login emitter must send the matching value.
     // Vanilla dimensions use a dimension key equal to their type ident.
     let type_ident = request.dimension_id.as_str();
-    let dim_type_index = registries
-        .registry_access
+    let dim_type_index = sub_app
+        .world()
+        .resource::<RegistryAccess>()
         .iter()
         .find(|r| r.registry_key() == "minecraft:dimension_type")
         .and_then(|reg| {

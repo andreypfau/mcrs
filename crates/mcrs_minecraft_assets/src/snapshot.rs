@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_registry::shared::SharedResource;
 
 /// A single entry in a frozen [`RegistrySnapshot`], carrying the
 /// pre-serialized NBT and the original `AssetId` for reverse lookup.
@@ -22,18 +23,34 @@ pub struct SnapshotEntry<T: Asset> {
 /// Entries are sorted alphabetically by [`ResourceLocation`] and assigned
 /// dense IDs `0..N`. The expensive NBT serialization runs once at build time;
 /// per-client cost is a cheap borrow.
-#[derive(Resource, Debug, Clone)]
+#[derive(Resource, Debug)]
 pub struct RegistrySnapshot<T: Asset> {
-    entries: Vec<SnapshotEntry<T>>,
-    by_asset: HashMap<AssetId<T>, u32>,
+    entries: Arc<[SnapshotEntry<T>]>,
+    by_asset: Arc<HashMap<AssetId<T>, u32>>,
     _marker: PhantomData<fn() -> T>,
+}
+
+impl<T: Asset> Clone for RegistrySnapshot<T> {
+    fn clone(&self) -> Self {
+        Self {
+            entries: Arc::clone(&self.entries),
+            by_asset: Arc::clone(&self.by_asset),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Asset> SharedResource for RegistrySnapshot<T> {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.entries, &other.entries)
+    }
 }
 
 impl<T: Asset> Default for RegistrySnapshot<T> {
     fn default() -> Self {
         Self {
-            entries: Vec::new(),
-            by_asset: HashMap::new(),
+            entries: Arc::default(),
+            by_asset: Arc::default(),
             _marker: PhantomData,
         }
     }
@@ -74,8 +91,8 @@ impl<T: Asset> RegistrySnapshot<T> {
         }
 
         Self {
-            entries,
-            by_asset,
+            entries: entries.into(),
+            by_asset: Arc::new(by_asset),
             _marker: PhantomData,
         }
     }

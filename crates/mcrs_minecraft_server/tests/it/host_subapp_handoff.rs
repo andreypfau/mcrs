@@ -53,13 +53,7 @@ fn build_host_app() -> App {
     app.init_state::<AppState>();
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
-    app.insert_resource(RegistryAccess::default());
-    crate::host_app::insert_registry_set(&mut app);
-    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(DynTagRegistry::<Block>::default());
-    app.insert_resource(DynTagRegistry::<Item>::default());
-    app.insert_resource(RegistrySnapshot::<Biome>::default());
-    support::insert_corpus(&mut app);
+    support::insert_registries(&mut app);
 
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
@@ -354,7 +348,24 @@ fn entering_the_game_spawns_the_player_once_in_its_saved_dimension() {
 
 #[test]
 fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
+    use mcrs_minecraft_block::definition::Blocks;
+    use mcrs_minecraft_item::Items;
+    use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_registry::shared::SharedRegistries;
+    use mcrs_minecraft_world::entity::minecraft::EntityIds;
+    use std::any::type_name;
+
+    let expected = [
+        type_name::<RegistrySet>(),
+        type_name::<EntityIds>(),
+        type_name::<RegistryAccess>(),
+        type_name::<Blocks>(),
+        type_name::<Items>(),
+        type_name::<StaticRegistry<EnchantmentData>>(),
+        type_name::<DynTagRegistry<Block>>(),
+        type_name::<DynTagRegistry<Item>>(),
+        type_name::<RegistrySnapshot<Biome>>(),
+    ];
 
     let mut app = crate::host_app::make_host_app();
     crate::host_app::materialise_sub_apps(
@@ -367,10 +378,12 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     assert_eq!(dimensions.len(), 2);
     for dimension in dimensions {
         let seen = shared.shared_in(app.world(), dimension.world());
-        assert!(
-            seen.iter().any(|(name, _)| name.ends_with("RegistrySet")),
-            "{seen:?}"
-        );
+        for name in expected {
+            assert!(
+                seen.iter().any(|(seen, _)| *seen == name),
+                "{name}: {seen:?}"
+            );
+        }
         for (name, state) in seen {
             assert_eq!(state, Some(true), "{name}");
         }
