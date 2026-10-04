@@ -157,15 +157,15 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
 
 #[test]
 fn consume_effect_ids_are_the_registry_protocol_ids() {
-    let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(include_bytes!(
+    let set = mcrs_minecraft_registry::static_report::from_report(include_bytes!(
         "../../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let registry = table.registry("consume_effect_type").unwrap();
+    let registry = set.table("minecraft:consume_effect_type").unwrap();
     assert_eq!(registry.len(), ConsumeEffectType::ALL.len());
     for kind in ConsumeEffectType::ALL {
         assert_eq!(
-            table.id(
+            set.id(
                 "consume_effect_type",
                 &ResourceLocation::read(kind.id()).unwrap()
             ),

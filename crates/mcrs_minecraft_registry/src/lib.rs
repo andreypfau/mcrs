@@ -13,7 +13,6 @@ pub mod set;
 pub mod shared;
 pub mod static_registry;
 pub mod static_report;
-pub mod static_table;
 pub mod tag_source;
 
 pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
@@ -27,5 +26,4 @@ pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
 pub use static_registry::{StaticId, StaticRegistry};
-pub use static_table::{StaticRegistryEntries, StaticRegistryTable};
 pub use tag_source::TagSource;

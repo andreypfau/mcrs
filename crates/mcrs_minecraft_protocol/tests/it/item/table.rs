@@ -1,5 +1,5 @@
 use mcrs_minecraft_protocol::item::ItemComponentKind;
-use mcrs_minecraft_registry::StaticRegistryTable;
+use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -43,11 +43,11 @@ fn the_kind_table_matches_kinds_json_and_the_registry_report() {
     );
     assert_eq!(ItemComponentKind::from_id("!custom_data"), None);
 
-    let report = StaticRegistryTable::from_json(include_bytes!(
+    let report = from_report(include_bytes!(
         "../../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let types = report.registry("data_component_type").unwrap();
+    let types = report.table("minecraft:data_component_type").unwrap();
     assert_eq!(types.len(), ItemComponentKind::COUNT);
     for (protocol_id, id) in types.names().iter().enumerate() {
         let kind =
