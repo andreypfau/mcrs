@@ -1,12 +1,20 @@
+use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 
 pub fn static_registries(report: &[u8]) -> Result<RegistrySet, LoadReport> {
-    from_report(report).map_err(|error| {
+    let set = from_report(report).map_err(|error| {
         let mut report = LoadReport::new();
         report.invalid_report(error);
         report
-    })
+    })?;
+    let mut missing = LoadReport::new();
+    missing.registry::<SoundEvent>(&set);
+    if missing.is_empty() {
+        Ok(set)
+    } else {
+        Err(missing)
+    }
 }
 
 pub fn refuse(report: &LoadReport) -> ! {
@@ -28,5 +36,27 @@ mod tests {
         let text = report.to_string();
         assert_eq!(text.lines().count(), 1, "{text}");
         assert!(text.contains("minecraft:x"), "{text}");
+    }
+
+    #[test]
+    fn a_report_without_sound_events_is_refused() {
+        let mut report: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../../assets/mcrs/reports/registries.json"
+        ))
+        .unwrap();
+        report
+            .as_object_mut()
+            .unwrap()
+            .remove("minecraft:sound_event")
+            .expect("the report carries sound events");
+        let bytes = serde_json::to_vec(&report).unwrap();
+
+        let refused = static_registries(&bytes)
+            .err()
+            .expect("a report without sound events is refused");
+        assert!(
+            refused.to_string().contains("minecraft:sound_event"),
+            "{refused}"
+        );
     }
 }

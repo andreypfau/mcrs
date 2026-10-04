@@ -1,6 +1,7 @@
 use crate::world::aoi::{PlayerTrackerSet, TrackedBy, on_changed_transform};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::world::entity::player::HostAnchor;
+use crate::world::item::item_lookups;
 use crate::world::item::sync::WireStack;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
@@ -37,7 +38,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassenger
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
+use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft as entity_types;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
@@ -552,19 +553,15 @@ fn remove(entity: Entity) -> PacketPayload {
 pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
+    set: Res<RegistrySet>,
     registry: Res<RegistryAccess>,
-    blocks: Option<Res<Blocks>>,
+    blocks: Res<Blocks>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
     players: Query<(&Transform, &HostAnchor), With<Player>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let registry: &dyn RegistryLookup = &*registry;
-    let mut lookups: Vec<&dyn RegistryLookup> = Vec::with_capacity(2);
-    lookups.push(registry);
-    if let Some(blocks) = &blocks {
-        lookups.push(&*blocks.0);
-    }
+    let lookups = item_lookups(&set, &registry, &blocks.0);
     let lookup = ChainLookup(&lookups);
     for (in_dim, mut tracked_by, pairing) in mobs.iter_mut() {
         let at = pairing.transform.translation;
@@ -636,6 +633,16 @@ mod tests {
     use bevy_ecs::schedule::Schedule;
     use mcrs_minecraft_level::world::storage::column::ColumnSlot;
 
+    fn report_set() -> RegistrySet {
+        let report = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .expect("the registries report is readable");
+        mcrs_minecraft_world::registries::static_registries(&report)
+            .unwrap_or_else(|report| panic!("{report}"))
+    }
+
     fn drain(app: &mut App) -> Vec<(Entity, PacketPayload)> {
         app.world_mut()
             .resource_mut::<Messages<OutboundPlayerPacket>>()
@@ -661,6 +668,8 @@ mod tests {
         app.add_schedule(Schedule::new(FixedPostUpdate));
         app.add_message::<OutboundPlayerPacket>();
         app.insert_resource(RegistryAccess::default());
+        app.insert_resource(report_set());
+        app.insert_resource(mcrs_minecraft_world::item::test_corpus().0.clone());
         app.add_plugins(MobTrackerPlugin);
 
         let dim = app.world_mut().spawn(ColumnIndex::default()).id();

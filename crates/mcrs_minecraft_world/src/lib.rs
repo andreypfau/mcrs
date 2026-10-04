@@ -17,7 +17,6 @@ pub mod registries;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
-pub mod sound;
 pub mod test_types;
 pub mod variant;
 pub mod worldgen;
@@ -143,8 +142,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<test_types::TestInstance>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>()
-            .init_resource::<StaticRegistry<EntityType>>()
+        app.init_resource::<StaticRegistry<EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
 
@@ -462,18 +460,6 @@ impl Plugin for MinecraftWorldPlugin {
             tracing::info!(items = items.len(), "loaded item definitions");
             app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
-        }
-        {
-            let mut sounds = app
-                .world_mut()
-                .resource_mut::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>();
-            sound::minecraft::register_all_sounds(&mut sounds);
-            tracing::info!(
-                count = sounds.len(),
-                "registered StaticRegistry<SoundEvent>"
-            );
-            sounds.freeze();
-            tracing::info!("frozen StaticRegistry<SoundEvent>");
         }
         {
             let asset_server = app.world().resource::<AssetServer>().clone();

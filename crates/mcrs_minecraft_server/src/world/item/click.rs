@@ -2,6 +2,7 @@ use crate::world::entity::item::launch_thrown_items;
 use crate::world::entity::player::ability::PlayerGameMode;
 use crate::world::entity::player::player_action::{PlayerAction, PlayerActionKind};
 use crate::world::item::chest::close_container_menu;
+use crate::world::item::item_lookups;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageCursor, Messages};
 use bevy_ecs::prelude::{Local, MessageWriter, On, Query};
@@ -21,7 +22,7 @@ use mcrs_minecraft_protocol::item::{ItemStackValue, MaxStackSize, RawDelimitedSt
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundContainerClose, ServerboundSetCreativeModeSlot,
 };
-use mcrs_minecraft_registry::ChainLookup;
+use mcrs_minecraft_registry::{ChainLookup, RegistrySet};
 
 #[derive(Message, Debug)]
 pub struct CreativeSlotRequest {
@@ -122,9 +123,11 @@ pub fn handle_creative_slots(world: &mut World) {
         return;
     }
     let items = world.resource::<Items>().clone();
+    let set = world.resource::<RegistrySet>().clone();
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
-    let lookup = ChainLookup(&[&registry, &*blocks.0]);
+    let lookups = item_lookups(&set, &registry, &blocks.0);
+    let lookup = ChainLookup(&lookups);
     for req in requests {
         if !world
             .get::<PlayerGameMode>(req.player)

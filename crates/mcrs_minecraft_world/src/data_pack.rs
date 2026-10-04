@@ -17,10 +17,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
-use mcrs_minecraft_item as item;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
@@ -569,32 +567,9 @@ pub(crate) fn resolve_timeline_tags(
 }
 
 pub(crate) fn register_static_registries_with_access(
-    items: Res<item::Items>,
-    sound_registry: Res<StaticRegistry<mcrs_minecraft_item::SoundEvent>>,
-    entity_registry: Res<StaticRegistry<EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {
-    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_entries(
-        "minecraft:item",
-        items
-            .iter()
-            .map(|entry| (entry.identifier.clone(), None))
-            .collect(),
-        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-    ));
-    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-        "minecraft:sound_event",
-        &sound_registry,
-        |_, _| None,
-        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-    ));
-    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-        "minecraft:entity_type",
-        &entity_registry,
-        |_, _| None,
-        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-    ));
     access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
         "minecraft:enchantment",
         &enchantment_registry,
