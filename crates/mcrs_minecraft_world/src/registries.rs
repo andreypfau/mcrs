@@ -9,6 +9,7 @@ use crate::entity::minecraft::EntityIds;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant;
+use crate::villager_trade::{TradeSet, VillagerTrade};
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
@@ -51,6 +52,8 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<EnchantmentData>(&mut world, &mut undeclared);
     parse::<EnchantmentProvider>(&mut world, &mut undeclared);
     parse::<SulfurCubeArchetype>(&mut world, &mut undeclared);
+    parse::<VillagerTrade>(&mut world, &mut undeclared);
+    parse::<TradeSet>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
         &mut world,
@@ -423,7 +426,9 @@ mod tests {
             "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
             "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
             "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
-            "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
+            "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
+            "minecraft:trade_set":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),

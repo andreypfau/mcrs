@@ -5,6 +5,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::value::{Bounds, HolderSet, NumberProvider};
+use crate::component::predicate::ComponentPredicates;
 
 /// A map whose key selects both the field and the type of its value, the way
 /// `Codec.dispatchedMap` does. An unknown key is an error naming it, so a
@@ -251,6 +252,7 @@ dispatched_map! {
         "minecraft:movement_affected_by" => movement_affected_by: LocationPredicate,
         "minecraft:location" => location: LocationPredicate,
         "minecraft:periodic_tick" => periodic_tick: i32,
+        "minecraft:predicates" => predicates: ComponentPredicates,
         "minecraft:vehicle" => vehicle: Box<EntityPredicate>,
         "minecraft:type_specific/player" => player: PlayerPredicate,
     }
