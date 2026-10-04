@@ -27,7 +27,6 @@ use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -523,7 +522,9 @@ pub(crate) fn index_biomes(
         })
         .collect();
     tracing::info!(count = entries.len(), "indexed biomes");
-    commands.insert_resource(DynRegistryIndex::<biome::Biome>::build(entries.into_iter()));
+    commands.insert_resource(
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Biome>::build(entries.into_iter()),
+    );
 }
 
 pub(crate) fn index_structures(
@@ -538,7 +539,9 @@ pub(crate) fn index_structures(
         })
         .collect();
     tracing::info!(count = entries.len(), "indexed structures");
-    commands.insert_resource(DynRegistryIndex::<Structure>::build(entries.into_iter()));
+    commands.insert_resource(
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Structure>::build(entries.into_iter()),
+    );
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were

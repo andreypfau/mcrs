@@ -203,10 +203,6 @@ pub enum Structure {
     },
 }
 
-impl mcrs_minecraft_core::tag_key::TaggedRegistry for Structure {
-    const REGISTRY_PATH: &'static str = "worldgen/structure";
-}
-
 impl Structure {
     pub fn settings(&self) -> &StructureSettings {
         match self {

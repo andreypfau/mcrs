@@ -2,13 +2,13 @@ use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::key;
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::spawn_condition::{
@@ -92,11 +92,11 @@ pub struct StructureInputs<'a> {
     pub pools: &'a BTreeMap<ResourceLocation, TemplatePool>,
     pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
-    pub biomes: &'a DynRegistryIndex<Biome>,
-    pub biome_tags: &'a DynTagRegistry<Biome>,
+    pub biomes: &'a DynRegistryIndex<key::Biome>,
+    pub biome_tags: &'a DynTagRegistry<key::Biome>,
     /// The structure ids the tags are resolved against, and those tags.
-    pub structure_index: &'a DynRegistryIndex<Structure>,
-    pub structure_tags: &'a DynTagRegistry<Structure>,
+    pub structure_index: &'a DynRegistryIndex<key::Structure>,
+    pub structure_tags: &'a DynTagRegistry<key::Structure>,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -138,7 +138,7 @@ fn structure_id_set(
     };
     match set {
         HolderSet::Tag(tag) => {
-            let key = TagKey::<Structure, _>::from_location(tag.clone());
+            let key = TagKey::<key::Structure, _>::from_location(tag.clone());
             let members = inputs
                 .structure_tags
                 .get(&key)
@@ -202,7 +202,7 @@ fn biome_mask(
     let mut mask = FixedBitSet::with_capacity(inputs.biomes.len() as usize);
     match set {
         HolderSet::Tag(tag) => {
-            let key = TagKey::<Biome, _>::from_location(tag.clone());
+            let key = TagKey::<key::Biome, _>::from_location(tag.clone());
             let members = inputs.biome_tags.get(&key).ok_or_else(|| {
                 format!("{owner}: names the biome tag #{tag}, which is not loaded")
             })?;

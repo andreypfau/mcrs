@@ -41,7 +41,6 @@ use mcrs_minecraft_environment::world_clock::seed_world_clocks;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -159,8 +158,8 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_registry::StaticId<EnchantmentData>,
                 >,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::StaticId<EntityType>>,
-                request_every_tag::<mcrs_minecraft_biome::Biome, u32>,
-                request_every_tag::<Structure, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Biome, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Structure, u32>,
             )
                 .in_set(TagPhase::Request),
         );
@@ -170,8 +169,8 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
         .add_tagged_registry::<EntityType, StaticRegistry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
-        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>()
-        .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>();
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Biome, DynRegistryIndex<mcrs_minecraft_registry::key::Biome>>()
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Structure, DynRegistryIndex<mcrs_minecraft_registry::key::Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
 

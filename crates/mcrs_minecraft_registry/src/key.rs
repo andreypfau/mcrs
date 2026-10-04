@@ -39,3 +39,25 @@ impl TaggedRegistry for Dialog {
 impl RegistryKey for Dialog {
     const KEY: ResourceLocation<&'static str> = rl!("minecraft:dialog");
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Biome {}
+
+impl TaggedRegistry for Biome {
+    const REGISTRY_PATH: &'static str = "worldgen/biome";
+}
+
+impl RegistryKey for Biome {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/biome");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Structure {}
+
+impl TaggedRegistry for Structure {
+    const REGISTRY_PATH: &'static str = "worldgen/structure";
+}
+
+impl RegistryKey for Structure {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/structure");
+}

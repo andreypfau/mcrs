@@ -9,6 +9,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::key;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 
 fn workspace_root() -> std::path::PathBuf {
@@ -54,9 +55,9 @@ fn run_to_playing() -> App {
 }
 
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let tags = app.world().resource::<DynTagRegistry<Biome>>();
-    let index = app.world().resource::<DynRegistryIndex<Biome>>();
-    let key = TagKey::<Biome, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let tags = app.world().resource::<DynTagRegistry<key::Biome>>();
+    let index = app.world().resource::<DynRegistryIndex<key::Biome>>();
+    let key = TagKey::<key::Biome, _>::from_location(ResourceLocation::parse(tag).unwrap());
     let mut names: Vec<String> = tags
         .get(&key)
         .expect("the tag is resolved")
@@ -94,7 +95,7 @@ fn the_shipped_biome_tags_resolve() {
 #[test]
 fn the_biome_index_and_snapshot_agree_on_the_id_space() {
     let app = run_to_playing();
-    let index = app.world().resource::<DynRegistryIndex<Biome>>();
+    let index = app.world().resource::<DynRegistryIndex<key::Biome>>();
     let snapshot = app.world().resource::<RegistrySnapshot<Biome>>();
 
     assert_eq!(index.len(), snapshot.len());

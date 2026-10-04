@@ -124,10 +124,10 @@ use mcrs_minecraft_block::definition::Fluids;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::TagSource;
+use mcrs_minecraft_registry::key;
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 fn tag_dir(registry: &str) -> PathBuf {
     mcrs_minecraft_worldgen_testing::assets_dir()
@@ -194,8 +194,8 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 }
 
 /// Every biome id of the corpus, numbered the way the snapshot numbers them.
-pub fn biome_index() -> &'static DynRegistryIndex<Biome> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<Biome>> = std::sync::OnceLock::new();
+pub fn biome_index() -> &'static DynRegistryIndex<key::Biome> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("biome").into_keys())
     })
@@ -223,19 +223,20 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> &'static DynTagRegistry<Biome> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<Biome>> = std::sync::OnceLock::new();
+pub fn biome_tags() -> &'static DynTagRegistry<key::Biome> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Biome>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(biome_index()))
 }
 
-pub fn structure_index() -> &'static DynRegistryIndex<Structure> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<Structure>> = std::sync::OnceLock::new();
+pub fn structure_index() -> &'static DynRegistryIndex<key::Structure> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Structure>> =
+        std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("structure").into_keys())
     })
 }
 
-pub fn structure_tags() -> &'static DynTagRegistry<Structure> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<Structure>> = std::sync::OnceLock::new();
+pub fn structure_tags() -> &'static DynTagRegistry<key::Structure> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Structure>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(structure_index()))
 }
