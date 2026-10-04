@@ -164,7 +164,7 @@ pub const FIXTURES: &[Fixture] = &[
         "hash_ops",
         &[named(
             "hash_ops.json",
-            "crates/mcrs_minecraft_item_component/src/fixtures",
+            "crates/mcrs_minecraft_item/src/fixtures",
         )],
     ),
     golden("text_vanilla", &[named("vanilla.json", TEXT_FIXTURES)]),

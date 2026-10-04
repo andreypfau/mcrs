@@ -1,12 +1,10 @@
+use crate::{Damage, ItemComponentKind, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;
-use mcrs_minecraft_item_component::{
-    Damage, ItemComponentKind, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable,
-};
 
 use crate::definition::Items;
 use crate::held::SlotTable;
-use crate::stack::ItemStack;
+use crate::item_stack::ItemStack;
 use crate::value::{child_kind, ops};
 
 fn own_child_kind(entity: EntityRef, items: &Items) -> Option<ItemComponentKind> {

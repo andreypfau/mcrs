@@ -2,12 +2,12 @@ use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::{
-    ItemStack, Items, children, component_value, has_component, has_non_default,
-};
-use mcrs_minecraft_item_component::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
     MaxStackSize, PotionContents, Trim,
+};
+use mcrs_minecraft_item::{
+    ItemStack, Items, children, component_value, has_component, has_non_default,
 };
 
 use super::asset::{

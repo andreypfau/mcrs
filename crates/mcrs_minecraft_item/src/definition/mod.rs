@@ -1,19 +1,29 @@
 pub mod schema;
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+#[cfg(feature = "bevy")]
+use std::sync::OnceLock;
 
+use crate::{ComponentMap, Template};
+#[cfg(feature = "bevy")]
 use bevy_app::{App, TaskPoolPlugin};
+#[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
+#[cfg(feature = "bevy")]
 use bevy_asset::{AssetPlugin, AssetServer};
+#[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::tag::registry::TagSource;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item_component::{ComponentMap, Template};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use rustc_hash::FxHashMap;
 
+#[cfg(feature = "bevy")]
 use self::schema::ItemDefinitionFile;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
@@ -51,7 +61,10 @@ impl ItemDefinitions {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+}
 
+#[cfg(feature = "bevy")]
+impl ItemDefinitions {
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,
@@ -130,9 +143,11 @@ impl ItemDefinitions {
     }
 }
 
+#[cfg(feature = "bevy")]
 #[derive(Resource, Clone, Debug)]
 pub struct Items(pub Arc<ItemDefinitions>);
 
+#[cfg(feature = "bevy")]
 impl std::ops::Deref for Items {
     type Target = ItemDefinitions;
 
@@ -141,6 +156,7 @@ impl std::ops::Deref for Items {
     }
 }
 
+#[cfg(feature = "bevy")]
 impl TagSource for Items {
     type Id = u32;
 
@@ -153,6 +169,7 @@ impl TagSource for Items {
     }
 }
 
+#[cfg(feature = "bevy")]
 #[derive(Debug, thiserror::Error)]
 pub enum ItemCorpusError {
     #[error("no default asset source")]
@@ -182,6 +199,7 @@ pub enum ItemCorpusError {
 
 /// The whole vanilla corpus, loaded once per process; for tests and tools
 /// that have no app to hand it an asset server from.
+#[cfg(feature = "bevy")]
 pub fn test_corpus() -> &'static (Blocks, Items) {
     static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
     CORPUS.get_or_init(|| {
@@ -200,6 +218,7 @@ pub fn test_corpus() -> &'static (Blocks, Items) {
     })
 }
 
+#[cfg(feature = "bevy")]
 pub fn load_item_definitions(
     asset_server: &AssetServer,
     blocks: &BlockDefinitions,

@@ -1,25 +1,47 @@
 [package]
 name = "mcrs_minecraft_item"
-description = "Items, item components, enchantments and armour trims"
+description = "Items, item data components, the component patch, the persistent item stack, enchantments and armour trims"
 version.workspace = true
 edition.workspace = true
 
 [lib]
 doctest = false
 
+[[test]]
+name = "corpus"
+required-features = ["bevy"]
+
+[features]
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_asset",
+    "dep:bevy_ecs",
+    "dep:bevy_reflect",
+    "dep:bevy_tasks",
+    "dep:mcrs_minecraft_assets",
+    "dep:mcrs_minecraft_block",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_profile/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dependencies]
-bevy_app.workspace = true
-bevy_asset.workspace = true
-bevy_ecs.workspace = true
-bevy_reflect.workspace = true
-bevy_tasks.workspace = true
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_block.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_item_component = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+bevy_app = { workspace = true, optional = true }
+bevy_asset = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+bevy_reflect = { workspace = true, optional = true }
+bevy_tasks = { workspace = true, optional = true }
+mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_block = { workspace = true, optional = true }
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_text.workspace = true
+anyhow.workspace = true
+crc32c.workspace = true
 rustc-hash.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 

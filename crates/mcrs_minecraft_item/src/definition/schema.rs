@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use crate::{ComponentMap, Template};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_item_component::{ComponentMap, Template};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

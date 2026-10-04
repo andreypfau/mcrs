@@ -6,8 +6,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
-use mcrs_minecraft_item_component::for_each_data_component;
-use mcrs_minecraft_item_component::{
+use mcrs_minecraft_item::for_each_data_component;
+use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
     TooltipDisplay, UseEffects,

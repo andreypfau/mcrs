@@ -6,17 +6,27 @@ pub mod value;
 
 pub use data::{EnchantmentCost, EnchantmentData, NetworkEnchantmentData};
 
+#[cfg(feature = "bevy")]
 use std::path::Path;
+#[cfg(feature = "bevy")]
 use std::sync::OnceLock;
 
+#[cfg(feature = "bevy")]
 use bevy_app::{App, TaskPoolPlugin};
+#[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
+#[cfg(feature = "bevy")]
 use bevy_asset::{AssetPlugin, AssetServer};
+#[cfg(feature = "bevy")]
 use bevy_tasks::block_on;
 
+#[cfg(feature = "bevy")]
 use data::ProtoEnchantmentData;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::read_whole;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_core::ResourceLocation;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::StaticRegistry;
 
 /// The 43 vanilla enchantments in Java bootstrap (protocol) order.
@@ -66,6 +76,7 @@ pub const VANILLA_ENCHANTMENTS: &[&str] = &[
     "minecraft:vanishing_curse",
 ];
 
+#[cfg(feature = "bevy")]
 pub fn register_all_enchantments(
     registry: &mut StaticRegistry<EnchantmentData>,
     asset_server: &AssetServer,
@@ -91,6 +102,7 @@ pub fn register_all_enchantments(
 
 /// The vanilla enchantments, loaded once per process; for tests that have no
 /// app to hand them an asset server from.
+#[cfg(feature = "bevy")]
 pub fn test_enchantments() -> &'static StaticRegistry<EnchantmentData> {
     static REGISTRY: OnceLock<StaticRegistry<EnchantmentData>> = OnceLock::new();
     REGISTRY.get_or_init(|| {

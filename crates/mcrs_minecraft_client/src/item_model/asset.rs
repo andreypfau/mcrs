@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
-use mcrs_minecraft_item_component::{
+use mcrs_minecraft_item::{
     ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, EntityTypeReg,
     ItemComponentKind, ItemComponentValue, RgbInt, TrimMaterialReg,
 };
@@ -1028,7 +1028,7 @@ mod tests {
 
     #[test]
     fn the_component_switch_reads_its_cases_with_the_components_codec() {
-        use mcrs_minecraft_item_component::DyedColor;
+        use mcrs_minecraft_item::DyedColor;
 
         let item = model(&format!(
             r#"{{"type": "minecraft:select", "property": "minecraft:component", "component": "minecraft:dyed_color", "cases": [{{"when": [255, [1.0, 0.0, 0.0]], "model": {LEAF}}}]}}"#

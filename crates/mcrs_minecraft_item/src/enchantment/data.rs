@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
+use crate::Text;
+#[cfg(any(test, feature = "bevy"))]
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
-use mcrs_minecraft_item_component::Text;
+use mcrs_minecraft_core::tag_key::TagKey;
+#[cfg(any(test, feature = "bevy"))]
+use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 
 use crate::Item;
@@ -13,6 +16,7 @@ use crate::enchantment::effects::EnchantmentEffects;
 /// Tag reference fields (`supported_items`, `primary_items`, `exclusive_set`)
 /// are raw `"#namespace:path"` strings. Converted to [`EnchantmentData`] by
 /// [`ProtoEnchantmentData::resolve`], which parses them into typed `TagKey`s.
+#[cfg(any(test, feature = "bevy"))]
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ProtoEnchantmentData {
     pub description: Text,
@@ -39,6 +43,7 @@ pub enum EnchantmentResolveError {
     InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
 }
 
+#[cfg(any(test, feature = "bevy"))]
 fn parse_tag_key<T: TaggedRegistry>(
     raw: &str,
 ) -> Result<TagKey<T, Arc<str>>, EnchantmentResolveError> {
@@ -49,6 +54,7 @@ fn parse_tag_key<T: TaggedRegistry>(
     Ok(TagKey::from_location(rl))
 }
 
+#[cfg(any(test, feature = "bevy"))]
 impl ProtoEnchantmentData {
     pub fn resolve(self) -> Result<EnchantmentData, EnchantmentResolveError> {
         let supported_items = parse_tag_key::<Item>(&self.supported_items)?;

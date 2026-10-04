@@ -2,7 +2,7 @@ use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_item_component::ProtoStack;
+use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::ItemReg;
