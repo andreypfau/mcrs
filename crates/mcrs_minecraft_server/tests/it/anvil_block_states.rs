@@ -9,6 +9,8 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, load_block_
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_worldgen_generator::saved::{
     CorpusBlockStates, SnapshotBiomes, column_sections,
 };
@@ -23,7 +25,16 @@ fn corpus() -> &'static BlockDefinitions {
             ..Default::default()
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
-        load_block_definitions(&asset_server)
+        let report = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .expect("the registries report reads");
+        let blocks = from_report(&report)
+            .expect("the registries report parses")
+            .registry::<Block>()
+            .expect("the registries report has blocks");
+        load_block_definitions(&asset_server, &blocks)
             .expect("the corpus loads")
             .0
     })

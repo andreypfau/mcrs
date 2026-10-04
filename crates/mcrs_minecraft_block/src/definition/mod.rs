@@ -23,7 +23,8 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_registry::{BlockStateId, RegistryLookup};
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::{BlockStateId, Registry, RegistryLookup, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -92,8 +93,8 @@ pub struct BlockStateData {
 #[derive(Debug)]
 pub struct BlockEntry {
     pub identifier: ResourceLocation<Arc<str>>,
-    /// The block's index in the vanilla block registry, which is how the
-    /// protocol names a block. Unrelated to its position in this corpus.
+    /// The block's index in the registries report, which is how the protocol
+    /// names a block and where the block sits in the table.
     pub protocol_id: u16,
     pub base_state_id: BlockStateId,
     pub default_state_id: BlockStateId,
@@ -259,8 +260,9 @@ impl BlockDefinitions {
         &self.blocks[self.owners[id.0 as usize] as usize]
     }
 
-    /// The block's position in the corpus. This is the id block tags are
-    /// resolved against, so a state's tag membership is two array reads.
+    /// The block's position in the table, which is its id in the registries
+    /// report. This is the id block tags are resolved against, so a state's tag
+    /// membership is two array reads.
     #[inline]
     pub fn block_index(&self, id: BlockStateId) -> u32 {
         self.owners[id.0 as usize]
@@ -399,10 +401,16 @@ pub enum LoadError {
     Block { block: String, source: BlockError },
     #[error("block state {0} is claimed by no block")]
     UnclaimedState(u16),
+    #[error("`{block}` is in the registries report and has no definition file")]
+    MissingDefinition { block: String },
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockError {
+    #[error(transparent)]
+    Unknown(#[from] UnknownEntry),
+    #[error("states protocol id {stated}, which is {report} in the registries report")]
+    ProtocolIdDisagrees { stated: u16, report: usize },
     #[error("condition `{condition}`: {source}")]
     Condition {
         condition: String,
@@ -424,6 +432,7 @@ pub enum BlockError {
 
 pub fn load_block_definitions(
     asset_server: &AssetServer,
+    blocks: &Registry<Block>,
 ) -> Result<(BlockDefinitions, LoadReport), LoadError> {
     let started = Instant::now();
     let source = asset_server
@@ -431,7 +440,7 @@ pub fn load_block_definitions(
         .map_err(|_| LoadError::NoAssetSource)?;
     let corpus = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
 
-    let mut builder = Builder::new();
+    let mut builder = Builder::new(blocks);
     let files = corpus.len();
     for (path, bytes) in corpus {
         if bytes.is_empty() {
@@ -489,14 +498,15 @@ struct Builder {
     fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
-    blocks: Vec<BlockEntry>,
+    registry: Registry<Block>,
+    blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
 }
 
 const NO_OWNER: u32 = u32::MAX;
 
 impl Builder {
-    fn new() -> Self {
+    fn new(registry: &Registry<Block>) -> Self {
         Builder {
             states: Vec::new(),
             owners: Vec::new(),
@@ -505,7 +515,10 @@ impl Builder {
             fluids: Vec::new(),
             loot: Vec::new(),
             experience: Vec::new(),
-            blocks: Vec::new(),
+            blocks: std::iter::repeat_with(|| None)
+                .take(registry.len())
+                .collect(),
+            registry: registry.clone(),
             permutations: 0,
         }
     }
@@ -545,6 +558,13 @@ impl Builder {
 
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
         let description = file.block.description;
+        let id = self.registry.require(description.identifier.as_str())?;
+        if usize::from(description.protocol_id) != id.index() {
+            return Err(BlockError::ProtocolIdDisagrees {
+                stated: description.protocol_id,
+                report: id.index(),
+            });
+        }
         let properties = description.properties;
         let base = description.base_state_id;
         let state_count = properties.state_count();
@@ -578,7 +598,7 @@ impl Builder {
         }
         self.permutations += permutations.len();
 
-        let block_index = self.blocks.len() as u32;
+        let block_index = id.index() as u32;
         let end = base as usize + state_count;
         if self.states.len() < end {
             self.states.resize(end, UNCLAIMED);
@@ -610,10 +630,11 @@ impl Builder {
             if self.owners[state] != NO_OWNER {
                 return Err(BlockError::OverlappingState {
                     state: state as u16,
-                    owner: self.blocks[self.owners[state] as usize]
-                        .identifier
-                        .as_str()
-                        .to_owned(),
+                    owner: self
+                        .registry
+                        .table()
+                        .name(self.owners[state] as usize)
+                        .map_or_else(String::new, |name| name.as_str().to_owned()),
                 });
             }
             self.owners[state] = block_index;
@@ -628,7 +649,7 @@ impl Builder {
             self.states[state] = data;
         }
 
-        self.blocks.push(BlockEntry {
+        self.blocks[id.index()] = Some(BlockEntry {
             identifier: description.identifier,
             protocol_id: description.protocol_id,
             base_state_id: BlockStateId(base),
@@ -768,11 +789,22 @@ impl Builder {
     }
 
     fn finish(&mut self) -> Result<BlockDefinitions, LoadError> {
+        let mut blocks = Vec::with_capacity(self.blocks.len());
+        for (index, slot) in std::mem::take(&mut self.blocks).into_iter().enumerate() {
+            blocks.push(slot.ok_or_else(|| {
+                LoadError::MissingDefinition {
+                    block: self
+                        .registry
+                        .table()
+                        .name(index)
+                        .map_or_else(String::new, |name| name.as_str().to_owned()),
+                }
+            })?);
+        }
         if let Some(state) = self.owners.iter().position(|&owner| owner == NO_OWNER) {
             return Err(LoadError::UnclaimedState(state as u16));
         }
-        let by_identifier = self
-            .blocks
+        let by_identifier = blocks
             .iter()
             .enumerate()
             .map(|(index, block)| (block.identifier.as_str().into(), index))
@@ -783,7 +815,7 @@ impl Builder {
             fluids: std::mem::take(&mut self.fluids),
             loot: std::mem::take(&mut self.loot),
             experience: std::mem::take(&mut self.experience),
-            blocks: std::mem::take(&mut self.blocks),
+            blocks,
             owners: std::mem::take(&mut self.owners),
             by_identifier,
         })
@@ -899,8 +931,18 @@ mod tests {
         )
     }
 
-    fn build(files: &[String]) -> Result<BlockDefinitions, LoadError> {
-        let mut builder = Builder::new();
+    fn registry(names: &[&str]) -> Registry<Block> {
+        Registry::new(
+            names
+                .iter()
+                .map(|name| ResourceLocation::parse(name).unwrap()),
+            std::iter::empty(),
+        )
+        .unwrap()
+    }
+
+    fn build_against(names: &[&str], files: &[String]) -> Result<BlockDefinitions, LoadError> {
+        let mut builder = Builder::new(&registry(names));
         for source in files {
             let file: BlockDefinitionFile = serde_json::from_str(source).expect("valid json");
             let block = file.block.description.identifier.as_str().to_owned();
@@ -909,6 +951,89 @@ mod tests {
                 .map_err(|source| LoadError::Block { block, source })?;
         }
         builder.finish()
+    }
+
+    fn build(files: &[String]) -> Result<BlockDefinitions, LoadError> {
+        let identifiers: Vec<String> = files
+            .iter()
+            .map(|source| {
+                let file: BlockDefinitionFile = serde_json::from_str(source).expect("valid json");
+                file.block.description.identifier.as_str().to_owned()
+            })
+            .collect();
+        let names: Vec<&str> = identifiers.iter().map(String::as_str).collect();
+        let stated: Vec<String> = files
+            .iter()
+            .enumerate()
+            .map(|(position, source)| {
+                source.replacen(
+                    r#""protocol_id": 0"#,
+                    &format!(r#""protocol_id": {position}"#),
+                    1,
+                )
+            })
+            .collect();
+        build_against(&names, &stated)
+    }
+
+    #[test]
+    fn a_block_sits_at_its_registry_id_whatever_order_its_file_is_read_in() {
+        let first = file("minecraft:first", 0, "", "").replacen(
+            r#""protocol_id": 0"#,
+            r#""protocol_id": 1"#,
+            1,
+        );
+        let second = file("minecraft:second", 1, "", "");
+        let definitions =
+            build_against(&["minecraft:second", "minecraft:first"], &[first, second]).unwrap();
+        assert_eq!(definitions.index_of("minecraft:second"), Some(0));
+        assert_eq!(definitions.index_of("minecraft:first"), Some(1));
+        assert_eq!(
+            definitions.blocks()[0].identifier.as_str(),
+            "minecraft:second"
+        );
+        assert_eq!(definitions.block_index(BlockStateId(0)), 1);
+        assert_eq!(definitions.block_index(BlockStateId(1)), 0);
+    }
+
+    #[test]
+    fn a_report_block_without_a_file_fails_at_load_naming_it() {
+        let error = build_against(
+            &["minecraft:first", "minecraft:second"],
+            &[file("minecraft:first", 0, "", "")],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("`minecraft:second`"), "{error}");
+    }
+
+    #[test]
+    fn a_file_for_a_block_the_report_lacks_fails_at_load_naming_it() {
+        let error = build_against(
+            &["minecraft:first"],
+            &[
+                file("minecraft:first", 0, "", ""),
+                file("minecraft:stray", 1, "", ""),
+            ],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("minecraft:stray"), "{error}");
+    }
+
+    #[test]
+    fn a_stated_protocol_id_the_report_disagrees_with_fails_at_load_naming_the_block() {
+        let error = build_against(
+            &["minecraft:first", "minecraft:second"],
+            &[
+                file("minecraft:first", 0, "", ""),
+                file("minecraft:second", 1, "", ""),
+            ],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("minecraft:second"), "{error}");
+        assert!(error.contains("protocol id 0"), "{error}");
     }
 
     #[test]

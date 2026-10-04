@@ -1,9 +1,14 @@
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::io::AssetSourceId;
 use bevy_asset::{AssetPlugin, AssetServer};
+use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::static_report::from_report;
 
 use self::definitions::load_item_definitions;
 
@@ -28,7 +33,20 @@ pub fn test_corpus() -> &'static (Blocks, Items) {
             },
         ));
         let asset_server = app.world().resource::<AssetServer>().clone();
-        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
+        let source = asset_server
+            .get_source(AssetSourceId::Default)
+            .expect("default AssetSource missing");
+        let report = bevy_tasks::block_on(read_whole(
+            source.reader(),
+            Path::new("mcrs/reports/registries.json"),
+        ))
+        .expect("the registries report reads");
+        let block_registry = from_report(&report)
+            .expect("the registries report parses")
+            .registry::<Block>()
+            .expect("the registries report has blocks");
+        let (blocks, _) =
+            load_block_definitions(&asset_server, &block_registry).expect("the block corpus loads");
         let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
         (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
     })

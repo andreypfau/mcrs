@@ -1,7 +1,34 @@
 use std::path::{Path, PathBuf};
 
-use mcrs_minecraft_block::definition::CORPUS_DIRECTORY;
+use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::{AssetPlugin, AssetServer};
+use mcrs_minecraft_block::definition::{
+    BlockDefinitions, CORPUS_DIRECTORY, LoadError, LoadReport, load_block_definitions,
+};
+use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::static_report::from_report;
 use serde::de::DeserializeOwned;
+
+pub fn report_blocks() -> Registry<Block> {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json");
+    from_report(&std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+        .registry::<Block>()
+        .expect("the registries report has no block registry")
+}
+
+pub fn load_corpus(blocks: &Registry<Block>) -> Result<(BlockDefinitions, LoadReport), LoadError> {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    load_block_definitions(&asset_server, blocks)
+}
 
 pub fn definition_files<T: DeserializeOwned>() -> Vec<(PathBuf, T)> {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR"))
