@@ -1,4 +1,4 @@
-use crate::{Id, StaticId};
+use crate::Id;
 use fixedbitset::FixedBitSet;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -22,18 +22,6 @@ impl TagId for u32 {
     }
 }
 
-impl<T: 'static> TagId for StaticId<T> {
-    #[inline]
-    fn raw(self) -> u32 {
-        self.id
-    }
-
-    #[inline]
-    fn from_raw(raw: u32) -> Self {
-        StaticId::new(raw)
-    }
-}
-
 impl<R: 'static> TagId for Id<R> {
     #[inline]
     fn raw(self) -> u32 {
@@ -53,9 +41,6 @@ pub struct BitSet<I> {
     bits: FixedBitSet,
     _marker: PhantomData<fn() -> I>,
 }
-
-/// Bitset over a static registry's typed ids.
-pub type IdBitSet<T> = BitSet<StaticId<T>>;
 
 /// Bitset over a dynamic registry's dense `u32` ids.
 pub type RawBitSet = BitSet<u32>;

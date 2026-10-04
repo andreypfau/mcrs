@@ -8,7 +8,6 @@ use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use std::sync::{Arc, OnceLock};
 
 #[derive(Debug, Clone)]
@@ -61,26 +60,6 @@ impl RegistrySnapshotErased {
     }
 
     pub fn from_registry_entries(key: &str, entries: Vec<RegistryEntry>) -> Self {
-        Self {
-            key: key.to_string(),
-            entries,
-        }
-    }
-
-    pub fn from_static<T: 'static>(
-        key: &str,
-        registry: &StaticRegistry<T>,
-        mut serialize: impl FnMut(&ResourceLocation<Arc<str>>, &'static T) -> Option<NbtTag>,
-        pack_source: Option<PackSource>,
-    ) -> Self {
-        let entries = registry
-            .iter()
-            .map(|(_id, loc, val)| RegistryEntry {
-                location: loc.clone(),
-                data: serialize(loc, val),
-                pack_source: pack_source.clone(),
-            })
-            .collect();
         Self {
             key: key.to_string(),
             entries,

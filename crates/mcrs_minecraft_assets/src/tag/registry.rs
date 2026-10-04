@@ -5,7 +5,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 use mcrs_minecraft_registry::bitset::{BitSet, TagId};
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{StaticId, TagSource};
+use mcrs_minecraft_registry::{Id, TagSource};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ fn extend_from_tag_file<S: TagSource>(
 /// [`TagRegistry`] only exists once this has been consumed, so no reader can
 /// ask a membership question against half-loaded data.
 #[derive(Resource)]
-pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
+pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
     resolved: HashMap<ResourceLocation<Arc<str>>, HashSet<I>>,
     _marker: PhantomData<fn() -> T>,
@@ -174,7 +174,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
 /// Membership is a single bit test instead of a hash probe; the cost is one
 /// `u64` word per 64 registry entries per tag, paid once at freeze.
 #[derive(Resource)]
-pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
+pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
     index: Arc<HashMap<ResourceLocation<Arc<str>>, usize>>,
     bitsets: Arc<[BitSet<I>]>,
     _marker: PhantomData<fn() -> T>,
@@ -277,8 +277,8 @@ mod tests {
         }
     }
 
-    fn id(raw: u32) -> StaticId<TestBlock> {
-        StaticId::new(raw)
+    fn id(raw: u32) -> Id<TestBlock> {
+        Id::from_raw(raw)
     }
 
     fn tag(s: &'static str) -> TagKey<TestBlock> {
@@ -297,7 +297,7 @@ mod tests {
         TagLoader::default()
     }
 
-    fn set(ids: impl IntoIterator<Item = u32>) -> HashSet<StaticId<TestBlock>> {
+    fn set(ids: impl IntoIterator<Item = u32>) -> HashSet<Id<TestBlock>> {
         ids.into_iter().map(id).collect()
     }
 
