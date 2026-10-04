@@ -183,6 +183,39 @@ fn the_declared_registries_are_the_reports_world_registries() {
 }
 
 #[test]
+fn the_parsed_registries_are_the_reports_world_registries_outside_worldgen() {
+    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&bytes).expect("the report parses");
+
+    let parsed: BTreeSet<String> = world
+        .declared()
+        .filter(|registry| world.parses(registry.as_str()))
+        .map(|registry| registry.to_string())
+        .collect();
+    let expected: BTreeSet<String> = datapack_report()
+        .registries
+        .into_iter()
+        .filter(|(registry, flags)| {
+            flags.elements
+                && !flags.stable
+                && !registry.starts_with("minecraft:worldgen/")
+                && !matches!(
+                    registry.as_str(),
+                    "minecraft:dimension" | "minecraft:dimension_type" | "minecraft:trial_spawner"
+                )
+        })
+        .map(|(registry, _)| registry)
+        .collect();
+
+    let unparsed: Vec<_> = expected.difference(&parsed).collect();
+    let unexpected: Vec<_> = parsed.difference(&expected).collect();
+    assert!(
+        unparsed.is_empty() && unexpected.is_empty(),
+        "world registries the loader does not parse: {unparsed:?}; registries it parses that are not world registries outside worldgen: {unexpected:?}"
+    );
+}
+
+#[test]
 fn every_declared_registry_has_names_from_the_loader() {
     let set = test_registries();
     for (registry, flags) in &datapack_report().registries {
