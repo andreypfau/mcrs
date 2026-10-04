@@ -492,14 +492,16 @@ impl Plugin for MinecraftWorldPlugin {
                 count = registries.tables().count(),
                 "built the static registries"
             );
+            let entity_type_names = registries
+                .table("minecraft:entity_type")
+                .cloned()
+                .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));
             app.insert_resource(registries);
             mcrs_minecraft_registry::shared::share::<mcrs_minecraft_registry::RegistrySet>(
                 app.world_mut(),
             );
-            let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<EntityType>>();
-            entity::minecraft::register_all_entity_types(&mut entity_types, &table);
+            entity::minecraft::register_all_entity_types(&mut entity_types, &entity_type_names);
             tracing::info!(
                 count = entity_types.len(),
                 "registered StaticRegistry<EntityType>"

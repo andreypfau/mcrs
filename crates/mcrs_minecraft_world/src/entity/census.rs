@@ -71,12 +71,16 @@ fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
 
 fn entity_type_registry()
 -> mcrs_minecraft_registry::StaticRegistry<mcrs_minecraft_entity::EntityType> {
-    let table = mcrs_minecraft_registry::StaticRegistryTable::load(
+    let report = std::fs::read(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
     )
     .unwrap();
+    let set = mcrs_minecraft_registry::static_report::from_report(&report).unwrap();
     let mut registry = mcrs_minecraft_registry::StaticRegistry::new();
-    minecraft::register_all_entity_types(&mut registry, &table);
+    minecraft::register_all_entity_types(
+        &mut registry,
+        set.table("minecraft:entity_type").unwrap(),
+    );
     registry
 }
 

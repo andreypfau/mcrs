@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::{StaticRegistry, StaticRegistryTable};
+use mcrs_minecraft_registry::{NameTable, StaticRegistry};
 
 use mcrs_minecraft_entity::EntityType;
 
@@ -43,12 +43,9 @@ static NAMED: &[&EntityType] = &[
 
 pub fn register_all_entity_types(
     registry: &mut StaticRegistry<EntityType>,
-    table: &StaticRegistryTable,
+    entity_types: &NameTable,
 ) {
-    let entries = table
-        .registry("entity_type")
-        .expect("the registry report lists entity_type");
-    for (protocol_id, name) in entries.names().iter().enumerate() {
+    for (protocol_id, name) in entity_types.names().iter().enumerate() {
         let protocol_id = protocol_id as u32;
         let entity_type = match NAMED
             .iter()

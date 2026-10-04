@@ -8,11 +8,13 @@ use std::fmt;
 use std::sync::Arc;
 
 type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
+type Paths = HashMap<Box<str>, Arc<NameTable>>;
 
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct RegistrySet {
     tables: Arc<Tables>,
+    paths: Arc<Paths>,
 }
 
 #[cfg(feature = "bevy")]
@@ -41,9 +43,18 @@ impl RegistrySet {
                 return Err(RegistryError::DuplicateRegistry { registry });
             }
         }
-        Ok(RegistrySet {
-            tables: Arc::new(by_name),
-        })
+        Ok(Self::of(by_name))
+    }
+
+    fn of(tables: Tables) -> Self {
+        let paths = tables
+            .iter()
+            .map(|(registry, table)| (registry.path().into(), Arc::clone(table)))
+            .collect();
+        RegistrySet {
+            tables: Arc::new(tables),
+            paths: Arc::new(paths),
+        }
     }
 
     pub fn with<R: RegistryKey>(self, registry: Registry<R>) -> Result<Self, RegistryError> {
@@ -54,9 +65,7 @@ impl RegistrySet {
         }
         let mut tables = (*self.tables).clone();
         tables.insert(R::KEY.into(), Arc::clone(registry.table()));
-        Ok(RegistrySet {
-            tables: Arc::new(tables),
-        })
+        Ok(Self::of(tables))
     }
 
     pub fn registry<R: RegistryKey>(&self) -> Option<Registry<R>> {
@@ -67,6 +76,10 @@ impl RegistrySet {
 
     pub fn table(&self, registry: &str) -> Option<&Arc<NameTable>> {
         self.tables.get(registry)
+    }
+
+    pub(crate) fn table_at_path(&self, path: &str) -> Option<&NameTable> {
+        self.paths.get(path).map(|table| &**table)
     }
 
     pub fn tables(&self) -> impl Iterator<Item = &Arc<NameTable>> {

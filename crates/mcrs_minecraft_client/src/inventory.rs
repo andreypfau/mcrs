@@ -19,9 +19,8 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, StaticRegistryTable};
+use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
 
-use crate::asset_corpus;
 use crate::player::{self, Player};
 
 pub const REGISTRY_REPORT: &str = "mcrs/reports/registries.json";
@@ -48,11 +47,7 @@ pub struct InventoryPlugin;
 
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
-        let report = asset_corpus().join(REGISTRY_REPORT);
-        let table = StaticRegistryTable::load(&report)
-            .unwrap_or_else(|err| panic!("{}: {err}", report.display()));
-        app.insert_resource(table)
-            .init_resource::<Screen>()
+        app.init_resource::<Screen>()
             .add_observer(receive_inventory_packets)
             .add_systems(
                 Update,
@@ -65,9 +60,9 @@ impl Plugin for InventoryPlugin {
 
     fn finish(&self, app: &mut App) {
         let world = app.world();
-        let table = world.resource::<StaticRegistryTable>();
+        let registries = world.resource::<RegistrySet>();
         for entry in world.resource::<Items>().iter() {
-            let reported = table.id("item", &entry.identifier);
+            let reported = registries.id("item", &entry.identifier);
             assert_eq!(
                 reported,
                 Some(u32::from(entry.id.0)),
@@ -96,14 +91,14 @@ fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option
 fn receive_inventory_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<(&ConnectionState, &ReceivedRegistries)>,
-    table: Res<StaticRegistryTable>,
+    registries: Res<RegistrySet>,
     mut selected: Query<&mut SelectedHotbarSlot, With<Player>>,
     mut commands: Commands,
 ) {
     let Ok((ConnectionState::Game, received)) = connections.get(event.entity) else {
         return;
     };
-    let lookup = ChainLookup(&[&*table as &dyn RegistryLookup, received]);
+    let lookup = ChainLookup(&[&*registries as &dyn RegistryLookup, received]);
     if let Some(packet) = event.decode::<ClientboundContainerSetContent>() {
         let slots: anyhow::Result<Vec<_>> = packet
             .slot_data
@@ -180,7 +175,7 @@ fn receive_inventory_packets(
             }
         }
     } else if let Some(packet) = event.decode::<ClientboundOpenScreen>() {
-        let Some(menu_type) = table.name("menu", packet.menu_type.0 as u32).cloned() else {
+        let Some(menu_type) = registries.name("menu", packet.menu_type.0 as u32).cloned() else {
             warn!("open_screen: unknown menu type {}", packet.menu_type.0);
             return;
         };
