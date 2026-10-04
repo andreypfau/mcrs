@@ -239,10 +239,12 @@ macro_rules! snapshot_registry {
                     |
                         snapshot: ::bevy_ecs::system::Res<$crate::RegistrySnapshot<$ty>>,
                         mut access: ::bevy_ecs::system::ResMut<$crate::RegistryAccess>,
+                        set: ::bevy_ecs::system::Res<::mcrs_minecraft_registry::RegistrySet>,
                     | {
                         let erased = $crate::RegistrySnapshotErased::from_dynamic(
                             $registry_key,
                             &snapshot,
+                            &set,
                             $pack_source,
                         );
                         access.register(erased);

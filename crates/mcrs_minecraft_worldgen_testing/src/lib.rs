@@ -15,6 +15,20 @@ pub fn worldgen_dir() -> PathBuf {
     assets_dir().join("minecraft/worldgen")
 }
 
+/// Every data pack layered over the vanilla tree, in name order.
+fn packs() -> Vec<PathBuf> {
+    let Ok(listing) = std::fs::read_dir(assets_dir().join("mcrs/datapacks")) else {
+        return Vec::new();
+    };
+    let mut packs: Vec<PathBuf> = listing
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect();
+    packs.sort();
+    packs
+}
+
 /// Every `.json` under `dir`, recursively, in a stable order.
 pub fn json_files(dir: &Path) -> Vec<PathBuf> {
     files_with_extension(dir, "json")
@@ -92,14 +106,32 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
 }
 
 /// One `minecraft/worldgen` registry as the JSON each entry ships as: the
-/// built-in entries, overridden by the files the corpus ships.
+/// built-in entries, overridden by the files of the vanilla tree and of every
+/// pack. An id two files ship is refused.
 fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let base = worldgen_dir().join(folder);
     let mut entries = builtin::assets(folder);
-    if base.is_dir() {
+    let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
+    let roots = std::iter::once(worldgen_dir()).chain(
+        packs()
+            .into_iter()
+            .map(|pack| pack.join("minecraft/worldgen")),
+    );
+    for root in roots {
+        let base = root.join(folder);
+        if !base.is_dir() {
+            continue;
+        }
         for path in json_files(&base) {
+            let id = id_of(&base, &path);
+            if let Some(first) = shipped.insert(id.clone(), path.clone()) {
+                panic!(
+                    "{id} is shipped by both {} and {}",
+                    first.display(),
+                    path.display()
+                );
+            }
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            entries.insert(id_of(&base, &path), bytes);
+            entries.insert(id, bytes);
         }
     }
     entries
@@ -142,12 +174,13 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
     parsed
 }
 
-/// One named `minecraft/worldgen` asset, which must parse: the file the corpus
-/// ships, or the built-in entry where it ships none.
+/// One named `minecraft/worldgen` asset, which must parse: the file the vanilla
+/// tree or a pack ships, or the built-in entry where none ships it.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
     let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
-    let bytes = std::fs::read(assets_dir().join(&path))
-        .ok()
+    let bytes = std::iter::once(assets_dir())
+        .chain(packs())
+        .find_map(|root| std::fs::read(root.join(&path)).ok())
         .or_else(|| builtin::asset(&path))
         .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
     serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
