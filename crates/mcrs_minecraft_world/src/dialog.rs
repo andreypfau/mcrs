@@ -1,7 +1,8 @@
 use std::fmt;
-use std::marker::PhantomData;
 
-use mcrs_minecraft_core::codec::{Bounded, Validate, default_true, is_default};
+use mcrs_minecraft_core::codec::{
+    Bounded, CompactList, Validate, default_true, is_default, is_true,
+};
 use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_item::{Template, Text};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -9,8 +10,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registry::{EntrySet, key};
 use mcrs_minecraft_text::ClickEvent;
-use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
-use serde::ser::{Error as _, SerializeSeq};
+use serde::de::{Error as _, MapAccess, Visitor, value};
+use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 type ButtonWidth = Bounded<1, 1024, 150>;
@@ -20,10 +21,6 @@ type Columns = Bounded<1, { i32::MAX }, 2>;
 type MaxLength = Bounded<1, { i32::MAX }, 32>;
 type Positive = Bounded<1, { i32::MAX }, 1>;
 type Height = Bounded<1, 512, 1>;
-
-fn is_true(value: &bool) -> bool {
-    *value
-}
 
 macro_rules! text_default {
     ($make:ident, $is:ident, $text:literal) => {
@@ -57,62 +54,6 @@ pub enum AfterAction {
 impl AfterAction {
     fn unpauses(self) -> bool {
         self != AfterAction::None
-    }
-}
-
-/// A single element is written bare, as the game's compact list does.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CompactList<T>(pub Vec<T>);
-
-impl<T> Default for CompactList<T> {
-    fn default() -> Self {
-        CompactList(Vec::new())
-    }
-}
-
-impl<T> CompactList<T> {
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl<T: Serialize> Serialize for CompactList<T> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self.0.as_slice() {
-            [only] => only.serialize(s),
-            many => {
-                let mut seq = s.serialize_seq(Some(many.len()))?;
-                for element in many {
-                    seq.serialize_element(element)?;
-                }
-                seq.end()
-            }
-        }
-    }
-}
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for CompactList<T> {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct ListVisitor<T>(PhantomData<fn() -> T>);
-
-        impl<'de, T: Deserialize<'de>> Visitor<'de> for ListVisitor<T> {
-            type Value = CompactList<T>;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("an element or a list of elements")
-            }
-
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(CompactList)
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                T::deserialize(value::MapAccessDeserializer::new(map))
-                    .map(|one| CompactList(vec![one]))
-            }
-        }
-
-        d.deserialize_any(ListVisitor(PhantomData))
     }
 }
 
@@ -251,31 +192,19 @@ impl Validate for NumberRangeInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct OptionEntry {
     pub id: String,
-    pub display: Option<Text>,
-    pub initial: bool,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct OptionEntryRepr {
-    id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    display: Option<Text>,
+    pub display: Option<Text>,
     #[serde(default, skip_serializing_if = "is_default")]
-    initial: bool,
+    pub initial: bool,
 }
 
 impl Serialize for OptionEntry {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        OptionEntryRepr {
-            id: self.id.clone(),
-            display: self.display.clone(),
-            initial: self.initial,
-        }
-        .serialize(s)
+        OptionEntry::serialize(self, s)
     }
 }
 
@@ -299,16 +228,7 @@ impl<'de> Deserialize<'de> for OptionEntry {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<OptionEntry, A::Error> {
-                let OptionEntryRepr {
-                    id,
-                    display,
-                    initial,
-                } = OptionEntryRepr::deserialize(value::MapAccessDeserializer::new(map))?;
-                Ok(OptionEntry {
-                    id,
-                    display,
-                    initial,
-                })
+                OptionEntry::deserialize(value::MapAccessDeserializer::new(map))
             }
         }
 

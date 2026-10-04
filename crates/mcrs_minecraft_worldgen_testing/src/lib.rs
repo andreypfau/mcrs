@@ -18,7 +18,7 @@ pub fn worldgen_dir() -> PathBuf {
 }
 
 /// Every data pack layered over the vanilla tree, in name order.
-fn packs() -> Vec<PathBuf> {
+pub fn packs() -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(assets_dir().join("mcrs/datapacks")) else {
         return Vec::new();
     };

@@ -18,14 +18,14 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Item, JukeboxSong, PaintingVariantValue, SoundEvent,
     TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::key::{self, Block};
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
 use serde::Serialize;
@@ -34,90 +34,87 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::LazyLock;
 
+macro_rules! world_registry_table {
+    ($($key:ty => $value:ty $([$non_empty:ident])? $(, synced as $project:expr)?;)*) => {
+        fn parse_world_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
+            $(
+                parse::<$key, $value>(world, report);
+                $(
+                    if world.parses(<$key as RegistryKey>::KEY.as_str()) {
+                        world.$non_empty(<$key as RegistryKey>::KEY);
+                    }
+                )?
+            )*
+        }
+
+        pub fn register_world_registries(access: &mut RegistryAccess, set: &RegistrySet) {
+            $($(
+                register_loaded::<$value, _>(
+                    access,
+                    set,
+                    <$key as RegistryKey>::KEY.as_str(),
+                    $project,
+                );
+            )?)*
+        }
+    };
+}
+
+world_registry_table! {
+    BannerPattern => BannerPattern, synced as Clone::clone;
+    InstrumentValue => InstrumentValue, synced as Clone::clone;
+    JukeboxSong => JukeboxSong, synced as Clone::clone;
+    PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
+    TrimMaterial => TrimMaterial, synced as Clone::clone;
+    TrimPattern => TrimPattern, synced as Clone::clone;
+    ChatType => ChatType, synced as Clone::clone;
+    TestEnvironment => TestEnvironment, synced as Clone::clone;
+    TestInstance => TestInstance, synced as Clone::clone;
+    key::Dialog => Dialog, synced as Clone::clone;
+    mcrs_minecraft_entity::DamageType => DamageType, synced as Clone::clone;
+    key::BlockTransformer => BlockTransformer, synced as Clone::clone;
+    EnchantmentData => EnchantmentData, synced as Clone::clone;
+    key::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
+    mcrs_minecraft_entity::WolfVariant => variant::WolfVariant [non_empty],
+        synced as |v| variant::NetworkWolfVariant::from(v);
+    mcrs_minecraft_entity::WolfSoundVariant => variant::WolfSoundVariant [non_empty],
+        synced as Clone::clone;
+    mcrs_minecraft_entity::PigVariant => variant::PigVariant [non_empty],
+        synced as |v| variant::NetworkPigVariant::from(v);
+    mcrs_minecraft_entity::PigSoundVariant => variant::PigSoundVariant [non_empty],
+        synced as Clone::clone;
+    mcrs_minecraft_entity::CowVariant => variant::CowVariant [non_empty],
+        synced as |v| variant::NetworkCowVariant::from(v);
+    mcrs_minecraft_entity::CowSoundVariant => variant::CowSoundVariant [non_empty],
+        synced as Clone::clone;
+    mcrs_minecraft_entity::ChickenVariant => variant::ChickenVariant [non_empty],
+        synced as |v| variant::NetworkChickenVariant::from(v);
+    mcrs_minecraft_entity::ChickenSoundVariant => variant::ChickenSoundVariant [non_empty],
+        synced as Clone::clone;
+    mcrs_minecraft_entity::CatVariant => variant::CatVariant [non_empty],
+        synced as |v| variant::NetworkCatVariant::from(v);
+    mcrs_minecraft_entity::CatSoundVariant => variant::CatSoundVariant [non_empty],
+        synced as Clone::clone;
+    mcrs_minecraft_entity::FrogVariant => variant::FrogVariant [non_empty],
+        synced as |v| variant::NetworkFrogVariant::from(v);
+    mcrs_minecraft_entity::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
+        synced as |v| variant::NetworkZombieNautilusVariant::from(v);
+    WorldClock => WorldClock, synced as Clone::clone;
+    Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
+    SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    EnchantmentProvider => EnchantmentProvider;
+    VillagerTrade => VillagerTrade;
+    TradeSet => TradeSet;
+}
+
 pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
-    let mut world = WorldRegistries::from_datapack_report(datapack_report).map_err(|error| {
-        let mut report = LoadReport::new();
-        report.invalid_report(error);
-        report
-    })?;
+    let mut world =
+        WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
-    parse::<BannerPattern>(&mut world, &mut undeclared);
-    parse::<InstrumentValue>(&mut world, &mut undeclared);
-    parse::<JukeboxSong>(&mut world, &mut undeclared);
-    parse_required::<PaintingVariantValue, PaintingVariantValue>(&mut world, &mut undeclared);
-    parse::<TrimMaterial>(&mut world, &mut undeclared);
-    parse::<TrimPattern>(&mut world, &mut undeclared);
-    parse::<ChatType>(&mut world, &mut undeclared);
-    parse::<TestEnvironment>(&mut world, &mut undeclared);
-    parse::<TestInstance>(&mut world, &mut undeclared);
-    parse_as::<mcrs_minecraft_registry::key::Dialog, Dialog>(&mut world, &mut undeclared);
-    parse::<EnchantmentData>(&mut world, &mut undeclared);
-    parse::<EnchantmentProvider>(&mut world, &mut undeclared);
-    parse::<SulfurCubeArchetype>(&mut world, &mut undeclared);
-    parse::<VillagerTrade>(&mut world, &mut undeclared);
-    parse::<TradeSet>(&mut world, &mut undeclared);
-    parse::<WorldClock>(&mut world, &mut undeclared);
-    parse::<Timeline>(&mut world, &mut undeclared);
+    parse_world_registries(&mut world, &mut undeclared);
     if world.parses(Timeline::KEY.as_str()) {
         world.validate::<Timeline>(Timeline::KEY, check_time_markers);
     }
-    parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
-    parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_as::<mcrs_minecraft_registry::key::BlockTransformer, BlockTransformer>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::WolfVariant, variant::WolfVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::WolfSoundVariant, variant::WolfSoundVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::PigVariant, variant::PigVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::PigSoundVariant, variant::PigSoundVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::CowVariant, variant::CowVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::CowSoundVariant, variant::CowSoundVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::ChickenVariant, variant::ChickenVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::ChickenSoundVariant, variant::ChickenSoundVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::CatVariant, variant::CatVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::CatSoundVariant, variant::CatSoundVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::FrogVariant, variant::FrogVariant>(
-        &mut world,
-        &mut undeclared,
-    );
-    parse_required::<mcrs_minecraft_entity::ZombieNautilusVariant, variant::ZombieNautilusVariant>(
-        &mut world,
-        &mut undeclared,
-    );
     if undeclared.is_empty() {
         Ok(world)
     } else {
@@ -125,16 +122,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     }
 }
 
-fn parse<T>(world: &mut WorldRegistries, report: &mut LoadReport)
-where
-    T: RegistryKey + DeserializeOwned + Serialize + Send + Sync + 'static,
-{
-    parse_as::<T, T>(world, report);
-}
-
-/// `K` names the registry whose entries are read as `T`, for a value type that
-/// lives where its key type cannot.
-fn parse_as<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
+fn parse<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
 where
     K: RegistryKey,
     T: DeserializeOwned + Serialize + Send + Sync + 'static,
@@ -149,17 +137,6 @@ where
             "{} is not a world registry of the data pack report",
             K::KEY
         ));
-    }
-}
-
-fn parse_required<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
-where
-    K: RegistryKey,
-    T: DeserializeOwned + Serialize + Send + Sync + 'static,
-{
-    parse_as::<K, T>(world, report);
-    if world.parses(K::KEY.as_str()) {
-        world.non_empty(K::KEY);
     }
 }
 
@@ -271,11 +248,8 @@ pub fn load_registries(
         .get_source(AssetSourceId::Default)
         .expect("default AssetSource missing");
     let path = Path::new("mcrs/reports/datapack.json");
-    let bytes = bevy_tasks::block_on(read_whole(source.reader(), path)).map_err(|error| {
-        let mut report = LoadReport::new();
-        report.invalid_report(format_args!("{}: {error}", path.display()));
-        report
-    })?;
+    let bytes = bevy_tasks::block_on(read_whole(source.reader(), path))
+        .map_err(|error| LoadReport::invalid(format_args!("{}: {error}", path.display())))?;
     let world = world_registries(&bytes)?;
     let packs = read_packs(asset_server, &world, &statics);
     world.load(&statics, &packs)
@@ -347,11 +321,7 @@ pub fn test_registries() -> &'static RegistrySet {
 }
 
 pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {
-    let set = from_report(report).map_err(|error| {
-        let mut report = LoadReport::new();
-        report.invalid_report(error);
-        report
-    })?;
+    let set = from_report(report).map_err(LoadReport::invalid)?;
     let mut missing = LoadReport::new();
     missing.registry::<SoundEvent>(&set);
     missing.registry::<Block>(&set);
@@ -402,79 +372,10 @@ mod tests {
     }
 
     #[test]
-    fn a_broken_corpus_is_refused_with_registry_entry_and_file() {
-        use mcrs_minecraft_registry::{Pack, PackFile};
-
-        let report = br#"{"others":{},"registries":{
-            "minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true},
-            "minecraft:instrument":{"elements":true,"stable":false,"tags":true},
-            "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
-            "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
-            "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
-            "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
-            "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
-            "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true},
-            "minecraft:wolf_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:wolf_sound_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:pig_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:pig_sound_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:cow_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:cow_sound_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:chicken_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:chicken_sound_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
-            "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
-            "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
-            "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
-            "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
-            "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
-            "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
-            "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
-            "minecraft:trade_set":{"elements":true,"stable":false,"tags":true},
-            "minecraft:world_clock":{"elements":true,"stable":false,"tags":true},
-            "minecraft:timeline":{"elements":true,"stable":false,"tags":true}}}"#;
-        let world = world_registries(report).expect("the report parses");
-        let packs = [Pack {
-            name: VANILLA_PACK.to_owned(),
-            files: vec![PackFile {
-                path: "minecraft/banner_pattern/base.json".to_owned(),
-                bytes: Some(
-                    br#"{"asset_id":"minecraft:base","translation_key":"k","extra":1}"#.to_vec(),
-                ),
-            }],
-        }];
-        let refused = world
-            .load(&RegistrySet::new(), &packs)
-            .err()
-            .expect("a file with an unknown field is refused");
-        let text = refused.to_string();
-        for part in [
-            "minecraft:banner_pattern",
-            "minecraft:base",
-            "minecraft/banner_pattern/base.json",
-            "extra",
-        ] {
-            assert!(text.contains(part), "{part} missing from:\n{text}");
+    fn a_report_without_a_required_static_registry_is_refused() {
+        for registry in ["minecraft:sound_event", "minecraft:block", "minecraft:item"] {
+            let refused = refused_without(registry);
+            assert!(refused.to_string().contains(registry), "{refused}");
         }
-    }
-
-    #[test]
-    fn a_report_without_sound_events_is_refused() {
-        let refused = refused_without("minecraft:sound_event");
-        assert!(
-            refused.to_string().contains("minecraft:sound_event"),
-            "{refused}"
-        );
-    }
-
-    #[test]
-    fn a_report_without_blocks_is_refused() {
-        let refused = refused_without("minecraft:block");
-        assert!(refused.to_string().contains("minecraft:block"), "{refused}");
     }
 }

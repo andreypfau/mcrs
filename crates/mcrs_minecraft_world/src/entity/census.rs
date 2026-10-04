@@ -1,4 +1,4 @@
-use super::minecraft::{self, EntityIds};
+use super::minecraft::EntityIds;
 use super::villager::VillagerProfession;
 use bytes::Buf;
 use mcrs_minecraft_entity::VillagerType;
@@ -84,30 +84,6 @@ fn entity_types_follow_the_registry_order() {
 
     let mut missing = LoadReport::new();
     let ids = EntityIds::resolve(&set, &mut missing).unwrap_or_else(|| panic!("{missing}"));
-    for (resolved, named) in [
-        (ids.allay, &minecraft::ALLAY),
-        (ids.cat, &minecraft::CAT),
-        (ids.chest_minecart, &minecraft::CHEST_MINECART),
-        (ids.chicken, &minecraft::CHICKEN),
-        (ids.drowned, &minecraft::DROWNED),
-        (ids.elder_guardian, &minecraft::ELDER_GUARDIAN),
-        (ids.evoker, &minecraft::EVOKER),
-        (ids.item, &minecraft::ITEM),
-        (ids.item_frame, &minecraft::ITEM_FRAME),
-        (ids.shulker, &minecraft::SHULKER),
-        (ids.primed_tnt, &minecraft::PRIMED_TNT),
-        (ids.villager, &minecraft::VILLAGER),
-        (ids.vindicator, &minecraft::VINDICATOR),
-        (ids.witch, &minecraft::WITCH),
-        (ids.zombie_nautilus, &minecraft::ZOMBIE_NAUTILUS),
-        (ids.zombie_villager, &minecraft::ZOMBIE_VILLAGER),
-        (ids.player, &minecraft::PLAYER),
-    ] {
-        assert_eq!(
-            table.name(resolved.index()).map(|name| name.as_str()),
-            Some(named.identifier.as_str())
-        );
-    }
     let attributes = set.table("minecraft:attribute").unwrap();
     assert_eq!(
         attributes

@@ -27,12 +27,19 @@ fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> 
     NonNegativeInt::deserialize(d).map(|ticks| ticks.0 as u32)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Timeline {
     pub clock: Id<WorldClock>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub period_ticks: Option<u32>,
+    #[serde(skip_serializing_if = "no_tracks")]
     pub tracks: Tracks,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub time_markers: TimeMarkers,
+}
+
+fn no_tracks(tracks: &Tracks) -> bool {
+    tracks.is_empty()
 }
 
 impl TaggedRegistry for Timeline {
@@ -89,39 +96,9 @@ impl<'de> Deserialize<'de> for Timeline {
     }
 }
 
-#[derive(Serialize)]
-struct Wire<'a> {
-    clock: Id<WorldClock>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    period_ticks: Option<u32>,
-    #[serde(skip_serializing_if = "no_tracks")]
-    tracks: &'a Tracks,
-    #[serde(skip_serializing_if = "no_markers")]
-    time_markers: &'a TimeMarkers,
-}
-
-fn no_tracks(tracks: &&Tracks) -> bool {
-    tracks.is_empty()
-}
-
-fn no_markers(markers: &&TimeMarkers) -> bool {
-    markers.is_empty()
-}
-
-impl Serialize for Timeline {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        Wire {
-            clock: self.clock,
-            period_ticks: self.period_ticks,
-            tracks: &self.tracks,
-            time_markers: &self.time_markers,
-        }
-        .serialize(s)
-    }
-}
-
 /// A timeline as the client receives it: only the tracks it is allowed to see.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(transparent)]
 pub struct NetworkTimeline(Timeline);
 
 impl From<&Timeline> for NetworkTimeline {
@@ -132,12 +109,6 @@ impl From<&Timeline> for NetworkTimeline {
             tracks: timeline.tracks.syncable(),
             time_markers: timeline.time_markers.clone(),
         })
-    }
-}
-
-impl Serialize for NetworkTimeline {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(s)
     }
 }
 
@@ -176,7 +147,7 @@ mod tests {
     use crate::attribute::{AttributeValue, MoonPhase, Operation};
     use crate::world_clock::TEST_CLOCKS;
     use mcrs_minecraft_nbt::tag::NbtTag;
-    use mcrs_minecraft_worldgen_testing::assets_dir;
+    use mcrs_minecraft_worldgen_testing::{assets_dir, reencode};
     use serde_json::{Value, json};
 
     const SHIPPED: [&str; 4] = [
@@ -213,22 +184,12 @@ mod tests {
         Ok(timeline.tracks[attribute].bake(timeline.period_ticks))
     }
 
-    /// A value as the encoder writes it, read back as JSON.
-    ///
-    /// Through the text, never `to_value`: a keyframe holds an `f32` and
-    /// `serde_json::Value` has only `f64`, so `to_value` would widen `0.362`
-    /// into `0.3619999885559082` where the encoder writes `0.362`.
-    fn json_of<T: Serialize>(value: &T) -> Value {
-        let text = TEST_CLOCKS.scope(|| serde_json::to_string(value).unwrap());
-        serde_json::from_str(&text).unwrap()
-    }
-
     fn written(timeline: &Timeline) -> Value {
-        json_of(timeline)
+        TEST_CLOCKS.scope(|| reencode(timeline))
     }
 
     fn sent(timeline: &Timeline) -> Value {
-        json_of(&NetworkTimeline::from(timeline))
+        TEST_CLOCKS.scope(|| reencode(&NetworkTimeline::from(timeline)))
     }
 
     #[test]

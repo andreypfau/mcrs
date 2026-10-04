@@ -1,6 +1,6 @@
 use std::fmt;
 
-use mcrs_minecraft_core::codec::{Bounded, default_true, is_default};
+use mcrs_minecraft_core::codec::{Bounded, default_true, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_entity::MobEffect;
@@ -70,25 +70,21 @@ pub struct TradeCost {
     pub components: ComponentMap,
 }
 
-/// An item id alone, or the full stack form.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct GivenStack {
+    #[serde(deserialize_with = "item_id")]
     pub id: Id<Item>,
-    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub count: Bounded<1, 99, 1>,
-    #[serde(skip_serializing_if = "ComponentPatch::is_empty")]
+    #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
     pub components: ComponentPatch,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GivenStackFields {
-    #[serde(deserialize_with = "item_id")]
-    id: Id<Item>,
-    #[serde(default)]
-    count: Bounded<1, 99, 1>,
-    #[serde(default)]
-    components: ComponentPatch,
+impl Serialize for GivenStack {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        GivenStack::serialize(self, s)
+    }
 }
 
 impl<'de> Deserialize<'de> for GivenStack {
@@ -111,12 +107,7 @@ impl<'de> Deserialize<'de> for GivenStack {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<GivenStack, A::Error> {
-                let fields = GivenStackFields::deserialize(value::MapAccessDeserializer::new(map))?;
-                Ok(GivenStack {
-                    id: fields.id,
-                    count: fields.count,
-                    components: fields.components,
-                })
+                GivenStack::deserialize(value::MapAccessDeserializer::new(map))
             }
         }
 
@@ -329,7 +320,6 @@ impl<'de> Deserialize<'de> for ContextFloat {
     }
 }
 
-/// One function, or the inline list the game reads as a sequence of them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ItemModifier {
     One(LootFunction),
@@ -387,7 +377,7 @@ pub enum LootFunction {
         condition: Option<LootCondition>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         options: Option<EntrySet<EnchantmentData>>,
-        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
+        #[serde(default = "default_true", skip_serializing_if = "is_true")]
         only_compatible: bool,
         #[serde(default, skip_serializing_if = "is_default")]
         include_additional_cost_component: bool,
@@ -420,7 +410,7 @@ pub enum LootFunction {
             skip_serializing_if = "is_literal::<i32, 50>"
         )]
         search_radius: i32,
-        #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
+        #[serde(default = "default_true", skip_serializing_if = "is_true")]
         skip_existing_chunks: bool,
     },
     #[serde(rename = "minecraft:filtered")]

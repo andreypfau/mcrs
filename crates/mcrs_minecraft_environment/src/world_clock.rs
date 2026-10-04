@@ -6,6 +6,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::state::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
@@ -41,10 +42,6 @@ pub struct ClockState {
 
 fn default_rate() -> f32 {
     1.0
-}
-
-fn is_default<T: Default + PartialEq>(value: &T) -> bool {
-    *value == T::default()
 }
 
 fn is_default_rate(rate: &f32) -> bool {

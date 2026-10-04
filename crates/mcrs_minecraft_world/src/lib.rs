@@ -38,7 +38,7 @@ use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
 use mcrs_minecraft_entity::EntityType;
-use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
+use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
@@ -244,209 +244,32 @@ impl Plugin for MinecraftWorldPlugin {
             let item_registry = registries
                 .registry::<mcrs_minecraft_item::Item>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:item registry", path.display()));
-            {
-                use mcrs_minecraft_item::{
-                    BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue,
-                    TrimMaterial, TrimPattern,
-                };
-                let mut access = app
+            registries::register_world_registries(
+                &mut app
                     .world_mut()
-                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>();
-                registries::register_loaded::<BannerPattern, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:banner_pattern",
-                    Clone::clone,
-                );
-                registries::register_loaded::<InstrumentValue, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:instrument",
-                    Clone::clone,
-                );
-                registries::register_loaded::<JukeboxSong, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:jukebox_song",
-                    Clone::clone,
-                );
-                registries::register_loaded::<PaintingVariantValue, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:painting_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<TrimMaterial, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:trim_material",
-                    Clone::clone,
-                );
-                registries::register_loaded::<TrimPattern, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:trim_pattern",
-                    Clone::clone,
-                );
-                registries::register_loaded::<chat_type::ChatType, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:chat_type",
-                    Clone::clone,
-                );
-                registries::register_loaded::<test_types::TestEnvironment, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:test_environment",
-                    Clone::clone,
-                );
-                registries::register_loaded::<test_types::TestInstance, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:test_instance",
-                    Clone::clone,
-                );
-                registries::register_loaded::<dialog::Dialog, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:dialog",
-                    Clone::clone,
-                );
-                registries::register_loaded::<damage_type::DamageType, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:damage_type",
-                    Clone::clone,
-                );
-                registries::register_loaded::<block_transformer::BlockTransformer, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:block_transformer",
-                    Clone::clone,
-                );
-                registries::register_loaded::<EnchantmentData, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:enchantment",
-                    Clone::clone,
-                );
-                registries::register_loaded::<decorated_pot_pattern::DecoratedPotPattern, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:decorated_pot_pattern",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::WolfVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:wolf_variant",
-                    |variant| variant::NetworkWolfVariant::from(variant),
-                );
-                registries::register_loaded::<variant::WolfSoundVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:wolf_sound_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::PigVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:pig_variant",
-                    |variant| variant::NetworkPigVariant::from(variant),
-                );
-                registries::register_loaded::<variant::PigSoundVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:pig_sound_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::CowVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:cow_variant",
-                    |variant| variant::NetworkCowVariant::from(variant),
-                );
-                registries::register_loaded::<variant::CowSoundVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:cow_sound_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::ChickenVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:chicken_variant",
-                    |variant| variant::NetworkChickenVariant::from(variant),
-                );
-                registries::register_loaded::<variant::ChickenSoundVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:chicken_sound_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::CatVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:cat_variant",
-                    |variant| variant::NetworkCatVariant::from(variant),
-                );
-                registries::register_loaded::<variant::CatSoundVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:cat_sound_variant",
-                    Clone::clone,
-                );
-                registries::register_loaded::<variant::FrogVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:frog_variant",
-                    |variant| variant::NetworkFrogVariant::from(variant),
-                );
-                registries::register_loaded::<WorldClock, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:world_clock",
-                    Clone::clone,
-                );
-                registries::register_loaded::<Timeline, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:timeline",
-                    |timeline| NetworkTimeline::from(timeline),
-                );
-                registries::register_loaded::<variant::ZombieNautilusVariant, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:zombie_nautilus_variant",
-                    |variant| variant::NetworkZombieNautilusVariant::from(variant),
-                );
-                registries::register_loaded::<sulfur_cube_archetype::SulfurCubeArchetype, _>(
-                    &mut access,
-                    &registries,
-                    "minecraft:sulfur_cube_archetype",
-                    Clone::clone,
-                );
-            }
-            app.insert_resource(registries.registry::<EnchantmentData>().unwrap_or_else(|| {
-                panic!("{}: no minecraft:enchantment registry", path.display())
-            }));
+                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
+                &registries,
+            );
+            app.insert_resource(
+                registries
+                    .registry::<EnchantmentData>()
+                    .expect("the data pack loader parses minecraft:enchantment"),
+            );
             app.insert_resource(
                 registries
                     .entries::<EnchantmentData, EnchantmentData>()
-                    .unwrap_or_else(|| {
-                        panic!("{}: no minecraft:enchantment values", path.display())
-                    }),
+                    .expect("the data pack loader parses minecraft:enchantment"),
             );
             {
-                let clocks = registries.registry::<WorldClock>().unwrap_or_else(|| {
-                    panic!("{}: no minecraft:world_clock registry", path.display())
-                });
+                let clocks = registries
+                    .registry::<WorldClock>()
+                    .expect("the data pack loader parses minecraft:world_clock");
                 let timelines = registries
                     .column::<Timeline>("minecraft:timeline")
-                    .unwrap_or_else(|| panic!("{}: no minecraft:timeline values", path.display()));
-                let timeline_table = registries.table("minecraft:timeline").unwrap_or_else(|| {
-                    panic!("{}: no minecraft:timeline registry", path.display())
-                });
+                    .expect("the data pack loader parses minecraft:timeline");
+                let timeline_table = registries
+                    .table("minecraft:timeline")
+                    .expect("the data pack loader parses minecraft:timeline");
                 app.insert_resource(
                     ClockTimeMarkers::derive(timelines, &clocks)
                         .expect("the load refused a time marker defined twice for one clock"),

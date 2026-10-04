@@ -190,7 +190,7 @@ impl EnvironmentAttributes {
 
         for (id, entry) in &dimension.attributes.0 {
             let stack = &mut stacks[index_of(id.as_str())?];
-            stack.base = apply(stack.spec.ty, entry.modifier, &stack.base, entry.value())?;
+            stack.base = apply(stack.spec.ty, entry.modifier, &stack.base, &entry.argument)?;
         }
 
         for stack in &mut stacks {
@@ -297,8 +297,6 @@ impl DimensionEnvironments {
     }
 }
 
-/// Build one layer stack set per dimension type from the `timeline` column and
-/// the timeline tag each dimension type names.
 pub fn build_dimension_environments(
     registries: Res<RegistrySet>,
     dimension_types: Res<Assets<DimensionType>>,
@@ -444,7 +442,7 @@ fn weather_layers() -> Result<Vec<(&'static str, WeatherEntry, WeatherEntry)>, E
                 .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))?;
             let entry = |map: &EnvironmentAttributeMap| {
                 map.get(id)
-                    .map(|entry| (entry.modifier, entry.value().clone()))
+                    .map(|entry| (entry.modifier, entry.argument.clone()))
             };
             Ok((spec.id, entry(rain), entry(thunder)))
         })

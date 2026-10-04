@@ -8,8 +8,7 @@ use std::sync::Arc;
 
 use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::de::{self, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
@@ -41,11 +40,7 @@ pub struct Biome {
     pub effects: BiomeEffects,
     #[serde(default)]
     pub attributes: EnvironmentAttributeMap,
-    #[serde(
-        default,
-        deserialize_with = "one_or_many",
-        serialize_with = "one_or_list"
-    )]
+    #[serde(default, with = "mcrs_minecraft_core::codec::compact_list")]
     pub carvers: Vec<ResourceLocation<Arc<str>>>,
     #[serde(default)]
     pub features: Vec<FeatureStepList>,
@@ -239,60 +234,6 @@ impl Biome {
     pub fn grass_modifier(mut self, modifier: GrassColorModifier) -> Self {
         self.effects.grass_color_modifier = modifier;
         self
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Serde helper: accept either a single value or an array
-// ---------------------------------------------------------------------------
-
-fn one_or_many<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    struct OneOrManyVisitor<T>(std::marker::PhantomData<T>);
-
-    impl<'de, T: Deserialize<'de>> Visitor<'de> for OneOrManyVisitor<T> {
-        type Value = Vec<T>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a single value or an array")
-        }
-
-        fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: SeqAccess<'de>,
-        {
-            Vec::deserialize(de::value::SeqAccessDeserializer::new(seq))
-        }
-
-        fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-            let item = T::deserialize(de::value::StrDeserializer::new(v))?;
-            Ok(vec![item])
-        }
-
-        fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
-            let item = T::deserialize(de::value::StringDeserializer::new(v))?;
-            Ok(vec![item])
-        }
-
-        fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
-        where
-            M: de::MapAccess<'de>,
-        {
-            let item = T::deserialize(de::value::MapAccessDeserializer::new(map))?;
-            Ok(vec![item])
-        }
-    }
-
-    deserializer.deserialize_any(OneOrManyVisitor(std::marker::PhantomData))
-}
-
-fn one_or_list<S: Serializer, T: Serialize>(items: &[T], serializer: S) -> Result<S::Ok, S::Error> {
-    match items {
-        [item] => item.serialize(serializer),
-        items => items.serialize(serializer),
     }
 }
 

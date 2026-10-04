@@ -484,18 +484,6 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
 }
 
 #[test]
-fn a_dimension_type_with_an_unknown_field_fails() {
-    let mut file: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(assets_dir().join("dimension_type/overworld.json")).unwrap(),
-    )
-    .unwrap();
-    file["weather"] = json!(true);
-
-    let error = serde_json::from_value::<ProtoDimensionType>(file).unwrap_err();
-    assert!(error.to_string().contains("weather"), "{error}");
-}
-
-#[test]
 fn a_dimension_type_outside_the_games_bounds_fails() {
     let overworld: serde_json::Value = serde_json::from_slice(
         &std::fs::read(assets_dir().join("dimension_type/overworld.json")).unwrap(),
@@ -514,6 +502,7 @@ fn a_dimension_type_outside_the_games_bounds_fails() {
         serde_json::from_value::<ProtoDimensionType>(file)
     };
     for refused in [
+        json!({"weather": true}),
         json!({"has_ender_dragon_fight": null}),
         json!({"coordinate_scale": 0.0}),
         json!({"coordinate_scale": 3.1e7}),
