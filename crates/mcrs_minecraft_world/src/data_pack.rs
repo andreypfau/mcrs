@@ -1,4 +1,4 @@
-use crate::{LoadedRegistryAssets, dialog};
+use crate::LoadedRegistryAssets;
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::*;
@@ -188,13 +188,6 @@ pub(crate) fn request_data_pack_assets(
         &set,
         &mut loaded,
         "minecraft:dimension_type",
-        "json",
-    );
-    request_registry::<dialog::Dialog>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:dialog",
         "json",
     );
     request_registry::<timeline::Timeline>(

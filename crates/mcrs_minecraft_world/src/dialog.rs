@@ -1,92 +1,697 @@
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
-use serde::Serialize;
+use std::fmt;
+use std::marker::PhantomData;
 
-use mcrs_minecraft_assets::asset::read_all;
-use mcrs_minecraft_assets::tag::tag_ref::TagRef;
-use mcrs_minecraft_registry::key;
+use mcrs_minecraft_core::codec::{Bounded, Validate, default_true, is_default};
+use mcrs_minecraft_core::{ResourceLocation, validated};
+use mcrs_minecraft_item::{Template, Text};
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
+use mcrs_minecraft_registry::{EntrySet, key};
+use mcrs_minecraft_text::ClickEvent;
+use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
+use serde::ser::{Error as _, SerializeSeq};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-// ── Proto (deserialization-only) ──
+type ButtonWidth = Bounded<1, 1024, 150>;
+type ControlWidth = Bounded<1, 1024, 200>;
+type ItemSize = Bounded<1, 256, 16>;
+type Columns = Bounded<1, { i32::MAX }, 2>;
+type MaxLength = Bounded<1, { i32::MAX }, 32>;
+type Positive = Bounded<1, { i32::MAX }, 1>;
+type Height = Bounded<1, 512, 1>;
 
-#[derive(Debug, thiserror::Error)]
-pub enum DialogResolveError {
-    #[error("invalid resource location in dialogs: {0}")]
-    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
-// ── Runtime Dialog ──
+macro_rules! text_default {
+    ($make:ident, $is:ident, $text:literal) => {
+        fn $make() -> String {
+            $text.to_owned()
+        }
 
-/// Round-trips the dialog JSON verbatim. The vanilla 26.1 client uses a
-/// dispatching codec keyed on `type` and accepts any payload shape the
-/// dispatcher recognizes, so the simplest correct approach is to preserve
-/// the source JSON object unchanged and let the client interpret it.
-#[derive(Debug, Clone, TypePath)]
-pub struct Dialog {
-    pub raw: serde_json::Map<String, serde_json::Value>,
-    /// Sub-asset handle for the `dialogs` tag reference (e.g.
-    /// `#minecraft:pause_screen_additions`). Runtime-only; not serialized.
-    pub dialogs: Option<TagRef<key::Dialog>>,
+        fn $is(value: &String) -> bool {
+            value == $text
+        }
+    };
 }
 
-impl Serialize for Dialog {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.raw.serialize(serializer)
+text_default!(true_text, is_true_text, "true");
+text_default!(false_text, is_false_text, "false");
+text_default!(generic_value, is_generic_value, "options.generic_value");
+
+fn is_variable_name(name: &str) -> bool {
+    name.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AfterAction {
+    #[default]
+    Close,
+    None,
+    WaitForResponse,
+}
+
+impl AfterAction {
+    fn unpauses(self) -> bool {
+        self != AfterAction::None
     }
 }
 
-impl Asset for Dialog {}
+/// A single element is written bare, as the game's compact list does.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompactList<T>(pub Vec<T>);
 
-impl VisitAssetDependencies for Dialog {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        if let Some(ref tag_ref) = self.dialogs {
-            visit(tag_ref.handle().id().untyped());
+impl<T> Default for CompactList<T> {
+    fn default() -> Self {
+        CompactList(Vec::new())
+    }
+}
+
+impl<T> CompactList<T> {
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<T: Serialize> Serialize for CompactList<T> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self.0.as_slice() {
+            [only] => only.serialize(s),
+            many => {
+                let mut seq = s.serialize_seq(Some(many.len()))?;
+                for element in many {
+                    seq.serialize_element(element)?;
+                }
+                seq.end()
+            }
         }
     }
 }
 
-// ── Loader ──
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for CompactList<T> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct ListVisitor<T>(PhantomData<fn() -> T>);
 
-#[derive(Default, TypePath)]
-pub struct DialogLoader;
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for ListVisitor<T> {
+            type Value = CompactList<T>;
 
-#[derive(Debug, thiserror::Error)]
-pub enum DialogLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("JSON parse error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error("resolve error: {0}")]
-    Resolve(#[from] DialogResolveError),
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("an element or a list of elements")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
+                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(CompactList)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                T::deserialize(value::MapAccessDeserializer::new(map))
+                    .map(|one| CompactList(vec![one]))
+            }
+        }
+
+        d.deserialize_any(ListVisitor(PhantomData))
+    }
 }
 
-impl AssetLoader for DialogLoader {
-    type Asset = Dialog;
-    type Settings = ();
-    type Error = DialogLoaderError;
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlainMessage {
+    pub contents: Text,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ControlWidth,
+}
 
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Dialog, DialogLoaderError> {
-        let bytes = read_all(reader).await?;
-        let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_slice(&bytes)?;
-        let dialogs = match raw.get("dialogs").and_then(|v| v.as_str()) {
-            Some(s) if s.starts_with('#') => {
-                let tag_str = &s[1..];
-                Some(
-                    TagRef::<key::Dialog>::load(tag_str, load_context)
-                        .map_err(DialogResolveError::from)?,
-                )
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct Description(pub PlainMessage);
+
+impl<'de> Deserialize<'de> for Description {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Message(PlainMessage),
+            Contents(Text),
+        }
+
+        Ok(Description(match Repr::deserialize(d)? {
+            Repr::Message(message) => message,
+            Repr::Contents(contents) => PlainMessage {
+                contents,
+                width: ControlWidth::default(),
+            },
+        }))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ItemBody {
+    pub item: Template,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<Description>,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub show_decorations: bool,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub show_tooltip: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ItemSize,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub height: ItemSize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum DialogBody {
+    #[serde(rename = "minecraft:item")]
+    Item(ItemBody),
+    #[serde(rename = "minecraft:plain_message")]
+    PlainMessage(PlainMessage),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputKey(String);
+
+impl InputKey {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Serialize for InputKey {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for InputKey {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let key = String::deserialize(d)?;
+        if !is_variable_name(&key) {
+            return Err(D::Error::custom(format_args!(
+                "{key} is not a valid input name"
+            )));
+        }
+        Ok(InputKey(key))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BooleanInput {
+    pub key: InputKey,
+    pub label: Text,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub initial: bool,
+    #[serde(default = "true_text", skip_serializing_if = "is_true_text")]
+    pub on_true: String,
+    #[serde(default = "false_text", skip_serializing_if = "is_false_text")]
+    pub on_false: String,
+}
+
+validated!(NumberRangeInput);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
+pub struct NumberRangeInput {
+    pub key: InputKey,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ControlWidth,
+    pub label: Text,
+    #[serde(default = "generic_value", skip_serializing_if = "is_generic_value")]
+    pub label_format: String,
+    pub start: f32,
+    pub end: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step: Option<f32>,
+}
+
+impl Validate for NumberRangeInput {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(step) = self.step
+            && !(step >= f32::from_bits(1) && step <= f32::MAX)
+        {
+            return Err(format!("Value must be positive: {step}"));
+        }
+        if let Some(initial) = self.initial {
+            let low = self.start.min(self.end);
+            let high = self.start.max(self.end);
+            if !(low..=high).contains(&initial) {
+                return Err(format!(
+                    "Initial value {initial} is outside of range [{low}, {high}]"
+                ));
             }
-            _ => None,
-        };
-        Ok(Dialog { raw, dialogs })
+        }
+        Ok(())
     }
+}
 
-    fn extensions(&self) -> &[&str] {
-        &[]
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptionEntry {
+    pub id: String,
+    pub display: Option<Text>,
+    pub initial: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OptionEntryRepr {
+    id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display: Option<Text>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    initial: bool,
+}
+
+impl Serialize for OptionEntry {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        OptionEntryRepr {
+            id: self.id.clone(),
+            display: self.display.clone(),
+            initial: self.initial,
+        }
+        .serialize(s)
     }
+}
+
+impl<'de> Deserialize<'de> for OptionEntry {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct EntryVisitor;
+
+        impl<'de> Visitor<'de> for EntryVisitor {
+            type Value = OptionEntry;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("an option id or an option")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<OptionEntry, E> {
+                Ok(OptionEntry {
+                    id: id.to_owned(),
+                    display: None,
+                    initial: false,
+                })
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<OptionEntry, A::Error> {
+                let OptionEntryRepr {
+                    id,
+                    display,
+                    initial,
+                } = OptionEntryRepr::deserialize(value::MapAccessDeserializer::new(map))?;
+                Ok(OptionEntry {
+                    id,
+                    display,
+                    initial,
+                })
+            }
+        }
+
+        d.deserialize_any(EntryVisitor)
+    }
+}
+
+validated!(SingleOptionInput);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
+pub struct SingleOptionInput {
+    pub key: InputKey,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ControlWidth,
+    pub options: Vec<OptionEntry>,
+    pub label: Text,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub label_visible: bool,
+}
+
+impl Validate for SingleOptionInput {
+    fn validate(&self) -> Result<(), String> {
+        if self.options.is_empty() {
+            return Err("List must have contents".into());
+        }
+        if self.options.iter().filter(|option| option.initial).count() > 1 {
+            return Err("Multiple initial values".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Multiline {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_lines: Option<Positive>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<Height>,
+}
+
+validated!(TextInput);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
+pub struct TextInput {
+    pub key: InputKey,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ControlWidth,
+    pub label: Text,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub label_visible: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub initial: String,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub max_length: MaxLength,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multiline: Option<Multiline>,
+}
+
+impl Validate for TextInput {
+    fn validate(&self) -> Result<(), String> {
+        let length = self.initial.encode_utf16().count();
+        if i64::try_from(length).is_ok_and(|length| length > i64::from(self.max_length.0)) {
+            return Err("Default text length exceeds allowed size".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Input {
+    #[serde(rename = "minecraft:boolean")]
+    Boolean(BooleanInput),
+    #[serde(rename = "minecraft:number_range")]
+    NumberRange(NumberRangeInput),
+    #[serde(rename = "minecraft:single_option")]
+    SingleOption(SingleOptionInput),
+    #[serde(rename = "minecraft:text")]
+    Text(TextInput),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandTemplate(String);
+
+impl CommandTemplate {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+fn check_template(input: &str) -> Result<(), String> {
+    let mut start = 0;
+    let mut cursor = 0;
+    while let Some(found) = input[cursor..].find('$').map(|at| at + cursor) {
+        if input.as_bytes().get(found + 1) == Some(&b'(') {
+            let Some(end) = input[found + 1..].find(')').map(|at| at + found + 1) else {
+                return Err("Unterminated macro variable".into());
+            };
+            let name = &input[found + 2..end];
+            if !is_variable_name(name) {
+                return Err(format!("Invalid macro variable name '{name}'"));
+            }
+            start = end + 1;
+            cursor = start;
+        } else {
+            cursor = found + 1;
+        }
+    }
+    if start == 0 {
+        return Err("No variables in macro".into());
+    }
+    Ok(())
+}
+
+impl Serialize for CommandTemplate {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for CommandTemplate {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let template = String::deserialize(d)?;
+        check_template(&template).map_err(|reason| {
+            D::Error::custom(format_args!(
+                "Failed to parse template {template}: {reason}"
+            ))
+        })?;
+        Ok(CommandTemplate(template))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+pub enum DynamicAction {
+    #[serde(rename = "minecraft:dynamic/run_command")]
+    RunCommand { template: CommandTemplate },
+    #[serde(rename = "minecraft:dynamic/custom")]
+    Custom {
+        id: ResourceLocation,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        additions: Option<NbtCompound>,
+    },
+}
+
+const STATIC_ACTIONS: [&str; 7] = [
+    "open_url",
+    "run_command",
+    "suggest_command",
+    "show_dialog",
+    "change_page",
+    "copy_to_clipboard",
+    "custom",
+];
+
+const DYNAMIC_ACTIONS: [&str; 2] = ["dynamic/run_command", "dynamic/custom"];
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Action {
+    Static(ClickEvent),
+    Dynamic(DynamicAction),
+}
+
+impl Serialize for Action {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Action::Dynamic(action) => action.serialize(s),
+            Action::Static(event) => {
+                let mut written = to_nbt_compound(event).map_err(S::Error::custom)?;
+                let position = written
+                    .child_tags
+                    .iter()
+                    .position(|(key, _)| key == "action")
+                    .ok_or_else(|| S::Error::custom("a click event writes no action"))?;
+                let (_, name) = written.child_tags.remove(position);
+                let NbtTag::String(name) = name else {
+                    return Err(S::Error::custom("a click event writes a non-string action"));
+                };
+                written.child_tags.insert(
+                    0,
+                    (
+                        "type".to_owned(),
+                        NbtTag::String(format!("minecraft:{name}")),
+                    ),
+                );
+                written.serialize(s)
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Action {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut compound = NbtCompound::deserialize(d)?;
+        let position = compound
+            .child_tags
+            .iter()
+            .position(|(key, _)| key == "type")
+            .ok_or_else(|| D::Error::missing_field("type"))?;
+        let NbtTag::String(kind) = compound.child_tags.remove(position).1 else {
+            return Err(D::Error::custom("'type' is not a string"));
+        };
+        let kind = ResourceLocation::read(&kind).map_err(D::Error::custom)?;
+        let name = kind.as_str().strip_prefix("minecraft:").unwrap_or("");
+
+        if DYNAMIC_ACTIONS.contains(&name) {
+            compound
+                .child_tags
+                .push(("type".to_owned(), NbtTag::String(kind.as_str().to_owned())));
+            return from_tag(NbtTag::Compound(compound))
+                .map(Action::Dynamic)
+                .map_err(D::Error::custom);
+        }
+        if !STATIC_ACTIONS.contains(&name) {
+            return Err(D::Error::custom(format_args!(
+                "unknown dialog action type {kind}, expected one of minecraft:{}",
+                STATIC_ACTIONS
+                    .iter()
+                    .chain(&DYNAMIC_ACTIONS)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", minecraft:")
+            )));
+        }
+
+        let given: Vec<String> = compound
+            .child_tags
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect();
+        compound
+            .child_tags
+            .push(("action".to_owned(), NbtTag::String(name.to_owned())));
+        let event: ClickEvent = from_tag(NbtTag::Compound(compound)).map_err(D::Error::custom)?;
+        let written = to_nbt_compound(&event).map_err(D::Error::custom)?;
+        if let Some(unknown) = given.iter().find(|key| written.get(key).is_none()) {
+            return Err(D::Error::custom(format_args!(
+                "unknown field `{unknown}` in the {kind} action"
+            )));
+        }
+        Ok(Action::Static(event))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionButton {
+    pub label: Text,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tooltip: Option<Text>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub width: ButtonWidth,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<Action>,
+}
+
+fn ok_button() -> ActionButton {
+    ActionButton {
+        label: Text::translate("gui.ok", Vec::new()),
+        tooltip: None,
+        width: ButtonWidth::default(),
+        action: None,
+    }
+}
+
+fn is_ok_button(button: &ActionButton) -> bool {
+    *button == ok_button()
+}
+
+trait Specific {
+    fn check(&self) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+macro_rules! dialog_type {
+    ($name:ident { $($field:tt)* }) => {
+        validated!($name);
+
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[serde(remote = "Self", deny_unknown_fields)]
+        pub struct $name {
+            pub title: Text,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            pub external_title: Option<Text>,
+            #[serde(default = "default_true", skip_serializing_if = "is_true")]
+            pub can_close_with_escape: bool,
+            #[serde(default = "default_true", skip_serializing_if = "is_true")]
+            pub pause: bool,
+            #[serde(default, skip_serializing_if = "is_default")]
+            pub after_action: AfterAction,
+            #[serde(default, skip_serializing_if = "CompactList::is_empty")]
+            pub body: CompactList<DialogBody>,
+            #[serde(default, skip_serializing_if = "Vec::is_empty")]
+            pub inputs: Vec<Input>,
+            $($field)*
+        }
+
+        impl Validate for $name {
+            fn validate(&self) -> Result<(), String> {
+                if self.pause && !self.after_action.unpauses() {
+                    return Err(
+                        "Dialogs that pause the game must use after_action values that unpause it after user action!"
+                            .into(),
+                    );
+                }
+                Specific::check(self)
+            }
+        }
+    };
+}
+
+dialog_type!(Notice {
+    #[serde(default = "ok_button", skip_serializing_if = "is_ok_button")]
+    pub action: ActionButton,
+});
+
+impl Specific for Notice {}
+
+dialog_type!(Confirmation {
+    pub yes: ActionButton,
+    pub no: ActionButton,
+});
+
+impl Specific for Confirmation {}
+
+dialog_type!(MultiAction {
+    pub actions: Vec<ActionButton>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_action: Option<ActionButton>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub columns: Columns,
+});
+
+impl Specific for MultiAction {
+    fn check(&self) -> Result<(), String> {
+        if self.actions.is_empty() {
+            return Err("List must have contents".into());
+        }
+        Ok(())
+    }
+}
+
+dialog_type!(ServerLinks {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_action: Option<ActionButton>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub columns: Columns,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub button_width: ButtonWidth,
+});
+
+impl Specific for ServerLinks {}
+
+// chisle: a dialog list names registered dialogs and tags only; the game also takes a dialog
+// written inline in the list, which is refused here until a holder set that holds inline entries
+// exists.
+dialog_type!(DialogList {
+    pub dialogs: EntrySet<key::Dialog>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_action: Option<ActionButton>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub columns: Columns,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub button_width: ButtonWidth,
+});
+
+impl Specific for DialogList {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Dialog {
+    #[serde(rename = "minecraft:notice")]
+    Notice(Notice),
+    #[serde(rename = "minecraft:confirmation")]
+    Confirmation(Confirmation),
+    #[serde(rename = "minecraft:multi_action")]
+    MultiAction(MultiAction),
+    #[serde(rename = "minecraft:server_links")]
+    ServerLinks(ServerLinks),
+    #[serde(rename = "minecraft:dialog_list")]
+    DialogList(DialogList),
 }
