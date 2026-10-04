@@ -53,7 +53,6 @@ const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[
     ),
     ("PAINTING_VARIANT", "minecraft/painting_variant", "json"),
     ("DAMAGE_TYPE", "minecraft/damage_type", "json"),
-    ("BANNER_PATTERN", "minecraft/banner_pattern", "json"),
     ("JUKEBOX_SONG", "minecraft/jukebox_song", "json"),
     ("BLOCK_TRANSFORMER", "minecraft/block_transformer", "json"),
     (

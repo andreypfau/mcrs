@@ -58,6 +58,13 @@ impl RegistrySnapshotErased {
         }
     }
 
+    pub fn from_registry_entries(key: &str, entries: Vec<RegistryEntry>) -> Self {
+        Self {
+            key: key.to_string(),
+            entries,
+        }
+    }
+
     pub fn from_static<T: 'static>(
         key: &str,
         registry: &StaticRegistry<T>,

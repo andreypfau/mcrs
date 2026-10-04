@@ -5,10 +5,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
 #[serde(transparent)]
-pub struct BannerPattern(pub item::BannerPattern);
-
-#[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
-#[serde(transparent)]
 pub struct Instrument(pub item::InstrumentValue);
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
