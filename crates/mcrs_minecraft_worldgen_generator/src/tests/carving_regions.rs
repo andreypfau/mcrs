@@ -399,7 +399,7 @@ fn overworld_context(seed: u64) -> FillContext {
     context
 }
 
-fn blocks_of(context: &FillContext, (x, z): (i32, i32)) -> Vec<u16> {
+fn fill(context: &FillContext, (x, z): (i32, i32)) -> (ColumnBlocks, Vec<u16>) {
     let mut buffer = ColumnBlocks::new(&context.y_sections);
     let snapshot = fill_column(
         context,
@@ -415,7 +415,11 @@ fn blocks_of(context: &FillContext, (x, z): (i32, i32)) -> Vec<u16> {
             None => blocks.push(u16::MAX),
         }
     }
-    blocks
+    (buffer, blocks)
+}
+
+fn blocks_of(context: &FillContext, column: (i32, i32)) -> Vec<u16> {
+    fill(context, column).1
 }
 
 fn generate(
@@ -500,6 +504,156 @@ fn a_columns_blocks_do_not_depend_on_the_region_the_order_or_the_cache() {
     }
 }
 
+type Pair = ((i32, i32), (i32, i32));
+
+fn wet_border_pairs(
+    context: &FillContext,
+    filled: &HashMap<(i32, i32), ColumnBlocks>,
+) -> Vec<Pair> {
+    let router = context.router.as_ref();
+    let height = extent(router);
+    let table = context
+        .program
+        .carvers
+        .as_ref()
+        .expect("the context carries a carver table");
+    let water = router.water_state;
+    let mut ws = Workspace::new();
+    let masks: HashMap<_, _> = filled
+        .keys()
+        .map(|&(x, z)| {
+            let mask = modern_carving_mask(
+                x,
+                z,
+                router.world_seed as i64,
+                router,
+                &mut ws,
+                table,
+                height,
+            );
+            ((x, z), mask)
+        })
+        .collect();
+
+    let wet = |at: (i32, i32), x: i32, y: i32, z: i32| {
+        masks[&at].contains(x, y, z)
+            && !masks[&at].contains(x, y + 1, z)
+            && filled[&at].get(x, y + 1, z) == Some(water)
+    };
+    let mut pairs = Vec::new();
+    for &(x, z) in filled.keys() {
+        let low = (x, z);
+        for (high, along_x) in [((x + 1, z), true), ((x, z + 1), false)] {
+            if !filled.contains_key(&high) {
+                continue;
+            }
+            let touches = (masks[&low].min_y()..=masks[&low].max_y()).any(|y| {
+                (0..16).any(|along| {
+                    let (low_at, high_at) = if along_x {
+                        ((15, along), (0, along))
+                    } else {
+                        ((along, 15), (along, 0))
+                    };
+                    wet(low, low_at.0, y, low_at.1) && wet(high, high_at.0, y, high_at.1)
+                })
+            });
+            if touches {
+                pairs.push((low, high));
+            }
+        }
+    }
+    pairs.sort_unstable();
+    pairs
+}
+
+fn crosses_regions(width: i32, (low, high): Pair) -> bool {
+    low.0.div_euclid(width) != high.0.div_euclid(width)
+        || low.1.div_euclid(width) != high.1.div_euclid(width)
+}
+
+fn assert_blocks_independent_of_width(
+    seed: u64,
+    origin: i32,
+    side: i32,
+    widths: &[i32],
+    threads: usize,
+    at_least: usize,
+) {
+    let columns = square(origin, origin, side);
+    let mut context = overworld_context(seed);
+    context.program.carvers = Some(Arc::new(table("minecraft:overworld", 1, 0)));
+
+    let (buffers, expected): (HashMap<_, _>, HashMap<_, _>) = columns
+        .iter()
+        .map(|&column| {
+            let (buffer, blocks) = fill(&context, column);
+            ((column, buffer), (column, blocks))
+        })
+        .unzip();
+    let wet = wet_border_pairs(&context, &buffers);
+
+    for &width in widths {
+        let crossing = wet
+            .iter()
+            .filter(|pair| crosses_regions(width, **pair))
+            .count();
+        assert!(
+            crossing >= at_least,
+            "seed {seed}, columns {origin}..{}: only {crossing} column borders with carved cells \
+             under water on both sides lie between two regions of width {width}, {at_least} \
+             are needed for the comparison to mean anything",
+            origin + side
+        );
+
+        let regions_touched = (side / width + 2) as usize;
+        context.program.carvers = Some(Arc::new(table(
+            "minecraft:overworld",
+            width,
+            regions_touched * regions_touched,
+        )));
+
+        let router = context.router.as_ref();
+        let regional = context.program.carvers.as_ref().expect("a carver table");
+        let alone = table("minecraft:overworld", 1, 0);
+        let height = extent(router);
+        let mut ws = Workspace::new();
+        for column in wet
+            .iter()
+            .filter(|pair| crosses_regions(width, **pair))
+            .flat_map(|&(low, high)| [low, high])
+        {
+            let slot = modern_carving_mask(
+                column.0,
+                column.1,
+                router.world_seed as i64,
+                router,
+                &mut ws,
+                regional,
+                height,
+            );
+            let alone = per_column(router, &mut ws, &alone, router.world_seed, height, column);
+            assert!(
+                *slot == alone,
+                "seed {seed}: the mask of column {column:?} at region width {width} differs from \
+                 the column carved on its own"
+            );
+        }
+
+        let got = generate(&context, &columns, threads);
+        for column in &columns {
+            assert!(
+                got[column] == expected[column],
+                "seed {seed}: column {column:?} differs at region width {width}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_columns_blocks_do_not_depend_on_the_region_width() {
+    assert_blocks_independent_of_width(845, -4, 8, &[2, 4, 8], 1, 3);
+}
+
 mod exhaustive {
     use super::*;
 
@@ -529,5 +683,14 @@ mod exhaustive {
             );
         }
         assert!(carved > 0);
+    }
+
+    #[test]
+    fn a_columns_blocks_do_not_depend_on_the_region_width_for_any_seed_and_origin() {
+        for seed in [845, 12345, 7, 1] {
+            for origin in [-8, -5] {
+                assert_blocks_independent_of_width(seed, origin, 16, &[2, 3, 4, 5, 8], 4, 5);
+            }
+        }
     }
 }
