@@ -1,64 +1,87 @@
-use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
-use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::codec::{NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::{Direction, ResourceLocation};
+use mcrs_minecraft_item::SoundEvent;
+use mcrs_minecraft_registry::Holder;
 use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct BlockTransformer(pub Vec<BlockTransformData>);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl BlockTransformer {
+    const TRANSFORMS: std::ops::RangeInclusive<usize> = 1..=200;
+}
+
+impl<'de> Deserialize<'de> for BlockTransformer {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let transforms = Vec::<BlockTransformData>::deserialize(deserializer)?;
+        if !Self::TRANSFORMS.contains(&transforms.len()) {
+            return Err(D::Error::custom(format_args!(
+                "expected between {} and {} transforms, got {}",
+                Self::TRANSFORMS.start(),
+                Self::TRANSFORMS.end(),
+                transforms.len()
+            )));
+        }
+        Ok(Self(transforms))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlockTransformData {
     pub block_state_provider: BlockStateProvider,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sound: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub particle: Option<TransformParticle>,
+    pub sound: Option<Holder<SoundEvent>>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub particle: TransformParticle,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disallowed_faces: Vec<Direction>,
+    // chisle: an unchecked name until loot tables load as a registry
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub loot: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub drop_strategy: Option<DropStrategy>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub update_from_neighbors: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub transform_type: Option<TransformType>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub consume_on_use: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub item_damage_per_use: Option<u32>,
+    pub loot: Option<ResourceLocation>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub drop_strategy: DropStrategy,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub update_from_neighbors: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub transform_type: TransformType,
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub consume_on_use: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub item_damage_per_use: NonNegativeInt,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransformParticle {
+    #[default]
     None,
     Scrape,
     WaxOn,
     WaxOff,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DropStrategy {
     ClickedFace,
+    #[default]
     FromMiddle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransformType {
+    #[default]
     SingleBlock,
     CopperChest,
-}
-
-impl Asset for BlockTransformer {}
-
-impl VisitAssetDependencies for BlockTransformer {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
 #[cfg(test)]

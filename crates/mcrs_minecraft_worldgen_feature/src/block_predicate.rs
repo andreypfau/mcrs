@@ -1,8 +1,9 @@
 use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
@@ -11,17 +12,22 @@ use mcrs_minecraft_worldgen_density::proto::BlockState;
 use crate::placement::HeightmapName;
 
 /// `Vec3i.offsetCodec(16)`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Offset(pub [i32; 3]);
 
 impl Offset {
     const LIMIT: i32 = 16;
 }
 
+impl Serialize for Offset {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        IntArray(self.0).serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for Offset {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let axes = <[i32; 3]>::deserialize(deserializer)?;
+        let IntArray(axes) = IntArray::<3>::deserialize(deserializer)?;
         if let Some(out) = axes.iter().find(|a| a.abs() > Offset::LIMIT) {
             return Err(D::Error::custom(format!(
                 "offset {out} is out of range, expected at most {}",

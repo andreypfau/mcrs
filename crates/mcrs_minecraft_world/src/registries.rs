@@ -1,4 +1,7 @@
+use crate::block_transformer::BlockTransformer;
+use crate::damage_type::DamageType;
 use crate::data_pack::walk_files;
+use crate::decorated_pot_pattern::DecoratedPotPattern;
 use crate::entity::minecraft::EntityIds;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
@@ -34,6 +37,15 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<PaintingVariantValue>(&mut world, &mut undeclared);
     parse::<TrimMaterial>(&mut world, &mut undeclared);
     parse::<TrimPattern>(&mut world, &mut undeclared);
+    parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
+    parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_as::<mcrs_minecraft_registry::key::BlockTransformer, BlockTransformer>(
+        &mut world,
+        &mut undeclared,
+    );
     if undeclared.is_empty() {
         Ok(world)
     } else {
@@ -45,15 +57,25 @@ fn parse<T>(world: &mut WorldRegistries, report: &mut LoadReport)
 where
     T: RegistryKey + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
+    parse_as::<T, T>(world, report);
+}
+
+/// `K` names the registry whose entries are read as `T`, for a value type that
+/// lives where its key type cannot.
+fn parse_as<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
+where
+    K: RegistryKey,
+    T: DeserializeOwned + Serialize + Send + Sync + 'static,
+{
     if world
         .declared()
-        .any(|declared| declared.as_str() == T::KEY.as_str())
+        .any(|declared| declared.as_str() == K::KEY.as_str())
     {
-        world.parse::<T>(T::KEY);
+        world.parse::<T>(K::KEY);
     } else {
         report.invalid_report(format_args!(
             "{} is not a world registry of the data pack report",
-            T::KEY
+            K::KEY
         ));
     }
 }
@@ -306,7 +328,10 @@ mod tests {
             "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
             "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
             "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
-            "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
+            "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
+            "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
+            "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),

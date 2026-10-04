@@ -1,20 +1,43 @@
-use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
+use mcrs_minecraft_core::codec::is_default;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DamageType {
-    pub exhaustion: f32,
     pub message_id: String,
-    pub scaling: String,
-    #[serde(default)]
-    pub death_message_type: Option<String>,
-    #[serde(default)]
-    pub effects: Option<String>,
+    pub scaling: DamageScaling,
+    pub exhaustion: f32,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub effects: DamageEffects,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub death_message_type: DeathMessageType,
 }
 
-impl Asset for DamageType {}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DamageScaling {
+    Never,
+    WhenCausedByLivingNonPlayer,
+    Always,
+}
 
-impl VisitAssetDependencies for DamageType {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DamageEffects {
+    #[default]
+    Hurt,
+    Thorns,
+    Drowning,
+    Burning,
+    Poking,
+    Freezing,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeathMessageType {
+    #[default]
+    Default,
+    FallVariants,
+    IntentionalGameDesign,
 }

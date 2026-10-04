@@ -177,12 +177,9 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 
 fn rows() -> Vec<Row> {
     use mcrs_minecraft_world::{
-        block_transformer::BlockTransformer, chat_type::ChatType, damage_type::DamageType,
-        decorated_pot_pattern::DecoratedPotPattern, test_types::TestEnvironment,
-        test_types::TestInstance, variant::*,
+        chat_type::ChatType, test_types::TestEnvironment, test_types::TestInstance, variant::*,
     };
     vec![
-        row("block_transformer", typed::<BlockTransformer>),
         row("cat_sound_variant", typed::<CatSoundVariant>),
         row("cat_variant", typed::<CatVariant>),
         row("chat_type", typed::<ChatType>),
@@ -190,8 +187,6 @@ fn rows() -> Vec<Row> {
         row("chicken_variant", typed::<ChickenVariant>),
         row("cow_sound_variant", typed::<CowSoundVariant>),
         row("cow_variant", typed::<CowVariant>),
-        row("damage_type", typed::<DamageType>),
-        row("decorated_pot_pattern", typed::<DecoratedPotPattern>),
         row("dialog", dialog),
         row("frog_variant", typed::<FrogVariant>),
         row("pig_sound_variant", typed::<PigSoundVariant>),

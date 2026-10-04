@@ -6,8 +6,6 @@ minecraft:painting_variant no differences
 minecraft:trim_material no differences
 minecraft:trim_pattern no differences
 [other compared registries]
-minecraft:block_transformer $[0].block_state_provider.rules[0].if_true.predicates[1].offset ours=list game=int_array
-minecraft:block_transformer $[0].block_state_provider.rules[1].if_true.predicates[1].offset ours=list game=int_array
 minecraft:dialog $.button_width ours=long game=int
 minecraft:dialog $.columns ours=long game=int
 minecraft:dialog $.exit_action.width ours=long game=int

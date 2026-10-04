@@ -1,15 +1,8 @@
-use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
+use mcrs_minecraft_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DecoratedPotPattern {
-    pub asset_id: String,
-}
-
-impl Asset for DecoratedPotPattern {}
-
-impl VisitAssetDependencies for DecoratedPotPattern {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
+    pub asset_id: ResourceLocation,
 }

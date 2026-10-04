@@ -108,14 +108,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
         app.init_asset::<variant::ZombieNautilusVariant>();
         app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
-        app.init_asset::<damage_type::DamageType>();
-        app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
-        app.init_asset::<block_transformer::BlockTransformer>();
-        app.register_asset_loader(JsonLoader::<block_transformer::BlockTransformer>::default());
-        app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
-        app.register_asset_loader(
-            JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default(),
-        );
         app.init_asset::<chat_type::ChatType>();
         app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
@@ -288,31 +280,11 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    damage_type::DamageType,
-                    "minecraft:damage_type",
-                    |v: &damage_type::DamageType| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    block_transformer::BlockTransformer,
-                    "minecraft:block_transformer",
-                    |v: &block_transformer::BlockTransformer| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
                     "minecraft:worldgen/block_state_provider",
                     |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    decorated_pot_pattern::DecoratedPotPattern,
-                    "minecraft:decorated_pot_pattern",
-                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(
-                        v
-                    ),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -474,6 +446,24 @@ impl Plugin for MinecraftWorldPlugin {
                     &mut access,
                     &registries,
                     "minecraft:trim_pattern",
+                    Clone::clone,
+                );
+                registries::register_loaded::<damage_type::DamageType, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:damage_type",
+                    Clone::clone,
+                );
+                registries::register_loaded::<block_transformer::BlockTransformer, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:block_transformer",
+                    Clone::clone,
+                );
+                registries::register_loaded::<decorated_pot_pattern::DecoratedPotPattern, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:decorated_pot_pattern",
                     Clone::clone,
                 );
             }
