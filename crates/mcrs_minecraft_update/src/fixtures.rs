@@ -211,6 +211,10 @@ pub const FIXTURES: &[Fixture] = &[
         "vanilla_player",
         &[named("vanilla_player.dat", WORLD_FIXTURES)],
     ),
+    golden(
+        "registry_values",
+        &[named("registry_values.txt", WORLD_FIXTURES)],
+    ),
 ];
 
 pub type Manifest = BTreeMap<String, String>;

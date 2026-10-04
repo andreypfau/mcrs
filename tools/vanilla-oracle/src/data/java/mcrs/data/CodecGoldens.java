@@ -79,6 +79,7 @@ public final class CodecGoldens {
         GOLDENS.put("join_packets", PacketGoldens::joinPackets);
         GOLDENS.put("frames", FrameGoldens::frames);
         GOLDENS.put("vanilla_player", PlayerGoldens::vanillaPlayer);
+        GOLDENS.put("registry_values", RegistryGoldens::registryValues);
     }
 
     private CodecGoldens() {}

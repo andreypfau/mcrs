@@ -756,8 +756,9 @@ this task and not by hand.
 game's own codecs and stream codecs produce. The file already in the repository
 supplies the cases (the inputs); the game supplies every expected value. The
 goldens are named in `CodecGoldens` (`snbt`, `hash_ops`, the `text_*` and
-`item_*` goldens, `recipe_packets`, `particles` and `inventory_packets`), and
-the file each one rewrites is in the fixture table of the update tool.
+`item_*` goldens, `recipe_packets`, `particles`, `inventory_packets` and
+`registry_values`), and the file each one rewrites is in the fixture table of
+the update tool.
 
 ```sh
 cd tools/vanilla-oracle
