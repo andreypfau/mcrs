@@ -13,11 +13,10 @@ pub mod report;
 pub mod set;
 #[cfg(feature = "bevy")]
 pub mod shared;
-pub mod static_registry;
 pub mod static_report;
 pub mod tag_source;
 
-pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
+pub use bitset::{BitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
 pub use entries::Entries;
 pub use entry_set::EntrySet;
@@ -29,5 +28,4 @@ pub use names::NameTable;
 pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
-pub use static_registry::{StaticId, StaticRegistry};
 pub use tag_source::TagSource;
