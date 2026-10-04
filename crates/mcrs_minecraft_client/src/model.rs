@@ -10,6 +10,7 @@ use bevy::math::Vec3;
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, pack_names};
 use serde::Deserialize;
 
 use crate::vanilla;
@@ -67,7 +68,19 @@ impl Pack {
             let reader = assets
                 .get_source(source.clone())
                 .map_err(|error| format!("no {source} asset source: {error}"))?;
-            Self::walk(reader.reader(), folders, &mut files).await?;
+            let reader = reader.reader();
+            let mut roots = vec![PathBuf::new()];
+            if source == AssetSourceId::Default {
+                roots.extend(
+                    pack_names(reader)
+                        .await
+                        .into_iter()
+                        .map(|name| Path::new(PACKS_ROOT).join(name)),
+                );
+            }
+            for root in roots {
+                Self::walk(reader, &root, folders, &mut files).await?;
+            }
         }
         add_built_in(&mut files);
         Ok(Self { files })
@@ -75,13 +88,14 @@ impl Pack {
 
     async fn walk(
         reader: &dyn ErasedAssetReader,
+        root: &Path,
         folders: &[&str],
         files: &mut HashMap<String, Vec<u8>>,
     ) -> Result<(), String> {
         let mut namespaces = reader
-            .read_directory(Path::new(""))
+            .read_directory(root)
             .await
-            .map_err(|error| format!("cannot list the asset root: {error}"))?;
+            .map_err(|error| format!("cannot list {}: {error}", root.display()))?;
         let mut pending: Vec<PathBuf> = Vec::new();
         while let Some(namespace) = namespaces.next().await {
             pending.extend(folders.iter().map(|folder| namespace.join(folder)));
@@ -99,7 +113,8 @@ impl Pack {
                 let bytes = read_whole(reader, &path)
                     .await
                     .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-                files.insert(path.to_string_lossy().into_owned(), bytes);
+                let relative = path.strip_prefix(root).unwrap_or(&path);
+                files.insert(relative.to_string_lossy().into_owned(), bytes);
             }
         }
         Ok(())
@@ -153,31 +168,41 @@ impl Pack {
     /// system: a test has none to read them through.
     pub fn corpus() -> &'static Pack {
         static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| {
-            let root = crate::asset_corpus();
+            let corpus = crate::asset_corpus();
             let mut files: HashMap<String, Vec<u8>> =
                 vanilla::resource_files().iter().cloned().collect();
-            let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
-                .expect("the corpus is next to the workspace")
-                .filter_map(|entry| entry.ok())
-                .flat_map(|namespace| {
-                    DATA_FOLDERS
-                        .iter()
-                        .map(move |folder| namespace.path().join(folder))
-                })
-                .collect();
-            while let Some(directory) = pending.pop() {
-                let Ok(entries) = std::fs::read_dir(&directory) else {
-                    continue;
-                };
-                for entry in entries.filter_map(|entry| entry.ok()) {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        pending.push(path);
+            let mut roots = vec![corpus.clone()];
+            roots.extend(
+                std::fs::read_dir(corpus.join(PACKS_ROOT))
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|entry| entry.ok())
+                    .map(|entry| entry.path()),
+            );
+            for root in roots {
+                let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
+                    .expect("the corpus is next to the workspace")
+                    .filter_map(|entry| entry.ok())
+                    .flat_map(|namespace| {
+                        DATA_FOLDERS
+                            .iter()
+                            .map(move |folder| namespace.path().join(folder))
+                    })
+                    .collect();
+                while let Some(directory) = pending.pop() {
+                    let Ok(entries) = std::fs::read_dir(&directory) else {
                         continue;
+                    };
+                    for entry in entries.filter_map(|entry| entry.ok()) {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            pending.push(path);
+                            continue;
+                        }
+                        let relative = path.strip_prefix(&root).expect("walked from the root");
+                        let bytes = std::fs::read(&path).expect("the corpus is readable");
+                        files.insert(relative.to_string_lossy().into_owned(), bytes);
                     }
-                    let relative = path.strip_prefix(&root).expect("walked from the root");
-                    let bytes = std::fs::read(&path).expect("the corpus is readable");
-                    files.insert(relative.to_string_lossy().into_owned(), bytes);
                 }
             }
             add_built_in(&mut files);

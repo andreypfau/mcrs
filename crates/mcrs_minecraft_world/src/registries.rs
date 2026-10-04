@@ -5,7 +5,7 @@ use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
-use mcrs_minecraft_assets::packs::{PACKS_ROOT, layered_file_source, pack_names};
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_item::{BannerPattern, Item, SoundEvent};
@@ -17,8 +17,6 @@ use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::LazyLock;
-
-const VANILLA_PACK: &str = "vanilla";
 
 pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
     let mut world = WorldRegistries::from_datapack_report(datapack_report).map_err(|error| {

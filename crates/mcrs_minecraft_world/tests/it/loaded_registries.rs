@@ -88,8 +88,14 @@ fn every_declared_registry_has_names_from_the_loader() {
     let names: BTreeSet<String> = biomes.names().iter().map(|name| name.to_string()).collect();
     let builtin = mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome");
     assert!(!builtin.is_empty());
-    let files: Vec<String> = std::fs::read_dir(assets().join("minecraft/worldgen/biome"))
+    let packs: Vec<_> = std::fs::read_dir(assets().join("mcrs/datapacks"))
         .unwrap()
+        .map(|pack| pack.unwrap().path().join("minecraft"))
+        .collect();
+    let files: Vec<String> = std::iter::once(assets().join("minecraft"))
+        .chain(packs)
+        .filter_map(|root| std::fs::read_dir(root.join("worldgen/biome")).ok())
+        .flatten()
         .filter_map(|entry| {
             let name = entry.unwrap().file_name().into_string().unwrap();
             Some(format!("minecraft:{}", name.strip_suffix(".json")?))

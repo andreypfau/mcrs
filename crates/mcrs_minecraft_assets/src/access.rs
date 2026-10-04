@@ -1,3 +1,4 @@
+use crate::packs::VANILLA_PACK;
 use crate::snapshot::RegistrySnapshot;
 use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
@@ -5,6 +6,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use std::sync::{Arc, OnceLock};
@@ -88,17 +90,19 @@ impl RegistrySnapshotErased {
     pub fn from_dynamic<T: Asset>(
         key: &str,
         snapshot: &RegistrySnapshot<T>,
+        set: &RegistrySet,
         pack_source: Option<PackSource>,
     ) -> Self {
         let entries = snapshot
             .entries()
             .iter()
-            .map(|e| RegistryEntry {
+            .enumerate()
+            .map(|(id, e)| RegistryEntry {
                 location: e.location.clone(),
                 data: Some(e.nbt.clone()),
                 pack_source: pack_source
                     .clone()
-                    .filter(|_| !is_local_addition(&e.location)),
+                    .filter(|_| set.pack_of(key, id) == Some(VANILLA_PACK)),
             })
             .collect();
         Self {
@@ -106,18 +110,6 @@ impl RegistrySnapshotErased {
             entries,
         }
     }
-}
-
-// A client that knows the vanilla core pack loads such entries from its own jar, so
-// only files the jar actually ships may claim it. The corpus is the vanilla jar plus
-// the beta worldgen set, and nothing else.
-// chisle: name prefix stands in for a manifest of the jar's data files.
-fn is_local_addition(location: &ResourceLocation<Arc<str>>) -> bool {
-    location
-        .path()
-        .rsplit('/')
-        .next()
-        .is_some_and(|name| name.starts_with("beta"))
 }
 
 impl RegistrySnapshotErased {
@@ -254,6 +246,57 @@ mod tests {
         assert_eq!(access.name("item", 2), None);
         assert_eq!(access.id("item", &make_location("dirt")), Some(1));
         assert_eq!(access.id("block", &make_location("dirt")), None);
+    }
+
+    #[derive(bevy_asset::Asset, bevy_reflect::TypePath)]
+    struct Variant;
+
+    #[test]
+    fn an_entry_from_a_non_vanilla_pack_claims_no_vanilla_pack() {
+        use bevy_asset::Assets;
+        use mcrs_minecraft_registry::{Pack, PackFile, WorldRegistries};
+
+        let registry = ResourceLocation::parse("minecraft:test_variant").unwrap();
+        let file = |path: &str| PackFile {
+            path: path.to_owned(),
+            bytes: None,
+        };
+        let packs = [
+            Pack {
+                name: "vanilla".to_owned(),
+                files: vec![file("minecraft/test_variant/a.json")],
+            },
+            Pack {
+                name: "extra".to_owned(),
+                files: vec![file("minecraft/test_variant/b.json")],
+            },
+        ];
+        let set = WorldRegistries::new([registry.clone()])
+            .load(&RegistrySet::new(), &packs)
+            .unwrap();
+        let table = set.table(registry.as_str()).unwrap();
+
+        let mut assets = Assets::<Variant>::default();
+        let pairs: Vec<_> = table
+            .names()
+            .iter()
+            .map(|name| (name.clone(), assets.add(Variant).id()))
+            .collect();
+        let snapshot = RegistrySnapshot::build(table, pairs, &assets, |_| {
+            Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
+        });
+
+        let erased = RegistrySnapshotErased::from_dynamic(
+            registry.as_str(),
+            &snapshot,
+            &set,
+            Some(PackSource::vanilla_core()),
+        );
+        let claimed: Vec<_> = erased
+            .iter_entries()
+            .map(|entry| (entry.location.as_str(), entry.pack_source.is_some()))
+            .collect();
+        assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
     }
 
     /// Verify that calling `register` after a clone exists panics with the

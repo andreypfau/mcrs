@@ -37,11 +37,8 @@ pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     names
         .iter()
         .map(|name| {
-            let path = worldgen_dir().join(format!(
-                "carver/{}.json",
-                name.strip_prefix("minecraft:").unwrap_or(name)
-            ));
-            serde_json::from_slice(&std::fs::read(&path).expect("carver must exist")).unwrap()
+            let id = mcrs_minecraft_core::ResourceLocation::parse(name).expect("a carver id");
+            mcrs_minecraft_worldgen_testing::read("carver", &id)
         })
         .collect()
 }
@@ -175,17 +172,10 @@ fn asset_maps() -> (
         carvers_by_biome.insert(id.as_str().to_owned(), names);
     }
 
-    let mut config_by_location = std::collections::HashMap::new();
-    for entry in std::fs::read_dir(worldgen_dir().join("carver")).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        config_by_location.insert(
-            format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy()),
-            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap(),
-        );
-    }
+    let config_by_location = mcrs_minecraft_worldgen_testing::registry::<CarverConfig>("carver")
+        .into_iter()
+        .map(|(id, config)| (id.as_str().to_owned(), config))
+        .collect();
     (carvers_by_biome, config_by_location)
 }
 
