@@ -202,11 +202,11 @@ fn a_repeated_identifier_fails_to_load() {
         "forged/stick.json".to_owned(),
         serde_json::to_vec(&forged).unwrap(),
     );
-    let error = mcrs_minecraft_item::ItemDefinitions::from_files(files, blocks).unwrap_err();
+    let error = mcrs_minecraft_world::item::definitions::from_files(files, blocks).unwrap_err();
     assert!(
         matches!(
             &error,
-            mcrs_minecraft_item::definition::ItemCorpusError::DuplicateIdentifier { item, file }
+            mcrs_minecraft_world::item::definitions::ItemCorpusError::DuplicateIdentifier { item, file }
                 if item == "minecraft:stick" && file == "forged/stick.json"
         ),
         "{error}"

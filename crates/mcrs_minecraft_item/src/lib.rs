@@ -28,9 +28,9 @@ pub mod trim;
 pub mod value;
 
 pub use component::*;
-pub use definition::{ItemDefinitions, ItemEntry};
 #[cfg(feature = "bevy")]
-pub use definition::{Items, load_item_definitions, test_corpus};
+pub use definition::Items;
+pub use definition::{ItemDefinitions, ItemEntry};
 #[cfg(feature = "bevy")]
 pub use dropped::{DroppedItem, Thrower};
 #[cfg(feature = "bevy")]

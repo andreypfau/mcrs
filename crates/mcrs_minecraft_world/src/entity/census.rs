@@ -121,7 +121,7 @@ fn items_carry_their_registry_index() {
     let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
     let (blocks, _) = mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
         .expect("the block corpus loads");
-    let items = mcrs_minecraft_item::load_item_definitions(&asset_server, &blocks)
+    let items = crate::item::definitions::load_item_definitions(&asset_server, &blocks)
         .expect("the item corpus loads");
     let actual: Vec<String> = items
         .iter()

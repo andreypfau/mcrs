@@ -7,10 +7,6 @@ edition.workspace = true
 [lib]
 doctest = false
 
-[[test]]
-name = "corpus"
-required-features = ["bevy"]
-
 [features]
 bevy = [
     "dep:bevy_app",

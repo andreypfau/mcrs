@@ -1,30 +1,15 @@
 pub mod schema;
 
 use std::sync::Arc;
-#[cfg(feature = "bevy")]
-use std::sync::OnceLock;
 
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
-use bevy_app::{App, TaskPoolPlugin};
-#[cfg(feature = "bevy")]
-use bevy_asset::io::AssetSourceId;
-#[cfg(feature = "bevy")]
-use bevy_asset::{AssetPlugin, AssetServer};
-#[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-#[cfg(feature = "bevy")]
-use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceLocation;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use rustc_hash::FxHashMap;
-
-#[cfg(feature = "bevy")]
-use self::schema::ItemDefinitionFile;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -45,7 +30,35 @@ pub struct ItemDefinitions {
     by_identifier: FxHashMap<ResourceLocation<Arc<str>>, ItemId>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("`{identifier}` is defined at positions {first} and {second}")]
+pub struct DuplicateItem {
+    pub identifier: ResourceLocation<Arc<str>>,
+    pub first: usize,
+    pub second: usize,
+}
+
 impl ItemDefinitions {
+    pub fn from_entries(mut entries: Vec<ItemEntry>) -> Result<Self, DuplicateItem> {
+        let mut by_identifier =
+            FxHashMap::with_capacity_and_hasher(entries.len(), Default::default());
+        for (position, entry) in entries.iter_mut().enumerate() {
+            let id = ItemId(u16::try_from(position).expect("item ids are 16 bits wide"));
+            entry.id = id;
+            if let Some(first) = by_identifier.insert(entry.identifier.clone(), id) {
+                return Err(DuplicateItem {
+                    identifier: entry.identifier.clone(),
+                    first: usize::from(first.0),
+                    second: position,
+                });
+            }
+        }
+        Ok(Self {
+            entries,
+            by_identifier,
+        })
+    }
+
     pub fn get(&self, id: ItemId) -> Option<&ItemEntry> {
         self.entries.get(id.0 as usize)
     }
@@ -60,86 +73,6 @@ impl ItemDefinitions {
 
     pub fn len(&self) -> usize {
         self.entries.len()
-    }
-}
-
-#[cfg(feature = "bevy")]
-impl ItemDefinitions {
-    pub fn from_files(
-        files: impl IntoIterator<Item = (String, Vec<u8>)>,
-        blocks: &BlockDefinitions,
-    ) -> Result<Self, ItemCorpusError> {
-        let mut parsed: Vec<(String, ItemDefinitionFile)> = files
-            .into_iter()
-            .map(|(path, bytes)| {
-                if bytes.is_empty() {
-                    return Err(ItemCorpusError::Empty { path });
-                }
-                let file: ItemDefinitionFile =
-                    serde_json::from_slice(&bytes).map_err(|source| ItemCorpusError::Parse {
-                        path: path.clone(),
-                        source,
-                    })?;
-                if file.format_version != FORMAT_VERSION {
-                    return Err(ItemCorpusError::FormatVersion {
-                        path,
-                        found: file.format_version,
-                    });
-                }
-                Ok((path, file))
-            })
-            .collect::<Result<_, _>>()?;
-        parsed.sort_by_key(|(_, file)| file.item.description.protocol_id);
-
-        let mut definitions = ItemDefinitions::default();
-        for (expected, (path, file)) in parsed.into_iter().enumerate() {
-            let item = file.item;
-            let found = item.description.protocol_id;
-            if found as usize != expected {
-                return Err(ItemCorpusError::ProtocolIds {
-                    expected,
-                    found,
-                    file: path,
-                });
-            }
-            let id = ItemId(
-                u16::try_from(found).map_err(|_| ItemCorpusError::ProtocolIds {
-                    expected,
-                    found,
-                    file: path.clone(),
-                })?,
-            );
-            let placed = item
-                .block_placer
-                .map(|block| {
-                    blocks
-                        .block(block.as_str())
-                        .ok_or_else(|| ItemCorpusError::UnknownBlock {
-                            item: item.description.identifier.as_str().to_owned(),
-                            block: block.as_str().to_owned(),
-                        })
-                })
-                .transpose()?;
-            if definitions
-                .by_identifier
-                .insert(item.description.identifier.clone(), id)
-                .is_some()
-            {
-                return Err(ItemCorpusError::DuplicateIdentifier {
-                    item: item.description.identifier.as_str().to_owned(),
-                    file: path,
-                });
-            }
-            definitions.entries.push(ItemEntry {
-                identifier: item.description.identifier,
-                id,
-                prototype: item.components,
-                block_placer: placed.map(|block| block.default_state_id),
-                container_slots: placed.and_then(|block| block.container_slots),
-                crafting_remainder: item.crafting_remainder,
-            });
-        }
-        Ok(definitions)
     }
 }
 
@@ -169,63 +102,55 @@ impl TagSource for Items {
     }
 }
 
-#[cfg(feature = "bevy")]
-#[derive(Debug, thiserror::Error)]
-pub enum ItemCorpusError {
-    #[error("no default asset source")]
-    NoAssetSource,
-    #[error(transparent)]
-    Corpus(#[from] CorpusReadError),
-    #[error("`{path}` read as zero bytes")]
-    Empty { path: String },
-    #[error("failed to parse `{path}`: {source}")]
-    Parse {
-        path: String,
-        source: serde_json::Error,
-    },
-    #[error("`{path}` has format_version `{found}`, expected `{FORMAT_VERSION}`")]
-    FormatVersion { path: String, found: String },
-    #[error("`{file}` has protocol_id {found} where {expected} was expected")]
-    ProtocolIds {
-        expected: usize,
-        found: u32,
-        file: String,
-    },
-    #[error("`{item}` places `{block}`, which the block corpus lacks")]
-    UnknownBlock { item: String, block: String },
-    #[error("`{file}` redefines `{item}`")]
-    DuplicateIdentifier { item: String, file: String },
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ComponentMap;
 
-/// The whole vanilla corpus, loaded once per process; for tests and tools
-/// that have no app to hand it an asset server from.
-#[cfg(feature = "bevy")]
-pub fn test_corpus() -> &'static (Blocks, Items) {
-    static CORPUS: OnceLock<(Blocks, Items)> = OnceLock::new();
-    CORPUS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins((
-            TaskPoolPlugin::default(),
-            AssetPlugin {
-                watch_for_changes_override: Some(false),
-                ..Default::default()
-            },
-        ));
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let (blocks, _) = load_block_definitions(&asset_server).expect("the block corpus loads");
-        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
-        (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
-    })
-}
+    fn entry(name: &str) -> ItemEntry {
+        ItemEntry {
+            identifier: ResourceLocation::minecraft(name),
+            id: ItemId(u16::MAX),
+            prototype: ComponentMap::default(),
+            block_placer: None,
+            container_slots: None,
+            crafting_remainder: None,
+        }
+    }
 
-#[cfg(feature = "bevy")]
-pub fn load_item_definitions(
-    asset_server: &AssetServer,
-    blocks: &BlockDefinitions,
-) -> Result<ItemDefinitions, ItemCorpusError> {
-    let source = asset_server
-        .get_source(AssetSourceId::Default)
-        .map_err(|_| ItemCorpusError::NoAssetSource)?;
-    let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-    ItemDefinitions::from_files(files, blocks)
+    #[test]
+    fn ids_follow_the_order_of_the_entries() {
+        let table =
+            ItemDefinitions::from_entries(vec![entry("stone"), entry("apple"), entry("dirt")])
+                .unwrap();
+        assert_eq!(table.id_of("minecraft:stone"), Some(ItemId(0)));
+        assert_eq!(table.id_of("minecraft:apple"), Some(ItemId(1)));
+        assert_eq!(table.id_of("minecraft:dirt"), Some(ItemId(2)));
+        let ids: Vec<_> = table.iter().map(|entry| entry.id).collect();
+        assert_eq!(ids, [ItemId(0), ItemId(1), ItemId(2)]);
+        assert_eq!(
+            table.get(ItemId(1)).unwrap().identifier.as_str(),
+            "minecraft:apple"
+        );
+    }
+
+    #[test]
+    fn a_repeated_identifier_does_not_build() {
+        let result = ItemDefinitions::from_entries(vec![entry("stone"), entry("stone")]);
+        assert_eq!(
+            result.err(),
+            Some(DuplicateItem {
+                identifier: ResourceLocation::minecraft("stone"),
+                first: 0,
+                second: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn no_entries_build_an_empty_table() {
+        let table = ItemDefinitions::from_entries(Vec::new()).unwrap();
+        assert_eq!(table.len(), 0);
+        assert_eq!(table.id_of("minecraft:stone"), None);
+    }
 }
