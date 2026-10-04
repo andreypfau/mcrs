@@ -24,6 +24,7 @@ mcrs_minecraft_core::registry_keys! {
     MultiNoiseBiomeSourceParameterList = "minecraft:worldgen/multi_noise_biome_source_parameter_list";
     VillagerProfession = "minecraft:villager_profession";
     ContextKeySet = "minecraft:context_key_set";
+    GameRule = "minecraft:game_rule";
     TestFunction = "minecraft:test_function";
     TestInstanceType = "minecraft:test_instance_type";
     TestEnvironmentDefinitionType = "minecraft:test_environment_definition_type";

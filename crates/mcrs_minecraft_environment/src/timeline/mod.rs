@@ -82,6 +82,13 @@ pub struct NetworkTimeline {
     pub time_markers: HashMap<String, TimeMarker>,
 }
 
+/// The file form and the network form of a timeline are one codec.
+impl Serialize for Timeline {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        NetworkTimeline::from(self).serialize(s)
+    }
+}
+
 impl From<&Timeline> for NetworkTimeline {
     fn from(tl: &Timeline) -> Self {
         NetworkTimeline {

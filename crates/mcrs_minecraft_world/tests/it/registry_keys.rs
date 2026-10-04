@@ -87,6 +87,7 @@ fn key_types() -> Vec<KeyType> {
         mcrs_minecraft_registry::key::MultiNoiseBiomeSourceParameterList,
         mcrs_minecraft_registry::key::VillagerProfession,
         mcrs_minecraft_registry::key::ContextKeySet,
+        mcrs_minecraft_registry::key::GameRule,
         mcrs_minecraft_registry::key::TestFunction,
         mcrs_minecraft_registry::key::TestInstanceType,
         mcrs_minecraft_registry::key::TestEnvironmentDefinitionType,
@@ -103,6 +104,8 @@ fn key_types() -> Vec<KeyType> {
         mcrs_minecraft_protocol::recipe::RecipeBookCategory,
         mcrs_minecraft_item::ItemComponentKind,
         mcrs_minecraft_world::test_types::TestEnvironment,
+        mcrs_minecraft_world::chat_type::ChatType,
+        mcrs_minecraft_world::test_types::TestInstance,
     ]
 }
 

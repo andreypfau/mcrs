@@ -84,18 +84,12 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<mcrs_minecraft_biome::Biome>();
         app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
-        app.init_asset::<chat_type::ChatType>();
-        app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
         app.register_asset_loader(dialog::DialogLoader);
         app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
         app.register_asset_loader(
             JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default(),
         );
-        app.init_asset::<test_types::TestEnvironment>();
-        app.register_asset_loader(JsonLoader::<test_types::TestEnvironment>::default());
-        app.init_asset::<test_types::TestInstance>();
-        app.register_asset_loader(JsonLoader::<test_types::TestInstance>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<StaticRegistry<EnchantmentData>>()
@@ -178,12 +172,6 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    chat_type::ChatType,
-                    "minecraft:chat_type",
-                    |v: &chat_type::ChatType| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
                     "minecraft:worldgen/block_state_provider",
                     |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
@@ -195,18 +183,6 @@ impl Plugin for MinecraftWorldPlugin {
                     dialog::Dialog,
                     "minecraft:dialog",
                     |v: &dialog::Dialog| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    test_types::TestEnvironment,
-                    "minecraft:test_environment",
-                    |v: &test_types::TestEnvironment| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    test_types::TestInstance,
-                    "minecraft:test_instance",
-                    |v: &test_types::TestInstance| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -350,6 +326,24 @@ impl Plugin for MinecraftWorldPlugin {
                     &mut access,
                     &registries,
                     "minecraft:trim_pattern",
+                    Clone::clone,
+                );
+                registries::register_loaded::<chat_type::ChatType, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:chat_type",
+                    Clone::clone,
+                );
+                registries::register_loaded::<test_types::TestEnvironment, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:test_environment",
+                    Clone::clone,
+                );
+                registries::register_loaded::<test_types::TestInstance, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:test_instance",
                     Clone::clone,
                 );
                 registries::register_loaded::<damage_type::DamageType, _>(
