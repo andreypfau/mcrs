@@ -94,6 +94,7 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::shared::SharedRegistries;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
@@ -205,6 +206,11 @@ pub fn spawn_dim_subapp(
     let trace_dimension = request.dimension_id.as_str().to_owned();
 
     let mut sub_app = SubApp::new();
+    if let Some(shared) = app.world().get_resource::<SharedRegistries>() {
+        shared
+            .copy_into(app.world(), sub_app.world_mut())
+            .unwrap_or_else(|missing| panic!("{missing}"));
+    }
 
     sub_app.insert_resource(ToDimReceiver::<ToDim> {
         serverbound: to_dim_srv_rx,

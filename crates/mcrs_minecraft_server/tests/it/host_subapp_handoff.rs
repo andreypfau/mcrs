@@ -350,3 +350,28 @@ fn entering_the_game_spawns_the_player_once_in_its_saved_dimension() {
     no_live_dim_no_spawn();
     no_duplicate_spawn_on_reread();
 }
+
+#[test]
+fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
+    use mcrs_minecraft_registry::shared::SharedRegistries;
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::materialise_sub_apps(
+        &mut app,
+        &[("test:overworld", true), ("test:nether", false)],
+    );
+
+    let shared = app.world().resource::<SharedRegistries>();
+    let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
+    assert_eq!(dimensions.len(), 2);
+    for dimension in dimensions {
+        let seen = shared.shared_in(app.world(), dimension.world());
+        assert!(
+            seen.iter().any(|(name, _)| name.ends_with("RegistrySet")),
+            "{seen:?}"
+        );
+        for (name, state) in seen {
+            assert_eq!(state, Some(true), "{name}");
+        }
+    }
+}

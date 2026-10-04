@@ -27,7 +27,9 @@ use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -35,6 +37,8 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_world::registries::static_registries;
+use std::sync::LazyLock;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
@@ -74,8 +78,24 @@ pub fn make_host_app() -> App {
     app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
     crate::support::insert_corpus(&mut app);
+    insert_registry_set(&mut app);
 
     app
+}
+
+/// Give the host the registry set built from the real report and register it for sharing,
+/// the way the world plugin does at startup.
+pub fn insert_registry_set(app: &mut App) {
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        let report = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .expect("the registries report is readable");
+        static_registries(&report).unwrap_or_else(|report| panic!("{report}"))
+    });
+    app.insert_resource(SET.clone());
+    share::<RegistrySet>(app.world_mut());
 }
 
 /// Give the dimensions spawned from this host a lighting engine. Production
@@ -114,4 +134,3 @@ pub fn materialise_sub_apps(app: &mut App, ids: &[(&str, bool)]) {
     }
     drain_dim_spawn_queue(app);
 }
-

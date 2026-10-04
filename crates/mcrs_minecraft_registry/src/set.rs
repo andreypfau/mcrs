@@ -10,8 +10,16 @@ use std::sync::Arc;
 type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
 
 #[derive(Clone, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct RegistrySet {
     tables: Arc<Tables>,
+}
+
+#[cfg(feature = "bevy")]
+impl crate::shared::SharedResource for RegistrySet {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.tables, &other.tables)
+    }
 }
 
 thread_local! {

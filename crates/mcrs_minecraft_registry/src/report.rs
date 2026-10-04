@@ -44,6 +44,11 @@ impl LoadReport {
         registry
     }
 
+    pub fn invalid_report(&mut self, error: impl fmt::Display) {
+        self.misses
+            .insert((ROOT.into(), "registries".to_owned()), error.to_string());
+    }
+
     pub fn is_empty(&self) -> bool {
         self.misses.is_empty()
     }
