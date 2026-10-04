@@ -1,7 +1,9 @@
-use super::villager::{VillagerProfession, VillagerType};
-use super::{attribute, minecraft};
+use super::minecraft;
+use super::villager::VillagerProfession;
 use crate::data_pack::registry_files::{FILES_CAT_SOUND_VARIANT, FILES_CAT_VARIANT};
 use bytes::Buf;
+use mcrs_minecraft_entity::VillagerType;
+use mcrs_minecraft_entity::attribute;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;

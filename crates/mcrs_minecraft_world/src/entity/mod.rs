@@ -1,4 +1,3 @@
-pub mod attribute;
 #[cfg(test)]
 mod census;
 pub mod minecraft;

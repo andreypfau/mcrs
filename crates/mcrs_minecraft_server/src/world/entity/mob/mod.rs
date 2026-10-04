@@ -13,6 +13,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
+use mcrs_minecraft_entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_item::{ItemStack, Items};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
@@ -37,7 +38,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttrib
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
-use mcrs_minecraft_world::entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_world::entity::minecraft as entity_types;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
