@@ -9,3 +9,4 @@ mod registry_values;
 mod structure_assets;
 mod tag_pipeline;
 mod timeline_pipeline;
+mod world_registry_ids;
