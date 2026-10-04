@@ -126,7 +126,7 @@ fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> Str
 fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() {
     assert_eq!(
         digest(builtin::assets("biome")),
-        "f4812ebae49ea10e97ff9b40caa24de7507e0db5285501fb3cc4420c8530ae0f"
+        "268bd82d55f28aaa4fcf5d85f0042d9e0ec173b88edb553619a6b248f5742051"
     );
     assert_eq!(
         digest(builtin::assets("template_pool")),

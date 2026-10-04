@@ -19,8 +19,9 @@ impl<T> Clone for Attribute<T> {
 
 impl<T> Copy for Attribute<T> {}
 
-/// The value of an attribute this crate reads no further than its shape. It
-/// has no instance, so such an attribute is written through its argument.
+/// The value of an attribute that built-in descriptions write as their own
+/// serializable shape. It has no instance, so such an attribute is written
+/// through its argument.
 pub enum Opaque {}
 
 macro_rules! attributes {

@@ -299,6 +299,32 @@ mod tests {
         dirs
     }
 
+    fn numbers_by_value(
+        path: String,
+        tag: &mcrs_minecraft_nbt::tag::NbtTag,
+        out: &mut Vec<String>,
+    ) {
+        use mcrs_minecraft_nbt::tag::NbtTag;
+        match tag {
+            NbtTag::Compound(compound) => {
+                for (name, child) in &compound.child_tags {
+                    numbers_by_value(format!("{path}.{name}"), child, out);
+                }
+            }
+            NbtTag::List(items) => {
+                for (index, item) in items.iter().enumerate() {
+                    numbers_by_value(format!("{path}[{index}]"), item, out);
+                }
+            }
+            NbtTag::Short(v) => out.push(format!("{path}={}", *v as f32)),
+            NbtTag::Int(v) => out.push(format!("{path}={}", *v as f32)),
+            NbtTag::Long(v) => out.push(format!("{path}={}", *v as f32)),
+            NbtTag::Float(v) => out.push(format!("{path}={v}")),
+            NbtTag::Double(v) => out.push(format!("{path}={}", *v as f32)),
+            other => out.push(format!("{path}={other:?}")),
+        }
+    }
+
     #[test]
     fn every_dimension_type_parses_through_the_registry() {
         let mut count = 0;
@@ -319,17 +345,37 @@ mod tests {
                 "{} has attributes",
                 path.display()
             );
+            // Through text: a value tree would widen the `f32` fields to `f64`
+            // and print 192.33 as 192.3300018310547.
+            let written: Value =
+                serde_json::from_str(&serde_json::to_string(&proto.attributes).unwrap()).unwrap();
             assert_eq!(
-                serde_json::to_value(&proto.attributes).unwrap(),
+                written,
                 raw["attributes"],
                 "{} attributes must round-trip unchanged",
                 path.display()
             );
             // What the client actually receives must not drift from the raw
-            // JSON the field used to be serialized from.
+            // JSON the field used to be serialized from, widths and the order
+            // of a compound's keys apart: the typed values write the int and
+            // float tags the game does.
+            let mut typed = Vec::new();
+            let mut untyped = Vec::new();
+            numbers_by_value(
+                String::new(),
+                &mcrs_minecraft_nbt::to_nbt_tag(&proto.attributes).unwrap(),
+                &mut typed,
+            );
+            numbers_by_value(
+                String::new(),
+                &mcrs_minecraft_nbt::to_nbt_tag(&raw["attributes"]).unwrap(),
+                &mut untyped,
+            );
+            typed.sort();
+            untyped.sort();
             assert_eq!(
-                mcrs_minecraft_nbt::to_nbt_compound(&proto.attributes).unwrap(),
-                mcrs_minecraft_nbt::to_nbt_compound(&raw["attributes"]).unwrap(),
+                typed,
+                untyped,
                 "{} attributes must encode to the same NBT",
                 path.display()
             );

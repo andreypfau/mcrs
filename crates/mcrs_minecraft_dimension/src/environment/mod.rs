@@ -187,8 +187,7 @@ impl EnvironmentAttributes {
 
         for (id, entry) in &dimension.attributes.0 {
             let stack = &mut stacks[index_of(id.as_str())?];
-            let argument = entry.value(stack.spec)?;
-            stack.base = apply(stack.spec.ty, entry.modifier, &stack.base, &argument)?;
+            stack.base = apply(stack.spec.ty, entry.modifier, &stack.base, entry.value())?;
         }
 
         for stack in &mut stacks {
@@ -438,11 +437,11 @@ fn weather_layers() -> Result<Vec<(&'static str, WeatherEntry, WeatherEntry)>, E
         .map(|id| {
             let spec = mcrs_minecraft_environment::attribute::attribute(id)
                 .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))?;
-            let entry = |map: &EnvironmentAttributeMap| match map.get(id) {
-                Some(entry) => entry.value(spec).map(|value| Some((entry.modifier, value))),
-                None => Ok(None),
+            let entry = |map: &EnvironmentAttributeMap| {
+                map.get(id)
+                    .map(|entry| (entry.modifier, entry.value().clone()))
             };
-            Ok((spec.id, entry(rain)?, entry(thunder)?))
+            Ok((spec.id, entry(rain), entry(thunder)))
         })
         .collect()
 }

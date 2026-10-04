@@ -129,7 +129,7 @@ impl Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::{AttributeValue, Operation};
+    use crate::attribute::{AttributeValue, MoonPhase, Operation};
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_worldgen_testing::assets_dir;
     use serde_json::{Value, json};
@@ -684,22 +684,22 @@ mod tests {
         let id = "minecraft:visual/moon_phase";
         let sampler = moon.tracks[id].bake(moon.period_ticks);
         let at = |tick| sampler.sample_argument(tick);
-        let phase = |name: &str| AttributeValue::Opaque(json!(name));
+        let phase = AttributeValue::MoonPhase;
 
         // nominally a linear track, but MOON_PHASE is not interpolated, so each
         // phase holds for a whole day instead of blending into the next
-        assert_eq!(at(0), phase("full_moon"));
-        assert_eq!(at(12_000), phase("full_moon"));
-        assert_eq!(at(23_999), phase("full_moon"));
-        assert_eq!(at(24_000), phase("waning_gibbous"));
+        assert_eq!(at(0), phase(MoonPhase::FullMoon));
+        assert_eq!(at(12_000), phase(MoonPhase::FullMoon));
+        assert_eq!(at(23_999), phase(MoonPhase::FullMoon));
+        assert_eq!(at(24_000), phase(MoonPhase::WaningGibbous));
         assert_eq!(
             at(192_000),
-            phase("full_moon"),
+            phase(MoonPhase::FullMoon),
             "the period brings it back round"
         );
         assert_eq!(
             at(-1),
-            phase("waxing_gibbous"),
+            phase(MoonPhase::WaxingGibbous),
             "and the tick before it is the last phase"
         );
     }
@@ -787,7 +787,7 @@ mod tests {
         let wrong_modifier = load(
             "minecraft:visual/sky_light_factor",
             None,
-            json!({"keyframes": [{"ticks": 0, "value": true}], "modifier": "or"}),
+            json!({"keyframes": [{"ticks": 0, "value": 1.0}], "modifier": "or"}),
         )
         .unwrap_err();
         assert!(
