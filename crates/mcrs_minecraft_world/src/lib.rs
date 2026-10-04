@@ -108,24 +108,14 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
         app.init_asset::<variant::ZombieNautilusVariant>();
         app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
-        app.init_asset::<crate::item::asset::TrimPattern>();
-        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimPattern>::default());
-        app.init_asset::<crate::item::asset::TrimMaterial>();
-        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimMaterial>::default());
         app.init_asset::<damage_type::DamageType>();
         app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
-        app.init_asset::<item::asset::PaintingVariant>();
-        app.register_asset_loader(JsonLoader::<item::asset::PaintingVariant>::default());
-        app.init_asset::<item::asset::JukeboxSong>();
-        app.register_asset_loader(JsonLoader::<item::asset::JukeboxSong>::default());
         app.init_asset::<block_transformer::BlockTransformer>();
         app.register_asset_loader(JsonLoader::<block_transformer::BlockTransformer>::default());
         app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
         app.register_asset_loader(
             JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default(),
         );
-        app.init_asset::<item::asset::Instrument>();
-        app.register_asset_loader(JsonLoader::<item::asset::Instrument>::default());
         app.init_asset::<chat_type::ChatType>();
         app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
@@ -226,22 +216,6 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    crate::item::asset::TrimPattern,
-                    "minecraft:trim_pattern",
-                    |v: &crate::item::asset::TrimPattern| {
-                        mcrs_minecraft_nbt::to_nbt_tag(v)
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    crate::item::asset::TrimMaterial,
-                    "minecraft:trim_material",
-                    |v: &crate::item::asset::TrimMaterial| {
-                        mcrs_minecraft_nbt::to_nbt_tag(v)
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     variant::WolfVariant,
                     "minecraft:wolf_variant",
                     |v: &variant::WolfVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
@@ -314,21 +288,9 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    item::asset::PaintingVariant,
-                    "minecraft:painting_variant",
-                    |v: &item::asset::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     damage_type::DamageType,
                     "minecraft:damage_type",
                     |v: &damage_type::DamageType| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    item::asset::JukeboxSong,
-                    "minecraft:jukebox_song",
-                    |v: &item::asset::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -351,12 +313,6 @@ impl Plugin for MinecraftWorldPlugin {
                     |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(
                         v
                     ),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    item::asset::Instrument,
-                    "minecraft:instrument",
-                    |v: &item::asset::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -476,14 +432,51 @@ impl Plugin for MinecraftWorldPlugin {
             let item_registry = registries
                 .registry::<mcrs_minecraft_item::Item>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:item registry", path.display()));
-            registries::register_loaded::<mcrs_minecraft_item::BannerPattern, _>(
-                &mut app
+            {
+                use mcrs_minecraft_item::{
+                    BannerPattern, InstrumentValue, JukeboxSong, PaintingVariantValue,
+                    TrimMaterial, TrimPattern,
+                };
+                let mut access = app
                     .world_mut()
-                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
-                &registries,
-                "minecraft:banner_pattern",
-                |pattern| pattern.clone(),
-            );
+                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>();
+                registries::register_loaded::<BannerPattern, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:banner_pattern",
+                    Clone::clone,
+                );
+                registries::register_loaded::<InstrumentValue, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:instrument",
+                    Clone::clone,
+                );
+                registries::register_loaded::<JukeboxSong, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:jukebox_song",
+                    Clone::clone,
+                );
+                registries::register_loaded::<PaintingVariantValue, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:painting_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<TrimMaterial, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:trim_material",
+                    Clone::clone,
+                );
+                registries::register_loaded::<TrimPattern, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:trim_pattern",
+                    Clone::clone,
+                );
+            }
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);

@@ -1,6 +1,7 @@
 pub mod bitset;
 pub mod dyn_index;
 pub mod entries;
+pub mod entry_set;
 pub mod holder;
 pub mod id;
 pub mod key;
@@ -19,6 +20,7 @@ pub mod tag_source;
 pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
 pub use entries::Entries;
+pub use entry_set::EntrySet;
 pub use holder::*;
 pub use id::{BlockStateId, Id, ItemId, NarrowError};
 pub use load::{Pack, PackFile, WorldRegistries};
