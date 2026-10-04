@@ -4,6 +4,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetPlugin;
+use bevy::asset::io::AssetSourceId;
 use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -17,6 +18,7 @@ use bevy::window::{
 };
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::Weather;
@@ -108,6 +110,7 @@ fn main() -> AppExit {
     task_pool_options.async_compute.percent = 1.0;
     task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
+    app.register_asset_source(AssetSourceId::Default, layered_file_source(&assets));
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins

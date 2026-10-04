@@ -12,6 +12,7 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
+use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
@@ -83,7 +84,7 @@ impl Plugin for WorldgenAssetsPlugin {
 pub fn asset_source(root: &str) -> AssetSourceBuilder {
     let mut files = AssetSource::get_default_reader(root.to_string());
     AssetSourceBuilder::platform_default(root, None)
-        .with_reader(move || Box::new(BuiltinFallback(files())))
+        .with_reader(move || Box::new(BuiltinFallback(Box::new(PackLayers::new(files())))))
 }
 
 struct BuiltinFallback(Box<dyn ErasedAssetReader>);

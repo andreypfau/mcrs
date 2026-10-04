@@ -51,6 +51,7 @@ use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::save::read_player_dat;
@@ -152,26 +153,26 @@ pub struct DynamicRegistryTagFiles {
 
 fn request_dynamic_registry_tags(
     asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
     mut registry_assets: ResMut<LoadedRegistryAssets>,
     mut tag_files: ResMut<DynamicRegistryTagFiles>,
 ) {
     tag_files.per_registry.clear();
     let mut total = 0usize;
     for &(registry_key, tag_dir) in DYNAMIC_TAG_REGISTRIES {
-        let handles: Vec<_> =
-            mcrs_minecraft_world::data_pack::list_tag_files(&asset_server, tag_dir)
-                .into_iter()
-                .map(|(location, asset_path)| {
-                    let handle = asset_server
-                        .load_builder()
-                        .with_settings(move |s: &mut TagFileSettings| {
-                            s.registry_segment = tag_dir.to_string();
-                        })
-                        .load::<TagFile>(asset_path);
-                    registry_assets.push(handle.clone().untyped());
-                    (location, handle)
-                })
-                .collect();
+        let handles: Vec<_> = mcrs_minecraft_world::data_pack::list_tag_files(&set, tag_dir)
+            .into_iter()
+            .map(|(location, asset_path)| {
+                let handle = asset_server
+                    .load_builder()
+                    .with_settings(move |s: &mut TagFileSettings| {
+                        s.registry_segment = tag_dir.to_string();
+                    })
+                    .load::<TagFile>(asset_path);
+                registry_assets.push(handle.clone().untyped());
+                (location, handle)
+            })
+            .collect();
         total += handles.len();
         tag_files.per_registry.push((registry_key, handles));
     }
@@ -841,6 +842,7 @@ mod tests {
         });
         app.init_asset::<TagFile>();
         app.register_asset_loader(mcrs_minecraft_assets::tag::file::TagFileLoader);
+        app.insert_resource(mcrs_minecraft_world::registries::test_registries().clone());
         app.init_resource::<LoadedRegistryAssets>();
         app.init_resource::<DynamicRegistryTagFiles>();
         app.add_systems(bevy_app::Startup, request_dynamic_registry_tags);

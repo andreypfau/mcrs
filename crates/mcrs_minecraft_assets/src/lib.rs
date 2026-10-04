@@ -1,5 +1,6 @@
 pub mod access;
 pub mod asset;
+pub mod packs;
 mod plugin;
 pub mod snapshot;
 pub mod state;

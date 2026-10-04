@@ -1,6 +1,5 @@
 use super::minecraft::{self, EntityIds};
 use super::villager::VillagerProfession;
-use crate::data_pack::registry_files::{FILES_CAT_SOUND_VARIANT, FILES_CAT_VARIANT};
 use bytes::Buf;
 use mcrs_minecraft_entity::VillagerType;
 use mcrs_minecraft_entity::attribute;
@@ -57,17 +56,13 @@ fn serde_name<T: serde::Serialize>(value: &T) -> String {
         .to_owned()
 }
 
-fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
-    files
+fn loaded_names(registry: &str) -> Vec<String> {
+    crate::registries::test_registries()
+        .table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
+        .names()
         .iter()
-        .map(|file| {
-            let name = file
-                .strip_prefix(folder)
-                .and_then(|rest| rest.strip_prefix('/'))
-                .and_then(|rest| rest.strip_suffix(".json"))
-                .unwrap_or_else(|| panic!("{file} is not under {folder}"));
-            format!("minecraft:{name}")
-        })
+        .map(ToString::to_string)
         .collect()
 }
 
@@ -188,11 +183,11 @@ fn attributes_match_the_registry_entry_for_entry() {
 fn cat_variant_assets_sort_into_the_registry_order() {
     let census = read_census();
     assert_eq!(
-        asset_ids(FILES_CAT_VARIANT, "minecraft/cat_variant"),
+        loaded_names("minecraft:cat_variant"),
         census.ids["minecraft:cat_variant"]
     );
     assert_eq!(
-        asset_ids(FILES_CAT_SOUND_VARIANT, "minecraft/cat_sound_variant"),
+        loaded_names("minecraft:cat_sound_variant"),
         census.ids["minecraft:cat_sound_variant"]
     );
 }
