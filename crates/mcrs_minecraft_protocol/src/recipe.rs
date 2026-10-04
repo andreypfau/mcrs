@@ -1,6 +1,9 @@
 use std::io::Write;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Validate;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, validated};
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registry::RegistryLookup;
@@ -8,16 +11,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
-use crate::item::{
-    DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemReg, Template, TrimPattern,
-};
+use crate::item::{DecodeCtx, EncodeCtx, Holder, Item, ItemComponentKind, Template, TrimPattern};
 use crate::{Decode as _, Encode as _, VarInt};
 
 validated!(Ingredient);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", transparent)]
-pub struct Ingredient(pub HolderSet<ResourceKey<ItemReg>>);
+pub struct Ingredient(pub HolderSet<ResourceKey<Item>>);
 
 impl Validate for Ingredient {
     fn validate(&self) -> Result<(), String> {
@@ -84,13 +85,11 @@ pub enum SlotDisplay {
         component: ItemComponentKind,
     },
     #[serde(rename = "minecraft:item", alias = "item")]
-    Item { item: ResourceKey<ItemReg> },
+    Item { item: ResourceKey<Item> },
     #[serde(rename = "minecraft:item_stack", alias = "item_stack")]
     ItemStack { item: Template },
     #[serde(rename = "minecraft:tag", alias = "tag")]
-    Tag {
-        tag: HolderSet<ResourceKey<ItemReg>>,
-    },
+    Tag { tag: HolderSet<ResourceKey<Item>> },
     #[serde(rename = "minecraft:dyed", alias = "dyed")]
     Dyed {
         dye: Box<SlotDisplay>,
@@ -422,6 +421,10 @@ pub enum RecipeBookCategory {
     Campfire,
 }
 
+impl RegistryKey for RecipeBookCategory {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:recipe_book_category");
+}
+
 /// One recipe as the client's recipe book shows it; `group` is the index of
 /// its group, `crafting_requirements` is absent for recipes the book cannot
 /// place, and `flags` carries [`Self::FLAG_NOTIFICATION`] and
@@ -467,7 +470,7 @@ impl DecodeCtx<'_> for RecipeBookEntry {
 
 /// The items a `recipe_property_set` accepts, in the order vanilla's set
 /// iterates them.
-pub type RecipePropertySet = Vec<ResourceKey<ItemReg>>;
+pub type RecipePropertySet = Vec<ResourceKey<Item>>;
 
 /// One stonecutter option: the input it accepts and what the button shows.
 #[derive(Clone, Debug, PartialEq)]

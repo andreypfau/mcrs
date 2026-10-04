@@ -75,6 +75,14 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Default for Bounded<MIN
 }
 
 impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Bounded<MIN, MAX, DEFAULT> {
+    pub fn new(value: i32) -> Result<Self, String> {
+        if (MIN..=MAX).contains(&value) {
+            Ok(Bounded(value))
+        } else {
+            Err(Self::out_of_range(value))
+        }
+    }
+
     fn out_of_range(value: i32) -> String {
         match (MIN, MAX) {
             (0, i32::MAX) => format!("Value must be non-negative: {value}"),
@@ -375,6 +383,60 @@ color_int!(
     4,
     |[r, g, b, a]: [f32; 4]| argb_from_floats(a, r, g, b)
 );
+
+/// `ExtraCodecs.STRING_RGB_COLOR`: written as `#rrggbb`; read from that, from
+/// a packed int, or from `[r, g, b]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub struct HexRgb(pub u32);
+
+impl HexRgb {
+    pub const fn of(packed: i32) -> Self {
+        HexRgb(packed as u32 & 0x00FF_FFFF)
+    }
+}
+
+impl Serialize for HexRgb {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&format_args!("#{:06x}", self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for HexRgb {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct HexVisitor;
+
+        impl<'de> Visitor<'de> for HexVisitor {
+            type Value = HexRgb;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("`#rrggbb`, a packed int or three float channels")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<HexRgb, E> {
+                v.strip_prefix('#')
+                    .filter(|hex| hex.len() == 6)
+                    .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                    .map(HexRgb)
+                    .ok_or_else(|| E::custom(format!("{v} is not a `#rrggbb` colour")))
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<HexRgb, E> {
+                Ok(HexRgb::of(v as i32))
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<HexRgb, E> {
+                Ok(HexRgb::of(v as i32))
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<HexRgb, A::Error> {
+                let [r, g, b] = <[f32; 3]>::deserialize(value::SeqAccessDeserializer::new(seq))?;
+                Ok(HexRgb::of(argb_from_floats(1.0, r, g, b)))
+            }
+        }
+
+        deserializer.deserialize_any(HexVisitor)
+    }
+}
 
 /// Bounded in UTF-16 code units.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize)]

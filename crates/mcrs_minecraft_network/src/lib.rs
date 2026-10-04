@@ -6,8 +6,13 @@ pub mod client;
 pub mod connect;
 #[cfg(feature = "bevy")]
 pub mod event;
+pub mod identity;
+#[cfg(feature = "bevy")]
+pub mod inbound_rate;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod intent;
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
+pub mod lan;
 #[cfg(feature = "bevy")]
 pub mod metrics;
 pub mod packet_io;

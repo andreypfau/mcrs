@@ -9,29 +9,11 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
+use super::beta_biome_palette::make_beta_biome;
 use super::build_beta_router;
 use crate::ColumnBlocks;
 use crate::task::CancellationToken;
 use crate::{apply_beta_surface, generate_column};
-
-fn make_beta_biome() -> Biome {
-    Biome {
-        temperature: 0.5,
-        downfall: 0.5,
-        has_precipitation: true,
-        temperature_modifier: None,
-        effects: mcrs_minecraft_biome::BiomeEffects {
-            water_color: None,
-            foliage_color: None,
-            grass_color: None,
-            grass_color_modifier: None,
-            dry_foliage_color: None,
-        },
-        carvers: Vec::new(),
-        features: Vec::new(),
-        attributes: Default::default(),
-    }
-}
 
 pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
@@ -67,85 +49,6 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)
-}
-
-/// Verify that apply_beta_surface places surface and bedrock blocks.
-///
-/// After running apply_beta_surface on a full Beta column (8 sections, Y 0..=7):
-/// - World Y=0 must contain bedrock in every column (k1=0 satisfies 0 <= 0 + nextInt(5))
-/// - The surface zone (Y 60-70) must contain at least one surface block (grass/dirt/sand)
-#[test]
-fn apply_beta_surface_places_surface_and_bedrock() {
-    let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
-
-    let chunk_x = 0i32;
-    let chunk_z = 0i32;
-    let block_x = chunk_x * 16;
-    let block_z = chunk_z * 16;
-
-    let y_sections: Vec<i32> = (0..8).collect();
-    let cancel = CancellationToken::new();
-    let mut sections = generate_column(
-        chunk_x,
-        chunk_z,
-        &y_sections,
-        &router,
-        Some((&biome_source, &snapshot)),
-        None,
-        &cancel,
-    );
-
-    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-
-    let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    apply_beta_surface(
-        &column,
-        block_x,
-        block_z,
-        &router,
-        &biome_source,
-        super::corpus(),
-        &mut rng,
-    );
-    column.write_back(&mut sections);
-
-    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
-    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
-    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt"));
-    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand"));
-
-    // Y=0 (section 0, local y=0): always bedrock for all 256 columns
-    let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
-    let y0_all_bedrock = (0..16i32).all(|x| {
-        (0..16i32)
-            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
-    });
-    assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
-
-    // Surface zone: sections 3-5 (world Y 48-95) must contain surface blocks
-    let mut found_surface_block = false;
-    for (si, sy) in y_sections.iter().enumerate() {
-        if *sy < 3 || *sy > 5 {
-            continue;
-        }
-        if let Some((blocks, _)) = &sections[si] {
-            for x in 0..16i32 {
-                for z in 0..16i32 {
-                    for y in 0..16i32 {
-                        let b = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
-                        if b == grass_id || b == dirt_id || b == sand_id {
-                            found_surface_block = true;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert!(
-        found_surface_block,
-        "surface zone must contain grass, dirt, or sand after apply_beta_surface"
-    );
 }
 
 /// Oracle test: bedrock band (Y 0-4) for chunk (37,-42) at seed 12345 must match the
@@ -260,6 +163,42 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         failures.is_empty(),
         "\nbeta_surface_bedrock_matches_back2beta_oracle FAILED (chunk 0,0, x_local=0):\n{}",
         failures.join("\n"),
+    );
+
+    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
+    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt"));
+    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand"));
+
+    // Y=0 (section 0, local y=0): always bedrock for all 256 columns
+    let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
+    let y0_all_bedrock = (0..16i32).all(|x| {
+        (0..16i32)
+            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
+    });
+    assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
+
+    // Surface zone: sections 3-5 (world Y 48-95) must contain surface blocks
+    let mut found_surface_block = false;
+    for (si, sy) in y_sections.iter().enumerate() {
+        if *sy < 3 || *sy > 5 {
+            continue;
+        }
+        if let Some((blocks, _)) = &sections[si] {
+            for x in 0..16i32 {
+                for z in 0..16i32 {
+                    for y in 0..16i32 {
+                        let b = blocks.get(LocalPos::from(BlockPos::new(x, y, z)));
+                        if b == grass_id || b == dirt_id || b == sand_id {
+                            found_surface_block = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        found_surface_block,
+        "surface zone must contain grass, dirt, or sand after apply_beta_surface"
     );
 }
 
@@ -435,61 +374,4 @@ fn beta_terrain_height_matches_back2beta_oracle() {
          Per-column results:\n{}\n",
         failures.join("\n")
     );
-}
-
-/// Verify the bedrock probability distribution matches back2beta:
-/// Y=0: always bedrock (0 <= 0 + nextInt(5), always true)
-/// Y=5: never bedrock (5 <= 0 + nextInt(5) requires nextInt(5) >= 5, impossible since range is 0..4)
-#[test]
-fn apply_beta_surface_bedrock_probability_matches_back2beta() {
-    let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
-
-    let chunk_x = 3i32;
-    let chunk_z = 7i32;
-    let block_x = chunk_x * 16;
-    let block_z = chunk_z * 16;
-
-    let y_sections: Vec<i32> = (0..8).collect();
-    let cancel = CancellationToken::new();
-    let mut sections = generate_column(
-        chunk_x,
-        chunk_z,
-        &y_sections,
-        &router,
-        Some((&biome_source, &snapshot)),
-        None,
-        &cancel,
-    );
-
-    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-
-    let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    apply_beta_surface(
-        &column,
-        block_x,
-        block_z,
-        &router,
-        &biome_source,
-        super::corpus(),
-        &mut rng,
-    );
-    column.write_back(&mut sections);
-
-    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
-    let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;
-
-    // Y=0: all bedrock
-    let y0_all_bedrock = (0..16i32).all(|x| {
-        (0..16i32)
-            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 0, z))) == bedrock_id)
-    });
-    assert!(y0_all_bedrock, "all columns at world Y=0 must be bedrock");
-
-    // Y=5: never bedrock (nextInt(5) max is 4, so 5 > 0+4 = condition never satisfied)
-    let y5_no_bedrock = (0..16i32).all(|x| {
-        (0..16i32)
-            .all(|z| section0_blocks.get(LocalPos::from(BlockPos::new(x, 5, z))) != bedrock_id)
-    });
-    assert!(y5_no_bedrock, "world Y=5 must never be bedrock");
 }

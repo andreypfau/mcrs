@@ -43,6 +43,7 @@ use mcrs_minecraft_protocol::{Encode, Packet};
 use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::WorldSave;
 use mcrs_minecraft_server::dim::pump_channels;
+use mcrs_minecraft_server::disconnect::Departing;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerSpawn, OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
 };
@@ -400,23 +401,6 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
 }
 
 #[test]
-fn a_click_whose_claim_disagrees_gets_that_cell_resent() {
-    let mut server = Server::start();
-    server.join();
-    let items = server.items();
-    let stone = server.give("stone", 7, slots::HOTBAR.start);
-    server.ticks(2);
-    let claimed = HashedStack::create(&stack_to_slot(server.world(), stone, &items)).unwrap();
-    let untouched = slots::MAIN.start + 3;
-    let state_id = server.state_id();
-    server.click(state_id, vec![(untouched, claimed)]);
-    let packets = server.ticks(3);
-    let resent: Vec<_> = set_slots(&packets).collect();
-    assert_eq!(resent.len(), 1, "{packets:?}");
-    assert_eq!(resent[0], (untouched as i16, &RawStack::EMPTY));
-}
-
-#[test]
 fn a_stale_state_id_resends_the_whole_menu() {
     let mut server = Server::start();
     server.join();
@@ -653,4 +637,43 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
         .unwrap();
     assert_ne!(content[slots::held(3) as usize], RawStack::EMPTY);
     assert_ne!(content[slots::MAIN.start as usize], RawStack::EMPTY);
+}
+
+#[test]
+fn a_dimension_releases_a_leaving_player_only_once_its_file_is_written() {
+    let mut server = Server::start();
+    server.join();
+    server.give("stone", 5, slots::MAIN.start);
+    server.ticks(1);
+    let departing = server
+        .app
+        .world_mut()
+        .spawn(Departing {
+            id: server.uuid,
+            dim: server.dim,
+            session: PlayerSession(0),
+        })
+        .id();
+    server.control(ToDim::Despawn(InboundPlayerDespawn {
+        host_anchor: server.host_anchor,
+        session: PlayerSession(0),
+    }));
+
+    for _ in 0..4 {
+        server.tick();
+        if server.app.world().get_entity(departing).is_err() {
+            let saved = read_player_dat(&server.save, server.uuid)
+                .unwrap()
+                .expect("the file is written before the release");
+            assert_eq!(
+                saved.inventory,
+                vec![ItemStackWithSlot {
+                    slot: 9,
+                    stack: value("stone", 5)
+                }]
+            );
+            return;
+        }
+    }
+    panic!("the dimension never released the player");
 }

@@ -1,7 +1,10 @@
+use mcrs_minecraft_chunk::SectionKind;
+use mcrs_minecraft_chunk::section::Biomes;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
-use crate::{DATA_VERSION, LIGHT_BYTES};
+use crate::LIGHT_BYTES;
 
 pub const CHUNKS: usize = 1024;
 pub const SECTIONS_PER_CHUNK: usize = 24;
@@ -54,11 +57,11 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
         .collect();
 
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", DATA_VERSION);
+    root.put_int("DataVersion", VERSION.world_version);
     root.put_int("xPos", x);
     root.put_int("zPos", z);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
+    root.put_string("status", "minecraft:full".to_string());
     root.put_list("sections", sections);
     root.put_component("Heightmaps", heightmaps());
     root.put_bool("isLightOn", true);
@@ -82,7 +85,7 @@ fn section(y: i8, rng: &mut Rng) -> NbtCompound {
         "biomes",
         container(
             if rng.percent(78) { 1 } else { 2 + rng.below(3) },
-            64,
+            Biomes::ENTRY_COUNT,
             1,
             biome_entry,
             rng,

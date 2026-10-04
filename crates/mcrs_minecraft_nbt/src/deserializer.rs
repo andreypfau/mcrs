@@ -8,6 +8,17 @@ use serde::{Deserialize, forward_to_deserialize_any};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// A declared length is a claim the input has yet to back: a buffer sized by
+/// one grows this far at a time, so the room set aside stays within about
+/// twice the bytes that have actually arrived.
+pub(crate) const READ_STEP: usize = 64 * 1024;
+
+/// The room to set aside for a declared number of elements before any of them
+/// has been read.
+pub fn cautious_capacity<T>(declared: usize, max_bytes: usize) -> usize {
+    declared.min(max_bytes / size_of::<T>().max(1))
+}
+
 #[derive(Debug)]
 pub struct NbtReadHelper<R: Read + Seek> {
     reader: R,
@@ -49,11 +60,19 @@ macro_rules! define_get_number_be {
 }
 
 impl<R: Read + Seek> NbtReadHelper<R> {
+    // A seek lands past the end of the input without complaint, so the last
+    // byte skipped is read: a skip the input cannot back fails here, and a
+    // loop of skips cannot outrun the input.
     pub fn skip_bytes(&mut self, count: i64) -> Result<()> {
-        self.reader
-            .by_ref()
-            .seek(SeekFrom::Current(count))
-            .map_err(Error::Incomplete)?;
+        if count > 1 {
+            self.reader
+                .by_ref()
+                .seek(SeekFrom::Current(count - 1))
+                .map_err(Error::Incomplete)?;
+        }
+        if count > 0 {
+            self.get_u8_be()?;
+        }
         Ok(())
     }
 
@@ -85,8 +104,14 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     /// Fills `buf` with `count` bytes, reusing its allocation.
     pub fn read_into(&mut self, buf: &mut Vec<u8>, count: usize) -> Result<()> {
         buf.clear();
-        buf.resize(count, 0);
-        self.reader.read_exact(buf).map_err(Error::Incomplete)
+        while buf.len() < count {
+            let filled = buf.len();
+            buf.resize(count.min(filled + READ_STEP), 0);
+            self.reader
+                .read_exact(&mut buf[filled..])
+                .map_err(Error::Incomplete)?;
+        }
+        Ok(())
     }
 
     pub fn position(&mut self) -> Result<u64> {
@@ -101,11 +126,8 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     }
 
     pub fn read_boxed_slice(&mut self, count: usize) -> Result<Box<[u8]>> {
-        let mut buf = vec![0u8; count];
-        self.reader
-            .read_exact(&mut buf)
-            .map_err(Error::Incomplete)?;
-
+        let mut buf = Vec::with_capacity(cautious_capacity::<u8>(count, READ_STEP));
+        self.read_into(&mut buf, count)?;
         Ok(buf.into())
     }
 }
@@ -192,7 +214,14 @@ macro_rules! define_in_list_number {
                 let value = self.input.$read()?;
                 return visitor.$visit::<Error>(value);
             }
-            self.deserialize_any(visitor)
+            self.read_root()?;
+            let tag = self.tag_to_deserialize_stack.unwrap();
+            match tag {
+                BYTE_ID | SHORT_ID | INT_ID | LONG_ID | FLOAT_ID | DOUBLE_ID => {
+                    NbtTag::deserialize_data(&mut self.input, tag)?.$name(visitor)
+                }
+                _ => self.deserialize_any(visitor),
+            }
         }
     };
 }
@@ -201,7 +230,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     type Error = Error;
 
     forward_to_deserialize_any! {
-        char str string unit unit_struct seq tuple tuple_struct
+        char str string unit unit_struct seq tuple tuple_struct identifier
     }
 
     fn deserialize_newtype_struct<V: Visitor<'de>>(
@@ -217,7 +246,7 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
             Some(BYTE_ARRAY_ID) => NBT_BYTE_ARRAY_TAG,
             Some(INT_ARRAY_ID) => NBT_INT_ARRAY_TAG,
             Some(LONG_ARRAY_ID) => NBT_LONG_ARRAY_TAG,
-            _ => return self.deserialize_any(visitor),
+            _ => return visitor.visit_newtype_struct(self),
         };
         visitor.visit_enum(ArrayAccess { de: self, variant })
     }
@@ -274,24 +303,26 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                 "Trying to deserialize an END tag!".to_string(),
             )),
             LIST_ID | INT_ARRAY_ID | LONG_ARRAY_ID | BYTE_ARRAY_ID => {
-                let list_type = match tag_to_deserialize {
-                    LIST_ID => self.input.get_u8_be()?,
-                    INT_ARRAY_ID => INT_ID,
-                    LONG_ARRAY_ID => LONG_ID,
-                    BYTE_ARRAY_ID => BYTE_ID,
-                    _ => unreachable!(),
+                let (list_type, remaining_values) = if tag_to_deserialize == LIST_ID {
+                    tag::read_list_header(&mut self.input)?
+                } else {
+                    let list_type = match tag_to_deserialize {
+                        INT_ARRAY_ID => INT_ID,
+                        LONG_ARRAY_ID => LONG_ID,
+                        _ => BYTE_ID,
+                    };
+                    let count = self.input.get_i32_be()?;
+                    if count < 0 {
+                        return Err(Error::NegativeLength(count));
+                    }
+                    (list_type, count as usize)
                 };
-
-                let remaining_values = self.input.get_i32_be()?;
-                if remaining_values < 0 {
-                    return Err(Error::NegativeLength(remaining_values));
-                }
 
                 self.input.push_depth()?;
                 let result = visitor.visit_seq(ListAccess {
                     de: self,
                     list_type,
-                    remaining_values: remaining_values as usize,
+                    remaining_values,
                 });
                 self.input.pop_depth();
                 result
@@ -317,14 +348,13 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_u8<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        if self.in_list {
+        if self.in_list && self.tag_to_deserialize_stack == Some(BYTE_ID) {
             let value = self.input.get_u8_be()?;
-            visitor.visit_u8::<Error>(value)
-        } else {
-            Err(Error::UnsupportedType(
-                "u8; NBT only supports signed values".to_string(),
-            ))
+            return visitor.visit_u8::<Error>(value);
         }
+        Err(Error::UnsupportedType(
+            "u8; NBT only supports signed values".to_string(),
+        ))
     }
 
     fn deserialize_u16<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
@@ -359,6 +389,9 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         visitor: V,
     ) -> Result<V::Value> {
         self.read_root()?;
+        if self.tag_to_deserialize_stack != Some(STRING_ID) {
+            return self.deserialize_any(visitor);
+        }
         let variant = get_nbt_string(&mut self.input)?;
         visitor.visit_enum(variant.into_deserializer())
     }
@@ -387,12 +420,6 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         visitor: V,
     ) -> Result<V::Value> {
         self.deserialize_map(visitor)
-    }
-
-    fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        self.read_root()?;
-        let name = self.read_str()?;
-        visitor.visit_str(&name)
     }
 
     fn is_human_readable(&self) -> bool {
@@ -482,6 +509,8 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for MapKey<'_, R> {
     }
 }
 
+const MAX_SIZE_HINT: usize = 4096;
+
 struct ListAccess<'a, R: Read + Seek> {
     de: &'a mut Deserializer<R>,
     remaining_values: usize,
@@ -491,8 +520,10 @@ struct ListAccess<'a, R: Read + Seek> {
 impl<'de, R: Read + Seek> SeqAccess<'de> for ListAccess<'_, R> {
     type Error = Error;
 
+    // The count is the list's own claim, so a visitor that reserves by this
+    // hint must not be handed more than a bounded number of elements.
     fn size_hint(&self) -> Option<usize> {
-        Some(self.remaining_values)
+        Some(self.remaining_values.min(MAX_SIZE_HINT))
     }
 
     fn next_element_seed<E: DeserializeSeed<'de>>(&mut self, seed: E) -> Result<Option<E::Value>> {

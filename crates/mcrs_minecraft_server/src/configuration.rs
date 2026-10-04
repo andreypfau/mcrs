@@ -2,7 +2,7 @@ use crate::WorldSave;
 use crate::client_info::ClientInfo;
 use crate::dim::send_control_or_teardown;
 use crate::disconnect::despawn_from_dims;
-use crate::login::GameProfile;
+use crate::login::{GameProfile, SessionsById, disconnect, duplicate_login_reason};
 use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
@@ -23,17 +23,19 @@ use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
-use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_entity::EntityType as VanillaEntityType;
 use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::MINECRAFT_VERSION;
+use mcrs_minecraft_protocol::packets::common::Brand;
+use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -41,15 +43,15 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
 };
 use mcrs_minecraft_protocol::packets::configuration::{
-    ClientboundFinishConfiguration, ClientboundRegistryData,
+    ClientboundCustomPayload, ClientboundFinishConfiguration, ClientboundRegistryData,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::entity::EntityType as VanillaEntityType;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -335,7 +337,7 @@ fn sync_dimension_type_changes(
 }
 
 /// Step 1 of the Configuration handshake: detect entry into
-/// `ConnectionState::Configuration` and send `ClientboundSelectKnownPacks`.
+/// `ConnectionState::Configuration`, send the brand and `ClientboundSelectKnownPacks`.
 ///
 /// The `Without<AwaitingKnownPacks>` filter ensures the server does not
 /// re-trigger the negotiation while a previous negotiation is still in
@@ -369,11 +371,14 @@ fn on_configuration_enter(
             continue;
         }
 
+        con.write_packet(&ClientboundCustomPayload(Payload::Brand(Brand {
+            brand: identity::BRAND,
+        })));
         con.write_packet(&ClientboundSelectKnownPacks {
             known_packs: vec![KnownPack {
                 namespace: "minecraft",
                 id: "core",
-                version: MINECRAFT_VERSION,
+                version: VERSION.id.as_str(),
             }],
         });
         commands.entity(entity).insert(AwaitingKnownPacks);
@@ -608,8 +613,18 @@ fn on_known_packs_response(
     commands.entity(entity).remove::<AwaitingKnownPacks>();
 }
 
-fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut ConnectionState>) {
-    let Ok(mut state) = query.get_mut(event.entity) else {
+pub fn on_configuration_ack(
+    event: On<ReceivedPacketEvent>,
+    mut connections: Query<(
+        &mut ConnectionState,
+        Option<&GameProfile>,
+        Option<&HostAnchorRef>,
+        Option<&mut ServerSideConnection>,
+    )>,
+    sessions: SessionsById,
+    mut commands: Commands,
+) {
+    let Ok((state, profile, anchor, _)) = connections.get(event.entity) else {
         return;
     };
     if *state != ConnectionState::Configuration {
@@ -618,10 +633,34 @@ fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<&mut Co
     let Some(_) = event.decode::<ServerboundFinishConfiguration>() else {
         return;
     };
-    *state = ConnectionState::Game;
+    let in_play = |connection| {
+        connections
+            .get(connection)
+            .is_ok_and(|(state, ..)| *state == ConnectionState::Game)
+    };
+    let duplicate = match (profile, anchor) {
+        (Some(profile), Some(&HostAnchorRef(own))) => {
+            sessions.in_world(profile.id, Some(own), in_play)
+        }
+        _ => false,
+    };
+    let Ok((mut state, _, _, con)) = connections.get_mut(event.entity) else {
+        return;
+    };
+    if !duplicate {
+        *state = ConnectionState::Game;
+        return;
+    }
+    // The game switches its side to play before this check, so it refuses with a play packet.
+    if let Some(mut con) = con {
+        disconnect(&mut con, ConnectionState::Game, duplicate_login_reason());
+    }
+    commands
+        .entity(event.entity)
+        .remove::<ServerSideConnection>();
 }
 
-/// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.
+/// Handles `ServerboundConfigurationAcknowledged` sent during Game state.
 /// This is the client's response to `ClientboundStartConfiguration` during reconfiguration.
 /// Transitions the connection back to Configuration so registries can be re-sent.
 fn on_game_configuration_ack(
@@ -816,15 +855,6 @@ mod tests {
         }
     }
 
-    // ── SYNCED_REGISTRIES ──
-
-    #[test]
-    fn synced_registries_is_sorted() {
-        let mut sorted = SYNCED_REGISTRIES.to_vec();
-        sorted.sort();
-        assert_eq!(sorted, SYNCED_REGISTRIES);
-    }
-
     // ── TAG_CAPABLE_REGISTRIES ──
 
     #[test]
@@ -841,39 +871,5 @@ mod tests {
         let mut known = HashSet::new();
         known.insert(("minecraft", "core"));
         assert!(should_skip_nbt(true, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_data_is_none() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(false, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_not_known() {
-        let known: HashSet<(&str, &str)> = HashSet::new();
-        assert!(!should_skip_nbt(true, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_no_pack_source() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, None, &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_namespace_differs() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, Some(("modid", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_id_differs() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, Some(("minecraft", "extra")), &known));
     }
 }

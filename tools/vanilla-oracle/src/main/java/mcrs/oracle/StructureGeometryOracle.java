@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
@@ -597,7 +598,7 @@ public final class StructureGeometryOracle {
 
         @Override
         public void addDebugScreenInfo(
-            final List<String> result, final RandomState randomState, final BlockPos feetPos, final SamplerContext samplerContext
+            final BiConsumer<String, String> addFact, final RandomState randomState, final BlockPos feetPos, final SamplerContext samplerContext
         ) {
         }
     }

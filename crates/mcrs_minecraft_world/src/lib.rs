@@ -4,18 +4,15 @@
     clippy::too_many_arguments
 )]
 
-pub mod banner_pattern;
+pub mod block_transformer;
 pub mod chat_type;
 pub mod damage_type;
 pub mod data_pack;
+pub mod decorated_pot_pattern;
 pub mod dialog;
 pub mod dimension;
 pub mod entity;
-pub mod instrument;
-pub mod block_transformer;
-pub mod decorated_pot_pattern;
-pub mod jukebox_song;
-pub mod painting_variant;
+pub mod item;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
@@ -38,12 +35,12 @@ use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, freeze_timelines};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::seed_world_clocks;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -111,68 +108,69 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
         app.init_asset::<variant::ZombieNautilusVariant>();
         app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
-        app.init_asset::<mcrs_minecraft_item::trim::TrimPattern>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimPattern>::default());
-        app.init_asset::<mcrs_minecraft_item::trim::TrimMaterial>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimMaterial>::default());
+        app.init_asset::<crate::item::asset::TrimPattern>();
+        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimPattern>::default());
+        app.init_asset::<crate::item::asset::TrimMaterial>();
+        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimMaterial>::default());
         app.init_asset::<damage_type::DamageType>();
         app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
-        app.init_asset::<painting_variant::PaintingVariant>();
-        app.register_asset_loader(JsonLoader::<painting_variant::PaintingVariant>::default());
-        app.init_asset::<banner_pattern::BannerPattern>();
-        app.register_asset_loader(JsonLoader::<banner_pattern::BannerPattern>::default());
-        app.init_asset::<jukebox_song::JukeboxSong>();
-        app.register_asset_loader(JsonLoader::<jukebox_song::JukeboxSong>::default());
+        app.init_asset::<item::asset::PaintingVariant>();
+        app.register_asset_loader(JsonLoader::<item::asset::PaintingVariant>::default());
+        app.init_asset::<item::asset::BannerPattern>();
+        app.register_asset_loader(JsonLoader::<item::asset::BannerPattern>::default());
+        app.init_asset::<item::asset::JukeboxSong>();
+        app.register_asset_loader(JsonLoader::<item::asset::JukeboxSong>::default());
         app.init_asset::<block_transformer::BlockTransformer>();
         app.register_asset_loader(JsonLoader::<block_transformer::BlockTransformer>::default());
         app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
-        app.register_asset_loader(JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default());
-        app.init_asset::<instrument::Instrument>();
-        app.register_asset_loader(JsonLoader::<instrument::Instrument>::default());
+        app.register_asset_loader(
+            JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default(),
+        );
+        app.init_asset::<item::asset::Instrument>();
+        app.register_asset_loader(JsonLoader::<item::asset::Instrument>::default());
         app.init_asset::<chat_type::ChatType>();
         app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
         app.register_asset_loader(dialog::DialogLoader);
         app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default());
+        app.register_asset_loader(
+            JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default(),
+        );
         app.init_asset::<test_types::TestEnvironment>();
         app.register_asset_loader(JsonLoader::<test_types::TestEnvironment>::default());
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(JsonLoader::<test_types::TestInstance>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<sound::SoundEvent>>()
-            .init_resource::<StaticRegistry<entity::EntityType>>()
+        app.init_resource::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>()
+            .init_resource::<StaticRegistry<EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
 
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             (
-                request_every_tag::<mcrs_minecraft_block::Block, u32>,
-                request_every_tag::<mcrs_minecraft_block::Fluid, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Block, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Fluid, u32>,
                 request_every_tag::<mcrs_minecraft_item::Item, u32>,
                 request_every_tag::<
                     EnchantmentData,
                     mcrs_minecraft_registry::StaticId<EnchantmentData>,
                 >,
-                request_every_tag::<
-                    entity::EntityType,
-                    mcrs_minecraft_registry::StaticId<entity::EntityType>,
-                >,
-                request_every_tag::<mcrs_minecraft_biome::Biome, u32>,
-                request_every_tag::<Structure, u32>,
+                request_every_tag::<EntityType, mcrs_minecraft_registry::StaticId<EntityType>>,
+                request_every_tag::<mcrs_minecraft_registry::key::Biome, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Structure, u32>,
             )
                 .in_set(TagPhase::Request),
         );
-        app.add_tagged_registry::<mcrs_minecraft_block::Block, mcrs_minecraft_block::definition::Blocks>()
-        .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>()
+        app.add_tagged_registry::<mcrs_minecraft_registry::key::Block, mcrs_minecraft_block::definition::Blocks>()
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
-        .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>()
+        .add_tagged_registry::<EntityType, StaticRegistry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
-        .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>()
-        .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>();
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Biome, DynRegistryIndex<mcrs_minecraft_registry::key::Biome>>()
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Structure, DynRegistryIndex<mcrs_minecraft_registry::key::Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -218,17 +216,17 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    mcrs_minecraft_item::trim::TrimPattern,
+                    crate::item::asset::TrimPattern,
                     "minecraft:trim_pattern",
-                    |v: &mcrs_minecraft_item::trim::TrimPattern| {
+                    |v: &crate::item::asset::TrimPattern| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    mcrs_minecraft_item::trim::TrimMaterial,
+                    crate::item::asset::TrimMaterial,
                     "minecraft:trim_material",
-                    |v: &mcrs_minecraft_item::trim::TrimMaterial| {
+                    |v: &crate::item::asset::TrimMaterial| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
@@ -306,9 +304,9 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    painting_variant::PaintingVariant,
+                    item::asset::PaintingVariant,
                     "minecraft:painting_variant",
-                    |v: &painting_variant::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -318,15 +316,15 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    banner_pattern::BannerPattern,
+                    item::asset::BannerPattern,
                     "minecraft:banner_pattern",
-                    |v: &banner_pattern::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    jukebox_song::JukeboxSong,
+                    item::asset::JukeboxSong,
                     "minecraft:jukebox_song",
-                    |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -346,13 +344,15 @@ impl Plugin for MinecraftWorldPlugin {
                 (
                     decorated_pot_pattern::DecoratedPotPattern,
                     "minecraft:decorated_pot_pattern",
-                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &decorated_pot_pattern::DecoratedPotPattern| mcrs_minecraft_nbt::to_nbt_tag(
+                        v
+                    ),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    instrument::Instrument,
+                    item::asset::Instrument,
                     "minecraft:instrument",
-                    |v: &instrument::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -425,6 +425,20 @@ impl Plugin for MinecraftWorldPlugin {
     fn finish(&self, app: &mut App) {
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
+            let source = asset_server
+                .get_source(bevy_asset::io::AssetSourceId::Default)
+                .expect("default AssetSource missing");
+            let path = std::path::Path::new("minecraft/version.json");
+            let bytes = bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
+                source.reader(),
+                path,
+            ))
+            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            mcrs_minecraft_core::check_corpus_version(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        }
+        {
+            let asset_server = app.world().resource::<AssetServer>().clone();
             let (definitions, report) =
                 mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
                     .expect("the block definition corpus loads");
@@ -441,8 +455,9 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(mcrs_minecraft_block::definition::Fluids(
                 definitions.clone(),
             ));
-            let items = mcrs_minecraft_item::load_item_definitions(&asset_server, &definitions)
-                .expect("the item definition corpus loads");
+            let items =
+                crate::item::definitions::load_item_definitions(&asset_server, &definitions)
+                    .expect("the item definition corpus loads");
             tracing::info!(items = items.len(), "loaded item definitions");
             app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
@@ -450,7 +465,7 @@ impl Plugin for MinecraftWorldPlugin {
         {
             let mut sounds = app
                 .world_mut()
-                .resource_mut::<StaticRegistry<sound::SoundEvent>>();
+                .resource_mut::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>();
             sound::minecraft::register_all_sounds(&mut sounds);
             tracing::info!(
                 count = sounds.len(),
@@ -472,9 +487,7 @@ impl Plugin for MinecraftWorldPlugin {
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let mut entity_types = app
-                .world_mut()
-                .resource_mut::<StaticRegistry<entity::EntityType>>();
+            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<EntityType>>();
             entity::minecraft::register_all_entity_types(&mut entity_types, &table);
             tracing::info!(
                 count = entity_types.len(),
@@ -485,7 +498,7 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                mcrs_minecraft_item::enchantment::register_all_enchantments(
+                crate::item::enchantments::register_all_enchantments(
                     &mut enchantments,
                     world.resource::<AssetServer>(),
                 );

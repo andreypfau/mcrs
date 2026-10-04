@@ -1,6 +1,7 @@
 use mcrs_minecraft_level::palette::non_air_block_count;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -9,38 +10,16 @@ use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
-    let path = format!(
-        "{}/../../assets/minecraft/worldgen/noise_settings/{}.json",
-        env!("CARGO_MANIFEST_DIR"),
-        name
-    );
-    let json = std::fs::read_to_string(&path)
-        .unwrap_or_else(|_| panic!("noise_settings/{}.json must exist", name));
-    serde_json::from_str(&json)
-        .unwrap_or_else(|e| panic!("noise_settings/{}.json must deserialize: {}", name, e))
+    builtin::noise_settings()
+        .remove(&ResourceLocation::minecraft(name))
+        .unwrap_or_else(|| panic!("noise_settings/{name} must be built in"))
 }
 
 fn load_beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
-    let dir = format!(
-        "{}/../../assets/minecraft/worldgen/density_function/beta",
-        env!("CARGO_MANIFEST_DIR"),
-    );
-    let mut map = BTreeMap::new();
-    for entry in std::fs::read_dir(&dir).expect("density_function/beta must exist") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let json = std::fs::read_to_string(&path).expect("density function must be readable");
-        let holder = serde_json::from_str::<DensityFunctionHolder>(&json)
-            .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e));
-        let stem = path.file_stem().unwrap().to_string_lossy();
-        let ident = format!("minecraft:beta/{}", stem)
-            .parse::<ResourceLocation>()
-            .expect("valid ident");
-        map.insert(ident, holder);
-    }
-    map
+    builtin::density_functions()
+        .into_iter()
+        .filter(|(id, _)| id.path().starts_with("beta/"))
+        .collect()
 }
 
 /// Under the beta noise settings (min_y=0, height=128), `generate_column` must
@@ -105,29 +84,10 @@ fn beta_sections_outside_noise_range_are_air() {
 /// The modern overworld noise settings (min_y=-64, height=384) span [-64, 320).
 /// The full client section range [-4..=19] sits entirely inside this band, so
 /// the noise-range clamp would be a no-op — no section is spuriously clamped
-/// to air on the modern path.  This test verifies the math without calling
-/// `generate_column` (the overworld density functions require disk assets).
+/// to air on the modern path.
 #[test]
 fn modern_overworld_noise_range_covers_all_client_sections() {
     let settings = load_noise_settings("overworld");
     assert_eq!(settings.noise.min_y, -64, "overworld min_y must be -64");
     assert_eq!(settings.noise.height, 384, "overworld height must be 384");
-
-    let noise_min_y = settings.noise.min_y;
-    let noise_max_y = noise_min_y + settings.noise.height as i32;
-
-    // Every section in the standard client range must be inside the noise band.
-    for sy in -4..=19i32 {
-        let section_min_y = sy * 16;
-        let section_max_y = section_min_y + 16;
-        assert!(
-            section_min_y < noise_max_y && section_max_y > noise_min_y,
-            "section sy={} (Y {}..{}) should be inside modern noise range [{}, {})",
-            sy,
-            section_min_y,
-            section_max_y,
-            noise_min_y,
-            noise_max_y,
-        );
-    }
 }

@@ -1,6 +1,5 @@
 use crate::{
-    LoadedRegistryAssets, banner_pattern, block_transformer, chat_type, damage_type,
-    decorated_pot_pattern, dialog, entity, instrument, jukebox_song, painting_variant, sound,
+    LoadedRegistryAssets, block_transformer, chat_type, damage_type, decorated_pot_pattern, dialog,
     test_types, variant,
 };
 use bevy_asset::io::AssetSourceId;
@@ -18,15 +17,16 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
+use mcrs_minecraft_item as item;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
-use mcrs_minecraft_worldgen_structure::Structure;
-use {mcrs_minecraft_item as item, mcrs_minecraft_item::trim};
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -46,7 +46,8 @@ pub(crate) mod registry_files {
 /// this picks up files that the active source can enumerate, including
 /// future resource packs mounted as file-system folders or ZIPs.
 /// Falls back to the build-time manifest baked from the vanilla `assets/`
-/// tree for sources that cannot list directories (HTTP/WASM).
+/// tree for sources that cannot list directories (HTTP/WASM). Either listing
+/// names files only, so the entries the code builds are added to it.
 fn list_registry_files(
     asset_server: &AssetServer,
     folder: &str,
@@ -68,13 +69,13 @@ fn list_registry_files(
         }
     };
 
-    if !dynamic.is_empty() {
-        let mut sorted = dynamic;
-        sorted.sort();
-        return sorted;
-    }
-
-    fallback.iter().map(|s| (*s).to_owned()).collect()
+    let mut files: std::collections::BTreeSet<String> = if dynamic.is_empty() {
+        fallback.iter().map(|s| (*s).to_owned()).collect()
+    } else {
+        dynamic.into_iter().collect()
+    };
+    files.extend(mcrs_minecraft_worldgen_builtin::paths(folder));
+    files.into_iter().collect()
 }
 
 fn request_registry<T: Asset>(
@@ -179,14 +180,14 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_CHAT_TYPE,
     );
-    request_registry::<trim::TrimPattern>(
+    request_registry::<crate::item::asset::TrimPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_PATTERN,
         "json",
         FILES_TRIM_PATTERN,
     );
-    request_registry::<trim::TrimMaterial>(
+    request_registry::<crate::item::asset::TrimMaterial>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_MATERIAL,
@@ -277,7 +278,7 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_ZOMBIE_NAUTILUS_VARIANT,
     );
-    request_registry::<painting_variant::PaintingVariant>(
+    request_registry::<crate::item::asset::PaintingVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_PAINTING_VARIANT,
@@ -291,14 +292,14 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_DAMAGE_TYPE,
     );
-    request_registry::<banner_pattern::BannerPattern>(
+    request_registry::<crate::item::asset::BannerPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_BANNER_PATTERN,
         "json",
         FILES_BANNER_PATTERN,
     );
-    request_registry::<jukebox_song::JukeboxSong>(
+    request_registry::<crate::item::asset::JukeboxSong>(
         &asset_server,
         &mut loaded,
         FOLDER_JUKEBOX_SONG,
@@ -319,7 +320,7 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_DECORATED_POT_PATTERN,
     );
-    request_registry::<instrument::Instrument>(
+    request_registry::<crate::item::asset::Instrument>(
         &asset_server,
         &mut loaded,
         FOLDER_INSTRUMENT,
@@ -472,7 +473,7 @@ pub(crate) fn check_tags_ready(
 /// the block `TagLoader`. The tag files were loaded as sub-assets by
 /// `DimensionTypeLoader`, so they're guaranteed to be available here.
 pub(crate) fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagLoader<block::Block, u32>>,
+    mut tags: ResMut<TagLoader<Block, u32>>,
     tag_files: Res<Assets<TagFile>>,
     registry: Res<block::definition::Blocks>,
     dim_types: Res<Assets<DimensionType>>,
@@ -521,7 +522,9 @@ pub(crate) fn index_biomes(
         })
         .collect();
     tracing::info!(count = entries.len(), "indexed biomes");
-    commands.insert_resource(DynRegistryIndex::<biome::Biome>::build(entries.into_iter()));
+    commands.insert_resource(
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Biome>::build(entries.into_iter()),
+    );
 }
 
 pub(crate) fn index_structures(
@@ -536,7 +539,9 @@ pub(crate) fn index_structures(
         })
         .collect();
     tracing::info!(count = entries.len(), "indexed structures");
-    commands.insert_resource(DynRegistryIndex::<Structure>::build(entries.into_iter()));
+    commands.insert_resource(
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Structure>::build(entries.into_iter()),
+    );
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were
@@ -565,8 +570,8 @@ pub(crate) fn resolve_timeline_tags(
 
 pub(crate) fn register_static_registries_with_access(
     items: Res<item::Items>,
-    sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
-    entity_registry: Res<StaticRegistry<entity::EntityType>>,
+    sound_registry: Res<StaticRegistry<mcrs_minecraft_item::SoundEvent>>,
+    entity_registry: Res<StaticRegistry<EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {

@@ -2,6 +2,7 @@ use fixedbitset::FixedBitSet;
 
 /// The positions one carver pass freed, one bit per block, with the vertical in
 /// the low bits so a tunnel or a shaft becomes a long run of set bits.
+#[derive(PartialEq, Eq)]
 pub struct CarvingMask {
     min_y: i32,
     height: i32,
@@ -130,6 +131,20 @@ mod tests {
             mask.carve(0, y, 1);
         }
         assert_eq!(runs(&mask), vec![(0, 0, 5, 7), (0, 1, 0, 2)]);
+    }
+
+    #[test]
+    fn masks_are_equal_when_the_same_cells_are_marked() {
+        let mut a = CarvingMask::new(0, 127);
+        let mut b = CarvingMask::new(0, 127);
+        assert!(a == b);
+        a.carve(3, 30, 9);
+        assert!(a != b);
+        b.carve(3, 30, 9);
+        assert!(a == b);
+        b.carve(3, 31, 9);
+        assert!(a != b);
+        assert!(CarvingMask::new(0, 127) != CarvingMask::new(0, 126));
     }
 
     #[test]

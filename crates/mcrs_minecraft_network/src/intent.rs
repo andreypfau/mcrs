@@ -1,6 +1,6 @@
 use crate::SharedNetworkState;
 use crate::packet_io::{ByteStream, PacketIo};
-use mcrs_minecraft_protocol::PROTOCOL_VERSION;
+use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
 use mcrs_minecraft_protocol::packets::ping::clientbound::PongResponse;
@@ -8,6 +8,8 @@ use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
 use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use serde_json::json;
 use tracing::debug;
+
+pub(crate) const MOTD: &str = "mcrs Server";
 
 pub(crate) async fn handle_intent<S: ByteStream>(
     shared: SharedNetworkState,
@@ -26,7 +28,7 @@ pub(crate) async fn handle_intent<S: ByteStream>(
             let json = json!({
                 "version": {
                     "name": "mcrs",
-                    "protocol": PROTOCOL_VERSION
+                    "protocol": VERSION.protocol_version
                 },
                 "players": {
                     "max": 0,
@@ -34,7 +36,7 @@ pub(crate) async fn handle_intent<S: ByteStream>(
                     "sample": []
                 },
                 "description": {
-                    "text": "mcrs Server"
+                    "text": MOTD
                 }
             })
             .to_string();

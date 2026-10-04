@@ -1,4 +1,4 @@
-use crate::codec::{Bounded, NonNegativeInt, is_default};
+use crate::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -20,7 +20,7 @@ impl HeightContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[serde(remote = "Self", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VerticalAnchor {
     Absolute(i32),
     AboveBottom(i32),
@@ -28,7 +28,31 @@ pub enum VerticalAnchor {
     RelativeToSeaLevel(i32),
 }
 
+crate::validated!(VerticalAnchor);
+
+impl Validate for VerticalAnchor {
+    fn validate(&self) -> Result<(), String> {
+        let (Self::Absolute(offset)
+        | Self::AboveBottom(offset)
+        | Self::BelowTop(offset)
+        | Self::RelativeToSeaLevel(offset)) = *self;
+        if !(Self::MIN_OFFSET..=Self::MAX_OFFSET).contains(&offset) {
+            return Err(format!(
+                "vertical anchor offset {offset} is outside [{};{}]",
+                Self::MIN_OFFSET,
+                Self::MAX_OFFSET
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl VerticalAnchor {
+    const PACKED_Y_BITS: u32 = 12;
+    const Y_SIZE: i32 = (1 << Self::PACKED_Y_BITS) - 32;
+    pub const MAX_OFFSET: i32 = (Self::Y_SIZE >> 1) - 1;
+    pub const MIN_OFFSET: i32 = Self::MAX_OFFSET - Self::Y_SIZE + 1;
+
     pub fn resolve_y(self, context: HeightContext) -> i32 {
         match self {
             VerticalAnchor::Absolute(y) => y,
@@ -275,6 +299,15 @@ impl IntProvider {
             min_inclusive,
             max_inclusive,
         })
+    }
+
+    /// A constant where the bounds meet, a uniform range otherwise.
+    pub fn between(min_inclusive: i32, max_inclusive: i32) -> Self {
+        if min_inclusive == max_inclusive {
+            IntProvider::Constant(min_inclusive)
+        } else {
+            IntProvider::uniform(min_inclusive, max_inclusive)
+        }
     }
 
     /// `getMinValue` / `getMaxValue`, which a few features read rather than
@@ -705,7 +738,7 @@ mod tests {
         );
     }
 
-    /// Every shape the 26.3 feature and placed_feature corpus carries, verbatim.
+    /// Every shape the feature and placed_feature corpus carries, verbatim.
     #[test]
     fn the_feature_registry_forms_round_trip() {
         round_trip::<IntProvider>(r#"{"type":"minecraft:trapezoid","max":7,"min":-7,"plateau":0}"#);
@@ -730,6 +763,58 @@ mod tests {
         round_trip::<HeightProvider>(
             r#"{"type":"minecraft:very_biased_to_bottom","inner":8,"max_inclusive":{"below_top":8},"min_inclusive":{"above_bottom":0}}"#,
         );
+    }
+
+    #[test]
+    fn a_vertical_anchor_with_two_keys_or_none_is_a_load_error() {
+        for anchor in [
+            r#"{"absolute":1,"above_bottom":2}"#,
+            "{}",
+            r#"{"below_surface":1}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<VerticalAnchor>(anchor).is_err(),
+                "{anchor} as text"
+            );
+            let tagged = format!(
+                r#"{{"type":"minecraft:uniform","min_inclusive":{anchor},"max_inclusive":{{"absolute":0}}}}"#
+            );
+            assert!(
+                serde_json::from_str::<HeightProvider>(&tagged).is_err(),
+                "{anchor} inside a tagged height provider"
+            );
+            assert!(
+                serde_json::from_str::<HeightProvider>(anchor).is_err(),
+                "{anchor} as a bare height provider"
+            );
+        }
+    }
+
+    #[test]
+    fn a_vertical_anchor_offset_is_bounded_as_the_reference_bounds_it() {
+        for key in [
+            "absolute",
+            "above_bottom",
+            "below_top",
+            "relative_to_sea_level",
+        ] {
+            for offset in [-2032, 2031] {
+                let json = format!(r#"{{"{key}":{offset}}}"#);
+                round_trip::<VerticalAnchor>(&json);
+                round_trip::<HeightProvider>(&json);
+            }
+            for offset in [-2033, 2032] {
+                let json = format!(r#"{{"{key}":{offset}}}"#);
+                assert!(
+                    serde_json::from_str::<VerticalAnchor>(&json).is_err(),
+                    "{json} as text"
+                );
+                assert!(
+                    serde_json::from_str::<HeightProvider>(&json).is_err(),
+                    "{json} as a bare height provider"
+                );
+            }
+        }
     }
 
     /// `plateau` and `inner` are `optionalFieldOf` in the reference, so their
@@ -1038,24 +1123,6 @@ mod tests {
             inner: Bounded(8),
         });
         pin_draws(|rng| provider.sample(rng, OVERWORLD), |_| 10);
-    }
-
-    #[test]
-    fn a_very_biased_sample_stays_in_range_and_leans_low() {
-        let provider = IntProvider::Dispatched(DispatchedIntProvider::VeryBiasedToBottom {
-            min_inclusive: 0,
-            max_inclusive: 14,
-        });
-        let mut rng = LegacyRandom::new(7);
-        let mut zeroes = 0;
-        for _ in 0..2000 {
-            let value = provider.sample(&mut rng);
-            assert!((0..=14).contains(&value), "{value} out of range");
-            if value == 0 {
-                zeroes += 1;
-            }
-        }
-        assert!(zeroes > 600, "only {zeroes} zeroes of 2000");
     }
 
     #[test]

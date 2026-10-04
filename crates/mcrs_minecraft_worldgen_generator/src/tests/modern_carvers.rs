@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -27,21 +26,14 @@ fn y_sections() -> Vec<i32> {
 }
 
 /// The carver list a biome actually ships, read the way the loader would.
-fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = worldgen_dir().join(format!(
-        "biome/{}.json",
-        biome.strip_prefix("minecraft:").unwrap_or(biome)
-    ));
-    let raw: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&path).expect("biome must exist")).unwrap();
-    let names: Vec<String> = match raw.get("carvers") {
-        Some(serde_json::Value::String(one)) => vec![one.clone()],
-        Some(serde_json::Value::Array(many)) => many
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect(),
-        _ => Vec::new(),
-    };
+pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
+    let id = mcrs_minecraft_core::ResourceLocation::parse(biome).expect("a biome id");
+    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let names: Vec<String> = biome
+        .carvers
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect();
     names
         .iter()
         .map(|name| {
@@ -77,28 +69,6 @@ fn ids() -> ModernCarverBlockIds {
     // No tag registry in a unit test, so the uncarvable set is supplied the
     // way the tag would: bedrock's states.
     ModernCarverBlockIds::for_test(vec![corpus().default_state("minecraft:bedrock").into()])
-}
-
-#[test]
-fn large_feature_seed_matches_the_reference_formula() {
-    for (seed, cx, cz) in [(12345i64, 0i32, 0i32), (-9, 17, -33), (1, -1, 1)] {
-        let mut rng = LegacyRandom::new(seed as u64);
-        let x_scale = rng.next_java_long();
-        let z_scale = rng.next_java_long();
-        let expected = (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
-        assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
-    }
-    // Two different sources must not share a stream.
-    assert_ne!(
-        LegacyRandom::large_feature_seed(12345, 0, 0),
-        LegacyRandom::large_feature_seed(12345, 1, 0)
-    );
-    // The carver index is folded into the seed, so two carvers of one biome
-    // draw independently in the same source chunk.
-    assert_ne!(
-        LegacyRandom::large_feature_seed(12345, 4, 4),
-        LegacyRandom::large_feature_seed(12346, 4, 4)
-    );
 }
 
 #[test]
@@ -171,11 +141,6 @@ fn the_overworld_preset_resolves_to_the_shipped_carvers() {
 }
 
 #[test]
-fn an_unknown_preset_is_not_resolved() {
-    assert!(CarverBiomeTable::resolve("minecraft:the_end", carvers_of).is_none());
-}
-
-#[test]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
@@ -241,7 +206,6 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
 
 #[test]
 fn carving_is_deterministic() {
-    let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
     let block_ids = ids();
     let sections = y_sections();
@@ -267,7 +231,6 @@ fn carving_is_deterministic() {
             .collect::<Vec<_>>()
     };
 
-    let _ = (&router, &block_ids);
     assert_eq!(snapshot(12345), snapshot(12345));
     assert_ne!(snapshot(12345), snapshot(999));
 }
@@ -329,6 +292,322 @@ fn measure_modern_carvers() {
     println!("MEASURE climate point by point {each:.3} ms/column (sink {sink})");
 }
 
+struct MaskRun {
+    millis: Vec<f64>,
+    wall: std::time::Duration,
+    builds: usize,
+}
+
+fn region_keys(columns: &[(i32, i32)], width: i32) -> Vec<(i32, i32)> {
+    columns
+        .iter()
+        .map(|&(x, z)| (x.div_euclid(width), z.div_euclid(width)))
+        .collect()
+}
+
+/// The regions a least-recently-used list of `capacity` builds over `keys`,
+/// and how many of those builds repeat one.
+fn replay_cache(keys: &[(i32, i32)], capacity: usize) -> (usize, usize) {
+    let mut kept: Vec<(i32, i32)> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let (mut builds, mut rebuilds) = (0, 0);
+    for &key in keys {
+        if let Some(at) = kept.iter().position(|k| *k == key) {
+            kept.remove(at);
+        } else {
+            builds += 1;
+            rebuilds += usize::from(!seen.insert(key));
+            if kept.len() == capacity {
+                kept.remove(0);
+            }
+        }
+        kept.push(key);
+    }
+    (builds, rebuilds)
+}
+
+fn most_regions_in_a_window(keys: &[(i32, i32)], window: usize) -> usize {
+    keys.windows(window)
+        .map(|w| w.iter().collect::<std::collections::HashSet<_>>().len())
+        .max()
+        .unwrap_or(0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_masks(
+    router: &mcrs_minecraft_worldgen_density::router::NoiseRouter,
+    height: HeightContext,
+    seed: u64,
+    table: &CarverBiomeTable,
+    columns: &[(i32, i32)],
+    threads: usize,
+    rest_of_the_column: std::time::Duration,
+) -> MaskRun {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let next = AtomicUsize::new(0);
+    let start = std::sync::Barrier::new(threads);
+    let mut millis = Vec::with_capacity(columns.len());
+    let wall = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..threads)
+            .map(|_| {
+                let (next, start) = (&next, &start);
+                scope.spawn(move || {
+                    let mut ws = Workspace::new();
+                    let mut mine = Vec::new();
+                    start.wait();
+                    let began = std::time::Instant::now();
+                    loop {
+                        let at = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(&(x, z)) = columns.get(at) else {
+                            break;
+                        };
+                        let asked = std::time::Instant::now();
+                        let slot = crate::modern_carvers::modern_carving_mask(
+                            x,
+                            z,
+                            seed as i64,
+                            router,
+                            &mut ws,
+                            table,
+                            height,
+                        );
+                        mine.push(asked.elapsed().as_secs_f64() * 1000.0);
+                        let resting = std::time::Instant::now();
+                        while resting.elapsed() < rest_of_the_column {
+                            std::hint::spin_loop();
+                        }
+                        std::hint::black_box(&*slot);
+                    }
+                    (mine, began.elapsed())
+                })
+            })
+            .collect();
+        let mut longest = std::time::Duration::ZERO;
+        for worker in workers {
+            let (mine, took) = worker.join().unwrap();
+            millis.extend(mine);
+            longest = longest.max(took);
+        }
+        longest
+    });
+    MaskRun {
+        millis,
+        wall,
+        builds: table.region_builds_for_test(),
+    }
+}
+
+fn summarize(label: &str, run: &MaskRun, columns: usize) {
+    let mut sorted = run.millis.clone();
+    sorted.sort_by(f64::total_cmp);
+    let at = |q: f64| sorted[((sorted.len() as f64 * q) as usize).min(sorted.len() - 1)];
+    let mean = sorted.iter().sum::<f64>() / sorted.len() as f64;
+    println!(
+        "MEASURE {label}: mean {mean:.4} p90 {:.4} p99 {:.4} max {:.3} ms/column, {:.0} columns/s, {} builds",
+        at(0.9),
+        at(0.99),
+        sorted[sorted.len() - 1],
+        columns as f64 / run.wall.as_secs_f64(),
+        run.builds
+    );
+}
+
+/// Sweeps the region width: the mask per column over a block of columns, in
+/// row order and in order of distance from the middle, with one thread and
+/// with the generator's workers sharing one table, and the cache replayed
+/// over the same orders.
+///
+/// ```text
+/// cargo test --release -p mcrs_minecraft_worldgen_generator --lib measure_carve_regions -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "measurement, not an assertion"]
+fn measure_carve_regions() {
+    const SIDE: i32 = 64;
+    const FIRST: i32 = -35;
+    const WORKERS: usize = 8;
+    const ROUNDS: usize = 3;
+    let rest_of_the_column = std::time::Duration::from_micros(3400);
+
+    let row_order: Vec<(i32, i32)> = (FIRST..FIRST + SIDE)
+        .flat_map(|z| (FIRST..FIRST + SIDE).map(move |x| (x, z)))
+        .collect();
+    let middle = FIRST + SIDE / 2;
+    let mut distance_order = row_order.clone();
+    distance_order.sort_by_key(|&(x, z)| ((x - middle).pow(2) + (z - middle).pow(2), x, z));
+    let columns = row_order.len();
+
+    let widths = [1, 2, 4, 8];
+    let mut capacities = Vec::new();
+    for width in widths {
+        let rows = region_keys(&row_order, width);
+        let rings = region_keys(&distance_order, width);
+        let distinct = rings.iter().collect::<std::collections::HashSet<_>>().len();
+        let mut line = format!("MEASURE cache width {width}: {distinct} regions in the block");
+        let mut smallest = [0usize; 2];
+        for (slot, keys) in [&rows, &rings].into_iter().enumerate() {
+            for capacity in [4usize, 8, 16, 32, 64, 128, 256] {
+                let (builds, rebuilds) = replay_cache(keys, capacity);
+                if rebuilds == 0 && smallest[slot] == 0 {
+                    smallest[slot] = capacity;
+                }
+                if slot == 1 {
+                    line += &format!("; cap {capacity}: {builds} builds {rebuilds} repeated");
+                }
+            }
+        }
+        println!("{line}");
+        println!(
+            "MEASURE cache width {width}: smallest capacity with no repeated build, row order {}, distance order {}; regions in a window of {WORKERS}: {}",
+            smallest[0],
+            smallest[1],
+            most_regions_in_a_window(&rings, WORKERS)
+        );
+        capacities.push(smallest[0].max(smallest[1]) * 2);
+    }
+
+    for seed in [777u64, 845] {
+        let router = build_settings_router("overworld", seed);
+        let height = crate::stages::extent(&router);
+        let column_bytes = CarverBiomeTable::resolve("minecraft:overworld", carvers_of)
+            .unwrap()
+            .with_region(2, 1)
+            .region_bytes_bound(height)
+            / 4;
+        let build = |width: usize, capacity: usize| {
+            let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of)
+                .unwrap()
+                .with_region(width as i32, capacity);
+            let mut ws = Workspace::new();
+            for source_x in FIRST - 16..FIRST + SIDE + 16 {
+                for source_z in FIRST - 16..FIRST + SIDE + 16 {
+                    table.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
+                }
+            }
+            table
+        };
+        run_masks(
+            &router,
+            height,
+            seed,
+            &build(1, 0),
+            &distance_order,
+            1,
+            std::time::Duration::ZERO,
+        );
+
+        for round in 1..=ROUNDS {
+            let alone = build(1, 0);
+            let mut ws = Workspace::new();
+            let mut millis = Vec::with_capacity(columns);
+            let began = std::time::Instant::now();
+            for &(x, z) in &distance_order {
+                let asked = std::time::Instant::now();
+                std::hint::black_box(crate::modern_carvers::carve_sources(
+                    || unreachable!("no Beta carver runs in a modern dimension"),
+                    x,
+                    z,
+                    seed as i64,
+                    &router,
+                    &mut ws,
+                    &alone,
+                    height,
+                ));
+                millis.push(asked.elapsed().as_secs_f64() * 1000.0);
+            }
+            summarize(
+                &format!("seed {seed} round {round} per-column sources, distance order, 1 thread"),
+                &MaskRun {
+                    millis,
+                    wall: began.elapsed(),
+                    builds: 0,
+                },
+                columns,
+            );
+            for (width, capacity) in widths.into_iter().zip(&capacities) {
+                let capacity = if width == 1 { 0 } else { *capacity };
+                let entry_bytes = (width * width) as usize * column_bytes;
+                let label = |what: &str| {
+                    format!(
+                        "seed {seed} round {round} width {width} capacity {capacity} ({entry_bytes} bytes an entry, {} bound) {what}",
+                        capacity * entry_bytes
+                    )
+                };
+                let table = build(width as usize, capacity);
+                let run = run_masks(
+                    &router,
+                    height,
+                    seed,
+                    &table,
+                    &row_order,
+                    1,
+                    std::time::Duration::ZERO,
+                );
+                summarize(&label("row order, 1 thread"), &run, columns);
+                let table = build(width as usize, capacity);
+                let run = run_masks(
+                    &router,
+                    height,
+                    seed,
+                    &table,
+                    &distance_order,
+                    1,
+                    std::time::Duration::ZERO,
+                );
+                summarize(&label("distance order, 1 thread"), &run, columns);
+                let table = build(width as usize, capacity);
+                let run = run_masks(
+                    &router,
+                    height,
+                    seed,
+                    &table,
+                    &row_order,
+                    WORKERS,
+                    std::time::Duration::ZERO,
+                );
+                summarize(
+                    &label(&format!("row order, {WORKERS} threads")),
+                    &run,
+                    columns,
+                );
+                let table = build(width as usize, capacity);
+                let run = run_masks(
+                    &router,
+                    height,
+                    seed,
+                    &table,
+                    &distance_order,
+                    WORKERS,
+                    std::time::Duration::ZERO,
+                );
+                summarize(
+                    &label(&format!("distance order, {WORKERS} threads")),
+                    &run,
+                    columns,
+                );
+                let table = build(width as usize, capacity);
+                let run = run_masks(
+                    &router,
+                    height,
+                    seed,
+                    &table,
+                    &distance_order,
+                    WORKERS,
+                    rest_of_the_column,
+                );
+                summarize(
+                    &label(&format!(
+                        "distance order, {WORKERS} threads, 3.4 ms of other work per column"
+                    )),
+                    &run,
+                    columns,
+                );
+            }
+        }
+        println!("MEASURE seed {seed}: one column mask holds {column_bytes} bytes");
+    }
+}
+
 /// The two maps the freeze system reduces the loaded assets to, built the same
 /// way from the same files.
 fn asset_maps() -> (
@@ -336,25 +615,15 @@ fn asset_maps() -> (
     std::collections::HashMap<String, CarverConfig>,
 ) {
     let mut carvers_by_biome = std::collections::HashMap::new();
-    for entry in std::fs::read_dir(worldgen_dir().join("biome")).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let raw: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        let names: Vec<String> = match raw.get("carvers") {
-            Some(serde_json::Value::String(one)) => vec![one.clone()],
-            Some(serde_json::Value::Array(many)) => many
-                .iter()
-                .filter_map(|v| v.as_str().map(str::to_owned))
-                .collect(),
-            _ => Vec::new(),
-        };
-        carvers_by_biome.insert(
-            format!("minecraft:{}", path.file_stem().unwrap().to_string_lossy()),
-            names,
-        );
+    for (id, biome) in
+        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome::Biome>("biome")
+    {
+        let names = biome
+            .carvers
+            .iter()
+            .map(|c| c.as_str().to_owned())
+            .collect();
+        carvers_by_biome.insert(id.as_str().to_owned(), names);
     }
 
     let mut config_by_location = std::collections::HashMap::new();

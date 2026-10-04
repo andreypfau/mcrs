@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_minecraft_entity"
+description = "Plain identity types of the entity domain registries"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+serde = { workspace = true, features = ["derive"] }

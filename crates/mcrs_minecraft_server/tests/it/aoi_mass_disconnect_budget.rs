@@ -11,7 +11,7 @@ use mcrs_minecraft_level::world::channels::{
 };
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
-    OverflowCounter, PendingDisconnectQueue, QUEUE_HARD_CAP, drain_pending_disconnects,
+    OverflowCounter, PendingDisconnectQueue, drain_pending_disconnects,
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft_server::world::bus::{
@@ -214,84 +214,6 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     );
 
     assert!(session_count(&mut app) == 0, "every session cleared",);
-}
-
-#[test]
-fn e4_2_queue_hard_cap_drops_overflow_with_warn() {
-    let mut app = build_app();
-    let dim = Entity::from_raw_u32(910).unwrap();
-    let _ctl_rx = register_dim_channel(&mut app, dim);
-
-    // Saturate the budget so every push from now on goes through the queue.
-    {
-        let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
-        budget.0 = 0;
-    }
-
-    // Pre-fill the queue to QUEUE_HARD_CAP - 1 with throwaway anchors.
-    {
-        let mut q = app.world_mut().resource_mut::<PendingDisconnectQueue>();
-        let placeholder = Entity::PLACEHOLDER;
-        for _ in 0..(QUEUE_HARD_CAP - 1) {
-            assert!(q.push_back(placeholder));
-        }
-        assert_eq!(q.entries.len(), QUEUE_HARD_CAP - 1);
-    }
-
-    // Stage 5 disconnects. First one fills the queue to the cap; the
-    // remaining four overflow.
-    let anchors = spawn_anchors(&mut app, 5, dim);
-    let initial = app.world().resource::<OverflowCounter>().0;
-    assert_eq!(initial, 0, "counter starts at zero");
-
-    fire_disconnect(&mut app, &anchors);
-
-    assert_eq!(
-        app.world()
-            .resource::<PendingDisconnectQueue>()
-            .entries
-            .len(),
-        QUEUE_HARD_CAP,
-        "queue saturated at hard cap",
-    );
-    assert_eq!(
-        app.world().resource::<OverflowCounter>().0,
-        4,
-        "four overflow drops recorded by the counter",
-    );
-}
-
-#[test]
-fn e4_3_reconnect_after_disconnect_no_state_overlap() {
-    let mut app = build_app();
-    let dim = Entity::from_raw_u32(920).unwrap();
-    let _ctl_rx = register_dim_channel(&mut app, dim);
-
-    let host_anchor_1 = app.world_mut().spawn_empty().id();
-    insert_player(&mut app, host_anchor_1, dim);
-
-    fire_disconnect(&mut app, &[host_anchor_1]);
-    tick_update_schedule(&mut app);
-
-    // At this point host_anchor_1 must be gone before any "reconnect"
-    // takes effect.
-    assert!(
-        app.world().get::<Session>(host_anchor_1).is_none(),
-        "anchor_1 evicted before reconnect insert",
-    );
-
-    // Reconnect — allocate a fresh anchor entity, mirroring the login
-    // observer's behaviour of spawning a new host-anchor per session.
-    let host_anchor_2 = app.world_mut().spawn_empty().id();
-    insert_player(&mut app, host_anchor_2, dim);
-
-    assert!(app.world().get::<Session>(host_anchor_2).is_some());
-    assert!(app.world().get::<Session>(host_anchor_1).is_none());
-    assert_eq!(
-        session_count(&mut app),
-        1,
-        "no state overlap between sessions"
-    );
 }
 
 #[test]

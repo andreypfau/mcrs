@@ -386,7 +386,7 @@ mod tests {
     fn the_hat_and_the_skirt_stay_inside_the_window() {
         let mut cfg = config();
         cfg.place_vines = true;
-        for seed in 0..64u64 {
+        for seed in 0..8u64 {
             let mut volume = open_air();
             volume
                 .blocks
@@ -398,6 +398,30 @@ mod tests {
                     (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
                     "seed {seed} wrote at {x},{z}"
                 );
+            }
+        }
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn the_hat_and_the_skirt_stay_inside_the_window() {
+            let mut cfg = config();
+            cfg.place_vines = true;
+            for seed in 0..64u64 {
+                let mut volume = open_air();
+                volume
+                    .blocks
+                    .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), NYLIUM);
+                let mut rng = WorldgenRandom::new(seed);
+                place_huge_fungus(&cfg, &mut volume, &mut rng, ORIGIN);
+                for ((x, _, z), _) in &volume.writes {
+                    assert!(
+                        (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
+                        "seed {seed} wrote at {x},{z}"
+                    );
+                }
             }
         }
     }

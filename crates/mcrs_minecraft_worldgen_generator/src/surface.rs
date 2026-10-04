@@ -1,13 +1,12 @@
 use crate::modern_carvers::TerrainCarving;
-use crate::multi_noise_biomes::BiomeGrid;
+use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed, quart_cell, uniform_corners};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, QuartPos};
+use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -15,7 +14,6 @@ use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use mcrs_minecraft_worldgen_surface::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
-use std::cell::RefCell;
 
 /// The blocks and biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
@@ -53,7 +51,7 @@ impl SurfaceIds {
 /// that height is read off the sections the buffer holds. Given a slice, the cut
 /// is what the descent enters at, with no depth above it — so the top of the
 /// slice is surfaced as if it were the sky, and a sheet of grass over dirt lands
-/// in the middle of the rock. The biome grid and the ore-vein prefill region are
+/// in the middle of the rock. The stored biomes and the ore-vein prefill region are
 /// cut the same way, and the rules that lay the bedrock floor are never reached.
 /// Sections past the noise range are the End's, which the dimension carries and
 /// the noise does not fill.
@@ -81,36 +79,13 @@ pub fn apply_material_surface(
     section_x: i32,
     section_z: i32,
     tops: &mut [i32; 256],
-    grid: &BiomeGrid,
-    router: &NoiseRouter,
-    material: &MaterialProgram,
-    ids: &SurfaceIds,
-    scratch: &mut MaterialScratch,
-    carving: Option<&mut TerrainCarving<'_, '_>>,
-) {
-    thread_local! {
-        static FIDDLE: RefCell<FiddleCache> = RefCell::new(FiddleCache::default());
-    }
-    FIDDLE.with_borrow_mut(|fiddle| {
-        apply_material_surface_with(
-            column, section_x, section_z, tops, grid, router, material, ids, scratch, carving,
-            fiddle,
-        )
-    });
-}
-
-fn apply_material_surface_with(
-    column: &ColumnBlocks,
-    section_x: i32,
-    section_z: i32,
-    tops: &mut [i32; 256],
-    grid: &BiomeGrid,
+    biomes: &[BiomePalette],
+    first_section_y: i32,
     router: &NoiseRouter,
     program: &MaterialProgram,
     ids: &SurfaceIds,
     scratch: &mut MaterialScratch,
     mut carving: Option<&mut TerrainCarving<'_, '_>>,
-    fiddle: &mut FiddleCache,
 ) {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
@@ -119,39 +94,23 @@ fn apply_material_surface_with(
     let stone = router.default_block_state;
     let fluid = router.default_fluid_state;
     let lava = router.lava_state;
-    let zoom_seed = obfuscate_seed(router.world_seed as i64);
 
-    // The fold runs over the whole grid, border ring included: the zoom can
-    // select a cell in the ring, so a biome present only there can still win
-    // for a block inside the column.
-    let mut present = [false; 256];
-    for id in &grid.ids {
-        present[*id as usize] = true;
-    }
-    let biomes: Vec<u32> = (0..256u32).filter(|id| present[*id as usize]).collect();
+    let present = present_biomes(biomes);
 
     let top = tops.iter().copied().max().unwrap_or(NO_TOP).max(min_y);
-    // Every corner the eight-way pick can reach from a block of this column:
-    // the parent cell of the lowest block, and one past that of the highest.
-    fiddle.begin(
-        zoom_seed,
-        [(block_x - 2) >> 2, (min_y - 2) >> 2, (block_z - 2) >> 2],
-        [6, ((top + 1 - min_y) >> 2) + 3, 6],
-    );
     let mut eval = MaterialEval::new(
         router,
         program,
         scratch,
-        |x, y, z| {
-            let pos = BlockPos::new(x, y, z);
-            uniform_corners(pos, |quart| grid_biome(grid, quart))
-                .unwrap_or_else(|| grid_biome(grid, fiddle.quart_cell(pos)))
+        |x, y, z| u32::from(stored_biome(biomes, first_section_y, x, y, z)),
+        |_, _, lo, hi, out| {
+            stored_biomes_between(biomes, first_section_y, lo, hi, out);
+            true
         },
-        |bx, bz, lo, hi, out| reachable_biomes(grid, bx, bz, lo, hi, out),
         block_x,
         block_z,
         top,
-        &biomes,
+        &present,
     );
 
     let fill_tops = *tops;
@@ -160,7 +119,13 @@ fn apply_material_surface_with(
         for z in 0..16 {
             let (bx, bz) = (block_x + x, block_z + z);
             let starting_height = height_of(tops, x, z, min_y) + 1;
-            let surface_biome = zoom_biome(grid, zoom_seed, bx, starting_height, bz);
+            let surface_biome = u32::from(stored_biome(
+                biomes,
+                first_section_y,
+                bx,
+                starting_height,
+                bz,
+            ));
             if surface_biome == ids.eroded_badlands {
                 eroded_badlands(
                     column,
@@ -252,7 +217,9 @@ fn apply_material_surface_with(
                         }
                         match state {
                             Some(state) if state == stone => {}
-                            state => set_block(column, tops, min_y, x, y, z, state.unwrap_or_default()),
+                            state => {
+                                set_block(column, tops, min_y, x, y, z, state.unwrap_or_default())
+                            }
                         }
                     }
                 },
@@ -374,69 +341,6 @@ fn height_of(tops: &[i32; 256], x: i32, z: i32, min_y: i32) -> i32 {
         NO_TOP => min_y - 1,
         top => top,
     }
-}
-
-/// The biome the fiddled zoom selects, read out of the widened grid rather than
-/// out of a neighbouring column's stored palette.
-fn zoom_biome(grid: &BiomeGrid, zoom_seed: i64, x: i32, y: i32, z: i32) -> u32 {
-    let pos = BlockPos::new(x, y, z);
-    uniform_corners(pos, |quart| grid_biome(grid, quart))
-        .unwrap_or_else(|| grid_biome(grid, quart_cell(zoom_seed, pos)))
-}
-
-/// Every biome the zoom can select for the strip at `(bx, bz)` anywhere in
-/// `lo..=hi`. The pick reaches the two parent cells around the block in x and
-/// z and, across the range, every cell from the lowest block's parent to one
-/// past the highest block's, so scanning those four grid columns over that
-/// span covers it. A superset is sound: the caller only folds it.
-fn reachable_biomes(
-    grid: &BiomeGrid,
-    bx: i32,
-    bz: i32,
-    lo: i32,
-    hi: i32,
-    out: &mut Vec<u32>,
-) -> bool {
-    let min = grid.volume.min_block();
-    let size = grid.volume.size();
-    let cell = |value: i32, origin: i32, limit: i32| (value - origin).clamp(0, limit - 1);
-    let first = cell(((lo - 2) >> 2) - (min.y >> 2), 0, size.y);
-    let last = cell(((hi - 2) >> 2) + 1 - (min.y >> 2), 0, size.y);
-    let parent_x = ((bx - 2) >> 2) - (min.x >> 2);
-    let parent_z = ((bz - 2) >> 2) - (min.z >> 2);
-
-    out.clear();
-    for corner_z in [parent_z, parent_z + 1] {
-        for corner_x in [parent_x, parent_x + 1] {
-            let at = grid.volume.index_unchecked(
-                cell(corner_x, 0, size.x),
-                first,
-                cell(corner_z, 0, size.z),
-            );
-            let mut previous = u32::MAX;
-            for &id in &grid.ids[at..=at + (last - first) as usize] {
-                let id = u32::from(id);
-                if id != previous {
-                    previous = id;
-                    if !out.contains(&id) {
-                        out.push(id);
-                    }
-                }
-            }
-        }
-    }
-    true
-}
-
-fn grid_biome(grid: &BiomeGrid, quart: QuartPos) -> u32 {
-    let min = grid.volume.min_block();
-    let size = grid.volume.size();
-    // A strip with no blocks at all starts its descent below the sections this
-    // dispatch carries, which is the one lookup the grid does not span.
-    let origin = QuartPos::of(min.into());
-    let at = IVec3::new(quart.x - origin.x, quart.y - origin.y, quart.z - origin.z)
-        .clamp(IVec3::ZERO, size - IVec3::ONE);
-    u32::from(grid.get(at.x, at.y, at.z))
 }
 
 /// Writes through the strip's height, which the gradients of the strips after

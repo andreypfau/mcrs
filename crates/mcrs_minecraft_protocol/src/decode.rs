@@ -1,14 +1,16 @@
-use anyhow::{Context, bail, ensure};
-use bytes::{Buf, BytesMut};
+use anyhow::Context;
+use bytes::{Bytes, BytesMut};
+use flate2::Decompress;
 
 use crate::CompressionThreshold;
-use crate::var_int::{VarInt, VarIntDecodeError};
-use crate::{Decode, MAX_PACKET_SIZE};
+use crate::Decode;
+use crate::frame::{decompress, split_frame};
+use crate::var_int::VarInt;
 
 #[derive(Default)]
 pub struct PacketDecoder {
     buf: BytesMut,
-    decompress_buf: BytesMut,
+    inflater: Option<Decompress>,
     threshold: CompressionThreshold,
 }
 
@@ -18,104 +20,20 @@ impl PacketDecoder {
     }
 
     pub fn try_next_packet(&mut self) -> anyhow::Result<Option<PacketFrame>> {
-        let mut r = &self.buf[..];
-
-        let packet_len = match VarInt::decode_partial(&mut r) {
-            Ok(len) => len,
-            Err(VarIntDecodeError::Incomplete) => return Ok(None),
-            Err(VarIntDecodeError::TooLarge) => bail!("malformed packet length VarInt"),
+        let frame = match split_frame(&mut self.buf) {
+            Ok(frame) => frame,
+            Err(error) if error.is_incomplete() => return Ok(None),
+            Err(error) => return Err(error.into()),
         };
+        let packet = decompress(frame, self.threshold, &mut self.inflater)?;
 
-        ensure!(
-            (0..=MAX_PACKET_SIZE).contains(&packet_len),
-            "packet length of {packet_len} is out of bounds"
-        );
-
-        if r.len() < packet_len as usize {
-            // Not enough data arrived yet.
-            return Ok(None);
-        }
-
-        let packet_len_len = VarInt(packet_len).written_size();
-
-        let mut data;
-
-        if self.threshold.0 >= 0 {
-            use std::io::Write;
-
-            use bytes::BufMut;
-            use flate2::write::ZlibDecoder;
-
-            r = &r[..packet_len as usize];
-
-            let data_len = VarInt::decode(&mut r)?.0;
-
-            ensure!(
-                (0..MAX_PACKET_SIZE).contains(&data_len),
-                "decompressed packet length of {data_len} is out of bounds"
-            );
-
-            // Is this packet compressed?
-            if data_len > 0 {
-                ensure!(
-                    data_len > self.threshold.0,
-                    "decompressed packet length of {data_len} is <= the compression threshold of \
-                     {}",
-                    self.threshold.0
-                );
-
-                debug_assert!(self.decompress_buf.is_empty());
-
-                self.decompress_buf.put_bytes(0, data_len as usize);
-
-                // TODO: use libdeflater or zune-inflate?
-                let mut z = ZlibDecoder::new(&mut self.decompress_buf[..]);
-
-                z.write_all(r)?;
-
-                ensure!(
-                    z.finish()?.is_empty(),
-                    "decompressed packet length is shorter than expected"
-                );
-
-                let total_packet_len = VarInt(packet_len).written_size() + packet_len as usize;
-
-                self.buf.advance(total_packet_len);
-
-                data = self.decompress_buf.split();
-            } else {
-                debug_assert_eq!(data_len, 0);
-
-                ensure!(
-                    r.len() <= self.threshold.0 as usize,
-                    "uncompressed packet length of {} exceeds compression threshold of {}",
-                    r.len(),
-                    self.threshold.0
-                );
-
-                let remaining_len = r.len();
-
-                self.buf.advance(packet_len_len + 1);
-
-                data = self.buf.split_to(remaining_len);
-            }
-        } else {
-            self.buf.advance(packet_len_len);
-            data = self.buf.split_to(packet_len as usize);
-        }
-
-        // Decode the leading packet ID.
-        r = &data[..];
-        let packet_id = VarInt::decode(&mut r)
+        let mut rest = &packet[..];
+        let id = VarInt::decode(&mut rest)
             .context("failed to decode packet ID")?
             .0;
+        let body = packet.slice(packet.len() - rest.len()..);
 
-        data.advance(data.len() - r.len());
-
-        Ok(Some(PacketFrame {
-            id: packet_id,
-            body: data,
-        }))
+        Ok(Some(PacketFrame { id, body }))
     }
 
     pub fn set_compression(&mut self, threshold: CompressionThreshold) {
@@ -140,5 +58,70 @@ pub struct PacketFrame {
     /// The ID of the decoded packet.
     pub id: i32,
     /// The contents of the packet after the leading VarInt ID.
-    pub body: BytesMut,
+    pub body: Bytes,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frame::encode_frame;
+
+    const PACKET_ID: u8 = 0x2A;
+
+    fn packet(len: usize) -> Vec<u8> {
+        let mut packet: Vec<u8> = (0..len).map(|i| (i * 7 % 251) as u8).collect();
+        packet[0] = PACKET_ID;
+        packet
+    }
+
+    fn frame_of(packet: &[u8], threshold: i32) -> BytesMut {
+        let mut buf = BytesMut::from(packet);
+        encode_frame(&mut buf, 0, CompressionThreshold(threshold), &mut None).unwrap();
+        buf
+    }
+
+    fn decoder(threshold: i32, input: &[u8]) -> PacketDecoder {
+        let mut decoder = PacketDecoder::new();
+        decoder.set_compression(CompressionThreshold(threshold));
+        decoder.queue_bytes(BytesMut::from(input));
+        decoder
+    }
+
+    fn assert_decodes(decoder: &mut PacketDecoder, packet: &[u8]) {
+        let frame = decoder.try_next_packet().unwrap().unwrap();
+        assert_eq!(frame.id, i32::from(PACKET_ID));
+        assert_eq!(&frame.body[..], &packet[1..]);
+    }
+
+    #[test]
+    fn the_decoder_waits_for_more_bytes_on_an_incomplete_frame() {
+        let packet = packet(40);
+        let frame = frame_of(&packet, -1);
+        let mut decoder = PacketDecoder::new();
+
+        assert!(decoder.try_next_packet().unwrap().is_none());
+        decoder.queue_bytes(BytesMut::from(&frame[..1]));
+        assert!(decoder.try_next_packet().unwrap().is_none());
+        decoder.queue_bytes(BytesMut::from(&frame[1..frame.len() / 2]));
+        assert!(decoder.try_next_packet().unwrap().is_none());
+        decoder.queue_bytes(BytesMut::from(&frame[frame.len() / 2..]));
+        assert_decodes(&mut decoder, &packet);
+        assert!(decoder.try_next_packet().unwrap().is_none());
+
+        for input in [&[0x80, 0x80, 0x80, 0x01][..], &[0x00][..]] {
+            for threshold in [-1, 256] {
+                let mut decoder = self::decoder(threshold, input);
+                assert!(
+                    decoder.try_next_packet().is_err(),
+                    "{input:?} at threshold {threshold}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_empty_packet_is_refused() {
+        let mut decoder = decoder(256, &[0x01, 0x00]);
+        assert!(decoder.try_next_packet().is_err());
+    }
 }

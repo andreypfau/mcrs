@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_anvil::{
-    Chunk, PaletteLookup, PaletteNames, Properties, RegionFile, write_chunk,
+    Chunk, ChunkStatus, PaletteLookup, PaletteNames, Properties, RegionFile, write_chunk,
 };
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, RegionPos};
@@ -16,7 +16,6 @@ const USAGE: &str = "\
 usage: scene apply <scene.json> <source-world> <target-world>
        scene check <scene.json> <world>";
 
-const FULL_STATUS: &str = "minecraft:full";
 const MAX_ENTRY_BLOCKS: i64 = 1 << 16;
 
 fn main() {
@@ -214,10 +213,13 @@ impl Regions {
             .read_chunk(pos, blocks, biomes)
             .map_err(|e| e.to_string())?
             .ok_or_else(missing)?;
-        if chunk.status != FULL_STATUS {
+        if chunk.status != ChunkStatus::Full {
             return Err(format!(
-                "chunk {},{} is `{}`, not `{FULL_STATUS}`",
-                pos.x, pos.z, chunk.status
+                "chunk {},{} is `{:?}`, not `{:?}`",
+                pos.x,
+                pos.z,
+                chunk.status,
+                ChunkStatus::Full
             ));
         }
         Ok(chunk)

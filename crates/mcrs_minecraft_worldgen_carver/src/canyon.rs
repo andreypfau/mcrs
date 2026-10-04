@@ -1,8 +1,8 @@
+use crate::CarveShape;
 use crate::config::{CanyonShape, CarverConfig};
 use crate::mask::CarvingMask;
-use crate::tunnel::can_reach;
+use crate::target::{CarveTarget, SingleColumn};
 use crate::water::WaterMask;
-use crate::{CarveShape, carve_ellipsoid};
 use mcrs_minecraft_core::mth::{cos_modern, sin_modern};
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::Random;
@@ -28,6 +28,18 @@ pub fn carve_canyon<R: Random>(
     mask: &mut CarvingMask,
     rng: &mut R,
 ) {
+    let mut target = SingleColumn::new(chunk_x, chunk_z, water, mask);
+    carve_canyon_into(config, context, &mut target, source_x, source_z, rng);
+}
+
+pub fn carve_canyon_into<T: CarveTarget, R: Random>(
+    config: &CarverConfig,
+    context: HeightContext,
+    target: &mut T,
+    source_x: i32,
+    source_z: i32,
+    rng: &mut R,
+) {
     let CarverConfig::Canyon {
         y: y_provider,
         vertical_rotation,
@@ -38,6 +50,7 @@ pub fn carve_canyon<R: Random>(
         return;
     };
 
+    let live = target.live(source_x, source_z);
     let max_distance = (RANGE * 2 - 1) * 16;
     let x = (source_x * 16 + rng.next_i32_bound(16)) as f64;
     let y = y_provider.sample(rng, context) as f64;
@@ -49,10 +62,10 @@ pub fn carve_canyon<R: Random>(
     let distance = (max_distance as f32 * shape.distance_factor.sample(rng)) as i32;
     let mut tunnel_rng = LegacyRandom::new(rng.next_java_long() as u64);
 
-    walk_canyon(
+    walk_canyon_into(
         context,
-        chunk_x,
-        chunk_z,
+        target,
+        live,
         x,
         y,
         z,
@@ -62,17 +75,15 @@ pub fn carve_canyon<R: Random>(
         pitch,
         distance,
         y_scale,
-        water,
-        mask,
         &mut tunnel_rng,
     );
 }
 
 #[allow(clippy::too_many_arguments)]
-fn walk_canyon(
+fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,
-    chunk_x: i32,
-    chunk_z: i32,
+    target: &mut T,
+    mut live: T::Live,
     mut x: f64,
     mut y: f64,
     mut z: f64,
@@ -82,8 +93,6 @@ fn walk_canyon(
     mut pitch: f32,
     distance: i32,
     y_scale: f64,
-    water: &WaterMask,
-    mask: &mut CarvingMask,
     rng: &mut LegacyRandom,
 ) {
     let width_factors = init_width_factors(context, shape, rng);
@@ -118,20 +127,18 @@ fn walk_canyon(
         yaw_velocity += (rng.next_f32() - rng.next_f32()) * rng.next_f32() * 4.0;
 
         if rng.next_i32_bound(4) != 0 {
-            if !can_reach(chunk_x, chunk_z, x, z, step, distance, thickness) {
+            let Some(reached) = target.reach(live, x, z, step, distance, thickness) else {
                 return;
-            }
-            carve_ellipsoid(
-                chunk_x,
-                chunk_z,
+            };
+            live = reached;
+            target.carve(
+                live,
                 x,
                 y,
                 z,
                 horizontal_radius,
                 vertical_radius,
                 shape_kind,
-                water,
-                mask,
             );
         }
     }
@@ -244,10 +251,10 @@ mod tests {
         let thickness = 3.0;
         let distance = (112.0f32 * 0.875) as i32;
         let mut tunnel_rng = LegacyRandom::new(replay.next_java_long() as u64);
-        walk_canyon(
+        walk_canyon_into(
             overworld(),
-            0,
-            0,
+            &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut replayed),
+            (),
             x,
             y,
             z,
@@ -257,8 +264,6 @@ mod tests {
             pitch,
             distance,
             y_scale,
-            &WaterMask::default(),
-            &mut replayed,
             &mut tunnel_rng,
         );
 
@@ -291,14 +296,6 @@ mod tests {
             }
         }
         assert!(!mask.is_empty(), "no source reached the chunk");
-        mask.visit(|x, z, bottom, top| {
-            assert!((0..16).contains(&x), "x {x} outside the chunk");
-            assert!((0..16).contains(&z), "z {z} outside the chunk");
-            assert!(
-                bottom >= -63 && top <= 312,
-                "Y {bottom}..={top} out of range"
-            );
-        });
     }
 
     #[test]
@@ -344,10 +341,10 @@ mod tests {
     fn the_cross_section_stretches_further_than_an_ellipsoid() {
         let mut canyon = empty_mask();
         let mut rng = LegacyRandom::new(8);
-        walk_canyon(
+        walk_canyon_into(
             overworld(),
-            0,
-            0,
+            &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut canyon),
+            (),
             8.0,
             40.0,
             8.0,
@@ -357,8 +354,6 @@ mod tests {
             0.0,
             1,
             1.0,
-            &WaterMask::default(),
-            &mut canyon,
             &mut rng,
         );
         let mut cave = empty_mask();

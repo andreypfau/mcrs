@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
-use mcrs_minecraft_anvil::{Chunk, PaletteLookup, Properties, RegionFile, Section};
+use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
@@ -14,9 +14,6 @@ use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
 use tracing::{debug, error};
-
-/// The only chunk status whose sections hold the blocks a column is made of.
-const FULL_STATUS: &str = "minecraft:full";
 
 /// Resolves a saved palette entry against the corpus.
 ///
@@ -111,7 +108,7 @@ impl SavedColumns {
                     return None;
                 }
             };
-        (chunk.status == FULL_STATUS).then_some(chunk)
+        (chunk.status == ChunkStatus::Full).then_some(chunk)
     }
 
     /// Reading a region file is megabytes of blocking I/O, so the map lock is

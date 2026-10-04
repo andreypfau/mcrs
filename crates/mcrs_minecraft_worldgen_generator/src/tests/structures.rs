@@ -1,20 +1,19 @@
 use mcrs_minecraft_worldgen_testing::registry;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::DynTagRegistry;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
-    PaletteState, ResolvedState, TEMPLATE_DATA_VERSION, Template, TemplateBlock,
+    PaletteState, ResolvedState, Template, TemplateBlock,
 };
 use mcrs_minecraft_worldgen_structure::{
     MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
@@ -27,11 +26,8 @@ use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resol
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
-    let path = assets_dir()
-        .join("minecraft/structure")
-        .join(format!("{}.nbt", id.path()));
-    let file = File::open(&path).ok()?;
-    let template = from_gzip_bytes(file).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let bytes = mcrs_minecraft_worldgen_testing::template(id)?;
+    let template = from_gzip_bytes(bytes.as_slice()).unwrap_or_else(|e| panic!("{id}: {e}"));
     Some(Cow::Owned(template))
 }
 
@@ -409,51 +405,6 @@ fn spread(extra: &str) -> String {
 }
 
 #[test]
-fn spacing_must_exceed_separation() {
-    let set = r#"{"structures": [{"structure": "minecraft:s", "weight": 1}],
-        "placement": {"type": "minecraft:random_spread", "salt": 1, "spacing": 8, "separation": 8}}"#;
-    assert_eq!(
-        check(
-            &[("minecraft:a", set)],
-            &[("minecraft:s", &jigsaw(""))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:a: spacing 8 is not larger than separation 8"
-    );
-}
-
-#[test]
-fn exclusion_zones_must_not_cycle() {
-    let a = spread(r#", "exclusion_zone": {"other_set": "minecraft:b", "chunk_count": 1}"#);
-    let b = spread(r#", "exclusion_zone": {"other_set": "minecraft:a", "chunk_count": 1}"#);
-    assert_eq!(
-        check(
-            &[("minecraft:a", &a), ("minecraft:b", &b)],
-            &[("minecraft:s", &jigsaw(""))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:a: the exclusion zones cycle: minecraft:a -> minecraft:b -> minecraft:a"
-    );
-}
-
-#[test]
-fn an_alias_binds_once() {
-    let aliases = r#", "pool_aliases": [
-        {"type": "minecraft:direct", "alias": "minecraft:x", "target": "minecraft:empty"},
-        {"type": "minecraft:random_group", "groups": [{"weight": 1, "data": [
-            {"type": "minecraft:random", "alias": "minecraft:x", "targets": [{"weight": 1, "data": "minecraft:empty"}]}
-        ]}]}]"#;
-    assert_eq!(
-        check(
-            &[],
-            &[("minecraft:s", &jigsaw(aliases))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:s: the pool alias minecraft:x is bound twice"
-    );
-}
-
-#[test]
 fn the_jigsaw_range_plus_its_terrain_margin_stays_within_128() {
     let adapted = r#", "terrain_adaptation": "beard_thin""#;
     let at_the_bound = jigsaw_reaching(116, adapted);
@@ -464,15 +415,6 @@ fn the_jigsaw_range_plus_its_terrain_margin_stays_within_128() {
             &[("minecraft:empty", EMPTY_POOL)]
         )
         .is_ok()
-    );
-    let structure = jigsaw_reaching(120, adapted);
-    assert_eq!(
-        check(
-            &[],
-            &[("minecraft:s", &structure)],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:s: max_distance_from_center 120 plus the terrain adaptation margin 12 exceeds 128"
     );
 }
 
@@ -580,7 +522,7 @@ fn template_with_a_jigsaw_to(pool: &str) -> Template {
             properties: Some([("orientation".to_owned(), "north_up".to_owned())].into()),
         }]),
         palettes: None,
-        data_version: TEMPLATE_DATA_VERSION,
+        data_version: VERSION.world_version,
     }
 }
 

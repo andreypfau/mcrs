@@ -51,6 +51,7 @@ impl Plugin for WorldPlugin {
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
+        app.init_resource::<mcrs_minecraft_network::metrics::GameDecodeCounts>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
@@ -60,7 +61,7 @@ impl Plugin for WorldPlugin {
         // has populated the world with new `ServerSideConnection` entities.
         // Commands from `attach_outbound_queue` are flushed at the FixedPreUpdate
         // command-application point, guaranteeing that by FixedPostUpdate
-        // every connection entity carries `OutboundQueue` + `InboundRateBucket`.
+        // every connection entity carries `OutboundQueue`.
         app.add_systems(
             FixedPreUpdate,
             crate::world::bridge::attach_outbound_queue

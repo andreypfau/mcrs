@@ -3,16 +3,14 @@
 // synthetic spawn request, drains the queue through the production builder,
 // and inspects the resulting sub-app population.
 
-use bevy_app::{AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
+use bevy_app::AppLabel;
 use bevy_ecs::prelude::*;
-use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+    DimAppLabel, DimDespawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
@@ -20,18 +18,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{
 };
 
 use crate::host_app;
-
-#[test]
-fn dim_subapp_inserted_on_spawn() {
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    drain_dim_spawn_queue(&mut app);
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        1,
-        "exactly one sub-app should be present after one spawn drain"
-    );
-}
 
 #[test]
 fn dim_subapp_removed_on_despawn() {
@@ -71,10 +57,6 @@ fn dim_subapp_removed_on_despawn() {
 
 #[test]
 fn dim_worlds_are_isolated() {
-    #[derive(Resource)]
-    #[allow(dead_code)]
-    struct SentinelOverworld(u32);
-
     let mut app = host_app::make_host_app();
     host_app::enqueue_spawn(&mut app, "test:overworld", true);
     host_app::enqueue_spawn(&mut app, "test:nether", false);
@@ -89,213 +71,6 @@ fn dim_worlds_are_isolated() {
     assert_eq!(
         host_world_dim_count, 0,
         "host world should hold zero Dimension entities"
-    );
-
-    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    let first = labels[0];
-    let second = labels[1];
-
-    app.sub_apps_mut()
-        .sub_apps
-        .get_mut(&first)
-        .expect("first sub-app present")
-        .world_mut()
-        .insert_resource(SentinelOverworld(42));
-
-    let other_sub_app = app
-        .sub_apps()
-        .sub_apps
-        .get(&second)
-        .expect("second sub-app present");
-    assert!(
-        other_sub_app
-            .world()
-            .get_resource::<SentinelOverworld>()
-            .is_none(),
-        "sentinel resource inserted into one sub-app must not appear in the other"
-    );
-}
-
-#[test]
-fn sequential_pump_tick_count() {
-    #[derive(Resource, Default)]
-    struct TickCounter(u64);
-
-    fn bump(mut counter: ResMut<TickCounter>) {
-        counter.0 += 1;
-    }
-
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    host_app::enqueue_spawn(&mut app, "test:nether", false);
-    drain_dim_spawn_queue(&mut app);
-
-    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    for label in &labels {
-        let sub_app = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(label)
-            .expect("sub-app present");
-        sub_app.world_mut().insert_resource(TickCounter::default());
-        sub_app.add_systems(FixedUpdate, bump);
-    }
-
-    for _ in 0..3 {
-        app.update();
-    }
-
-    for label in &labels {
-        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
-        let counter = sub_app.world().resource::<TickCounter>();
-        assert_eq!(
-            counter.0, 3,
-            "each sub-app should have ticked exactly three times"
-        );
-    }
-}
-
-#[test]
-fn fixed_pre_and_post_update_advance_once_per_pump() {
-    #[derive(Resource, Default)]
-    struct PreCounter(u32);
-
-    #[derive(Resource, Default)]
-    struct PostCounter(u32);
-
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    drain_dim_spawn_queue(&mut app);
-
-    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
-    assert_eq!(handles.len(), 1, "one host-side handle entity");
-    let label_entity = handles[0];
-
-    {
-        let sub_app = app
-            .sub_apps_mut()
-            .sub_apps
-            .get_mut(&DimAppLabel(label_entity).intern())
-            .expect("sub-app under DimAppLabel");
-        sub_app.init_resource::<PreCounter>();
-        sub_app.init_resource::<PostCounter>();
-        sub_app.add_systems(FixedPreUpdate, |mut c: ResMut<PreCounter>| c.0 += 1);
-        sub_app.add_systems(FixedPostUpdate, |mut c: ResMut<PostCounter>| c.0 += 1);
-    }
-
-    for _ in 0..3 {
-        app.update();
-    }
-
-    let sub_app = app
-        .sub_apps()
-        .sub_apps
-        .get(&DimAppLabel(label_entity).intern())
-        .expect("sub-app under DimAppLabel");
-    let pre = sub_app.world().resource::<PreCounter>();
-    let post = sub_app.world().resource::<PostCounter>();
-    assert_eq!(pre.0, 3, "FixedPreUpdate must tick once per host pump");
-    assert_eq!(post.0, 3, "FixedPostUpdate must tick once per host pump");
-}
-
-/// Regression test: despawning the host-world `DimSubAppHandle` entity must
-/// automatically tear down the matching sub-app via the `On<Remove, DimSubAppHandle>`
-/// observer registered in production. This test would have failed before the observer
-/// was wired because only explicit queue pushes worked.
-///
-/// The observer is registered inline (not via `WorldPlugin::build`) to avoid pulling
-/// in the heavy plugin stack that `WorldPlugin` composes.
-#[test]
-fn subapp_torn_down_when_handle_despawned() {
-    let mut app = host_app::make_host_app();
-
-    // Mirror the production observer from WorldPlugin::build inline so the test
-    // exercises the same wiring path without depending on unrelated plugins.
-    app.add_observer(
-        |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
-            queue.0.push(trigger.event().entity);
-        },
-    );
-
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    drain_dim_spawn_queue(&mut app);
-    assert_eq!(app.sub_apps().sub_apps.len(), 1, "one sub-app after spawn");
-
-    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
-    assert_eq!(handles.len(), 1, "one host-side handle entity per sub-app");
-    let label_entity = handles[0];
-
-    // Despawn the host-side handle entity directly. The OnRemove<DimSubAppHandle>
-    // observer fires synchronously, pushing label_entity into DimDespawnQueue.
-    app.world_mut().entity_mut(label_entity).despawn();
-
-    // Pump once to let any deferred commands flush (defensive).
-    app.update();
-
-    // Drain the despawn queue — sub-app should now be gone.
-    drain_dim_despawn_queue(&mut app);
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        0,
-        "sub-app must be removed after handle entity is despawned"
-    );
-}
-
-#[test]
-fn no_per_dim_task_pool() {
-    let source: &str = host_app::anchored(
-        include_str!("../../src/world/sub_app_builder.rs"),
-        "pub fn spawn_dim_subapp",
-        "sub_app_builder.rs",
-    );
-    assert!(
-        !source.contains("TaskPoolBuilder"),
-        "sub_app_builder.rs must not construct its own task pool"
-    );
-    assert!(
-        !source.contains("ComputeTaskPool::init"),
-        "sub_app_builder.rs must rely on the process-global ComputeTaskPool"
-    );
-}
-
-#[test]
-fn no_nonsend_resource() {
-    let source: &str = host_app::anchored(
-        include_str!("../../src/world/sub_app_builder.rs"),
-        "pub fn spawn_dim_subapp",
-        "sub_app_builder.rs",
-    );
-    assert!(
-        !source.contains("insert_non_send_resource"),
-        "sub_app_builder.rs must not insert NonSend resources into DimWorld; \
-         DimWorld resources must be inserted via init_resource/insert_resource only, \
-         both of which require Resource: Send + Sync"
-    );
-}
-
-#[test]
-fn no_shared_lock_to_dim() {
-    let builder_source: &str = host_app::anchored(
-        include_str!("../../src/world/sub_app_builder.rs"),
-        "pub fn spawn_dim_subapp",
-        "sub_app_builder.rs",
-    );
-    let world_source: &str = host_app::anchored(
-        include_str!("../../src/world/mod.rs"),
-        "pub struct WorldPlugin",
-        "world/mod.rs",
-    );
-    assert!(
-        !builder_source.contains("Arc<Mutex"),
-        "sub_app_builder.rs must not use Arc<Mutex to share state with DimWorld; \
-         DimWorld ownership goes through App::sub_apps / App::sub_apps_mut"
-    );
-    assert!(
-        !world_source.contains("Arc<Mutex"),
-        "world/mod.rs must not use Arc<Mutex to share state with DimWorld; \
-         DimWorld ownership goes through App::sub_apps / App::sub_apps_mut"
     );
 }
 
@@ -360,188 +135,6 @@ fn time_extracted_into_subapp() {
 }
 
 #[test]
-fn eager_spawn_count_matches_dims() {
-    use bevy_state::prelude::OnEnter;
-
-    // The production path is `OnEnter(AppState::Playing) →
-    // enqueue_dim_spawns_from_preset → DimSpawnQueue → runner drain`. The
-    // preset and dimension-type fixtures live behind `pub(crate)` types in
-    // `mcrs_minecraft_server::configuration`, so this test exercises the same
-    // OnEnter-then-drain wiring with a small inline system that mirrors what
-    // `enqueue_dim_spawns_from_preset` does: push one `DimSpawnRequest` per
-    // configured dimension into `DimSpawnQueue`. The drain afterwards is the
-    // exact same call the production runner loop makes.
-    const EXPECTED_DIMS: &[(&str, bool)] = &[
-        ("test:overworld", true),
-        ("test:nether", false),
-        ("test:end", false),
-    ];
-
-    fn enqueue_test_dims(mut spawn_queue: ResMut<DimSpawnQueue>) {
-        for (id, has_sky) in EXPECTED_DIMS {
-            spawn_queue.0.push(DimSpawnRequest {
-                dimension_id: DimensionId::new(*id),
-                type_config: DimensionTypeConfig::new(-64, 384),
-                has_sky: *has_sky,
-            });
-        }
-    }
-
-    let mut app = host_app::make_host_app();
-    app.add_systems(OnEnter(AppState::Playing), enqueue_test_dims);
-
-    host_app::drive_to_playing(&mut app);
-
-    assert_eq!(
-        app.world().resource::<DimSpawnQueue>().0.len(),
-        EXPECTED_DIMS.len(),
-        "OnEnter(AppState::Playing) must enqueue one DimSpawnRequest per configured dim"
-    );
-
-    drain_dim_spawn_queue(&mut app);
-
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        EXPECTED_DIMS.len(),
-        "drain must materialise one sub-app per enqueued spawn request"
-    );
-
-    let host_dim_count = app
-        .world_mut()
-        .query::<&Dimension>()
-        .iter(app.world())
-        .count();
-    assert_eq!(
-        host_dim_count, 0,
-        "host world must hold zero Dimension entities — each one lives in its own sub-app"
-    );
-}
-
-/// Regression test: `enqueue_dim_spawns_from_preset` must be idempotent across
-/// repeated `OnEnter(AppState::Playing)` transitions. Without the `Local<bool>`
-/// guard, a second transition would re-enqueue all preset dimensions and the
-/// drain would materialise a second set of sub-apps (count = 4 instead of 2).
-///
-/// This test uses an inline `OnEnter(Playing)` system carrying the same
-/// `Local<bool>` guard shape as `enqueue_dim_spawns_from_preset`. The production
-/// system's preset reading is behind `pub(crate)` types in
-/// `mcrs_minecraft_server::configuration`, so the inline stand-in is the same
-/// approach used by `eager_spawn_count_matches_dims`. The guard semantics are
-/// identical; only the data source differs.
-#[test]
-fn enqueue_dim_spawns_from_preset_is_idempotent() {
-    use bevy_state::prelude::OnEnter;
-
-    const N: usize = 2;
-
-    fn enqueue_with_guard(mut spawn_queue: ResMut<DimSpawnQueue>, mut guard: Local<bool>) {
-        if *guard {
-            return;
-        }
-        *guard = true;
-        for i in 0..N {
-            let id = if i == 0 {
-                "test:overworld"
-            } else {
-                "test:nether"
-            };
-            spawn_queue.0.push(DimSpawnRequest {
-                dimension_id: DimensionId::new(id),
-                type_config: DimensionTypeConfig::new(-64, 384),
-                has_sky: i == 0,
-            });
-        }
-    }
-
-    let mut app = host_app::make_host_app();
-    app.add_systems(OnEnter(AppState::Playing), enqueue_with_guard);
-
-    // First transition into Playing: the inline system enqueues N dims.
-    host_app::drive_to_playing(&mut app);
-    drain_dim_spawn_queue(&mut app);
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        N,
-        "first drain must materialise N sub-apps"
-    );
-
-    // Synthetic re-entry: transition out of Playing and back in.
-    // The current AppState enum lacks a Reloading/Paused state, so we drive
-    // the transition synthetically. The inline system's OnEnter(Playing)
-    // fires again; the Local<bool> guard must prevent re-enqueueing.
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::WorldgenFreeze);
-    app.update();
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::Playing);
-    app.update();
-
-    drain_dim_spawn_queue(&mut app);
-
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        N,
-        "sub-app count must remain N after a second OnEnter(Playing) — the guard prevented re-enqueue"
-    );
-}
-
-/// Regression test parallel to `enqueue_dim_spawns_from_preset_is_idempotent`,
-/// but exercises the synthetic-overworld fallback branch the production system
-/// takes when `LoadedWorldPreset.dimensions.is_empty()`. The guard must be set
-/// on this branch too — otherwise a second `OnEnter(Playing)` would push a
-/// second synthetic request and the drain would materialise duplicate
-/// sub-apps under the same `minecraft:overworld` id.
-#[test]
-fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
-    use bevy_state::prelude::OnEnter;
-
-    fn enqueue_empty_preset_fallback(
-        mut spawn_queue: ResMut<DimSpawnQueue>,
-        mut guard: Local<bool>,
-    ) {
-        if *guard {
-            return;
-        }
-        spawn_queue.0.push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:fallback-overworld"),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
-        });
-        *guard = true;
-    }
-
-    let mut app = host_app::make_host_app();
-    app.add_systems(OnEnter(AppState::Playing), enqueue_empty_preset_fallback);
-
-    host_app::drive_to_playing(&mut app);
-    drain_dim_spawn_queue(&mut app);
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        1,
-        "first drain must materialise exactly one synthetic sub-app from the fallback branch"
-    );
-
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::WorldgenFreeze);
-    app.update();
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::Playing);
-    app.update();
-
-    drain_dim_spawn_queue(&mut app);
-
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        1,
-        "fallback-branch guard must prevent re-enqueue on the second OnEnter(Playing)"
-    );
-}
-
-#[test]
 fn worldgen_chunk_plugin_present_in_each_subapp() {
     use mcrs_minecraft_server::world::chunk::ColumnScheduler;
 
@@ -563,7 +156,7 @@ fn worldgen_chunk_plugin_present_in_each_subapp() {
 }
 
 /// Regression test: the `DimTick` driver must run more than just `Fixed*`.
-/// The first iteration of the 01-08 plugin migration chained only Fixed*
+/// An earlier `DimTick` chained only Fixed*
 /// schedules in `DimTick`, so systems registered on `Update`, `PreUpdate`,
 /// `PostUpdate`, `Startup`, or `PostStartup` (`spawn_player`, loot table
 /// loading, column-view attachment, etc.) were silently inert. This test

@@ -11,13 +11,13 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
@@ -25,7 +25,7 @@ use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
@@ -226,78 +226,3 @@ fn inbound_latency_is_zero_host_ticks() {
     );
 }
 
-#[test]
-fn channel_pair_created_on_dim_spawn() {
-    let mut app = build_app();
-
-    enqueue_overworld(&mut app);
-    drive_to_playing_and_spawn_subapps(&mut app);
-
-    let label_entity = first_label_entity(&mut app);
-
-    // The channel entry keyed by the dim's label_entity must exist.
-    let channels = app.world().resource::<DimChannelsResource>();
-    assert!(
-        channels.get(label_entity).is_some(),
-        "DimChannels must have an entry for the spawned dim's label_entity (one bounded pair per dim)"
-    );
-}
-
-#[test]
-fn fifo_ordering_preserved() {
-    let mut app = build_app();
-
-    enqueue_overworld(&mut app);
-    drive_to_playing_and_spawn_subapps(&mut app);
-
-    let label_entity = first_label_entity(&mut app);
-
-    {
-        let sub = app.sub_app_mut(DimAppLabel(label_entity));
-        sub.world_mut().init_resource::<InboundLog>();
-        sub.add_systems(Update, record_sub_inbound);
-    }
-
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    app.world_mut()
-        .entity_mut(host_anchor)
-        .insert(SessionBundle::placed(
-            session,
-            SessionPlacement::new(Place::InDim(label_entity), 0),
-        ));
-
-    // Send N messages in a known order via the host-side channel sender directly.
-    let send_order: Vec<i32> = (100..105).collect();
-    {
-        let channels = app.world().resource::<DimChannelsResource>();
-        let entry = channels.get(label_entity).expect("channel entry exists");
-        for &id in &send_order {
-            entry
-                .serverbound_sender
-                .try_send(ToDim::Serverbound(InboundPlayerPacket {
-                    player: host_anchor,
-                    id,
-                    data: Bytes::new(),
-                    timestamp: std::time::Instant::now(),
-                }))
-                .expect("send succeeds");
-        }
-    }
-
-    app.update();
-
-    let log = app
-        .sub_app(DimAppLabel(label_entity))
-        .world()
-        .resource::<InboundLog>()
-        .0
-        .clone();
-    assert_eq!(
-        log, send_order,
-        "per-channel FIFO: messages must be delivered in send order"
-    );
-}

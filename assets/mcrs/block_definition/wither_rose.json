@@ -32,7 +32,14 @@
       "minecraft:loot": "minecraft:blocks/wither_rose",
       "minecraft:placement_filter": {
         "conditions": [
-          { "allowed_faces": ["up"], "block_filter": ["#minecraft:supports_wither_rose"] }
+          {
+            "allowed_faces": [
+              "up"
+            ],
+            "block_filter": [
+              "#minecraft:supports_wither_rose"
+            ]
+          }
         ]
       },
       "mcrs:use_shape_for_light_occlusion": false,

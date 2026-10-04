@@ -857,11 +857,10 @@ mod tests {
             Some(blocks.block("minecraft:stone").unwrap().default_state_id)
         );
 
-        let settings = worldgen_json("noise_settings/overworld.json");
+        let settings = mcrs_minecraft_worldgen_builtin::noise_settings();
         let water = try_resolve_state(
             blocks,
-            &serde_json::from_value::<ProtoBlockState>(settings["default_fluid"].clone())
-                .expect("the state parses"),
+            &settings[&mcrs_minecraft_core::ResourceLocation::minecraft("overworld")].default_fluid,
         );
         assert_eq!(
             water,

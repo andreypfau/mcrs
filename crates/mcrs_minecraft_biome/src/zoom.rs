@@ -269,33 +269,6 @@ mod tests {
         assert!(differs > 0, "the seed does not reach the selection");
     }
 
-    /// The cache only remembers corners; a box that covers part of the range
-    /// and a second `begin` over a different box must both still answer with
-    /// what the plain function computes.
-    #[test]
-    fn the_fiddle_cache_answers_as_the_plain_zoom_does() {
-        let seed = obfuscate_seed(777);
-        let mut cache = FiddleCache::default();
-        for (origin, size) in [
-            ([0, 0, 0], [6, 8, 6]),
-            ([-3, -20, 4], [6, 98, 6]),
-            ([0, 0, 0], [0, 0, 0]),
-        ] {
-            cache.begin(seed, origin, size);
-            for x in -20..20 {
-                for y in -12..12 {
-                    for z in -20..20 {
-                        assert_eq!(
-                            cache.quart_cell(BlockPos::new(x, y, z)),
-                            quart_cell(seed, BlockPos::new(x, y, z)),
-                            "{origin:?} {size:?} at {x},{y},{z}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
     /// The eight distances come from a transcription of the reference zoom
     /// written against it rather than against this module: six wrapping-i64 LCG
     /// steps over the corner coordinates and two over the seed, each fiddle
@@ -327,6 +300,37 @@ mod tests {
             let (cy, dy) = if i & 2 == 0 { (0, 0.0) } else { (1, -1.0) };
             let (cz, dz) = if i & 1 == 0 { (0, 0.0) } else { (1, -1.0) };
             assert_eq!(fiddled_distance(seed, cx, cy, cz, dx, dy, dz), *want, "{i}");
+        }
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        /// The cache only remembers corners; a box that covers part of the range
+        /// and a second `begin` over a different box must both still answer with
+        /// what the plain function computes.
+        #[test]
+        fn the_fiddle_cache_answers_as_the_plain_zoom_does() {
+            let seed = obfuscate_seed(777);
+            let mut cache = FiddleCache::default();
+            for (origin, size) in [
+                ([0, 0, 0], [6, 8, 6]),
+                ([-3, -20, 4], [6, 98, 6]),
+                ([0, 0, 0], [0, 0, 0]),
+            ] {
+                cache.begin(seed, origin, size);
+                for x in -20..20 {
+                    for y in -12..12 {
+                        for z in -20..20 {
+                            assert_eq!(
+                                cache.quart_cell(BlockPos::new(x, y, z)),
+                                quart_cell(seed, BlockPos::new(x, y, z)),
+                                "{origin:?} {size:?} at {x},{y},{z}"
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 }

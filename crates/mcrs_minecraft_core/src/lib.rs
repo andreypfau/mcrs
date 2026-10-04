@@ -1,7 +1,3 @@
-/// `SharedConstants.getCurrentVersion().name()`. There is no launcher and no
-/// version manifest to read it from, so the target version is stated once here.
-pub const VERSION_NAME: &str = "26.3";
-
 pub mod block_pos;
 pub mod bounded;
 pub mod bounding_box;
@@ -14,12 +10,14 @@ pub mod mirror;
 pub mod mth;
 pub mod quart_pos;
 pub mod region_pos;
+pub mod registry_key;
 pub mod resource_key;
 pub mod resource_location;
 pub mod rotation;
 pub mod section_pos;
 pub mod tag_key;
 pub mod value_provider;
+pub mod version;
 pub mod voxel_shape;
 
 pub use block_pos::BlockPos;
@@ -32,8 +30,10 @@ pub use local_pos::LocalPos;
 pub use mirror::Mirror;
 pub use quart_pos::QuartPos;
 pub use region_pos::RegionPos;
+pub use registry_key::RegistryKey;
 pub use resource_key::ResourceKey;
-pub use resource_location::ResourceLocation;
+pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
 pub use tag_key::{TagKey, TaggedRegistry};
+pub use version::{PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version};

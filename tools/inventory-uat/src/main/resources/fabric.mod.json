@@ -11,7 +11,6 @@
 	"mixins": ["inventory-uat.mixins.json"],
 	"depends": {
 		"fabricloader": ">=0.19.0",
-		"fabric-api": "*",
 		"minecraft": "*"
 	}
 }

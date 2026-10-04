@@ -57,11 +57,10 @@ impl<T: Asset> RegistrySnapshot<T> {
 
         for (network_id, (location, asset_id)) in pairs.into_iter().enumerate() {
             let Some(value) = assets.get(asset_id) else {
-                tracing::warn!(
-                    rl = %location.as_str(),
-                    "RegistrySnapshot::build skipping missing asset"
+                panic!(
+                    "{} is paired with an asset that is not present",
+                    location.as_str()
                 );
-                continue;
             };
             let nbt = serialize(value).unwrap_or_else(|e| {
                 panic!("{} does not encode for the network: {e}", location.as_str())
@@ -209,25 +208,6 @@ mod tests {
     }
 
     #[test]
-    fn build_assigns_ids_to_all_entries() {
-        let mut assets = Assets::<TestBiome>::default();
-        let p1 = make_pair("minecraft:plains", &mut assets);
-        let p2 = make_pair("minecraft:desert", &mut assets);
-        let p3 = make_pair("minecraft:forest", &mut assets);
-
-        let snapshot = RegistrySnapshot::<TestBiome>::build(
-            vec![p1.clone(), p2.clone(), p3.clone()],
-            &assets,
-            |_| Ok(NbtCompound::new().into()),
-        );
-
-        assert_eq!(snapshot.len(), 3);
-        assert!(snapshot.by_asset_id(p1.1).is_some());
-        assert!(snapshot.by_asset_id(p2.1).is_some());
-        assert!(snapshot.by_asset_id(p3.1).is_some());
-    }
-
-    #[test]
     fn build_is_alphabetical_and_repeatable() {
         let mut assets = Assets::<TestBiome>::default();
         let p_plains = make_pair("minecraft:plains", &mut assets);
@@ -308,10 +288,17 @@ mod tests {
     }
 
     #[test]
-    fn rl_from_asset_path_parses_minecraft_path() {
-        let p = std::path::Path::new("minecraft/worldgen/biome/plains.json");
-        let rl = rl_from_asset_path(p, "minecraft:worldgen/biome").unwrap();
-        assert_eq!(rl.as_str(), "minecraft:plains");
+    #[should_panic(expected = "minecraft:forest")]
+    fn a_snapshot_with_an_entry_missing_from_the_middle_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p1 = make_pair("minecraft:plains", &mut assets);
+        let p2 = make_pair("minecraft:desert", &mut assets);
+        let p3 = make_pair("minecraft:forest", &mut assets);
+        assets.remove(p3.1);
+
+        RegistrySnapshot::<TestBiome>::build(vec![p1, p2, p3], &assets, |_| {
+            Ok(NbtCompound::new().into())
+        });
     }
 
     #[test]
@@ -319,18 +306,5 @@ mod tests {
         let p = std::path::Path::new("minecraft/worldgen/feature/coral/tube_block.json");
         let rl = rl_from_asset_path(p, "worldgen/feature").unwrap();
         assert_eq!(rl.as_str(), "minecraft:coral/tube_block");
-    }
-
-    #[test]
-    fn rl_from_asset_path_refuses_another_registry() {
-        let p = std::path::Path::new("minecraft/worldgen/feature/ore_coal.json");
-        assert!(rl_from_asset_path(p, "worldgen/placed_feature").is_none());
-    }
-
-    #[test]
-    fn rl_from_asset_path_no_extension_still_works() {
-        let p = std::path::Path::new("minecraft/chat_type/chat");
-        let rl = rl_from_asset_path(p, "chat_type").unwrap();
-        assert_eq!(rl.as_str(), "minecraft:chat");
     }
 }

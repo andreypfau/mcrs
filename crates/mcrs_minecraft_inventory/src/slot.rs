@@ -110,8 +110,8 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
 fn admits_player(equippable: &Equippable) -> bool {
     match &equippable.allowed_entities {
         None => true,
-        // chisle: the entity-type tags live outside this crate, so a tag admits
-        // nobody; resolve it against the tag registry once a player-wearable item sets one.
+        // chisle: an entity type tag admits nobody because no tag set is resolved here;
+        // the resolved tag set for entity types lifts this.
         Some(HolderSet::Tag(_)) => false,
         Some(set) => set
             .entries()

@@ -8,11 +8,11 @@ use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_assets::tag::DynTagRegistry;
-use mcrs_minecraft_block::Fluid;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, TaggedRegistry, rl};
 use mcrs_minecraft_item::{Item, ItemDefinitions};
+use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use serde::{Deserialize, Deserializer, Serialize, de};
 

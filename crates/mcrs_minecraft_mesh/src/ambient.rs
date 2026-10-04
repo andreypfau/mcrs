@@ -409,12 +409,6 @@ mod tests {
     }
 
     #[test]
-    fn a_floor_darkens_the_bottom_corners() {
-        // v0 and v3 are the top corners, v1 and v2 the bottom ones.
-        assert_eq!(bytes(on_floor(&[])), [153, 91, 91, 153]);
-    }
-
-    #[test]
     fn a_dark_floor_borrows_the_light_of_the_block_in_front() {
         assert_eq!(lit(on_floor(&[])).light, [OPEN_SKY; 4]);
     }

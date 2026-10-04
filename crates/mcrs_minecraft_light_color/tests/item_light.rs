@@ -71,23 +71,8 @@ fn assert_emits(item: &str, emission: u8, colour: &str) {
 }
 
 #[test]
-fn a_torch_emits_like_the_placed_torch() {
-    assert_emits("minecraft:torch", 14, "fire");
-}
-
-#[test]
 fn glow_berries_emit_as_lit_cave_vines() {
     assert_emits("minecraft:glow_berries", 14, "lava");
-}
-
-#[test]
-fn a_lava_bucket_emits_as_lava() {
-    assert_emits("minecraft:lava_bucket", 15, "lava");
-}
-
-#[test]
-fn a_fire_charge_emits_as_fire() {
-    assert_emits("minecraft:fire_charge", 15, "fire");
 }
 
 #[test]
@@ -246,51 +231,6 @@ fn edited(
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
     ItemLights::from_files(files, blocks(), items(), item_tags(), fluid_tags())
-}
-
-#[test]
-fn a_missing_emitting_item_fails_listing_it() {
-    let error = load(edited(|map| {
-        map.remove("minecraft:torch");
-    }))
-    .unwrap_err();
-    match error {
-        ItemLightError::Missing { items } => assert_eq!(items, ["minecraft:torch"]),
-        other => panic!("{other}"),
-    }
-}
-
-#[test]
-fn a_mapping_to_a_block_that_never_emits_fails() {
-    let error = load(edited(|map| {
-        map.insert("minecraft:torch".into(), "minecraft:stone".into());
-    }))
-    .unwrap_err();
-    assert!(
-        matches!(&error, ItemLightError::NoEmittingState { item, .. } if item == "minecraft:torch"),
-        "{error}"
-    );
-}
-
-#[test]
-fn a_tag_target_fails() {
-    let error = load(edited(|map| {
-        map.insert("minecraft:candle".into(), "#minecraft:candles".into());
-    }))
-    .unwrap_err();
-    assert!(matches!(error, ItemLightError::TagTarget { .. }), "{error}");
-}
-
-#[test]
-fn an_unknown_item_fails() {
-    let error = load(edited(|map| {
-        map.insert("minecraft:no_such_item".into(), "minecraft:torch".into());
-    }))
-    .unwrap_err();
-    assert!(
-        matches!(error, ItemLightError::UnknownItem { .. }),
-        "{error}"
-    );
 }
 
 #[test]

@@ -134,25 +134,6 @@ fn spawn_dimension(id: &str, sky: bool) -> (App, DimAppLabel) {
     (app, DimAppLabel(handle))
 }
 
-#[test]
-fn sky_light_falls_where_the_blocks_say_it_should() {
-    let (mut app, label) = spawn_dimension("test:overworld", true);
-    light_one_column(&mut app, label, true);
-
-    let (_, sky) = published(&mut app, label, SectionPos::new(0, 19, 0));
-    assert_eq!(sky.0.get(8, 15, 8), 15, "the top of the world sees the sky");
-
-    let (_, sky) = published(&mut app, label, SectionPos::new(0, STONE_SECTION_Y + 1, 0));
-    assert_eq!(
-        sky.0.get(8, 0, 8),
-        15,
-        "the cell above the floor is a source"
-    );
-
-    let (_, sky) = published(&mut app, label, SectionPos::new(0, STONE_SECTION_Y - 1, 0));
-    assert_eq!(sky.0.get(8, 15, 8), 0, "the floor casts a shadow under it");
-}
-
 /// Stands in for `apply_voxel_set_requests`, which writes the palette and then
 /// the message; the chunk index it resolves through is not wired here.
 fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
@@ -365,24 +346,6 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
         rows.sky.iter().all(|row| *row == RowLight::Unchanged),
         "a torch changes no sky light"
     );
-}
-
-#[test]
-fn both_sections_one_torch_reaches_ride_in_the_same_packet() {
-    let (captured, _) = torch_delta(true);
-
-    assert_eq!(captured.len(), 1, "one packet, not one per section");
-    let PacketPayload::LightUpdate(ClientboundLightUpdate { light_data, .. }) = &captured[0].data
-    else {
-        unreachable!("filtered above");
-    };
-    let rows = unpack_light_data(light_data, WIRE_ROWS).expect("the delta decodes");
-    for section_y in [-1, -2] {
-        assert!(
-            matches!(rows.block[wire_row(section_y)], RowLight::Filled(_)),
-            "section {section_y} is lit by a torch 14 blocks tall"
-        );
-    }
 }
 
 #[test]

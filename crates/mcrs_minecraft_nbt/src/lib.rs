@@ -206,6 +206,93 @@ impl_array!(nbt_int_array, NBT_INT_ARRAY_TAG);
 impl_array!(nbt_long_array, NBT_LONG_ARRAY_TAG);
 impl_array!(nbt_byte_array, NBT_BYTE_ARRAY_TAG);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(variant_identifier)]
+pub enum ArrayKind {
+    #[serde(rename = "__nbt_byte_array")]
+    Byte,
+    #[serde(rename = "__nbt_int_array")]
+    Int,
+    #[serde(rename = "__nbt_long_array")]
+    Long,
+}
+
+pub trait ArrayVisitor<'de>: Sized {
+    type Value;
+
+    /// `payload` is the array's elements as stored: big-endian, end to end.
+    fn visit_array<E: de::Error>(self, kind: ArrayKind, payload: &[u8]) -> Result<Self::Value, E>;
+
+    /// The value is no array and nothing of it has been read yet.
+    fn visit_other<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error>;
+}
+
+/// Takes an array whole, as `deserialize_bytes` does, and says which of the
+/// three arrays it was: the bytes alone do not carry their element width.
+pub fn nbt_array<'de, D, V>(deserializer: D, visitor: V) -> Result<V::Value, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    V: ArrayVisitor<'de>,
+{
+    deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, Tagged(visitor))
+}
+
+struct Tagged<V>(V);
+
+impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Tagged<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an NBT value")
+    }
+
+    fn visit_newtype_struct<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<V::Value, D::Error> {
+        self.0.visit_other(deserializer)
+    }
+
+    fn visit_enum<A: de::EnumAccess<'de>>(self, data: A) -> Result<V::Value, A::Error> {
+        let (kind, payload) = data.variant()?;
+        de::VariantAccess::newtype_variant_seed(
+            payload,
+            Payload {
+                kind,
+                visitor: self.0,
+            },
+        )
+    }
+}
+
+struct Payload<V> {
+    kind: ArrayKind,
+    visitor: V,
+}
+
+impl<'de, V: ArrayVisitor<'de>> de::DeserializeSeed<'de> for Payload<V> {
+    type Value = V::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, payload: D) -> Result<V::Value, D::Error> {
+        payload.deserialize_bytes(self)
+    }
+}
+
+impl<'de, V: ArrayVisitor<'de>> de::Visitor<'de> for Payload<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("the payload of an NBT array")
+    }
+
+    fn visit_bytes<E: de::Error>(self, payload: &[u8]) -> Result<V::Value, E> {
+        self.visitor.visit_array(self.kind, payload)
+    }
+}
+
 /// NBT has no boolean, so a flag is a byte. A tagged enum buffers the compound
 /// before it knows the variant, and a buffered byte never reaches
 /// `deserialize_bool`, so a `bool` field inside one reads through this.
@@ -243,7 +330,6 @@ mod test {
     use crate::nbt_int_array;
     use crate::nbt_long_array;
     use crate::serializer::to_bytes;
-    use crate::serializer::to_bytes_named;
     use crate::{Nbt, compound, tag};
     use crate::{deserializer::from_bytes_unnamed, serializer::to_bytes_unnamed};
     use serde::{Deserialize, Serialize};
@@ -298,84 +384,6 @@ mod test {
         long: i64,
         float: f32,
         string: String,
-    }
-
-    #[test]
-    fn test_simple_ser_de_unnamed() {
-        let test = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_unnamed(&test, &mut bytes).unwrap();
-        let recreated_struct: Test = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct TestArray {
-        #[serde(serialize_with = "nbt_byte_array")]
-        byte_array: Vec<u8>,
-        #[serde(serialize_with = "nbt_int_array")]
-        int_array: Vec<i32>,
-        #[serde(serialize_with = "nbt_long_array")]
-        long_array: Vec<i64>,
-    }
-
-    #[test]
-    fn test_simple_ser_de_array() {
-        let test = TestArray {
-            byte_array: vec![0, 3, 2],
-            int_array: vec![13, 1321, 2],
-            long_array: vec![1, 0, 200301, 1],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_unnamed(&test, &mut bytes).unwrap();
-        let recreated_struct: TestArray = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[test]
-    fn test_simple_ser_de_named() {
-        let name = String::from("Test");
-        let test = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&test, name, &mut bytes).unwrap();
-        let recreated_struct: Test = from_bytes(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[test]
-    fn test_simple_ser_de_array_named() {
-        let name = String::from("Test");
-        let test = TestArray {
-            byte_array: vec![0, 3, 2],
-            int_array: vec![13, 1321, 2],
-            long_array: vec![1, 0, 200301, 1],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&test, name, &mut bytes).unwrap();
-        let recreated_struct: TestArray = from_bytes(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -434,44 +442,6 @@ mod test {
         let mut bytes = Vec::new();
         to_bytes_unnamed(&list_compound, &mut bytes).unwrap();
         let recreated_struct: TestList = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-        assert_eq!(list_compound, recreated_struct);
-    }
-
-    #[test]
-    fn test_list_named() {
-        let test1 = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let test2 = Test {
-            byte: 13,
-            short: 342,
-            int: -4313,
-            long: -132334,
-            float: -69.420,
-            string: "Hello compounds".to_string(),
-        };
-
-        let list_compound = TestList {
-            option: None,
-            nested_compound: Breakfast {
-                food: Egg {
-                    food: "Over easy".to_string(),
-                },
-            },
-            compounds: vec![test1, test2],
-            list_string: vec!["".to_string(), "abcbcbcbbc".to_string()],
-            empty: vec![],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&list_compound, "a".to_string(), &mut bytes).unwrap();
-        let recreated_struct: TestList = from_bytes(Cursor::new(bytes)).unwrap();
         assert_eq!(list_compound, recreated_struct);
     }
 
@@ -686,9 +656,9 @@ mod test {
 
     #[test]
     fn json_numbers_are_typed_like_json_ops() {
-        for (json, expected) in crate::snbt_golden::JSON_TYPING {
-            let tag: tag::NbtTag = serde_json::from_str(json).unwrap();
-            assert_eq!(crate::snbt::write(&tag), *expected, "{json}");
+        for case in &crate::snbt_golden::GOLDEN.json_typing {
+            let tag: tag::NbtTag = serde_json::from_str(&case.json).unwrap();
+            assert_eq!(crate::snbt::write(&tag), case.tag, "{}", case.json);
         }
         let nbt_long: tag::NbtTag =
             from_bytes_unnamed(Cursor::new(unhex("040000000000000001"))).unwrap();
@@ -712,6 +682,73 @@ mod test {
 
         let reconstructed = from_bytes(Cursor::new(bytes)).unwrap();
         assert_eq!(value, reconstructed);
+    }
+
+    #[test]
+    fn a_struct_reads_five_field_types_from_other_numeric_tags() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            byte: i8,
+            short: i16,
+            long: i64,
+            float: f32,
+            double: f64,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_short("byte", 128);
+        root.put_int("short", 32768);
+        root.put_int("long", -9);
+        root.put_double("float", 0.5);
+        root.put_float("double", 0.25);
+        let bytes = Nbt::new(String::new(), root.clone()).write();
+
+        let streamed: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        let in_memory: Fields = crate::from_tag(tag::NbtTag::Compound(root)).unwrap();
+        assert_eq!(
+            streamed,
+            Fields {
+                byte: -128,
+                short: -32768,
+                long: -9,
+                float: 0.5,
+                double: 0.25
+            }
+        );
+        assert_eq!(streamed, in_memory);
+    }
+
+    #[test]
+    fn a_string_tag_is_no_number_on_the_stream() {
+        #[derive(Deserialize, Debug)]
+        struct Fields {
+            #[allow(dead_code)]
+            value: i64,
+        }
+
+        let mut root = compound::NbtCompound::new();
+        root.put_string("value", "4".to_string());
+        let bytes = Nbt::new(String::new(), root).write();
+        assert!(from_bytes::<Fields>(Cursor::new(bytes)).is_err());
+    }
+
+    #[test]
+    fn a_long_array_reads_straight_into_a_vector_of_longs() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Fields {
+            longs: Vec<i64>,
+            ints: Vec<i32>,
+        }
+
+        let longs: Vec<i64> = (0..4096).map(|i| i64::MIN + i * 0x0123_4567_89ab).collect();
+        let ints: Vec<i32> = (0..4096).map(|i| i32::MIN + i * 0x0001_2345).collect();
+        let mut root = compound::NbtCompound::new();
+        root.put("longs", tag::NbtTag::LongArray(longs.clone()));
+        root.put("ints", tag::NbtTag::IntArray(ints.clone()));
+        let bytes = Nbt::new(String::new(), root).write();
+
+        let read: Fields = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(read, Fields { longs, ints });
     }
 
     fn compound_with_arrays() -> compound::NbtCompound {

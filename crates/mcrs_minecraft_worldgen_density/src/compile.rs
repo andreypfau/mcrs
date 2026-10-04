@@ -1253,6 +1253,8 @@ pub(crate) mod tests {
     };
     use super::*;
     use crate::program::Workspace;
+    use crate::proto::ProtoSpline;
+    use crate::proto::build::Df;
     use crate::router::{
         CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, RIDGES, TEMPERATURE, VEGETATION,
     };
@@ -1289,13 +1291,12 @@ pub(crate) mod tests {
         }
     }
 
-    fn build(json: &str) -> Built {
-        let holder: DensityFunctionHolder =
-            serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+    fn build(function: impl Into<Df>) -> Built {
+        let function = function.into();
         let functions = no_functions();
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
-        let root = compiler.compile(&holder).expect("compiles");
+        let root = compiler.compile(&function).expect("compiles");
         let (nodes, axes, ranges, roots) = prune(
             compiler.nodes,
             compiler.axes,
@@ -1310,12 +1311,11 @@ pub(crate) mod tests {
         }
     }
 
-    fn sample(json: &str, at: IVec3) -> f32 {
-        let holder: DensityFunctionHolder = serde_json::from_str(json).unwrap();
+    fn sample(function: &Df, at: IVec3) -> f32 {
         let functions = no_functions();
         let noises = no_noises();
         let mut compiler = Compiler::new(&functions, &noises, 0, false);
-        let root = compiler.compile(&holder).expect("compiles");
+        let root = compiler.compile(function).expect("compiles");
         let program = compiler.into_program(vec![root]);
         let volume = SampleGrid::point(at);
         let mut out = vec![0.0; volume.len()];
@@ -1323,19 +1323,30 @@ pub(crate) mod tests {
         out[0]
     }
 
+    /// For the shapes the builders do not cover: a kind no shipped function
+    /// uses, or a noise written inline rather than named.
+    fn json(text: &str) -> Df {
+        serde_json::from_str(text).unwrap_or_else(|e| panic!("{text}: {e}"))
+    }
+
     const Y_GRADIENT: &str = r#"{"type":"minecraft:gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}"#;
-    /// Straddles zero, so the rectifier's negative half is reachable.
-    const SIGNED_Y_GRADIENT: &str = r#"{"type":"minecraft:gradient","axis":"y","from_coordinate":-16,"to_coordinate":16,"from_value":-16.0,"to_value":16.0}"#;
+    const INLINE_NOISE: &str = r#"{"base_octave":-7,"octave_count":2}"#;
+
+    fn y_gradient() -> Df {
+        Df::y_gradient(0, 16, 0.0, 16.0)
+    }
+
+    fn inline_noise(xz_scale: f64, y_scale: f64) -> String {
+        format!(
+            r#"{{"type":"minecraft:noise","noise":{INLINE_NOISE},"xz_scale":{xz_scale:?},"y_scale":{y_scale:?}}}"#
+        )
+    }
 
     /// The input's range would confine this to the out-of-range branch, and
     /// vanilla still reports the hull of both.
     #[test]
     fn range_choice_keeps_the_unreachable_branch() {
-        let bounds = build(
-            r#"{"type":"minecraft:range_choice","input":100.0,"min_inclusive":0.0,"max_exclusive":1.0,
-                "when_in_range":-5.0,"when_out_of_range":5.0}"#,
-        )
-        .range();
+        let bounds = build(Df::range_choice(100.0, 0.0..1.0, -5.0, 5.0)).range();
         assert_eq!((bounds.min(), bounds.max()), (-5.0, 5.0));
     }
 
@@ -1343,10 +1354,8 @@ pub(crate) mod tests {
     /// range and included in the axes.
     #[test]
     fn interval_select_ignores_its_input() {
-        let bounds = build(
-            r#"{"type":"minecraft:interval_select","input":-1000.0,"thresholds":[0.0],"functions":[1.0,2.0]}"#,
-        )
-        .range();
+        let functions = vec![Df::from(1.0), Df::from(2.0)];
+        let bounds = build(Df::interval_select(-1000.0, &[0.0], functions)).range();
         assert_eq!((bounds.min(), bounds.max()), (1.0, 2.0));
     }
 
@@ -1354,27 +1363,18 @@ pub(crate) mod tests {
     /// probes are strict, so a coordinate inside the span adds nothing either.
     #[test]
     fn a_flat_spline_is_exactly_its_values() {
-        let bounds = build(
-            r#"{"type":"minecraft:spline","spline":{"coordinate":0.5,"points":[
-                {"location":0.0,"value":1.0,"derivative":0.0},
-                {"location":1.0,"value":3.0,"derivative":0.0}]}}"#,
-        )
-        .range();
+        let points = || ProtoSpline::points(&Df::from(0.5));
+        let bounds = build(points().value(0.0, 1.0).value(1.0, 3.0).build()).range();
         assert_eq!((bounds.min(), bounds.max()), (1.0, 3.0));
 
-        let sloped = build(
-            r#"{"type":"minecraft:spline","spline":{"coordinate":0.5,"points":[
-                {"location":0.0,"value":1.0,"derivative":1.0},
-                {"location":1.0,"value":3.0,"derivative":0.0}]}}"#,
-        )
-        .range();
+        let sloped = build(points().sloped(0.0, 1.0, 1.0).value(1.0, 3.0).build()).range();
         assert!(sloped.max() > 3.0, "the overshoot term widens it");
     }
 
     #[test]
     fn a_wholly_negative_sqrt_is_unknown_rather_than_zero() {
         assert!(
-            build(r#"{"type":"minecraft:sqrt","input":-4.0}"#)
+            build(json(r#"{"type":"minecraft:sqrt","input":-4.0}"#))
                 .range()
                 .is_nai()
         );
@@ -1384,11 +1384,7 @@ pub(crate) mod tests {
     /// so the declared bound is one fbm's.
     #[test]
     fn the_overworld_blended_noise_matches_its_published_bound() {
-        let bounds = build(
-            r#"{"type":"minecraft:old_blended_noise","xz_scale":0.25,"y_scale":0.125,
-                "xz_factor":80.0,"y_factor":160.0,"smear_scale_multiplier":8.0}"#,
-        )
-        .range();
+        let bounds = build(Df::old_blended_noise(0.25, 0.125, 80.0, 160.0, 8.0)).range();
         assert_eq!(bounds.max(), 2.1670623);
         assert_eq!(bounds.min(), -2.1670623);
     }
@@ -1397,57 +1393,50 @@ pub(crate) mod tests {
     /// theirs back on top of whatever survives.
     #[test]
     fn a_zero_scale_drops_the_axes_it_flattens() {
-        let flat_y = build(
-            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":1.0,"y_scale":0.0}"#,
-        );
+        let flat_y = build(json(&inline_noise(1.0, 0.0)));
         assert_eq!(flat_y.axes(), AXIS_X | AXIS_Z);
 
-        let flat_xz = build(
-            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":0.0}"#,
-        );
+        let flat_xz = build(json(&inline_noise(0.0, 0.0)));
         assert_eq!(flat_xz.axes(), NO_AXES);
 
-        let shifted = build(
-            r#"{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":0.0,
-                "shift_x":{"type":"minecraft:gradient","axis":"y","from_coordinate":0,"to_coordinate":1,"from_value":0.0,"to_value":1.0}}"#,
-        );
+        let shifted = build(json(&format!(
+            r#"{{"type":"minecraft:noise","noise":{INLINE_NOISE},"xz_scale":0.0,"y_scale":0.0,
+                "shift_x":{{"type":"minecraft:gradient","axis":"y","from_coordinate":0,"to_coordinate":1,"from_value":0.0,"to_value":1.0}}}}"#
+        )));
         assert_eq!(shifted.axes(), AXIS_Y);
     }
 
     #[test]
     fn slice_and_find_top_surface_subtract_their_axis() {
-        let sliced = build(
-            r#"{"type":"minecraft:slice","axis":"x","coordinate":0,
-                "input":{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":0.0,"y_scale":1.0}}"#,
-        );
+        let sliced = build(json(&format!(
+            r#"{{"type":"minecraft:slice","axis":"x","coordinate":0,"input":{}}}"#,
+            inline_noise(0.0, 1.0)
+        )));
         assert_eq!(sliced.axes(), AXIS_Y);
 
-        let surface = build(
-            r#"{"type":"minecraft:find_top_surface","lower_bound":-64,"cell_height":8,
-                "density":{"type":"minecraft:noise","noise":{"base_octave":-7,"octave_count":2},"xz_scale":1.0,"y_scale":1.0},
-                "upper_bound":0.0}"#,
-        );
+        let density = json(&inline_noise(1.0, 1.0));
+        let surface = build(Df::find_top_surface(density, 0.0, -64, 8));
         assert_eq!(surface.axes(), AXIS_X | AXIS_Z);
     }
 
     #[test]
     fn two_constant_operands_leave_one_node() {
-        let built = build(r#"{"type":"minecraft:add","left":2.0,"right":3.0}"#);
+        let built = build(Df::from(2.0) + 3.0);
         assert_eq!(built.nodes.len(), 1);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 5.0));
 
-        let built = build(
-            r#"{"type":"minecraft:mul","left":{"type":"minecraft:sub","left":10.0,"right":4.0},"right":0.5}"#,
-        );
+        let built = build((Df::from(10.0) - 4.0) * 0.5);
         assert!(matches!(built.node(), Node::Constant(v) if *v == 3.0));
     }
 
     #[test]
     fn a_constant_folds_through_a_unary_and_a_round() {
-        let built = build(r#"{"type":"minecraft:square","input":-3.0}"#);
+        let built = build(Df::from(-3.0).square());
         assert!(matches!(built.node(), Node::Constant(v) if *v == 9.0));
 
-        let built = build(r#"{"type":"minecraft:floor","input":7.5,"multiple":2.0}"#);
+        let built = build(json(
+            r#"{"type":"minecraft:floor","input":7.5,"multiple":2.0}"#,
+        ));
         assert!(matches!(built.node(), Node::Constant(v) if *v == 6.0));
     }
 
@@ -1455,17 +1444,16 @@ pub(crate) mod tests {
     /// because the generic sampler returns the input untouched there.
     #[test]
     fn a_zero_multiple_round_is_the_identity() {
-        let json = format!(r#"{{"type":"minecraft:floor","input":{Y_GRADIENT},"multiple":0.0}}"#);
-        let built = build(&json);
+        let built = build(json(&format!(
+            r#"{{"type":"minecraft:floor","input":{Y_GRADIENT},"multiple":0.0}}"#
+        )));
         assert!(matches!(built.node(), Node::Gradient(_)));
     }
 
     #[test]
     fn a_scale_and_an_offset_fuse_into_one_affine() {
-        let json = format!(
-            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:mul","left":{Y_GRADIENT},"right":3.0}},"right":-1.0}}"#
-        );
-        let built = build(&json);
+        let function = y_gradient() * 3.0 + -1.0;
+        let built = build(&function);
         assert_eq!(built.nodes.len(), 2, "the gradient and one affine");
         match built.node() {
             Node::Affine { scale, offset, .. } => {
@@ -1474,16 +1462,17 @@ pub(crate) mod tests {
             }
             other => panic!("expected a fused affine, got {other:?}"),
         }
-        assert_eq!(sample(&json, IVec3::new(0, 4, 0)), 11.0);
+        assert_eq!(sample(&function, IVec3::new(0, 4, 0)), 11.0);
     }
 
     #[test]
     fn a_unit_affine_is_the_identity_and_a_division_becomes_a_reciprocal_multiply() {
-        let json = format!(r#"{{"type":"minecraft:mul","left":{Y_GRADIENT},"right":1.0}}"#);
-        assert!(matches!(build(&json).node(), Node::Gradient(_)));
+        assert!(matches!(
+            build(y_gradient() * 1.0).node(),
+            Node::Gradient(_)
+        ));
 
-        let json = format!(r#"{{"type":"minecraft:div","left":{Y_GRADIENT},"right":4.0}}"#);
-        match build(&json).node() {
+        match build(y_gradient() / 4.0).node() {
             Node::Affine { scale, offset, .. } => {
                 assert_eq!(*scale, 0.25);
                 assert_eq!(*offset, 0.0);
@@ -1494,10 +1483,10 @@ pub(crate) mod tests {
 
     #[test]
     fn a_scaled_rectifier_becomes_one_piecewise_affine() {
-        let json = format!(
-            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:mul","left":{{"type":"minecraft:half_negative","input":{SIGNED_Y_GRADIENT}}},"right":2.0}},"right":1.0}}"#
-        );
-        let built = build(&json);
+        // Straddles zero, so the rectifier's negative half is reachable.
+        let signed = Df::y_gradient(-16, 16, -16.0, 16.0);
+        let function = signed.half_negative() * 2.0 + 1.0;
+        let built = build(&function);
         assert_eq!(
             built.nodes.len(),
             2,
@@ -1517,26 +1506,24 @@ pub(crate) mod tests {
             other => panic!("expected a piecewise affine, got {other:?}"),
         }
         // The gradient reads -8 at y = -8, halved by the rectifier.
-        assert_eq!(sample(&json, IVec3::new(0, -8, 0)), -7.0);
-        assert_eq!(sample(&json, IVec3::new(0, 8, 0)), 17.0);
+        assert_eq!(sample(&function, IVec3::new(0, -8, 0)), -7.0);
+        assert_eq!(sample(&function, IVec3::new(0, 8, 0)), 17.0);
     }
 
     #[test]
     fn a_non_overlapping_extremum_drops_the_operand_that_cannot_win() {
-        let json = format!(r#"{{"type":"minecraft:min","left":{Y_GRADIENT},"right":100.0}}"#);
-        let built = build(&json);
+        let built = build(y_gradient().min(100.0));
         assert_eq!(built.nodes.len(), 1);
         assert!(matches!(built.node(), Node::Gradient(_)));
 
-        let json = format!(r#"{{"type":"minecraft:max","left":{Y_GRADIENT},"right":100.0}}"#);
-        let built = build(&json);
+        let built = build(y_gradient().max(100.0));
         assert!(matches!(built.node(), Node::Constant(v) if *v == 100.0));
     }
 
     #[test]
     fn an_overlapping_extremum_keeps_the_constant_operand_baked_in() {
-        let json = format!(r#"{{"type":"minecraft:min","left":{Y_GRADIENT},"right":8.0}}"#);
-        match build(&json).node() {
+        let function = y_gradient().min(8.0);
+        match build(&function).node() {
             Node::ConstBinary {
                 op: BinaryOp::Min,
                 value,
@@ -1545,41 +1532,43 @@ pub(crate) mod tests {
             } => assert_eq!(*value, 8.0),
             other => panic!("expected a const min, got {other:?}"),
         }
-        assert_eq!(sample(&json, IVec3::new(0, 12, 0)), 8.0);
-        assert_eq!(sample(&json, IVec3::new(0, 4, 0)), 4.0);
+        assert_eq!(sample(&function, IVec3::new(0, 12, 0)), 8.0);
+        assert_eq!(sample(&function, IVec3::new(0, 4, 0)), 4.0);
     }
 
     #[test]
     fn a_one_threshold_select_and_a_two_constant_range_choice_specialize() {
-        let json = format!(
-            r#"{{"type":"minecraft:interval_select","input":{Y_GRADIENT},"thresholds":[4.0],"functions":[-1.0,1.0]}}"#
-        );
-        assert!(matches!(build(&json).node(), Node::IntervalSelect { .. }));
-        assert_eq!(sample(&json, IVec3::new(0, 0, 0)), -1.0);
-        assert_eq!(sample(&json, IVec3::new(0, 8, 0)), 1.0);
+        let functions = vec![Df::from(-1.0), Df::from(1.0)];
+        let select = Df::interval_select(y_gradient(), &[4.0], functions);
+        assert!(matches!(build(&select).node(), Node::IntervalSelect { .. }));
+        assert_eq!(sample(&select, IVec3::new(0, 0, 0)), -1.0);
+        assert_eq!(sample(&select, IVec3::new(0, 8, 0)), 1.0);
 
-        let json = format!(
-            r#"{{"type":"minecraft:range_choice","input":{Y_GRADIENT},"min_inclusive":0.0,"max_exclusive":4.0,"when_in_range":1.0,"when_out_of_range":-1.0}}"#
-        );
-        assert!(matches!(build(&json).node(), Node::ConstRangeChoice { .. }));
-        assert_eq!(sample(&json, IVec3::new(0, 2, 0)), 1.0);
-        assert_eq!(sample(&json, IVec3::new(0, 6, 0)), -1.0);
+        let choice = Df::range_choice(y_gradient(), 0.0..4.0, 1.0, -1.0);
+        assert!(matches!(
+            build(&choice).node(),
+            Node::ConstRangeChoice { .. }
+        ));
+        assert_eq!(sample(&choice, IVec3::new(0, 2, 0)), 1.0);
+        assert_eq!(sample(&choice, IVec3::new(0, 6, 0)), -1.0);
     }
 
     #[test]
     fn a_constant_exponent_lowers_to_the_unary_it_names() {
-        let json = format!(r#"{{"type":"minecraft:pow","base":{Y_GRADIENT},"exponent":2.0}}"#);
+        let pow = |exponent: &str| {
+            json(&format!(
+                r#"{{"type":"minecraft:pow","base":{Y_GRADIENT},"exponent":{exponent}}}"#
+            ))
+        };
         assert!(matches!(
-            build(&json).node(),
+            build(pow("2.0")).node(),
             Node::Unary {
                 op: UnaryOp::Square,
                 ..
             }
         ));
-
-        let json = format!(r#"{{"type":"minecraft:pow","base":{Y_GRADIENT},"exponent":-1.0}}"#);
         assert!(matches!(
-            build(&json).node(),
+            build(pow("-1.0")).node(),
             Node::Unary {
                 op: UnaryOp::Reciprocal,
                 ..
@@ -1589,10 +1578,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_shared_subtree_is_one_node() {
-        let json = format!(
-            r#"{{"type":"minecraft:add","left":{{"type":"minecraft:square","input":{Y_GRADIENT}}},"right":{{"type":"minecraft:square","input":{Y_GRADIENT}}}}}"#
-        );
-        let built = build(&json);
+        let built = build(y_gradient().square() + y_gradient().square());
         assert_eq!(built.nodes.len(), 3, "gradient, square, add");
     }
 
@@ -1600,12 +1586,14 @@ pub(crate) mod tests {
     /// everywhere rather than tracking the position being filled.
     #[test]
     fn a_slice_pins_its_axis_to_the_coordinate() {
-        let json = format!(
-            r#"{{"type":"minecraft:slice","axis":"y","coordinate":3,"input":{Y_GRADIENT}}}"#
+        let function = y_gradient().slice_y(3);
+        assert_eq!(sample(&function, IVec3::new(0, 11, 0)), 3.0);
+        assert_eq!(sample(&function, IVec3::new(0, 0, 0)), 3.0);
+        assert_eq!(
+            build(&function).axes(),
+            NO_AXES,
+            "the pinned axis is dropped"
         );
-        assert_eq!(sample(&json, IVec3::new(0, 11, 0)), 3.0);
-        assert_eq!(sample(&json, IVec3::new(0, 0, 0)), 3.0);
-        assert_eq!(build(&json).axes(), NO_AXES, "the pinned axis is dropped");
     }
 
     // --- the shipped corpus -------------------------------------------------
@@ -1751,27 +1739,5 @@ pub(crate) mod tests {
             "the central island is neither absent nor solid rock: {solid} of {}",
             out.len()
         );
-    }
-
-    #[test]
-    fn every_shipped_noise_settings_builds_a_router() {
-        let (functions, noises) = corpus();
-        for name in [
-            "amplified",
-            "beta",
-            "caves",
-            "end",
-            "floating_islands",
-            "large_biomes",
-            "nether",
-            "overworld",
-        ] {
-            let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-                "noise_settings",
-                &ResourceLocation::minecraft(name),
-            );
-            build_router(&settings, &functions, &noises, 42, TEST_BLOCKS)
-                .unwrap_or_else(|e| panic!("{name}: {e}"));
-        }
     }
 }

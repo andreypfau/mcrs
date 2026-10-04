@@ -2,8 +2,17 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
+def game = new groovy.json.JsonSlurper().parse(file('../../assets/minecraft/version.json'))
+
 dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	minecraft "com.mojang:minecraft:${game.id}"
+}
+
+sourceSets {
+	data {
+		compileClasspath += sourceSets.main.compileClasspath
+		runtimeClasspath += sourceSets.main.compileClasspath + configurations.runtimeClasspath
+	}
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -45,6 +54,14 @@ tasks.register('findIcebergs', JavaExec) {
 	mainClass = 'mcrs.oracle.SurfaceOracle'
 	jvmArgs '-Xmx2G', '-DMC_DEBUG_ENABLED', '-DMC_DEBUG_DISABLE_CARVERS'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString(), 'ice']
+}
+
+tasks.register('dumpBiomes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'mcrs.oracle.BiomeOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
 }
 
 tasks.register('dumpFeatureSteps', JavaExec) {
@@ -140,4 +157,44 @@ tasks.register('dumpStructureGeometry', JavaExec) {
 	mainClass = 'mcrs.oracle.StructureGeometryOracle'
 	jvmArgs '-Xmx2G'
 	args = [project.findProperty('oracleOut') ?: "${projectDir}/oracle-out".toString()]
+}
+
+tasks.register('dumpReports', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.main.compileClasspath + configurations.runtimeClasspath
+	mainClass = 'net.minecraft.data.Main'
+	jvmArgs '-Xmx2G'
+	workingDir = temporaryDir
+	args = ['--reports', '--output', project.findProperty('reportsOut') ?: "${layout.buildDirectory.get()}/reports-out".toString()]
+}
+
+tasks.register('dumpDefinitions', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockDefinitionDumper'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('definitionsOut') ?: "${layout.buildDirectory.get()}/definitions-out".toString(), game.world_version.toString()]
+}
+
+tasks.register('dumpChunks', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.ChunkFiles'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/chunks-out".toString()]
+}
+
+tasks.register('dumpGolden', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.CodecGoldens'
+	jvmArgs '-Xmx2G'
+	doFirst {
+		def golden = project.findProperty('golden')
+		def goldenIn = project.findProperty('goldenIn')
+		if (golden == null || goldenIn == null) {
+			throw new GradleException('-Pgolden names the golden and -PgoldenIn its current file')
+		}
+		args = [project.findProperty('goldenOut') ?: "${layout.buildDirectory.get()}/golden-out".toString(), golden.toString(), goldenIn.toString()]
+	}
 }

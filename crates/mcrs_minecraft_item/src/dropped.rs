@@ -2,7 +2,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::Component;
 use bevy_ecs::world::DeferredWorld;
-use mcrs_minecraft_protocol::item::RawStack;
 
 use crate::held::Held;
 
@@ -36,7 +35,3 @@ impl DroppedItem {
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Thrower(pub Entity);
-
-/// The dropped item's stack as last encoded for the wire; the slot sync owns it.
-#[derive(Component, Debug, Clone, PartialEq, Eq)]
-pub struct WireStack(pub RawStack);

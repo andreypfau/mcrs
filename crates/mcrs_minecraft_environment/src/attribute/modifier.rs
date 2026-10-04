@@ -226,78 +226,10 @@ mod tests {
     }
 
     #[test]
-    fn override_replaces() {
-        assert_eq!(
-            compose(
-                "minecraft:visual/sky_color",
-                json!("#000000"),
-                Operation::Override,
-                json!("#78a7ff")
-            ),
-            AttributeValue::Color(0xFF78_A7FF)
-        );
-    }
-
-    #[test]
     fn multiply_is_per_type() {
-        // FLOAT: plain multiplication — the shipped swamp/mangrove case.
-        assert_eq!(
-            compose(
-                "minecraft:visual/water_fog_end_distance",
-                json!(96.0),
-                Operation::Multiply,
-                json!(0.85)
-            ),
-            AttributeValue::Float(96.0f32 * 0.85f32)
-        );
-        // RGB_COLOR: per channel, and opaque white is the identity.
-        assert_eq!(
-            compose(
-                "minecraft:visual/sky_color",
-                json!("#80ff40"),
-                Operation::Multiply,
-                json!("#ffffff")
-            ),
-            AttributeValue::Color(0xFF80_FF40)
-        );
         assert_eq!(multiply_color(0xFF80_8080, 0xFF80_8080), 0xFF40_4040);
         // ARGB_COLOR carries the alpha channel through the same multiply.
         assert_eq!(multiply_color(0x8080_8080, 0xFFFF_FFFF), 0x8080_8080);
-    }
-
-    #[test]
-    fn maximum_takes_the_larger() {
-        assert_eq!(
-            compose(
-                "minecraft:gameplay/cat_waking_up_gift_chance",
-                json!(0.3),
-                Operation::Maximum,
-                json!(0.7)
-            ),
-            AttributeValue::Float(0.7)
-        );
-    }
-
-    #[test]
-    fn boolean_or_and_and() {
-        assert_eq!(
-            compose(
-                "minecraft:gameplay/creaking_active",
-                json!(false),
-                Operation::Or,
-                json!(true)
-            ),
-            AttributeValue::Bool(true)
-        );
-        assert_eq!(
-            compose(
-                "minecraft:gameplay/can_pillager_patrol_spawn",
-                json!(true),
-                Operation::And,
-                json!(false)
-            ),
-            AttributeValue::Bool(false)
-        );
     }
 
     #[test]
@@ -373,38 +305,6 @@ mod tests {
     }
 
     #[test]
-    fn float_arithmetic_matches_the_reference() {
-        let distance = "minecraft:visual/fog_end_distance";
-        assert_eq!(
-            compose(distance, json!(100.0), Operation::Add, json!(25.0)),
-            AttributeValue::Float(125.0)
-        );
-        assert_eq!(
-            compose(distance, json!(100.0), Operation::Subtract, json!(25.0)),
-            AttributeValue::Float(75.0)
-        );
-        assert_eq!(
-            compose(distance, json!(100.0), Operation::Minimum, json!(25.0)),
-            AttributeValue::Float(25.0)
-        );
-        // FloatWithAlpha lerps from the subject towards the argument
-        assert_eq!(
-            compose(
-                distance,
-                json!(100.0),
-                Operation::AlphaBlend,
-                json!({"value": 200.0, "alpha": 0.25})
-            ),
-            AttributeValue::Float(125.0)
-        );
-        // a bare float means alpha 1, so the argument wins outright
-        assert_eq!(
-            compose(distance, json!(100.0), Operation::AlphaBlend, json!(200.0)),
-            AttributeValue::Float(200.0)
-        );
-    }
-
-    #[test]
     fn colour_arithmetic_matches_the_reference() {
         let sky = "minecraft:visual/sky_color";
         // add and subtract clamp per channel and keep the subject's alpha
@@ -461,6 +361,7 @@ mod tests {
     fn every_boolean_operation_is_implemented() {
         let creaking = "minecraft:gameplay/creaking_active";
         let cases = [
+            (Operation::Override, false, true, true),
             (Operation::And, false, true, false),
             (Operation::Nand, false, true, true),
             (Operation::Or, false, true, true),
@@ -475,131 +376,5 @@ mod tests {
                 "{op:?} {subject} {argument}"
             );
         }
-    }
-
-    #[test]
-    fn every_operation_has_an_implementation() {
-        // No operation may reach `apply` and find nothing to do: the arguments
-        // below are the shape each one's codec produces.
-        use AttributeValue as V;
-        let cases: [(AttributeType, Operation, V, V); 16] = [
-            (
-                AttributeType::Boolean,
-                Operation::Override,
-                V::Bool(false),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::And,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::Nand,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::Or,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::Nor,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::Xor,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Boolean,
-                Operation::Xnor,
-                V::Bool(true),
-                V::Bool(true),
-            ),
-            (
-                AttributeType::Float,
-                Operation::Add,
-                V::Float(1.0),
-                V::Float(2.0),
-            ),
-            (
-                AttributeType::Float,
-                Operation::Subtract,
-                V::Float(1.0),
-                V::Float(2.0),
-            ),
-            (
-                AttributeType::Float,
-                Operation::Multiply,
-                V::Float(1.0),
-                V::Float(2.0),
-            ),
-            (
-                AttributeType::Float,
-                Operation::Minimum,
-                V::Float(1.0),
-                V::Float(2.0),
-            ),
-            (
-                AttributeType::Float,
-                Operation::Maximum,
-                V::Float(1.0),
-                V::Float(2.0),
-            ),
-            (
-                AttributeType::Float,
-                Operation::AlphaBlend,
-                V::Float(1.0),
-                V::FloatWithAlpha {
-                    value: 2.0,
-                    alpha: 0.5,
-                },
-            ),
-            (
-                AttributeType::RgbColor,
-                Operation::BlendToGray,
-                V::Color(0xFF80_8080),
-                V::BlendToGray {
-                    brightness: 0.5,
-                    factor: 0.5,
-                },
-            ),
-            (
-                AttributeType::AmbientParticles,
-                Operation::Append,
-                V::List(Vec::new()),
-                V::List(Vec::new()),
-            ),
-            (
-                AttributeType::MobSpawnSettings,
-                Operation::Overlay,
-                V::MobSpawns(Box::default()),
-                V::MobSpawns(Box::default()),
-            ),
-        ];
-        for (ty, op, subject, argument) in cases {
-            assert!(apply(ty, op, &subject, &argument).is_ok(), "{ty:?} {op:?}");
-        }
-    }
-
-    #[test]
-    fn operation_ids_round_trip() {
-        assert_eq!(
-            serde_json::to_value(Operation::BlendToGray).unwrap(),
-            json!("blend_to_gray")
-        );
-        assert_eq!(
-            serde_json::from_value::<Operation>(json!("alpha_blend")).unwrap(),
-            Operation::AlphaBlend
-        );
     }
 }

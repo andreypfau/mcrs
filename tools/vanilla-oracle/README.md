@@ -17,20 +17,38 @@ no mixins are applied.
 
 ## Regenerating the dumps
 
+The Minecraft version comes from `assets/minecraft/version.json`, which
+`build.gradle` reads when Gradle configures the project. The version is stated
+nowhere else; a new version reaches this project by updating the corpus with
+`mcrs_minecraft_update` (see `crates/mcrs_minecraft_update/README.md`).
+
+A dump is regenerated with the update tool's recapture command, which runs the
+Gradle task into a temporary directory, puts the files where the tests read
+them and records the version of the capture in `tools/captures.json`:
+
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpOracle --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_density/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture density
+cargo run -p mcrs_minecraft_update -- recapture --all
 ```
 
-Add `--no-daemon` if you hit Gradle lock contention. Never run two Gradle
+The fixture names are the ones in the table of
+`crates/mcrs_minecraft_update/src/fixtures.rs`; each section below names its
+own. A task can still be run by hand with `-PoracleOut=<directory>`, for
+instance to compare a dump with the one in the repository, but then nothing
+copies the files or updates the manifest.
+
+Gradle is run with `--console=plain --no-daemon`. Never run two Gradle
 invocations against this project at once. First run downloads the Minecraft jar
 and its libraries; later runs take a few seconds.
 
 Output is deterministic: re-running produces byte-identical files.
 
-The Minecraft version comes from `gradle.properties`
-(`minecraft_version=26.4-snapshot-1`). Change it there, not in the source.
+A new snapshot may need a few compile fixes in the worldgen oracles
+(`src/main`) before the tasks run: they call game classes that are not stable
+between snapshots. The `data` source set (`src/data`) holds the report,
+definition and golden classes and compiles apart from them, so
+`dumpReports`, `dumpDefinitions` and `dumpGolden` keep running while the
+oracles are being fixed.
 
 ## What is dumped
 
@@ -126,9 +144,7 @@ upscale from the neighbouring chunks' noise biomes.
 dumps hold the uncarved terrain the Rust surface parity test compares against.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpSurface --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture surface
 ```
 
 Two search modes pick the coordinates. `findBiomes` walks outward from the origin
@@ -186,9 +202,7 @@ supplies the biome, placed-feature and multi-noise-preset registries, exactly as
 `SurfaceOracle` does.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpFeatureSteps --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture feature_steps
 ```
 
 One file, `feature_steps.bin`. Sources and what they resolve to:
@@ -248,9 +262,7 @@ the random state the call leaves behind. No registries and no level are built â€
 only `Bootstrap.bootStrap()`, for the block registry.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpOreVeins --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture ore_vein
 ```
 
 One file, `ore_vein.bin`.
@@ -311,9 +323,7 @@ and the overworld `DimensionType`, and the block tags the tree tests against are
 bound from the vanilla data pack through `TagLoader.loadTagsForExistingRegistries`.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpTrees --console=plain \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture tree_geometry
 ```
 
 One file, `tree_geometry.bin`: all 45 `minecraft:tree` features at seeds 42, 1,
@@ -375,9 +385,7 @@ directory); the resource-manager source it delegates to is called directly, and
 the private `palettes` list is read by reflection.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpTemplates --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture templates
 ```
 
 One file, `templates.bin`. The task throws if the pack lists anything other
@@ -481,13 +489,11 @@ constructed the way `StructureCheck.canCreateStructure` constructs it, with a
 climate sampler from `randomState.createClimateSampler(SamplerContext.builder().enableCaches().build())`.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpPlacement --console=plain --no-daemon -PoracleOut=<dir>
-cp <dir>/structure_cells.bin ../../crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/
-cp <dir>/structure_sites.bin ../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/
+cargo run -p mcrs_minecraft_update -- recapture structure_placement
 ```
 
-Two files, both deterministic:
+One recapture writes both files, each into the crate that reads it, and both are
+deterministic:
 
 - `structure_cells.bin` (magic `MCPLACE0`): for every random-spread set live in
   each of the three dimensions, `getPotentialStructureChunk` and the full
@@ -528,9 +534,7 @@ block creates which block entity and whether that entity is a
 changes with its three rotations and two mirrors.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpTemplatePlacement --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture template_placement
 ```
 
 One file, `template_placement.bin`, deterministic. The run log must contain no
@@ -669,9 +673,7 @@ them â€” and writes every key in id order, with the attributes' default, range
 and syncable flag after them. It runs no server.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpRegistryCensus --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_world/src/entity/fixtures
+cargo run -p mcrs_minecraft_update -- recapture registry_census
 ```
 
 One file, `registry_census.bin` (magic `MCREGCE0`), deterministic. The layout
@@ -693,9 +695,8 @@ each chunk writes, which block entities it loads and which entities it spawns.
 Neither runs a server.
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpStructurePieces dumpStructureGeometry --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture structure_pieces
+cargo run -p mcrs_minecraft_update -- recapture structure_geometry
 ```
 
 Two files, `structure_pieces.bin` (magic `MCSTRPC0`) and
@@ -703,3 +704,74 @@ Two files, `structure_pieces.bin` (magic `MCSTRPC0`) and
 the flat bases, the masks and what each consumer pins are beside the fixtures
 in `structure_pieces_capture_procedure.md` and
 `structure_geometry_capture_procedure.md`.
+
+---
+
+# Data tasks
+
+Three tasks do not dump a fixture of the worldgen oracles. They live in the
+`data` source set (`src/data`), which compiles apart from the oracles in
+`src/main`, so a compile failure in an oracle at a new snapshot does not stop
+them. All three run the game without a server, and all three are run by
+`mcrs_minecraft_update`.
+
+## Reports (`dumpReports`)
+
+Runs the game's own data generator, `net.minecraft.data.Main --reports`, from a
+temporary working directory, so that its cache and log files do not land in the
+project.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpReports --console=plain --no-daemon -PreportsOut=<dir>
+```
+
+It writes `registries.json`, `packets.json`, `blocks.json` and `datapack.json`
+to `<dir>/reports`. The update command checks the dumped block definitions
+against `blocks.json` without storing it, stores the other three files in
+`assets/mcrs/reports` and prints the diff of every `protocol_id` against the
+stored `registries.json` before it replaces it.
+
+## Definitions (`dumpDefinitions`)
+
+`BlockDefinitionDumper.main` loads the vanilla data pack and writes one
+definition file per block and per item, asking the game rather than assuming.
+It takes the world version of the corpus version file as an argument and stops
+if the game reports another one.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpDefinitions --console=plain --no-daemon -PdefinitionsOut=<dir>
+```
+
+It writes `<dir>/block_definition`, including the `README.md` that describes
+the format, and `<dir>/item_definition`. The update command diffs them against
+`assets/mcrs/block_definition` and `assets/mcrs/item_definition` field by field,
+prints the diff and then replaces both directories, so that README is written by
+this task and not by hand.
+
+## Codec goldens (`dumpGolden`)
+
+`CodecGoldens.main` rewrites one golden file of the Rust tests with what the
+game's own codecs and stream codecs produce. The file already in the repository
+supplies the cases (the inputs); the game supplies every expected value. The
+goldens are named in `CodecGoldens` (`snbt`, `hash_ops`, the `text_*` and
+`item_*` goldens, `recipe_packets`, `particles`, `inventory_packets`,
+`serverbound_game_packets` and `registry_values`), and the file each one
+rewrites is in the fixture table of the update tool.
+
+`serverbound_game_packets` holds the serverbound game packets that have a
+structure. A packet whose constructor needs a live entity, and the cases that
+only a decode can reach (a flag byte with foreign bits), are written by feeding
+chosen bytes to the game's stream codec and encoding what it decoded; the
+capture stops if the game accepts an action ordinal past the last one.
+
+```sh
+cd tools/vanilla-oracle
+./gradlew dumpGolden --console=plain --no-daemon \
+    -Pgolden=<name> -PgoldenIn=<current file> -PgoldenOut=<dir>
+```
+
+The task fails without `-Pgolden` and `-PgoldenIn`. The new file is written to
+`<dir>` under the name of the current file. `recapture <name>` fills in all
+three properties and puts the file back in place.

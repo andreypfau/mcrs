@@ -1,5 +1,8 @@
 use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -8,6 +11,10 @@ pub struct TestEnvironment {
     pub env_type: String,
     #[serde(default)]
     pub definitions: Vec<serde_json::Value>,
+}
+
+impl RegistryKey for TestEnvironment {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_environment");
 }
 
 impl Asset for TestEnvironment {}
@@ -32,21 +39,4 @@ impl Asset for TestInstance {}
 
 impl VisitAssetDependencies for TestInstance {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn deserialize_all_test_environments() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::TestEnvironment>(
-            "minecraft/test_environment",
-        );
-    }
-
-    #[test]
-    fn deserialize_all_test_instances() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::TestInstance>(
-            "minecraft/test_instance",
-        );
-    }
 }

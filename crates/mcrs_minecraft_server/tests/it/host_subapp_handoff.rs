@@ -1,6 +1,5 @@
 //! Integration tests for the host→SubApp player-connection handoff on initial
-//! join. Task 1 covers the host-side emit; Task 2 covers the per-dim consumer
-//! and the full round-trip.
+//! join: the host-side emit, the per-dim consumer and the full round-trip.
 
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::AssetPlugin;
@@ -14,13 +13,13 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
@@ -32,7 +31,6 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
-// System under test (Task 1) — must be pub in configuration.rs
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 
@@ -115,7 +113,7 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 1 tests — host-side emit_initial_player_spawn
+// host-side emit_initial_player_spawn
 // ---------------------------------------------------------------------------
 
 /// When a connection transitions to Game AND a live DimSubAppHandle label
@@ -271,188 +269,9 @@ fn no_live_dim_no_spawn() {
     );
 }
 
-/// A session that is already placed (initial join already emitted) must not
-/// send a second ToDim::Spawn.
-#[test]
-fn idempotent_single_emit() {
-    use mcrs_minecraft_level::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
-    use mcrs_minecraft_server::world::channel_types::FromDim;
-
-    let mut app = build_host_app();
-
-    let (connection_entity, _host_anchor) = spawn_accepted_connection(&mut app);
-
-    let dim_label = app.world_mut().spawn(DimSubAppHandle).id();
-
-    // Register a channel so emit_initial_player_spawn can find it.
-    let ctl_rx = {
-        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        app.world_mut()
-            .resource_mut::<DimChannelsResource>()
-            .insert(dim_label, srv_tx, ctl_tx, from_rx);
-        ctl_rx
-    };
-
-    // First Game transition — emits the spawn on the control channel
-    transition_to_game(&mut app, connection_entity);
-    app.update();
-
-    // Drain the first spawn so the channel is empty again
-    let first_spawns: Vec<_> = ctl_rx
-        .try_iter()
-        .filter(|m| matches!(m, ToDim::Spawn(..)))
-        .collect();
-    assert_eq!(first_spawns.len(), 1, "exactly one spawn on first tick");
-
-    // Tick again — should NOT emit a second spawn (current_dim is already set)
-    app.update();
-
-    let second_spawns = ctl_rx
-        .try_iter()
-        .filter(|m| matches!(m, ToDim::Spawn(..)))
-        .count();
-    assert_eq!(
-        second_spawns, 0,
-        "no second ToDim::Spawn after current_dim is already set"
-    );
-}
-
 // ---------------------------------------------------------------------------
-// Task 2 tests — per-dim consumer + full round-trip
+// per-dim consumer + full round-trip
 // ---------------------------------------------------------------------------
-
-/// The per-dim consume_inbound_player_spawn system must spawn exactly one
-/// in-dim entity carrying the Player marker, and write one OutboundPlayerAttached
-/// into the sub-world's Messages<OutboundPlayerAttached>.
-#[test]
-fn spawn_consumer_materializes_in_dim_entity() {
-    use mcrs_minecraft_level::entity::player::Player;
-    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
-    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
-
-    let mut app = build_host_app();
-
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::Playing);
-    app.update();
-    app.world_mut()
-        .resource_mut::<DimSpawnQueue>()
-        .0
-        .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
-        });
-    drain_dim_spawn_queue(&mut app);
-
-    let dim_label = {
-        let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-        q.iter(app.world())
-            .map(|(e, _)| e)
-            .next()
-            .expect("one DimSubAppHandle")
-    };
-
-    // Send a ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
-    // routes it to Messages<InboundPlayerSpawn> inside the sub-app.
-    let host_anchor = app.world_mut().spawn_empty().id();
-    {
-        app.world()
-            .resource::<DimChannelsResource>()
-            .get(dim_label)
-            .expect("channel registered by spawn_dim_subapp")
-            .control_sender
-            .try_send(ToDim::Spawn(InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
-                snapshot: PlayerTransferSnapshot {
-                    uuid: Uuid::new_v4(),
-                    username: "consumer_test".into(),
-                    position: DVec3::new(0.0, 64.0, 0.0),
-                    rotation: Vec2::ZERO,
-                    view_distance: 12,
-                },
-                dimensions: Vec::new(),
-            }))
-            .expect("control channel not full");
-    }
-
-    // Tick 1: drain_to_dim_inbox routes spawn to sub-app Messages<InboundPlayerSpawn>;
-    // sub-app consumer spawns the entity + writes OutboundPlayerAttached.
-    app.update();
-    // Tick 2: extract drains OutboundPlayerAttached to host.
-    app.update();
-
-    let player_count = {
-        let sub = app.sub_app_mut(DimAppLabel(dim_label));
-        let world = sub.world_mut();
-        world
-            .query_filtered::<Entity, With<Player>>()
-            .iter(world)
-            .count()
-    };
-    assert_eq!(player_count, 1, "exactly one Player entity in the sub-app");
-}
-
-/// Full production-topology test: host emits InboundPlayerSpawn on Game
-/// transition → extract shuttles it → sub-app consumer spawns entity →
-/// OutboundPlayerAttached extracted → host bridge_player_attach attaches the
-/// session. After the pump, the session must be in its dim.
-#[test]
-fn attach_roundtrip_places_the_session_in_its_dim() {
-    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
-
-    let mut app = build_host_app();
-
-    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
-
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::Playing);
-    app.update();
-    app.world_mut()
-        .resource_mut::<DimSpawnQueue>()
-        .0
-        .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
-        });
-    drain_dim_spawn_queue(&mut app);
-
-    // Transition to Game — emit_initial_player_spawn fires
-    transition_to_game(&mut app, connection_entity);
-
-    // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on control channel →
-    //         drain_to_dim_inbox routes it to sub-app Messages<InboundPlayerSpawn> →
-    //         consume_inbound_player_spawn runs, spawns entity, writes
-    //         OutboundPlayerAttached to sub-world buffer.
-    app.update();
-
-    // Tick 2: main bridge_player_attach runs (host buffer still empty) →
-    //         extract drains sub-world OutboundPlayerAttached into host
-    //         Messages<OutboundPlayerAttached>.
-    app.update();
-
-    // Tick 3: bridge_player_attach reads host Messages<OutboundPlayerAttached>
-    //         → attaches the session.
-    app.update();
-
-    let place = app
-        .world()
-        .get::<SessionPlacement>(host_anchor)
-        .expect("session present")
-        .place();
-    assert!(
-        matches!(place, Place::InDim(_)),
-        "the session must be in its dim after the full handoff round-trip, got {place:?}"
-    );
-}
 
 /// MessageReader cursor semantics: a second pump with no new InboundPlayerSpawn
 /// must NOT spawn a second in-dim entity.

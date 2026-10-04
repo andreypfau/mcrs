@@ -19,6 +19,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_density = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_worldgen_surface = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_carver = { workspace = true, features = ["bevy"] }

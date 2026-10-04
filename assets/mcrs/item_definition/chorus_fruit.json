@@ -6,36 +6,36 @@
       "protocol_id": 1434
     },
     "components": {
-      "minecraft:lore": [],
-      "minecraft:use_cooldown": {
-        "seconds": 1.0
-      },
-      "minecraft:item_name": {
-        "translate": "item.minecraft.chorus_fruit"
-      },
-      "minecraft:attribute_modifiers": [],
-      "minecraft:tooltip_display": {},
       "minecraft:attack_animation": {},
-      "minecraft:rarity": "common",
-      "minecraft:enchantments": {},
-      "minecraft:repair_cost": 0,
-      "minecraft:max_stack_size": 64,
-      "minecraft:use_effects": {},
-      "minecraft:item_model": "minecraft:chorus_fruit",
-      "minecraft:interact_animation": {},
+      "minecraft:attribute_modifiers": [],
       "minecraft:break_sound": "minecraft:entity.item.break",
-      "minecraft:food": {
-        "nutrition": 4,
-        "saturation": 2.4,
-        "can_always_eat": true
-      },
       "minecraft:consumable": {
         "on_consume_effects": [
           {
             "type": "minecraft:teleport_randomly"
           }
         ]
-      }
+      },
+      "minecraft:enchantments": {},
+      "minecraft:food": {
+        "nutrition": 4,
+        "saturation": 2.4,
+        "can_always_eat": true
+      },
+      "minecraft:interact_animation": {},
+      "minecraft:item_model": "minecraft:chorus_fruit",
+      "minecraft:item_name": {
+        "translate": "item.minecraft.chorus_fruit"
+      },
+      "minecraft:lore": [],
+      "minecraft:max_stack_size": 64,
+      "minecraft:rarity": "common",
+      "minecraft:repair_cost": 0,
+      "minecraft:tooltip_display": {},
+      "minecraft:use_cooldown": {
+        "seconds": 1.0
+      },
+      "minecraft:use_effects": {}
     }
   }
 }

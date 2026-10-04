@@ -1,7 +1,9 @@
 # Fixture Capture Procedure — `template_placement.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started. The data pack is
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
 save directory, and every placement runs the real `StructureTemplate.placeInWorld`
@@ -12,9 +14,7 @@ writes.
 (`StubLevel.java` supplies the level).
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpTemplatePlacement --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture template_placement
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file

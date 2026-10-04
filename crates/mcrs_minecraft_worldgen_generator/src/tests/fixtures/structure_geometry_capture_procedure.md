@@ -1,7 +1,9 @@
 # Fixture Capture Procedure — `structure_geometry.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started. The data pack is
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
 save directory, every start is built by the real `Structure.generate` over a
@@ -14,9 +16,7 @@ entities it spawns.
 (`StubLevel.java` supplies the level)
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpStructureGeometry --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture structure_geometry
 ```
 
 Output is deterministic in every value: two consecutive runs produce a file
@@ -25,6 +25,9 @@ of the same size (575 219 bytes) that differs only in the order of the
 which the JVM's identity hashes decide, so a consumer comparing entity NBT
 must sort that list. The run log must contain no `Serialization errors`
 line; the capture that produced this file had none.
+
+The body of this dump changed at the version it was last recaptured at: the
+file kept its size and 578 bytes of its body differ from the capture before.
 
 **Consumer:** `crates/mcrs_minecraft_worldgen_generator/src/tests/structure_geometry.rs`,
 which runs the site and the layout over a `SiteWorld` that is the same flat
@@ -227,7 +230,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCSTRGE0"
 format_version   u32   currently 1
-world_version    u32   5119
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
 palette_count    u32
 palette          str * palette_count   BlockStateParser.serialize, first-use order

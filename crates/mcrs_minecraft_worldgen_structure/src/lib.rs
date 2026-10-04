@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+pub mod blueprint;
 pub mod frozen;
 pub mod hardcoded;
 pub mod jigsaw;
@@ -16,11 +17,15 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
-use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature, StructureProcessorList};
+use mcrs_minecraft_worldgen_feature::proto::{
+    Holder, PlacedFeature, StructureProcessorList, WrappedProcessors,
+};
 use mcrs_minecraft_worldgen_feature::tree::{PositiveFloat, UnitFloat, non_empty};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -28,6 +33,10 @@ use mcrs_minecraft_worldgen_feature::tree::{PositiveFloat, UnitFloat, non_empty}
 pub struct StructureSet {
     pub structures: Vec<StructureSelectionEntry>,
     pub placement: StructurePlacement,
+}
+
+impl RegistryKey for StructureSet {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/structure_set");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -200,10 +209,6 @@ pub enum Structure {
     },
 }
 
-impl mcrs_minecraft_core::tag_key::TaggedRegistry for Structure {
-    const REGISTRY_PATH: &'static str = "worldgen/structure";
-}
-
 impl Structure {
     pub fn settings(&self) -> &StructureSettings {
         match self {
@@ -252,9 +257,21 @@ pub struct StructureSettings {
     pub terrain_adaptation: TerrainAdaptation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MobCategory {
+macro_rules! mob_categories {
+    ($($category:ident),* $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        pub enum MobCategory {
+            $($category),*
+        }
+
+        impl MobCategory {
+            pub const ALL: &[MobCategory] = &[$(MobCategory::$category),*];
+        }
+    };
+}
+
+mob_categories! {
     Monster,
     Creature,
     Ambient,
@@ -523,6 +540,28 @@ pub struct SingleElement {
     pub projection: Projection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub override_liquid_settings: Option<LiquidSettings>,
+}
+
+impl SingleElement {
+    /// No processor list is an empty list written in place, not a reference.
+    pub fn new(
+        location: impl Into<ResourceLocation>,
+        processors: Option<Holder<StructureProcessorList>>,
+        projection: Projection,
+    ) -> Self {
+        SingleElement {
+            location: location.into(),
+            processors: processors.unwrap_or_else(|| {
+                Holder::Inline(Box::new(StructureProcessorList(Either::Left(
+                    WrappedProcessors {
+                        processors: Vec::new(),
+                    },
+                ))))
+            }),
+            projection,
+            override_liquid_settings: None,
+        }
+    }
 }
 
 #[cfg(test)]

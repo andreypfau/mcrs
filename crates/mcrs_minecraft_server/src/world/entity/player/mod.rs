@@ -3,7 +3,8 @@ use crate::ops::{DefaultOpLevel, OpList};
 use crate::world::bus::to;
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
-    OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PlayerInfoEntry,
+    OutboundPlayerAttached, OutboundPlayerPacket, OutboundPlayerReleased, PacketPayload,
+    PlayerInfoEntry,
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -118,9 +119,13 @@ impl Plugin for DimPlayerPlugin {
         app.add_plugins(GameModePlugin);
         app.add_systems(
             Update,
-            (consume_inbound_player_spawn, send_op_level).chain(),
+            (
+                (consume_inbound_player_spawn, send_op_level).chain(),
+                // A player spawned and despawned in one drain must be saved and removed, or it
+                // lingers and its autosaves overwrite the next session's file.
+                despawn_inbound_player.after(consume_inbound_player_spawn),
+            ),
         );
-        app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
         app.add_systems(
             FixedUpdate,
@@ -379,6 +384,11 @@ pub fn despawn_inbound_player(
                 });
             }
         }
+        // Queued after the save so the host never learns of the release before the file is written.
+        let session = msg.session;
+        commands.queue(move |world: &mut World| {
+            world.write_message(OutboundPlayerReleased { session });
+        });
     }
 }
 
@@ -446,5 +456,35 @@ pub fn unhide_on_rollback(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::App;
+    use bevy_ecs::schedule::ScheduleBuildError;
+
+    #[test]
+    fn a_despawn_is_handled_after_a_spawn_drained_in_the_same_tick() {
+        let mut app = App::new();
+        app.add_plugins(DimPlayerPlugin);
+        // This closes a cycle exactly when the spawn is ordered before the despawn.
+        app.add_systems(
+            Update,
+            (|| {})
+                .after(despawn_inbound_player)
+                .before(consume_inbound_player_spawn),
+        );
+        let built = app.world_mut().schedule_scope(Update, |world, schedule| {
+            schedule.initialize(world).map(|_| ())
+        });
+        assert!(
+            matches!(
+                built,
+                Err(ScheduleBuildError::CrossDependency(_) | ScheduleBuildError::DependencySort(_))
+            ),
+            "{built:?}"
+        );
     }
 }

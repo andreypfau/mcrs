@@ -744,16 +744,6 @@ pub(crate) mod tests {
             &mut rng,
             BlockPos::new(0, 15, 0)
         ));
-        assert_eq!(rng.next_java_long(), CLUSTER_PIN);
-    }
-
-    const CLUSTER_PIN: i64 = 3120301191049866738;
-
-    #[test]
-    fn a_cluster_grows_pointed_blocks_at_both_ends() {
-        let mut volume = cave(10, 20);
-        let mut rng = WorldgenRandom::new(0x005e_ed77);
-        place_speleothem_cluster(&cluster(), &mut volume, &mut rng, BlockPos::new(0, 15, 0));
         let grown = volume
             .writes
             .iter()
@@ -764,7 +754,10 @@ pub(crate) mod tests {
             volume.writes.iter().any(|(_, state)| *state == DRIPSTONE),
             "the layer under each end is replaced with the base block"
         );
+        assert_eq!(rng.next_java_long(), CLUSTER_PIN);
     }
+
+    const CLUSTER_PIN: i64 = 3120301191049866738;
 
     fn dripstone() -> CompiledLargeDripstone {
         CompiledLargeDripstone {
@@ -833,13 +826,6 @@ pub(crate) mod tests {
             rng, header,
             "a wide column also spends the wind and the per-cell draws"
         );
-    }
-
-    #[test]
-    fn a_wide_cave_grows_dripstone_blocks() {
-        let mut volume = cave(0, 40);
-        let mut rng = WorldgenRandom::new(0x1234_5678);
-        place_large_dripstone(&dripstone(), &mut volume, &mut rng, BlockPos::new(0, 20, 0));
         assert!(
             volume.writes.iter().any(|(_, state)| *state == DRIPSTONE),
             "a 39-high cave takes a full column"

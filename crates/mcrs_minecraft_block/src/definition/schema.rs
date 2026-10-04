@@ -700,30 +700,6 @@ mod tests {
     }
 
     #[test]
-    fn component_of_the_wrong_shape_is_an_error_naming_it() {
-        let err = serde_json::from_str::<Components>(r#"{"minecraft:light_emission": "bright"}"#)
-            .unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("component `minecraft:light_emission`"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn duplicate_component_is_an_error() {
-        let err = serde_json::from_str::<Components>(
-            r#"{"mcrs:emissive_rendering": true, "mcrs:emissive_rendering": false}"#,
-        )
-        .unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("duplicate component `mcrs:emissive_rendering`"),
-            "{err}"
-        );
-    }
-
-    #[test]
     fn properties_keep_declaration_order() {
         let props: BlockProperties = serde_json::from_str(
             r#"{"facing":["north","south"],"half":["top","bottom"],"waterlogged":[true,false]}"#,

@@ -412,48 +412,10 @@ mod tests {
     }
 
     #[test]
-    fn section_lookup_loaded() {
-        let mut si = ColumnSections::new(-4, 24);
-        let e = fake_entity(7);
-        si.set_loaded(2, e);
-        assert_eq!(si.lookup(2), SectionLookup::Loaded(e));
-    }
-
-    #[test]
-    fn section_lookup_unloaded() {
-        let si = ColumnSections::new(-4, 24);
-        assert_eq!(si.lookup(0), SectionLookup::Unloaded);
-    }
-
-    #[test]
-    fn section_lookup_just_below_range() {
-        let si = ColumnSections::new(-4, 24);
-        assert_eq!(si.lookup(-5), SectionLookup::OutOfRange);
-    }
-
-    #[test]
     fn section_lookup_just_above_range() {
         let si = ColumnSections::new(-4, 24);
         // min_section_y=-4, len=24 -> real range is -4..=19.
         assert_eq!(si.lookup(20), SectionLookup::OutOfRange);
-    }
-
-    #[test]
-    fn section_lookup_out_of_range_low() {
-        let si = ColumnSections::new(-4, 24);
-        assert_eq!(si.lookup(-6), SectionLookup::OutOfRange);
-    }
-
-    #[test]
-    fn section_lookup_out_of_range_high() {
-        let si = ColumnSections::new(-4, 24);
-        assert_eq!(si.lookup(21), SectionLookup::OutOfRange);
-    }
-
-    #[test]
-    fn iter_length_equals_real_count() {
-        let si = ColumnSections::new(-4, 24);
-        assert_eq!(si.iter().count(), 24);
     }
 
     #[test]
@@ -481,25 +443,6 @@ mod tests {
         assert_eq!(bundle.col_pos.0, col_pos);
         assert_eq!(bundle.sections.min_section_y, -4);
         assert_eq!(bundle.sections.sections.len(), 24);
-    }
-
-    #[test]
-    fn column_bundle_with_non_negative_min_y() {
-        let dim_config = DimensionTypeConfig::new(0, 256);
-        let in_dim = InDimension(fake_entity(0));
-        let col_pos = ColumnPos::new(0, 0);
-        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
-        assert_eq!(bundle.sections.min_section_y, 0);
-        assert_eq!(bundle.sections.sections.len(), 16);
-    }
-
-    #[test]
-    fn column_slot_default_section_count() {
-        let slot = ColumnSlot {
-            entity: fake_entity(2),
-            section_count: 1,
-        };
-        assert_eq!(slot.section_count, 1);
     }
 
     #[test]

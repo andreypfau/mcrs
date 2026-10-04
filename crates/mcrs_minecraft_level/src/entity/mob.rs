@@ -2,8 +2,8 @@ use bevy_derive::Deref;
 use bevy_ecs::prelude::{Component, Entity};
 use bitflags::bitflags;
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_world::entity::EntityType;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use uuid::Uuid;
 

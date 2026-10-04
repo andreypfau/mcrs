@@ -669,32 +669,57 @@ not.
 Large tunnels and canyons have a shape extended along a trajectory, which a field
 expresses badly. The second mechanism is direct carving.
 
-Carving produces a **set of positions** `C ⊆ ℤ³`. A carving source is the unit of
-volume where the trajectory begins; the overall result is a union:
+Carving produces a **set of positions** `C ⊆ ℤ³` in each target unit `t`. A carving
+source is the unit of volume where the trajectory begins; the result in `t` is a union over
+the sources that can reach it:
 
 ```
-C = ⋃ carve(seed, source)   over all sources
+C(t) = ⋃ carve(seed, source, t)   over the sources within r of t
 ```
+
+The target is an argument of `carve`, not only of the union, because a trajectory is cut off
+per target by the test below. What a source leaves in `t` is its trajectory up to the first
+step at which `t`'s own test fails, not the cells of the whole trajectory that happen to fall
+in `t`.
 
 Phrasing it as a set rather than a sequence of writes is not stylistic.
 
-**K1.** The union is **idempotent and order-independent**. Two sources that carved
-the same position give the same result as one. Hence the processing order of
+**K1.** For a fixed target the union is **idempotent and order-independent**. Two sources
+that carved the same position give the same result as one. Hence the processing order of
 sources is unobservable — unlike the scattering stages of §11. **K2. Geometry is
 separated from substance.** The set does not know what to put in the space it
 freed; substitution is a separate pass using the fluid level field of §7. **K3.**
 The set is **bounded by construction**: a trajectory has bounded length, so for
-every unit there is a finite radius beyond which no source can reach it.
+every unit there is a finite radius `r` beyond which no source can reach it, and a unit
+considers only the sources within `r` of itself, whatever a source's own trajectory would
+reach. **K6.** The contribution of a source to a target does not depend on which other
+targets are being carved with it.
 
-From K1 follows the main practical property: **a mask may be built over a region
-of any size, and the result coincides exactly with the union of the masks of its
-parts.** That makes enlarging the evaluation region free as far as correctness
-goes. For a region of `W × W` the source count per unit area falls as
-`(W + 2r)² / W²`: for radius 8 and a 16 × 16 region that is four carver passes per
-column instead of 289.
+From K1 and K6 follows the main practical property: **a mask may be built over a region of
+any size, and the cells in each of its columns coincide exactly with the mask of that column
+alone** — provided the walk keeps each column's own cut-off and each column's own source
+radius, which a region does by carrying, along each trajectory, the set of columns for which
+it is still live. That makes enlarging the evaluation region free as far as correctness goes.
+For a region of `W × W` columns the number of source walks per column falls as
+`(W + 2r)² / W²`: for radius 8 and `W = 2` that is 81 walks per column instead of 289.
+
+The values involved are three and are stated separately. The tunnel range of the modern
+carvers (4 chunks, which makes a tunnel at most 112 blocks long) and the source radius (8
+chunks) are the reference's own numbers, and the radius is not computed from the range. The
+Beta carver's tunnel length is computed from the source radius (`16r − 16`), so the two
+cannot disagree. The region width is a third value, chosen by measurement, and is neither
+derived from the other two nor constrains them: a wider region only adds `2r` columns of
+sources on each side.
 
 Contrast with scattering stages, where enlarging the region changes write order
-and therefore changes the world. The difference is entirely K1.
+and therefore changes the world. The difference is K1 together with K6.
+
+**What is region-scoped.** Only the mask of the modern carvers, caves and canyons. What a
+carved cell becomes (air, water, lava) is decided per column afterwards, from that column's
+own terrain and fluid field. The Beta carver stays per column: a split draws from the
+source's own generator, and its water abort reads the terrain of the target column, so a
+Beta source cannot be walked once for several columns and give each the answer it would give
+alone.
 
 ### Representation
 
@@ -706,15 +731,26 @@ consumer works by strips anyway.
 
 ### Trajectory pruning
 
-A trajectory must be able to answer, at each step, whether the remaining path can
-still reach the target region; if not, the recursion stops. With such pruning the
-real redundancy of the trajectory walk is tens of times, not hundreds, and the
-walk is the smaller part of the stage's cost: rasterising the shape into the mask
-dominates.
+A trajectory is tested at each step that carves: if the squared distance from the centre of
+the target to the position, less the square of the steps that remain, exceeds the square of
+the tunnel's thickness plus 18 blocks, the trajectory stops for that target, together with
+every branch that would have split from it later. The test is **not conservative**: a path
+that fails it could still have curved back into the target, and what it would have carved
+there is lost. The cut is therefore part of the definition of the result, and it is made per
+target: two columns see different prefixes of the same trajectory.
 
-Hence a planning conclusion: **caching trajectories per source buys little.** The
-win comes from enlarging the region (K1), which removes the redundancy of both the
-walk and the rasterisation at once.
+The cut is why a shared walk needs a **live set**. A region walks each source once with the
+set of its columns for which the test still holds; a step carves only into live columns, a
+split passes its live set to its branches, and a trajectory ends when the set is empty. The
+columns that are not within the source radius of the source never enter the set.
+
+With such pruning the real redundancy of the trajectory walk is tens of times, not
+hundreds. A region removes the redundancy of the walk and not that of the rasterisation:
+each ellipsoid is still rasterised once for every column it touches. Measured (`PERF.md`),
+a 2 × 2 region cuts the mask time per column by 44% and 4 × 4 and 8 × 8 regions by 57%.
+
+Hence a planning conclusion: **caching trajectories per source buys little.** The win comes
+from enlarging the region (K1, K6), and it is bounded by what the rasterisation costs.
 
 A carved block is passed to `substance` with a density of zero rather than the
 real one. This is deliberate: in a newly opened cavity the question "solid or
@@ -1025,10 +1061,18 @@ Three mechanisms benefit from the evaluation unit being larger than the storage
 unit:
 
 **L3.** Lattice edge redundancy falls as `(cW+1)²/(cW)²` — up to a third of the
-work on the most expensive layer. **K1.** Carving is computed once per region:
+work on the most expensive layer. **K1.** Carving walks each source once per region:
 sources per unit area fall as `(W+2r)²/W²`. **C3.** Inside a region, scattering
 stages need neither colouring nor locks — conflicts are possible only at the seam.
 The seam fraction falls as `1 − ((W−2)/W)²`.
+
+The carving region is not the footprint of the staged pipeline. It is a fixed
+tiling, the region of a column found by floor division of its coordinates, built on the
+first request of any of its columns and kept in a bounded cache until another region
+replaces it. It is not a sliding 3 × 3 window around the column being generated. Carving
+happens inside the single-column fill, before the blocks of the column are decided, so a
+column reads the slot of its region and no neighbouring column's blocks. Production uses
+`W = 2`: an entry holds four column masks, 48,128 bytes in the overworld.
 
 Constraint: only lattice evaluation may be enlarged. A block-resolution buffer
 grows as `W²`, and for a 4 × 4 column region that is already megabytes,
@@ -1456,7 +1500,7 @@ For checking behaviour against, not for copying. Paths are relative to
 | Cell bounds | none | an interval over eight corners settles a whole cell | The convex hull lemma (§4) |
 | Intermediate buffers | a full-volume buffer per node | tile-sized buffers in cache | T2: otherwise scaling degrades as cores are added |
 | Rank reduction | slice nodes | a stratum with zero stride | E4: no copying at all |
-| Carving region | mask per column | mask per region | K1: the union is idempotent, the result is exactly the same |
+| Carving region | mask per column | the mask of the modern carvers is built per region by one walk per source with a live set of columns; the Beta carver stays per column | K1, K6: each column's cells equal the mask of that column alone; why a Beta source cannot share a walk is in §9 |
 | Heightmaps | a separate pass from the chunk ceiling | the fused descent bounded by the ordering of predicates | `heightmap.md` §3–4. Only the `¬air` map is maintained during fill; the rest must wait for carving, which removes blocks |
 | Fluid skip threshold | one per column from the surface maximum | per strip | A4: one peak otherwise denies the cheap path to the whole volume |
 | Precision | one implementation | two profiles, strict as the oracle | §15: separates "computed differently" from "a different function" |

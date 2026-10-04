@@ -5,7 +5,7 @@ use crate::surface::{Visit, descend_strip, set_block};
 use crate::task::CancellationToken;
 use crate::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes, spans_dimension,
+    multi_noise_grid, multi_noise_palettes, spans_dimension,
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::registry;
 use std::collections::{BTreeMap, HashMap};
 
 const AIR: VoxelId = VoxelId(0);
@@ -143,9 +143,10 @@ pub fn overworld_material_router(
     seed: u64,
     ids: &HashMap<String, u32>,
 ) -> (NoiseRouter, MaterialProgram) {
-    let path = worldgen_dir().join("noise_settings/overworld.json");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft("overworld"),
+    );
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
@@ -214,8 +215,7 @@ pub(super) fn surfaced_column(
         &CancellationToken::new(),
     )
     .expect("the column fills");
-    let (_, grid) =
-        multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let biomes = multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -224,7 +224,8 @@ pub(super) fn surfaced_column(
         section_x,
         section_z,
         &mut filled.tops,
-        &grid.expect("the multi-noise fill widens a grid"),
+        &biomes,
+        y_sections[0],
         router,
         material,
         &surface_ids(ids),
@@ -373,7 +374,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &CancellationToken::new(),
         )
         .expect("the column fills");
-        let (_, grid) =
+        let biomes =
             multi_noise_palettes(&router, &table, section_x * 16, section_z * 16, &y_sections);
         let carver_ids = ModernCarverBlockIds::for_test(Vec::new());
         apply_material_surface(
@@ -381,7 +382,8 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             section_x,
             section_z,
             &mut filled.tops,
-            &grid.expect("the multi-noise fill widens a grid"),
+            &biomes,
+            y_sections[0],
             &router,
             &material,
             &surface_ids(&ids),
@@ -509,10 +511,10 @@ fn grid_biomes(
         |biome| u8::try_from(ids[biome]).ok(),
     )
     .expect("the overworld preset resolves");
-    let (_, grid) =
-        multi_noise_palettes(router, &table, section_x * 16, section_z * 16, y_sections);
+    let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
+        .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
-    for id in &grid.expect("the multi-noise fill widens a grid").ids {
+    for id in &grid.ids {
         present[*id as usize] = true;
     }
     present.iter().filter(|seen| **seen).count()
@@ -638,9 +640,9 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
                 continue;
             };
             palette.0.for_each(|state| states.push(state));
-            for cx in 0..4 {
-                for cy in 0..4 {
-                    for cz in 0..4 {
+            for cx in 0..16 {
+                for cy in 0..16 {
+                    for cz in 0..16 {
                         biomes.push(biome_palette.get_cell(cx, cy, cz));
                     }
                 }
@@ -678,7 +680,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     );
 }
 
-/// The same column under a constant biome grid, with the shortcuts on and off.
+/// The same column under constant biome containers, with the shortcuts on and off.
 fn surfaced_column_fixed(
     router: &NoiseRouter,
     material: &MaterialProgram,
@@ -689,9 +691,7 @@ fn surfaced_column_fixed(
     y_sections: &[i32],
     bypass_shortcuts: bool,
 ) -> ColumnBlocks {
-    use crate::multi_noise_biomes::BiomeGrid;
-    use bevy_math::IVec3;
-    use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+    use mcrs_minecraft_level::palette::BiomePalette;
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut filled = fill_column_dense_any(
@@ -707,17 +707,8 @@ fn surfaced_column_fixed(
     )
     .expect("the column fills");
 
-    let (first, last) = (y_sections[0], y_sections[y_sections.len() - 1]);
-    let volume = SampleGrid::new(
-        IVec3::new(6, (last - first + 1) * 4 + 2, 6),
-        IVec3::new(section_x * 16 - 4, first * 16 - 4, section_z * 16 - 4),
-        IVec3::splat(4),
-    );
     let id = u8::try_from(ids[biome]).expect("a biome id the palette can store");
-    let grid = BiomeGrid {
-        ids: vec![id; volume.len()],
-        volume,
-    };
+    let biomes = vec![BiomePalette::homogeneous(id); y_sections.len()];
 
     let mut scratch = MaterialScratch::default();
     scratch.bypass_shortcuts(bypass_shortcuts);
@@ -726,7 +717,8 @@ fn surfaced_column_fixed(
         section_x,
         section_z,
         &mut filled.tops,
-        &grid,
+        &biomes,
+        y_sections[0],
         router,
         material,
         &surface_ids(ids),
@@ -741,6 +733,17 @@ fn surfaced_column_fixed(
 /// without a badlands column the settled path is never walked.
 #[test]
 fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+    settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7)]);
+}
+
+mod exhaustive {
+    #[test]
+    fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+        super::settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7), (-22, 38)]);
+    }
+}
+
+fn settled_badlands_runs_write_the_bands_the_descent_would(columns: &[(i32, i32)]) {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);
     let y_sections: Vec<i32> = (-4..20).collect();
@@ -753,7 +756,7 @@ fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
         "minecraft:eroded_badlands",
         "minecraft:wooded_badlands",
     ] {
-        for (section_x, section_z) in [(3, -7), (-22, 38)] {
+        for &(section_x, section_z) in columns {
             let settled = surfaced_column_fixed(
                 &router,
                 &material,

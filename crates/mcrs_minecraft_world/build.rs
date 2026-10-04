@@ -56,7 +56,11 @@ const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[
     ("BANNER_PATTERN", "minecraft/banner_pattern", "json"),
     ("JUKEBOX_SONG", "minecraft/jukebox_song", "json"),
     ("BLOCK_TRANSFORMER", "minecraft/block_transformer", "json"),
-    ("DECORATED_POT_PATTERN", "minecraft/decorated_pot_pattern", "json"),
+    (
+        "DECORATED_POT_PATTERN",
+        "minecraft/decorated_pot_pattern",
+        "json",
+    ),
     ("INSTRUMENT", "minecraft/instrument", "json"),
     ("DIALOG", "minecraft/dialog", "json"),
     ("TIMELINE", "minecraft/timeline", "json"),

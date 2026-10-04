@@ -1,0 +1,92 @@
+use super::Piece::*;
+use super::{Piece, Pool, legacy, pool};
+use crate::keys::{placed, processors};
+
+const STREETS: &[(Piece, i32)] = &[
+    (legacy("corner_").padded(1, 2, 2), 3),
+    (legacy("straight_").padded(1, 2, 2), 4),
+    (legacy("straight_03"), 3),
+    (legacy("crossroad_").padded(1, 3, 2), 3),
+    (legacy("square_").padded(1, 2, 2), 3),
+    (legacy("turn_01"), 3),
+];
+
+const DECOR: &[(Piece, i32)] = &[
+    (legacy("desert_lamp_1"), 10),
+    (Feature(placed!("patch_cactus")), 4),
+    (Feature(placed!("pile_hay")), 4),
+    (Empty, 10),
+];
+
+#[rustfmt::skip]
+pub const POOLS: &[Pool] = &[
+    pool("village/desert/camel").dir("village/desert/").pieces(&[(legacy("camel_spawn"), 1)]),
+    pool("village/desert/decor").dir("village/desert/").pieces(DECOR),
+    pool("village/desert/houses").fallback("village/desert/terminators").dir("village/desert/houses/").pieces(&[
+        (legacy("desert_small_house_").numbered(1, 5), 2),
+        (legacy("desert_small_house_6"), 1),
+        (legacy("desert_small_house_").numbered(7, 8), 2),
+        (legacy("desert_medium_house_").numbered(1, 2), 2),
+        (legacy("desert_butcher_shop_1"), 2),
+        (legacy("desert_tool_smith_1"), 2),
+        (legacy("desert_fletcher_house_1"), 2),
+        (legacy("desert_shepherd_house_1"), 2),
+        (legacy("desert_armorer_1"), 1),
+        (legacy("desert_fisher_1"), 2),
+        (legacy("desert_tannery_1"), 2),
+        (legacy("desert_cartographer_house_1"), 2),
+        (legacy("desert_library_1"), 2),
+        (legacy("desert_mason_1"), 2),
+        (legacy("desert_weaponsmith_1"), 2),
+        (legacy("desert_temple_").numbered(1, 2), 2),
+        (legacy("desert_large_farm_1").with(processors::FARM_DESERT), 11),
+        (legacy("desert_farm_").numbered(1, 2).with(processors::FARM_DESERT), 4),
+        (legacy("desert_animal_pen_").numbered(1, 2), 2),
+        (Empty, 5),
+    ]),
+    pool("village/desert/streets").fallback("village/desert/terminators").terrain_matching().dir("village/desert/streets/").pieces(STREETS),
+    pool("village/desert/terminators").terrain_matching().dir("village/desert/terminators/").pieces(&[(legacy("terminator_").padded(1, 2, 2), 1)]),
+    pool("village/desert/town_centers").dir("village/desert/").pieces(&[
+        (legacy("town_centers/desert_meeting_point_").numbered(1, 2), 98),
+        (legacy("town_centers/desert_meeting_point_3"), 49),
+        (legacy("zombie/town_centers/desert_meeting_point_").numbered(1, 2).with(processors::ZOMBIE_DESERT), 2),
+        (legacy("zombie/town_centers/desert_meeting_point_3").with(processors::ZOMBIE_DESERT), 1),
+    ]),
+    pool("village/desert/villagers").dir("village/desert/villagers/").pieces(&[
+        (legacy("nitwit"), 1),
+        (legacy("baby"), 1),
+        (legacy("unemployed"), 10),
+    ]),
+    pool("village/desert/zombie/decor").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(DECOR),
+    pool("village/desert/zombie/houses").fallback("village/desert/zombie/terminators").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(&[
+        (legacy("zombie/houses/desert_small_house_").numbered(1, 5), 2),
+        (legacy("zombie/houses/desert_small_house_6"), 1),
+        (legacy("zombie/houses/desert_small_house_").numbered(7, 8), 2),
+        (legacy("zombie/houses/desert_medium_house_").numbered(1, 2), 2),
+        (legacy("houses/desert_butcher_shop_1"), 2),
+        (legacy("houses/desert_tool_smith_1"), 2),
+        (legacy("houses/desert_fletcher_house_1"), 2),
+        (legacy("houses/desert_shepherd_house_1"), 2),
+        (legacy("houses/desert_armorer_1"), 1),
+        (legacy("houses/desert_fisher_1"), 2),
+        (legacy("houses/desert_tannery_1"), 2),
+        (legacy("houses/desert_cartographer_house_1"), 2),
+        (legacy("houses/desert_library_1"), 2),
+        (legacy("houses/desert_mason_1"), 2),
+        (legacy("houses/desert_weaponsmith_1"), 2),
+        (legacy("houses/desert_temple_").numbered(1, 2), 2),
+        (legacy("houses/desert_large_farm_1"), 7),
+        (legacy("houses/desert_farm_").numbered(1, 2), 4),
+        (legacy("houses/desert_animal_pen_").numbered(1, 2), 2),
+        (Empty, 5),
+    ]),
+    pool("village/desert/zombie/streets").fallback("village/desert/zombie/terminators").terrain_matching().dir("village/desert/zombie/streets/").pieces(STREETS),
+    pool("village/desert/zombie/terminators").terrain_matching().dir("village/desert/").pieces(&[
+        (legacy("terminators/terminator_01"), 1),
+        (legacy("zombie/terminators/terminator_02"), 1),
+    ]),
+    pool("village/desert/zombie/villagers").dir("village/desert/zombie/villagers/").pieces(&[
+        (legacy("nitwit"), 1),
+        (legacy("unemployed"), 10),
+    ]),
+];

@@ -1,5 +1,6 @@
+use crate::inbound_rate::InboundRateBucket;
 use crate::{ConnectionState, NetworkSet, RawConnection};
-use crate::{connect, event, webtransport};
+use crate::{connect, event, intent, lan, webtransport};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
@@ -11,17 +12,21 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::{Sender, channel};
+use tracing::{info, warn};
 
 pub struct NetworkPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
     /// [`BoundAddress`].
     pub address: SocketAddr,
+    /// A listener beyond loopback announces itself on the local network.
+    pub announce_on_lan: bool,
 }
 
 impl Default for NetworkPlugin {
     fn default() -> Self {
         Self {
             address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
+            announce_on_lan: true,
         }
     }
 }
@@ -54,11 +59,12 @@ impl WebTransportEndpoint {
 
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut App) {
-        build_plugin(app, self.address).expect("Failed to build network plugin");
+        build_plugin(app, self.address, self.announce_on_lan)
+            .expect("Failed to build network plugin");
     }
 }
 
-fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
+fn build_plugin(app: &mut App, address: SocketAddr, announce_on_lan: bool) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
 
@@ -105,14 +111,33 @@ fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
         let Some(listener) = listener.take() else {
             return;
         };
+        match lan::announce_port(bound, announce_on_lan) {
+            Ok(port) => {
+                let started = lan::start(
+                    lan::source_address(bound),
+                    lan::GROUP.into(),
+                    lan::INTERVAL,
+                    intent::MOTD,
+                    port,
+                    shared_state.0.new_connections_send.clone(),
+                );
+                if let Err(error) = started {
+                    warn!("LAN announcement not started: {error}");
+                }
+            }
+            Err(lan::Unannounced::NoIpv4) => info!(
+                "LAN announcement not started: the server listens on {bound}, which accepts no \
+                 IPv4, and a LAN client joins the IPv4 address the announcement comes from"
+            ),
+            Err(lan::Unannounced::Off | lan::Unannounced::Loopback) => {}
+        }
         tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
     let spawn_new_raw_connections = move |world: &mut World| {
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
                 Ok(session) => {
-                    // OutboundQueue and InboundRateBucket components live in mcrs_minecraft_server
-                    // and are attached via an observer in the bridge plugin, not here.
+                    // The outbound queue lives in mcrs_minecraft_server, which attaches it.
                     world.spawn((
                         ServerSideConnection { raw: session },
                         ConnectionState::Login,
@@ -148,6 +173,7 @@ pub(crate) struct SharedNetworkStateInner {
 }
 
 #[derive(Component)]
+#[require(InboundRateBucket)]
 pub struct ServerSideConnection {
     pub raw: Box<RawConnection>,
 }

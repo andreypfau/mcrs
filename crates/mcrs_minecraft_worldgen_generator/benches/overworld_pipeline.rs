@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
-    multi_noise_palettes,
+    multi_noise_grid, multi_noise_palettes,
 };
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -45,9 +45,10 @@ fn biome_ids() -> HashMap<String, u32> {
 }
 
 fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, MaterialProgram) {
-    let path = worldgen_dir().join("noise_settings/overworld.json");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft("overworld"),
+    );
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
@@ -73,19 +74,13 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, Mater
 }
 
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = worldgen_dir().join(format!(
-        "biome/{}.json",
-        biome.strip_prefix("minecraft:").unwrap_or(biome)
-    ));
-    let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let names: Vec<String> = match raw.get("carvers") {
-        Some(serde_json::Value::String(one)) => vec![one.clone()],
-        Some(serde_json::Value::Array(many)) => many
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect(),
-        _ => Vec::new(),
-    };
+    let id = ResourceLocation::parse(biome).expect("a biome id");
+    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let names: Vec<String> = biome
+        .carvers
+        .iter()
+        .map(|name| name.as_str().to_owned())
+        .collect();
     names
         .iter()
         .map(|name| {
@@ -174,11 +169,11 @@ fn main() {
         .unwrap();
         s.fill = t.elapsed();
         let t = Instant::now();
-        let (biomes, grid) = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
+        let biomes = multi_noise_palettes(&router, &table, x * 16, z * 16, &y_sections);
         s.biomes = t.elapsed();
 
         let dominant = {
-            let g = grid.as_ref().unwrap();
+            let g = multi_noise_grid(&router, &table, x * 16, z * 16, &y_sections).unwrap();
             let mut counts = [0u32; 256];
             for cz in 0..4i32 {
                 for cx in 0..4i32 {
@@ -212,7 +207,8 @@ fn main() {
             x,
             z,
             &mut filled.tops,
-            grid.as_ref().unwrap(),
+            &biomes,
+            y_sections[0],
             &router,
             &material,
             &surface_ids,

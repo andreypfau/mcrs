@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
@@ -13,10 +13,6 @@ use mcrs_minecraft_environment::world_clock::ClockState;
 pub mod player;
 
 pub use player::{PlayerDat, read_player_dat, write_player_dat};
-
-/// The 26.3 release; the oldest accepted is snapshot 10, the first with this layout.
-pub const WORLD_VERSION: i32 = 5023;
-pub const OLDEST_WORLD_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
@@ -32,7 +28,7 @@ pub enum SaveError {
         path: PathBuf,
         source: mcrs_minecraft_nbt::Error,
     },
-    #[error("{path}: DataVersion {found}, expected {OLDEST_WORLD_VERSION} to {expected}")]
+    #[error("{path}: DataVersion {found}, expected {expected}")]
     DataVersion {
         path: PathBuf,
         found: i32,
@@ -161,13 +157,13 @@ fn decode<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError
 }
 
 fn check_data_version(found: i32, path: &Path) -> Result<(), SaveError> {
-    if (OLDEST_WORLD_VERSION..=WORLD_VERSION).contains(&found) {
+    if found == VERSION.world_version {
         return Ok(());
     }
     Err(SaveError::DataVersion {
         path: path.to_path_buf(),
         found,
-        expected: WORLD_VERSION,
+        expected: VERSION.world_version,
     })
 }
 

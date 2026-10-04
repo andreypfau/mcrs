@@ -25,7 +25,7 @@
         "redstone_conductor": true
       },
       "minecraft:movable": {
-        "movement_type": "push_pull"
+        "movement_type": "immovable"
       },
       "minecraft:instrument_sound": {
         "down": "basedrum"

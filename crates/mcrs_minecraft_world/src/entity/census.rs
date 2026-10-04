@@ -1,7 +1,9 @@
-use super::villager::{VillagerProfession, VillagerType};
-use super::{attribute, minecraft};
+use super::minecraft;
+use super::villager::VillagerProfession;
 use crate::data_pack::registry_files::{FILES_CAT_SOUND_VARIANT, FILES_CAT_VARIANT};
 use bytes::Buf;
+use mcrs_minecraft_entity::VillagerType;
+use mcrs_minecraft_entity::attribute;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -67,7 +69,8 @@ fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
         .collect()
 }
 
-fn entity_type_registry() -> mcrs_minecraft_registry::StaticRegistry<super::EntityType> {
+fn entity_type_registry()
+-> mcrs_minecraft_registry::StaticRegistry<mcrs_minecraft_entity::EntityType> {
     let table = mcrs_minecraft_registry::StaticRegistryTable::load(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
     )
@@ -121,7 +124,7 @@ fn items_carry_their_registry_index() {
     let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
     let (blocks, _) = mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
         .expect("the block corpus loads");
-    let items = mcrs_minecraft_item::load_item_definitions(&asset_server, &blocks)
+    let items = crate::item::definitions::load_item_definitions(&asset_server, &blocks)
         .expect("the item corpus loads");
     let actual: Vec<String> = items
         .iter()

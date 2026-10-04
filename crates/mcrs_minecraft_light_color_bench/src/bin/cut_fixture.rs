@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use mcrs_minecraft_anvil::{Chunk, PaletteLookup, Properties, RegionFile};
+use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile};
 use mcrs_minecraft_chunk::{PalettedContainer, VoxelId};
 use mcrs_minecraft_core::{ColumnPos, RegionPos, SectionPos};
 use mcrs_minecraft_light_color_bench::corpus::Corpus;
@@ -16,7 +16,6 @@ usage: cut_fixture scan <world> <dimension> [--max-y Y] [--by types|emitters]
        cut_fixture cut <world> <dimension> <x> <y> <z> <out>
        cut_fixture overlap <out>";
 
-const FULL_STATUS: &str = "minecraft:full";
 const WIDTH: usize = SectionPos::SIZE;
 
 fn main() {
@@ -124,7 +123,7 @@ fn full_chunk(region: &RegionFile, pos: ColumnPos) -> Option<Chunk> {
     let chunk = region
         .read_chunk(pos, &CorpusStates, &AnyBiome)
         .unwrap_or_else(|e| panic!("{e}"))?;
-    (chunk.status == FULL_STATUS).then_some(chunk)
+    (chunk.status == ChunkStatus::Full).then_some(chunk)
 }
 
 fn emits(id: VoxelId) -> bool {

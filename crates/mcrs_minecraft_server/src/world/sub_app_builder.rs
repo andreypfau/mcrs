@@ -83,7 +83,6 @@ use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Item as VanillaItem;
 use mcrs_minecraft_item::Items;
@@ -94,6 +93,7 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
@@ -225,6 +225,9 @@ pub fn spawn_dim_subapp(
     // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
     // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
     sub_app.add_message::<crate::world::bus::InboundPlayerDespawn>();
+    // Written by `despawn_inbound_player` once the player is saved and drained into the
+    // `FromDim` channel by `flush_from_dim_outbox`.
+    sub_app.add_message::<crate::world::bus::OutboundPlayerReleased>();
     // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
     // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
     sub_app.add_message::<crate::world::bus::InboundPlayerPacket>();
@@ -381,6 +384,13 @@ pub fn spawn_dim_subapp(
     // Dropping a notify fsevents watcher joins its CFRunLoop thread and can
     // block forever; one recursive watch over the 22k-file corpus per dimension
     // also costs more than the whole sub-app spawn. Nothing here hot-reloads.
+    sub_app
+        .world_mut()
+        .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
+        .insert(
+            bevy_asset::io::AssetSourceId::Default,
+            mcrs_minecraft_worldgen::bevy::asset_source(&asset_root),
+        );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
         file_path: asset_root,
@@ -674,10 +684,14 @@ fn drain_to_dim_inbox(
 /// costs the acknowledgement the whole column stream is paced by.
 pub(crate) fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
+    mut released: ResMut<Messages<crate::world::bus::OutboundPlayerReleased>>,
     sender: Res<FromDimSender<FromDim>>,
     mut backlog: Local<VecDeque<FromDim>>,
 ) {
     backlog.extend(msgs.drain().map(FromDim::Clientbound));
+    backlog.extend(released.drain().map(|released| FromDim::Released {
+        session: released.session,
+    }));
     while let Some(outbound) = backlog.pop_front() {
         if let Err(flume::TrySendError::Full(outbound)) = sender.0.try_send(outbound) {
             backlog.push_front(outbound);
@@ -746,6 +760,8 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         {
             channels.remove(entity);
         }
+        // A dimension torn down saves none of its players, so nothing is left to wait for.
+        crate::dim::forget_departures(app.world_mut(), |departing| departing.dim == entity);
 
         // Free the host-side label-anchor entity so the host world's
         // dimension-handle archetype matches the live sub-app population.
@@ -776,6 +792,7 @@ mod tests {
         let (tx, rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         let mut world = World::new();
         world.insert_resource(Messages::<OutboundPlayerPacket>::default());
+        world.insert_resource(Messages::<crate::world::bus::OutboundPlayerReleased>::default());
         world.insert_resource(FromDimSender(tx));
         let mut msgs = world.resource_mut::<Messages<OutboundPlayerPacket>>();
         for seq in 0..written as u32 {

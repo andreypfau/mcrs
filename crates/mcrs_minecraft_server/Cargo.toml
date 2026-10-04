@@ -15,7 +15,8 @@ mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_item.workspace = true
+mcrs_minecraft_worldgen_builtin.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
@@ -30,6 +31,7 @@ mcrs_minecraft_light = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_nbt.workspace = true

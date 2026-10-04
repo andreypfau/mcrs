@@ -154,12 +154,12 @@
     },
     "nbt": "{a:1b,name:\"x\"}",
     "components": {
-     "minecraft:max_stack_size": 16,
      "minecraft:custom_data": {
       "x": 100000,
       "name": "mcrs"
      },
-     "minecraft:damage": 7
+     "minecraft:damage": 7,
+     "minecraft:max_stack_size": 16
     },
     "predicates": {
      "minecraft:damage": {},
@@ -978,12 +978,12 @@
     },
     "nbt": "{a:1b,name:\"x\"}",
     "components": {
-     "minecraft:max_stack_size": 16,
-     "minecraft:damage": 7,
      "minecraft:custom_data": {
       "x": 100000,
       "name": "mcrs"
-     }
+     },
+     "minecraft:damage": 7,
+     "minecraft:max_stack_size": 16
     },
     "predicates": {
      "minecraft:damage": {

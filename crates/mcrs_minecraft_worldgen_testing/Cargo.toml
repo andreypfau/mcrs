@@ -10,5 +10,6 @@ doctest = false
 [dependencies]
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_worldgen_builtin.workspace = true
 serde.workspace = true
 serde_json.workspace = true

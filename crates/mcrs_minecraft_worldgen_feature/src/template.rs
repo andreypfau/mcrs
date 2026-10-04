@@ -10,9 +10,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use serde::{Deserialize, Serialize};
 
-use mcrs_minecraft_core::{Mirror, Rotation};
-
-pub const TEMPLATE_DATA_VERSION: i32 = 5023;
+use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -270,8 +268,12 @@ pub fn data_markers<'a>(
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum TemplateError {
-    #[error("{id}: DataVersion {found}, expected {TEMPLATE_DATA_VERSION}")]
-    DataVersion { id: ResourceLocation, found: i32 },
+    #[error("{id}: DataVersion {found}, expected {expected}")]
+    DataVersion {
+        id: ResourceLocation,
+        found: i32,
+        expected: i32,
+    },
     #[error("{id}: has both `palette` and `palettes`")]
     BothPalettes { id: ResourceLocation },
     #[error("{id}: has neither `palette` nor `palettes`")]
@@ -352,38 +354,42 @@ fn orientation(name: &str) -> Option<(Direction, Direction)> {
 
 /// `id[k=v,…]`; anything after the closing `]` is ignored, as the block-state
 /// parser never asserts end of input.
-fn parse_final_state(text: &str) -> Result<PaletteState, String> {
-    let text = text.trim();
-    let (id, rest) = match text.split_once('[') {
-        Some((id, rest)) => (id, Some(rest)),
-        None => (text, None),
-    };
-    let id = ResourceLocation::parse(id.trim()).map_err(|e| e.to_string())?;
-    let Some(rest) = rest else {
-        return Ok(PaletteState {
-            id,
-            properties: None,
-        });
-    };
-    let Some((inner, _)) = rest.split_once(']') else {
-        return Err(format!("`{text}` has no closing `]`"));
-    };
-    let mut properties = BTreeMap::new();
-    for pair in inner.split(',').map(str::trim).filter(|p| !p.is_empty()) {
-        let Some((key, value)) = pair.split_once('=') else {
-            return Err(format!("`{text}`: `{pair}` is not `key=value`"));
+impl std::str::FromStr for PaletteState {
+    type Err = String;
+
+    fn from_str(text: &str) -> Result<PaletteState, String> {
+        let text = text.trim();
+        let (id, rest) = match text.split_once('[') {
+            Some((id, rest)) => (id, Some(rest)),
+            None => (text, None),
         };
-        if properties
-            .insert(key.trim().to_owned(), value.trim().to_owned())
-            .is_some()
-        {
-            return Err(format!("`{text}`: duplicate property `{}`", key.trim()));
+        let id = ResourceLocation::parse(id.trim()).map_err(|e| e.to_string())?;
+        let Some(rest) = rest else {
+            return Ok(PaletteState {
+                id,
+                properties: None,
+            });
+        };
+        let Some((inner, _)) = rest.split_once(']') else {
+            return Err(format!("`{text}` has no closing `]`"));
+        };
+        let mut properties = BTreeMap::new();
+        for pair in inner.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            let Some((key, value)) = pair.split_once('=') else {
+                return Err(format!("`{text}`: `{pair}` is not `key=value`"));
+            };
+            if properties
+                .insert(key.trim().to_owned(), value.trim().to_owned())
+                .is_some()
+            {
+                return Err(format!("`{text}`: duplicate property `{}`", key.trim()));
+            }
         }
+        Ok(PaletteState {
+            id,
+            properties: Some(properties),
+        })
     }
-    Ok(PaletteState {
-        id,
-        properties: Some(properties),
-    })
 }
 
 fn int_or_zero(nbt: &NbtCompound, key: &str) -> Result<i32, String> {
@@ -413,10 +419,11 @@ impl Template {
         resolve: &dyn Fn(&PaletteState) -> Option<ResolvedState>,
     ) -> Result<(FrozenTemplate, TemplateManifest), TemplateError> {
         let err_id = || id.clone();
-        if self.data_version != TEMPLATE_DATA_VERSION {
+        if self.data_version != VERSION.world_version {
             return Err(TemplateError::DataVersion {
                 id: err_id(),
                 found: self.data_version,
+                expected: VERSION.world_version,
             });
         }
         let palettes: Vec<&[PaletteState]> = match (&self.palette, &self.palettes) {
@@ -574,9 +581,11 @@ impl Template {
                     None if front.is_vertical() => Joint::Rollable,
                     None => Joint::Aligned,
                 };
-                let final_state =
-                    parse_final_state(nbt.get_string("final_state").unwrap_or("minecraft:air"))
-                        .map_err(|e| jigsaw(format!("final_state {e}")))?;
+                let final_state = nbt
+                    .get_string("final_state")
+                    .unwrap_or("minecraft:air")
+                    .parse::<PaletteState>()
+                    .map_err(|e| jigsaw(format!("final_state {e}")))?;
                 let final_state = if final_state.id.as_str() == STRUCTURE_VOID {
                     None
                 } else {
@@ -719,56 +728,8 @@ mod tests {
     use mcrs_minecraft_core::BlockPos;
     use mcrs_minecraft_nbt::nbt_compress::{from_gzip_bytes, read_gzip_compound_tag};
     use mcrs_minecraft_nbt::to_nbt_compound;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, nbt_files};
+    use mcrs_minecraft_worldgen_testing::templates;
     use std::io::Cursor;
-
-    fn canonical(compound: &NbtCompound) -> NbtCompound {
-        let mut child_tags: Vec<_> = compound
-            .child_tags
-            .iter()
-            .map(|(k, v)| (k.clone(), canonical_tag(v)))
-            .collect();
-        child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-        NbtCompound { child_tags }
-    }
-
-    fn canonical_tag(tag: &NbtTag) -> NbtTag {
-        match tag {
-            NbtTag::Compound(c) => NbtTag::Compound(canonical(c)),
-            NbtTag::List(items) => NbtTag::List(items.iter().map(canonical_tag).collect()),
-            other => other.clone(),
-        }
-    }
-
-    #[test]
-    fn every_template_round_trips_and_is_pinned() {
-        let files = nbt_files(&assets_dir().join("minecraft/structure"));
-        let (mut with_palettes, mut with_entities) = (0, 0);
-        for path in &files {
-            let bytes = std::fs::read(path).unwrap();
-            let direct = read_gzip_compound_tag(Cursor::new(&bytes)).unwrap();
-            let template: Template = from_gzip_bytes(Cursor::new(&bytes))
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            assert_eq!(
-                template.data_version,
-                TEMPLATE_DATA_VERSION,
-                "{}",
-                path.display()
-            );
-            let back = to_nbt_compound(&template).unwrap();
-            assert_eq!(
-                canonical(&back),
-                canonical(&direct),
-                "{} does not round-trip",
-                path.display()
-            );
-            with_palettes += usize::from(template.palettes.is_some());
-            with_entities += usize::from(!template.entities.is_empty());
-        }
-        assert_eq!(files.len(), 1511);
-        assert_eq!(with_palettes, 20);
-        assert_eq!(with_entities, 172);
-    }
 
     fn state(id: &str, properties: &[(&str, &str)]) -> PaletteState {
         PaletteState {
@@ -822,7 +783,7 @@ mod tests {
             blocks,
             palette: Some(palette),
             palettes: None,
-            data_version: TEMPLATE_DATA_VERSION,
+            data_version: VERSION.world_version,
         }
     }
 
@@ -990,17 +951,20 @@ mod tests {
         let ok = template(vec![planks.clone()], vec![block([0, 0, 0], 0, None)]);
         let freeze = |t: &Template| t.freeze(&id(), &resolve).unwrap_err();
 
-        let t = Template {
-            data_version: TEMPLATE_DATA_VERSION + 1,
-            ..ok.clone()
-        };
-        assert_eq!(
-            freeze(&t),
-            TemplateError::DataVersion {
-                id: id(),
-                found: TEMPLATE_DATA_VERSION + 1
-            }
-        );
+        for found in [VERSION.world_version + 1, VERSION.world_version - 1] {
+            let t = Template {
+                data_version: found,
+                ..ok.clone()
+            };
+            assert_eq!(
+                freeze(&t),
+                TemplateError::DataVersion {
+                    id: id(),
+                    found,
+                    expected: VERSION.world_version
+                }
+            );
+        }
 
         let t = Template {
             palettes: Some(vec![vec![planks.clone()]]),
@@ -1338,54 +1302,28 @@ mod tests {
     }
 
     #[test]
-    fn shipped_template_entities_are_the_pinned_kinds() {
-        let any = |_: &PaletteState| {
-            Some(ResolvedState {
-                id: VoxelId(0),
-                full_block: false,
-            })
-        };
-        let mut found = std::collections::BTreeSet::new();
-        let mut count = 0;
-        for path in nbt_files(&assets_dir().join("minecraft/structure")) {
-            let template: Template =
-                from_gzip_bytes(Cursor::new(std::fs::read(&path).unwrap())).unwrap();
-            let (frozen, _) = template
-                .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
-                .unwrap_or_else(|e| panic!("{e}"));
-            count += frozen.entities.len();
-            found.extend(frozen.entities.iter().map(|e| {
-                serde_json::to_value(&e.kind).unwrap()["id"]
-                    .as_str()
-                    .unwrap()
-                    .to_owned()
-            }));
-        }
-        assert_eq!(count, 288);
-        assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
-    }
-
-    #[test]
     fn final_state_grammar() {
-        let parsed = parse_final_state(" minecraft:stone [ a = 1 , b = two ] ] trailing").unwrap();
+        let parsed = " minecraft:stone [ a = 1 , b = two ] ] trailing"
+            .parse::<PaletteState>()
+            .unwrap();
         assert_eq!(
             parsed,
             state("minecraft:stone", &[("a", "1"), ("b", "two")])
         );
         assert_eq!(
-            parse_final_state("minecraft:stone[]").unwrap(),
+            "minecraft:stone[]".parse::<PaletteState>().unwrap(),
             PaletteState {
                 id: ResourceLocation::minecraft("stone"),
                 properties: Some(BTreeMap::new())
             }
         );
-        assert!(parse_final_state("minecraft:stone[a=1,a=2]").is_err());
-        assert!(parse_final_state("minecraft:stone[a]").is_err());
-        assert!(parse_final_state("stone").is_err());
+        assert!("minecraft:stone[a=1,a=2]".parse::<PaletteState>().is_err());
+        assert!("minecraft:stone[a]".parse::<PaletteState>().is_err());
+        assert!("stone".parse::<PaletteState>().is_err());
     }
 
     #[test]
-    fn transform_follows_the_rotation_formulas() {
+    fn transform_mirrors_before_it_rotates() {
         let pos = IVec3::new(3, 5, 7);
         let pivot = IVec3::new(2, 0, 4);
         let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
@@ -1402,13 +1340,6 @@ mod tests {
             at(Mirror::None, Rotation::Clockwise180),
             IVec3::new(4 - 3, 5, 8 - 7)
         );
-    }
-
-    #[test]
-    fn transform_mirrors_before_it_rotates() {
-        let pos = IVec3::new(3, 5, 7);
-        let pivot = IVec3::new(2, 0, 4);
-        let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
         assert_eq!(at(Mirror::LeftRight, Rotation::None), IVec3::new(3, 5, -7));
         assert_eq!(at(Mirror::FrontBack, Rotation::None), IVec3::new(-3, 5, 7));
         assert_eq!(
@@ -1457,11 +1388,6 @@ mod tests {
                 max: (at + IVec3::new(0, 3, 0)).into()
             }
         );
-    }
-
-    #[test]
-    fn bounding_box_takes_the_mirror_and_the_pivot_into_account() {
-        let at = IVec3::new(10, 20, 30);
         let pivot = IVec3::new(1, 0, 2);
         assert_eq!(
             bounding_box(
@@ -1534,41 +1460,82 @@ mod tests {
             }
         }
     }
-    #[test]
-    fn box_arithmetic_is_inclusive() {
-        let a = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(4, 2, 4));
-        assert_eq!(a.y_span(), 3);
-        assert_eq!(a.moved(IVec3::new(1, -1, 0)).min, BlockPos::new(1, -1, 0));
-        assert_eq!(a.inflated(12).max, BlockPos::new(16, 14, 16));
-        assert!(a.intersects(BoundingBox::from_corners(
-            BlockPos::new(4, 2, 4),
-            IVec3::splat(9).into()
-        )));
-        assert!(!a.intersects(BoundingBox::from_corners(
-            BlockPos::new(5, 0, 0),
-            IVec3::splat(9).into()
-        )));
-    }
 
-    #[test]
-    fn a_rotation_turns_the_horizontal_faces_and_keeps_the_vertical_ones() {
-        assert_eq!(
-            Rotation::Clockwise90.rotate(Direction::North),
-            Direction::East
-        );
-        assert_eq!(
-            Rotation::Clockwise180.rotate(Direction::North),
-            Direction::South
-        );
-        assert_eq!(
-            Rotation::Counterclockwise90.rotate(Direction::North),
-            Direction::West
-        );
-        assert_eq!(Rotation::None.rotate(Direction::West), Direction::West);
-        assert_eq!(Rotation::Clockwise90.rotate(Direction::Up), Direction::Up);
-        assert_eq!(
-            Rotation::ALL[Rotation::ALL.len() - 1],
-            Rotation::Counterclockwise90
-        );
+    mod exhaustive {
+        use super::*;
+
+        fn canonical(compound: &NbtCompound) -> NbtCompound {
+            let mut child_tags: Vec<_> = compound
+                .child_tags
+                .iter()
+                .map(|(k, v)| (k.clone(), canonical_tag(v)))
+                .collect();
+            child_tags.sort_by(|a, b| a.0.cmp(&b.0));
+            NbtCompound { child_tags }
+        }
+
+        fn canonical_tag(tag: &NbtTag) -> NbtTag {
+            match tag {
+                NbtTag::Compound(c) => NbtTag::Compound(canonical(c)),
+                NbtTag::List(items) => NbtTag::List(items.iter().map(canonical_tag).collect()),
+                other => other.clone(),
+            }
+        }
+
+        #[test]
+        fn every_template_round_trips_and_is_pinned() {
+            let files = templates();
+            let (mut with_palettes, mut with_entities) = (0, 0);
+            for (path, bytes) in &files {
+                let direct = read_gzip_compound_tag(Cursor::new(&bytes)).unwrap();
+                let template: Template = from_gzip_bytes(Cursor::new(&bytes))
+                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                assert_eq!(
+                    template.data_version,
+                    VERSION.world_version,
+                    "{}",
+                    path.display()
+                );
+                let back = to_nbt_compound(&template).unwrap();
+                assert_eq!(
+                    canonical(&back),
+                    canonical(&direct),
+                    "{} does not round-trip",
+                    path.display()
+                );
+                with_palettes += usize::from(template.palettes.is_some());
+                with_entities += usize::from(!template.entities.is_empty());
+            }
+            assert_eq!(files.len(), 1511);
+            assert_eq!(with_palettes, 20);
+            assert_eq!(with_entities, 172);
+        }
+
+        #[test]
+        fn shipped_template_entities_are_the_pinned_kinds() {
+            let any = |_: &PaletteState| {
+                Some(ResolvedState {
+                    id: VoxelId(0),
+                    full_block: false,
+                })
+            };
+            let mut found = std::collections::BTreeSet::new();
+            let mut count = 0;
+            for (path, bytes) in templates() {
+                let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
+                let (frozen, _) = template
+                    .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
+                    .unwrap_or_else(|e| panic!("{e}"));
+                count += frozen.entities.len();
+                found.extend(frozen.entities.iter().map(|e| {
+                    serde_json::to_value(&e.kind).unwrap()["id"]
+                        .as_str()
+                        .unwrap()
+                        .to_owned()
+                }));
+            }
+            assert_eq!(count, 288);
+            assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
+        }
     }
 }

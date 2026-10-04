@@ -1,5 +1,5 @@
 use compound::NbtCompound;
-use deserializer::NbtReadHelper;
+use deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
 use io::{Read, Write};
 use serde::{Deserialize, Serialize};
 use serializer::WriteAdaptor;
@@ -131,14 +131,11 @@ impl NbtTag {
         reader: &mut NbtReadHelper<R>,
         tag_id: u8,
     ) -> Result<(), Error> {
+        if let Some(size) = fixed_size(tag_id) {
+            return reader.skip_bytes(size);
+        }
         match tag_id {
             END_ID => Ok(()),
-            BYTE_ID => reader.skip_bytes(1),
-            SHORT_ID => reader.skip_bytes(2),
-            INT_ID => reader.skip_bytes(4),
-            LONG_ID => reader.skip_bytes(8),
-            FLOAT_ID => reader.skip_bytes(4),
-            DOUBLE_ID => reader.skip_bytes(8),
             BYTE_ARRAY_ID => {
                 let len = reader.get_i32_be()?;
                 if len < 0 {
@@ -151,10 +148,9 @@ impl NbtTag {
                 reader.skip_bytes(len as i64)
             }
             LIST_ID => {
-                let tag_type_id = reader.get_u8_be()?;
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
+                let (tag_type_id, len) = read_list_header(reader)?;
+                if let Some(size) = fixed_size(tag_type_id) {
+                    return reader.skip_bytes(len as i64 * size);
                 }
 
                 reader.push_depth()?;
@@ -232,14 +228,10 @@ impl NbtTag {
             }
             STRING_ID => Ok(NbtTag::String(get_nbt_string(reader)?)),
             LIST_ID => {
-                let tag_type_id = reader.get_u8_be()?;
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
-                }
+                let (tag_type_id, len) = read_list_header(reader)?;
 
                 reader.push_depth()?;
-                let mut list = Vec::with_capacity(len as usize);
+                let mut list = Vec::with_capacity(cautious_capacity::<NbtTag>(len, READ_STEP));
                 for _ in 0..len {
                     list.push(match NbtTag::deserialize_data(reader, tag_type_id)? {
                         NbtTag::Compound(mut compound) if is_wrapper(&compound) => {
@@ -264,7 +256,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut int_array = Vec::with_capacity(len);
+                let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
                 for _ in 0..len {
                     let int = reader.get_i32_be()?;
                     int_array.push(int);
@@ -278,7 +270,7 @@ impl NbtTag {
                 }
 
                 let len = len as usize;
-                let mut long_array = Vec::with_capacity(len);
+                let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len, READ_STEP));
                 for _ in 0..len {
                     let long = reader.get_i64_be()?;
                     long_array.push(long);
@@ -365,6 +357,33 @@ impl NbtTag {
             _ => None,
         }
     }
+}
+
+fn fixed_size(tag_id: u8) -> Option<i64> {
+    match tag_id {
+        BYTE_ID => Some(1),
+        SHORT_ID => Some(2),
+        INT_ID | FLOAT_ID => Some(4),
+        LONG_ID | DOUBLE_ID => Some(8),
+        _ => None,
+    }
+}
+
+/// A list's element type and count.
+pub(crate) fn read_list_header<R: Read + Seek>(
+    reader: &mut NbtReadHelper<R>,
+) -> Result<(u8, usize), Error> {
+    let element_type = reader.get_u8_be()?;
+    let len = reader.get_i32_be()?;
+    if len < 0 {
+        return Err(Error::NegativeLength(len));
+    }
+    // Every other element type takes input to read or to skip, so only this
+    // one could run a list to its declared count from a five-byte header.
+    if element_type == END_ID && len > 0 {
+        return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
+    }
+    Ok((element_type, len as usize))
 }
 
 /// A mixed list is written as compounds with every non-compound element

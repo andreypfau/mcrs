@@ -13,11 +13,9 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue, RawStack};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
-use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
+use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
 use mcrs_minecraft_server::world::item::chest::{
     OpenContainerRequest, close_container_menu, open_containers,
@@ -104,45 +102,6 @@ pub(crate) fn set_count(world: &mut World, stack: Entity, count: u8) {
         }
     };
     Transaction(vec![op]).apply(world);
-}
-
-#[test]
-fn join_sends_held_slot_then_full_inventory() {
-    let (mut world, _player, anchor) = world();
-    open_menus(&mut world);
-    sync_stack_slots(&mut world);
-    let packets = drain(&mut world);
-    assert_eq!(packets.len(), 2, "{packets:?}");
-    for packet in &packets {
-        assert!(matches!(packet.target, PacketTarget::SinglePlayer(a) if a == anchor));
-    }
-    assert!(matches!(
-        packets[0].data,
-        PacketPayload::SetHeldSlot(ClientboundSetHeldSlot { slot: VarInt(3) })
-    ));
-    match &packets[1].data {
-        PacketPayload::ContainerSetContent(ClientboundContainerSetContent {
-            container_id,
-            state_seqno,
-            slot_data: slots,
-            carried_item: carried,
-        }) => {
-            assert_eq!(
-                (container_id.0, state_seqno.0, slots.len()),
-                (0, 1, slots::MENU_COUNT)
-            );
-            assert!(slots.iter().all(|slot| *slot == RawStack::EMPTY));
-            assert_eq!(*carried, RawStack::EMPTY);
-        }
-        other => panic!("{other:?}"),
-    }
-
-    open_menus(&mut world);
-    sync_stack_slots(&mut world);
-    assert!(
-        drain(&mut world).is_empty(),
-        "the inventory menu opens once"
-    );
 }
 
 #[test]

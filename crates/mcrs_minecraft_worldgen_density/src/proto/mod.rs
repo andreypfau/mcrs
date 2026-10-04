@@ -1,4 +1,5 @@
 pub mod args;
+pub mod build;
 pub mod settings;
 pub mod spline;
 
@@ -8,10 +9,12 @@ pub use args::{
     SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
 };
 pub use settings::{BlockState, Either, ValueRange};
-pub use spline::{ProtoMultipoint, ProtoSpline};
+pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
 
 use crate::node::distance::DistanceMetric;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder};
 use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
 use serde::{Deserialize, Serialize};
@@ -51,6 +54,19 @@ impl TryFrom<f64> for NoiseValue {
             ));
         }
         Ok(NoiseValue(value))
+    }
+}
+
+/// The game writes a `float` as its shortest decimal, which is not the `f64`
+/// nearest its bits: `0.1f32 as f64` is `0.10000000149011612`.
+impl From<f32> for NoiseValue {
+    fn from(value: f32) -> Self {
+        NoiseValue(
+            value
+                .to_string()
+                .parse()
+                .expect("a float prints as a float"),
+        )
     }
 }
 
@@ -252,8 +268,12 @@ pub enum ProtoDensityFunction {
     OldBlendedNoise(BlendedNoiseArguments),
 }
 
+impl RegistryKey for ProtoDensityFunction {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/density_function");
+}
+
 fn zero_holder() -> DensityFunctionHolder {
-    DensityFunctionHolder::Value(ConstantValue::from(0.0))
+    DensityFunctionHolder::ZERO
 }
 
 fn is_zero_holder(shift: &DensityFunctionHolder) -> bool {

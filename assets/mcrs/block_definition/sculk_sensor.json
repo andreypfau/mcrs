@@ -63,6 +63,7 @@
         "seconds_to_destroy": 1.5
       },
       "minecraft:loot": "minecraft:blocks/sculk_sensor",
+      "mcrs:experience_drop": 5,
       "mcrs:use_shape_for_light_occlusion": true,
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 8, 16] }

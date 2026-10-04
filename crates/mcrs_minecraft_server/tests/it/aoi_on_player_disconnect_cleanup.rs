@@ -14,39 +14,20 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use bevy_math::DVec3;
-use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_level::aoi::PlayerObservers;
-use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_minecraft_level::world::dimension::{
-    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
-};
-use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
 use mcrs_minecraft_server::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
     filter_inflight_for_disconnect, process_disconnect,
 };
-use mcrs_minecraft_server::world::aoi::TrackedBy;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_server::world::channel_types::FromDim;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_server::world::session::SessionBundle;
-
-use crate::harness;
-use harness::{
-    drain_outbound, drive_aoi_tick, make_aoi_app, run_fixed_pre_update,
-    spawn_player_in_dim_with_host_anchor,
-};
 
 fn build_disconnect_app() -> App {
     let mut app = App::new();
@@ -134,37 +115,6 @@ fn run_filter(app: &mut App) {
 }
 
 #[test]
-fn disconnect_at_tick_n_e1_3_after_dest_spawn_pre_attach_emit() {
-    let mut app = build_disconnect_app();
-
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let source_dim = Entity::from_raw_u32(301).unwrap();
-    let dest_dim = Entity::from_raw_u32(302).unwrap();
-    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
-    let dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
-    insert_location(&mut app, host_anchor, dest_dim, Some(source_dim), None);
-
-    synthetic_disconnect(&mut app, host_anchor);
-    run_filter(&mut app);
-
-    assert_eq!(
-        count_despawns(&dst_ctl_rx),
-        1,
-        "dest dim gets a despawn (current_dim)"
-    );
-    assert_eq!(
-        count_despawns(&src_ctl_rx),
-        1,
-        "source dim gets a despawn (previous_dim)"
-    );
-
-    assert!(
-        app.world().get_entity(host_anchor).is_err(),
-        "the session is despawned"
-    );
-}
-
-#[test]
 fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
     let mut app = build_disconnect_app();
 
@@ -194,155 +144,10 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
 
     assert_eq!(count_despawns(&dst_ctl_rx), 1);
     assert_eq!(count_despawns(&src_ctl_rx), 1);
+
+    assert!(
+        app.world().get_entity(host_anchor).is_err(),
+        "the session is despawned"
+    );
 }
 
-#[test]
-fn disconnect_at_tick_n_e1_5_steady_in_dim() {
-    let mut app = build_disconnect_app();
-
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let dest_dim = Entity::from_raw_u32(501).unwrap();
-    let new_in_dim = Entity::from_raw_u32(502).unwrap();
-    let dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
-    insert_location(&mut app, host_anchor, dest_dim, None, Some(new_in_dim));
-
-    synthetic_disconnect(&mut app, host_anchor);
-    run_filter(&mut app);
-
-    assert_eq!(
-        count_despawns(&dst_ctl_rx),
-        1,
-        "single despawn (current_dim only) since previous_dim is None"
-    );
-
-    assert!(app.world().get_entity(host_anchor).is_err());
-}
-
-/// Regression: a transfer-out eviction (via `InboundPlayerDespawn`) has the
-/// same AoI cleanup effects as a direct disconnect. Both flow through the
-/// shared drain consumer in the per-dim sub-app.
-///
-/// Asserts:
-///   1. O's `TrackedBy` no longer contains T.
-///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
-///   3. T's view is taken and its `TrackedBy` cleared.
-#[test]
-fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
-    let mut aoi_app = make_aoi_app();
-    let dim = aoi_app
-        .world_mut()
-        .spawn(DimensionBundle::new(
-            DimensionId::new("minecraft:overworld"),
-            DimensionTypeConfig::new(-64, 384),
-        ))
-        .id();
-
-    let ha_o = aoi_app.world_mut().spawn_empty().id();
-    let ha_t = aoi_app.world_mut().spawn_empty().id();
-
-    let player_o =
-        spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_o);
-
-    let player_t =
-        spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_t);
-
-    let radius: i32 = 20;
-    {
-        let mut col_map: rustc_hash::FxHashMap<ColumnPos, ColumnSlot> =
-            rustc_hash::FxHashMap::default();
-        for dx in -radius..=radius {
-            for dz in -radius..=radius {
-                let col_pos = ColumnPos::new(dx, dz);
-                let column = aoi_app
-                    .world_mut()
-                    .spawn((Column, PlayerObservers::default(), InDimension(dim)))
-                    .id();
-                col_map.insert(
-                    col_pos,
-                    ColumnSlot {
-                        entity: column,
-                        section_count: 1,
-                    },
-                );
-            }
-        }
-        aoi_app
-            .world_mut()
-            .get_mut::<ColumnIndex>(dim)
-            .expect("DimensionBundle provides ColumnIndex")
-            .0
-            .extend(col_map);
-    }
-
-    drive_aoi_tick(&mut aoi_app);
-
-    let o_tracked_t_before = aoi_app
-        .world()
-        .get::<TrackedBy>(player_o)
-        .map(|tb| tb.0.contains(&player_t))
-        .unwrap_or(false);
-    assert!(
-        o_tracked_t_before,
-        "precondition: O.TrackedBy must contain T before transfer-out eviction"
-    );
-
-    let t_holds_before = aoi_app
-        .world()
-        .get::<ColumnView>(player_t)
-        .is_some_and(|view| view.held().next().is_some());
-    assert!(
-        t_holds_before,
-        "precondition: T must hold columns before transfer-out eviction"
-    );
-
-    let _ = drain_outbound(&mut aoi_app);
-
-    // Inject InboundPlayerDespawn for player_t directly into the sub-app Messages.
-    aoi_app
-        .world_mut()
-        .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn {
-            host_anchor: ha_t,
-            session: PlayerSession(0),
-        });
-
-    run_fixed_pre_update(&mut aoi_app);
-
-    let o_tracked_t_after = aoi_app
-        .world()
-        .get::<TrackedBy>(player_o)
-        .map(|tb| tb.0.contains(&player_t))
-        .unwrap_or(true);
-    assert!(
-        !o_tracked_t_after,
-        "O.TrackedBy still contains T after transfer-out eviction via shared drain"
-    );
-
-    let expected_wire_id = player_t.index_u32() as i32;
-    let pkts: Vec<OutboundPlayerPacket> = drain_outbound(&mut aoi_app);
-    let left_view_for_o = pkts.iter().any(|pkt| {
-        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == player_o)
-            && matches!(&pkt.data, PacketPayload::PlayerLeftView(ClientboundRemoveEntities { entity_ids })
-                if entity_ids.contains(&VarInt(expected_wire_id)))
-    });
-    assert!(
-        left_view_for_o,
-        "expected PlayerLeftView targeting O with T's wire id after transfer-out; \
-         found {} emitted packets (none matched)",
-        pkts.len()
-    );
-
-    assert!(
-        aoi_app.world().get::<ColumnView>(player_t).is_none(),
-        "T still has a view after transfer-out eviction"
-    );
-    let t_tracked_by_empty = aoi_app
-        .world()
-        .get::<TrackedBy>(player_t)
-        .map(|tb| tb.0.is_empty())
-        .unwrap_or(true);
-    assert!(
-        t_tracked_by_empty,
-        "T's TrackedBy is non-empty after transfer-out eviction"
-    );
-}

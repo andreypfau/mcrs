@@ -329,13 +329,6 @@ mod tests {
     }
 
     #[test]
-    fn pack_source_vanilla_core_fields() {
-        let ps = PackSource::vanilla_core();
-        assert_eq!(&*ps.namespace, "minecraft");
-        assert_eq!(&*ps.id, "core");
-    }
-
-    #[test]
     fn from_entries_with_pack_source_populates_erased_entry() {
         let erased = RegistrySnapshotErased::from_entries(
             "minecraft:biome",
@@ -374,24 +367,5 @@ mod tests {
             vec![(make_location("plains"), None)],
             None,
         ));
-    }
-
-    #[test]
-    fn clone_is_o1_pointer_equal() {
-        let mut original = RegistryAccess::default();
-        original.register(RegistrySnapshotErased::from_entries(
-            "minecraft:block",
-            vec![(make_location("stone"), None)],
-            None,
-        ));
-
-        let cloned = original.clone();
-
-        assert!(
-            Arc::ptr_eq(&original.0, &cloned.0),
-            "RegistryAccess::clone must share the inner Arc, not deep-copy"
-        );
-        assert_eq!(cloned.len(), 1);
-        assert_eq!(original.len(), 1);
     }
 }

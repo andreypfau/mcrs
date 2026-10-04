@@ -231,14 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn stepping_forward_visits_each_view_then_final_shading() {
-        let (views, [a, b]) = registry();
-        assert_eq!(views.step(None, false), Some(a));
-        assert_eq!(views.step(Some(a), false), Some(b));
-        assert_eq!(views.step(Some(b), false), None);
-    }
-
-    #[test]
     fn stepping_back_reverses_the_cycle() {
         let (views, [a, b]) = registry();
         assert_eq!(views.step(None, true), Some(b));

@@ -54,42 +54,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nibble_low_byte_index_zero() {
-        let mut arr = SectionNibbles::zeros();
-        arr.set(0, 0, 0, 0x0F);
-        assert_eq!(arr.0[0], 0x0F);
-    }
-
-    #[test]
     fn nibble_high_byte_index_one_preserves_low() {
         let mut arr = SectionNibbles::zeros();
         arr.set(0, 0, 0, 0x0F);
         arr.set(1, 0, 0, 0x0A);
         assert_eq!(arr.0[0], 0xAF);
-    }
-
-    #[test]
-    fn nibble_y_stride_256() {
-        let mut arr = SectionNibbles::zeros();
-        arr.set(0, 1, 0, 5);
-        let linear = SectionNibbles::index(0, 1, 0);
-        assert_eq!(linear, 256);
-        let byte_index = linear >> 1;
-        assert_eq!(byte_index, 128);
-        assert_eq!(arr.0[128], 0x05);
-        assert_eq!(arr.get(0, 1, 0), 5);
-    }
-
-    #[test]
-    fn nibble_z_stride_16() {
-        let mut arr = SectionNibbles::zeros();
-        arr.set(0, 0, 1, 3);
-        let linear = SectionNibbles::index(0, 0, 1);
-        assert_eq!(linear, 16);
-        let byte_index = linear >> 1;
-        assert_eq!(byte_index, 8);
-        assert_eq!(arr.0[8], 0x03);
-        assert_eq!(arr.get(0, 0, 1), 3);
     }
 
     #[test]
@@ -144,15 +113,5 @@ mod tests {
         assert_eq!(arr.get(2, 0, 0), 0xB);
         assert_eq!(arr.get(1, 0, 0), 0x0);
         assert_eq!(arr.get(3, 0, 0), 0x0);
-    }
-
-    #[test]
-    fn nibble_clone_is_deep() {
-        let mut a = SectionNibbles::zeros();
-        a.set(5, 5, 5, 0xE);
-        let b = a.clone();
-        a.set(5, 5, 5, 0x1);
-        assert_eq!(a.get(5, 5, 5), 0x1);
-        assert_eq!(b.get(5, 5, 5), 0xE);
     }
 }

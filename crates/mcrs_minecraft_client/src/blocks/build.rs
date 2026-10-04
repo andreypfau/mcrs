@@ -5,8 +5,8 @@ use crate::bake::{self, Dir};
 use crate::model::Pack;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
-use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_mesh::block::{
     BlockInfo, CORNER_UV, CubeFace, FACE_AXES, FaceShapes, Fluid, ModelQuad, Pass, SideCells,
 };
@@ -116,7 +116,11 @@ pub(super) fn build_one(
         && let Some((top, bottom, lowered)) = split_lowered(&baked.quads)
     {
         cube_faces = Some(std::array::from_fn(|dir| {
-            if dir == Dir::Down as usize { bottom } else { top }
+            if dir == Dir::Down as usize {
+                bottom
+            } else {
+                top
+            }
         }));
         extras.retain(|&index| index != top && index != bottom);
         drop = lowered;
@@ -202,8 +206,18 @@ fn face_shapes(occlusion: &[Aabb]) -> Option<Box<FaceShapes>> {
                 min[normal] <= EDGE
             };
             if reaches {
-                mark(&mut faces.outer[side], (min[rows], max[rows]), (min[columns], max[columns]), true);
-                mark(&mut faces.inner[side], (min[rows], max[rows]), (min[columns], max[columns]), false);
+                mark(
+                    &mut faces.outer[side],
+                    (min[rows], max[rows]),
+                    (min[columns], max[columns]),
+                    true,
+                );
+                mark(
+                    &mut faces.inner[side],
+                    (min[rows], max[rows]),
+                    (min[columns], max[columns]),
+                    false,
+                );
             }
         }
     }
@@ -630,13 +644,28 @@ mod tests {
         let snow = |layers: &str| bake_state("minecraft:snow", &[("layers", layers)]);
         let (low, same, high) = (snow("2"), snow("2"), snow("5"));
         let (north, east, up, down) = (Dir::North as usize, Dir::East as usize, 1, 0);
-        assert!(face_hidden(&low, &same, north), "snow of one height meets itself");
-        assert!(face_hidden(&low, &high, east), "a deeper drift covers a shallower one's side");
-        assert!(!face_hidden(&high, &low, east), "and not the other way round");
-        assert!(!face_hidden(&low, &same, up), "the top of a layer touches nothing above it");
+        assert!(
+            face_hidden(&low, &same, north),
+            "snow of one height meets itself"
+        );
+        assert!(
+            face_hidden(&low, &high, east),
+            "a deeper drift covers a shallower one's side"
+        );
+        assert!(
+            !face_hidden(&high, &low, east),
+            "and not the other way round"
+        );
+        assert!(
+            !face_hidden(&low, &same, up),
+            "the top of a layer touches nothing above it"
+        );
 
         let stone = bake_state("minecraft:stone", &[]);
-        assert!(face_hidden(&low, &stone, down), "a full block hides whatever faces it");
+        assert!(
+            face_hidden(&low, &stone, down),
+            "a full block hides whatever faces it"
+        );
         assert!(
             face_hidden(&stone, &low, up),
             "a layer's underside covers the whole top of the block it lies on"
@@ -666,9 +695,16 @@ mod tests {
             );
             assert!(!snow.occludes);
         }
-        assert_eq!(bake_state("minecraft:snow", &[("layers", "8")]).drop, 0, "a full block of snow");
+        assert_eq!(
+            bake_state("minecraft:snow", &[("layers", "8")]).drop,
+            0,
+            "a full block of snow"
+        );
         assert_eq!(bake_state("minecraft:white_carpet", &[]).drop, 30);
-        assert_eq!(bake_state("minecraft:oak_slab", &[("type", "bottom")]).drop, 16);
+        assert_eq!(
+            bake_state("minecraft:oak_slab", &[("type", "bottom")]).drop,
+            16
+        );
         let top_slab = bake_state("minecraft:oak_slab", &[("type", "top")]);
         assert!(
             top_slab.cube.is_none() && top_slab.drop == 0,

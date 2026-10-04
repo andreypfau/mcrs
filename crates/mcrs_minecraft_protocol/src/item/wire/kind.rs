@@ -7,7 +7,7 @@ use crate::item::component::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::kind::{ItemComponentKind, ItemComponentValue};
 use crate::{Decode, Encode, VarInt};
-use mcrs_minecraft_item_component::for_each_data_component;
+use mcrs_minecraft_item::for_each_data_component;
 
 impl Encode for ItemComponentKind {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {

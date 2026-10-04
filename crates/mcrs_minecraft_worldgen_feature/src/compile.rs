@@ -359,6 +359,7 @@ pub fn compile_predicate(
             max: volume.max.0,
             matches: Box::new(compile_predicate(&volume.r#match, blocks)?),
         },
+        BlockPredicate::BelowHeightmap { heightmap } => Predicate::BelowHeightmap(*heightmap),
         BlockPredicate::AnyOf { predicates } => {
             Predicate::AnyOf(compile_predicates(predicates, blocks)?)
         }

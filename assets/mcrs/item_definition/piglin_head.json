@@ -6,10 +6,7 @@
       "protocol_id": 1390
     },
     "components": {
-      "minecraft:lore": [],
-      "minecraft:item_name": {
-        "translate": "block.minecraft.piglin_head"
-      },
+      "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [
         {
           "type": "minecraft:waypoint_transmit_range",
@@ -22,16 +19,19 @@
           }
         }
       ],
-      "minecraft:tooltip_display": {},
-      "minecraft:attack_animation": {},
-      "minecraft:rarity": "uncommon",
-      "minecraft:enchantments": {},
-      "minecraft:repair_cost": 0,
-      "minecraft:max_stack_size": 64,
-      "minecraft:use_effects": {},
-      "minecraft:item_model": "minecraft:piglin_head",
-      "minecraft:interact_animation": {},
       "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:enchantments": {},
+      "minecraft:equippable": {
+        "slot": "head",
+        "swappable": false
+      },
+      "minecraft:interact_animation": {},
+      "minecraft:item_model": "minecraft:piglin_head",
+      "minecraft:item_name": {
+        "translate": "block.minecraft.piglin_head"
+      },
+      "minecraft:lore": [],
+      "minecraft:max_stack_size": 64,
       "minecraft:mob_visibility": {
         "targeting_entity_types": [
           "minecraft:piglin",
@@ -39,10 +39,10 @@
         ],
         "visibility": 0.5
       },
-      "minecraft:equippable": {
-        "slot": "head",
-        "swappable": false
-      }
+      "minecraft:rarity": "uncommon",
+      "minecraft:repair_cost": 0,
+      "minecraft:tooltip_display": {},
+      "minecraft:use_effects": {}
     },
     "block_placer": "minecraft:piglin_head"
   }

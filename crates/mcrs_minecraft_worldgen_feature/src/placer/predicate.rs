@@ -8,6 +8,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 
 use super::{BiomeMask, StateMask, WorldGenVolume};
+use crate::placement::HeightmapName;
 
 /// A `BlockPredicate` with every set it names reduced to a mask.
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +35,7 @@ pub enum Predicate {
         max: [i32; 3],
         matches: Box<Predicate>,
     },
+    BelowHeightmap(HeightmapName),
     AnyOf(Vec<Predicate>),
     AllOf(Vec<Predicate>),
     Not(Box<Predicate>),
@@ -70,6 +72,7 @@ impl Predicate {
                 }
                 true
             }
+            Predicate::BelowHeightmap(kind) => pos.y < volume.height(*kind, pos.x, pos.z),
             Predicate::AnyOf(predicates) => predicates.iter().any(|p| p.test(volume, pos)),
             Predicate::AllOf(predicates) => predicates.iter().all(|p| p.test(volume, pos)),
             Predicate::Not(predicate) => !predicate.test(volume, pos),
@@ -128,5 +131,22 @@ impl Rule {
             Rule::AnyOf(rules) => rules.iter().any(|rule| rule.test(state, y, rng)),
             Rule::Not(rule) => !rule.test(state, y, rng),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::placer::BoxRegion;
+
+    #[test]
+    fn below_heightmap_is_true_under_the_height_and_false_at_it() {
+        let volume = BoxRegion::columns(4, -64, 319, VoxelId(0))
+            .floor(64, VoxelId(1))
+            .with_height(|_, _, _, _| 65);
+        let predicate = Predicate::BelowHeightmap(HeightmapName::MotionBlocking);
+        assert!(predicate.test(&volume, BlockPos::new(0, 64, 0)));
+        assert!(!predicate.test(&volume, BlockPos::new(0, 65, 0)));
+        assert!(!predicate.test(&volume, BlockPos::new(0, 66, 0)));
     }
 }

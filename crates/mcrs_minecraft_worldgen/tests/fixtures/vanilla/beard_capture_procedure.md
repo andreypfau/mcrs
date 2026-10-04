@@ -1,20 +1,20 @@
 # Fixture Capture Procedure — `beard.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server, no client, no registries and no world are
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server, no client, no registries and no world are
 involved: `Beardifier` is a pure function of its rigid pieces, its jigsaw
 junctions and its affected box, so every case is synthetic.
 
 **Harness:** `tools/vanilla-oracle/src/main/java/mcrs/oracle/BeardOracle.java`
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpBeard --console=plain --no-daemon \
-  -PoracleOut=../../crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla
+cargo run -p mcrs_minecraft_update -- recapture beard
 ```
 
 Output is deterministic: re-running produces a byte-identical file (3 999 134
-bytes, SHA-256 `044aa889a251c9ad5282512d3d0e7142b0ce34dd6512948d15b75468ae5d126c`).
+bytes, SHA-256 `363a6b357c987b3b96b59a9fe1816994d05b86704dfdac08a18ac3e9d794d8cc`).
 
 **Consumer:** the structure terrain adaptation tests, which compare the kernel
 table and every sampled density value bit for bit.
@@ -56,7 +56,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCBEARD0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
 kernel_len       u32   13824
 kernel           f32 * kernel_len   Beardifier.BEARD_KERNEL, in array order

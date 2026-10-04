@@ -12,6 +12,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::key;
 use mcrs_minecraft_world::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, ZombieNautilusVariant,
 };
@@ -34,7 +35,7 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
-    biomes: &DynRegistryIndex<Biome>,
+    biomes: &DynRegistryIndex<key::Biome>,
     sources: &DimensionBiomeSources,
     named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
 ) -> DimensionStructures {
@@ -95,10 +96,10 @@ pub(crate) fn build_dimension_structures(
     templates: Res<Assets<TemplateAsset>>,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
-    biomes: Res<DynRegistryIndex<Biome>>,
-    biome_tags: Res<DynTagRegistry<Biome>>,
-    structure_index: Res<DynRegistryIndex<Structure>>,
-    structure_tags: Res<DynTagRegistry<Structure>>,
+    biomes: Res<DynRegistryIndex<key::Biome>>,
+    biome_tags: Res<DynTagRegistry<key::Biome>>,
+    structure_index: Res<DynRegistryIndex<key::Structure>>,
+    structure_tags: Res<DynTagRegistry<key::Structure>>,
     variants: VariantAssets,
 ) {
     let Some(sources) = sources else { return };

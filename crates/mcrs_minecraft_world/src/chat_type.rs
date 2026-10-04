@@ -23,11 +23,3 @@ impl Asset for ChatType {}
 impl VisitAssetDependencies for ChatType {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn deserialize_all_chat_types() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::ChatType>("minecraft/chat_type");
-    }
-}

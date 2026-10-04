@@ -14,7 +14,6 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
-use mcrs_minecraft_item::tool::{is_correct_for_drops, mining_speed};
 use mcrs_minecraft_item::{ItemStack, Items, SelectedHotbarSlot, SlotTable};
 use mcrs_minecraft_level::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -26,13 +25,14 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{Enchantments, Tool};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_world::item::tool::{is_correct_for_drops, mining_speed};
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use std::time::Duration;
 use tracing::{debug, trace};
 

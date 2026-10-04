@@ -9,13 +9,12 @@ use mcrs_minecraft_core::ColumnPos;
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
 use mcrs_minecraft_chunk::PalettedContainer::Homogeneous;
-use mcrs_minecraft_chunk::section::{Biomes, Blocks};
+use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{SectionKind, VoxelId};
 use std::cell::Cell;
 
-use crate::{
-    AnvilError, DATA_VERSION, ErrorKind, OLDEST_DATA_VERSION, PaletteLookup, Properties, RegionFile,
-};
+use crate::{AnvilError, ChunkStatus, ErrorKind, PaletteLookup, Properties, RegionFile};
+use mcrs_minecraft_core::VERSION;
 
 const GZIP: u8 = 1;
 const ZLIB: u8 = 2;
@@ -152,20 +151,75 @@ fn section(y: i8, block_states: NbtCompound) -> NbtCompound {
 }
 
 fn chunk_nbt(x: i32, z: i32, sections: Vec<NbtTag>) -> NbtCompound {
-    chunk_nbt_versioned(x, z, sections, DATA_VERSION)
+    chunk_nbt_versioned(x, z, sections, VERSION.world_version)
 }
 
 fn chunk_nbt_versioned(x: i32, z: i32, sections: Vec<NbtTag>, data_version: i32) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(x, z, sections, data_version);
+    root.put_string("status", "minecraft:full".to_string());
+    root
+}
+
+fn chunk_nbt_without_status(
+    x: i32,
+    z: i32,
+    sections: Vec<NbtTag>,
+    data_version: i32,
+) -> NbtCompound {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", data_version);
     root.put_int("xPos", x);
     root.put_int("zPos", z);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
     root.put_bool("isLightOn", true);
     root.put_long("InhabitedTime", 42);
     root.put_long("LastUpdate", 1757);
     root.put_list("sections", sections);
+    root
+}
+
+fn retrogen_record(target_status: &str, rerun: &[&str]) -> NbtCompound {
+    let mut record = NbtCompound::new();
+    record.put_string("target_status", target_status.to_string());
+    record.put_list(
+        "statuses_to_rerun",
+        rerun
+            .iter()
+            .map(|status| NbtTag::String(status.to_string()))
+            .collect(),
+    );
+    record
+}
+
+fn chunk_with_retrogen(status: &str, record: NbtCompound) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
+    root.put_string("status", status.to_string());
+    root.put_component("retrogen", record);
+    root
+}
+
+fn quart_biomes(entries: &[u16]) -> NbtCompound {
+    container(
+        vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ],
+        Some(pack(entries, 1)),
+    )
+}
+
+fn section_with_noise_biomes(y: i8, noise_biomes: NbtCompound) -> NbtCompound {
+    let mut s = section(
+        y,
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
+    s.put_component("noise_biomes", noise_biomes);
+    s
+}
+
+fn chunk_at(status: &str, sections: Vec<NbtTag>) -> NbtCompound {
+    let mut root = chunk_nbt_without_status(0, 0, sections, VERSION.world_version);
+    root.put_string("status", status.to_string());
     root
 }
 
@@ -283,24 +337,6 @@ fn custom_compression_is_a_loud_error() {
 }
 
 #[test]
-fn unknown_compression_names_the_id() {
-    let fixture = Fixture::new("unknown_compression");
-    let path = fixture.region(0, 0, &[(0, 0, 9, b"whatever".to_vec())]);
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::UnknownCompression { id: 9, .. }),
-        "{err}"
-    );
-}
-
-#[test]
 fn external_chunks_come_from_the_mcc_file() {
     let fixture = Fixture::new("external");
     let root = chunk_nbt(
@@ -383,52 +419,9 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
 
-#[test]
-fn a_single_value_section_carries_no_data() {
-    let fixture = Fixture::new("single_value");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            -4,
-            container(vec![NbtTag::Compound(block("minecraft:bedrock"))], None),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    assert_eq!(chunk.sections[0].block_states, Some(Homogeneous(BEDROCK)));
-}
-
-/// The registry sees the name and its properties while both are still borrowed
-/// out of the palette's text, so nothing is resolved twice or copied.
-#[test]
-fn the_palette_resolves_through_a_registry() {
-    let fixture = Fixture::new("resolve");
-    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
-    entries[Blocks::index(1, 0, 0)] = 1;
-    entries[Blocks::index(0, 0, 1)] = 2;
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
-                ],
-                Some(pack(&entries, 4)),
-            ),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-
-    assert_eq!(blocks.get(0, 0, 0), AIR);
-    assert_eq!(blocks.get(1, 0, 0), STONE);
-    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
-}
-
+/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
+/// counts one through four onto the four-bit configuration. Packing at two bits
+/// would decode most cells to the wrong palette entry.
 #[test]
 fn every_cell_holds_its_resolved_id() {
     let fixture = Fixture::new("remap");
@@ -524,27 +517,6 @@ fn an_unresolvable_palette_entry_is_a_loud_error() {
 }
 
 #[test]
-fn a_single_value_section_still_reports_every_cell() {
-    let fixture = Fixture::new("single_value_entries");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(vec![NbtTag::Compound(block("minecraft:bedrock"))], None),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    let mut cells = 0;
-    blocks.for_each(|cell| {
-        assert_eq!(cell, BEDROCK);
-        cells += 1;
-    });
-    assert_eq!(cells, Blocks::ENTRY_COUNT);
-}
-
-#[test]
 fn a_single_value_section_with_data_is_a_loud_error() {
     let fixture = Fixture::new("single_value_data");
     let root = chunk_nbt(
@@ -563,44 +535,6 @@ fn a_single_value_section_with_data_is_a_loud_error() {
         matches!(err.kind, ErrorKind::UnexpectedData { .. }),
         "{err}"
     );
-}
-
-/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
-/// counts one through four onto the four-bit configuration. Packing at two bits
-/// would decode most cells to the wrong palette entry.
-#[test]
-fn a_three_entry_block_palette_is_stored_at_four_bits() {
-    let fixture = Fixture::new("three_entry");
-    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
-    entries[Blocks::index(0, 0, 0)] = 0;
-    entries[Blocks::index(1, 0, 0)] = 1;
-    entries[Blocks::index(0, 0, 1)] = 2;
-    entries[Blocks::index(15, 15, 15)] = 2;
-    entries[Blocks::index(5, 9, 13)] = 1;
-
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
-                ],
-                Some(pack(&entries, 4)),
-            ),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0), AIR);
-    assert_eq!(blocks.get(1, 0, 0), STONE);
-    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
-    assert_eq!(blocks.get(15, 15, 15), OAK_LOG_Y);
-    assert_eq!(blocks.get(5, 9, 13), STONE);
-    assert_eq!(blocks.get(2, 0, 0), AIR);
 }
 
 /// A palette above 256 entries leaves the linear/hashmap configurations behind
@@ -635,15 +569,9 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
     assert_eq!(blocks.get(1, 0, 0), numbered(0));
 }
 
-/// Biomes have no four-bit floor: two entries are stored at one bit.
 #[test]
-fn a_two_entry_biome_palette_is_stored_at_one_bit() {
-    let fixture = Fixture::new("biome_one_bit");
-    let mut entries = vec![0u16; Biomes::ENTRY_COUNT];
-    entries[Biomes::index(0, 0, 0)] = 1;
-    entries[Biomes::index(3, 3, 3)] = 1;
-    entries[Biomes::index(1, 2, 3)] = 0;
-
+fn a_biome_container_of_the_old_entry_count_is_a_load_error() {
+    let fixture = Fixture::new("biome_old_entry_count");
     let mut s = section(
         0,
         container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
@@ -655,16 +583,23 @@ fn a_two_entry_biome_palette_is_stored_at_one_bit() {
                 NbtTag::String("minecraft:plains".to_string()),
                 NbtTag::String("minecraft:desert".to_string()),
             ],
-            Some(pack(&entries, 1)),
+            Some(vec![0i64; 1]),
         ),
     );
 
-    let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap();
-    let biomes = chunk.sections[0].biomes.as_ref().unwrap();
-    assert_eq!(biomes.get(0, 0, 0), DESERT);
-    assert_eq!(biomes.get(3, 3, 3), DESERT);
-    assert_eq!(biomes.get(1, 2, 3), PLAINS);
-    assert_eq!(biomes.get(2, 0, 0), PLAINS);
+    let err = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap_err();
+    assert!(
+        matches!(
+            err.kind,
+            ErrorKind::DataLength {
+                found: 1,
+                expected: 64,
+                bits: 1,
+                ..
+            }
+        ),
+        "{err}"
+    );
 }
 
 #[test]
@@ -750,37 +685,6 @@ fn an_empty_palette_is_a_loud_error() {
     );
     let err = read_one(&fixture, ZLIB, &root).unwrap_err();
     assert!(matches!(err.kind, ErrorKind::EmptyPalette { .. }), "{err}");
-}
-
-#[test]
-fn a_data_array_longer_than_the_derived_width_is_an_error() {
-    let fixture = Fixture::new("data_too_long");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                ],
-                Some(vec![0i64; 257]),
-            ),
-        ))],
-    );
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(
-        matches!(
-            err.kind,
-            ErrorKind::DataLength {
-                found: 257,
-                expected: 256,
-                ..
-            }
-        ),
-        "{err}"
-    );
 }
 
 #[test]
@@ -884,27 +788,208 @@ fn light_arrays_must_be_2048_bytes() {
     );
 }
 
+/// A section whose `BlockLight` holds `value`, written ahead of a good
+/// `SkyLight`, the block states and a second section, so a value read at the
+/// wrong width shows in what follows it.
+fn chunk_with_block_light(value: NbtTag) -> NbtCompound {
+    let mut sky = vec![0u8; LIGHT_BYTES];
+    sky[0] = 0x0f;
+    let mut first = NbtCompound::new();
+    first.put_byte("Y", 0);
+    first.put("BlockLight", value);
+    first.put("SkyLight", NbtTag::ByteArray(sky.into_boxed_slice()));
+    first.put_component(
+        "block_states",
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
+    let second = section(
+        1,
+        container(vec![NbtTag::Compound(block("minecraft:air"))], None),
+    );
+    chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(first), NbtTag::Compound(second)],
+    )
+}
+
+fn assert_block_light_is_absent(fixture: &Fixture, stored: Vec<(&str, NbtTag)>) {
+    for (shape, value) in stored {
+        let chunk = read_one(fixture, ZLIB, &chunk_with_block_light(value))
+            .unwrap_or_else(|err| panic!("{shape}: {err}"));
+        assert_eq!(chunk.sections.len(), 2, "{shape}");
+        let first = &chunk.sections[0];
+        assert_eq!(first.block_light, None, "{shape}");
+        let sky = first
+            .sky_light
+            .as_ref()
+            .unwrap_or_else(|| panic!("{shape}"));
+        assert_eq!(sky.get(0, 0, 0), 15, "{shape}");
+        assert_eq!(first.block_states, Some(Homogeneous(STONE)), "{shape}");
+        assert_eq!(chunk.sections[1].y, 1, "{shape}");
+    }
+}
+
 #[test]
-fn a_stale_data_version_is_a_loud_error() {
-    let fixture = Fixture::new("data_version");
-    let root = chunk_nbt_versioned(0, 0, Vec::new(), 4903);
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(
-        matches!(
-            err.kind,
-            ErrorKind::DataVersion {
-                found: 4903,
-                expected: DATA_VERSION
-            }
+fn light_that_is_no_collection_reads_as_absent() {
+    let fixture = Fixture::new("light_no_collection");
+    assert_block_light_is_absent(
+        &fixture,
+        vec![
+            ("a string", NbtTag::String("bright".to_string())),
+            ("an int", NbtTag::Int(7)),
+            ("a compound", NbtTag::Compound(NbtCompound::new())),
+        ],
+    );
+}
+
+fn air_and_stone() -> Vec<NbtTag> {
+    vec![
+        NbtTag::Compound(block("minecraft:air")),
+        NbtTag::Compound(block("minecraft:stone")),
+    ]
+}
+
+fn container_holding(palette: Vec<NbtTag>, data: NbtTag) -> NbtCompound {
+    let mut c = container(palette, None);
+    c.put("data", data);
+    c
+}
+
+/// Two entries pack sixteen cells into a word, so a word of one puts stone in
+/// the first cell of its row and air in the rest.
+#[test]
+fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
+    let fixture = Fixture::new("block_data_by_element");
+    let stored = [
+        ("a long array", NbtTag::LongArray(vec![1; 256])),
+        ("an int array", NbtTag::IntArray(vec![1; 256])),
+        (
+            "a byte array",
+            NbtTag::ByteArray(vec![1u8; 256].into_boxed_slice()),
         ),
-        "{err}"
-    );
-    assert!(
-        err.to_string().ends_with(&format!(
-            "DataVersion 4903, expected {OLDEST_DATA_VERSION} to {DATA_VERSION}"
-        )),
-        "{err}"
-    );
+        ("a list of ints", NbtTag::List(vec![NbtTag::Int(1); 256])),
+        (
+            "a list of doubles",
+            NbtTag::List(vec![NbtTag::Double(1.9); 256]),
+        ),
+    ];
+    for (shape, value) in stored {
+        let states = container_holding(air_and_stone(), value);
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, states))]);
+        let chunk = read_one(&fixture, ZLIB, &root).unwrap_or_else(|err| panic!("{shape}: {err}"));
+        let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+        for index in 0..Blocks::ENTRY_COUNT {
+            let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
+            let expected = if x == 0 { STONE } else { AIR };
+            assert_eq!(blocks.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+        }
+    }
+}
+
+/// One bit per cell packs 64 biome cells into a word, so the sign an element
+/// widens with and the way a float narrows both show in the cells: -2 clears a
+/// word's first cell and sets every other.
+#[test]
+fn biome_data_widens_each_element_as_a_signed_number() {
+    let fixture = Fixture::new("biome_data_by_element");
+    let stored = [
+        ("a long array", NbtTag::LongArray(vec![-2; 64])),
+        ("an int array", NbtTag::IntArray(vec![-2; 64])),
+        ("a byte array", NbtTag::ByteArray(Box::new([0xfe; 64]))),
+        (
+            "a list of shorts",
+            NbtTag::List(vec![NbtTag::Short(-2); 64]),
+        ),
+        (
+            "a list of doubles",
+            NbtTag::List(vec![NbtTag::Double(-2.7); 64]),
+        ),
+    ];
+    for (shape, value) in stored {
+        let mut s = section(
+            0,
+            container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+        );
+        let palette = vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ];
+        s.put_component("biomes", container_holding(palette, value));
+        let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)]))
+            .unwrap_or_else(|err| panic!("{shape}: {err}"));
+        let biomes = chunk.sections[0].biomes.as_ref().unwrap();
+        for index in 0..Biomes::ENTRY_COUNT {
+            let (x, y, z) = (index & 15, index >> 8, index >> 4 & 15);
+            let expected = if index % 64 == 0 { PLAINS } else { DESERT };
+            assert_eq!(biomes.get(x, y, z), expected, "{shape} at {x},{y},{z}");
+        }
+    }
+}
+
+#[test]
+fn packed_data_that_is_no_list_of_numbers_reads_as_absent() {
+    let fixture = Fixture::new("packed_data_malformed");
+    let malformed = [
+        NbtTag::String("not a long stream".to_string()),
+        NbtTag::Int(7),
+        NbtTag::Compound(NbtCompound::new()),
+        NbtTag::List(vec![NbtTag::String("x".to_string())]),
+        NbtTag::List(vec![NbtTag::Long(1), NbtTag::String("x".to_string())]),
+    ];
+    for value in malformed {
+        let needed = container_holding(air_and_stone(), value.clone());
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, needed))]);
+        let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+        assert!(
+            matches!(err.kind, ErrorKind::MissingData { bits: 4, .. }),
+            "{value:?}: {err}"
+        );
+
+        let stone = vec![NbtTag::Compound(block("minecraft:stone"))];
+        let unneeded = container_holding(stone, value.clone());
+        let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(1, unneeded))]);
+        let chunk =
+            read_one(&fixture, ZLIB, &root).unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        assert_eq!(chunk.sections[0].y, 1, "{value:?}");
+        assert_eq!(
+            chunk.sections[0].block_states,
+            Some(Homogeneous(STONE)),
+            "{value:?}"
+        );
+    }
+}
+
+#[test]
+fn a_chunk_one_data_version_off_either_way_is_refused_and_the_current_one_loads() {
+    let fixture = Fixture::new("data_version_adjacent");
+    let current = VERSION.world_version;
+    read_one(
+        &fixture,
+        ZLIB,
+        &chunk_nbt_versioned(0, 0, Vec::new(), current),
+    )
+    .unwrap();
+    for found in [current - 1, current + 1] {
+        let err = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_nbt_versioned(0, 0, Vec::new(), found),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err.kind,
+                ErrorKind::DataVersion { found: f, expected } if f == found && expected == current
+            ),
+            "{err}"
+        );
+        assert!(
+            err.to_string()
+                .ends_with(&format!("DataVersion {found}, expected {current}")),
+            "{err}"
+        );
+    }
 }
 
 /// Vanilla reads the fields it names off the compound and ignores the rest, and
@@ -937,10 +1022,15 @@ fn a_chunk_older_than_the_version_tag_says_so() {
     assert!(
         matches!(
             err.kind,
-            ErrorKind::MissingDataVersion {
-                expected: DATA_VERSION
-            }
+            ErrorKind::MissingDataVersion { expected } if expected == VERSION.world_version
         ),
+        "{err}"
+    );
+    assert!(
+        err.to_string().ends_with(&format!(
+            "no DataVersion, expected {}",
+            VERSION.world_version
+        )),
         "{err}"
     );
 }
@@ -960,11 +1050,30 @@ fn an_older_layout_reports_its_version_not_its_first_odd_field() {
             err.kind,
             ErrorKind::DataVersion {
                 found: 1343,
-                expected: DATA_VERSION
-            }
+                expected
+            } if expected == VERSION.world_version
         ),
         "{err}"
     );
+}
+
+#[test]
+fn a_chunk_with_an_unregistered_status_is_a_load_error() {
+    let fixture = Fixture::new("unregistered_status");
+    let mut root = chunk_nbt(0, 0, Vec::new());
+    root.put_string("status", "minecraft:not_a_status".to_string());
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+}
+
+#[test]
+fn a_current_chunk_with_the_old_status_key_is_refused_for_the_missing_field() {
+    let fixture = Fixture::new("old_status_key");
+    let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
+    root.put_string("Status", "minecraft:full".to_string());
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+    assert!(err.to_string().contains("status"), "{err}");
 }
 
 #[test]
@@ -978,7 +1087,10 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
     root.put_list("entities", Vec::new());
     root.put_component("UpgradeData", NbtCompound::new());
     root.put_component("blending_data", NbtCompound::new());
-    root.put_component("below_zero_retrogen", NbtCompound::new());
+    root.put_component(
+        "retrogen",
+        retrogen_record("minecraft:full", &["minecraft:features"]),
+    );
     let mut heightmaps = NbtCompound::new();
     heightmaps.put("MOTION_BLOCKING", NbtTag::LongArray(vec![7i64; 37]));
     root.put_component("Heightmaps", heightmaps);
@@ -988,7 +1100,7 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
 
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     assert_eq!(chunk.min_section_y, -4);
-    assert_eq!(chunk.status, "minecraft:full");
+    assert_eq!(chunk.status, ChunkStatus::Full);
     assert!(chunk.is_light_on);
     assert_eq!(chunk.inhabited_time, 42);
     assert_eq!(chunk.heightmaps["MOTION_BLOCKING"].len(), 37);
@@ -997,33 +1109,109 @@ fn the_vanilla_shaped_extra_fields_are_accepted() {
         chunk.block_entities[0].get_string("id"),
         Some("minecraft:chest")
     );
+    assert_eq!(
+        chunk.retrogen,
+        Some(crate::RetroGen {
+            target_status: ChunkStatus::Full,
+            statuses_to_rerun: vec![ChunkStatus::Features],
+            has_below_zero_retrogen: false,
+            missing_bedrock: Vec::new(),
+        })
+    );
+}
+
+fn retrogen_error(name: &str, record: NbtCompound) -> String {
+    let fixture = Fixture::new(name);
+    let err = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_with_retrogen("minecraft:terrain", record),
+    )
+    .unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+    err.to_string()
+}
+
+#[test]
+fn an_unregistered_status_in_retrogen_is_a_load_error() {
+    retrogen_error(
+        "retrogen_unregistered_target",
+        retrogen_record("minecraft:not_a_status", &[]),
+    );
+    retrogen_error(
+        "retrogen_unregistered_rerun",
+        retrogen_record("minecraft:full", &["minecraft:not_a_status"]),
+    );
+}
+
+#[test]
+fn a_malformed_missing_bedrock_reads_as_absent() {
+    let fixture = Fixture::new("malformed_bedrock");
+    let malformed = [
+        NbtTag::String("not a bit set".to_string()),
+        NbtTag::Int(7),
+        NbtTag::Compound(NbtCompound::new()),
+        NbtTag::List(vec![NbtTag::String("x".to_string())]),
+        NbtTag::List(vec![NbtTag::Long(1), NbtTag::String("x".to_string())]),
+    ];
+    for value in malformed {
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put_bool("has_below_zero_retrogen", true);
+        record.put("missing_bedrock", value.clone());
+        let chunk = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_with_retrogen("minecraft:terrain", record),
+        )
+        .unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        let retrogen = chunk.retrogen.unwrap();
+        assert!(retrogen.missing_bedrock.is_empty(), "{value:?}");
+        assert!(retrogen.has_below_zero_retrogen, "{value:?}");
+        assert_eq!(retrogen.statuses_to_rerun, vec![ChunkStatus::Biomes]);
+    }
+}
+
+#[test]
+fn missing_bedrock_reads_an_array_or_a_list_of_numbers_element_by_element() {
+    let fixture = Fixture::new("bedrock_by_element");
+    let stored = [
+        (NbtTag::IntArray(vec![1, 2]), vec![1, 2]),
+        (NbtTag::IntArray(vec![1, 2, 3]), vec![1, 2, 3]),
+        (NbtTag::IntArray(vec![-1, 4]), vec![-1, 4]),
+        (NbtTag::ByteArray(Box::new([1; 8])), vec![1; 8]),
+        (NbtTag::ByteArray(Box::new([0xff, 2])), vec![-1, 2]),
+        (NbtTag::LongArray(vec![i64::MIN, 9]), vec![i64::MIN, 9]),
+        (
+            NbtTag::List(vec![NbtTag::Int(1), NbtTag::Int(2)]),
+            vec![1, 2],
+        ),
+        (
+            NbtTag::List(vec![NbtTag::Long(6), NbtTag::Short(-7)]),
+            vec![6, -7],
+        ),
+        (NbtTag::List(vec![NbtTag::Double(5.0)]), vec![5]),
+        (
+            NbtTag::List(vec![NbtTag::Double(-2.7), NbtTag::Float(3.9)]),
+            vec![-2, 3],
+        ),
+    ];
+    for (value, words) in stored {
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", value.clone());
+        let chunk = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_with_retrogen("minecraft:terrain", record),
+        )
+        .unwrap_or_else(|err| panic!("{value:?}: {err}"));
+        assert_eq!(chunk.retrogen.unwrap().missing_bedrock, words, "{value:?}");
+    }
 }
 
 #[test]
 fn a_bad_file_name_is_rejected_before_any_bytes_are_read() {
     let err = RegionFile::open(Path::new("/nowhere/region.mca")).unwrap_err();
     assert!(matches!(err.kind, ErrorKind::FileName), "{err}");
-}
-
-#[test]
-fn a_sector_pointing_into_the_header_is_an_error() {
-    let fixture = Fixture::new("sector_in_header");
-    let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes[..4].copy_from_slice(&(1i32 << 8 | 1).to_be_bytes());
-    std::fs::write(&path, bytes).unwrap();
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::SectorInHeader { sector: 1, .. }),
-        "{err}"
-    );
 }
 
 #[test]
@@ -1043,27 +1231,6 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorOutOfBounds { sector: 900, .. }),
-        "{err}"
-    );
-}
-
-#[test]
-fn a_payload_longer_than_its_sectors_is_an_error() {
-    let fixture = Fixture::new("payload_length");
-    let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes[2 * SECTOR_BYTES..2 * SECTOR_BYTES + 4].copy_from_slice(&99_999i32.to_be_bytes());
-    std::fs::write(&path, bytes).unwrap();
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::PayloadLength { length: 99_999, .. }),
         "{err}"
     );
 }
@@ -1090,13 +1257,89 @@ fn the_index_formulas_match_the_reference() {
     assert_eq!(Blocks::ENTRY_COUNT, 4096);
 
     assert_eq!(Biomes::index(1, 0, 0), 1);
-    assert_eq!(Biomes::index(0, 0, 1), 4);
-    assert_eq!(Biomes::index(0, 1, 0), 16);
-    assert_eq!(Biomes::index(3, 3, 3), 63);
-    assert_eq!(Biomes::ENTRY_COUNT, 64);
+    assert_eq!(Biomes::index(0, 0, 1), 16);
+    assert_eq!(Biomes::index(0, 1, 0), 256);
+    assert_eq!(Biomes::index(15, 15, 15), 4095);
+    assert_eq!(Biomes::ENTRY_COUNT, 4096);
+
+    assert_eq!(NoiseBiomes::index(1, 0, 0), 1);
+    assert_eq!(NoiseBiomes::index(0, 0, 1), 4);
+    assert_eq!(NoiseBiomes::index(0, 1, 0), 16);
+    assert_eq!(NoiseBiomes::index(3, 3, 3), 63);
+    assert_eq!(NoiseBiomes::ENTRY_COUNT, 64);
 }
 
-mod write {
+#[test]
+fn a_section_reads_its_noise_biomes_at_the_quart_size() {
+    let fixture = Fixture::new("noise_biomes_read");
+    let mut entries = vec![0u16; NoiseBiomes::ENTRY_COUNT];
+    entries[NoiseBiomes::index(0, 0, 0)] = 1;
+    entries[NoiseBiomes::index(3, 3, 3)] = 1;
+    entries[NoiseBiomes::index(1, 2, 3)] = 1;
+    let section = section_with_noise_biomes(0, quart_biomes(&entries));
+    let chunk = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_at("minecraft:terrain", vec![NbtTag::Compound(section)]),
+    )
+    .unwrap();
+    let noise = chunk.sections[0].noise_biomes.as_ref().unwrap();
+    assert_eq!(noise.get(0, 0, 0), DESERT);
+    assert_eq!(noise.get(3, 3, 3), DESERT);
+    assert_eq!(noise.get(1, 2, 3), DESERT);
+    assert_eq!(noise.get(2, 0, 0), PLAINS);
+    assert_eq!(noise.get(1, 2, 2), PLAINS);
+    assert!(chunk.sections[0].biomes.is_none());
+}
+
+#[test]
+fn a_full_chunk_keeps_no_noise_biomes() {
+    let fixture = Fixture::new("noise_biomes_full");
+    let section = section_with_noise_biomes(0, quart_biomes(&[0; NoiseBiomes::ENTRY_COUNT]));
+    let chunk = read_one(
+        &fixture,
+        ZLIB,
+        &chunk_at("minecraft:full", vec![NbtTag::Compound(section)]),
+    )
+    .unwrap();
+    assert!(chunk.sections[0].noise_biomes.is_none());
+}
+
+#[test]
+fn a_malformed_noise_biomes_container_is_a_load_error() {
+    let fixture = Fixture::new("noise_biomes_malformed");
+    let short = container(
+        vec![
+            NbtTag::String("minecraft:plains".to_string()),
+            NbtTag::String("minecraft:desert".to_string()),
+        ],
+        Some(vec![0, 0]),
+    );
+    for status in ["minecraft:terrain", "minecraft:full"] {
+        let section = section_with_noise_biomes(0, short.clone());
+        let err = read_one(
+            &fixture,
+            ZLIB,
+            &chunk_at(status, vec![NbtTag::Compound(section)]),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err.kind,
+                ErrorKind::DataLength {
+                    field: "noise_biomes",
+                    found: 2,
+                    expected: 1,
+                    bits: 1,
+                    ..
+                }
+            ),
+            "{status}: {err}"
+        );
+    }
+}
+
+pub(crate) mod write {
     use std::collections::HashMap;
     use std::io::Cursor;
     use std::path::Path;
@@ -1109,10 +1352,10 @@ mod write {
     use crate::fixture::{self, region_chunks};
     use crate::{Chunk, PaletteId, PaletteNames, write_chunk};
 
-    struct Named {
-        chunk: Chunk,
-        blocks: PaletteNames<VoxelId>,
-        biomes: PaletteNames<u8>,
+    pub(crate) struct Named {
+        pub(crate) chunk: Chunk,
+        pub(crate) blocks: PaletteNames<VoxelId>,
+        pub(crate) biomes: PaletteNames<u8>,
     }
 
     fn read_named(region: &RegionFile, pos: ColumnPos) -> Named {
@@ -1143,7 +1386,7 @@ mod write {
         RegionFile::open(fixture.region(0, 0, &slots)).unwrap()
     }
 
-    fn root(nbt: &[u8]) -> NbtCompound {
+    pub(crate) fn root(nbt: &[u8]) -> NbtCompound {
         mcrs_minecraft_nbt::Nbt::read(&mut NbtReadHelper::new(Cursor::new(nbt)))
             .unwrap()
             .root_tag
@@ -1171,7 +1414,19 @@ mod write {
         }
     }
 
-    fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
+    fn biome_cells_of(
+        container: &Option<PalettedContainer<u8, { NoiseBiomes::SIZE }>>,
+        table: Option<&[u8]>,
+    ) -> Option<Vec<u8>> {
+        container.as_ref().map(|c| {
+            cells(c)
+                .into_iter()
+                .map(|v| table.map_or(v, |t| t[v.index()]))
+                .collect()
+        })
+    }
+
+    pub(crate) fn assert_same_chunk(read: &Named, original: &Named, what: &str) {
         let blocks = translation(&read.blocks, &original.blocks);
         let biomes = translation(&read.biomes, &original.biomes);
         let (a, b) = (&read.chunk, &original.chunk);
@@ -1185,13 +1440,15 @@ mod write {
                 a.inhabited_time,
                 a.last_update,
                 &a.heightmaps,
-                &a.block_entities
+                &a.block_entities,
+                &a.retrogen
             ),
             (
                 b.inhabited_time,
                 b.last_update,
                 &b.heightmaps,
-                &b.block_entities
+                &b.block_entities,
+                &b.retrogen
             ),
             "{what}"
         );
@@ -1226,6 +1483,12 @@ mod write {
                 "{what}, section {}",
                 sa.y
             );
+            assert_eq!(
+                biome_cells_of(&sa.noise_biomes, Some(&biomes)),
+                biome_cells_of(&sb.noise_biomes, None),
+                "{what}, section {}, noise biomes",
+                sa.y
+            );
             assert_eq!(sa.block_light, sb.block_light, "{what}, section {}", sa.y);
             assert_eq!(sa.sky_light, sb.sky_light, "{what}, section {}", sa.y);
         }
@@ -1255,13 +1518,25 @@ mod write {
 
     #[test]
     fn a_region_read_and_written_back_reads_equal() {
-        let (src, dst) = (Fixture::new("write_src"), Fixture::new("write_dst"));
-        let region = fixture_region(&src, fixture::CHUNKS);
+        reads_equal_after_a_round_trip("write", 8);
+    }
+
+    mod exhaustive {
+        #[test]
+        fn a_region_read_and_written_back_reads_equal() {
+            super::reads_equal_after_a_round_trip("write_all", super::fixture::CHUNKS);
+        }
+    }
+
+    fn reads_equal_after_a_round_trip(name: &str, chunks: usize) {
+        let src = Fixture::new(&format!("{name}_src"));
+        let dst = Fixture::new(&format!("{name}_dst"));
+        let region = fixture_region(&src, chunks);
         let originals: Vec<(ColumnPos, Named)> = region
             .present()
             .map(|pos| (pos, read_named(&region, pos)))
             .collect();
-        assert_eq!(originals.len(), fixture::CHUNKS);
+        assert_eq!(originals.len(), chunks);
         let replaced: Vec<(ColumnPos, Vec<u8>)> = originals
             .iter()
             .map(|(pos, n)| (*pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap()))
@@ -1305,6 +1580,75 @@ mod write {
                 "chunk {pos:?}: a written palette entry differs in text from every original one"
             );
         }
+    }
+
+    fn written_retrogen(record: NbtCompound, dir: &Fixture, name: &str) -> NbtCompound {
+        let src = Fixture::new(name);
+        let region = RegionFile::open(src.region(
+            0,
+            0,
+            &single_slot(ZLIB, &chunk_with_retrogen("minecraft:terrain", record)),
+        ))
+        .unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let original = read_named(&region, pos);
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let read = read_named(&rewrite(&region, &[(pos, nbt.clone())], &dir.dir), pos);
+        assert_same_chunk(&read, &original, name);
+        root(&nbt).get_compound("retrogen").unwrap().clone()
+    }
+
+    #[test]
+    fn an_empty_missing_bedrock_is_not_written() {
+        let dst = Fixture::new("retrogen_empty_dst");
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", NbtTag::LongArray(Vec::new()));
+        let written = written_retrogen(record, &dst, "retrogen_empty_src");
+        assert!(written.get("missing_bedrock").is_none());
+
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put("missing_bedrock", NbtTag::LongArray(vec![3, 0, 0]));
+        let written = written_retrogen(record, &dst, "retrogen_zero_words_src");
+        assert_eq!(
+            written.get("missing_bedrock"),
+            Some(&NbtTag::LongArray(vec![3]))
+        );
+    }
+
+    #[test]
+    fn noise_biomes_are_written_back_only_when_held() {
+        let (src, dst) = (Fixture::new("noise_src"), Fixture::new("noise_dst"));
+        let mut entries = vec![0u16; NoiseBiomes::ENTRY_COUNT];
+        entries[NoiseBiomes::index(2, 1, 3)] = 1;
+        let held = section_with_noise_biomes(0, quart_biomes(&entries));
+        let bare = section(
+            1,
+            container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+        );
+        let root_in = chunk_at(
+            "minecraft:terrain",
+            vec![NbtTag::Compound(held), NbtTag::Compound(bare)],
+        );
+        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let pos = ColumnPos::new(0, 0);
+        let original = read_named(&region, pos);
+        assert!(original.chunk.sections[0].noise_biomes.is_some());
+        assert!(original.chunk.sections[1].noise_biomes.is_none());
+
+        let nbt = write_chunk(&original.chunk, &original.blocks, &original.biomes).unwrap();
+        let written = root(&nbt);
+        let sections = written.get_list("sections").unwrap();
+        let has_key = |index: usize| {
+            let NbtTag::Compound(section) = &sections[index] else {
+                panic!("a section is not a compound");
+            };
+            section.get("noise_biomes").is_some()
+        };
+        assert!(has_key(0));
+        assert!(!has_key(1));
+
+        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        assert_same_chunk(&read, &original, "noise biomes");
     }
 
     #[test]
@@ -1358,7 +1702,7 @@ mod write {
                 0,
                 container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
             ))],
-            OLDEST_DATA_VERSION,
+            VERSION.world_version,
         );
         let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
         let pos = ColumnPos::new(0, 0);
@@ -1374,7 +1718,10 @@ mod write {
             .unwrap();
         let nbt = write_chunk(&edited.chunk, &edited.blocks, &edited.biomes).unwrap();
 
-        assert_eq!(root(&nbt).get_int("DataVersion"), Some(DATA_VERSION));
+        assert_eq!(
+            root(&nbt).get_int("DataVersion"),
+            Some(VERSION.world_version)
+        );
         let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
         assert!(!read.chunk.is_light_on);
     }

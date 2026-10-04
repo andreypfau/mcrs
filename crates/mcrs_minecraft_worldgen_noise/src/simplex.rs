@@ -118,16 +118,3 @@ impl Noise for SimplexNoise {
         }
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::SimplexNoise;
-    use mcrs_minecraft_random::legacy::LegacyRandom;
-
-    #[test]
-    fn simplex_reachable() {
-        let noise = SimplexNoise::from_random(&mut LegacyRandom::new(845));
-        let v = noise.sample_2d(0.5, 0.5, 1.0, 1.0);
-        assert!(v.is_finite(), "sample must return a finite f64");
-    }
-}

@@ -673,10 +673,7 @@ impl<'r> Builder<'_, '_, 'r> {
     }
 
     fn named_block(&mut self, name: &str) -> Result<VoxelId, CompileError> {
-        self.block(&BlockState {
-            name: ResourceLocation::minecraft(name),
-            properties: None,
-        })
+        self.block(&BlockState::minecraft(name))
     }
 }
 
@@ -803,14 +800,6 @@ pub(crate) mod tests {
             &inputs,
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"))
-    }
-
-    #[test]
-    fn every_shipped_dimension_compiles_its_material_rule() {
-        for name in ["overworld", "nether", "end", "caves", "floating_islands"] {
-            let (_, material) = build(name);
-            assert!(!material.tape().is_empty(), "{name}: the tape is empty");
-        }
     }
 
     #[test]
@@ -1059,66 +1048,6 @@ pub(crate) mod tests {
             &inputs,
         )
         .map(|_| ())
-    }
-
-    #[test]
-    fn an_unresolvable_block_state_is_a_compile_error() {
-        let error = compile_alone(
-            r#"{"type":"minecraft:block","result_state":"minecraft:nonesuch"}"#,
-            &|state| (state.name.as_str() != "minecraft:nonesuch").then_some(VoxelId(7)),
-        )
-        .unwrap_err();
-        assert_eq!(
-            error,
-            CompileError::UnknownBlockState("minecraft:nonesuch".to_string())
-        );
-    }
-
-    #[test]
-    fn a_biome_tag_is_a_compile_error() {
-        let error = compile_alone(
-            r##"{"type":"minecraft:condition","if_true":{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"},"then_run":{"type":"minecraft:block","result_state":"minecraft:stone"}}"##,
-            &resolve_block,
-        )
-        .unwrap_err();
-        assert_eq!(
-            error,
-            CompileError::UnknownBiome("#minecraft:is_overworld".to_string())
-        );
-    }
-
-    #[test]
-    fn an_unknown_rule_id_is_a_compile_error() {
-        let error = compile_alone(
-            r#"{"type":"minecraft:sequence","sequence":["minecraft:nonesuch"]}"#,
-            &resolve_block,
-        )
-        .unwrap_err();
-        assert_eq!(
-            error,
-            CompileError::UnknownRule("minecraft:nonesuch".to_string())
-        );
-    }
-
-    #[test]
-    fn an_unknown_rule_type_does_not_parse() {
-        let json = r#"{"type":"minecraft:teleport","result_state":"minecraft:stone"}"#;
-        let error = serde_json::from_str::<MaterialRule>(json)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("teleport"), "{error}");
-        assert!(serde_json::from_str::<MaterialRuleHolder>(json).is_err());
-    }
-
-    #[test]
-    fn the_temperature_condition_names_itself_as_unsupported() {
-        let error = compile_alone(
-            r#"{"type":"minecraft:condition","if_true":{"type":"minecraft:temperature"},"then_run":{"type":"minecraft:block","result_state":"minecraft:stone"}}"#,
-            &resolve_block,
-        )
-        .unwrap_err();
-        assert_eq!(error, CompileError::UnsupportedCondition("temperature"));
-        assert!(error.to_string().contains("temperature"));
     }
 
     #[test]

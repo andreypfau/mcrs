@@ -337,11 +337,18 @@ mod tests {
         assert_eq!(rng, replay);
     }
 
+    /// Every draw the whole feature spends: two radii, one per floor cell of
+    /// the wall ring, two per chest attempt plus a long for each chest that
+    /// lands, and one for the mob.
+    ///
+    /// Self-recorded: the ladder is read off `MonsterRoomFeature`, the number
+    /// off this implementation.
     #[test]
-    fn a_room_leaves_a_spawner_and_its_mob() {
+    fn room_draw_count_anchor() {
         let mut volume = stone_with_one_hole();
         let mut entities = Vec::new();
         let mut rng = WorldgenRandom::new(0x5eed_2024);
+        let mut replay = rng.clone();
         assert!(place_monster_room(
             &room(),
             &mut volume,
@@ -355,34 +362,9 @@ mod tests {
             .find(|entity| matches!(entity, GeneratedBlockEntity::MobSpawner { .. }))
             .expect("a monster room always leaves a spawner");
         assert_eq!(spawner.position(), ORIGIN);
-    }
-
-    /// The wall ring is cobble, mossy below the floor, and the interior is
-    /// carved to cave air.
-    #[test]
-    fn the_room_is_carved_and_walled() {
-        let mut volume = stone_with_one_hole();
-        let mut entities = Vec::new();
-        let mut rng = WorldgenRandom::new(0x5eed_2024);
-        place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
         assert_eq!(volume.get(BlockPos::new(0, ORIGIN.y + 1, 0)), CAVE_AIR);
         let floor = volume.get(BlockPos::new(0, ORIGIN.y - 1, 0));
         assert!(floor == COBBLE || floor == MOSSY, "floor was {floor:?}");
-    }
-
-    /// Every draw the whole feature spends: two radii, one per floor cell of
-    /// the wall ring, two per chest attempt plus a long for each chest that
-    /// lands, and one for the mob.
-    ///
-    /// Self-recorded: the ladder is read off `MonsterRoomFeature`, the number
-    /// off this implementation.
-    #[test]
-    fn room_draw_count_anchor() {
-        let mut volume = stone_with_one_hole();
-        let mut entities = Vec::new();
-        let mut rng = WorldgenRandom::new(0x5eed_2024);
-        let mut replay = rng.clone();
-        place_monster_room(&room(), &mut volume, &mut rng, &mut entities, ORIGIN);
 
         replay.next_i32_bound(2);
         replay.next_i32_bound(2);

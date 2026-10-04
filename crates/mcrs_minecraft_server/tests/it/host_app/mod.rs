@@ -21,13 +21,13 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_registry::StaticRegistry;
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -115,13 +115,3 @@ pub fn materialise_sub_apps(app: &mut App, ids: &[(&str, bool)]) {
     drain_dim_spawn_queue(app);
 }
 
-/// Return `source` only if `anchor` is still present in it. A grep-style gate
-/// over included source text passes vacuously once the thing it greps for has
-/// been renamed or moved, so every such gate must anchor first.
-pub fn anchored(source: &'static str, anchor: &str, target: &str) -> &'static str {
-    assert!(
-        source.contains(anchor),
-        "{target} must still contain {anchor:?}"
-    );
-    source
-}

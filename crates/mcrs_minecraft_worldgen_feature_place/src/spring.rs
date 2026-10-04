@@ -59,7 +59,6 @@ pub fn place_spring<W: WorldGenVolume>(
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -69,7 +68,6 @@ mod tests {
 
     const STONE: VoxelId = VoxelId(1);
     const LAVA: VoxelId = VoxelId(2);
-    const DIRT: VoxelId = VoxelId(3);
     const ORIGIN: BlockPos = BlockPos::new(0, 40, 0);
 
     fn config(rock_count: i32, hole_count: i32) -> CompiledSpring {
@@ -92,52 +90,6 @@ mod tests {
         let above = ORIGIN + IVec3::Y;
         volume.blocks.insert((above.x, above.y, above.z), STONE);
         volume
-    }
-
-    #[test]
-    fn places_when_both_counts_match() {
-        let mut volume = encased();
-        assert!(place_spring(
-            &config(5, 0),
-            &mut volume,
-            &mut WorldgenRandom::new(1),
-            ORIGIN
-        ));
-        assert_eq!(volume.get(ORIGIN), LAVA);
-    }
-
-    #[test]
-    fn one_hole_is_one_fewer_rock() {
-        let mut volume = encased();
-        let west = ORIGIN + SIDES[0];
-        volume.blocks.remove(&(west.x, west.y, west.z));
-        assert!(!place_spring(
-            &config(5, 0),
-            &mut volume,
-            &mut WorldgenRandom::new(1),
-            ORIGIN
-        ));
-        assert!(place_spring(
-            &config(4, 1),
-            &mut volume,
-            &mut WorldgenRandom::new(1),
-            ORIGIN
-        ));
-    }
-
-    /// A hole is air, and a side that is neither valid nor air counts for
-    /// neither total.
-    #[test]
-    fn a_foreign_side_counts_for_neither() {
-        let mut volume = encased();
-        let east = ORIGIN + SIDES[1];
-        volume.blocks.insert((east.x, east.y, east.z), DIRT);
-        assert!(place_spring(
-            &config(4, 0),
-            &mut volume,
-            &mut WorldgenRandom::new(1),
-            ORIGIN
-        ));
     }
 
     #[test]

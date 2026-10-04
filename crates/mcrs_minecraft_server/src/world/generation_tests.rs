@@ -655,54 +655,6 @@ fn assert_region_agrees(consumer: Consumer, radius: i32, drives: &[Drive]) {
     );
 }
 
-/// The nine columns around the origin, through every worker count, request
-/// order, batch size and eviction the definition leaves free, for each program
-/// `Run` has.
-#[test]
-fn the_parallel_ladder_delivers_the_oracle_region() {
-    for consumer in [
-        Consumer::BetaOre,
-        Consumer::ModernOre,
-        Consumer::Tree,
-        Consumer::Corpus,
-        VILLAGE,
-        OUTPOST,
-        DESERT_PYRAMID,
-        BURIED_TREASURE,
-        FORTRESS,
-        SHIPWRECK,
-        OCEAN_RUIN,
-        JUNGLE_TEMPLE,
-        RUINED_PORTAL,
-        MONUMENT,
-        MINESHAFT,
-        IGLOO,
-        NETHER_FOSSIL,
-        STRONGHOLD,
-        SWAMP_HUT,
-        END_CITY,
-        MANSION,
-    ] {
-        assert_region_agrees(consumer, 1, &small_drives());
-    }
-}
-
-/// The same comparison over forty-nine wanted columns — a hundred and
-/// twenty-one fills per run, so the interior columns are further from the edge
-/// of the region than any dependency reaches.
-#[test]
-fn the_parallel_ladder_delivers_the_large_oracle_region() {
-    for consumer in [
-        Consumer::BetaOre,
-        Consumer::ModernOre,
-        Consumer::Tree,
-        Consumer::Corpus,
-        VILLAGE,
-    ] {
-        assert_region_agrees(consumer, 3, &small_drives());
-    }
-}
-
 /// A column's block entities go to the dimension a live section names, and the
 /// first-enqueued section is not necessarily live: a single section can be
 /// unloaded on its own while the rest of the column stands, and the pending
@@ -835,4 +787,89 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         states[..256].iter().all(|state| *state == bedrock),
         "the bottom of the world is open: the material rules never ran over this dispatch"
     );
+}
+
+fn assert_region_agrees_under_a_lost_delta_and_a_shuffle(consumer: Consumer) {
+    let drives = [
+        Drive {
+            in_flight: 1,
+            batch: 1,
+            order: Order::RowMajor,
+            evict: Evict::UnderARun,
+        },
+        Drive {
+            in_flight: machine_parallelism(),
+            batch: 1,
+            order: Order::Shuffled(7),
+            evict: Evict::OnTicks,
+        },
+    ];
+    assert_region_agrees(consumer, 1, &drives);
+}
+
+#[test]
+fn the_parallel_ladder_delivers_the_corpus_region() {
+    assert_region_agrees_under_a_lost_delta_and_a_shuffle(Consumer::Corpus);
+}
+
+#[test]
+fn the_parallel_ladder_delivers_a_village_that_writes_across_columns() {
+    assert_region_agrees_under_a_lost_delta_and_a_shuffle(VILLAGE);
+}
+
+#[test]
+fn the_parallel_ladder_delivers_a_desert_pyramid_clipped_to_its_column() {
+    assert_region_agrees_under_a_lost_delta_and_a_shuffle(DESERT_PYRAMID);
+}
+
+mod exhaustive {
+    use super::*;
+
+    /// The nine columns around the origin, through every worker count, request
+    /// order, batch size and eviction the definition leaves free, for each program
+    /// `Run` has.
+    #[test]
+    fn the_parallel_ladder_delivers_the_oracle_region() {
+        for consumer in [
+            Consumer::BetaOre,
+            Consumer::ModernOre,
+            Consumer::Tree,
+            Consumer::Corpus,
+            VILLAGE,
+            OUTPOST,
+            DESERT_PYRAMID,
+            BURIED_TREASURE,
+            FORTRESS,
+            SHIPWRECK,
+            OCEAN_RUIN,
+            JUNGLE_TEMPLE,
+            RUINED_PORTAL,
+            MONUMENT,
+            MINESHAFT,
+            IGLOO,
+            NETHER_FOSSIL,
+            STRONGHOLD,
+            SWAMP_HUT,
+            END_CITY,
+            MANSION,
+        ] {
+            assert_region_agrees(consumer, 1, &small_drives());
+        }
+    }
+
+    /// The same comparison over forty-nine wanted columns — a hundred and
+    /// twenty-one fills per run, so the interior columns are further from the edge
+    /// of the region than any dependency reaches.
+    #[test]
+    fn the_parallel_ladder_delivers_the_large_oracle_region() {
+        for consumer in [
+            Consumer::BetaOre,
+            Consumer::ModernOre,
+            Consumer::Tree,
+            Consumer::Corpus,
+            VILLAGE,
+        ] {
+            assert_region_agrees(consumer, 3, &small_drives());
+        }
+    }
 }

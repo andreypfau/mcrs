@@ -1,0 +1,66 @@
+[registries whose untyped copies are replaced]
+minecraft:banner_pattern no differences
+minecraft:instrument no differences
+minecraft:jukebox_song no differences
+minecraft:painting_variant no differences
+minecraft:trim_material no differences
+minecraft:trim_pattern no differences
+[other compared registries]
+minecraft:block_transformer $[0].block_state_provider.rules[0].if_true.predicates[1].offset ours=list game=int_array
+minecraft:block_transformer $[0].block_state_provider.rules[1].if_true.predicates[1].offset ours=list game=int_array
+minecraft:dialog $.button_width ours=long game=int
+minecraft:dialog $.columns ours=long game=int
+minecraft:dialog $.exit_action.width ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/ambient_sounds.mood.block_search_extent ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/ambient_sounds.mood.tick_delay ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/background_music.creative.max_delay ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/background_music.creative.min_delay ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/background_music.default.max_delay ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:audio/background_music.default.min_delay ours=long game=int
+minecraft:dimension_type $.attributes.minecraft:gameplay/bed_rule ours=compound game=absent
+minecraft:dimension_type $.attributes.minecraft:gameplay/can_start_raid ours=byte game=absent
+minecraft:dimension_type $.attributes.minecraft:gameplay/nether_portal_spawns_piglin ours=byte game=absent
+minecraft:dimension_type $.attributes.minecraft:gameplay/respawn_anchor_works ours=byte game=absent
+minecraft:dimension_type $.attributes.minecraft:gameplay/sky_light_level ours=double game=float
+minecraft:dimension_type $.attributes.minecraft:gameplay/snow_golem_melts ours=byte game=absent
+minecraft:dimension_type $.attributes.minecraft:gameplay/straw_bed_rule ours=compound game=absent
+minecraft:dimension_type $.attributes.minecraft:visual/cloud_height ours=double game=float
+minecraft:dimension_type $.attributes.minecraft:visual/fog_end_distance ours=double game=float
+minecraft:dimension_type $.attributes.minecraft:visual/fog_start_distance ours=double game=float
+minecraft:dimension_type $.attributes.minecraft:visual/sky_light_factor ours=double game=float
+minecraft:dimension_type $.cardinal_light ours=string game=absent
+minecraft:dimension_type $.skybox ours=string game=absent
+minecraft:dimension_type entry minecraft:beta ours=compound game=absent
+minecraft:timeline $.tracks ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/bees_stay_in_hive ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/cat_waking_up_gift_chance ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/eyeblossom_open ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/monsters_burn ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/surface_slime_spawn_chance ours=compound game=absent
+minecraft:timeline $.tracks.minecraft:gameplay/turtle_egg_hatch_chance ours=compound game=absent
+minecraft:worldgen/biome $.attributes.minecraft:audio/ambient_sounds.mood.block_search_extent ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/ambient_sounds.mood.tick_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.creative.max_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.creative.min_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.default.max_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.default.min_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.underwater.max_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.underwater.min_delay ours=long game=int
+minecraft:worldgen/biome $.attributes.minecraft:audio/music_volume ours=double game=float
+minecraft:worldgen/biome $.attributes.minecraft:visual/ambient_particles.argument[0].probability ours=double game=float
+minecraft:worldgen/biome $.attributes.minecraft:visual/water_fog_end_distance.argument ours=double game=float
+minecraft:worldgen/biome entry minecraft:beta_desert ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_forest ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_ice_desert ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_plains ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_rainforest ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_savanna ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_seasonal_forest ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_shrubland ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_swampland ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_taiga ours=compound game=absent
+minecraft:worldgen/biome entry minecraft:beta_tundra ours=compound game=absent
+minecraft:worldgen/block_state_provider $.high_chance ours=double game=float
+minecraft:worldgen/block_state_provider $.scale ours=double game=float
+minecraft:worldgen/block_state_provider $.slow_scale ours=double game=float
+minecraft:worldgen/block_state_provider $.threshold ours=double game=float

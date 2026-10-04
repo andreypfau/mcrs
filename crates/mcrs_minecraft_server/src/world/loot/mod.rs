@@ -236,7 +236,7 @@ impl Plugin for LootPlugin {
 }
 
 #[cfg(test)]
-mod tests {
+mod exhaustive {
     use super::LootTable;
 
     #[test]

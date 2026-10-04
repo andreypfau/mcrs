@@ -4,11 +4,13 @@ use std::marker::PhantomData;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
-use mcrs_minecraft_item_component::{
-    ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, EntityTypeReg,
-    ItemComponentKind, ItemComponentValue, RgbInt, TrimMaterialReg,
+use mcrs_minecraft_entity::EntityType;
+use mcrs_minecraft_item::{
+    ComponentPredicate, ComponentPredicateType, DyeColor, ItemComponentKind, ItemComponentValue,
+    RgbInt, TrimMaterial,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::key::Dimension;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -433,7 +435,7 @@ impl<'de, S: DeserializeSeed<'de> + Clone> Visitor<'de> for CompactSeed<S> {
 pub enum SelectSwitch {
     #[serde(rename = "minecraft:trim_material", alias = "trim_material")]
     TrimMaterial {
-        cases: Vec<Case<ResourceKey<TrimMaterialReg>>>,
+        cases: Vec<Case<ResourceKey<TrimMaterial>>>,
     },
     #[serde(rename = "minecraft:display_context", alias = "display_context")]
     DisplayContext { cases: Vec<Case<DisplayContext>> },
@@ -466,11 +468,11 @@ pub enum SelectSwitch {
         alias = "context_entity_type"
     )]
     ContextEntityType {
-        cases: Vec<Case<ResourceKey<EntityTypeReg>>>,
+        cases: Vec<Case<ResourceKey<EntityType>>>,
     },
     #[serde(rename = "minecraft:context_dimension", alias = "context_dimension")]
     ContextDimension {
-        cases: Vec<Case<ResourceKey<DimensionReg>>>,
+        cases: Vec<Case<ResourceKey<Dimension>>>,
     },
     #[serde(rename = "minecraft:component", alias = "component")]
     Component(ComponentSwitch),
@@ -893,99 +895,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
-        let mut files = 0;
-        let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
-        let mut properties: BTreeMap<String, usize> = BTreeMap::new();
-        let mut tints: BTreeMap<String, usize> = BTreeMap::new();
-        let mut swap_scales = 0;
-        for (id, bytes) in &corpus() {
-            files += 1;
-            let item = ClientItem::parse(bytes).unwrap_or_else(|error| panic!("{id}: {error}"));
-            let original: Value = serde_json::from_slice(bytes).unwrap();
-            let written = serde_json::to_value(&item).unwrap();
-            assert!(
-                structurally_equal(&original, &written),
-                "{id} did not round-trip:\n{original}\n{written}"
-            );
-            if item.swap_animation_scale != 1.0 {
-                swap_scales += 1;
-            }
-            for node in item.model.walk() {
-                *kinds.entry(json_str(node, "type")).or_default() += 1;
-                match node {
-                    UnbakedItemModel::Condition { property, .. } => {
-                        let name = format!("condition {}", json_str(property, "property"));
-                        *properties.entry(name).or_default() += 1;
-                    }
-                    UnbakedItemModel::Select { switch, .. } => {
-                        let name = format!("select {}", json_str(switch, "property"));
-                        *properties.entry(name).or_default() += 1;
-                    }
-                    UnbakedItemModel::RangeDispatch { property, .. } => {
-                        let name = format!("range {}", json_str(property, "property"));
-                        *properties.entry(name).or_default() += 1;
-                    }
-                    UnbakedItemModel::Model { tints: sources, .. } => {
-                        for tint in sources {
-                            *tints.entry(json_str(tint, "type")).or_default() += 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        assert_eq!(files, 1658);
-        assert_eq!(swap_scales, 7);
-        let expected_kinds: BTreeMap<String, usize> = [
-            ("minecraft:model", 2253),
-            ("minecraft:special", 91),
-            ("minecraft:select", 71),
-            ("minecraft:composite", 34),
-            ("minecraft:condition", 26),
-            ("minecraft:bundle/selected_item", 17),
-            ("minecraft:range_dispatch", 8),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect();
-        assert_eq!(kinds, expected_kinds);
-        let expected_properties: BTreeMap<String, usize> = [
-            ("select minecraft:trim_material", 29),
-            ("select minecraft:display_context", 26),
-            ("condition minecraft:bundle/has_selected_item", 17),
-            ("select minecraft:block_state", 12),
-            ("condition minecraft:using_item", 5),
-            ("range minecraft:compass", 3),
-            ("range minecraft:time", 2),
-            ("select minecraft:local_time", 2),
-            ("condition minecraft:has_component", 2),
-            ("select minecraft:context_dimension", 1),
-            ("range minecraft:use_cycle", 1),
-            ("condition minecraft:fishing_rod/cast", 1),
-            ("select minecraft:charge_type", 1),
-            ("range minecraft:crossbow/pull", 1),
-            ("condition minecraft:broken", 1),
-            ("range minecraft:use_duration", 1),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect();
-        assert_eq!(properties, expected_properties);
-        let expected_tints: BTreeMap<String, usize> = [
-            ("minecraft:dye", 50),
-            ("minecraft:constant", 11),
-            ("minecraft:grass", 6),
-            ("minecraft:potion", 4),
-            ("minecraft:firework", 1),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect();
-        assert_eq!(tints, expected_tints);
-    }
-
     fn parse(json: &str) -> Result<ClientItem, String> {
         ClientItem::parse(json.as_bytes())
     }
@@ -1028,7 +937,7 @@ mod tests {
 
     #[test]
     fn the_component_switch_reads_its_cases_with_the_components_codec() {
-        use mcrs_minecraft_item_component::DyedColor;
+        use mcrs_minecraft_item::DyedColor;
 
         let item = model(&format!(
             r#"{{"type": "minecraft:select", "property": "minecraft:component", "component": "minecraft:dyed_color", "cases": [{{"when": [255, [1.0, 0.0, 0.0]], "model": {LEAF}}}]}}"#
@@ -1072,12 +981,100 @@ mod tests {
         assert!(error.contains("unknown field"), "{error}");
     }
 
-    /// `flatten` leaves the outer object without `deny_unknown_fields`.
-    #[test]
-    fn an_unknown_key_on_a_condition_object_passes_silently() {
-        model(&format!(
-            r#"{{"type": "minecraft:condition", "property": "minecraft:damaged", "on_true": {LEAF}, "on_false": {LEAF}, "extra": 1}}"#
-        ))
-        .unwrap();
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn every_item_model_asset_reads_and_writes_back_structurally_equal() {
+            let mut files = 0;
+            let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+            let mut properties: BTreeMap<String, usize> = BTreeMap::new();
+            let mut tints: BTreeMap<String, usize> = BTreeMap::new();
+            let mut swap_scales = 0;
+            for (id, bytes) in &corpus() {
+                files += 1;
+                let item = ClientItem::parse(bytes).unwrap_or_else(|error| panic!("{id}: {error}"));
+                let original: Value = serde_json::from_slice(bytes).unwrap();
+                let written = serde_json::to_value(&item).unwrap();
+                assert!(
+                    structurally_equal(&original, &written),
+                    "{id} did not round-trip:\n{original}\n{written}"
+                );
+                if item.swap_animation_scale != 1.0 {
+                    swap_scales += 1;
+                }
+                for node in item.model.walk() {
+                    *kinds.entry(json_str(node, "type")).or_default() += 1;
+                    match node {
+                        UnbakedItemModel::Condition { property, .. } => {
+                            let name = format!("condition {}", json_str(property, "property"));
+                            *properties.entry(name).or_default() += 1;
+                        }
+                        UnbakedItemModel::Select { switch, .. } => {
+                            let name = format!("select {}", json_str(switch, "property"));
+                            *properties.entry(name).or_default() += 1;
+                        }
+                        UnbakedItemModel::RangeDispatch { property, .. } => {
+                            let name = format!("range {}", json_str(property, "property"));
+                            *properties.entry(name).or_default() += 1;
+                        }
+                        UnbakedItemModel::Model { tints: sources, .. } => {
+                            for tint in sources {
+                                *tints.entry(json_str(tint, "type")).or_default() += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            assert_eq!(files, 1658);
+            assert_eq!(swap_scales, 7);
+            let expected_kinds: BTreeMap<String, usize> = [
+                ("minecraft:model", 2253),
+                ("minecraft:special", 91),
+                ("minecraft:select", 71),
+                ("minecraft:composite", 34),
+                ("minecraft:condition", 26),
+                ("minecraft:bundle/selected_item", 17),
+                ("minecraft:range_dispatch", 8),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v))
+            .collect();
+            assert_eq!(kinds, expected_kinds);
+            let expected_properties: BTreeMap<String, usize> = [
+                ("select minecraft:trim_material", 29),
+                ("select minecraft:display_context", 26),
+                ("condition minecraft:bundle/has_selected_item", 17),
+                ("select minecraft:block_state", 12),
+                ("condition minecraft:using_item", 5),
+                ("range minecraft:compass", 3),
+                ("range minecraft:time", 2),
+                ("select minecraft:local_time", 2),
+                ("condition minecraft:has_component", 2),
+                ("select minecraft:context_dimension", 1),
+                ("range minecraft:use_cycle", 1),
+                ("condition minecraft:fishing_rod/cast", 1),
+                ("select minecraft:charge_type", 1),
+                ("range minecraft:crossbow/pull", 1),
+                ("condition minecraft:broken", 1),
+                ("range minecraft:use_duration", 1),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v))
+            .collect();
+            assert_eq!(properties, expected_properties);
+            let expected_tints: BTreeMap<String, usize> = [
+                ("minecraft:dye", 50),
+                ("minecraft:constant", 11),
+                ("minecraft:grass", 6),
+                ("minecraft:potion", 4),
+                ("minecraft:firework", 1),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v))
+            .collect();
+            assert_eq!(tints, expected_tints);
+        }
     }
 }

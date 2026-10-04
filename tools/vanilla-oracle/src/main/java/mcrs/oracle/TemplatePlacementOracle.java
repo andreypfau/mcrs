@@ -456,7 +456,7 @@ public final class TemplatePlacementOracle {
         BoundingBox clip = new BoundingBox(
             0, this.overworld.minY() + 1, 0, 15, this.overworld.minY() + this.overworld.height() - 1, 15
         );
-        BoundingBox bb = this.templates.getOrCreate(c.element().getTemplateLocation())
+        BoundingBox bb = this.templates.getOrEmpty(c.element().getTemplateLocation())
             .getBoundingBox(new StructurePlaceSettings().setRotation(rotation), PIECE_POSITION);
         BlockPos reference = new BlockPos(bb.getCenter().getX(), bb.minY(), bb.getCenter().getZ());
 
@@ -522,7 +522,7 @@ public final class TemplatePlacementOracle {
                 TemplateFeature feature = (TemplateFeature) c.feature();
                 TemplateFeature.TemplateEntry entry = feature.templates().getRandomOrThrow(random);
                 Rotation rotation = Util.getRandom(entry.rotations(), random);
-                StructureTemplate template = this.templates.getOrCreate(entry.template());
+                StructureTemplate template = this.templates.getOrEmpty(entry.template());
                 Vec3i size = template.getSize();
                 BlockPos position = FEATURE_ORIGIN
                     .offset(rotation.rotate(Direction.WEST).getUnitVec3i().multiply(size.getX() / 2))
@@ -545,7 +545,7 @@ public final class TemplatePlacementOracle {
     }
 
     private void writePortalCase(final OutputStream out, final PortalCase c, final int index) throws Exception {
-        StructureTemplate template = this.templates.getOrCreate(Identifier.parse(c.template()));
+        StructureTemplate template = this.templates.getOrEmpty(Identifier.parse(c.template()));
         BlockPos pivot = new BlockPos(template.getSize().getX() / 2, 0, template.getSize().getZ() / 2);
         StructurePlaceSettings settings = (StructurePlaceSettings) MAKE_SETTINGS.invoke(
             null, this.access, c.mirror(), c.rotation(), c.vertical(), pivot, c.properties()

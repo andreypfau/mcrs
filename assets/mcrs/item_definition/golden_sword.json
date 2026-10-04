@@ -6,11 +6,7 @@
       "protocol_id": 1040
     },
     "components": {
-      "minecraft:lore": [],
-      "minecraft:max_damage": 32,
-      "minecraft:item_name": {
-        "translate": "item.minecraft.golden_sword"
-      },
+      "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [
         {
           "type": "minecraft:attack_damage",
@@ -27,19 +23,25 @@
           "slot": "mainhand"
         }
       ],
-      "minecraft:weapon": {},
-      "minecraft:tooltip_display": {},
-      "minecraft:attack_animation": {},
-      "minecraft:rarity": "common",
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:damage": 0,
       "minecraft:enchantable": {
         "value": 22
       },
       "minecraft:enchantments": {},
-      "minecraft:repair_cost": 0,
-      "minecraft:max_stack_size": 1,
+      "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:golden_sword",
-      "minecraft:use_effects": {},
-      "minecraft:damage": 0,
+      "minecraft:item_name": {
+        "translate": "item.minecraft.golden_sword"
+      },
+      "minecraft:lore": [],
+      "minecraft:max_damage": 32,
+      "minecraft:max_stack_size": 1,
+      "minecraft:rarity": "common",
+      "minecraft:repair_cost": 0,
+      "minecraft:repairable": {
+        "items": "#minecraft:gold_tool_materials"
+      },
       "minecraft:tool": {
         "rules": [
           {
@@ -59,11 +61,9 @@
         "damage_per_block": 2,
         "can_destroy_blocks_in_creative": false
       },
-      "minecraft:interact_animation": {},
-      "minecraft:break_sound": "minecraft:entity.item.break",
-      "minecraft:repairable": {
-        "items": "#minecraft:gold_tool_materials"
-      }
+      "minecraft:tooltip_display": {},
+      "minecraft:use_effects": {},
+      "minecraft:weapon": {}
     }
   }
 }

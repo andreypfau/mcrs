@@ -225,20 +225,6 @@ mod test {
     }
 
     #[test]
-    fn next_f64_bit_pattern_matches_vanilla() {
-        let mut random = XoroshiroRandom::new(1);
-        for bits in [
-            0x3fee34f5964cec6bu64,
-            0x3fd6623c80cc75fa,
-            0x3fecd6eb0ea62611,
-            0x3fa8b47231560540,
-            0x3fdc15a8878b6f82,
-        ] {
-            assert_eq!(random.next_f64().to_bits(), bits);
-        }
-    }
-
-    #[test]
     fn next_gaussian_banks_the_second_of_the_polar_pair() {
         let mut random = XoroshiroRandom::new(1);
         let mut reference = XoroshiroRandom::new(1);

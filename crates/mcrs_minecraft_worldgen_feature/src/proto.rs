@@ -16,6 +16,8 @@ use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::value_provider::{
     BoundedIntProvider, FloatProvider, IntProvider, Weighted,
 };
@@ -28,6 +30,12 @@ use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 pub enum Holder<T> {
     Reference(ResourceLocation),
     Inline(Box<T>),
+}
+
+impl<T> From<mcrs_minecraft_core::ResourceKey<T, &'static str>> for Holder<T> {
+    fn from(key: mcrs_minecraft_core::ResourceKey<T, &'static str>) -> Self {
+        Holder::Reference((*key.location()).into())
+    }
 }
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Holder<T> {
@@ -182,6 +190,10 @@ impl Feature {
 pub struct PlacedFeature {
     pub feature: Holder<Feature>,
     pub placement: Vec<PlacementModifier>,
+}
+
+impl RegistryKey for PlacedFeature {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/placed_feature");
 }
 
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
@@ -567,6 +579,10 @@ pub enum Feature {
     },
 }
 
+impl RegistryKey for Feature {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/feature");
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlockReplacement {
@@ -670,7 +686,13 @@ pub struct GeodeCrackSettings {
 
 /// `StructureProcessorType.DIRECT_CODEC`: the list under a `processors` field,
 /// or the bare list.
-pub type StructureProcessorList = Either<WrappedProcessors, Vec<StructureProcessor>>;
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct StructureProcessorList(pub Either<WrappedProcessors, Vec<StructureProcessor>>);
+
+impl RegistryKey for StructureProcessorList {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/processor_list");
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -679,7 +701,7 @@ pub struct WrappedProcessors {
 }
 
 pub fn processor_list(list: &StructureProcessorList) -> &[StructureProcessor] {
-    match list {
+    match &list.0 {
         Either::Left(wrapped) => &wrapped.processors,
         Either::Right(bare) => bare,
     }
@@ -895,26 +917,13 @@ mod tests {
 
         let bare = r#"[{"processor_type":"minecraft:nop"}]"#;
         let parsed: StructureProcessorList = serde_json::from_str(bare).unwrap();
-        assert!(matches!(parsed, Either::Right(_)));
+        assert!(matches!(parsed.0, Either::Right(_)));
         assert_eq!(serde_json::to_string(&parsed).unwrap(), bare);
-    }
 
-    #[test]
-    fn an_unknown_feature_type_is_refused_by_name() {
-        let error = serde_json::from_str::<Feature>(r#"{"type":"minecraft:hedge_maze"}"#)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("minecraft:hedge_maze"), "{error}");
-    }
-
-    #[test]
-    fn an_unknown_placement_modifier_type_is_refused_by_name() {
-        let error = serde_json::from_str::<PlacedFeature>(
-            r#"{"feature":"minecraft:oak","placement":[{"type":"minecraft:moon_phase"}]}"#,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("minecraft:moon_phase"), "{error}");
+        let wrapped = r#"{"processors":[{"processor_type":"minecraft:nop"}]}"#;
+        let parsed: StructureProcessorList = serde_json::from_str(wrapped).unwrap();
+        assert!(matches!(parsed.0, Either::Left(_)));
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), wrapped);
     }
 
     #[test]

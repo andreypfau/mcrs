@@ -8,7 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_minecraft_item.workspace = true
+mcrs_minecraft_worldgen_builtin.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block.workspace = true
@@ -16,6 +17,7 @@ mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 bevy_app.workspace = true
@@ -37,3 +39,7 @@ uuid.workspace = true
 [dev-dependencies]
 bytes.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
+mcrs_minecraft_worldgen_noise.workspace = true
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_surface.workspace = true
+mcrs_minecraft_anvil.workspace = true

@@ -1,7 +1,6 @@
-//! Covers AOI-05 (each DimSubApp owns its own AoI substrate; AoI state
-//! for a player in dim A does not leak into dim B's `PlayerObservers`
-//! or onto dim B's entities). The test materialises two real per-dim
-//! sub-apps via the production `spawn_dim_subapp` plumbing (which now
+//! Each DimSubApp owns its own AoI substrate: AoI state for a player in dim A
+//! does not leak into dim B's `PlayerObservers` or onto dim B's entities. The
+//! test materialises two real per-dim sub-apps via the production `spawn_dim_subapp` plumbing (which now
 //! installs `PlayerTrackerPlugin` in each), seeds a player + column
 //! grid into dim A only, and pumps a few ticks. Dim B's chunk
 //! observers must remain empty across the run.

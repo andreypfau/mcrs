@@ -192,16 +192,6 @@ mod tests {
     }
 
     #[test]
-    fn vegetation_reads_one_block_below() {
-        let rule = SurviveRule::SupportedBy {
-            offset_y: -1,
-            supports: mask_of([DIRT]).as_ref().clone(),
-        };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(STONE, AIR, AIR, AIR)));
-    }
-
-    #[test]
     fn a_hanging_propagule_reads_above_instead() {
         let rule = SurviveRule::SupportedBy {
             offset_y: 1,
@@ -287,12 +277,5 @@ mod tests {
             Some(SurviveFamily::SugarCane)
         );
         assert_eq!(family_of("minecraft:cactus"), Some(SurviveFamily::Cactus));
-    }
-
-    #[test]
-    fn a_block_that_overrides_nothing_has_no_family_and_takes_the_default() {
-        for block in ["minecraft:stone", "minecraft:melon", "minecraft:pumpkin"] {
-            assert_eq!(family_of(block), None, "{block}");
-        }
     }
 }

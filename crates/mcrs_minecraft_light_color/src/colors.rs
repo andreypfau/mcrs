@@ -64,10 +64,10 @@ mod load {
     use bevy_asset::io::AssetSourceId;
     use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
     use mcrs_minecraft_assets::tag::DynTagRegistry;
-    use mcrs_minecraft_block::Block;
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
     use mcrs_minecraft_core::tag_key::TagKey;
     use mcrs_minecraft_registry::BlockStateId;
+    use mcrs_minecraft_registry::key::Block;
 
     use super::{LightColors, LightType};
     use crate::asset::{BlockStateRef, LightColorFile, StateTarget};

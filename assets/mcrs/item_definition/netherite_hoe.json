@@ -6,11 +6,7 @@
       "protocol_id": 1059
     },
     "components": {
-      "minecraft:lore": [],
-      "minecraft:max_damage": 2031,
-      "minecraft:item_name": {
-        "translate": "item.minecraft.netherite_hoe"
-      },
+      "minecraft:attack_animation": {},
       "minecraft:attribute_modifiers": [
         {
           "type": "minecraft:attack_damage",
@@ -27,22 +23,29 @@
           "slot": "mainhand"
         }
       ],
-      "minecraft:weapon": {
-        "item_damage_per_attack": 2
+      "minecraft:block_transformer": "minecraft:hoe",
+      "minecraft:break_sound": "minecraft:entity.item.break",
+      "minecraft:damage": 0,
+      "minecraft:damage_resistant": {
+        "types": "#minecraft:is_fire"
       },
-      "minecraft:tooltip_display": {},
-      "minecraft:attack_animation": {},
-      "minecraft:rarity": "common",
       "minecraft:enchantable": {
         "value": 15
       },
       "minecraft:enchantments": {},
-      "minecraft:repair_cost": 0,
-      "minecraft:max_stack_size": 1,
+      "minecraft:interact_animation": {},
       "minecraft:item_model": "minecraft:netherite_hoe",
-      "minecraft:block_transformer": "minecraft:hoe",
-      "minecraft:use_effects": {},
-      "minecraft:damage": 0,
+      "minecraft:item_name": {
+        "translate": "item.minecraft.netherite_hoe"
+      },
+      "minecraft:lore": [],
+      "minecraft:max_damage": 2031,
+      "minecraft:max_stack_size": 1,
+      "minecraft:rarity": "common",
+      "minecraft:repair_cost": 0,
+      "minecraft:repairable": {
+        "items": "#minecraft:netherite_tool_materials"
+      },
       "minecraft:tool": {
         "rules": [
           {
@@ -56,13 +59,10 @@
           }
         ]
       },
-      "minecraft:interact_animation": {},
-      "minecraft:break_sound": "minecraft:entity.item.break",
-      "minecraft:repairable": {
-        "items": "#minecraft:netherite_tool_materials"
-      },
-      "minecraft:damage_resistant": {
-        "types": "#minecraft:is_fire"
+      "minecraft:tooltip_display": {},
+      "minecraft:use_effects": {},
+      "minecraft:weapon": {
+        "item_damage_per_attack": 2
       }
     }
   }

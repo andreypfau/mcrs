@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod base_height;
+#[cfg(test)]
+mod beta_biome_grid;
 mod beta_biome_palette;
 #[cfg(test)]
 mod beta_cave_parity;
@@ -12,6 +14,14 @@ mod beta_ore_distribution;
 pub(crate) mod beta_surface;
 #[cfg(test)]
 mod beta_surface_parity;
+#[cfg(test)]
+mod biome_parity;
+#[cfg(test)]
+mod biome_upscale;
+#[cfg(test)]
+mod carving_pins;
+#[cfg(test)]
+mod carving_regions;
 #[cfg(test)]
 mod cell_census;
 #[cfg(test)]
@@ -31,6 +41,8 @@ mod multi_noise_biomes;
 mod perf;
 #[cfg(test)]
 mod rungs;
+#[cfg(test)]
+mod stored_biomes;
 #[cfg(test)]
 mod structure_geometry;
 #[cfg(test)]

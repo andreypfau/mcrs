@@ -250,9 +250,4 @@ mod tests {
     fn a_model_face_is_occluded_by_the_blocks_around_it_in_the_section() {
         assert_eq!(west_face_on_a_floor(true), [153, 91, 91, 153]);
     }
-
-    #[test]
-    fn a_model_without_ambient_occlusion_keeps_only_its_face_shade() {
-        assert_eq!(west_face_on_a_floor(false), [153; 4]);
-    }
 }

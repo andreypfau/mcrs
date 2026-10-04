@@ -20,7 +20,7 @@ pub(super) fn make_beta_biome() -> Biome {
             water_color: None,
             foliage_color: None,
             grass_color: None,
-            grass_color_modifier: None,
+            grass_color_modifier: Default::default(),
             dry_foliage_color: None,
         },
         carvers: Vec::new(),

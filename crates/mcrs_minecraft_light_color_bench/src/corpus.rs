@@ -5,16 +5,16 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::light::block_light_registry;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, TaggedRegistry};
-use mcrs_minecraft_item::definition::test_corpus;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::fixture::FixtureState;

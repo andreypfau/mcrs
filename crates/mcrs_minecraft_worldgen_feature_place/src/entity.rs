@@ -868,71 +868,6 @@ mod tests {
     }
 
     #[test]
-    fn a_trident_drowned_may_ride_a_nautilus_unless_drowned_are_frequent() {
-        let mut r = rng();
-        let mut mounted = 0;
-        let mut armed = 0;
-        for _ in 0..3000 {
-            let (entity, _) = drowned_after(&mut r, false);
-            match &entity.kind {
-                GeneratedKind::ZombieNautilus { variant, .. } => {
-                    mounted += 1;
-                    assert_eq!(variant, &ResourceLocation::minecraft("warm"));
-                    let [rider] = entity.passengers.as_slice() else {
-                        panic!()
-                    };
-                    let GeneratedKind::Drowned {
-                        baby, equipment, ..
-                    } = &rider.kind
-                    else {
-                        panic!()
-                    };
-                    assert!(!baby);
-                    assert_eq!(equipment.mainhand, Some(ItemStack::one(Item::Trident)));
-                    assert_eq!(rider.pos, entity.pos);
-                }
-                GeneratedKind::Drowned { equipment, .. }
-                    if equipment.mainhand == Some(ItemStack::one(Item::Trident)) =>
-                {
-                    armed += 1
-                }
-                _ => {}
-            }
-        }
-        assert!(
-            mounted > 40 && armed > 40,
-            "{mounted} mounted, {armed} on foot"
-        );
-        for _ in 0..3000 {
-            let (entity, _) = drowned_after(&mut r, true);
-            assert!(!matches!(entity.kind, GeneratedKind::ZombieNautilus { .. }));
-        }
-    }
-
-    #[test]
-    fn a_baby_drowned_may_ride_a_chicken_of_the_biome() {
-        let mut r = rng();
-        let mut jockeys = 0;
-        let tables = tables();
-        for _ in 0..40000 {
-            let entity = drowned(AT, &ctx(None, 5), &tables, false, &mut r);
-            if let GeneratedKind::Chicken {
-                jockey, variant, ..
-            } = &entity.kind
-            {
-                jockeys += 1;
-                assert!(jockey);
-                assert_eq!(variant, &ResourceLocation::minecraft("cold"));
-                let GeneratedKind::Drowned { baby, .. } = entity.passengers[0].kind else {
-                    panic!()
-                };
-                assert!(baby);
-            }
-        }
-        assert!((40..160).contains(&jockeys), "{jockeys} jockeys of 40000");
-    }
-
-    #[test]
     fn a_shulker_and_a_frame_draw_nothing_and_a_minecart_draws_its_seed() {
         let before = rng();
         let sentry = shulker(AT, &before);
@@ -1078,5 +1013,74 @@ mod tests {
         assert_eq!((most >> 12) & 0xF, 4);
         assert_eq!((least >> 62) & 0x3, 0b10);
         assert_eq!(entity.column(), ColumnPos::new(0, -2));
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn a_trident_drowned_may_ride_a_nautilus_unless_drowned_are_frequent() {
+            let mut r = rng();
+            let mut mounted = 0;
+            let mut armed = 0;
+            for _ in 0..3000 {
+                let (entity, _) = drowned_after(&mut r, false);
+                match &entity.kind {
+                    GeneratedKind::ZombieNautilus { variant, .. } => {
+                        mounted += 1;
+                        assert_eq!(variant, &ResourceLocation::minecraft("warm"));
+                        let [rider] = entity.passengers.as_slice() else {
+                            panic!()
+                        };
+                        let GeneratedKind::Drowned {
+                            baby, equipment, ..
+                        } = &rider.kind
+                        else {
+                            panic!()
+                        };
+                        assert!(!baby);
+                        assert_eq!(equipment.mainhand, Some(ItemStack::one(Item::Trident)));
+                        assert_eq!(rider.pos, entity.pos);
+                    }
+                    GeneratedKind::Drowned { equipment, .. }
+                        if equipment.mainhand == Some(ItemStack::one(Item::Trident)) =>
+                    {
+                        armed += 1
+                    }
+                    _ => {}
+                }
+            }
+            assert!(
+                mounted > 40 && armed > 40,
+                "{mounted} mounted, {armed} on foot"
+            );
+            for _ in 0..3000 {
+                let (entity, _) = drowned_after(&mut r, true);
+                assert!(!matches!(entity.kind, GeneratedKind::ZombieNautilus { .. }));
+            }
+        }
+
+        #[test]
+        fn a_baby_drowned_may_ride_a_chicken_of_the_biome() {
+            let mut r = rng();
+            let mut jockeys = 0;
+            let tables = tables();
+            for _ in 0..40000 {
+                let entity = drowned(AT, &ctx(None, 5), &tables, false, &mut r);
+                if let GeneratedKind::Chicken {
+                    jockey, variant, ..
+                } = &entity.kind
+                {
+                    jockeys += 1;
+                    assert!(jockey);
+                    assert_eq!(variant, &ResourceLocation::minecraft("cold"));
+                    let GeneratedKind::Drowned { baby, .. } = entity.passengers[0].kind else {
+                        panic!()
+                    };
+                    assert!(baby);
+                }
+            }
+            assert!((40..160).contains(&jockeys), "{jockeys} jockeys of 40000");
+        }
     }
 }

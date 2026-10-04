@@ -1,6 +1,9 @@
 use crate::beard::{BeardifierPlacement, beardifier_placement};
 use bevy_app::{App, Plugin};
-use bevy_asset::io::Reader;
+use bevy_asset::io::{
+    AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, ErasedAssetReader, PathStream,
+    Reader, VecReader,
+};
 use bevy_asset::{
     Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, UntypedAssetId,
     VisitAssetDependencies,
@@ -10,7 +13,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{
     BlockState, DensityFunctionHolder, ProtoDensityFunction,
@@ -19,7 +22,7 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 use mcrs_minecraft_worldgen_feature::proto::{
     Feature, Holder, PlacedFeature, StructureProcessorList,
 };
-use mcrs_minecraft_worldgen_feature::template::{TEMPLATE_DATA_VERSION, Template};
+use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
@@ -32,6 +35,7 @@ use mcrs_minecraft_worldgen_surface::{
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
+use std::path::Path;
 use thiserror::Error;
 
 /// Registers the worldgen asset types and their loaders, and nothing else.
@@ -73,6 +77,50 @@ impl Plugin for WorldgenAssetsPlugin {
     }
 }
 
+/// The file source rooted at `root`, answering for a built-in worldgen entry
+/// when the pack ships no file for it. A file always wins, so a datapack
+/// overrides a built-in by shipping the same path.
+pub fn asset_source(root: &str) -> AssetSourceBuilder {
+    let mut files = AssetSource::get_default_reader(root.to_string());
+    AssetSourceBuilder::platform_default(root, None)
+        .with_reader(move || Box::new(BuiltinFallback(files())))
+}
+
+struct BuiltinFallback(Box<dyn ErasedAssetReader>);
+
+impl AssetReader for BuiltinFallback {
+    async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        match self.0.read(path).await {
+            Err(AssetReaderError::NotFound(missing)) => path
+                .to_str()
+                .and_then(mcrs_minecraft_worldgen_builtin::asset)
+                .map(|bytes| Box::new(VecReader::new(bytes)) as Box<dyn Reader>)
+                .ok_or(AssetReaderError::NotFound(missing)),
+            read => read,
+        }
+    }
+
+    async fn read_meta<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        self.0.read_meta(path).await
+    }
+
+    // chisle: a directory listing shows files only. The registry loader adds
+    // the built-in paths itself; merging the listings here lifts that.
+    async fn read_directory<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<PathStream>, AssetReaderError> {
+        self.0.read_directory(path).await
+    }
+
+    async fn is_directory<'a>(&'a self, path: &'a Path) -> Result<bool, AssetReaderError> {
+        self.0.is_directory(path).await
+    }
+}
+
 /// Compiles one dimension's router and material rules from its loaded noise settings.
 ///
 /// `block` resolves a datapack block state against the block registry this
@@ -93,10 +141,7 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let plain = |name: &str| BlockState {
-        name: ResourceLocation::minecraft(name),
-        properties: None,
-    };
+    let plain = BlockState::minecraft;
     let stone = plain("stone");
     let blocks = RouterBlocks {
         default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
@@ -382,8 +427,12 @@ pub enum TemplateLoaderError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Nbt(#[from] mcrs_minecraft_nbt::Error),
-    #[error("{path}: DataVersion {found}, expected {TEMPLATE_DATA_VERSION}")]
-    DataVersion { path: String, found: i32 },
+    #[error("{path}: DataVersion {found}, expected {expected}")]
+    DataVersion {
+        path: String,
+        found: i32,
+        expected: i32,
+    },
 }
 
 #[derive(Default, TypePath)]
@@ -403,10 +452,11 @@ impl AssetLoader for TemplateLoader {
         let bytes = read_all(reader).await?;
         let template =
             mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes::<Template, _>(bytes.as_slice())?;
-        if template.data_version != TEMPLATE_DATA_VERSION {
+        if template.data_version != VERSION.world_version {
             return Err(TemplateLoaderError::DataVersion {
                 path: load_context.path().to_string(),
                 found: template.data_version,
+                expected: VERSION.world_version,
             });
         }
         Ok(TemplateAsset { template })
@@ -685,18 +735,15 @@ mod tests {
     use mcrs_minecraft_worldgen_surface::{MaterialConditionHolder, MaterialRuleHolder};
     use std::collections::{BTreeMap, BTreeSet};
 
-    use mcrs_minecraft_worldgen_testing::{json_files, read, worldgen_dir};
+    use mcrs_minecraft_worldgen_testing::{json_files, read, registry, worldgen_dir};
 
     /// Every shipped biome, numbered by its position in the registry directory,
     /// which is all the material rules need of a biome id.
     fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u32> {
-        json_files(&worldgen_dir().join("biome"))
-            .iter()
+        registry::<serde::de::IgnoredAny>("biome")
+            .into_keys()
             .enumerate()
-            .map(|(index, path)| {
-                let name = path.file_stem().unwrap().to_str().unwrap();
-                (ResourceLocation::minecraft(name), index as u32)
-            })
+            .map(|(index, id)| (id, index as u32))
             .collect()
     }
 
@@ -790,12 +837,8 @@ mod tests {
     /// the corpus off disk itself would notice.
     #[test]
     fn the_settings_walk_reaches_every_asset_the_material_rules_name() {
-        let settings_files = json_files(&worldgen_dir().join("noise_settings"));
         let mut reached = References::default();
-        for path in &settings_files {
-            let settings: NoiseGeneratorSettings =
-                serde_json::from_slice(&std::fs::read(path).unwrap())
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        for settings in registry::<NoiseGeneratorSettings>("noise_settings").into_values() {
             let found = closure(&settings);
             reached.noises.extend(found.noises);
             reached.density_functions.extend(found.density_functions);
@@ -842,10 +885,16 @@ mod tests {
     fn load_settings(name: &str) -> bevy_app::App {
         use super::{NoiseGeneratorSettingsAsset, WorldgenAssetsPlugin};
         use bevy_app::App;
-        use bevy_asset::{AssetPlugin, AssetServer, Handle, RecursiveDependencyLoadState};
+        use bevy_asset::{
+            AssetApp, AssetPlugin, AssetServer, Handle, RecursiveDependencyLoadState,
+        };
 
         let mut app = App::new();
         app.add_plugins(bevy_app::TaskPoolPlugin::default());
+        app.register_asset_source(
+            bevy_asset::io::AssetSourceId::Default,
+            super::asset_source("assets"),
+        );
         app.add_plugins(AssetPlugin {
             watch_for_changes_override: Some(false),
             ..AssetPlugin::default()
@@ -883,64 +932,17 @@ mod tests {
         bevy_ecs::system::SystemState::new(app.world_mut())
     }
 
-    /// The walk above proves the ids are named; this proves they arrive. A
-    /// handle map left out of `visit_dependencies` or a branch missing from the
-    /// collect walk loses the assets with no error anywhere.
-    #[test]
-    fn the_asset_pipeline_delivers_the_material_registries() {
-        use super::{Loaded, NoiseGeneratorSettingsAsset};
-        use bevy_asset::Assets;
-
-        let mut app = load_settings("overworld");
-        let mut state = assets_of(&mut app);
-        let world = app.world();
-        let handle = world.resource::<SettingsHandle>().0.clone();
-        let asset = world
-            .resource::<Assets<NoiseGeneratorSettingsAsset>>()
-            .get(&handle)
-            .unwrap();
-        let mut collected = Loaded::default();
-        collected.collect(&asset.deps, &state.get(world).unwrap());
-
-        for name in SURFACE_NOISE_NAMES {
-            let id = format!("minecraft:{name}");
-            assert!(
-                collected.noises.contains_key(id.as_str()),
-                "the hardcoded surface noise {name} did not arrive"
-            );
-        }
-        for id in [
-            "minecraft:overworld/ore_vein/iron_density",
-            "minecraft:overworld/ore_vein/copper_density",
-            "minecraft:overworld/ore_vein/richness",
-            "minecraft:overworld/ore_vein/gap",
-        ] {
-            assert!(
-                collected.density_functions.contains_key(id),
-                "{id} did not arrive"
-            );
-        }
-
-        fn ids<V>(map: &BTreeMap<ResourceLocation, V>) -> BTreeSet<ResourceLocation> {
-            map.keys().cloned().collect()
-        }
-        let expected = closure(&asset.settings);
-        assert_eq!(ids(&collected.rules), expected.rules);
-        assert_eq!(ids(&collected.conditions), expected.conditions);
-        assert_eq!(
-            ids(&collected.density_functions),
-            expected.density_functions
-        );
-        assert_eq!(ids(&collected.noises), expected.noises);
-    }
-
     /// End to end over the shipped corpus: what the asset pipeline delivers is
     /// what the compiler needs, the terrain block and the sea fluid included —
     /// those come from the settings asset itself, so each dimension gets its
     /// own rather than whichever settings loaded last.
+    ///
+    /// The walk above proves the ids are named; the overworld pass proves they
+    /// arrive. A handle map left out of `visit_dependencies` or a branch missing
+    /// from the collect walk loses the assets with no error anywhere.
     #[test]
     fn the_loaded_settings_compile_into_a_router() {
-        use super::{NoiseGeneratorSettingsAsset, build_dimension_router};
+        use super::{Loaded, NoiseGeneratorSettingsAsset, build_dimension_router};
         use bevy_asset::Assets;
         use mcrs_minecraft_chunk::VoxelId;
         use mcrs_minecraft_worldgen_density::proto::BlockState;
@@ -955,6 +957,43 @@ mod tests {
                 .resource::<Assets<NoiseGeneratorSettingsAsset>>()
                 .get(&handle)
                 .unwrap();
+            let registries = state.get(world).unwrap();
+
+            if name == "overworld" {
+                let mut collected = Loaded::default();
+                collected.collect(&asset.deps, &registries);
+
+                for name in SURFACE_NOISE_NAMES {
+                    let id = format!("minecraft:{name}");
+                    assert!(
+                        collected.noises.contains_key(id.as_str()),
+                        "the hardcoded surface noise {name} did not arrive"
+                    );
+                }
+                for id in [
+                    "minecraft:overworld/ore_vein/iron_density",
+                    "minecraft:overworld/ore_vein/copper_density",
+                    "minecraft:overworld/ore_vein/richness",
+                    "minecraft:overworld/ore_vein/gap",
+                ] {
+                    assert!(
+                        collected.density_functions.contains_key(id),
+                        "{id} did not arrive"
+                    );
+                }
+
+                fn ids<V>(map: &BTreeMap<ResourceLocation, V>) -> BTreeSet<ResourceLocation> {
+                    map.keys().cloned().collect()
+                }
+                let expected = closure(&asset.settings);
+                assert_eq!(ids(&collected.rules), expected.rules);
+                assert_eq!(ids(&collected.conditions), expected.conditions);
+                assert_eq!(
+                    ids(&collected.density_functions),
+                    expected.density_functions
+                );
+                assert_eq!(ids(&collected.noises), expected.noises);
+            }
 
             // Every distinct state gets a distinct id, so a router that mixed
             // the terrain block up with the sea fluid would not compare equal.
@@ -964,14 +1003,11 @@ mod tests {
                 let next = VoxelId(states.len() as u16 + 1);
                 Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
             };
-            let (router, _) = build_dimension_router(
-                asset,
-                &state.get(world).unwrap(),
-                0,
-                &block,
-                &|id: &ResourceLocation| biomes.get(id).copied(),
-            )
-            .unwrap_or_else(|error| panic!("{name}: {error}"));
+            let (router, _) =
+                build_dimension_router(asset, &registries, 0, &block, &|id: &ResourceLocation| {
+                    biomes.get(id).copied()
+                })
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
 
             assert_ne!(
                 router.default_block_state, router.default_fluid_state,

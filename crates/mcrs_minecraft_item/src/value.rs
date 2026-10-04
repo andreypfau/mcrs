@@ -1,15 +1,18 @@
+use crate::component::*;
+use crate::{
+    ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent, ItemStackValue,
+    ProtoStack, Template, for_each_data_component,
+};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_protocol::item::for_each_data_component;
-use mcrs_minecraft_protocol::item::*;
 use mcrs_minecraft_registry::ItemId;
 
 use crate::definition::{ItemEntry, Items};
 use crate::held::SlotTable;
-use crate::stack::ItemStack;
+use crate::item_stack::ItemStack;
 
 pub const CHILD_KINDS: [ItemComponentKind; 3] = [
     ItemComponentKind::Container,

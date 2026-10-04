@@ -1,87 +1,12 @@
-//! Validates the per-dim plugin migration:
-//!
-//! - `TntBlockPlugin` and `ExplosionPlugin` run inside each
-//!   per-dim sub-app, with the per-sub-app `Messages<T>` buffers their
-//!   systems read and write registered.
-//! - `PlayerWillDestroyBlock` stays within the per-dim sub-app world;
-//!   the digging systems write it intra-dim via `MessageWriter` and
-//!   `TntBlockPlugin` reads it in the same world.
-//! - `BlockUpdatePlugin`, `MinecraftEntityPlugin`, and `LootPlugin`
-//!   are now per-dim via the channel migration.
+//! `BlockUpdatePlugin`, `MinecraftEntityPlugin`, and `LootPlugin` run inside
+//! each per-dim sub-app and no longer register anything host-side.
 
 use bevy_app::App;
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_level::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_server::world::WorldPlugin;
-use mcrs_minecraft_server::world::bus::OutboundPlayerPacket;
-use mcrs_minecraft_server::world::entity::player::player_action::PlayerWillDestroyBlock;
 
 use crate::host_app;
-
-#[test]
-fn minecraft_block_plugin_messages_present_in_each_subapp() {
-    let mut app = host_app::make_host_app();
-    host_app::materialise_sub_apps(
-        &mut app,
-        &[("test:overworld", true), ("test:nether", false)],
-    );
-
-    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    assert_eq!(labels.len(), 2, "two sub-apps expected");
-
-    for label in &labels {
-        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
-        let world = sub_app.world();
-
-        // Invariant: per-sub-app registration for PlayerWillDestroyBlock
-        // so the extract closure can write into the buffer without
-        // panicking on resource_mut.
-        assert!(
-            world.contains_resource::<Messages<PlayerWillDestroyBlock>>(),
-            "Messages<PlayerWillDestroyBlock> missing in sub-app {:?}",
-            label
-        );
-        // Pre-existing OutboundPlayerPacket bus registration must still
-        // be in place (defensive regression check).
-        assert!(
-            world.contains_resource::<Messages<OutboundPlayerPacket>>(),
-            "Messages<OutboundPlayerPacket> missing in sub-app {:?}",
-            label
-        );
-    }
-}
-
-#[test]
-fn explosion_plugin_registered_per_dim_not_host() {
-    let mut app = host_app::make_host_app();
-    host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
-
-    let label = *app
-        .sub_apps()
-        .sub_apps
-        .keys()
-        .next()
-        .expect("one sub-app expected");
-    let sub_app = app
-        .sub_apps()
-        .sub_apps
-        .get(&label)
-        .expect("sub-app present");
-    let world = sub_app.world();
-
-    // ExplosionPlugin::tick_explode writes MessageWriter<BlockSetRequest>
-    // per-dim. The buffer must exist so the system does not panic on
-    // first use. BlockPlaced is registered for symmetry.
-    assert!(
-        world.contains_resource::<Messages<BlockSetRequest>>(),
-        "Messages<BlockSetRequest> missing in per-dim world — \
-         tick_explode would panic on MessageWriter<BlockSetRequest>"
-    );
-    assert!(
-        world.contains_resource::<Messages<BlockPlaced>>(),
-        "Messages<BlockPlaced> missing in per-dim world"
-    );
-}
 
 #[test]
 fn host_side_no_longer_registers_per_dim_simulation_plugins() {

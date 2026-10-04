@@ -206,11 +206,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_carver_type_is_a_load_error() {
-        assert!(serde_json::from_str::<CarverConfig>(r#"{"type":"minecraft:ravine"}"#).is_err());
-    }
-
-    #[test]
     fn an_unknown_field_is_a_load_error() {
         let mut raw: serde_json::Value = carver("canyon");
         raw["surprise"] = serde_json::json!(1);

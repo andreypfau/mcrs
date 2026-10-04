@@ -8,7 +8,6 @@ use std::borrow::Cow;
 pub struct PlayerSpawnInfo<'a> {
     pub dimension_type_id: VarInt,
     pub dimension: ResourceLocation<Cow<'a, str>>,
-    pub seed: u64,
     pub game_mode: GameMode,
     pub prev_game_mode: OptGameMode,
     pub is_debug: bool,
@@ -23,7 +22,6 @@ impl Default for PlayerSpawnInfo<'_> {
         Self {
             dimension_type_id: VarInt(0),
             dimension: ResourceLocation::from(rl!("minecraft:overworld")),
-            seed: 0,
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode::default(),
             is_debug: false,

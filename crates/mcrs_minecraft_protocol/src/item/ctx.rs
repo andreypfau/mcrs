@@ -4,12 +4,12 @@ use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{HolderSet, RegistryKey, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use uuid::Uuid;
 
-use crate::item::component::{Holder, Registered, RegistryName};
+use crate::item::component::Holder;
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
 
@@ -220,33 +220,33 @@ impl<'a, K: DecodeCtx<'a> + PartialEq, V: DecodeCtx<'a>> DecodeCtx<'a> for Vec<(
     }
 }
 
-impl<R: RegistryName> EncodeCtx for ResourceKey<R> {
+impl<R: RegistryKey> EncodeCtx for ResourceKey<R> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
         let id = ctx
-            .id(R::NAME, self.location())
-            .with_context(|| format!("{self} is not in registry {}", R::NAME))?;
+            .id(R::KEY.path(), self.location())
+            .with_context(|| format!("{self} is not in registry {}", R::KEY.path()))?;
         VarInt(id as i32).encode(w)
     }
 }
 
-impl<'a, R: RegistryName> DecodeCtx<'a> for ResourceKey<R> {
+impl<'a, R: RegistryKey> DecodeCtx<'a> for ResourceKey<R> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?.0;
         let name = u32::try_from(id)
             .ok()
-            .and_then(|id| ctx.name(R::NAME, id))
-            .with_context(|| format!("registry {} has no id {id}", R::NAME))?;
+            .and_then(|id| ctx.name(R::KEY.path(), id))
+            .with_context(|| format!("registry {} has no id {id}", R::KEY.path()))?;
         Ok(ResourceKey::from_location(name.clone()))
     }
 }
 
-impl<T: Registered + EncodeCtx> EncodeCtx for Holder<T> {
+impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             Holder::Reference(key) => {
                 let id = ctx
-                    .id(T::Registry::NAME, key.location())
-                    .with_context(|| format!("{key} is not in registry {}", T::Registry::NAME))?;
+                    .id(T::KEY.path(), key.location())
+                    .with_context(|| format!("{key} is not in registry {}", T::KEY.path()))?;
                 VarInt(id as i32 + 1).encode(w)
             }
             Holder::Direct(value) => {
@@ -257,7 +257,7 @@ impl<T: Registered + EncodeCtx> EncodeCtx for Holder<T> {
     }
 }
 
-impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
+impl<'a, T: RegistryKey + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         if raw == 0 {
@@ -266,13 +266,13 @@ impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
         let id = raw.wrapping_sub(1);
         let name = u32::try_from(id)
             .ok()
-            .and_then(|id| ctx.name(T::Registry::NAME, id))
-            .with_context(|| format!("registry {} has no id {id}", T::Registry::NAME))?;
+            .and_then(|id| ctx.name(T::KEY.path(), id))
+            .with_context(|| format!("registry {} has no id {id}", T::KEY.path()))?;
         Ok(Holder::Reference(ResourceKey::from_location(name.clone())))
     }
 }
 
-impl<R: RegistryName, const L: bool> EncodeCtx for HolderSet<ResourceKey<R>, L> {
+impl<R: RegistryKey, const L: bool> EncodeCtx for HolderSet<ResourceKey<R>, L> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             HolderSet::Tag(tag) => {
@@ -291,7 +291,7 @@ impl<R: RegistryName, const L: bool> EncodeCtx for HolderSet<ResourceKey<R>, L> 
     }
 }
 
-impl<'a, R: RegistryName, const L: bool> DecodeCtx<'a> for HolderSet<ResourceKey<R>, L> {
+impl<'a, R: RegistryKey, const L: bool> DecodeCtx<'a> for HolderSet<ResourceKey<R>, L> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         ensure!(raw >= 0, "holder set with negative length");
@@ -419,4 +419,71 @@ pub(crate) fn read_nbt_wire<T>(
 
 pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> anyhow::Result<T> {
     read_nbt_wire(r, |d| Ok(T::deserialize(&mut *d)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_item::Item;
+    use mcrs_minecraft_registry::{LookupIndex, NoRegistries};
+
+    use super::*;
+    use crate::item::component::SoundEvent;
+
+    struct Indexed(LookupIndex);
+
+    impl RegistryLookup for Indexed {
+        fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+            self.0.id(registry, name)
+        }
+
+        fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+            self.0.name(registry, id)
+        }
+    }
+
+    fn lookup(registry: &str, names: &[&str]) -> Indexed {
+        let mut index = LookupIndex::default();
+        for (id, name) in names.iter().enumerate() {
+            index.insert(registry, id as u32, Some(ResourceLocation::minecraft(name)));
+        }
+        Indexed(index)
+    }
+
+    #[test]
+    fn a_reference_is_looked_up_by_the_bare_registry_path() {
+        let lookup = lookup("item", &["air", "stone"]);
+        let key = ResourceKey::<Item>::from_location(ResourceLocation::minecraft("stone"));
+        let mut bytes = Vec::new();
+        key.encode_ctx(&lookup, &mut bytes).unwrap();
+
+        let decoded = ResourceKey::<Item>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
+        assert_eq!(decoded, key);
+    }
+
+    #[test]
+    fn a_holder_reference_is_looked_up_by_the_bare_registry_path() {
+        let lookup = lookup("sound_event", &["a", "b"]);
+        let holder = Holder::<SoundEvent>::reference(ResourceLocation::minecraft("b"));
+        let mut bytes = Vec::new();
+        holder.encode_ctx(&lookup, &mut bytes).unwrap();
+        let decoded = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
+        assert_eq!(decoded, holder);
+    }
+
+    #[test]
+    fn a_missing_id_names_the_registry_by_its_bare_path() {
+        let error = ResourceKey::<Item>::decode_ctx(&NoRegistries, &mut &[5u8][..]).unwrap_err();
+        assert!(
+            error.to_string().contains("registry item has no id 5"),
+            "{error}"
+        );
+
+        let error = Holder::<SoundEvent>::decode_ctx(&NoRegistries, &mut &[6u8][..]).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("registry sound_event has no id 5"),
+            "{error}"
+        );
+    }
 }

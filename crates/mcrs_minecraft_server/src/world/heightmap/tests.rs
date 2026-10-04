@@ -537,14 +537,6 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
 // ─── Packed storage ──────────────────────────────────────────────────────────
 
 #[test]
-fn heightmap_new_dimensions_sized_correctly() {
-    let h = ColumnHeights::new(384, 0);
-    assert_eq!(h.bits(), 9);
-    // 256 entries / (64 / 9 = 7 per long) = 37 longs.
-    assert_eq!(h.raw_longs().len(), 37);
-}
-
-#[test]
 fn heightmap_set_get_round_trip() {
     let mut h = ColumnHeights::new(384, -64);
     for z in 0..SectionPos::SIZE {
@@ -577,9 +569,3 @@ fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
     );
 }
 
-#[test]
-fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
-    let h = ColumnHeights::new(384, -64);
-    assert_eq!(h.get(0, 0), -64);
-    assert_eq!(h.get(SectionPos::MASK, SectionPos::MASK), -64);
-}

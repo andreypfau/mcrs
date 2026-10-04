@@ -6,11 +6,13 @@ use anyhow::{Context, Result, anyhow};
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::change_detection::DetectChangesMut;
 use bevy::ecs::message::{Message, MessageWriter};
-use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, ResMut, Resource, Single};
+use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, Res, ResMut, Resource, Single};
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
-use mcrs_minecraft_chunk::PalettedContainer;
+use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_chunk::section::Biomes;
+use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
@@ -31,7 +33,7 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
-pub const BIOME_CELLS: usize = 64;
+pub const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
 
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
@@ -67,7 +69,7 @@ impl From<Extent> for Dimension {
 #[derive(Clone)]
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
-    pub biomes: Box<[u8; BIOME_CELLS]>,
+    pub biomes: PalettedContainer<u8, { Biomes::SIZE }>,
     /// Every state the blocks hold.
     pub states: Vec<u16>,
 }
@@ -272,9 +274,9 @@ pub trait BlockSource {
         self.column(sx, sz)?.section(sy)
     }
 
-    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: usize) -> u8 {
+    fn biome(&self, sx: i32, sy: i32, sz: i32, cell: (usize, usize, usize)) -> u8 {
         match self.section(sx, sy, sz) {
-            Some(section) => section.biomes[cell],
+            Some(section) => section.biomes.get(cell.0, cell.1, cell.2),
             None => 0,
         }
     }
@@ -291,10 +293,16 @@ impl Column {
         }
     }
 
-    pub fn decode(data: &ChunkData<'_>, light: &LightData<'_>, extent: Extent) -> Result<Column> {
+    pub fn decode(
+        data: &ChunkData<'_>,
+        light: &LightData<'_>,
+        extent: Extent,
+        block_state_count: usize,
+        biome_registry_len: usize,
+    ) -> Result<Column> {
         let sections = data
-            .sections(extent.sections)?
-            .iter()
+            .sections(extent.sections, block_state_count, biome_registry_len)?
+            .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
                     return None;
@@ -307,11 +315,9 @@ impl Column {
                         data.palette.iter().map(|id| id.0).collect()
                     }
                 };
-                let mut biomes = Box::new([0u8; BIOME_CELLS]);
-                expand(&section.biomes, biomes.as_mut_slice(), |id| id);
                 Some(Section {
                     blocks,
-                    biomes,
+                    biomes: section.biomes,
                     states,
                 })
             })
@@ -405,6 +411,13 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32
         out[index * 2] = (out[index * 2] & keep) | ((byte & 0x0f) << shift);
         out[index * 2 + 1] = (out[index * 2 + 1] & keep) | ((byte >> 4) << shift);
     }
+}
+
+fn biome_registry_len(registries: &[ReceivedRegistry]) -> usize {
+    registries
+        .iter()
+        .find(|registry| registry.registry == BIOME_REGISTRY)
+        .map_or(0, |registry| registry.entries.len())
 }
 
 fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<Extent> {
@@ -538,6 +551,7 @@ impl Arrivals {
 fn receive_column_packets(
     event: On<ReceivedPacketEvent>,
     connections: Query<(&ConnectionState, &ReceivedRegistries)>,
+    blocks: Res<Blocks>,
     mut arrivals: ResMut<Arrivals>,
 ) {
     let Ok((state, registries)) = connections.get(event.entity) else {
@@ -556,12 +570,20 @@ fn receive_column_packets(
             return;
         };
         let data = event.data.clone();
+        let block_state_count = blocks.state_count();
+        let biome_registry_len = biome_registry_len(&registries.0);
         let task = AsyncComputeTaskPool::get().spawn(async move {
             let mut bytes = &data[..];
             let packet = ClientboundLevelChunkWithLight::decode(&mut bytes)
                 .map_err(|error| anyhow!("chunk packet: {error:?}"))?;
-            let column = Column::decode(&packet.chunk_data, &packet.light_data, extent)
-                .with_context(|| format!("column {:?}", packet.pos))?;
+            let column = Column::decode(
+                &packet.chunk_data,
+                &packet.light_data,
+                extent,
+                block_state_count,
+                biome_registry_len,
+            )
+            .with_context(|| format!("column {:?}", packet.pos))?;
             Ok((packet.pos, column))
         });
         arrivals.queue.push_back(Arrival::Column(task));
@@ -632,7 +654,8 @@ mod tests {
     use mcrs_minecraft_chunk::VoxelId;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_network::client::RegistryEntry;
-    use mcrs_minecraft_protocol::chunk::ChunkSection;
+    use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
+    use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
 
@@ -644,6 +667,24 @@ mod tests {
     fn encoded<T: Encode>(value: &T) -> Vec<u8> {
         let mut bytes = Vec::new();
         value.encode(&mut bytes).expect("encode");
+        bytes
+    }
+
+    const BLOCK_STATE_COUNT: usize = 40_000;
+    const BIOME_REGISTRY_LEN: usize = 16;
+
+    fn written(section: &ChunkSection) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        encode_section(
+            section.non_empty_block_count,
+            section.fluid_count,
+            &section.blocks,
+            &section.biomes,
+            block_direct_bits(BLOCK_STATE_COUNT),
+            biome_direct_bits(BIOME_REGISTRY_LEN),
+            &mut bytes,
+        )
+        .expect("write section");
         bytes
     }
 
@@ -702,7 +743,7 @@ mod tests {
         states[cell] = 42;
         let blob = [air_section(), section_of_states(&states)]
             .iter()
-            .flat_map(encoded)
+            .flat_map(written)
             .collect::<Vec<u8>>();
 
         let lit_row = 1u64 << 2;
@@ -728,8 +769,14 @@ mod tests {
 
         let mut store = ColumnStore::default();
         store.enter(EXTENT);
-        let column = Column::decode(&packet.chunk_data, &packet.light_data, EXTENT)
-            .expect("decode the column");
+        let column = Column::decode(
+            &packet.chunk_data,
+            &packet.light_data,
+            EXTENT,
+            BLOCK_STATE_COUNT,
+            BIOME_REGISTRY_LEN,
+        )
+        .expect("decode the column");
         store.insert(packet.pos, column);
 
         let (x, z) = (1 * SECTION_SIZE as i32 + 3, -2 * SECTION_SIZE as i32 + 7);
@@ -748,7 +795,7 @@ mod tests {
             "a section of nothing but air is not resident"
         );
         assert!(store.section(1, 0, -2).is_some());
-        assert_eq!(store.biome(1, 0, -2, 0), 3);
+        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
 
         store.remove(packet.pos);
         assert!(store.is_empty(), "the forget packet takes the column back");
@@ -759,7 +806,7 @@ mod tests {
     fn lit_store() -> (ColumnStore, ColumnPos) {
         let blob = [air_section(), air_section()]
             .iter()
-            .flat_map(encoded)
+            .flat_map(written)
             .collect::<Vec<u8>>();
         let rows = (1u64 << 1) | (1u64 << 2);
         let light = LightData {
@@ -782,6 +829,8 @@ mod tests {
             },
             &light,
             EXTENT,
+            BLOCK_STATE_COUNT,
+            BIOME_REGISTRY_LEN,
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);
@@ -837,18 +886,6 @@ mod tests {
         );
         let (x, y, z) = lit_at(-1);
         assert_eq!(store.light(x, y, z), 0x16, "the row the update left out");
-    }
-
-    #[test]
-    fn an_update_of_nothing_but_unchanged_rows_leaves_every_cell_alone() {
-        let (mut store, pos) = lit_store();
-        let update = light_update(pos, LightData::default());
-        store.relight(pos, &update);
-
-        let (x, y, z) = lit_at(0);
-        assert_eq!(store.light(x, y, z), 0x27);
-        let (x, y, z) = lit_at(-1);
-        assert_eq!(store.light(x, y, z), 0x16);
     }
 
     #[test]

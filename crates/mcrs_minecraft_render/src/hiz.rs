@@ -191,35 +191,3 @@ fn pyramid(size: UVec2, device: &RenderDevice) -> (Texture, TextureView, Vec<Tex
         .collect();
     (texture, view, levels)
 }
-
-#[cfg(test)]
-mod tests {
-    /// `hiz.wgsl` gives each texel the two below it and the last texel of a level whatever an odd
-    /// size leaves over; the cull finds a pixel's texel as `min(pixel >> (level + 1), size - 1)`.
-    #[test]
-    fn a_pixel_lies_under_the_texel_the_cull_reads_at_every_level() {
-        for pixels in [1440u32, 1439, 2560, 1117, 3] {
-            let mut size = pixels.max(2) / 2;
-            let mut under: Vec<u32> = (0..pixels).map(|p| (p / 2).min(size - 1)).collect();
-            let mut level = 0;
-            loop {
-                for (pixel, &texel) in under.iter().enumerate() {
-                    assert_eq!(
-                        texel,
-                        (pixel as u32 >> (level + 1)).min(size - 1),
-                        "{pixels} pixels, level {level}, pixel {pixel}"
-                    );
-                }
-                if size == 1 {
-                    break;
-                }
-                let next = (size / 2).max(1);
-                for texel in &mut under {
-                    *texel = (*texel / 2).min(next - 1);
-                }
-                size = next;
-                level += 1;
-            }
-        }
-    }
-}

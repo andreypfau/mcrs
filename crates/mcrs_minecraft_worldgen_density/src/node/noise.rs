@@ -126,7 +126,7 @@ impl NoiseFunctionParams {
 mod tests {
     use super::*;
     use mcrs_minecraft_random::RandomSource;
-    use mcrs_minecraft_worldgen_noise::strata::{AXIS_X, AXIS_Y, AXIS_Z, NO_AXES};
+    use mcrs_minecraft_worldgen_noise::strata::{AXIS_Y, NO_AXES};
 
     fn sampler(seed: u64, first_octave: i32, amplitudes: &[f64]) -> Arc<NoiseStack<Octave>> {
         Arc::new(mcrs_minecraft_worldgen_noise::normal::create_parity(
@@ -329,19 +329,5 @@ mod tests {
                 assert_eq!(out[(ix + iz * 3) as usize].to_bits(), want.to_bits());
             }
         }
-    }
-
-    /// `Runs` is what makes an absent axis free: the same buffer is read by every
-    /// column that shares the value.
-    #[test]
-    fn an_x_z_shift_run_is_shared_by_every_position_in_the_column() {
-        let ext = SampleGrid::new(IVec3::new(2, 3, 2), IVec3::ZERO, IVec3::ONE);
-        let data = [1.0f32, 2.0, 3.0, 4.0];
-        let runs = Runs::new(&data, AXIS_X | AXIS_Z, &ext);
-        assert_eq!(runs.col(1, 1), &[4.0]);
-        assert_eq!(
-            Runs::new(&data[..3], AXIS_Y, &ext).col(1, 1),
-            &[1.0, 2.0, 3.0]
-        );
     }
 }

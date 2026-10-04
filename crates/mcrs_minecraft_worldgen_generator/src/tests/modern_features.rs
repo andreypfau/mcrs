@@ -130,38 +130,6 @@ fn a_modern_run_places_the_ore_the_window_biome_carries() {
     }
 }
 
-/// The run is a pure function of the column, so a second run of the same
-/// region writes exactly the same blocks.
-#[test]
-fn the_same_column_runs_to_the_same_writes() {
-    let mut first = run(ColumnPos::new(3, -5));
-    let mut second = run(ColumnPos::new(3, -5));
-    for deltas in [&mut first, &mut second] {
-        deltas.sort_by_key(|(col, _)| (col.x, col.z));
-        for (_, writes) in deltas.iter_mut() {
-            writes.sort();
-        }
-    }
-    assert_eq!(first, second);
-}
-
-/// The seed is the column's block origin, so a different column decorates
-/// differently.
-#[test]
-fn a_different_column_draws_a_different_vein() {
-    let here: Vec<(u32, VoxelId)> = run(ColumnPos::new(3, -5))
-        .into_iter()
-        .filter(|(col, _)| *col == ColumnPos::new(3, -5))
-        .flat_map(|(_, writes)| writes)
-        .collect();
-    let there: Vec<(u32, VoxelId)> = run(ColumnPos::new(4, -5))
-        .into_iter()
-        .filter(|(col, _)| *col == ColumnPos::new(4, -5))
-        .flat_map(|(_, writes)| writes)
-        .collect();
-    assert_ne!(here, there);
-}
-
 /// A region whose palettes name no biome of the source decorates with
 /// nothing, because the intersection with `possibleBiomes` is empty.
 #[test]

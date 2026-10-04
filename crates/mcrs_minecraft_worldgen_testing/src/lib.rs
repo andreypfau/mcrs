@@ -1,7 +1,8 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -43,6 +44,43 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Every structure template as the gzip NBT it ships as, keyed by its path
+/// under `minecraft/structure`: the files the corpus ships, and the built-in
+/// ones it ships no file for.
+pub fn templates() -> BTreeMap<PathBuf, Vec<u8>> {
+    let base = assets_dir().join("minecraft/structure");
+    let mut templates: BTreeMap<PathBuf, Vec<u8>> = builtin::paths("minecraft/structure")
+        .into_iter()
+        .map(|path| {
+            let bytes = builtin::asset(&path).expect("a listed built-in template builds");
+            let relative = Path::new(&path)
+                .strip_prefix("minecraft/structure")
+                .expect("a template path is under the structure directory");
+            (relative.to_owned(), bytes)
+        })
+        .collect();
+    for path in nbt_files(&base) {
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let relative = path
+            .strip_prefix(&base)
+            .expect("the file is under the base");
+        templates.insert(relative.to_owned(), bytes);
+    }
+    templates
+}
+
+/// One structure template as the gzip NBT it ships as: the corpus file, or the
+/// built-in when the corpus ships none.
+pub fn template(id: &ResourceLocation) -> Option<Vec<u8>> {
+    let shipped = assets_dir()
+        .join(id.namespace())
+        .join("structure")
+        .join(format!("{}.nbt", id.path()));
+    std::fs::read(shipped)
+        .ok()
+        .or_else(|| builtin::asset(&format!("{}/structure/{}.nbt", id.namespace(), id.path())))
+}
+
 /// The id a corpus file carries: its path under `base`, without the extension.
 fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     let relative = path.strip_prefix(base).expect("the file is under the base");
@@ -53,18 +91,30 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-/// One `minecraft/worldgen` registry, parsed. Every file in the folder must
-/// parse: dropping the ones that do not would let a test read "the whole corpus
-/// compiles" off a corpus quietly missing the entries that broke.
-pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+/// One `minecraft/worldgen` registry as the JSON each entry ships as: the
+/// built-in entries, overridden by the files the corpus ships.
+fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     let base = worldgen_dir().join(folder);
-    json_files(&base)
-        .into_iter()
-        .map(|path| {
+    let mut entries = builtin::assets(folder);
+    if base.is_dir() {
+        for path in json_files(&base) {
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let parsed = serde_json::from_slice::<T>(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            (id_of(&base, &path), parsed)
+            entries.insert(id_of(&base, &path), bytes);
+        }
+    }
+    entries
+}
+
+/// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
+/// the ones that do not would let a test read "the whole corpus compiles" off a
+/// corpus quietly missing the entries that broke.
+pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+    entries(folder)
+        .into_iter()
+        .map(|(id, bytes)| {
+            let parsed =
+                serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+            (id, parsed)
         })
         .collect()
 }
@@ -92,13 +142,15 @@ pub fn parse_all<T: DeserializeOwned>(dir: &str) -> Vec<(PathBuf, T)> {
     parsed
 }
 
-/// One named `minecraft/worldgen` asset, which must parse.
+/// One named `minecraft/worldgen` asset, which must parse: the file the corpus
+/// ships, or the built-in entry where it ships none.
 pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
-    let path = worldgen_dir()
-        .join(folder)
-        .join(format!("{}.json", id.path()));
-    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    let path = format!("{}/worldgen/{folder}/{}.json", id.namespace(), id.path());
+    let bytes = std::fs::read(assets_dir().join(&path))
+        .ok()
+        .or_else(|| builtin::asset(&path))
+        .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
 }
 
 /// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`
@@ -108,26 +160,20 @@ pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
     serde_json::from_str(&serde_json::to_string(value).unwrap()).unwrap()
 }
 
-/// Every file in one `minecraft/worldgen` folder, parsed and written back,
-/// which must equal what was read. Returns how many files were checked, so a
-/// caller can pin the count and see a corpus change as a failure.
+/// Every entry of one `minecraft/worldgen` registry, shipped or built in,
+/// parsed and written back, which must equal what was read. Returns how many
+/// entries were checked, so a caller can pin the count and see a corpus change
+/// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
-    let base = worldgen_dir().join(folder);
-    let paths = json_files(&base);
-    for path in &paths {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let entries = entries(folder);
+    for (id, bytes) in &entries {
         let raw: serde_json::Value =
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
         let parsed: T =
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        assert_eq!(
-            reencode(&parsed),
-            raw,
-            "{} does not round-trip",
-            path.display()
-        );
+            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+        assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
     }
-    paths.len()
+    entries.len()
 }
 
 /// A length-prefixed string of one of the oracle's little-endian dumps.
@@ -135,10 +181,6 @@ pub fn dump_string(r: &mut impl bytes::Buf) -> String {
     let len = r.get_u32_le() as usize;
     String::from_utf8(r.copy_to_bytes(len).to_vec()).unwrap()
 }
-
-/// `SharedConstants.WORLD_VERSION` of the snapshot every oracle dump came from,
-/// so a corpus bump cannot silently invalidate a fixture.
-pub const WORLD_VERSION: u32 = 5119;
 
 /// One of the oracle's little-endian dumps past its header: the eight-byte
 /// `magic`, format version 1, and the world version.
@@ -154,10 +196,12 @@ pub fn open_dump(path: &Path, magic: &[u8; 8]) -> bytes::Bytes {
         String::from_utf8_lossy(magic)
     );
     assert_eq!(r.get_u32_le(), 1, "unsupported oracle format version");
+    let found = r.get_u32_le();
+    let expected = u32::try_from(VERSION.world_version).expect("the world version is negative");
     assert_eq!(
-        r.get_u32_le(),
-        WORLD_VERSION,
-        "{} was dumped from a different snapshot than this corpus targets",
+        found,
+        expected,
+        "{}: dumped at world version {found}, the corpus is at {expected}",
         path.display()
     );
     r

@@ -379,27 +379,6 @@ mod tests {
         }
     }
 
-    /// One double for the rim coin, two rim sizes when it lands, then two
-    /// sizes — the whole draw budget of a delta, spent before it looks at a
-    /// single block.
-    #[test]
-    fn a_delta_spends_its_draws_before_it_reads_the_world() {
-        let cfg = delta_config();
-        let mut volume = solid_below(40, NETHERRACK);
-        let mut rng = seeded();
-        place_delta(&cfg, &mut volume, &mut rng, BlockPos::new(0, 40, 0));
-
-        let mut replay = seeded();
-        let spawn_rim = replay.next_f64() < 0.9;
-        if spawn_rim {
-            cfg.rim_size.sample(&mut replay);
-            cfg.rim_size.sample(&mut replay);
-        }
-        cfg.size.sample(&mut replay);
-        cfg.size.sample(&mut replay);
-        assert_eq!(rng, replay, "one double, two rim sizes, two sizes");
-    }
-
     /// The clearance test wants open sky over the position and rock on the five
     /// other faces, so a delta buried under stone writes nothing.
     #[test]
@@ -442,6 +421,7 @@ mod tests {
         };
         let radius_x = cfg.size.sample(&mut replay);
         let radius_z = cfg.size.sample(&mut replay);
+        assert_eq!(rng, replay, "one double, two rim sizes, two sizes");
         let limit = radius_x.max(radius_z);
         let inside = |x: i32, z: i32| {
             x.abs() + z.abs() <= limit && x.abs() <= radius_x && z.abs() <= radius_z

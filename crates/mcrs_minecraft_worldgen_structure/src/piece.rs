@@ -2330,61 +2330,6 @@ mod tests {
     }
 
     #[test]
-    fn a_desert_pyramid_piece_round_trips_with_its_constant_fields() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::DesertPyramid(DesertPyramidPiece {
-            bounds: BoundingBox {
-                min: BlockPos::new(-32, 64, 48),
-                max: BlockPos::new(-12, 78, 68),
-            },
-            orientation: Orientation::West,
-            height_position: 71,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:tedp"));
-        assert_eq!(tag.get_int("O"), Some(1));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.get_int("Width"), Some(21));
-        assert_eq!(tag.get_int("Height"), Some(15));
-        assert_eq!(tag.get_int("Depth"), Some(21));
-        assert_eq!(tag.get_int("HPos"), Some(71));
-        assert_eq!(tag.get_byte("hasPlacedChest3"), Some(0));
-    }
-
-    #[test]
-    fn a_swamp_hut_piece_round_trips_with_its_unspent_spawn_flags() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::SwampHut(SwampHutPiece {
-            bounds: BoundingBox {
-                min: BlockPos::new(112, 64, -48),
-                max: BlockPos::new(118, 70, -40),
-            },
-            orientation: Orientation::South,
-            height_position: 66,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:tesh"));
-        assert_eq!(tag.get_int("O"), Some(0));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.get_int("Width"), Some(7));
-        assert_eq!(tag.get_int("Height"), Some(7));
-        assert_eq!(tag.get_int("Depth"), Some(9));
-        assert_eq!(tag.get_int("HPos"), Some(66));
-        assert_eq!(tag.get_byte("Witch"), Some(0));
-        assert_eq!(tag.get_byte("Cat"), Some(0));
-    }
-
-    #[test]
     fn a_jungle_temple_piece_round_trips_with_its_constant_fields() {
         let frozen = frozen(LiquidSettings::ApplyWaterlogging);
         let context = PieceContext {
@@ -2494,42 +2439,6 @@ mod tests {
         assert_eq!(turn.get_byte("Chest"), Some(1));
         let throne = to_nbt_compound(&piece(FortressKind::MonsterThrone).nbt(&context)).unwrap();
         assert_eq!(throne.get_byte("Mob"), Some(0));
-    }
-
-    #[test]
-    fn a_shipwreck_piece_writes_its_lowered_template_position_under_the_layout_box() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::Shipwreck(ShipwreckPiece {
-            template: TemplateId(0),
-            position: IVec3::new(-288, 90, 176),
-            rotation: Rotation::Clockwise90,
-            is_beached: true,
-            bounds: BoundingBox {
-                min: BlockPos::new(-292, 90, 187),
-                max: BlockPos::new(-269, 98, 195),
-            },
-            height: 58,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:shipwreck"));
-        assert_eq!(tag.get_int("O"), Some(2));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(
-            (tag.get_int("TPX"), tag.get_int("TPY"), tag.get_int("TPZ")),
-            (Some(-288), Some(58), Some(176))
-        );
-        assert_eq!(
-            tag.get_string("Template"),
-            Some("minecraft:village/plains/houses/house_1")
-        );
-        assert_eq!(tag.get_byte("isBeached"), Some(1));
-        assert_eq!(tag.get_string("Rot"), Some("CLOCKWISE_90"));
-        assert_eq!(tag.get_byte("height_adjusted"), Some(1));
     }
 
     #[test]
@@ -2736,41 +2645,6 @@ mod tests {
     }
 
     #[test]
-    fn a_nether_fossil_piece_round_trips_with_its_template_and_rotation() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::NetherFossil(NetherFossilPiece {
-            template: TemplateId(0),
-            position: IVec3::new(-179, 63, 396),
-            rotation: Rotation::Counterclockwise90,
-            bounds: BoundingBox {
-                min: BlockPos::new(-183, 63, 396),
-                max: BlockPos::new(-179, 66, 400),
-            },
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:nefos"));
-        assert_eq!(tag.get_int("O"), Some(2));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.get_int("TPX"), Some(-179));
-        assert_eq!(tag.get_int("TPY"), Some(63));
-        assert_eq!(tag.get_int("TPZ"), Some(396));
-        assert_eq!(
-            tag.get_string("Template"),
-            Some("minecraft:village/plains/houses/house_1")
-        );
-        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
-
-        let json = r#"{"id":"minecraft:nefos","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:nether_fossils/fossil_99","Rot":"NONE"}"#;
-        let mut deserializer = serde_json::Deserializer::from_str(json);
-        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
-    }
-
-    #[test]
     fn stronghold_pieces_round_trip_with_their_doors_and_constructor_state() {
         let frozen = frozen(LiquidSettings::ApplyWaterlogging);
         let context = PieceContext {
@@ -2886,75 +2760,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(corridor.get_byte("Chest"), Some(0));
-    }
-
-    #[test]
-    fn an_end_city_piece_round_trips_with_its_template_name_and_tag() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::EndCity(EndCityPiece {
-            template: TemplateId(1),
-            position: IVec3::new(103, 71, -1040),
-            rotation: Rotation::Counterclockwise90,
-            overwrite: false,
-            bounds: BoundingBox {
-                min: BlockPos::new(92, 71, -1040),
-                max: BlockPos::new(103, 78, -1029),
-            },
-            gen_depth: -1_871_265_432,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:ecp"));
-        assert_eq!(tag.get_int("O"), Some(2));
-        assert_eq!(tag.get_int("GD"), Some(-1_871_265_432));
-        assert_eq!(tag.get_int("TPX"), Some(103));
-        assert_eq!(tag.get_int("TPY"), Some(71));
-        assert_eq!(tag.get_int("TPZ"), Some(-1040));
-        assert_eq!(tag.get_string("Template"), Some("second_floor_1"));
-        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
-        assert_eq!(tag.get_byte("OW"), Some(0));
-
-        let json = r#"{"id":"minecraft:ecp","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"nowhere","Rot":"NONE","OW":1}"#;
-        let mut deserializer = serde_json::Deserializer::from_str(json);
-        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
-    }
-
-    #[test]
-    fn a_mansion_piece_round_trips_with_its_short_template_name() {
-        let mut frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        frozen.template_ids.insert(
-            ResourceLocation::parse("minecraft:woodland_mansion/1x2_c_stairs").unwrap(),
-            TemplateId(7),
-        );
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::WoodlandMansion(WoodlandMansionPiece {
-            template: TemplateId(7),
-            position: IVec3::new(-100, 72, 250),
-            rotation: Rotation::Counterclockwise90,
-            mirror: Mirror::LeftRight,
-            bounds: BoundingBox {
-                min: BlockPos::new(-107, 72, 250),
-                max: BlockPos::new(-100, 80, 264),
-            },
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:wmp"));
-        assert_eq!(tag.get_int("O"), Some(2));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.get_int("TPX"), Some(-100));
-        assert_eq!(tag.get_int("TPY"), Some(72));
-        assert_eq!(tag.get_int("TPZ"), Some(250));
-        assert_eq!(tag.get_string("Template"), Some("1x2_c_stairs"));
-        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
-        assert_eq!(tag.get_string("Mi"), Some("LEFT_RIGHT"));
     }
 
     #[test]

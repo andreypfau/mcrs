@@ -1,9 +1,9 @@
 {
-  "jar_sha1": "e877b6a07acd633fb3bb475002175cec036e7b87",
+  "jar_sha1": "57390e151851510972714846a752c6b8307f7fae",
   "fonts": [
     {
       "name": "assets/minecraft/font/alt.json",
-      "offset": 11427977,
+      "offset": 11487669,
       "span": 356,
       "method": 8,
       "crc32": 2995048840,
@@ -12,7 +12,7 @@
     },
     {
       "name": "assets/minecraft/font/default.json",
-      "offset": 11428333,
+      "offset": 11488025,
       "span": 209,
       "method": 8,
       "crc32": 4115363840,
@@ -21,7 +21,7 @@
     },
     {
       "name": "assets/minecraft/font/illageralt.json",
-      "offset": 11428542,
+      "offset": 11488234,
       "span": 381,
       "method": 8,
       "crc32": 1094080487,
@@ -30,7 +30,7 @@
     },
     {
       "name": "assets/minecraft/font/uniform.json",
-      "offset": 11428923,
+      "offset": 11488615,
       "span": 177,
       "method": 8,
       "crc32": 1412460573,
@@ -39,7 +39,7 @@
     },
     {
       "name": "assets/minecraft/font/include/default.json",
-      "offset": 11429178,
+      "offset": 11488870,
       "span": 6208,
       "method": 8,
       "crc32": 2470172209,
@@ -48,7 +48,7 @@
     },
     {
       "name": "assets/minecraft/font/include/space.json",
-      "offset": 11435386,
+      "offset": 11495078,
       "span": 169,
       "method": 8,
       "crc32": 1052110777,
@@ -57,7 +57,7 @@
     },
     {
       "name": "assets/minecraft/font/include/unifont.json",
-      "offset": 11435555,
+      "offset": 11495247,
       "span": 114,
       "method": 8,
       "crc32": 2387438876,
@@ -66,7 +66,7 @@
     },
     {
       "name": "assets/minecraft/textures/font/accented.png",
-      "offset": 12804021,
+      "offset": 12864295,
       "span": 7788,
       "method": 8,
       "crc32": 910969005,
@@ -75,7 +75,7 @@
     },
     {
       "name": "assets/minecraft/textures/font/ascii.png",
-      "offset": 12811809,
+      "offset": 12872083,
       "span": 901,
       "method": 8,
       "crc32": 1178313563,
@@ -84,7 +84,7 @@
     },
     {
       "name": "assets/minecraft/textures/font/ascii_sga.png",
-      "offset": 12812710,
+      "offset": 12872984,
       "span": 325,
       "method": 8,
       "crc32": 2708632446,
@@ -93,7 +93,7 @@
     },
     {
       "name": "assets/minecraft/textures/font/asciillager.png",
-      "offset": 12813035,
+      "offset": 12873309,
       "span": 449,
       "method": 8,
       "crc32": 3215031130,
@@ -102,7 +102,7 @@
     },
     {
       "name": "assets/minecraft/textures/font/nonlatin_european.png",
-      "offset": 12813484,
+      "offset": 12873758,
       "span": 4970,
       "method": 8,
       "crc32": 1567497902,

@@ -32,7 +32,7 @@ pub fn blocks() -> &'static Blocks {
     })
 }
 
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::registry;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
@@ -48,10 +48,10 @@ pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
 }
 
 pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
-    let path = worldgen_dir().join(format!("noise_settings/{settings_name}.json"));
-    let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_str(&json).unwrap_or_else(|e| panic!("{settings_name}: {e}"));
+    let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
+        "noise_settings",
+        &ResourceLocation::minecraft(settings_name),
+    );
     build_router(
         &settings,
         &registry("density_function"),
@@ -91,17 +91,9 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     let functions = registry("density_function");
     let noises = registry("noise");
 
-    let dir = worldgen_dir().join("noise_settings");
     let mut seen = 0;
-    for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
-        let path = entry.unwrap().path();
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
-        let json = std::fs::read_to_string(&path).unwrap();
-        let settings: NoiseGeneratorSettings =
-            serde_json::from_str(&json).unwrap_or_else(|e| panic!("{name}: {e}"));
+    for (id, settings) in registry::<NoiseGeneratorSettings>("noise_settings") {
+        let name = id.path();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
@@ -127,14 +119,15 @@ use std::collections::HashSet;
 use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
-use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::TagSource;
+use mcrs_minecraft_registry::key;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
-use mcrs_minecraft_worldgen_structure::Structure;
 
 fn tag_dir(registry: &str) -> PathBuf {
     mcrs_minecraft_worldgen_testing::assets_dir()
@@ -201,8 +194,8 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 }
 
 /// Every biome id of the corpus, numbered the way the snapshot numbers them.
-pub fn biome_index() -> &'static DynRegistryIndex<Biome> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<Biome>> = std::sync::OnceLock::new();
+pub fn biome_index() -> &'static DynRegistryIndex<key::Biome> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("biome").into_keys())
     })
@@ -230,19 +223,20 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> &'static DynTagRegistry<Biome> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<Biome>> = std::sync::OnceLock::new();
+pub fn biome_tags() -> &'static DynTagRegistry<key::Biome> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Biome>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(biome_index()))
 }
 
-pub fn structure_index() -> &'static DynRegistryIndex<Structure> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<Structure>> = std::sync::OnceLock::new();
+pub fn structure_index() -> &'static DynRegistryIndex<key::Structure> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Structure>> =
+        std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("structure").into_keys())
     })
 }
 
-pub fn structure_tags() -> &'static DynTagRegistry<Structure> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<Structure>> = std::sync::OnceLock::new();
+pub fn structure_tags() -> &'static DynTagRegistry<key::Structure> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Structure>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(structure_index()))
 }

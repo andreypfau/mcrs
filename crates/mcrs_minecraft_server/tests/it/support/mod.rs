@@ -2,7 +2,8 @@
 
 use bevy_app::App;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_item::{Items, test_corpus};
+use mcrs_minecraft_item::Items;
+use mcrs_minecraft_world::item::test_corpus;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
 /// resolves the block it fills terrain with against it, so a stub would only

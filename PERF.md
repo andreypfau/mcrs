@@ -698,6 +698,109 @@ than from the undecorated snapshot the neighbours still read. Both squares are r
 The counts are the halo rule, exact; the bytes are the measured 44 KB a snapshot owns. The 24
 sections are this dimension's; a taller one scales with them.
 
+## Carving, per column
+
+What the carvers cost today: every column walks the 17 x 17 source chunks around it and runs the
+carvers of each source's biome, reading no neighbour. Taken at commit `84b151e1f` before any
+change to how carving is organised, so it is the figure a later change is compared with.
+
+Machine: Apple M4 Max, 16 logical CPUs, 128 GiB, macOS 26.6 (Darwin 25.6.0). Build: the `bench`
+profile (optimized), nightly `rustc 1.100.0-nightly (5db7f4be8 2026-09-01)`. The machine was not
+idle: desktop applications were open and the one-minute load average read between 4.7 and 7.7
+at the start and end of the runs. Three runs of each command, one
+after the other, the compiled bench binaries started directly from the crate directory with
+`BEVY_ASSET_ROOT` set to the repository root (the same environment `cargo bench` gives them).
+
+| command | per column or chunk, mean of 3 runs | run-to-run spread |
+| --- | --- | --- |
+| `beta_chunks -- 32 1 12345` (1024 chunks, 1 thread) | 0.4287 ms per chunk, 2328 chunks/s (2312 to 2342) | 1.3% |
+| the same, `caves` stage | 0.0773 ms (0.077 to 0.078) | 1.3% |
+| `overworld_pipeline -- 64 777 0` (4096 columns), whole column | 3.567 ms (3.564 to 3.571) | 0.2% |
+| the same, `carve` (the mask build alone) | 0.104 ms (0.103 to 0.106) | 2.9% |
+| `overworld_pipeline -- 64 845 0` (4096 columns), whole column | 2.985 ms (2.969 to 2.995) | 0.9% |
+| the same, `carve` | 0.0967 ms (0.096 to 0.098) | 2.1% |
+
+Per-column distribution of the whole column, p50 / p90 / max over the 3 runs: seed 777 3.32 /
+5.12 / 7.1 to 8.9 ms, seed 845 2.83 / 3.81 / 5.2 to 5.6 ms. The maximum is a single column and
+moves by 22% and 6% between runs; the mean and the percentiles do not. Seed 845 at the origin
+is almost all frozen ocean, so its columns carry water over a carved floor. The carver share of
+the whole column is 2.9% (seed 777) and 3.2% (seed 845).
+
+The spread is the largest minus the smallest of the three runs over their mean. An earlier
+measurement on this machine saw noise up to 13% under heavier load; a difference smaller than
+the spread above is not a finding.
+
+## Carving, region width and cache capacity
+
+The modern carvers walk each source once per region of `REGION_WIDTH` x `REGION_WIDTH` columns
+and keep up to `REGION_CAPACITY` regions. Chosen from the sweep below: width 2, capacity 256.
+
+Machine and conditions as above, and worse: the desktop was busy throughout. The one-minute load
+average read 5.4 to 17 at the starts of the bench runs and 11 to 33 around the sweeps, which is
+more than the 16 logical CPUs, so every number is a mean of repeated runs with its spread beside
+it. The 8 workers are the pool of the chunk scheduler on this machine (`(16 / 2).max(4)`).
+
+**Sweep** (`measure_carve_regions`, release build, mask per column over a 64 x 64 block at columns
+-35..29, seeds 777 and 845, three processes of three rounds each, widths alternating inside a
+round, caches cold and the source-biome tiles warm). Cells read seed 777 / seed 845, with the
+largest-minus-smallest spread over the nine samples in brackets.
+
+| width | entry, cache bound at the capacity | 1 thread, distance order: mean ms, p99 ms | 8 workers, distance order: mean ms, columns/s | 8 workers with 3.4 ms of other work per column: columns/s | 8 workers, row order: columns/s |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 12,032 B, none | 0.094 / 0.088 (4%), 0.22 / 0.20 | 0.095 / 0.090 (2%), 84,300 / 88,500 (2%) | 2283 / 2287 (1%) | 80,600 / 87,300 (21%, 2%) |
+| 2 | 48,128 B, 256 = 12,320,768 B | 0.053 / 0.049 (6%), 0.42 / 0.39 | 0.061 / 0.058 (3%), 131,200 / 136,500 (3%) | 2310 / 2314 (1%, 0%) | 74,000 / 78,000 (2%, 3%) |
+| 4 | 192,512 B, 128 = 24,641,536 B | 0.040 / 0.038 (5%, 3%), 0.90 / 0.83 | 0.080 / 0.071 (58%, 2%), 102,000 / 112,800 | 2317 / 2321 (1%, 0%) | 50,400 / 53,600 (4%, 2%) |
+| 8 | 770,048 B, 64 = 49,283,072 B | 0.040 / 0.038 (4%, 5%), 1.94 / 1.93 | 0.126 / 0.123 (13%, 4%), 63,700 / 65,200 | 2318 / 2317 (0%) | 27,400 / 28,600 (3%, 5%) |
+
+The capacity is the smallest of 4, 8, ..., 256 with no region built twice over the distance-ordered
+columns of the block, doubled: 128, 64 and 32 for widths 2, 4 and 8 (row order needs half of
+that), so 256, 128 and 64. At 4 capacity the width 2 cache rebuilds 2,939 of 4,028 builds.
+
+What the sweep says. A shared walk cuts the mask time per column for one thread by 44% at width 2
+and by 57% at widths 4 and 8, and the first column of a region pays for it: p99 and the maximum
+grow in proportion to the width (maximum about 0.4 ms at width 1, 0.7 at 2, 1.5 at 4, 3.8 at 8).
+With 8 workers asking the same table at once, a second asker of a region being built blocks its
+pool thread, and the harm grows with the width: with nothing but mask calls, width 2 completes
+1.55 times the columns per second of width 1, width 4 completes 1.2 to 1.3 times and width 8 0.75
+times; in row order, where neighbouring columns go to neighbouring workers, widths 2, 4 and 8 all
+fall behind width 1. Once the rest of a column (3.4 ms here) separates the workers, the
+contention costs nothing visible and what is left is the mask time saved: 2283 to 2310 and 2287
+to 2314 columns per second at width 2 (+1.2%), 2317 and 2321 at width 4, 2318 and 2317 at width
+8. The rule picked the lowest mask time per column with 8 workers in distance order, which is
+width 2, ahead of width 1 by 35 to 36% (spread 2 to 3%) and of width 4 by 17 to 24%; widths 4 and 8 are not
+ahead of width 2 at the throughput the pool reaches with real work per column, and cost two and
+four times its memory and a longer wait for the first asker.
+
+**Bench, whole column** (`overworld_pipeline -- 64 <seed> 0`, bench profile, compiled binaries
+started directly with no build running, width 1 and the chosen configuration alternated, three
+runs each, load 5.4 to 17 at the starts):
+
+| seed | width 1: column ms (spread), carve ms | width 2: column ms (spread), carve ms | column | carve |
+| --- | --- | --- | --- | --- |
+| 777 | 3.554 (0.4%), 0.1043 (1.0%) | 3.514 (0.2%), 0.0593 (1.7%) | -1.1% | -43.1% |
+| 845 | 2.968 (0.1%), 0.0977 (1.0%) | 2.922 (0.7%), 0.0553 (1.8%) | -1.5% | -43.3% |
+
+The carve line settles; the whole column moves by about one percent in the same direction in
+every pair, which is the size of the spread in one of them. The 90th percentile of the whole column is the same within the spread (5.11 against
+5.08 ms and 3.79 against 3.74 ms) and its maximum is one column that moves by 20 to 40% between
+runs, so no tail claim is made from it. Beta is unchanged: `beta_chunks -- 32 1 12345`, three
+runs, 2298 chunks/s (spread 5.4%) and the `caves` stage 0.0773 ms (1.3%), against 2328 and
+0.0773 ms before; the Beta carver does not take a region.
+
+**What it costs.** The cache holds at most 12,320,768 bytes (11.75 MiB) in the overworld and
+4 x 3,840 x 256 = 3,932,160 bytes in the Nether, each owned by its dimension's table and freed
+with it. Up to 8 evicted regions can stay alive in the hands of the columns that were reading
+them, 48,128 bytes each, and a build in progress holds one entry. A capacity too small for the
+columns in flight costs rebuilds at 324 sources per four columns against 289 per column, never a
+different block. 256 holds a view of 32 columns in every direction with the margin of two; several
+players in different places share it and evict each other.
+
+**The width-1 path.** Measured in one process, alternating, over the same block, the region path
+at width 1 takes 0.094 and 0.088 ms per column against 0.086 and 0.081 ms for the per-column
+sources (+9% and +8%, about 0.007 ms). No production table takes that path at the chosen width;
+the cost is accepted for the configuration a test builds with `with_region(1, 0)`, and a return
+to width 1 in production would pay it.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the

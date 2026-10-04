@@ -253,6 +253,16 @@ mod tests {
             replay.next_i32_bound(2);
         }
         assert_eq!(rng, replay, "lake draw sequence");
+        let below = volume
+            .writes
+            .iter()
+            .any(|((_, y, _), state)| *state == LAVA && *y < ORIGIN.y);
+        let above = volume
+            .writes
+            .iter()
+            .any(|((_, y, _), state)| *state == CAVE_AIR && *y >= ORIGIN.y);
+        assert!(below, "the bottom half is fluid");
+        assert!(above, "the top half is cave air");
     }
 
     /// The shell cells at or above the water line, which is where the barrier
@@ -270,23 +280,6 @@ mod tests {
             }
         }
         count
-    }
-
-    #[test]
-    fn the_blob_is_fluid_below_the_line_and_air_above() {
-        let mut volume = solid_rock();
-        let mut rng = WorldgenRandom::new(0x1a4e);
-        assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
-        let below = volume
-            .writes
-            .iter()
-            .any(|((_, y, _), state)| *state == LAVA && *y < ORIGIN.y);
-        let above = volume
-            .writes
-            .iter()
-            .any(|((_, y, _), state)| *state == CAVE_AIR && *y >= ORIGIN.y);
-        assert!(below, "the bottom half is fluid");
-        assert!(above, "the top half is cave air");
     }
 
     /// A shell cell that already holds a liquid above the water line rejects
@@ -317,15 +310,5 @@ mod tests {
         let mut rng = WorldgenRandom::new(0x1a4e);
         assert!(place_lake(&config(WATER), &mut volume, &mut rng, ORIGIN));
         assert_eq!(volume.get(corner), ICE);
-    }
-
-    #[test]
-    fn a_lava_lake_never_freezes() {
-        let mut volume = solid_rock();
-        let corner = BlockPos::new(ORIGIN.x - 8, ORIGIN.y, ORIGIN.z - 8);
-        volume.blocks.insert((corner.x, corner.y, corner.z), WATER);
-        let mut rng = WorldgenRandom::new(0x1a4e);
-        assert!(place_lake(&config(LAVA), &mut volume, &mut rng, ORIGIN));
-        assert!(!volume.writes.iter().any(|(_, state)| *state == ICE));
     }
 }

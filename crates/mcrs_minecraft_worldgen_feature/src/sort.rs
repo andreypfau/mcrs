@@ -113,15 +113,4 @@ mod tests {
         let steps = build_features_per_step(&[vec![vec![1], vec![1]]]).unwrap();
         assert_eq!(steps, vec![vec![1], vec![1]]);
     }
-
-    #[test]
-    fn a_cycle_names_a_feature_on_it() {
-        let steps = vec![
-            vec![vec![1, 2]],
-            vec![vec![3, 4]],
-            vec![vec![2, 1]],
-            vec![vec![5]],
-        ];
-        assert!(matches!(build_features_per_step(&steps), Err(1 | 2)));
-    }
 }

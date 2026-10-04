@@ -3,25 +3,23 @@ mod chunk;
 pub mod fixture;
 mod palette;
 mod region;
+mod retrogen;
+mod status;
 mod write;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vanilla_files;
 
 pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
+pub use retrogen::RetroGen;
+pub use status::ChunkStatus;
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;
-
-/// 26.3; the oldest accepted is snapshot 10, the first with this layout.
-pub const DATA_VERSION: i32 = 5023;
-pub const OLDEST_DATA_VERSION: i32 = 5015;
-
-pub fn accepts_data_version(found: i32) -> bool {
-    (OLDEST_DATA_VERSION..=DATA_VERSION).contains(&found)
-}
 
 #[derive(Debug, thiserror::Error)]
 #[error("{path}: {kind}")]
@@ -82,11 +80,9 @@ pub enum ErrorKind {
     MissingExternal { x: i32, z: i32, name: String },
     #[error("{0}")]
     Nbt(#[from] mcrs_minecraft_nbt::Error),
-    #[error("DataVersion {found}, expected {OLDEST_DATA_VERSION} to {expected}")]
+    #[error("DataVersion {found}, expected {expected}")]
     DataVersion { found: i32, expected: i32 },
-    #[error(
-        "no DataVersion, so older than the tag itself; expected {OLDEST_DATA_VERSION} to {expected}"
-    )]
+    #[error("no DataVersion, expected {expected}")]
     MissingDataVersion { expected: i32 },
     #[error("`{name}` is not a block state this registry knows")]
     UnknownPaletteEntry { name: String },

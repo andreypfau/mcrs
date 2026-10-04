@@ -38,6 +38,7 @@ mod difficulty;
 mod direction;
 pub mod encode;
 pub mod entity;
+pub mod frame;
 pub mod game_event;
 pub mod game_mode;
 mod global_pos;
@@ -87,7 +88,7 @@ pub use hand::Hand;
 pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_core::Bounded;
-pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+pub use mcrs_minecraft_protocol_macros::{Decode, Encode};
 pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;
@@ -98,16 +99,6 @@ pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
-
-/// The maximum number of bytes in a single Minecraft packet.
-pub const MAX_PACKET_SIZE: i32 = 2097152;
-
-/// The Minecraft protocol version this library currently targets.
-pub const PROTOCOL_VERSION: i32 = 777;
-
-/// The stringified name of the Minecraft version this library currently
-/// targets.
-pub const MINECRAFT_VERSION: &str = "26.3";
 
 /// How large a packet should be before it is compressed by the packet encoder.
 ///

@@ -445,36 +445,6 @@ mod tests {
         (snow_on_top, is_ellipse, over_water, under_water)
     }
 
-    /// The eleven prelude draws decide the whole silhouette, so an iceberg's
-    /// vertical extent is the one thing they can be read back from: nothing is
-    /// written above the drawn over-water height or below the under-water one.
-    #[test]
-    fn the_silhouette_matches_the_prelude_draws() {
-        let cfg = config();
-        for seed in 0..24u64 {
-            let (_, _, over_water, under_water) = prelude(seed);
-            let mut volume = ocean();
-            let mut rng = WorldgenRandom::new(seed);
-            assert!(place_iceberg(&cfg, &mut volume, &mut rng, ORIGIN));
-            for ((x, y, z), _) in &volume.writes {
-                assert!(
-                    *y <= SEA_LEVEL + over_water && *y > SEA_LEVEL - under_water,
-                    "seed {seed} wrote at y {y}, outside {} .. {}",
-                    SEA_LEVEL - under_water,
-                    SEA_LEVEL + over_water
-                );
-                assert!(
-                    (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
-                    "seed {seed} wrote at {x},{z}, outside the volume"
-                );
-            }
-            assert!(
-                volume.writes.iter().any(|(_, state)| *state == PACKED_ICE),
-                "seed {seed} produced no ice at all"
-            );
-        }
-    }
-
     /// The round path draws nothing inside the block writer, so its whole draw
     /// count is geometry: this pins that count for one seed, recorded from this
     /// implementation rather than measured against the reference.
@@ -498,4 +468,38 @@ mod tests {
 
     const PINNED_ROUND_SEED: u64 = 2;
     const PINNED_ROUND_TAIL: i64 = -4_740_996_625_246_655_224;
+
+    mod exhaustive {
+        use super::*;
+
+        /// The eleven prelude draws decide the whole silhouette, so an iceberg's
+        /// vertical extent is the one thing they can be read back from: nothing is
+        /// written above the drawn over-water height or below the under-water one.
+        #[test]
+        fn the_silhouette_matches_the_prelude_draws() {
+            let cfg = config();
+            for seed in 0..24u64 {
+                let (_, _, over_water, under_water) = prelude(seed);
+                let mut volume = ocean();
+                let mut rng = WorldgenRandom::new(seed);
+                assert!(place_iceberg(&cfg, &mut volume, &mut rng, ORIGIN));
+                for ((x, y, z), _) in &volume.writes {
+                    assert!(
+                        *y <= SEA_LEVEL + over_water && *y > SEA_LEVEL - under_water,
+                        "seed {seed} wrote at y {y}, outside {} .. {}",
+                        SEA_LEVEL - under_water,
+                        SEA_LEVEL + over_water
+                    );
+                    assert!(
+                        (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
+                        "seed {seed} wrote at {x},{z}, outside the volume"
+                    );
+                }
+                assert!(
+                    volume.writes.iter().any(|(_, state)| *state == PACKED_ICE),
+                    "seed {seed} produced no ice at all"
+                );
+            }
+        }
+    }
 }

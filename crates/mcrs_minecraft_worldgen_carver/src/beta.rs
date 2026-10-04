@@ -1,7 +1,8 @@
 use crate::CarveShape;
 use crate::mask::CarvingMask;
 use crate::modern::SOURCE_RADIUS;
-use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel};
+use crate::target::SingleColumn;
+use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
 use crate::water::WaterMask;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -19,6 +20,7 @@ pub fn carve_beta_caves<R: Random>(
     let shape_kind = CarveShape::Cave {
         floor_level: BETA_FLOOR_LEVEL,
     };
+    let mut target = SingleColumn::new(chunk_x, chunk_z, water, mask);
     let cave_count = {
         let a = rng.next_i32_bound(40) + 1;
         let b = rng.next_i32_bound(a) + 1;
@@ -41,9 +43,9 @@ pub fn carve_beta_caves<R: Random>(
             let thickness = 1.0 + rng.next_f32() * 6.0;
             let mut room_rng = LegacyRandom::new(rng.next_java_long() as u64);
             let total_steps = tunnel_length(&mut room_rng);
-            walk_tunnel(
-                chunk_x,
-                chunk_z,
+            walk_tunnel_into(
+                &mut target,
+                (),
                 x,
                 y,
                 z,
@@ -55,8 +57,6 @@ pub fn carve_beta_caves<R: Random>(
                 true,
                 SplitSeeding::FromParent,
                 shape_kind,
-                water,
-                mask,
                 &mut room_rng,
                 rng,
             );
@@ -69,9 +69,9 @@ pub fn carve_beta_caves<R: Random>(
             let thickness = rng.next_f32() * 2.0 + rng.next_f32();
             let mut tunnel_rng = LegacyRandom::new(rng.next_java_long() as u64);
             let total_steps = tunnel_length(&mut tunnel_rng);
-            walk_tunnel(
-                chunk_x,
-                chunk_z,
+            walk_tunnel_into(
+                &mut target,
+                (),
                 x,
                 y,
                 z,
@@ -83,8 +83,6 @@ pub fn carve_beta_caves<R: Random>(
                 false,
                 SplitSeeding::FromParent,
                 shape_kind,
-                water,
-                mask,
                 &mut tunnel_rng,
                 rng,
             );
@@ -118,12 +116,6 @@ fn beta_shape(thickness: f32, y_scale: f64) -> TunnelShape {
 mod tests {
     use super::*;
     use crate::carve_ellipsoid;
-
-    #[test]
-    fn next_i32_bound_one_returns_zero() {
-        let mut rng = LegacyRandom::new(12345);
-        assert_eq!(rng.next_i32_bound(1), 0);
-    }
 
     /// The mask marks the Y the ellipsoid test accepts, which sits within the
     /// vertical radius and never below the floor level.

@@ -4,7 +4,7 @@ use mcrs_minecraft_chunk::{SectionKind, SharedVoxelPalette, VoxelId, VoxelPalett
 use mcrs_minecraft_core::SectionPos;
 
 pub type BlockPalette = VoxelPalette<VoxelId, { SectionPos::SIZE }>;
-pub type BiomePalette = VoxelPalette<u8, 4>;
+pub type BiomePalette = VoxelPalette<u8, { SectionPos::SIZE }>;
 
 /// The blocks a loaded chunk entity holds: the engine's shared section
 /// palette, named in this crate's vocabulary.

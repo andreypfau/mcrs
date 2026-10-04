@@ -49,7 +49,7 @@ pub struct MaterialScratch {
     /// knows before its descent: they split a strip into runs.
     splits: Vec<CondId>,
     breaks: Vec<i32>,
-    /// Every biome the zoom can select for the current strip over the y range
+    /// Every biome the strip can hold over the y range
     /// `reachable_lo..=reachable_hi`, or wider.
     reachable: Vec<u32>,
 }
@@ -113,9 +113,9 @@ impl MaterialScratch {
 
 /// The context the tape tests against, over one column.
 ///
-/// `biome_at` answers the biome of a block through the zoom, which needs a grid
-/// this crate cannot build; everything else here is a function of the program,
-/// the router and the position.
+/// `biome_at` answers the biome of a block from the biomes stored for the
+/// column, which this crate does not hold; everything else here is a function of
+/// the program, the router and the position.
 pub struct MaterialEval<'a, B, R> {
     router: &'a NoiseRouter,
     pub(crate) program: &'a MaterialProgram,
@@ -159,9 +159,8 @@ where
     R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
 {
     /// `top` is the highest non-air block of the column and `biomes` every biome
-    /// the column can select, which must include the border ring of the grid the
-    /// zoom reads: a set narrower than the zoom's reach folds a condition that
-    /// should have matched to `never` and writes the wrong block.
+    /// the column stores: a set narrower than what `biome_at` can answer folds a
+    /// condition that should have matched to `never` and writes the wrong block.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         router: &'a NoiseRouter,
@@ -485,10 +484,9 @@ where
                 }
             }
             Condition::Not(inner) => self.over(inner, lo, hi).map(|value| !value),
-            // The column-wide fold above covers the whole grid, ring included,
-            // so any column near a border loses it. Over one strip and one run
-            // the zoom can only reach the four corner quart columns across the
-            // run's cells, which is a far tighter set to fold.
+            // The column-wide fold above covers every stored biome, so a column
+            // that holds many loses it. Over one strip and one run the reachable
+            // set is a far tighter one to fold.
             Condition::Biome { set } => {
                 if !self.reachable_over(lo, hi) {
                     return None;
@@ -514,8 +512,8 @@ where
         }
     }
 
-    /// Fills `scratch.reachable` with a superset of the biomes the zoom can
-    /// select over `lo..=hi` of the current strip. `false` where the caller
+    /// Fills `scratch.reachable` with a superset of the biomes the current
+    /// strip can hold over `lo..=hi`. `false` where the caller
     /// cannot say, which leaves every biome condition open.
     fn reachable_over(&mut self, lo: i32, hi: i32) -> bool {
         if self.memoise

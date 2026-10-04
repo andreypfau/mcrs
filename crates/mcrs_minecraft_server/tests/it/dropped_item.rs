@@ -9,7 +9,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation, SectionPos};
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
-use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, slots};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
 use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -36,7 +36,7 @@ use mcrs_minecraft_server::world::item::chest::{
 };
 use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus, commit};
 use mcrs_minecraft_server::world::item::menu::open_menus;
-use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
+use mcrs_minecraft_server::world::item::sync::{WireStack, sync_stack_slots};
 use mcrs_minecraft_worldgen_feature_place::block_entity::{ContainerData, GeneratedBlockEntity};
 
 const FLOOR_TOP: f64 = 1.0;
@@ -118,32 +118,6 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
 
     sync_stack_slots(&mut world);
     assert!(world.get::<WireStack>(stack).is_some());
-}
-
-#[test]
-fn an_item_falls_onto_the_floor_and_ages() {
-    let (mut world, _, _) = world();
-    let dim = dimension(&mut world);
-    let stack = spawn_dropped(
-        &mut world,
-        value("stone", 7),
-        dim,
-        DVec3::new(8.5, 4.0, 8.5),
-        DVec3::ZERO,
-        40,
-        None,
-    );
-    tick(&mut world, 100);
-    let entity = world.entity(stack);
-    assert_eq!(entity.get::<Transform>().unwrap().translation.y, FLOOR_TOP);
-    let item = entity.get::<DroppedItem>().unwrap();
-    assert_eq!(item.pickup_delay, 0);
-    assert_eq!(item.age, 100);
-    tick(&mut world, 5900);
-    assert!(
-        world.get_entity(stack).is_err(),
-        "the item despawns at 6000"
-    );
 }
 
 #[test]
@@ -362,4 +336,34 @@ fn a_loaded_chest_holds_its_saved_items_as_stacks() {
     assert_eq!(table.iter().count(), 1);
     let stack = table.get(4).unwrap();
     assert_eq!(world.get::<ItemStack>(stack).unwrap().count, 5);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn an_item_falls_onto_the_floor_and_ages() {
+        let (mut world, _, _) = world();
+        let dim = dimension(&mut world);
+        let stack = spawn_dropped(
+            &mut world,
+            value("stone", 7),
+            dim,
+            DVec3::new(8.5, 4.0, 8.5),
+            DVec3::ZERO,
+            40,
+            None,
+        );
+        tick(&mut world, 100);
+        let entity = world.entity(stack);
+        assert_eq!(entity.get::<Transform>().unwrap().translation.y, FLOOR_TOP);
+        let item = entity.get::<DroppedItem>().unwrap();
+        assert_eq!(item.pickup_delay, 0);
+        assert_eq!(item.age, 100);
+        tick(&mut world, 5900);
+        assert!(
+            world.get_entity(stack).is_err(),
+            "the item despawns at 6000"
+        );
+    }
 }

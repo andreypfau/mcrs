@@ -1,4 +1,4 @@
-//! Covers AOI-07. The 1-tick latency between an observed player's
+//! The 1-tick latency between an observed player's
 //! position change and the TrackedBy update on its observer is
 //! structural to the schedule: TrackedBy is per-player Component, and
 //! only the moving player's body re-derives. A separate observer
@@ -45,6 +45,13 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     nudge(&mut app, b);
     drive_aoi_tick(&mut app);
 
+    let a_tracked = app.world().get::<TrackedBy>(a).expect("a has TrackedBy");
+    assert!(
+        a_tracked.0.contains(&b),
+        "A should track B (TrackedBy = {:?})",
+        a_tracked.0.as_slice()
+    );
+
     let b_baseline = app
         .world()
         .get::<TrackedBy>(b)
@@ -72,7 +79,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
         .clone();
     // Latency contract: B's TrackedBy is unchanged in the tick where
     // only A moved (B did not re-derive). The slice equality below is
-    // the structural assertion AOI-07 captures.
+    // the structural assertion.
     assert_eq!(
         b_after_a_only_moved.as_slice(),
         b_baseline.as_slice(),

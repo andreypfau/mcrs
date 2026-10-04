@@ -55,6 +55,8 @@ pub enum FromDim {
     },
     /// Ack from target dim: the entity has been spawned and arrival resolved.
     Spawned { move_id: MoveId },
+    /// The dim has handled a `Despawn` for the session: whatever player it held is saved and gone.
+    Released { session: PlayerSession },
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this

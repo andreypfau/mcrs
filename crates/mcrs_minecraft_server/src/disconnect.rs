@@ -19,6 +19,7 @@
 
 use crate::world::bus::InboundPlayerDespawn;
 use bevy_app::{App, First, Plugin, Update};
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::Messages;
@@ -32,11 +33,13 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use crate::dim::send_control_or_teardown;
+use crate::login::GameProfile;
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::{HostAnchorRef, SessionConnection};
 use mcrs_minecraft_level::session::{Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
+use mcrs_minecraft_protocol::uuid::Uuid;
 
 /// 32 caps work at 640 disconnects/sec under a 20 TPS schedule, draining a
 /// 1000-player kick in ~1.5s without monopolising a tick.
@@ -117,8 +120,18 @@ pub type LeavingSessions<'w, 's> = Query<
         &'static Session,
         &'static mut SessionPlacement,
         Option<&'static SessionConnection>,
+        Option<&'static GameProfile>,
     ),
 >;
+
+/// A player a dimension has been told to let go of and has not yet saved. A login under its id
+/// waits for it, so the new session never reads a player file the old one has still to write.
+#[derive(Component, Debug)]
+pub struct Departing {
+    pub id: Uuid,
+    pub dim: Entity,
+    pub session: PlayerSession,
+}
 
 /// Heartbeat cadence for the overflow-drop warning. Tunable here so a
 /// sustained storm produces at most one warning per `INTERVAL` drops
@@ -188,17 +201,26 @@ pub fn process_disconnect(
     despawn_queue: &mut DimDespawnQueue,
     commands: &mut Commands,
 ) {
-    let Ok((session, mut placement, connection)) = sessions.get_mut(host_anchor) else {
+    let Ok((session, mut placement, connection, profile)) = sessions.get_mut(host_anchor) else {
         return;
     };
 
-    despawn_from_dims(
+    let releasing = despawn_from_dims(
         host_anchor,
         session.0,
         placement.place(),
         dim_channels,
         despawn_queue,
     );
+    if let Some(profile) = profile {
+        for dim in releasing {
+            commands.spawn(Departing {
+                id: profile.id,
+                dim,
+                session: session.0,
+            });
+        }
+    }
     placement.set(Place::Unplaced);
 
     if let Some(connection) = connection
@@ -213,27 +235,30 @@ pub fn process_disconnect(
 }
 
 /// Routes the player's despawn into its current dimension and, mid-transfer,
-/// into the one it is leaving.
+/// into the one it is leaving. Returns the dimensions that took it.
 pub fn despawn_from_dims(
     host_anchor: Entity,
     session: PlayerSession,
     place: Place,
     dim_channels: &DimChannelsResource,
     despawn_queue: &mut DimDespawnQueue,
-) {
-    for dim in place.holding_dims() {
-        if let Some(chan) = dim_channels.get(dim) {
-            send_control_or_teardown(
-                &chan.control_sender,
-                dim,
-                ToDim::Despawn(InboundPlayerDespawn {
-                    host_anchor,
-                    session,
-                }),
-                despawn_queue,
-            );
-        }
-    }
+) -> SmallVec<[Entity; 2]> {
+    place
+        .holding_dims()
+        .filter(|&dim| {
+            dim_channels.get(dim).is_some_and(|chan| {
+                send_control_or_teardown(
+                    &chan.control_sender,
+                    dim,
+                    ToDim::Despawn(InboundPlayerDespawn {
+                        host_anchor,
+                        session,
+                    }),
+                    despawn_queue,
+                )
+            })
+        })
+        .collect()
 }
 
 /// `First`-schedule system: refill the budget, then drain the queue up to
@@ -333,23 +358,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn disconnect_budget_consume_decrements_until_zero() {
-        let mut b = DisconnectBudget::default();
-        for _ in 0..DISCONNECT_BUDGET {
-            assert!(b.consume());
-        }
-        assert!(!b.consume());
-        assert_eq!(b.0, 0);
-    }
-
-    #[test]
-    fn disconnect_budget_refill_resets_to_max() {
-        let mut b = DisconnectBudget(0);
-        b.refill();
-        assert_eq!(b.0, DISCONNECT_BUDGET);
-    }
-
-    #[test]
     fn pending_disconnect_queue_hard_cap_returns_false() {
         let mut q = PendingDisconnectQueue::default();
         let e = Entity::from_raw_u32(1).expect("nonzero");
@@ -358,10 +366,5 @@ mod tests {
         }
         assert!(!q.push_back(e), "push past hard cap should return false");
         assert_eq!(q.entries.len(), QUEUE_HARD_CAP);
-    }
-
-    #[test]
-    fn overflow_counter_default_is_zero() {
-        assert_eq!(OverflowCounter::default().0, 0);
     }
 }

@@ -1,4 +1,4 @@
-//! ROUT-04 gate: cross-player isolation under disconnect/reconnect id churn.
+//! Cross-player isolation under disconnect/reconnect id churn.
 //!
 //! Scenario A: a packet stamped with a disconnected session's id never reaches
 //! a newly-connected session that happens to reuse the same socket entity

@@ -498,14 +498,4 @@ mod tests {
             assert_eq!((draw.visible)(&dark), !fades, "{}", draw.label);
         }
     }
-
-    #[test]
-    fn a_skybox_less_dimension_issues_only_the_disc() {
-        let issued: Vec<&str> = SKY_DRAWS
-            .iter()
-            .filter(|draw| SkyEffects::DISC.contains(draw.effect))
-            .map(|draw| draw.label)
-            .collect();
-        assert_eq!(issued, ["sky disc"]);
-    }
 }

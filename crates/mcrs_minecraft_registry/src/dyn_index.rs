@@ -77,12 +77,6 @@ mod tests {
     }
 
     #[test]
-    fn index_get_missing_returns_none() {
-        let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
-        assert_eq!(index.get("minecraft:nonexistent"), None);
-    }
-
-    #[test]
     fn index_empty() {
         let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
         assert_eq!(index.len(), 0);

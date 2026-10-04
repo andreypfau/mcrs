@@ -38,8 +38,12 @@ use mcrs_minecraft_client::{
 };
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_network::client::offline_player_uuid;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+use mcrs_minecraft_server::login::SingleplayerProfile;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
@@ -95,7 +99,8 @@ fn main() -> AppExit {
     {
         use bevy::render::settings::InstanceFlags;
         #[cfg(not(target_os = "windows"))]
-        wgpu.instance_flags.remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
+        wgpu.instance_flags
+            .remove(InstanceFlags::VALIDATION_INDIRECT_CALL);
         wgpu.instance_flags = (wgpu.instance_flags | InstanceFlags::DISCARD_HAL_LABELS).with_env();
     }
     let mut task_pool_options = bevy::app::TaskPoolOptions::default();
@@ -187,6 +192,7 @@ fn main() -> AppExit {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
+    let username = config::username();
     #[cfg(feature = "singleplayer")]
     let server = server_address().unwrap_or_else(|| {
         #[cfg(feature = "dev")]
@@ -197,14 +203,20 @@ fn main() -> AppExit {
         };
         #[cfg(not(feature = "dev"))]
         let traces = None;
-        host_integrated_server(world.as_deref(), &assets, traces)
+        let host = SingleplayerProfile {
+            name: username.clone(),
+            id: save_data
+                .player_uuid
+                .unwrap_or_else(|| offline_player_uuid(&username)),
+        };
+        host_integrated_server(world.as_deref(), &assets, traces, host)
     });
     #[cfg(not(feature = "singleplayer"))]
     let server = server_address()
         .expect("a client built without singleplayer hosts no server; set MCRS_SERVER");
     app.add_plugins(ClientNetworkPlugin {
         server,
-        username: config::username(),
+        username,
         profile_id: save_data.player_uuid,
         view_distance: config::view_distance(),
     });
@@ -287,19 +299,24 @@ fn terrain_limits(view_distance: u8) -> TerrainLimits {
     }
 }
 
-/// Singleplayer, the way the vanilla client plays it: a server of our own on a
-/// loopback port, which the client then joins like any other.
+/// Singleplayer, the way the vanilla client plays it: a server of our own, which the client then
+/// joins over loopback like any other. It listens on loopback only, unless `MCRS_OPEN_TO_LAN=1`
+/// opens it to the local network, where it then announces itself.
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 fn host_integrated_server(
     world: Option<&Path>,
     assets: &str,
     traces: Option<ColumnTraceSink>,
+    host: SingleplayerProfile,
 ) -> SocketAddr {
+    let open_to_lan = config::open_to_lan();
     let mut server = App::new();
     server.add_plugins(MinecraftServerPlugin {
+        bind_address: config::integrated_bind_address(open_to_lan),
         asset_path: Some(assets.to_owned()),
         world: world.map(Path::to_path_buf),
         column_traces: traces,
+        singleplayer_profile: Some(host),
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;
@@ -313,7 +330,7 @@ fn host_integrated_server(
         ),
         None => info!(%address, "hosting an integrated server"),
     }
-    address
+    SocketAddr::new(std::net::Ipv4Addr::LOCALHOST.into(), address.port())
 }
 
 /// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.

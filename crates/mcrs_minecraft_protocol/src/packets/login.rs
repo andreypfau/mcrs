@@ -3,33 +3,29 @@ pub mod clientbound {
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::Into;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x00, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ClientboundLoginDisconnect<'a> {
         pub reason: Bounded<&'a str, 32767>,
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x01, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ClientboundHello<'a> {
         pub server_id: Bounded<&'a str, 20>,
         pub public_key: &'a [u8],
         pub verify_token: &'a [u8],
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x02, state=Login)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundLoginFinished<'a> {
         pub profile: GameProfile<'a>,
         pub session_id: Uuid,
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Into, Packet)]
-    #[packet(id=0x03, state=Login, side=crate::PacketSide::Clientbound)]
+    #[derive(Copy, Clone, Debug, Encode, Decode, Into)]
     pub struct LoginCompression {
         pub threshold: VarInt,
     }
@@ -45,35 +41,30 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::{Bounded, RawBytes, VarInt};
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use uuid::Uuid;
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x00, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ServerboundHello<'a> {
         pub username: Bounded<&'a str, 16>,
         pub profile_id: Uuid,
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x01, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ServerboundKey<'a> {
         pub shared_secret: &'a [u8],
         pub verify_token: &'a [u8],
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x02, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ServerboundCustomQueryAnswer<'a> {
         pub message_id: VarInt,
         pub payload: Option<Bounded<RawBytes<'a>, 1048576>>,
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x03, state=Login)]
+    #[derive(Copy, Clone, Debug, Encode, Decode)]
     pub struct ServerboundLoginAcknowledged;
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x04, state=Login)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundCookieResponse<'a>(CookieResponse<'a>);
 }

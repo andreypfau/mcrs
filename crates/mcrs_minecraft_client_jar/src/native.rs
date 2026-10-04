@@ -13,7 +13,6 @@ use std::time::Duration;
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{Artifact, Directory, Files, Progress, RELEASE, Release, font_files, verify};
 
-const INSTALLED_JAR: &str = "versions/26.3/26.3.jar";
 const CHUNK: u64 = 1 << 20;
 const READ: usize = 64 << 10;
 // chisle: a fixed pool; make it adaptive only if measurements show four connections are wrong.
@@ -44,18 +43,18 @@ pub fn official_dir() -> PathBuf {
     return home().join(".minecraft");
 }
 
-/// Where launchers keep an installed 26.3 client jar, most likely first.
+/// Where launchers keep an installed client jar of the pinned release, most likely first.
 pub fn candidates() -> Vec<PathBuf> {
     #[allow(unused_mut)]
-    let mut paths = vec![official_dir().join(INSTALLED_JAR)];
+    let id = RELEASE.id;
+    let installed = format!("versions/{id}/{id}.jar");
+    let mut paths = vec![official_dir().join(&installed)];
     #[cfg(target_os = "macos")]
     {
         let support = home().join("Library/Application Support");
-        paths.push(
-            support.join(
-                "PrismLauncher/libraries/com/mojang/minecraft/26.3/minecraft-26.3-client.jar",
-            ),
-        );
+        paths.push(support.join(format!(
+            "PrismLauncher/libraries/com/mojang/minecraft/{id}/minecraft-{id}-client.jar"
+        )));
         for settings in ["tlauncher-2.0.properties", "legacy.properties"] {
             let Ok(text) = fs::read_to_string(support.join("tlauncher").join(settings)) else {
                 continue;
@@ -63,7 +62,7 @@ pub fn candidates() -> Vec<PathBuf> {
             paths.extend(
                 text.lines()
                     .filter_map(|line| line.strip_prefix("minecraft.gamedir="))
-                    .map(|dir| Path::new(dir.trim()).join(INSTALLED_JAR)),
+                    .map(|dir| Path::new(dir.trim()).join(&installed)),
             );
         }
     }
@@ -99,7 +98,7 @@ fn read_counting(path: &Path, progress: &Progress) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// The picked `assets/` files of the 26.3 client jar, from whichever launcher installed it or,
+/// The picked `assets/` files of the pinned client jar, from whichever launcher installed it or,
 /// failing that, downloaded into the official launcher's directory. Font files go to `fonts`
 /// first. A download returns once the assets are in; the [`Remainder`] completes the jar.
 pub fn resolve(
@@ -332,6 +331,20 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
+/// One request, no retry: a caller that is given a wrong address must see the error. The body
+/// is not checked against anything.
+pub fn get(url: &str) -> Result<Vec<u8>, String> {
+    agent()
+        .get(url)
+        .call()
+        .map_err(|error| error.to_string())?
+        .into_body()
+        .with_config()
+        .limit(u64::MAX)
+        .read_to_vec()
+        .map_err(|error| error.to_string())
+}
+
 fn work(shared: &Shared, id: usize) {
     let agent = agent();
     let mut backoff = MIN_BACKOFF;
@@ -552,7 +565,7 @@ mod tests {
     use crate::fonts::{FontHint, is_texture};
     use crate::schedule::{ASSETS, DIRECTORY, FONTS, HINTED_FONTS, TEXTURES};
     use crate::tests::{entries, sample_jar};
-    use crate::{CLIENT_JAR, sha1_hex};
+    use crate::{directory_digest, sha1_hex};
 
     use super::*;
 
@@ -660,17 +673,17 @@ mod tests {
         let _ = stream.write_all(&body[start..sent]);
     }
 
-    const JSON: &[u8] = br#"{"id":"26.3"}"#;
+    const JSON: &[u8] = br#"{"id":"sample"}"#;
 
     fn leak(text: String) -> &'static str {
         Box::leak(text.into_boxed_str())
     }
 
     fn release(jar: &[u8], url: &str, hint: String) -> &'static Release<'static> {
-        let start = Directory::of(jar).unwrap().start();
+        let (directory_sha1, directory_size) = directory_digest(jar).unwrap();
         let jar_url = leak(format!("{url}/client.jar"));
         Box::leak(Box::new(Release {
-            id: "26.3",
+            id: "sample",
             jar: Artifact {
                 url: jar_url,
                 sha1: leak(sha1_hex(jar)),
@@ -678,11 +691,11 @@ mod tests {
             },
             directory: Artifact {
                 url: jar_url,
-                sha1: leak(sha1_hex(&jar[start as usize..])),
-                size: jar.len() as u64 - start,
+                sha1: leak(directory_sha1),
+                size: directory_size,
             },
             json: Artifact {
-                url: leak(format!("{url}/26.3.json")),
+                url: leak(format!("{url}/sample.json")),
                 sha1: leak(sha1_hex(JSON)),
                 size: JSON.len() as u64,
             },
@@ -707,14 +720,14 @@ mod tests {
     fn assert_complete(dir: &Path, release: &Release) {
         assert!(verify(
             &release.jar,
-            &fs::read(dir.join("26.3.jar")).unwrap()
+            &fs::read(dir.join("sample.jar")).unwrap()
         ));
         assert!(verify(
             &release.json,
-            &fs::read(dir.join("26.3.json")).unwrap()
+            &fs::read(dir.join("sample.json")).unwrap()
         ));
-        assert!(!dir.join("26.3.jar.part").exists());
-        assert!(!dir.join("26.3.jar.part.ranges").exists());
+        assert!(!dir.join("sample.jar.part").exists());
+        assert!(!dir.join("sample.jar.part.ranges").exists());
     }
 
     fn group_of(jar: &[u8], range: &Range<u64>) -> u32 {
@@ -890,7 +903,7 @@ mod tests {
         };
         let other_jar = {
             let mut hint = hint(&jar);
-            hint.jar_sha1 = CLIENT_JAR.sha1.to_owned();
+            hint.jar_sha1 = RELEASE.jar.sha1.to_owned();
             hint_text(&hint)
         };
         for (name, hint, deliveries) in [
@@ -955,9 +968,9 @@ mod tests {
         let server = serve(&jar, JSON, Behaviour::default());
         let release = release(&jar, &server.url, hint_text(&hint(&jar)));
         let dir = scratch("corrupt");
-        fs::write(dir.join("26.3.jar.part"), vec![0x5a; jar.len()]).unwrap();
+        fs::write(dir.join("sample.jar.part"), vec![0x5a; jar.len()]).unwrap();
         fs::write(
-            dir.join("26.3.jar.part.ranges"),
+            dir.join("sample.jar.part.ranges"),
             format!("0 {}\n", jar.len()),
         )
         .unwrap();
@@ -986,7 +999,7 @@ mod tests {
         let (first, rest) = download(release, &dir, 2, &Progress::default(), |_| true, drop);
         drop(rest);
         let before = server.requests.lock().unwrap().len();
-        let held = load_ranges(&dir.join("26.3.jar.part.ranges"), jar.len() as u64);
+        let held = load_ranges(&dir.join("sample.jar.part.ranges"), jar.len() as u64);
         let mut delivered = Vec::new();
         let (second, rest) = download(
             release,
@@ -1010,23 +1023,45 @@ mod tests {
     }
 
     #[test]
+    fn get_returns_the_body_of_an_existing_path() {
+        let server = serve(&sample_jar(), JSON, Behaviour::default());
+
+        assert_eq!(get(&format!("{}/sample.json", server.url)).unwrap(), JSON);
+    }
+
+    #[test]
+    fn get_fails_a_missing_path_after_one_attempt() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/missing.json", listener.local_addr().unwrap());
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let counted = attempts.clone();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                counted.fetch_add(1, Ordering::SeqCst);
+                let mut head = [0; 1024];
+                let _ = stream.read(&mut head);
+                let _ = stream.write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                );
+            }
+        });
+
+        let error = get(&url).unwrap_err();
+
+        assert!(error.contains("404"), "{error}");
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
     fn the_font_hint_matches_the_pinned_jar() {
-        let jar = locate(&candidates(), &CLIENT_JAR, &Progress::default()).expect(
-            "a 26.3 client jar installed by a launcher, or downloaded by one run of the client",
+        let jar = locate(&candidates(), &RELEASE.jar, &Progress::default()).expect(
+            "a pinned client jar installed by a launcher, or downloaded by one run of the client",
         );
-        let generated = FontHint::of(&jar, CLIENT_JAR.sha1).unwrap();
-        if std::env::var_os("MCRS_WRITE_FONT_HINT").is_some() {
-            let text = serde_json::to_string_pretty(&generated).unwrap() + "\n";
-            fs::write(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/font_hint.json"),
-                text,
-            )
-            .unwrap();
-        }
+        let generated = FontHint::of(&jar, RELEASE.jar.sha1).unwrap();
         assert_eq!(
             serde_json::from_str::<FontHint>(RELEASE.font_hint).unwrap(),
             generated,
-            "src/font_hint.json is stale; rerun this test with MCRS_WRITE_FONT_HINT=1"
+            "src/font_hint.json does not match the pinned jar; the update tool rewrites it"
         );
     }
 
@@ -1035,14 +1070,14 @@ mod tests {
     fn locates_a_launcher_jar_on_this_machine() {
         let candidates = candidates();
         let progress = Progress::default();
-        let found = locate(&candidates, &CLIENT_JAR, &progress);
+        let found = locate(&candidates, &RELEASE.jar, &progress);
         println!("checked {candidates:#?}");
         println!("{}", progress.status.lock().unwrap());
         assert!(found.is_some());
     }
 
     #[test]
-    #[ignore = "downloads the 26.3 client jar from Mojang into the temp directory"]
+    #[ignore = "downloads the pinned client jar from Mojang into the temp directory"]
     fn downloads_the_pinned_jar() {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
@@ -1053,10 +1088,10 @@ mod tests {
             .and_then(|workers| workers.parse().ok())
             .unwrap_or(WORKERS);
         let dir = std::env::temp_dir().join("mcrs-client-jar-download");
-        if dir.join("26.3.jar").exists() {
+        if dir.join("sample.jar").exists() {
             fs::remove_dir_all(&dir).unwrap();
         }
-        let held = load_ranges(&dir.join("26.3.jar.part.ranges"), RELEASE.jar.size);
+        let held = load_ranges(&dir.join("sample.jar.part.ranges"), RELEASE.jar.size);
         println!(
             "{} holds {} bytes before the run: {held:?}",
             dir.display(),

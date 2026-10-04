@@ -1,0 +1,89 @@
+use bevy_math::IVec3;
+use mcrs_minecraft_worldgen_density::program::Workspace;
+
+use super::beta_surface::build_beta_biome_source;
+use super::build_beta_router;
+use crate::beta_biome_grid;
+
+#[test]
+fn every_cell_is_the_biome_its_climate_answers_alone() {
+    let router = build_beta_router();
+    let (source, registry) = build_beta_biome_source();
+    let mut ws = Workspace::new();
+
+    for (chunk_x, chunk_z) in [(0, 0), (3, -2)] {
+        let grid = beta_biome_grid(&router, &source, &registry, chunk_x * 16, chunk_z * 16);
+        for gx in 0..6 {
+            for gz in 0..6 {
+                let (temperature, humidity) = router.sample_beta_climate(
+                    &mut ws,
+                    grid.volume.block_x(gx),
+                    grid.volume.block_z(gz),
+                );
+                let location = source.beta_biome_location(temperature, humidity);
+                let expected = registry
+                    .by_location(location.as_str())
+                    .and_then(|id| u8::try_from(id).ok())
+                    .expect("the location resolves to an id the grid can store");
+                assert_eq!(
+                    grid.get(gx, 0, gz),
+                    expected,
+                    "cell {gx},{gz} of column {chunk_x},{chunk_z}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_ring_cell_is_the_neighbour_column_s_own_cell() {
+    let router = build_beta_router();
+    let (source, registry) = build_beta_biome_source();
+    let (chunk_x, chunk_z) = (-11, 6);
+
+    let column = beta_biome_grid(&router, &source, &registry, chunk_x * 16, chunk_z * 16);
+    let west = beta_biome_grid(
+        &router,
+        &source,
+        &registry,
+        (chunk_x - 1) * 16,
+        chunk_z * 16,
+    );
+    let north = beta_biome_grid(
+        &router,
+        &source,
+        &registry,
+        chunk_x * 16,
+        (chunk_z - 1) * 16,
+    );
+
+    for gz in 1..5 {
+        assert_eq!(
+            column.get(0, 0, gz),
+            west.get(4, 0, gz),
+            "west ring, row {gz}"
+        );
+    }
+    for gx in 1..5 {
+        assert_eq!(
+            column.get(gx, 0, 0),
+            north.get(gx, 0, 4),
+            "north ring, column {gx}"
+        );
+    }
+}
+
+#[test]
+fn the_grid_is_one_row_of_six_by_six() {
+    let router = build_beta_router();
+    let (source, registry) = build_beta_biome_source();
+    let (block_x, block_z) = (-48, 80);
+
+    let grid = beta_biome_grid(&router, &source, &registry, block_x, block_z);
+
+    assert_eq!(grid.volume.size(), IVec3::new(6, 1, 6));
+    assert_eq!(
+        grid.volume.min_block(),
+        IVec3::new(block_x - 4, 0, block_z - 4)
+    );
+}

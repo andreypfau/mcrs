@@ -1,10 +1,9 @@
-use std::io::{Read, Write};
+use std::io::Write;
 
 use anyhow::bail;
 use byteorder::ReadBytesExt;
 use derive_more::{Deref, DerefMut, From, Into};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::{Decode, Encode};
 
@@ -49,27 +48,6 @@ impl VarInt {
             n => (31 - n.leading_zeros() as usize) / 7 + 1,
         }
     }
-
-    pub fn decode_partial(mut r: impl Read) -> Result<i32, VarIntDecodeError> {
-        let mut val = 0;
-        for i in 0..Self::MAX_SIZE {
-            let byte = r.read_u8().map_err(|_| VarIntDecodeError::Incomplete)?;
-            val |= (byte as i32 & 0b01111111) << (i * 7);
-            if byte & 0b10000000 == 0 {
-                return Ok(val);
-            }
-        }
-
-        Err(VarIntDecodeError::TooLarge)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Error)]
-pub enum VarIntDecodeError {
-    #[error("incomplete VarInt decode")]
-    Incomplete,
-    #[error("VarInt is too large")]
-    TooLarge,
 }
 
 impl Encode for VarInt {
@@ -121,12 +99,11 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn varint_written_size() {
+    fn check_written_size(count: usize) {
         let mut rng = rand::rng();
         let mut buf = vec![];
 
-        for n in (0..100_000)
+        for n in (0..count)
             .map(|_| rng.random())
             .chain([0, i32::MIN, i32::MAX])
             .map(VarInt)
@@ -137,12 +114,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn varint_round_trip() {
+    fn check_round_trip(count: usize) {
         let mut rng = rand::rng();
         let mut buf = vec![];
 
-        for n in (0..1_000_000)
+        for n in (0..count)
             .map(|_| rng.random())
             .chain([0, i32::MIN, i32::MAX])
         {
@@ -155,6 +131,30 @@ mod tests {
 
             assert!(slice.is_empty());
             buf.clear();
+        }
+    }
+
+    #[test]
+    fn varint_written_size() {
+        check_written_size(1_000);
+    }
+
+    #[test]
+    fn varint_round_trip() {
+        check_round_trip(10_000);
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn varint_written_size() {
+            check_written_size(100_000);
+        }
+
+        #[test]
+        fn varint_round_trip() {
+            check_round_trip(1_000_000);
         }
     }
 }

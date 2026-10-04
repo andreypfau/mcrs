@@ -8,6 +8,8 @@ use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 
+use crate::placement::HeightmapName;
+
 /// `Vec3i.offsetCodec(16)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize)]
 #[serde(transparent)]
@@ -103,6 +105,8 @@ pub enum BlockPredicate {
     },
     #[serde(rename = "minecraft:volume_match")]
     VolumeMatch(VolumeMatch),
+    #[serde(rename = "minecraft:below_heightmap")]
+    BelowHeightmap { heightmap: HeightmapName },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -167,16 +171,7 @@ mod tests {
         round_trip(
             r#"{"type":"minecraft:volume_match","min":[-2,-2,-2],"max":[2,-1,2],"match":{"type":"minecraft:true"}}"#,
         );
-    }
-
-    #[test]
-    fn an_out_of_range_offset_is_a_load_error() {
-        let error = serde_json::from_str::<BlockPredicate>(
-            r#"{"type":"minecraft:solid","offset":[0,17,0]}"#,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("out of range"), "{error}");
+        round_trip(r#"{"type":"minecraft:below_heightmap","heightmap":"MOTION_BLOCKING"}"#);
     }
 
     #[test]
@@ -190,10 +185,20 @@ mod tests {
     }
 
     #[test]
-    fn an_unregistered_type_is_a_load_error() {
-        let error = serde_json::from_str::<BlockPredicate>(r#"{"type":"minecraft:has_water"}"#)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("minecraft:has_water"), "{error}");
+    fn every_registered_predicate_type_is_a_variant() {
+        let table = mcrs_minecraft_registry::StaticRegistryTable::load(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/mcrs/reports/registries.json"),
+        )
+        .unwrap();
+        let names = table.registry("block_predicate_type").unwrap().names();
+        assert!(!names.is_empty());
+        for name in names {
+            let json = format!(r#"{{"type":"{name}"}}"#);
+            if let Err(error) = serde_json::from_str::<BlockPredicate>(&json) {
+                let error = error.to_string();
+                assert!(!error.contains("unknown variant"), "{name}: {error}");
+            }
+        }
     }
 }

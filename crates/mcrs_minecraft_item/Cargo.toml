@@ -1,26 +1,32 @@
 [package]
 name = "mcrs_minecraft_item"
-description = "Items, item components, enchantments and armour trims"
+description = "Items, item data components, the component patch, the persistent item stack, enchantments and armour trims"
 version.workspace = true
 edition.workspace = true
 
 [lib]
 doctest = false
 
+[features]
+bevy = [
+    "dep:bevy_ecs",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_profile/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dependencies]
-bevy_app.workspace = true
-bevy_asset.workspace = true
-bevy_ecs.workspace = true
-bevy_reflect.workspace = true
-bevy_tasks.workspace = true
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_block.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_item_component = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_protocol.workspace = true
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_profile.workspace = true
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_text.workspace = true
+anyhow.workspace = true
+crc32c.workspace = true
 rustc-hash.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 

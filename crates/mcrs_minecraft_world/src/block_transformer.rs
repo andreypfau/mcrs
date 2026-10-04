@@ -73,10 +73,15 @@ mod tests {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
             let text = std::fs::read_to_string(&path).unwrap();
-            let parsed: BlockTransformer = serde_json::from_str(&text)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let parsed: BlockTransformer =
+                serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let original: serde_json::Value = serde_json::from_str(&text).unwrap();
-            assert_eq!(serde_json::to_value(&parsed).unwrap(), original, "{}", path.display());
+            assert_eq!(
+                serde_json::to_value(&parsed).unwrap(),
+                original,
+                "{}",
+                path.display()
+            );
             count += 1;
         }
         assert_eq!(count, 3);

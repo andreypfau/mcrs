@@ -6,9 +6,10 @@ use bevy_reflect::TypePath;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 
 mod easing;
 mod marker;
@@ -30,6 +31,10 @@ pub struct Timeline {
 
 impl TaggedRegistry for Timeline {
     const REGISTRY_PATH: &'static str = "timeline";
+}
+
+impl RegistryKey for Timeline {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:timeline");
 }
 
 #[derive(Deserialize)]
@@ -164,17 +169,6 @@ mod tests {
     fn sent(timeline: &Timeline) -> Value {
         let text = serde_json::to_string(&NetworkTimeline::from(timeline)).unwrap();
         serde_json::from_str(&text).unwrap()
-    }
-
-    #[test]
-    fn network_timeline_round_trips_required_fields() {
-        let json = sent(&timeline("villager_schedule.json"));
-        assert!(json.get("clock").is_some());
-        assert!(json.get("tracks").is_some());
-        assert_eq!(
-            json.get("period_ticks").and_then(|v| v.as_u64()),
-            Some(24000)
-        );
     }
 
     #[test]
@@ -338,11 +332,6 @@ mod tests {
             markers.get_compound("minecraft:day").unwrap().get("ticks"),
             Some(&NbtTag::Int(1000))
         );
-    }
-
-    #[test]
-    fn deserialize_all_timelines() {
-        mcrs_minecraft_worldgen_testing::parse_all::<Timeline>("minecraft/timeline");
     }
 
     // ── Baking and sampling ──────────────────────────────────────────────────

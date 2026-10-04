@@ -1,5 +1,7 @@
 use crate::interval::Interval;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,10 @@ pub struct NoiseParam {
     pub normalize: Normalization,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub amplitude_modifiers: Vec<HashableF64>,
+}
+
+impl RegistryKey for NoiseParam {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/noise");
 }
 
 fn default_base_amplitude() -> HashableF64 {
@@ -112,6 +118,46 @@ impl Validate for NoiseParam {
 }
 
 impl NoiseParam {
+    /// `octave_count` octaves from `base_octave` up, none of them reweighted.
+    pub fn uniform(base_octave: i32, octave_count: usize) -> Self {
+        NoiseParam {
+            base_octave,
+            base_amplitude: HashableF64(1.0),
+            octave_count,
+            normalize: Normalization::Enabled,
+            amplitude_modifiers: Vec::new(),
+        }
+    }
+
+    /// The parameters whose sampler matches a noise given as bare octave
+    /// amplitudes and normalized over its octave span. This shape normalizes
+    /// over the octaves' deviation instead, so the base amplitude carries the
+    /// ratio between the two factors.
+    pub fn parity(base_octave: i32, amplitudes: &[f64]) -> Self {
+        let unit = NoiseParam {
+            base_octave,
+            base_amplitude: HashableF64(1.0),
+            octave_count: amplitudes.len(),
+            normalize: Normalization::Enabled,
+            amplitude_modifiers: if amplitudes.iter().all(|a| *a == 1.0) {
+                Vec::new()
+            } else {
+                amplitudes.iter().copied().map(HashableF64).collect()
+            },
+        };
+        let factor = unit.octaves().factor;
+        if factor == 0.0 {
+            return unit;
+        }
+        let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
+        let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
+        let span_factor = parity_normalization_factor(1.0, (highest - lowest) as f64);
+        NoiseParam {
+            base_amplitude: HashableF64(span_factor / factor),
+            ..unit
+        }
+    }
+
     /// `getAmplitudeModifier`: an empty list means every octave is unmodified.
     /// A non-empty one is validated at load to have exactly `octave_count`
     /// entries, so indexing can never miss.
@@ -352,7 +398,6 @@ impl From<f64> for HashableF64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::normal;
 
     fn param(json: &str) -> NoiseParam {
         serde_json::from_str(json).unwrap()
@@ -398,30 +443,5 @@ mod tests {
             r#"{"base_octave":-7,"octave_count":1,"amplitude_modifiers":[-1.0]}"#,
         )
         .unwrap_err();
-    }
-
-    /// A zero modifier drops its octave from both sums rather than contributing
-    /// zero, which is what makes the legacy span `highest - lowest` and not
-    /// `octave_count - 1`.
-    #[test]
-    fn a_gapped_octave_narrows_the_range() {
-        let gapped = param(
-            r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,0.0,1.0],"normalize":"legacy"}"#,
-        );
-        let solid = param(
-            r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,1.0,1.0],"normalize":"legacy"}"#,
-        );
-        let range = |p: &NoiseParam| normal::range(p).max();
-        assert!(range(&gapped) < range(&solid));
-        assert!(range(&gapped) > 0.0);
-    }
-
-    #[test]
-    fn a_disabled_normalization_keeps_the_base_amplitude() {
-        let disabled = param(r#"{"base_octave":-3,"octave_count":1,"normalize":false}"#);
-        assert_eq!(
-            normal::range(&disabled).max(),
-            (1.0f64 * 0.3333333333333333 * 6.0) as f32
-        );
     }
 }

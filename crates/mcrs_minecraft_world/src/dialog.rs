@@ -5,11 +5,7 @@ use serde::Serialize;
 
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_assets::tag::tag_ref::TagRef;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
-
-impl TaggedRegistry for Dialog {
-    const REGISTRY_PATH: &'static str = "dialog";
-}
+use mcrs_minecraft_registry::key;
 
 // ── Proto (deserialization-only) ──
 
@@ -30,7 +26,7 @@ pub struct Dialog {
     pub raw: serde_json::Map<String, serde_json::Value>,
     /// Sub-asset handle for the `dialogs` tag reference (e.g.
     /// `#minecraft:pause_screen_additions`). Runtime-only; not serialized.
-    pub dialogs: Option<TagRef<Dialog>>,
+    pub dialogs: Option<TagRef<key::Dialog>>,
 }
 
 impl Serialize for Dialog {
@@ -81,7 +77,7 @@ impl AssetLoader for DialogLoader {
             Some(s) if s.starts_with('#') => {
                 let tag_str = &s[1..];
                 Some(
-                    TagRef::<Dialog>::load(tag_str, load_context)
+                    TagRef::<key::Dialog>::load(tag_str, load_context)
                         .map_err(DialogResolveError::from)?,
                 )
             }

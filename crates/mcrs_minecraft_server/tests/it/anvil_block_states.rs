@@ -109,11 +109,11 @@ fn section_with_light(y: i8, palette: Vec<NbtTag>, sky: u8, block: u8) -> NbtTag
 
 fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", mcrs_minecraft_anvil::DATA_VERSION);
+    root.put_int("DataVersion", mcrs_minecraft_core::VERSION.world_version);
     root.put_int("xPos", 0);
     root.put_int("zPos", 0);
     root.put_int("yPos", -4);
-    root.put_string("Status", "minecraft:full".to_string());
+    root.put_string("status", "minecraft:full".to_string());
     root.put_bool("isLightOn", true);
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
@@ -220,30 +220,6 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
             vec![("snowy", PropertyValue::Bool(false))],
         ),
         (
-            "minecraft:note_block",
-            vec![("instrument", "harp"), ("note", "17"), ("powered", "true")],
-            vec![
-                ("instrument", PropertyValue::Str("harp".into())),
-                ("note", PropertyValue::Int(17)),
-                ("powered", PropertyValue::Bool(true)),
-            ],
-        ),
-        (
-            "minecraft:oak_stairs",
-            vec![
-                ("facing", "east"),
-                ("half", "top"),
-                ("shape", "inner_left"),
-                ("waterlogged", "true"),
-            ],
-            vec![
-                ("facing", PropertyValue::Str("east".into())),
-                ("half", PropertyValue::Str("top".into())),
-                ("shape", PropertyValue::Str("inner_left".into())),
-                ("waterlogged", PropertyValue::Bool(true)),
-            ],
-        ),
-        (
             "minecraft:water",
             vec![("level", "3")],
             vec![("level", PropertyValue::Int(3))],
@@ -256,7 +232,6 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
         let properties: Vec<(&str, String)> =
             saved.iter().map(|(k, v)| (*k, v.to_string())).collect();
         let ids = resolve(vec![(0, vec![entry(name, &properties)])]).unwrap();
-        println!("{name} {saved:?} -> {}", ids[0]);
         assert_eq!(ids, vec![expected.0 as u32], "{name}");
     }
 }

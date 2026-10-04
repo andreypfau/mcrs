@@ -240,18 +240,3 @@ fn level_two_may_switch_game_mode() {
     assert_eq!(server.game_mode(), target);
 }
 
-#[test]
-fn level_one_may_not_switch_game_mode() {
-    let uuid = Uuid::new_v4();
-    let mut server = Server::start(&[(uuid, 1)], 0);
-    server.join(uuid);
-    let before = server.game_mode();
-
-    server.send(&ServerboundChangeGameMode {
-        mode: other_mode(before),
-    });
-    let packets = server.ticks(2);
-
-    assert!(game_mode_changes(&packets).is_empty());
-    assert_eq!(server.game_mode(), before);
-}

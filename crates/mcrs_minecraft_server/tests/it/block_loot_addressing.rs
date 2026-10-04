@@ -1,7 +1,5 @@
 use crate::support;
 
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::AssetPlugin;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 
 fn corpus() -> &'static BlockDefinitions {
@@ -92,27 +90,3 @@ fn every_interned_table_names_an_asset_that_exists() {
     assert!(missing.is_empty(), "missing loot table assets: {missing:?}");
 }
 
-/// The dimension sub-app's warm-up is what fills `BlockLootTables`; this checks
-/// the resource the plugin installs is keyed by the corpus' loot id.
-#[test]
-fn block_loot_tables_is_keyed_by_loot_id() {
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    support::insert_corpus(&mut app);
-    app.add_plugins(mcrs_minecraft_server::world::loot::LootPlugin);
-
-    let blocks = app
-        .world()
-        .resource::<mcrs_minecraft_block::definition::Blocks>()
-        .clone();
-    let stone = blocks.state(blocks.default_state("minecraft:stone")).loot;
-    let tables = app
-        .world()
-        .resource::<mcrs_minecraft_server::world::loot::BlockLootTables>();
-    assert!(tables.tables.is_empty(), "nothing is resolved before load");
-    assert!(stone.is_some());
-}

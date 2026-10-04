@@ -6,6 +6,8 @@ use crate::proto::{BlockState, DensityFunctionHolder, ValueRange};
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use serde::{Deserialize, Serialize};
@@ -45,6 +47,21 @@ pub struct RouterFunctions {
 }
 
 impl RouterFunctions {
+    /// A router that shapes terrain alone: every climate root is zero.
+    pub fn of_density(final_density: DensityFunctionHolder) -> Self {
+        let zero = || DensityFunctionHolder::ZERO;
+        RouterFunctions {
+            temperature: zero(),
+            vegetation: zero(),
+            continents: zero(),
+            erosion: zero(),
+            depth: zero(),
+            ridges: zero(),
+            chunk_surface_level: zero(),
+            final_density,
+        }
+    }
+
     /// In the order of [`ROOT_NAMES`], which is also the order the compiler
     /// visits them and therefore the order the graph is grown in.
     pub fn roots(&self) -> [&DensityFunctionHolder; 8] {
@@ -68,6 +85,12 @@ pub struct NoiseSettings {
     pub height: u32,
 }
 
+impl NoiseSettings {
+    pub const fn new(min_y: i32, height: u32) -> Self {
+        NoiseSettings { min_y, height }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Aquifers {
@@ -84,6 +107,15 @@ pub struct Aquifers {
 pub struct DebugFunction {
     pub label: String,
     pub function: DensityFunctionHolder,
+}
+
+impl DebugFunction {
+    pub fn new(label: &str, function: impl Into<DensityFunctionHolder>) -> Self {
+        DebugFunction {
+            label: label.to_string(),
+            function: function.into(),
+        }
+    }
 }
 
 pub type SpawnTargetPoint = BTreeMap<ResourceLocation, ValueRange>;
@@ -108,11 +140,42 @@ pub struct NoiseGeneratorSettings {
     pub spawn_target: Vec<SpawnTargetPoint>,
     pub sea_level: i32,
     pub disable_mob_generation: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aquifers: Option<Aquifers>,
     pub legacy_random_source: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub debug_functions: Vec<DebugFunction>,
+}
+
+impl RegistryKey for NoiseGeneratorSettings {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/noise_settings");
+}
+
+impl NoiseGeneratorSettings {
+    /// Settings with nothing optional: no terrain block of their own, no spawn
+    /// target, no aquifers, no debug functions, mobs generated, and the
+    /// current random source.
+    pub fn new(
+        noise: NoiseSettings,
+        default_fluid: BlockState,
+        noise_router: RouterFunctions,
+        material_rule: ResourceLocation,
+        sea_level: i32,
+    ) -> Self {
+        NoiseGeneratorSettings {
+            noise,
+            default_block: None,
+            default_fluid,
+            noise_router,
+            material_rule,
+            spawn_target: Vec::new(),
+            sea_level,
+            disable_mob_generation: false,
+            aquifers: None,
+            legacy_random_source: false,
+            debug_functions: Vec::new(),
+        }
+    }
 }
 
 /// The block states a router places that no density function names.

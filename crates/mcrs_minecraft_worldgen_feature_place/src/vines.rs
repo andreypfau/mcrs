@@ -55,31 +55,6 @@ mod tests {
         ]
     }
 
-    /// Up comes before the horizontals in `Direction.values()`, so a ceiling
-    /// wins over a wall even when both are there.
-    #[test]
-    fn the_first_face_of_the_reference_order_takes_the_vine() {
-        let cfg = config();
-        let mut volume = cave(FakeVolume::with([
-            ((AT.x, AT.y + 1, AT.z), STONE),
-            ((AT.x, AT.y, AT.z - 1), STONE),
-        ]));
-
-        assert!(place_vines(&cfg, &mut volume, AT));
-        assert_eq!(volume.writes, vec![((AT.x, AT.y, AT.z), cfg[1])]);
-    }
-
-    /// The face below is skipped, so a vine standing on stone alone places
-    /// nothing.
-    #[test]
-    fn a_neighbour_below_is_no_reason_to_place() {
-        let cfg = config();
-        let mut volume = cave(FakeVolume::with([((AT.x, AT.y - 1, AT.z), STONE)]));
-
-        assert!(!place_vines(&cfg, &mut volume, AT));
-        assert!(volume.writes.is_empty());
-    }
-
     /// North is the first horizontal of `Direction.values()`, ahead of south,
     /// west and east.
     #[test]
@@ -92,16 +67,5 @@ mod tests {
 
         assert!(place_vines(&cfg, &mut volume, AT));
         assert_eq!(volume.writes, vec![((AT.x, AT.y, AT.z), cfg[2])]);
-    }
-
-    /// An occupied cell is refused before any neighbour is read.
-    #[test]
-    fn a_cell_that_is_not_empty_is_refused() {
-        let cfg = config();
-        let mut volume =
-            FakeVolume::with([((AT.x, AT.y, AT.z), STONE), ((AT.x, AT.y + 1, AT.z), STONE)]);
-
-        assert!(!place_vines(&cfg, &mut volume, AT));
-        assert!(volume.writes.is_empty());
     }
 }

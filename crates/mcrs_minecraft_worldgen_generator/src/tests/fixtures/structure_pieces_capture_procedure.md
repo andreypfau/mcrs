@@ -1,7 +1,9 @@
 # Fixture Capture Procedure — `structure_pieces.bin`
 
-**Source of truth:** vanilla `26.4-snapshot-1`, `world_version` 5119, read through
-Fabric Loom's mapped jar. No server and no client is started. The data pack is
+**Source of truth:** the game version that `assets/minecraft/version.json`
+states, read through Fabric Loom's mapped jar. The fixture header holds the
+world version of that file, and `tools/captures.json` records the version id the
+fixture was captured at. No server and no client is started. The data pack is
 the jar's own, loaded the way a server loads it (`PlacementOracle.loadWorldRegistries`),
 the templates come through a real `StructureTemplateManager` over a temporary
 save directory.
@@ -11,9 +13,7 @@ save directory.
 `PlacementOracle.java`, which writes `structure_sites.bin`)
 
 ```sh
-cd tools/vanilla-oracle
-./gradlew dumpStructurePieces --console=plain --no-daemon \
-    -PoracleOut=../../crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures
+cargo run -p mcrs_minecraft_update -- recapture structure_pieces
 ```
 
 Output is deterministic: two consecutive runs produce a byte-identical file
@@ -122,7 +122,7 @@ Little-endian. `str` is a `u32` byte length followed by that many UTF-8 bytes.
 ```
 magic            8 bytes, ASCII "MCSTRPC0"
 format_version   u32   currently 1
-world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version() = 5119
+world_version    u32   SharedConstants.getCurrentVersion().dataVersion().version()
 
 case_count       u32
 repeated case_count times, seeds outer, dimensions middle, structures inner:

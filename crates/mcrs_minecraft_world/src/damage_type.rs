@@ -18,11 +18,3 @@ impl Asset for DamageType {}
 impl VisitAssetDependencies for DamageType {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn deserialize_all_damage_types() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::DamageType>("minecraft/damage_type");
-    }
-}

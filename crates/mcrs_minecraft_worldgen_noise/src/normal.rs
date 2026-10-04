@@ -1,37 +1,12 @@
 use crate::gradient::GradientNoise;
 use crate::interval::Interval;
 use crate::perlin::PerlinNoise;
-use crate::proto::HashableF64;
-use crate::proto::{
-    NoiseParam, Normalization, Octaves, declared_range, parity_normalization_factor,
-};
+use crate::proto::{NoiseParam, Octaves, declared_range};
 use crate::stack::{NoiseStack, Octave};
 use mcrs_minecraft_random::Random;
 
 /// Every second sub-noise is offset by this ratio so the pair decorrelates.
 const INPUT_FACTOR: f64 = 1.0181268882175227;
-
-/// Vanilla's `NormalNoise.createParity`: the pre-parameters shape, where the
-/// amplitudes are the octave modifiers and the base amplitude is whatever makes
-/// the modern normalization reproduce the old one.
-pub fn parity_params(base_octave: i32, amplitudes: &[f64]) -> NoiseParam {
-    let params = |base_amplitude: f64| NoiseParam {
-        base_octave,
-        base_amplitude: HashableF64(base_amplitude),
-        octave_count: amplitudes.len(),
-        normalize: Normalization::Enabled,
-        amplitude_modifiers: amplitudes.iter().map(|a| HashableF64(*a)).collect(),
-    };
-    let probe = params(1.0).octaves();
-    let base_amplitude = if probe.factor == 0.0 {
-        1.0
-    } else {
-        let lowest = amplitudes.iter().position(|a| *a != 0.0).unwrap();
-        let highest = amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
-        parity_normalization_factor(1.0, (highest - lowest) as f64) / probe.factor
-    };
-    params(base_amplitude)
-}
 
 /// [`create`] over the parity shape, which is how every id with no
 /// `worldgen/noise` entry of its own is drawn.
@@ -40,7 +15,7 @@ pub fn create_parity<R: Random>(
     amplitudes: &[f64],
     random: &mut R,
 ) -> NoiseStack<Octave> {
-    create(&parity_params(base_octave, amplitudes), random)
+    create(&NoiseParam::parity(base_octave, amplitudes), random)
 }
 
 /// The declared value bound. Vanilla's `Noise.range()`, six sigma on the summed
@@ -88,8 +63,7 @@ pub fn create<R: Random>(params: &NoiseParam, random: &mut R) -> NoiseStack<Octa
 #[cfg(test)]
 mod bound_tests {
     use super::create;
-    use crate::proto::HashableF64;
-    use crate::proto::{NoiseParam, Normalization};
+    use crate::proto::{HashableF64, NoiseParam, Normalization};
     use crate::stack::{NoiseStack, Octave};
     use mcrs_minecraft_random::legacy::LegacyRandom;
 
@@ -117,7 +91,7 @@ mod bound_tests {
     }
 
     #[test]
-    fn disabled_normalization_keeps_the_base_amplitude_unscaled() {
+    fn each_normalization_scales_the_octave_amplitudes() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,
@@ -145,10 +119,7 @@ mod bound_tests {
             vec![0.97746503, 0.061091565, 0.061091565]
         );
         assert_eq!(gapped.range().max(), 2.25);
-    }
 
-    #[test]
-    fn enabled_normalization_prescales_the_octave_amplitudes() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,
@@ -176,10 +147,7 @@ mod bound_tests {
             vec![0.50449806, 0.03153113, 0.03153113]
         );
         assert_eq!(gapped.range().max(), 1.1612903);
-    }
 
-    #[test]
-    fn legacy_normalization_swaps_in_the_parity_factor() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,

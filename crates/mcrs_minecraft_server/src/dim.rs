@@ -1,3 +1,4 @@
+use crate::disconnect::Departing;
 use crate::world::bus::{
     InboundConfirmMove, InboundEntitySpawn, InboundRollbackMove, OutboundPlayerPacket, PacketTarget,
 };
@@ -93,6 +94,11 @@ pub fn pump_channels(app: &mut App) {
         for message in messages {
             match message {
                 FromDim::Clientbound(packet) => deliver(world, packet),
+                FromDim::Released { session } => {
+                    forget_departures(world, |departing| {
+                        departing.dim == source_dim && departing.session == session
+                    });
+                }
                 FromDim::Spawned { move_id } => {
                     if let Some(entry) = world.resource_mut::<InFlightMoves>().remove(move_id) {
                         if let Some(session) = entry.session {
@@ -179,6 +185,18 @@ pub fn pump_channels(app: &mut App) {
             source_dim,
             ToDim::ConfirmMove(InboundConfirmMove { move_id }),
         );
+    }
+}
+
+pub(crate) fn forget_departures(world: &mut World, matches: impl Fn(&Departing) -> bool) {
+    let released: Vec<Entity> = world
+        .query::<(Entity, &Departing)>()
+        .iter(world)
+        .filter(|(_, departing)| matches(departing))
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in released {
+        world.despawn(entity);
     }
 }
 

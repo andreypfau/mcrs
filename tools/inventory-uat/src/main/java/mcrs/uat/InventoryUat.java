@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -30,6 +29,8 @@ public final class InventoryUat implements ClientModInitializer {
     private static final int HOTBAR_0 = 36;
     private static final int SETTLE = 10;
 
+    private static InventoryUat instance;
+
     private final Deque<Step> steps = new ArrayDeque<>();
     private final List<Map<String, Object>> results = new ArrayList<>();
     private Minecraft mc;
@@ -43,7 +44,13 @@ public final class InventoryUat implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        instance = this;
+    }
+
+    public static void onClientTick(Minecraft client) {
+        if (instance != null) {
+            instance.tick(client);
+        }
     }
 
     private void tick(Minecraft client) {

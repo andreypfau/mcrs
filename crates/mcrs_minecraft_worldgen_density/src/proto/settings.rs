@@ -22,6 +22,27 @@ pub struct BlockState {
     pub properties: Option<BTreeMap<String, String>>,
 }
 
+impl BlockState {
+    /// A block named alone, with no stated property values.
+    pub fn bare(name: ResourceLocation) -> Self {
+        BlockState {
+            name,
+            properties: None,
+        }
+    }
+
+    pub fn minecraft(name: &str) -> Self {
+        Self::bare(ResourceLocation::minecraft(name))
+    }
+
+    pub fn with(mut self, property: &str, value: &str) -> Self {
+        self.properties
+            .get_or_insert_default()
+            .insert(property.to_string(), value.to_string());
+        self
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StatedBlockState {
@@ -33,10 +54,7 @@ struct StatedBlockState {
 impl<'de> Deserialize<'de> for BlockState {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Either::<ResourceLocation, StatedBlockState>::deserialize(deserializer)? {
-            Either::Left(name) => Ok(BlockState {
-                name,
-                properties: None,
-            }),
+            Either::Left(name) => Ok(BlockState::bare(name)),
             Either::Right(state) => Ok(BlockState {
                 name: state.id,
                 properties: Some(state.properties),
@@ -65,6 +83,15 @@ impl Serialize for BlockState {
 pub struct ValueRange {
     pub min: HashableF64,
     pub max: HashableF64,
+}
+
+impl ValueRange {
+    pub fn new(min: f64, max: f64) -> Self {
+        ValueRange {
+            min: HashableF64(min),
+            max: HashableF64(max),
+        }
+    }
 }
 
 type RangeForm = Either<HashableF64, Either<[HashableF64; 2], NamedRange>>;

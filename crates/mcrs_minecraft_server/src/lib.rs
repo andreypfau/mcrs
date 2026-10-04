@@ -19,7 +19,7 @@ pub mod world_options;
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
-use crate::login::LoginPlugin;
+use crate::login::{LoginPlugin, SingleplayerProfile};
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::Resource;
@@ -51,6 +51,9 @@ pub struct MinecraftServerPlugin {
     pub lighting: Lighting,
     /// Operator level of a player who has no entry in `ops.json`.
     pub default_op_level: u8,
+    /// A server that listens beyond loopback announces itself on the local network.
+    pub announce_on_lan: bool,
+    pub singleplayer_profile: Option<SingleplayerProfile>,
 }
 
 /// Whether dimensions propagate light. Without it the block light table is never built, so
@@ -74,6 +77,11 @@ impl Lighting {
     }
 }
 
+/// `MCRS_LAN_ANNOUNCE=off` turns the LAN announcement off.
+fn lan_announce_from_env() -> bool {
+    mcrs_minecraft_network::lan::enabled(std::env::var("MCRS_LAN_ANNOUNCE").ok().as_deref())
+}
+
 /// The world folder the server reads its saved chunks from.
 #[derive(Resource, Clone)]
 pub struct WorldSave(pub PathBuf);
@@ -88,6 +96,8 @@ impl Default for MinecraftServerPlugin {
             column_traces: None,
             lighting: Lighting::from_env(),
             default_op_level: 0,
+            announce_on_lan: lan_announce_from_env(),
+            singleplayer_profile: None,
         }
     }
 }
@@ -106,6 +116,15 @@ impl MinecraftServerPlugin {
 
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
+        bevy_asset::AssetApp::register_asset_source(
+            app,
+            bevy_asset::io::AssetSourceId::Default,
+            mcrs_minecraft_worldgen::bevy::asset_source(
+                self.asset_path
+                    .as_deref()
+                    .unwrap_or(&bevy_asset::AssetPlugin::default().file_path),
+            ),
+        );
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,
@@ -133,7 +152,11 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
+            announce_on_lan: self.announce_on_lan,
         });
+        if let Some(host) = &self.singleplayer_profile {
+            app.insert_resource(host.clone());
+        }
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);

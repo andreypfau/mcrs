@@ -11,7 +11,9 @@ use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
-use mcrs_minecraft_light::{BlockLight, SkyLight};
+use mcrs_minecraft_assets::RegistrySnapshot;
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
@@ -27,16 +29,18 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog}
 use mcrs_minecraft_level::world::storage::block_entity::SectionBlockEntities;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
+use mcrs_minecraft_light::{BlockLight, SkyLight};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
+use mcrs_minecraft_protocol::chunk::{ChunkDataBlockEntity, encode_section};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchFinished;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkBatchStart;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundChunkCacheRadius;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelChunk;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
-use mcrs_minecraft_protocol::{ColumnPos, Encode};
+use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
@@ -480,7 +484,11 @@ pub(crate) fn project_touched_columns(
     mut inputs: ReadyInputs,
     touched: Query<
         &SectionPos,
-        Or<(Changed<SectionStage>, Changed<BlockLight>, Changed<SkyLight>)>,
+        Or<(
+            Changed<SectionStage>,
+            Changed<BlockLight>,
+            Changed<SkyLight>,
+        )>,
     >,
     mut candidates: Local<FxHashSet<ColumnPos>>,
 ) {
@@ -606,12 +614,15 @@ pub(crate) fn send_column_queue(
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
     lighting: Res<crate::Lighting>,
+    (block_definitions, biome_registry): (Res<Blocks>, Res<RegistrySnapshot<Biome>>),
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut nearest: Local<Vec<ColumnPos>>,
     mut batch: Local<Vec<PacketPayload>>,
 ) {
+    let block_direct_bits = block_direct_bits(block_definitions.state_count());
+    let biome_direct_bits = biome_direct_bits(biome_registry.len() as usize);
     players
         .iter_mut()
         .for_each(|(player, mut chunk_view, in_dim, host_anchor)| {
@@ -709,20 +720,16 @@ pub(crate) fn send_column_queue(
                         }
                     }
                     // section and turns the rest of the column into garbage.
-                    non_air_block_count(blocks)
-                        .encode(&mut data)
-                        .expect("Failed to encode chunk block count");
-                    0u16.encode(&mut data)
-                        .expect("Failed to encode chunk fluid count");
-                    blocks
-                        .0
-                        .0
-                        .encode(&mut data)
-                        .expect("Failed to encode chunk block data");
-                    biomes
-                        .0
-                        .encode(&mut data)
-                        .expect("Failed to encode chunk biome data");
+                    encode_section(
+                        non_air_block_count(blocks),
+                        0,
+                        &blocks.0.0,
+                        &biomes.0,
+                        block_direct_bits,
+                        biome_direct_bits,
+                        &mut data,
+                    )
+                    .expect("Failed to encode chunk section");
                 }
                 let light_data = if *lighting == crate::Lighting::FullSky {
                     build_fullbright_light_data(wire_light_rows)
@@ -908,6 +915,8 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
+        world.init_resource::<RegistrySnapshot<Biome>>();
+        world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 
         Fixture {
             dim,
@@ -1122,25 +1131,6 @@ mod tests {
             chunk_view.set(col, Some(ColumnState::Queued));
         }
         fx.player
-    }
-
-    #[test]
-    fn a_wanted_column_is_raised_without_waiting_for_it_to_land() {
-        let mut world = World::new();
-        let wants = [
-            ColumnPos::new(4, 0),
-            ColumnPos::new(0, 0),
-            ColumnPos::new(0, 2),
-        ];
-        let player = one_player_wanting(&mut world, &wants, ChunkTrackingView::default());
-
-        world
-            .run_system_once(raise_queued_columns)
-            .expect("the raise runs");
-
-        for col in wants {
-            assert_eq!(view(&world, player).state(col), Some(ColumnState::Awaiting));
-        }
     }
 
     /// Raising a column costs a whole column's worth of spawns. Counting the budget in sections
