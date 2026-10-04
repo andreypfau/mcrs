@@ -151,7 +151,7 @@ fn vanilla_rejections() {
         assert!(err.contains(message), "{input}: {err}");
     }
     let mut open_file = Text::text("x");
-    open_file.click_event = Some(ClickEvent::OpenFile { path: "/x".into() });
+    open_file.style.click_event = Some(ClickEvent::OpenFile { path: "/x".into() });
     assert!(serde_json::to_string(&open_file).is_err());
 }
 
@@ -265,7 +265,7 @@ fn vanilla_stream_codec_bytes_decode_and_re_encode() {
 #[test]
 fn an_int_array_below_a_list_stays_an_int_array() {
     let mut hover = Text::text("x");
-    hover.hover_event = Some(HoverEvent::ShowEntity {
+    hover.style.hover_event = Some(HoverEvent::ShowEntity {
         id: ResourceKey::from_location(rl!("minecraft:pig").into()),
         uuid: Uuid::from_u128(0x00000001_00000002_00000003_00000004),
         name: None,

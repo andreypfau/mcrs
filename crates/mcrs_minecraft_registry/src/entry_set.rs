@@ -8,13 +8,13 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-pub enum EntrySet<R, const ALWAYS_LIST: bool = false> {
+pub enum EntrySet<R> {
     Tag(ResourceLocation<Arc<str>>),
     One(Id<R>),
     List(Vec<Id<R>>),
 }
 
-impl<R, const ALWAYS_LIST: bool> EntrySet<R, ALWAYS_LIST> {
+impl<R> EntrySet<R> {
     pub fn entries(&self) -> &[Id<R>] {
         match self {
             EntrySet::Tag(_) => &[],
@@ -24,7 +24,7 @@ impl<R, const ALWAYS_LIST: bool> EntrySet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> Clone for EntrySet<R, ALWAYS_LIST> {
+impl<R> Clone for EntrySet<R> {
     fn clone(&self) -> Self {
         match self {
             EntrySet::Tag(tag) => EntrySet::Tag(tag.clone()),
@@ -34,7 +34,7 @@ impl<R, const ALWAYS_LIST: bool> Clone for EntrySet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> fmt::Debug for EntrySet<R, ALWAYS_LIST> {
+impl<R> fmt::Debug for EntrySet<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EntrySet::Tag(tag) => f.debug_tuple("Tag").field(tag).finish(),
@@ -44,7 +44,7 @@ impl<R, const ALWAYS_LIST: bool> fmt::Debug for EntrySet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> PartialEq for EntrySet<R, ALWAYS_LIST> {
+impl<R> PartialEq for EntrySet<R> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (EntrySet::Tag(a), EntrySet::Tag(b)) => a == b,
@@ -55,7 +55,7 @@ impl<R, const ALWAYS_LIST: bool> PartialEq for EntrySet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for EntrySet<R, ALWAYS_LIST> {
+impl<R: RegistryKey> Serialize for EntrySet<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             EntrySet::Tag(tag) => serializer.serialize_str(&format!("#{}", tag.as_str())),
@@ -71,26 +71,19 @@ impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for EntrySet<R, ALWAYS_L
     }
 }
 
-impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Deserialize<'de> for EntrySet<R, ALWAYS_LIST> {
+impl<'de, R: RegistryKey> Deserialize<'de> for EntrySet<R> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct SetVisitor<R, const ALWAYS_LIST: bool>(PhantomData<fn() -> R>);
+        struct SetVisitor<R>(PhantomData<fn() -> R>);
 
-        impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Visitor<'de> for SetVisitor<R, ALWAYS_LIST> {
-            type Value = EntrySet<R, ALWAYS_LIST>;
+        impl<'de, R: RegistryKey> Visitor<'de> for SetVisitor<R> {
+            type Value = EntrySet<R>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str(if ALWAYS_LIST {
-                    "a tag or a list of entries"
-                } else {
-                    "a tag, an entry, or a list of entries"
-                })
+                f.write_str("a tag, an entry, or a list of entries")
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 let Some(tag) = text.strip_prefix('#') else {
-                    if ALWAYS_LIST {
-                        return Err(E::custom(format_args!("Not a tag id: {text}")));
-                    }
                     return Id::deserialize(value::StrDeserializer::new(text)).map(EntrySet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
@@ -164,15 +157,6 @@ mod tests {
                 assert_eq!(read, expected, "{text}");
                 assert_eq!(serde_json::to_string(&read).unwrap(), text);
             }
-
-            let listed = |text: &str| serde_json::from_str::<EntrySet<Marker, true>>(text);
-            assert_eq!(
-                serde_json::to_string(&listed(r#"["minecraft:a"]"#).unwrap()).unwrap(),
-                r#"["minecraft:a"]"#
-            );
-            assert!(listed(r##""#minecraft:t""##).is_ok());
-            let refused = listed(r#""minecraft:a""#).unwrap_err().to_string();
-            assert!(refused.contains("minecraft:a"), "{refused}");
         });
     }
 
