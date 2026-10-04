@@ -289,11 +289,12 @@ mod tests {
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
-    use mcrs_minecraft_item::{SlotTable, test_corpus};
+    use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_protocol::item::{
         BundleContents, ChargedProjectiles, ComponentPatch, Damage, DyedColor, Enchantments,
         FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt, Template,
     };
+    use mcrs_minecraft_world::item::test_corpus;
 
     use super::*;
     use crate::atlas::SpriteRegistry;

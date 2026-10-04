@@ -1,16 +1,15 @@
 use bevy_app::{App, TaskPoolPlugin, Update};
-use bevy_asset::{AssetPlugin, AssetServer};
+use bevy_asset::AssetPlugin;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_item::enchantment::{EnchantmentData, register_all_enchantments};
 use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
 use mcrs_minecraft_protocol::item::Enchantments;
-use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_world::item::test_enchantments;
 
 use crate::inventory_sync::value;
 
@@ -21,11 +20,7 @@ fn harness() -> App {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    let mut enchantments = StaticRegistry::<EnchantmentData>::new();
-    register_all_enchantments(&mut enchantments, &asset_server);
-    enchantments.freeze();
-    app.insert_resource(enchantments);
+    app.insert_resource(test_enchantments().clone());
     crate::support::insert_corpus(&mut app);
     app.add_plugins(ExperiencePlugin);
     app.add_systems(Update, collect_awards);

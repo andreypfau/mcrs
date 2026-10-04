@@ -11,7 +11,7 @@ use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
-    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots, test_corpus,
+    Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
 };
 use mcrs_minecraft_network::client::ReceivedRegistries;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -25,6 +25,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
+use mcrs_minecraft_world::item::test_corpus;
 
 const GOLDEN: &str =
     include_str!("../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_golden.txt");

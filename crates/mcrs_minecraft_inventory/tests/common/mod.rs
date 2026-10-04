@@ -10,9 +10,10 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
 use mcrs_minecraft_item::tags::SHULKER_BOXES;
-use mcrs_minecraft_item::{Item, Items, SlotTable, StackRevision, stack_to_value, test_corpus};
+use mcrs_minecraft_item::{Item, Items, SlotTable, StackRevision, stack_to_value};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 use mcrs_minecraft_registry::TagSource;
+use mcrs_minecraft_world::item::test_corpus;
 
 pub fn items() -> &'static Items {
     &test_corpus().1

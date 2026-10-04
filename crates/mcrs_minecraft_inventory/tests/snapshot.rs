@@ -9,9 +9,9 @@ use mcrs_minecraft_inventory::{
     Click, MenuSnapshot, Planner, Slot, StackView, container_menu_layout, menu_slots,
     player_menu_layout,
 };
-use mcrs_minecraft_item::enchantment::test_enchantments;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
+use mcrs_minecraft_world::item::test_enchantments;
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);

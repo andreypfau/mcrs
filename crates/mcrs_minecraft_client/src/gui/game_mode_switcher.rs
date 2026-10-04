@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn the_four_icon_stacks_are_held_in_order() {
         let mut world = World::new();
-        world.insert_resource(mcrs_minecraft_item::test_corpus().1.clone());
+        world.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
         spawn_icons(&mut world);
         let mut holders = world.query_filtered::<&SlotTable, With<GameModeIcons>>();
         let icons = holders.single(&world).unwrap();
@@ -414,7 +414,7 @@ mod tests {
             .query_filtered::<&SlotTable, With<GameModeIcons>>();
         assert_eq!(holders.iter(app.world()).count(), 0);
 
-        app.insert_resource(mcrs_minecraft_item::test_corpus().1.clone());
+        app.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
         app.update();
         app.update();
         let icons: Vec<_> = holders.iter(app.world()).collect();

@@ -14,6 +14,7 @@ pub mod dialog;
 pub mod dimension;
 pub mod entity;
 pub mod instrument;
+pub mod item;
 pub mod jukebox_song;
 pub mod painting_variant;
 // The save on disk is native-only; the browser receives world state over the network.

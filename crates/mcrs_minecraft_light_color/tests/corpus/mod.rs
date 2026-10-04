@@ -16,11 +16,11 @@ use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 pub fn blocks() -> &'static Blocks {
-    &mcrs_minecraft_item::definition::test_corpus().0
+    &mcrs_minecraft_world::item::test_corpus().0
 }
 
 pub fn items() -> &'static Items {
-    &mcrs_minecraft_item::definition::test_corpus().1
+    &mcrs_minecraft_world::item::test_corpus().1
 }
 
 pub fn asset_server() -> &'static AssetServer {
