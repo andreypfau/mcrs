@@ -71,7 +71,7 @@ impl BiomeAttributes {
         let mut baked = BiomeAttributes::default();
         for (position, spec) in ENVIRONMENT_ATTRIBUTES.values().enumerate() {
             if let Some(entry) = attributes.get(spec.id) {
-                baked.entries[position] = Some((entry.modifier, entry.value().clone()));
+                baked.entries[position] = Some((entry.modifier, entry.argument.clone()));
             }
         }
         baked

@@ -7,18 +7,8 @@ use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet, key};
 use mcrs_minecraft_world::registries::test_registries;
-use serde::Deserialize;
 
-#[derive(Deserialize)]
-struct Report {
-    registries: BTreeMap<String, Flags>,
-}
-
-#[derive(Deserialize)]
-struct Flags {
-    elements: bool,
-    stable: bool,
-}
+use crate::common::{declared_world_registries, loaded_names};
 
 fn crate_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
@@ -29,17 +19,6 @@ fn read(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-fn world_registries() -> BTreeSet<String> {
-    let report: Report = serde_json::from_str(&read("../../assets/mcrs/reports/datapack.json"))
-        .expect("the datapack report parses");
-    report
-        .registries
-        .into_iter()
-        .filter(|(_, flags)| flags.elements && !flags.stable)
-        .map(|(registry, _)| registry)
-        .collect()
-}
-
 fn names_in_index<T: TaggedRegistry + 'static>(app: &App) -> Vec<String> {
     let index = app.world().resource::<DynRegistryIndex<T>>();
     (0..index.len())
@@ -47,18 +26,9 @@ fn names_in_index<T: TaggedRegistry + 'static>(app: &App) -> Vec<String> {
         .collect()
 }
 
-fn loaded_names(set: &RegistrySet, registry: &str) -> Vec<String> {
-    set.table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
-        .names()
-        .iter()
-        .map(ToString::to_string)
-        .collect()
-}
-
 pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     let set = app.world().resource::<RegistrySet>();
-    let world_registries = world_registries();
+    let world_registries = declared_world_registries();
 
     let mut snapshots = 0;
     for snapshot in app
@@ -126,10 +96,7 @@ fn the_loader_keeps_every_recorded_world_registry_id() {
 
     for (registry, recorded) in recorded_by_registry(&read("tests/fixtures/world_registry_ids.txt"))
     {
-        let table = set
-            .table(&registry)
-            .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
-        let loaded: Vec<String> = table.names().iter().map(|name| name.to_string()).collect();
+        let loaded = loaded_names(set, &registry);
         if changed.contains(&registry) {
             assert_ne!(
                 loaded, recorded,

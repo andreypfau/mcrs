@@ -100,6 +100,96 @@ pub fn default_true() -> bool {
     true
 }
 
+pub fn is_true(value: &bool) -> bool {
+    *value
+}
+
+/// One element writes bare, any other count writes a list; a bare element
+/// reads as a one-element list.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompactList<T>(pub Vec<T>);
+
+impl<T> Default for CompactList<T> {
+    fn default() -> Self {
+        CompactList(Vec::new())
+    }
+}
+
+impl<T> CompactList<T> {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<T: Serialize> Serialize for CompactList<T> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        compact_list::serialize(&self.0, s)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for CompactList<T> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct ListVisitor<T>(std::marker::PhantomData<fn() -> T>);
+
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for ListVisitor<T> {
+            type Value = CompactList<T>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a list or a single element")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
+                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(CompactList)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                T::deserialize(value::MapAccessDeserializer::new(map)).map(|v| CompactList(vec![v]))
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                T::deserialize(value::StrDeserializer::new(v)).map(|v| CompactList(vec![v]))
+            }
+
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
+                T::deserialize(value::BoolDeserializer::new(v)).map(|v| CompactList(vec![v]))
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                T::deserialize(value::I64Deserializer::new(v)).map(|v| CompactList(vec![v]))
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                T::deserialize(value::U64Deserializer::new(v)).map(|v| CompactList(vec![v]))
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Self::Value, E> {
+                T::deserialize(value::F64Deserializer::new(v)).map(|v| CompactList(vec![v]))
+            }
+        }
+
+        d.deserialize_any(ListVisitor(std::marker::PhantomData))
+    }
+}
+
+/// [`CompactList`] for a field that holds a plain `Vec`.
+pub mod compact_list {
+    use super::CompactList;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<T: Serialize, S: Serializer>(items: &[T], s: S) -> Result<S::Ok, S::Error> {
+        match items {
+            [only] => only.serialize(s),
+            items => items.serialize(s),
+        }
+    }
+
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<T>, D::Error> {
+        CompactList::deserialize(d).map(|list| list.0)
+    }
+}
+
 impl<'de, const MIN: i32, const MAX: i32, const DEFAULT: i32> Deserialize<'de>
     for Bounded<MIN, MAX, DEFAULT>
 {

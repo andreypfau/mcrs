@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::codec::{NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::codec::{NonNegativeInt, default_true, is_default, is_true};
 use mcrs_minecraft_core::{Direction, ResourceLocation};
 use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::Holder;
@@ -52,10 +52,6 @@ pub struct BlockTransformData {
     pub consume_on_use: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub item_damage_per_use: NonNegativeInt,
-}
-
-fn is_true(value: &bool) -> bool {
-    *value
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

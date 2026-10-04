@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::marker::PhantomData;
 
+pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
@@ -342,64 +343,6 @@ ordinal_enum! {
 
 ordinal_enum! {
     ItemUseAnimation { None, Eat, Drink, Block, Bow, Trident, Crossbow, Spyglass, TootHorn, Brush, Bundle, Spear }
-}
-
-/// One element writes bare, any other count writes a list; a bare element
-/// reads as a one-element list.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct CompactList<T>(pub Vec<T>);
-
-impl<T: Serialize> Serialize for CompactList<T> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match &self.0[..] {
-            [only] => only.serialize(s),
-            list => list.serialize(s),
-        }
-    }
-}
-
-impl<'de, T: DeserializeOwned> Deserialize<'de> for CompactList<T> {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct ListVisitor<T>(PhantomData<T>);
-
-        impl<'de, T: DeserializeOwned> Visitor<'de> for ListVisitor<T> {
-            type Value = CompactList<T>;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a list or a single element")
-            }
-
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(CompactList)
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                T::deserialize(value::MapAccessDeserializer::new(map)).map(|v| CompactList(vec![v]))
-            }
-
-            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                T::deserialize(value::StrDeserializer::new(v)).map(|v| CompactList(vec![v]))
-            }
-
-            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Self::Value, E> {
-                T::deserialize(value::BoolDeserializer::new(v)).map(|v| CompactList(vec![v]))
-            }
-
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
-                T::deserialize(value::I64Deserializer::new(v)).map(|v| CompactList(vec![v]))
-            }
-
-            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
-                T::deserialize(value::U64Deserializer::new(v)).map(|v| CompactList(vec![v]))
-            }
-
-            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Self::Value, E> {
-                T::deserialize(value::F64Deserializer::new(v)).map(|v| CompactList(vec![v]))
-            }
-        }
-
-        d.deserialize_any(ListVisitor(PhantomData))
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

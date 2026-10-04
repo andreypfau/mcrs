@@ -2,7 +2,6 @@ pub mod id;
 pub mod lerp;
 pub mod mob_spawns;
 pub mod modifier;
-mod serialized;
 pub mod spec;
 pub mod value;
 
@@ -46,7 +45,6 @@ impl EnvironmentAttributeMap {
         self.0.get(id)
     }
 
-    /// The argument of the entry for `id`, whatever its modifier.
     pub fn argument(&self, id: &str) -> Option<&AttributeValue> {
         self.get(id).map(|entry| &entry.argument)
     }
@@ -61,7 +59,16 @@ impl EnvironmentAttributeMap {
     ) -> Result<(), AttributeError> {
         let spec = attribute(id.as_str())
             .ok_or_else(|| AttributeError::UnknownAttribute(id.as_str().to_owned()))?;
-        let argument = serialized::read_argument(spec, modifier, &argument)?;
+        // Through the JSON text rather than a value tree: a tree widens an `f32`
+        // to the nearest `f64` and so prints 0.07 as 0.07000000029802322.
+        let refused = |error: serde_json::Error| malformed(spec.id, error.to_string());
+        let text = serde_json::to_string(&argument).map_err(refused)?;
+        let mut deserializer = serde_json::Deserializer::from_str(&text);
+        let argument = spec
+            .argument_seed(modifier)
+            .deserialize(&mut deserializer)
+            .map_err(refused)?;
+        deserializer.end().map_err(refused)?;
         self.0
             .insert(id.into(), AttributeEntry { argument, modifier });
         Ok(())
@@ -100,11 +107,6 @@ impl AttributeEntry {
             argument,
             modifier: Operation::Override,
         }
-    }
-
-    /// What the modifier is applied with.
-    pub fn value(&self) -> &AttributeValue {
-        &self.argument
     }
 }
 
@@ -577,8 +579,8 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(
-            map.get("minecraft:visual/sky_color").unwrap().value(),
-            &AttributeValue::Color(0xFF78_A7FF)
+            map.get("minecraft:visual/sky_color").unwrap().argument,
+            AttributeValue::Color(0xFF78_A7FF)
         );
     }
 
@@ -591,8 +593,8 @@ mod tests {
         };
         let blended = read(json!({"argument": "#80102030", "modifier": "alpha_blend"})).unwrap();
         assert_eq!(
-            blended.get("minecraft:visual/sky_color").unwrap().value(),
-            &AttributeValue::Color(0x8010_2030)
+            blended.get("minecraft:visual/sky_color").unwrap().argument,
+            AttributeValue::Color(0x8010_2030)
         );
         assert!(read(json!({"argument": "#80102030", "modifier": "add"})).is_err());
         assert!(read(json!({"modifier": "add", "argument": "#80102030"})).is_err());

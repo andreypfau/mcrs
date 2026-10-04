@@ -82,6 +82,12 @@ impl LoadReport {
         registry
     }
 
+    pub fn invalid(error: impl fmt::Display) -> Self {
+        let mut report = Self::new();
+        report.invalid_report(error);
+        report
+    }
+
     pub fn invalid_report(&mut self, error: impl fmt::Display) {
         self.record(&ROOT.into(), Some("registries"), None, error.to_string());
     }

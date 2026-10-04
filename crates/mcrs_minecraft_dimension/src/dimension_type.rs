@@ -29,18 +29,13 @@ pub(crate) struct ProtoDimensionType {
     pub has_ender_dragon_fight: bool,
     #[serde(deserialize_with = "coordinate_scale")]
     pub coordinate_scale: f64,
-    #[serde(deserialize_with = "min_y")]
-    pub min_y: i32,
-    #[serde(deserialize_with = "height")]
-    pub height: u32,
-    #[serde(deserialize_with = "logical_height")]
-    pub logical_height: u32,
+    pub min_y: Bounded<MIN_Y, MAX_Y>,
+    pub height: Bounded<16, Y_SIZE>,
+    pub logical_height: Bounded<0, Y_SIZE>,
     pub infiniburn: String,
     pub ambient_light: f32,
-    #[serde(deserialize_with = "block_light_limit")]
-    pub monster_spawn_block_light_limit: u32,
-    #[serde(deserialize_with = "spawn_light_level")]
-    pub monster_spawn_light_level: IntProvider,
+    pub monster_spawn_block_light_limit: Bounded<0, 15>,
+    pub monster_spawn_light_level: BoundedIntProvider<0, 15>,
     #[serde(default)]
     pub skybox: Skybox,
     #[serde(default)]
@@ -71,36 +66,16 @@ fn coordinate_scale<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
     Ok(scale)
 }
 
-fn min_y<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
-    Bounded::<MIN_Y, MAX_Y>::deserialize(d).map(|y| y.0)
-}
-
-fn height<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    Bounded::<16, Y_SIZE>::deserialize(d).map(|height| height.0 as u32)
-}
-
-fn logical_height<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    Bounded::<0, Y_SIZE>::deserialize(d).map(|height| height.0 as u32)
-}
-
-fn block_light_limit<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    Bounded::<0, 15>::deserialize(d).map(|limit| limit.0 as u32)
-}
-
-fn spawn_light_level<'de, D: Deserializer<'de>>(d: D) -> Result<IntProvider, D::Error> {
-    BoundedIntProvider::<0, 15>::deserialize(d).map(|level| level.0)
-}
-
 impl<'de> Deserialize<'de> for ProtoDimensionType {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let proto = ProtoDimensionType::deserialize(d)?;
-        let (min_y, height) = (proto.min_y, proto.height as i32);
+        let (min_y, height) = (proto.min_y.0, proto.height.0);
         let refused = if min_y + height > MAX_Y + 1 {
             Some(format!(
                 "min_y + height cannot be higher than: {}",
                 MAX_Y + 1
             ))
-        } else if proto.logical_height > proto.height {
+        } else if proto.logical_height.0 > height {
             Some("logical_height cannot be higher than height".to_owned())
         } else if height % 16 != 0 {
             Some("height has to be multiple of 16".to_owned())
@@ -164,13 +139,13 @@ impl ProtoDimensionType {
             has_ceiling: self.has_ceiling,
             has_ender_dragon_fight: self.has_ender_dragon_fight,
             coordinate_scale: self.coordinate_scale,
-            min_y: self.min_y,
-            height: self.height,
-            logical_height: self.logical_height,
+            min_y: self.min_y.0,
+            height: self.height.0 as u32,
+            logical_height: self.logical_height.0 as u32,
             infiniburn,
             ambient_light: self.ambient_light,
-            monster_spawn_block_light_limit: self.monster_spawn_block_light_limit,
-            monster_spawn_light_level: self.monster_spawn_light_level,
+            monster_spawn_block_light_limit: self.monster_spawn_block_light_limit.0 as u32,
+            monster_spawn_light_level: self.monster_spawn_light_level.0,
             skybox: self.skybox,
             cardinal_light: self.cardinal_light,
             has_fixed_time: self.has_fixed_time,
@@ -355,53 +330,16 @@ pub enum CardinalLight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_worldgen_testing::{assets_dir, packs, reencode};
     use serde_json::Value;
     use std::path::PathBuf;
 
     fn dimension_type_dirs() -> Vec<PathBuf> {
-        let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("assets");
-        let mut dirs = vec![assets.join("minecraft/dimension_type")];
-        for pack in std::fs::read_dir(assets.join(mcrs_minecraft_assets::packs::PACKS_ROOT))
-            .into_iter()
-            .flatten()
-        {
-            let dir = pack.unwrap().path().join("minecraft/dimension_type");
-            if dir.is_dir() {
-                dirs.push(dir);
-            }
-        }
-        dirs
-    }
-
-    fn numbers_by_value(
-        path: String,
-        tag: &mcrs_minecraft_nbt::tag::NbtTag,
-        out: &mut Vec<String>,
-    ) {
-        use mcrs_minecraft_nbt::tag::NbtTag;
-        match tag {
-            NbtTag::Compound(compound) => {
-                for (name, child) in &compound.child_tags {
-                    numbers_by_value(format!("{path}.{name}"), child, out);
-                }
-            }
-            NbtTag::List(items) => {
-                for (index, item) in items.iter().enumerate() {
-                    numbers_by_value(format!("{path}[{index}]"), item, out);
-                }
-            }
-            NbtTag::Short(v) => out.push(format!("{path}={}", *v as f32)),
-            NbtTag::Int(v) => out.push(format!("{path}={}", *v as f32)),
-            NbtTag::Long(v) => out.push(format!("{path}={}", *v as f32)),
-            NbtTag::Float(v) => out.push(format!("{path}={v}")),
-            NbtTag::Double(v) => out.push(format!("{path}={}", *v as f32)),
-            other => out.push(format!("{path}={other:?}")),
-        }
+        std::iter::once(assets_dir())
+            .chain(packs())
+            .map(|root| root.join("minecraft/dimension_type"))
+            .filter(|dir| dir.is_dir())
+            .collect()
     }
 
     fn resolved(name: &str) -> DimensionType {
@@ -473,38 +411,10 @@ mod tests {
                 "{} has attributes",
                 path.display()
             );
-            // Through text: a value tree would widen the `f32` fields to `f64`
-            // and print 192.33 as 192.3300018310547.
-            let written: Value =
-                serde_json::from_str(&serde_json::to_string(&proto.attributes).unwrap()).unwrap();
             assert_eq!(
-                written,
+                reencode(&proto.attributes),
                 raw["attributes"],
                 "{} attributes must round-trip unchanged",
-                path.display()
-            );
-            // What the client actually receives must not drift from the raw
-            // JSON the field used to be serialized from, widths and the order
-            // of a compound's keys apart: the typed values write the int and
-            // float tags the game does.
-            let mut typed = Vec::new();
-            let mut untyped = Vec::new();
-            numbers_by_value(
-                String::new(),
-                &mcrs_minecraft_nbt::to_nbt_tag(&proto.attributes).unwrap(),
-                &mut typed,
-            );
-            numbers_by_value(
-                String::new(),
-                &mcrs_minecraft_nbt::to_nbt_tag(&raw["attributes"]).unwrap(),
-                &mut untyped,
-            );
-            typed.sort();
-            untyped.sort();
-            assert_eq!(
-                typed,
-                untyped,
-                "{} attributes must encode to the same NBT",
                 path.display()
             );
             count += 1;

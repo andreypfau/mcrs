@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default};
+use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
 use mcrs_minecraft_environment::timeline::Timeline;
@@ -190,10 +190,6 @@ fn unrotated() -> Rotation {
 
 fn is_unrotated(rotation: &Rotation) -> bool {
     *rotation == Rotation::None
-}
-
-fn is_true(value: &bool) -> bool {
-    *value
 }
 
 macro_rules! test_instance {

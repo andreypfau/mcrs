@@ -3,8 +3,7 @@ use std::fmt;
 use mcrs_minecraft_core::codec::{NonNegativeInt, int_value, is_default};
 use mcrs_minecraft_protocol::item::{Holder, SoundEvent, Text};
 use mcrs_minecraft_protocol::particle::ParticleOptions;
-use serde::de::{self, MapAccess, SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
+use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -122,18 +121,8 @@ pub struct BedRule {
 #[serde(deny_unknown_fields)]
 pub struct AmbientParticle {
     pub particle: ParticleOptions,
-    #[serde(deserialize_with = "unit_probability")]
+    #[serde(deserialize_with = "crate::attribute::spec::unit_f32")]
     pub probability: f32,
-}
-
-fn unit_probability<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
-    let probability = f32::deserialize(deserializer)?;
-    if !(0.0..=1.0).contains(&probability) {
-        return Err(de::Error::custom(format_args!(
-            "probability {probability} is not in range [0; 1]"
-        )));
-    }
-    Ok(probability)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -182,54 +171,12 @@ pub struct AmbientSounds {
     pub loop_sound: Option<Holder<SoundEvent>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mood: Option<AmbientMood>,
-    #[serde(default, with = "compact_list", skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        with = "mcrs_minecraft_core::codec::compact_list",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub additions: Vec<AmbientAdditions>,
-}
-
-/// A list, or a lone element that stands for a list of one. A list of one is
-/// written as the bare element.
-mod compact_list {
-    use super::*;
-
-    pub fn serialize<T: Serialize, S: Serializer>(
-        items: &[T],
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        match items {
-            [item] => item.serialize(serializer),
-            items => {
-                let mut seq = serializer.serialize_seq(Some(items.len()))?;
-                for item in items {
-                    seq.serialize_element(item)?;
-                }
-                seq.end()
-            }
-        }
-    }
-
-    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Vec<T>, D::Error> {
-        struct CompactList<T>(std::marker::PhantomData<T>);
-
-        impl<'de, T: Deserialize<'de>> Visitor<'de> for CompactList<T> {
-            type Value = Vec<T>;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a list or a single element")
-            }
-
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Vec<T>, A::Error> {
-                Vec::deserialize(de::value::SeqAccessDeserializer::new(seq))
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Vec<T>, A::Error> {
-                T::deserialize(de::value::MapAccessDeserializer::new(map)).map(|item| vec![item])
-            }
-        }
-
-        deserializer.deserialize_any(CompactList(std::marker::PhantomData))
-    }
 }
 
 #[cfg(test)]

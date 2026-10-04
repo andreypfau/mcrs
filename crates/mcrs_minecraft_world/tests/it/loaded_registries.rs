@@ -11,7 +11,7 @@ use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
+use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
@@ -22,94 +22,41 @@ use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use mcrs_minecraft_world::villager_trade::VillagerTrade;
-use serde::Deserialize;
+use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
-const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
-    "minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true},
-    "minecraft:instrument":{"elements":true,"stable":false,"tags":true},
-    "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
-    "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
-    "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
-    "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
-    "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
-    "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true},
-    "minecraft:wolf_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:wolf_sound_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:pig_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:pig_sound_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:cow_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:cow_sound_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:chicken_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:chicken_sound_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
-    "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
-    "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
-    "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
-    "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
-    "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
-    "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
-    "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
-    "minecraft:trade_set":{"elements":true,"stable":false,"tags":true},
-    "minecraft:world_clock":{"elements":true,"stable":false,"tags":true},
-    "minecraft:timeline":{"elements":true,"stable":false,"tags":true},
-    "minecraft:worldgen/block_state_provider":{"elements":true,"stable":false,"tags":false}}}"#;
+use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
     build_static_registries(&bytes).unwrap().0
 });
 
-fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
-    refused_in(PARSED_REPORT, registry, name, json)
-}
+static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
+    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    world_registries(&bytes).expect("the report parses")
+});
 
-fn report_declaring(registries: &[&str]) -> Vec<u8> {
-    let mut report: serde_json::Value = serde_json::from_slice(PARSED_REPORT).unwrap();
-    for registry in registries {
-        report["registries"][registry] =
-            serde_json::json!({"elements": true, "stable": false, "tags": true});
-    }
-    serde_json::to_vec(&report).unwrap()
-}
-
-fn refused_in(report: &[u8], registry: &str, name: &str, json: &str) -> String {
-    refused_among(report, &[], registry, name, json)
-}
-
-fn refused_among(
-    report: &[u8],
-    others: &[(&str, &str)],
-    registry: &str,
-    name: &str,
-    json: &str,
-) -> String {
-    let world = world_registries(report).expect("the report parses");
-    let mut files: Vec<PackFile> = others
-        .iter()
-        .map(|(entry, json)| PackFile {
-            path: format!("minecraft/{entry}.json"),
-            bytes: Some(json.as_bytes().to_vec()),
-        })
-        .collect();
-    files.push(PackFile {
-        path: format!("minecraft/{registry}/{name}.json"),
-        bytes: Some(json.as_bytes().to_vec()),
-    });
+fn load_text(files: &[(&str, &str)]) -> String {
     let packs = [Pack {
         name: VANILLA_PACK.to_owned(),
-        files,
+        files: files
+            .iter()
+            .map(|(path, json)| PackFile {
+                path: (*path).to_owned(),
+                bytes: Some(json.as_bytes().to_vec()),
+            })
+            .collect(),
     }];
-    world
+    WORLD
         .load(&STATICS, &packs)
         .err()
-        .unwrap_or_else(|| panic!("{registry}/{name} was accepted: {json}"))
-        .to_string()
+        .map(|report| report.to_string())
+        .unwrap_or_default()
+}
+
+fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
+    load_text(&[(&format!("minecraft/{registry}/{name}.json"), json)])
 }
 
 fn instrument(sound: &str) -> String {
@@ -117,27 +64,6 @@ fn instrument(sound: &str) -> String {
         r#"{{"sound_event":"{sound}","use_duration":7.0,"range":256.0,
         "description":{{"translate":"instrument.minecraft.ponder_goat_horn"}}}}"#
     )
-}
-
-#[derive(Deserialize)]
-struct Flags {
-    elements: bool,
-    stable: bool,
-}
-
-#[derive(Deserialize)]
-struct DatapackReport {
-    registries: BTreeMap<String, Flags>,
-}
-
-fn assets() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
-}
-
-fn datapack_report() -> DatapackReport {
-    let path = assets().join("mcrs/reports/datapack.json");
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
 fn static_registries() -> BTreeSet<String> {
@@ -158,13 +84,7 @@ fn the_declared_registries_are_the_reports_world_registries() {
         .map(|table| table.registry().to_string())
         .filter(|registry| !statics.contains(registry))
         .collect();
-    let declared: BTreeSet<String> = report
-        .registries
-        .iter()
-        .filter(|(_, flags)| flags.elements && !flags.stable)
-        .map(|(registry, _)| registry.clone())
-        .collect();
-    assert_eq!(world, declared);
+    assert_eq!(world, declared_world_registries());
 
     for (registry, flags) in &report.registries {
         if flags.stable {
@@ -184,9 +104,7 @@ fn the_declared_registries_are_the_reports_world_registries() {
 
 #[test]
 fn the_parsed_registries_are_the_reports_world_registries_outside_worldgen() {
-    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&bytes).expect("the report parses");
-
+    let world = &*WORLD;
     let parsed: BTreeSet<String> = world
         .declared()
         .filter(|registry| world.parses(registry.as_str()))
@@ -216,25 +134,15 @@ fn the_parsed_registries_are_the_reports_world_registries_outside_worldgen() {
 }
 
 #[test]
-fn every_declared_registry_has_names_from_the_loader() {
+fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     let set = test_registries();
-    for (registry, flags) in &datapack_report().registries {
-        if flags.elements && !flags.stable {
-            assert!(set.table(registry).is_some(), "{registry} has no table");
-        }
-    }
-
     let biomes = set.table("minecraft:worldgen/biome").expect("biome table");
     let names: BTreeSet<String> = biomes.names().iter().map(|name| name.to_string()).collect();
     let builtin = mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome");
     assert!(!builtin.is_empty());
-    let packs: Vec<_> = std::fs::read_dir(assets().join("mcrs/datapacks"))
-        .unwrap()
-        .map(|pack| pack.unwrap().path().join("minecraft"))
-        .collect();
-    let files: Vec<String> = std::iter::once(assets().join("minecraft"))
-        .chain(packs)
-        .filter_map(|root| std::fs::read_dir(root.join("worldgen/biome")).ok())
+    let files: Vec<String> = std::iter::once(assets())
+        .chain(packs())
+        .filter_map(|root| std::fs::read_dir(root.join("minecraft/worldgen/biome")).ok())
         .flatten()
         .filter_map(|entry| {
             let name = entry.unwrap().file_name().into_string().unwrap();
@@ -317,8 +225,7 @@ fn packs_follow_vanilla_in_name_order() {
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
 
-    let world = world_registries(PARSED_REPORT).expect("the report parses");
-    let packs = read_packs(&asset_server, &world, &RegistrySet::new());
+    let packs = read_packs(&asset_server, &WORLD, &RegistrySet::new());
 
     let listed: Vec<_> = packs
         .iter()
@@ -327,6 +234,7 @@ fn packs_follow_vanilla_in_name_order() {
                 pack.name.as_str(),
                 pack.files
                     .iter()
+                    .filter(|file| file.bytes.is_some())
                     .map(|file| (file.path.as_str(), file.bytes.as_deref()))
                     .collect(),
             )
@@ -380,9 +288,7 @@ fn shipped_file(
 #[test]
 fn every_shipped_file_of_a_parsed_registry_round_trips() {
     let set = test_registries();
-    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&datapack).expect("the report parses");
-
+    let world = &*WORLD;
     let mut parsed = 0;
     for registry in world.declared().filter(|r| world.parses(r.as_str())) {
         parsed += 1;
@@ -415,14 +321,6 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
 }
 
 #[test]
-fn an_empty_object_names_the_missing_field() {
-    let text = refused_by_the_loader("instrument", "silent", "{}");
-    for part in ["minecraft:instrument", "minecraft:silent", "sound_event"] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
-#[test]
 fn a_bare_name_takes_the_default_namespace() {
     test_registries().scope(|| {
         let bare: InstrumentValue =
@@ -435,18 +333,6 @@ fn a_bare_name_takes_the_default_namespace() {
         ));
         assert!(upper.is_err());
     });
-}
-
-#[test]
-fn an_instrument_naming_an_item_as_its_sound_is_refused() {
-    let text = refused_by_the_loader("instrument", "stick_horn", &instrument("minecraft:stick"));
-    for part in [
-        "minecraft:sound_event",
-        "minecraft:stick",
-        "minecraft:stick_horn",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
 }
 
 #[test]
@@ -488,64 +374,123 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
 }
 
 #[test]
-fn a_strict_simple_value_refuses_an_unknown_field() {
+fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
     let stone = r#"{"id":"minecraft:stone"}"#;
-    for (registry, json) in [
+    let wolf_assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
+    let cases: [(&str, String, &[&str]); 18] = [
+        ("instrument", "{}".to_owned(), &["sound_event"]),
+        (
+            "instrument",
+            instrument("minecraft:stick"),
+            &["minecraft:sound_event", "minecraft:stick"],
+        ),
         (
             "damage_type",
             r#"{"message_id":"x","scaling":"never","exhaustion":0.0,"bogus":1}"#.to_owned(),
+            &["bogus"],
+        ),
+        (
+            "damage_type",
+            r#"{"message_id":"x","scaling":"sometimes","exhaustion":0.0}"#.to_owned(),
+            &["sometimes", "when_caused_by_living_non_player"],
         ),
         (
             "decorated_pot_pattern",
             r#"{"asset_id":"minecraft:x_pottery_pattern","bogus":1}"#.to_owned(),
+            &["bogus"],
         ),
         (
             "block_transformer",
             format!(r#"[{{"block_state_provider":{stone},"bogus":1}}]"#),
+            &["bogus"],
         ),
         (
             "chat_type",
             r#"{"bogus":1,"chat":{"translation_key":"k","parameters":[]},
                 "narration":{"translation_key":"k","parameters":[]}}"#
                 .to_owned(),
+            &["bogus"],
         ),
         (
             "test_environment",
             r#"{"bogus":1,"type":"minecraft:weather","weather":"clear"}"#.to_owned(),
+            &["bogus"],
         ),
         (
             "test_instance",
             r#"{"bogus":1,"type":"minecraft:block_based","environment":"minecraft:default",
                 "structure":"minecraft:empty","max_ticks":1}"#
                 .to_owned(),
+            &["bogus"],
         ),
-    ] {
+        (
+            "wolf_variant",
+            format!(
+                r##"{{"assets":{wolf_assets},"baby_assets":{wolf_assets},"spawn_conditions":[
+                    {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
+            ),
+            &["minecraft:worldgen/biome", "minecraft:no_such_tag"],
+        ),
+        (
+            "enchantment",
+            enchantment_json(r##""#minecraft:nowhere""##, ""),
+            &["minecraft:item", "minecraft:nowhere"],
+        ),
+        (
+            "sulfur_cube_archetype",
+            archetype_json("minecraft:no_such_attribute"),
+            &["minecraft:attribute", "minecraft:no_such_attribute"],
+        ),
+        (
+            "enchantment_provider",
+            r#"{"type":"minecraft:single","enchantment":"minecraft:no_such_enchantment","level":1}"#
+                .to_owned(),
+            &["minecraft:enchantment", "minecraft:no_such_enchantment"],
+        ),
+        (
+            "enchantment_provider",
+            r#"{"type":"minecraft:by_cost","enchantments":["minecraft:no_such_enchantment"],"cost":1}"#
+                .to_owned(),
+            &["minecraft:enchantment", "minecraft:no_such_enchantment"],
+        ),
+        (
+            "enchantment_provider",
+            r##"{"type":"minecraft:by_cost_with_difficulty","enchantments":"#minecraft:no_such_tag",
+                "min_cost":1,"max_cost_span":1}"##
+                .to_owned(),
+            &["minecraft:enchantment", "minecraft:no_such_tag"],
+        ),
+        (
+            "trade_set",
+            r##"{"amount":2,"trades":"#minecraft:nowhere"}"##.to_owned(),
+            &["minecraft:villager_trade", "minecraft:nowhere"],
+        ),
+        (
+            "villager_trade",
+            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:no_such_item"}}"#
+                .to_owned(),
+            &["minecraft:item", "minecraft:no_such_item"],
+        ),
+        (
+            "villager_trade",
+            trade_with_modifier(r#"{"type":"minecraft:set_name"}"#),
+            &["minecraft:set_name"],
+        ),
+    ];
+    for (registry, json, parts) in cases {
         let text = refused_by_the_loader(registry, "odd", &json);
-        for part in [
+        let entry = [
             format!("minecraft:{registry}"),
             "minecraft:odd".to_owned(),
             format!("minecraft/{registry}/odd.json"),
-            "bogus".to_owned(),
-        ] {
-            assert!(text.contains(&part), "{part} missing from:\n{text}");
+        ];
+        for part in entry
+            .iter()
+            .map(String::as_str)
+            .chain(parts.iter().copied())
+        {
+            assert!(text.contains(part), "{part} missing for {json}:\n{text}");
         }
-    }
-}
-
-#[test]
-fn a_damage_type_with_an_unknown_scaling_fails() {
-    let text = refused_by_the_loader(
-        "damage_type",
-        "odd",
-        r#"{"message_id":"x","scaling":"sometimes","exhaustion":0.0}"#,
-    );
-    for part in [
-        "minecraft:damage_type",
-        "minecraft:odd",
-        "sometimes",
-        "when_caused_by_living_non_player",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
     }
 }
 
@@ -566,37 +511,8 @@ const VARIANT_REGISTRIES: [&str; 13] = [
 ];
 
 #[test]
-fn a_spawn_condition_naming_an_unknown_biome_tag_fails() {
-    let assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
-    let json = format!(
-        r##"{{"assets":{assets},"baby_assets":{assets},"spawn_conditions":[
-            {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
-    );
-    let report = report_declaring(&["minecraft:worldgen/biome", "minecraft:worldgen/structure"]);
-    let text = refused_in(&report, "wolf_variant", "odd", &json);
-    for part in [
-        "minecraft:wolf_variant",
-        "minecraft:odd",
-        "minecraft:worldgen/biome",
-        "minecraft:no_such_tag",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
-#[test]
 fn an_empty_variant_registry_fails_the_load() {
-    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&datapack).expect("the report parses");
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files: Vec::new(),
-    }];
-    let text = world
-        .load(&STATICS, &packs)
-        .err()
-        .expect("a pack without variants is refused")
-        .to_string();
+    let text = load_text(&[]);
     for registry in VARIANT_REGISTRIES {
         let message = format!("Registry must be non-empty: {registry}");
         assert!(text.contains(&message), "{message} missing from:\n{text}");
@@ -622,14 +538,12 @@ fn the_synced_wolf_variant_has_no_spawn_conditions() {
     assert!(synced.get("assets").is_some());
     assert!(synced.get("spawn_conditions").is_none());
 
-    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&datapack).expect("the report parses");
     let index = set
         .table("minecraft:wolf_variant")
         .and_then(|table| table.number("minecraft:pale"))
         .expect("the pale wolf is loaded") as usize;
     let file: serde_json::Value = serde_json::from_str(
-        &world
+        &WORLD
             .encode(set, "minecraft:wolf_variant", index)
             .expect("the pale wolf has an encoding")
             .expect("the pale wolf encodes"),
@@ -667,29 +581,13 @@ fn a_chat_parameter_outside_the_game_set_fails() {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
 
-    let world = world_registries(PARSED_REPORT).expect("the report parses");
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files: vec![PackFile {
-            path: "minecraft/chat_type/fine.json".to_owned(),
-            bytes: Some(chat_type("target").into_bytes()),
-        }],
-    }];
-    let text = world
-        .load(&STATICS, &packs)
-        .err()
-        .map(|report| report.to_string())
-        .unwrap_or_default();
+    let text = refused_by_the_loader("chat_type", "fine", &chat_type("target"));
     assert!(!text.contains("minecraft:chat_type"), "{text}");
 }
 
 fn registered_names(registry: &str) -> BTreeSet<String> {
-    test_registries()
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
-        .names()
-        .iter()
-        .map(|name| name.to_string())
+    loaded_names(test_registries(), registry)
+        .into_iter()
         .collect()
 }
 
@@ -767,7 +665,6 @@ fn every_test_environment_type_round_trips() {
         assert_eq!(round_trip::<TestEnvironment>(json), read);
     }
 
-    // A field that holds its default is not written.
     assert_eq!(
         round_trip::<TestEnvironment>(
             r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld","tracks":{},"time_markers":{}}]}"#
@@ -814,25 +711,13 @@ fn instance_naming(field: &str, name: &str) -> String {
 }
 
 fn refused_with_environment_default(instance: &str) -> String {
-    let world = world_registries(PARSED_REPORT).expect("the report parses");
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files: vec![
-            PackFile {
-                path: "minecraft/test_environment/default.json".to_owned(),
-                bytes: Some(br#"{"type":"minecraft:all_of","definitions":[]}"#.to_vec()),
-            },
-            PackFile {
-                path: "minecraft/test_instance/odd.json".to_owned(),
-                bytes: Some(instance.as_bytes().to_vec()),
-            },
-        ],
-    }];
-    world
-        .load(&STATICS, &packs)
-        .err()
-        .map(|report| report.to_string())
-        .unwrap_or_default()
+    load_text(&[
+        (
+            "minecraft/test_environment/default.json",
+            r#"{"type":"minecraft:all_of","definitions":[]}"#,
+        ),
+        ("minecraft/test_instance/odd.json", instance),
+    ])
 }
 
 #[test]
@@ -864,7 +749,7 @@ fn a_test_instance_naming_a_function_outside_the_report_loads() {
 #[test]
 fn test_values_the_game_refuses_fail_to_parse() {
     let refused = |registry: &str, json: &str, part: &str| {
-        let text = refused_in(PARSED_REPORT, registry, "odd", json);
+        let text = refused_by_the_loader(registry, "odd", json);
         assert!(text.contains(part), "{part} missing from:\n{text}");
     };
     let environment =
@@ -889,8 +774,7 @@ fn test_values_the_game_refuses_fail_to_parse() {
         &environment(r#""minecraft:no_such_rule":true"#),
         "minecraft:no_such_rule",
     );
-    let text = refused_in(
-        &report_declaring(&["minecraft:world_clock"]),
+    let text = refused_by_the_loader(
         "test_environment",
         "odd",
         r#"{"type":"minecraft:clock_time","clock":"minecraft:nowhere","time":0}"#,
@@ -898,13 +782,13 @@ fn test_values_the_game_refuses_fail_to_parse() {
     for part in ["minecraft:world_clock", "minecraft:nowhere"] {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
-    let text = refused_among(
-        PARSED_REPORT,
-        &[("world_clock/overworld", "{}")],
-        "test_environment",
-        "odd",
-        r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":-1}"#,
-    );
+    let text = load_text(&[
+        ("minecraft/world_clock/overworld.json", "{}"),
+        (
+            "minecraft/test_environment/odd.json",
+            r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":-1}"#,
+        ),
+    ]);
     assert!(
         text.contains("non-negative"),
         "non-negative missing from:\n{text}"
@@ -998,33 +882,20 @@ fn test_values_are_synced_with_the_tags_the_game_writes() {
     assert_eq!(clock.get("time"), Some(&NbtTag::Int(6000)));
 }
 
-fn dialog_list_in(tags: &[&str], dialogs: &str) -> String {
-    let world = world_registries(PARSED_REPORT).expect("the report parses");
-    let mut files = vec![PackFile {
-        path: "minecraft/dialog/odd.json".to_owned(),
-        bytes: Some(
-            format!(r#"{{"type":"minecraft:dialog_list","title":"t","dialogs":"{dialogs}"}}"#)
-                .into_bytes(),
+fn dialog_list_in(tag: &str, dialogs: &str) -> String {
+    let dialog = format!(r#"{{"type":"minecraft:dialog_list","title":"t","dialogs":"{dialogs}"}}"#);
+    load_text(&[
+        ("minecraft/dialog/odd.json", &dialog),
+        (
+            &format!("minecraft/tags/dialog/{tag}.json"),
+            r#"{"values":[]}"#,
         ),
-    }];
-    files.extend(tags.iter().map(|tag| PackFile {
-        path: format!("minecraft/tags/dialog/{tag}.json"),
-        bytes: Some(br#"{"values":[]}"#.to_vec()),
-    }));
-    let packs = [Pack {
-        name: VANILLA_PACK.to_owned(),
-        files,
-    }];
-    world
-        .load(&STATICS, &packs)
-        .err()
-        .map(|report| report.to_string())
-        .unwrap_or_default()
+    ])
 }
 
 #[test]
 fn a_dialog_list_naming_an_unknown_tag_fails() {
-    let text = dialog_list_in(&["known"], "#minecraft:nowhere");
+    let text = dialog_list_in("known", "#minecraft:nowhere");
     for part in [
         "minecraft:dialog",
         "minecraft:nowhere",
@@ -1034,7 +905,7 @@ fn a_dialog_list_naming_an_unknown_tag_fails() {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
 
-    let text = dialog_list_in(&["known"], "#minecraft:known");
+    let text = dialog_list_in("known", "#minecraft:known");
     assert!(!text.contains("minecraft:dialog"), "{text}");
 }
 
@@ -1354,23 +1225,6 @@ fn replacing_with(block_state: &str) -> String {
 }
 
 #[test]
-fn an_enchantment_naming_an_unknown_item_tag_fails() {
-    let text = refused_by_the_loader(
-        "enchantment",
-        "odd",
-        &enchantment_json(r##""#minecraft:nowhere""##, ""),
-    );
-    for part in [
-        "minecraft:enchantment",
-        "minecraft:odd",
-        "minecraft:item",
-        "minecraft:nowhere",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
-#[test]
 fn a_block_state_provider_reference_is_checked() {
     let text = refused_by_the_loader(
         "enchantment",
@@ -1450,23 +1304,6 @@ fn archetype_json(attribute: &str) -> String {
         "push_sound":"minecraft:entity.sulfur_cube.regular.push",
         "push_sound_cooldown":0.5,"push_sound_impulse_threshold":0.2}}}}"#
     )
-}
-
-#[test]
-fn an_archetype_modifier_naming_an_unknown_attribute_fails() {
-    let text = refused_by_the_loader(
-        "sulfur_cube_archetype",
-        "odd",
-        &archetype_json("minecraft:no_such_attribute"),
-    );
-    for part in [
-        "minecraft:sulfur_cube_archetype",
-        "minecraft:odd",
-        "minecraft:attribute",
-        "minecraft:no_such_attribute",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
 }
 
 #[test]
@@ -1573,25 +1410,6 @@ fn every_enchantment_provider_type_round_trips() {
 }
 
 #[test]
-fn a_provider_naming_an_unknown_enchantment_fails() {
-    for json in [
-        r#"{"type":"minecraft:single","enchantment":"minecraft:no_such_enchantment","level":1}"#,
-        r#"{"type":"minecraft:by_cost","enchantments":["minecraft:no_such_enchantment"],"cost":1}"#,
-        r##"{"type":"minecraft:by_cost_with_difficulty","enchantments":"#minecraft:no_such_tag",
-            "min_cost":1,"max_cost_span":1}"##,
-    ] {
-        let text = refused_by_the_loader("enchantment_provider", "odd", json);
-        for part in [
-            "minecraft:enchantment",
-            "minecraft:odd",
-            "minecraft:no_such_",
-        ] {
-            assert!(text.contains(part), "{part} missing from:\n{text}");
-        }
-    }
-}
-
-#[test]
 fn a_provider_the_game_refuses_fails_to_parse() {
     for (json, expected) in [
         (
@@ -1626,61 +1444,11 @@ fn a_provider_the_game_refuses_fails_to_parse() {
     }
 }
 
-#[test]
-fn a_trade_set_naming_an_unknown_trade_tag_fails() {
-    let text = refused_by_the_loader(
-        "trade_set",
-        "odd",
-        r##"{"amount":2,"trades":"#minecraft:nowhere"}"##,
-    );
-    for part in [
-        "minecraft:trade_set",
-        "minecraft:odd",
-        "minecraft:villager_trade",
-        "minecraft:nowhere",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
-#[test]
-fn a_trade_wanting_an_unknown_item_fails() {
-    let text = refused_by_the_loader(
-        "villager_trade",
-        "odd",
-        r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:no_such_item"}}"#,
-    );
-    for part in [
-        "minecraft:villager_trade",
-        "minecraft:odd",
-        "minecraft:item",
-        "minecraft:no_such_item",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
-}
-
 fn trade_with_modifier(modifier: &str) -> String {
     format!(
         r#"{{"gives":{{"id":"minecraft:emerald"}},"wants":{{"id":"minecraft:stick"}},
         "given_item_modifier":{modifier}}}"#
     )
-}
-
-#[test]
-fn a_trade_with_an_unmodelled_loot_function_fails() {
-    let text = refused_by_the_loader(
-        "villager_trade",
-        "odd",
-        &trade_with_modifier(r#"{"type":"minecraft:set_name"}"#),
-    );
-    for part in [
-        "minecraft:villager_trade",
-        "minecraft:odd",
-        "minecraft:set_name",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
-    }
 }
 
 #[test]
@@ -1697,10 +1465,10 @@ fn trade_forms_beyond_the_shipped_files_round_trip() {
         trade
     };
     let cases = [
-        (trade(serde_json::json!({})), trade(serde_json::json!({}))),
+        (trade(serde_json::json!({})), None),
         (
             trade(serde_json::json!({"gives": "minecraft:emerald", "max_uses": 4, "xp": 1})),
-            trade(serde_json::json!({})),
+            Some(trade(serde_json::json!({}))),
         ),
         (
             trade(serde_json::json!({
@@ -1709,22 +1477,19 @@ fn trade_forms_beyond_the_shipped_files_round_trip() {
                     "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
                 "reputation_discount": {"type": "minecraft:constant", "value": 0.25},
             })),
-            trade(serde_json::json!({
+            Some(trade(serde_json::json!({
                 "max_uses": 3,
                 "xp": {"type": "minecraft:uniform", "min": 1,
                     "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
                 "reputation_discount": 0.25,
-            })),
+            }))),
         ),
         (
             trade(serde_json::json!({"given_item_modifier": [
                 {"type": "minecraft:discard"},
                 {"type": "minecraft:set_potion", "id": "minecraft:water"},
             ]})),
-            trade(serde_json::json!({"given_item_modifier": [
-                {"type": "minecraft:discard"},
-                {"type": "minecraft:set_potion", "id": "minecraft:water"},
-            ]})),
+            None,
         ),
         (
             trade(serde_json::json!({"given_item_modifier": {
@@ -1735,14 +1500,7 @@ fn trade_forms_beyond_the_shipped_files_round_trip() {
                 "on_pass": [{"type": "minecraft:set_random_potion"}],
                 "on_fail": {"type": "minecraft:discard"},
             }})),
-            trade(serde_json::json!({"given_item_modifier": {
-                "type": "minecraft:filtered",
-                "condition": {"type": "minecraft:inverted",
-                    "term": {"type": "minecraft:weather_check", "raining": true}},
-                "item_filter": {"items": "minecraft:bow"},
-                "on_pass": [{"type": "minecraft:set_random_potion"}],
-                "on_fail": {"type": "minecraft:discard"},
-            }})),
+            None,
         ),
         (
             trade(serde_json::json!({"given_item_modifier": {
@@ -1750,13 +1508,14 @@ fn trade_forms_beyond_the_shipped_files_round_trip() {
                 "destination": "#minecraft:on_woodland_mansion_maps",
                 "zoom": 2, "search_radius": 50, "skip_existing_chunks": true,
             }})),
-            trade(serde_json::json!({"given_item_modifier": {
+            Some(trade(serde_json::json!({"given_item_modifier": {
                 "type": "minecraft:exploration_map",
                 "destination": "#minecraft:on_woodland_mansion_maps",
-            }})),
+            }}))),
         ),
     ];
     for (input, expected) in cases {
+        let expected = expected.unwrap_or_else(|| input.clone());
         assert_eq!(round_trip::<VillagerTrade>(&input.to_string()), expected);
     }
 }
@@ -1850,9 +1609,6 @@ fn timeline_file(clock: &str, markers: &str) -> String {
 }
 
 fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String> {
-    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&datapack).expect("the report parses");
-
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
@@ -1861,7 +1617,7 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
 
-    let mut packs = read_packs(&asset_server, &world, &STATICS);
+    let mut packs = read_packs(&asset_server, &WORLD, &STATICS);
     packs.push(Pack {
         name: "extra".to_owned(),
         files: timelines
@@ -1872,7 +1628,7 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
             })
             .collect(),
     });
-    world
+    WORLD
         .load(&STATICS, &packs)
         .map_err(|report| report.to_string())
 }
@@ -1953,21 +1709,13 @@ fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {
 
 #[test]
 fn trial_spawners_have_names_and_no_values() {
-    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
-    let world = world_registries(&datapack).expect("the report parses");
-    assert!(!world.parses("minecraft:trial_spawner"));
-    assert!(
-        world
-            .declared()
-            .any(|registry| registry.as_str() == "minecraft:trial_spawner")
-    );
     for loot in [
         "minecraft:loot_table",
         "minecraft:predicate",
         "minecraft:item_modifier",
     ] {
         assert!(
-            !world.declared().any(|registry| registry.as_str() == loot),
+            !WORLD.declared().any(|registry| registry.as_str() == loot),
             "{loot} is declared"
         );
         assert!(

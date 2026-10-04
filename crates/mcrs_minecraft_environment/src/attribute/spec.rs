@@ -20,7 +20,6 @@ use super::value::{
 };
 use crate::attribute::MobSpawnSettings;
 
-/// An attribute value, typed by its [`AttributeType`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
     Bool(bool),
@@ -184,12 +183,10 @@ pub struct AttributeSpec {
 }
 
 impl AttributeSpec {
-    /// The attribute's own value, validated against its range.
     pub fn value_seed(&self) -> ArgumentSeed<'_> {
         self.argument_seed(Operation::Override)
     }
 
-    /// The argument `op` takes on this attribute.
     pub fn argument_seed(&self, op: Operation) -> ArgumentSeed<'_> {
         ArgumentSeed { spec: self, op }
     }
@@ -307,8 +304,6 @@ impl AttributeSpec {
     }
 }
 
-/// An argument on its way out, written in the form its operation's codec
-/// encodes with.
 pub struct ArgumentRef<'a> {
     pub spec: &'a AttributeSpec,
     pub op: Operation,
@@ -335,7 +330,7 @@ enum ArgumentShape {
 #[serde(deny_unknown_fields)]
 struct FloatWithAlphaFields {
     value: f32,
-    #[serde(default = "opaque", deserialize_with = "alpha_in_unit_range")]
+    #[serde(default = "opaque", deserialize_with = "unit_f32")]
     alpha: f32,
 }
 
@@ -346,32 +341,20 @@ fn opaque() -> f32 {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BlendToGrayFields {
-    #[serde(deserialize_with = "brightness_in_unit_range")]
+    #[serde(deserialize_with = "unit_f32")]
     brightness: f32,
-    #[serde(deserialize_with = "factor_in_unit_range")]
+    #[serde(deserialize_with = "unit_f32")]
     factor: f32,
 }
 
-fn unit_range<'de, D: Deserializer<'de>>(deserializer: D, name: &str) -> Result<f32, D::Error> {
+pub(crate) fn unit_f32<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
     let value = f32::deserialize(deserializer)?;
     if !(0.0..=1.0).contains(&value) {
         return Err(de::Error::custom(format_args!(
-            "`{name}` {value} is not in range [0; 1]"
+            "{value} is not in range [0; 1]"
         )));
     }
     Ok(value)
-}
-
-fn alpha_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
-    unit_range(deserializer, "alpha")
-}
-
-fn brightness_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
-    unit_range(deserializer, "brightness")
-}
-
-fn factor_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
-    unit_range(deserializer, "factor")
 }
 
 /// An argument as far as the attribute's type alone determines it.
@@ -452,8 +435,6 @@ impl Draft {
     }
 }
 
-/// What the map key hands its value: the argument of one operation on one
-/// attribute, read into the type the pair selects.
 pub struct ArgumentSeed<'a> {
     spec: &'a AttributeSpec,
     op: Operation,
@@ -473,7 +454,6 @@ impl<'de> DeserializeSeed<'de> for ArgumentSeed<'_> {
     }
 }
 
-/// An argument whose operation is not known yet.
 pub(crate) struct DraftSeed<'a>(pub(crate) &'a AttributeSpec);
 
 impl<'de> DeserializeSeed<'de> for DraftSeed<'_> {
@@ -510,8 +490,7 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
     }))
 }
 
-/// `Codec.FLOAT`, or `FloatWithAlpha.CODEC`: a bare float, which implies
-/// `alpha: 1`, or the full `{value, alpha}` form.
+/// A bare float implies `alpha: 1`.
 struct FloatDraft;
 
 impl<'de> Visitor<'de> for FloatDraft {
@@ -543,10 +522,9 @@ impl<'de> Visitor<'de> for FloatDraft {
     }
 }
 
-/// `ExtraCodecs.STRING_RGB_COLOR` / `STRING_ARGB_COLOR`: a `#`-prefixed hex
-/// string of six or eight digits, a packed integer, or the float vector form —
-/// three components for rgb, four for argb with the alpha last — and, for the
-/// colour modifiers, `ColorModifier.BlendToGray.CODEC`.
+/// A `#`-prefixed hex string of six or eight digits, a packed integer, or the
+/// float vector form — three components for rgb, four for argb with the alpha
+/// last — and, for the colour modifiers, the blend-to-gray object.
 struct ColorDraft;
 
 impl<'de> Visitor<'de> for ColorDraft {
@@ -619,7 +597,6 @@ impl<'de> Visitor<'de> for ColorDraft {
     }
 }
 
-/// `ARGB.as8BitChannel`: floor, then the same truncation `ARGB.color` applies.
 fn as_8bit_channel(value: f32) -> u32 {
     (value * 255.0).floor() as i32 as u32 & 0xFF
 }
@@ -662,9 +639,6 @@ pub enum AttributeError {
     UnknownAttribute(String),
     #[error("environment attribute `{id}`: {reason}")]
     Malformed { id: &'static str, reason: String },
-    /// A failure that already names its attribute.
-    #[error("{0}")]
-    Rejected(String),
 }
 
 pub(super) fn malformed(id: &'static str, reason: impl Into<String>) -> AttributeError {

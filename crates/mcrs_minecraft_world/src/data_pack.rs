@@ -189,11 +189,7 @@ pub(crate) fn request_data_pack_assets(
     );
 }
 
-/// Every tag the loaded packs ship for one registry, as
 /// `(tag location, asset path)`, in asset path order.
-///
-/// The tags are the loader's: a pack that adds a tag file is picked up without
-/// a code change, and a tag no Rust constant names is still reachable.
 pub fn list_tag_files(
     set: &RegistrySet,
     registry_path: &str,
