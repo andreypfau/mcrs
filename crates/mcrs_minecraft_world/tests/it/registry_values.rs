@@ -177,29 +177,17 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 
 fn rows() -> Vec<Row> {
     use mcrs_minecraft_world::{
-        chat_type::ChatType, test_types::TestEnvironment, test_types::TestInstance, variant::*,
+        chat_type::ChatType, test_types::TestEnvironment, test_types::TestInstance,
     };
     vec![
-        row("cat_sound_variant", typed::<CatSoundVariant>),
-        row("cat_variant", typed::<CatVariant>),
         row("chat_type", typed::<ChatType>),
-        row("chicken_sound_variant", typed::<ChickenSoundVariant>),
-        row("chicken_variant", typed::<ChickenVariant>),
-        row("cow_sound_variant", typed::<CowSoundVariant>),
-        row("cow_variant", typed::<CowVariant>),
         row("dialog", dialog),
-        row("frog_variant", typed::<FrogVariant>),
-        row("pig_sound_variant", typed::<PigSoundVariant>),
-        row("pig_variant", typed::<PigVariant>),
         row("test_environment", typed::<TestEnvironment>),
         row("test_instance", typed::<TestInstance>),
-        row("wolf_sound_variant", typed::<WolfSoundVariant>),
-        row("wolf_variant", typed::<WolfVariant>),
         row(
             "world_clock",
             typed::<mcrs_minecraft_environment::world_clock::WorldClock>,
         ),
-        row("zombie_nautilus_variant", typed::<ZombieNautilusVariant>),
     ]
 }
 

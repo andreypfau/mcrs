@@ -1,4 +1,4 @@
-use crate::{LoadedRegistryAssets, chat_type, dialog, test_types, variant};
+use crate::{LoadedRegistryAssets, chat_type, dialog, test_types};
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::*;
@@ -195,90 +195,6 @@ pub(crate) fn request_data_pack_assets(
         &set,
         &mut loaded,
         "minecraft:chat_type",
-        "json",
-    );
-    request_registry::<variant::WolfVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:wolf_variant",
-        "json",
-    );
-    request_registry::<variant::WolfSoundVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:wolf_sound_variant",
-        "json",
-    );
-    request_registry::<variant::PigSoundVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:pig_sound_variant",
-        "json",
-    );
-    request_registry::<variant::CatSoundVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:cat_sound_variant",
-        "json",
-    );
-    request_registry::<variant::CowSoundVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:cow_sound_variant",
-        "json",
-    );
-    request_registry::<variant::ChickenSoundVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:chicken_sound_variant",
-        "json",
-    );
-    request_registry::<variant::PigVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:pig_variant",
-        "json",
-    );
-    request_registry::<variant::FrogVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:frog_variant",
-        "json",
-    );
-    request_registry::<variant::CatVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:cat_variant",
-        "json",
-    );
-    request_registry::<variant::CowVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:cow_variant",
-        "json",
-    );
-    request_registry::<variant::ChickenVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:chicken_variant",
-        "json",
-    );
-    request_registry::<variant::ZombieNautilusVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:zombie_nautilus_variant",
         "json",
     );
     request_registry::<dialog::Dialog>(

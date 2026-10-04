@@ -3,6 +3,7 @@ use crate::damage_type::DamageType;
 use crate::data_pack::walk_files;
 use crate::decorated_pot_pattern::DecoratedPotPattern;
 use crate::entity::minecraft::EntityIds;
+use crate::variant;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
@@ -34,7 +35,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<BannerPattern>(&mut world, &mut undeclared);
     parse::<InstrumentValue>(&mut world, &mut undeclared);
     parse::<JukeboxSong>(&mut world, &mut undeclared);
-    parse::<PaintingVariantValue>(&mut world, &mut undeclared);
+    parse_required::<PaintingVariantValue, PaintingVariantValue>(&mut world, &mut undeclared);
     parse::<TrimMaterial>(&mut world, &mut undeclared);
     parse::<TrimPattern>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
@@ -43,6 +44,54 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         &mut undeclared,
     );
     parse_as::<mcrs_minecraft_registry::key::BlockTransformer, BlockTransformer>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::WolfVariant, variant::WolfVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::WolfSoundVariant, variant::WolfSoundVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::PigVariant, variant::PigVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::PigSoundVariant, variant::PigSoundVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::CowVariant, variant::CowVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::CowSoundVariant, variant::CowSoundVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::ChickenVariant, variant::ChickenVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::ChickenSoundVariant, variant::ChickenSoundVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::CatVariant, variant::CatVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::CatSoundVariant, variant::CatSoundVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::FrogVariant, variant::FrogVariant>(
+        &mut world,
+        &mut undeclared,
+    );
+    parse_required::<mcrs_minecraft_entity::ZombieNautilusVariant, variant::ZombieNautilusVariant>(
         &mut world,
         &mut undeclared,
     );
@@ -77,6 +126,17 @@ where
             "{} is not a world registry of the data pack report",
             K::KEY
         ));
+    }
+}
+
+fn parse_required<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
+where
+    K: RegistryKey,
+    T: DeserializeOwned + Serialize + Send + Sync + 'static,
+{
+    parse_as::<K, T>(world, report);
+    if world.parses(K::KEY.as_str()) {
+        world.non_empty(K::KEY);
     }
 }
 
@@ -331,7 +391,19 @@ mod tests {
             "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
             "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
             "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
-            "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true},
+            "minecraft:wolf_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:wolf_sound_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:pig_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:pig_sound_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:cow_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:cow_sound_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:chicken_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:chicken_sound_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),

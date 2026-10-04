@@ -7,22 +7,30 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
-/// condition that an absent field leaves always true.
+/// condition that an absent field leaves always true. The sets a condition
+/// names are the caller's: names for the generator, checked registry entries
+/// for the loader.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpawnSelector {
+#[serde(
+    deny_unknown_fields,
+    bound(
+        serialize = "Structures: Serialize, Biomes: Serialize",
+        deserialize = "Structures: Deserialize<'de>, Biomes: Deserialize<'de>"
+    )
+)]
+pub struct SpawnSelector<Structures = HolderSet, Biomes = HolderSet> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub condition: Option<SpawnCondition>,
+    pub condition: Option<SpawnCondition<Structures, Biomes>>,
     pub priority: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
-pub enum SpawnCondition {
+pub enum SpawnCondition<Structures = HolderSet, Biomes = HolderSet> {
     #[serde(rename = "minecraft:structure")]
-    Structure { structures: HolderSet },
+    Structure { structures: Structures },
     #[serde(rename = "minecraft:biome")]
-    Biome { biomes: HolderSet },
+    Biome { biomes: Biomes },
     #[serde(rename = "minecraft:moon_brightness")]
     MoonBrightness { range: DoubleBounds },
 }
