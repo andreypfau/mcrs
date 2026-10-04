@@ -1,6 +1,12 @@
+use mcrs_minecraft_core::{ResourceLocation, rl};
+
 pub const COMMIT_HASH: &str = env!("MCRS_COMMIT_HASH");
 
 pub const BRAND: &str = concat!("github.com/andreypfau/mcrs@", env!("MCRS_COMMIT_HASH"));
+
+pub const MOD_ENTRY: ResourceLocation<&'static str> = rl!("github.com:andreypfau/mcrs");
+
+pub const COMMIT_PROPERTY: ResourceLocation<&'static str> = rl!("mcrs:commit");
 
 #[cfg(test)]
 mod tests {

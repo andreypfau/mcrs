@@ -1,4 +1,5 @@
 use crate::event::ReceivedPacketEvent;
+use crate::identity;
 use crate::packet_io::{ByteStream, PacketIo};
 use crate::{ConnectionState, RawConnection};
 use anyhow::bail;
@@ -13,13 +14,16 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
-use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
+use mcrs_minecraft_protocol::packets::common::Brand;
+use mcrs_minecraft_protocol::packets::common::serverbound::{
+    ClientInformation, KeepAlive, ModList, Payload, PropertyMap,
+};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundFinishConfiguration, ClientboundKeepAlive as ConfigurationKeepAlive,
     ClientboundRegistryData, ClientboundSelectKnownPacks, ClientboundUpdateTags,
 };
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
-    ServerboundClientInformation, ServerboundFinishConfiguration,
+    ServerboundClientInformation, ServerboundCustomPayload, ServerboundFinishConfiguration,
     ServerboundKeepAlive as ServerboundConfigurationKeepAlive, ServerboundSelectKnownPacks,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -353,6 +357,24 @@ fn client_information(view_distance: u8) -> ClientInformation<'static> {
     }
 }
 
+fn write_first_configuration_packets(connection: &mut ClientConnection, view_distance: u8) {
+    connection.write_packet(&ServerboundCustomPayload::from(Payload::Brand(Brand {
+        brand: identity::BRAND,
+    })));
+    connection.write_packet(&ServerboundCustomPayload::from(Payload::ModList(ModList(
+        vec![(
+            identity::MOD_ENTRY.into(),
+            PropertyMap(vec![(
+                identity::COMMIT_PROPERTY.into(),
+                identity::COMMIT_HASH,
+            )]),
+        )],
+    ))));
+    connection.write_packet(&ServerboundClientInformation(client_information(
+        view_distance,
+    )));
+}
+
 type LoginOutcome = Result<(RawConnection, ServerProfile), String>;
 
 fn spawn_logged_in_connection(
@@ -369,9 +391,7 @@ fn spawn_logged_in_connection(
                 }
             };
             let mut connection = ClientConnection { raw: Box::new(raw) };
-            connection.write_packet(&ServerboundClientInformation(client_information(
-                view_distance,
-            )));
+            write_first_configuration_packets(&mut connection, view_distance);
             world.spawn((
                 connection,
                 ConnectionState::Configuration,
@@ -609,6 +629,58 @@ mod tests {
         app.update();
         assert_eq!(app.should_exit(), Some(AppExit::Success));
         assert!(app.world().get_entity(entity).is_err());
+    }
+
+    #[test]
+    fn the_client_sends_brand_then_mod_list_then_client_information() {
+        use crate::identity;
+        use bytes::BytesMut;
+        use mcrs_minecraft_protocol::decode::PacketDecoder;
+        use mcrs_minecraft_protocol::packets::common::serverbound::{ModList, Payload};
+        use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundCustomPayload;
+
+        let runtime = Runtime::new().unwrap();
+        let _guard = runtime.enter();
+        let (raw, mut outgoing, _inbound) = RawConnection::new_for_test_full(8);
+        let mut connection = ClientConnection { raw: Box::new(raw) };
+
+        write_first_configuration_packets(&mut connection, 11);
+        connection.raw.flush().unwrap();
+
+        let mut decoder = PacketDecoder::new();
+        while let Ok(blob) = outgoing.try_recv() {
+            decoder.queue_bytes(BytesMut::from(&blob[..]));
+        }
+        let frames: Vec<_> = std::iter::from_fn(|| decoder.try_next_packet().unwrap()).collect();
+
+        let ids: Vec<i32> = frames.iter().map(|frame| frame.id).collect();
+        assert_eq!(
+            ids,
+            [
+                ServerboundCustomPayload::ID,
+                ServerboundCustomPayload::ID,
+                ServerboundClientInformation::ID
+            ]
+        );
+
+        let Payload::Brand(brand) = Payload::decode(&mut &frames[0].body[..]).unwrap() else {
+            panic!("the first payload is not a brand");
+        };
+        assert_eq!(brand.brand, identity::BRAND);
+
+        let Payload::ModList(ModList(entries)) = Payload::decode(&mut &frames[1].body[..]).unwrap()
+        else {
+            panic!("the second payload is not a mod list");
+        };
+        assert_eq!(entries.len(), 1);
+        let (id, properties) = &entries[0];
+        assert_eq!(*id, identity::MOD_ENTRY);
+        assert_eq!(properties.0.len(), 1);
+        assert_eq!(properties.0[0].0, identity::COMMIT_PROPERTY);
+        assert_eq!(properties.0[0].1, identity::COMMIT_HASH);
+
+        let information = ClientInformation::decode(&mut &frames[2].body[..]).unwrap();
+        assert_eq!(information.view_distance, 11);
     }
 
     #[test]

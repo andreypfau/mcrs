@@ -32,7 +32,10 @@ use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::packets::common::Brand;
+use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -40,7 +43,7 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
 };
 use mcrs_minecraft_protocol::packets::configuration::{
-    ClientboundFinishConfiguration, ClientboundRegistryData,
+    ClientboundCustomPayload, ClientboundFinishConfiguration, ClientboundRegistryData,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
@@ -334,7 +337,7 @@ fn sync_dimension_type_changes(
 }
 
 /// Step 1 of the Configuration handshake: detect entry into
-/// `ConnectionState::Configuration` and send `ClientboundSelectKnownPacks`.
+/// `ConnectionState::Configuration`, send the brand and `ClientboundSelectKnownPacks`.
 ///
 /// The `Without<AwaitingKnownPacks>` filter ensures the server does not
 /// re-trigger the negotiation while a previous negotiation is still in
@@ -368,6 +371,9 @@ fn on_configuration_enter(
             continue;
         }
 
+        con.write_packet(&ClientboundCustomPayload(Payload::Brand(Brand {
+            brand: identity::BRAND,
+        })));
         con.write_packet(&ClientboundSelectKnownPacks {
             known_packs: vec![KnownPack {
                 namespace: "minecraft",
@@ -654,7 +660,7 @@ pub fn on_configuration_ack(
         .remove::<ServerSideConnection>();
 }
 
-/// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.
+/// Handles `ServerboundConfigurationAcknowledged` sent during Game state.
 /// This is the client's response to `ClientboundStartConfiguration` during reconfiguration.
 /// Transitions the connection back to Configuration so registries can be re-sent.
 fn on_game_configuration_ack(
