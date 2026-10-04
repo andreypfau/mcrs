@@ -3,7 +3,9 @@
 
 pub use kind::decode_component_value;
 pub use patch::{decode_delimited_patch, encode_delimited_patch};
-pub use stack::{HashedStack, ProtoStack, RawDelimitedStack, RawStack};
+pub use stack::{
+    HashedStack, RawDelimitedStack, RawStack, decode_delimited_ctx, encode_delimited_ctx,
+};
 
 mod attribute;
 mod banner;

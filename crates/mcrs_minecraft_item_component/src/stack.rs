@@ -1,8 +1,9 @@
 use std::fmt;
 
+use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_registry::ItemReg;
+use mcrs_minecraft_registry::{ItemId, ItemReg, RegistryLookup, RegistryName};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -143,6 +144,65 @@ impl HashedPatchMap {
             };
             hash_ops::hash(value).is_ok_and(|actual| actual == *expected)
         })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ProtoStack {
+    pub id: ItemId,
+    pub count: i32,
+    pub components: ComponentPatch,
+}
+
+impl ProtoStack {
+    pub const EMPTY: ProtoStack = ProtoStack {
+        id: ItemId(0),
+        count: 0,
+        components: ComponentPatch::EMPTY,
+    };
+
+    #[must_use]
+    pub const fn new(item: ItemId, count: i32, components: ComponentPatch) -> Self {
+        Self {
+            id: item,
+            count,
+            components,
+        }
+    }
+
+    /// No items, or the air item.
+    pub const fn is_empty(&self) -> bool {
+        self.count <= 0 || self.id.0 == 0
+    }
+
+    pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
+        let id = ctx
+            .id(ItemReg::NAME, value.item.location())
+            .with_context(|| format!("{} is not in registry item", value.item))?;
+        Ok(ProtoStack {
+            id: ItemId(u16::try_from(id).with_context(|| format!("item id {id} is out of range"))?),
+            count: value.count.0,
+            components: value.components.clone(),
+        })
+    }
+
+    pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
+        ensure!(!self.is_empty(), "an empty stack has no persistent form");
+        let name = ctx
+            .name(ItemReg::NAME, self.id.0 as u32)
+            .with_context(|| format!("registry item has no id {}", self.id.0))?;
+        let value = ItemStackValue {
+            item: ResourceKey::from_location(name.clone()),
+            count: codec::Bounded(self.count),
+            components: self.components.clone(),
+        };
+        ensure!(
+            (1..=99).contains(&self.count),
+            "Value must be within range [1;99]: {}",
+            self.count
+        );
+        value.validate().map_err(anyhow::Error::msg)?;
+        Ok(value)
     }
 }
 

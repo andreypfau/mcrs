@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;
-use mcrs_minecraft_protocol::item::{
+use mcrs_minecraft_item_component::{
     Damage, ItemComponentKind, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable,
 };
 

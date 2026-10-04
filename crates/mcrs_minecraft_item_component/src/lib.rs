@@ -9,7 +9,7 @@ pub mod stack;
 pub use component::*;
 pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
-pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, Template};
+pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
 
 /// Text whose `show_item` hover carries an item stack template.
 pub type Text = mcrs_minecraft_text::Text<Template>;

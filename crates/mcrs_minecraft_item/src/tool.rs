@@ -3,7 +3,8 @@ use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{HolderSet, ResourceKey};
-use mcrs_minecraft_protocol::item::{BlockReg, Tool};
+use mcrs_minecraft_item_component::Tool;
+use mcrs_minecraft_registry::BlockReg;
 
 pub fn mining_speed(
     tool: &Tool,

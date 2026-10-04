@@ -10,7 +10,7 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_protocol::item::{ComponentMap, Template};
+use mcrs_minecraft_item_component::{ComponentMap, Template};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use rustc_hash::FxHashMap;
 

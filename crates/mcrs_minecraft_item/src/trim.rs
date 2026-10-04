@@ -1,6 +1,6 @@
 use bevy_asset::Asset;
 use bevy_reflect::TypePath;
-use mcrs_minecraft_protocol::item;
+use mcrs_minecraft_item_component as item;
 use serde::{Deserialize, Serialize};
 
 #[derive(Asset, Debug, Clone, Serialize, Deserialize, TypePath)]
