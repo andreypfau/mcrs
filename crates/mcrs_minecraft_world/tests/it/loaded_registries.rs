@@ -11,6 +11,7 @@ use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
+use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::registries::{
     read_packs, register_loaded, static_registries as build_static_registries, test_registries,
     world_registries,
@@ -44,7 +45,8 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true},
     "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
     "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
-    "minecraft:test_instance":{"elements":true,"stable":false,"tags":true}}}"#;
+    "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
+    "minecraft:dialog":{"elements":true,"stable":false,"tags":true}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
@@ -918,4 +920,341 @@ fn test_values_are_synced_with_the_tags_the_game_writes() {
         r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":6000}"#,
     );
     assert_eq!(clock.get("time"), Some(&NbtTag::Int(6000)));
+}
+
+fn dialog_list_in(tags: &[&str], dialogs: &str) -> String {
+    let world = world_registries(PARSED_REPORT).expect("the report parses");
+    let mut files = vec![PackFile {
+        path: "minecraft/dialog/odd.json".to_owned(),
+        bytes: Some(
+            format!(r#"{{"type":"minecraft:dialog_list","title":"t","dialogs":"{dialogs}"}}"#)
+                .into_bytes(),
+        ),
+    }];
+    files.extend(tags.iter().map(|tag| PackFile {
+        path: format!("minecraft/tags/dialog/{tag}.json"),
+        bytes: Some(br#"{"values":[]}"#.to_vec()),
+    }));
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files,
+    }];
+    world
+        .load(&STATICS, &packs)
+        .err()
+        .map(|report| report.to_string())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_dialog_list_naming_an_unknown_tag_fails() {
+    let text = dialog_list_in(&["known"], "#minecraft:nowhere");
+    for part in [
+        "minecraft:dialog",
+        "minecraft:nowhere",
+        "minecraft:odd",
+        "minecraft/dialog/odd.json",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+
+    let text = dialog_list_in(&["known"], "#minecraft:known");
+    assert!(!text.contains("minecraft:dialog"), "{text}");
+}
+
+const DIALOG_SAMPLES: &[(&str, &str)] = &[
+    (
+        "minecraft:notice",
+        r#"{"type":"minecraft:notice","title":{"translate":"t"},"external_title":"outer",
+            "can_close_with_escape":false,"pause":false,"after_action":"none",
+            "body":[{"type":"minecraft:plain_message","contents":"a"},
+                {"type":"minecraft:plain_message","contents":"b","width":300}],
+            "inputs":[{"type":"minecraft:text","key":"name","label":"Name"}],
+            "action":{"label":"Go","tooltip":"tip","width":100,
+                "action":{"type":"minecraft:run_command","command":"say hi"}}}"#,
+    ),
+    (
+        "minecraft:confirmation",
+        r#"{"type":"minecraft:confirmation","title":"Sure?",
+            "body":{"type":"minecraft:plain_message","contents":"a"},
+            "yes":{"label":"Yes"},
+            "no":{"label":"No","action":{"type":"minecraft:show_dialog",
+                "dialog":"minecraft:server_links"}}}"#,
+    ),
+    (
+        "minecraft:multi_action",
+        r#"{"type":"minecraft:multi_action","title":"Pick",
+            "actions":[{"label":"A"},
+                {"label":"B","action":{"type":"minecraft:change_page","page":2}}],
+            "exit_action":{"label":"Back","width":200},"columns":3}"#,
+    ),
+    (
+        "minecraft:server_links",
+        r#"{"type":"minecraft:server_links","title":"Links","button_width":310,"columns":1,
+            "exit_action":{"label":"Back"}}"#,
+    ),
+    (
+        "minecraft:dialog_list",
+        r#"{"type":"minecraft:dialog_list","title":"More",
+            "dialogs":["minecraft:server_links","minecraft:custom_options"],
+            "columns":1,"button_width":310}"#,
+    ),
+];
+
+const BODY_SAMPLES: &[(&str, &str)] = &[
+    (
+        "minecraft:item",
+        r#"{"type":"minecraft:item","item":{"id":"minecraft:apple","count":2},
+            "description":{"contents":"d","width":100},"show_decorations":false,
+            "show_tooltip":false,"width":32,"height":64}"#,
+    ),
+    (
+        "minecraft:plain_message",
+        r#"{"type":"minecraft:plain_message","contents":{"translate":"x"},"width":300}"#,
+    ),
+];
+
+const INPUT_SAMPLES: &[(&str, &str)] = &[
+    (
+        "minecraft:boolean",
+        r#"{"type":"minecraft:boolean","key":"flag","label":"F","initial":true,
+            "on_true":"yes","on_false":"no"}"#,
+    ),
+    (
+        "minecraft:number_range",
+        r#"{"type":"minecraft:number_range","key":"n","width":300,"label":"N",
+            "label_format":"x.y","start":0.0,"end":10.0,"initial":5.0,"step":0.5}"#,
+    ),
+    (
+        "minecraft:single_option",
+        r#"{"type":"minecraft:single_option","key":"o","width":100,
+            "options":[{"id":"a","display":"A","initial":true},{"id":"b"}],
+            "label":"O","label_visible":false}"#,
+    ),
+    (
+        "minecraft:text",
+        r#"{"type":"minecraft:text","key":"t","width":100,"label":"T","label_visible":false,
+            "initial":"ab","max_length":10,"multiline":{"max_lines":4,"height":64}}"#,
+    ),
+];
+
+const ACTION_SAMPLES: &[(&str, &str)] = &[
+    (
+        "minecraft:open_url",
+        r#"{"type":"minecraft:open_url","url":"https://example.com"}"#,
+    ),
+    (
+        "minecraft:run_command",
+        r#"{"type":"minecraft:run_command","command":"say hi"}"#,
+    ),
+    (
+        "minecraft:suggest_command",
+        r#"{"type":"minecraft:suggest_command","command":"say hi"}"#,
+    ),
+    (
+        "minecraft:show_dialog",
+        r#"{"type":"minecraft:show_dialog","dialog":"minecraft:server_links"}"#,
+    ),
+    (
+        "minecraft:change_page",
+        r#"{"type":"minecraft:change_page","page":2}"#,
+    ),
+    (
+        "minecraft:copy_to_clipboard",
+        r#"{"type":"minecraft:copy_to_clipboard","value":"v"}"#,
+    ),
+    (
+        "minecraft:custom",
+        r#"{"type":"minecraft:custom","id":"minecraft:ping","payload":{"a":1}}"#,
+    ),
+    (
+        "minecraft:dynamic/run_command",
+        r#"{"type":"minecraft:dynamic/run_command","template":"say $(who)"}"#,
+    ),
+    (
+        "minecraft:dynamic/custom",
+        r#"{"type":"minecraft:dynamic/custom","id":"minecraft:ping","additions":{"a":"b"}}"#,
+    ),
+];
+
+#[test]
+fn every_dialog_type_round_trips() {
+    assert_samples_round_trip::<Dialog>("minecraft:dialog_type", DIALOG_SAMPLES);
+    assert_samples_round_trip::<DialogBody>("minecraft:dialog_body_type", BODY_SAMPLES);
+    assert_samples_round_trip::<Input>("minecraft:input_control_type", INPUT_SAMPLES);
+    assert_samples_round_trip::<Action>("minecraft:dialog_action_type", ACTION_SAMPLES);
+
+    let read = |json: &str| round_trip::<Dialog>(json);
+    assert_eq!(
+        read(
+            r#"{"type":"minecraft:notice","title":"t",
+                "body":{"type":"minecraft:item","item":"minecraft:apple","description":"d"},
+                "inputs":[{"type":"minecraft:single_option","key":"o","label":"O",
+                    "options":["a","b"]}],
+                "action":{"label":"ok","action":{"type":"run_command","command":"x"}}}"#
+        ),
+        serde_json::json!({
+            "type": "minecraft:notice",
+            "title": "t",
+            "body": {"type": "minecraft:item", "item": {"id": "minecraft:apple"},
+                "description": {"contents": "d"}},
+            "inputs": [{"type": "minecraft:single_option", "key": "o", "label": "O",
+                "options": [{"id": "a"}, {"id": "b"}]}],
+            "action": {"label": "ok",
+                "action": {"type": "minecraft:run_command", "command": "x"}},
+        }),
+        "alternative spellings are read as the game reads them and written in its primary form"
+    );
+}
+
+#[test]
+fn a_dialog_value_outside_its_range_fails() {
+    let dialog = |fields: &str| format!(r#"{{"title":"t",{fields}}}"#);
+    let notice = |fields: &str| dialog(&format!(r#""type":"minecraft:notice",{fields}"#));
+    let input = |control: &str| {
+        notice(&format!(
+            r#""inputs":[{{"key":"k","label":"L",{control}}}]"#
+        ))
+    };
+    let action = |action: &str| notice(&format!(r#""action":{{"label":"x","action":{action}}}"#));
+
+    for (json, part) in [
+        (notice(r#""action":{"label":"x","width":0}"#), "[1;1024]"),
+        (notice(r#""action":{"label":"x","width":1025}"#), "[1;1024]"),
+        (
+            dialog(r#""type":"minecraft:server_links","columns":0"#),
+            "positive",
+        ),
+        (
+            dialog(r#""type":"minecraft:server_links","button_width":0"#),
+            "[1;1024]",
+        ),
+        (
+            input(r#""type":"minecraft:number_range","start":0.0,"end":1.0,"step":0.0"#),
+            "positive",
+        ),
+        (
+            input(r#""type":"minecraft:number_range","start":0.0,"end":1.0,"initial":2.0"#),
+            "outside of range",
+        ),
+        (
+            input(r#""type":"minecraft:text","max_length":0"#),
+            "positive",
+        ),
+        (
+            input(r#""type":"minecraft:text","initial":"abc","max_length":2"#),
+            "exceeds allowed size",
+        ),
+        (
+            input(r#""type":"minecraft:single_option","options":[]"#),
+            "must have contents",
+        ),
+        (
+            input(
+                r#""type":"minecraft:single_option","options":[{"id":"a","initial":true},{"id":"b","initial":true}]"#,
+            ),
+            "Multiple initial values",
+        ),
+        (input(r#""type":"minecraft:boolean","bogus":1"#), "bogus"),
+        (
+            notice(r#""inputs":[{"type":"minecraft:boolean","key":"a b","label":"L"}]"#),
+            "not a valid input name",
+        ),
+        (
+            dialog(r#""type":"minecraft:multi_action","actions":[]"#),
+            "must have contents",
+        ),
+        (notice(r#""pause":true,"after_action":"none""#), "unpause"),
+        (notice(r#""bogus":1"#), "bogus"),
+        (notice(r#""after_action":"later""#), "later"),
+        (
+            dialog(r#""type":"minecraft:lightning""#),
+            "minecraft:lightning",
+        ),
+        (
+            notice(r#""body":{"type":"minecraft:plain_message","contents":"a","width":0}"#),
+            "[1;1024]",
+        ),
+        (
+            notice(r#""body":{"type":"minecraft:item","item":"minecraft:apple","width":257}"#),
+            "[1;256]",
+        ),
+        (
+            notice(
+                r#""body":{"type":"minecraft:item","item":"minecraft:apple","description":{"contents":"d","width":0}}"#,
+            ),
+            "did not match any variant",
+        ),
+        (
+            action(r#"{"type":"minecraft:run_command","command":"x","bogus":1}"#),
+            "bogus",
+        ),
+        (
+            action(r#"{"type":"minecraft:open_file","path":"x"}"#),
+            "open_file",
+        ),
+        (
+            action(r#"{"type":"minecraft:change_page","page":0}"#),
+            "positive",
+        ),
+        (
+            action(r#"{"type":"minecraft:dynamic/run_command","template":"no variables"}"#),
+            "No variables in macro",
+        ),
+        (
+            action(r#"{"type":"minecraft:dynamic/run_command","template":"say $(who"}"#),
+            "Unterminated macro variable",
+        ),
+        (
+            action(r#"{"type":"minecraft:dynamic/custom","id":"minecraft:x","bogus":1}"#),
+            "bogus",
+        ),
+    ] {
+        let text = refused_by_the_loader("dialog", "odd", &json);
+        for part in [part, "minecraft:odd"] {
+            assert!(text.contains(part), "{part} missing for {json}:\n{text}");
+        }
+    }
+}
+
+#[test]
+fn dialog_values_are_synced_with_the_tags_the_game_writes() {
+    let dialog = synced::<Dialog>(
+        r#"{"type":"minecraft:multi_action","title":"Pick",
+            "actions":[{"label":"A","width":100,
+                "action":{"type":"minecraft:change_page","page":2}}],
+            "inputs":[{"type":"minecraft:number_range","key":"n","label":"N",
+                "start":0.0,"end":10.0,"step":0.5}],
+            "pause":false,"after_action":"none","columns":3}"#,
+    );
+    for (field, tag) in [
+        ("columns", NbtTag::Int(3)),
+        ("pause", NbtTag::Byte(0)),
+        ("after_action", NbtTag::String("none".to_owned())),
+    ] {
+        assert_eq!(dialog.get(field), Some(&tag), "{field}");
+    }
+    let NbtTag::List(actions) = dialog.get("actions").expect("the actions are a list") else {
+        panic!("the actions are not a list");
+    };
+    let NbtTag::Compound(button) = &actions[0] else {
+        panic!("a button is not a compound");
+    };
+    assert_eq!(button.get("width"), Some(&NbtTag::Int(100)));
+    let NbtTag::Compound(click) = button.get("action").expect("the button acts") else {
+        panic!("an action is not a compound");
+    };
+    assert_eq!(click.get("page"), Some(&NbtTag::Int(2)));
+    assert_eq!(
+        click.get("type"),
+        Some(&NbtTag::String("minecraft:change_page".to_owned()))
+    );
+    let NbtTag::List(inputs) = dialog.get("inputs").expect("the inputs are a list") else {
+        panic!("the inputs are not a list");
+    };
+    let NbtTag::Compound(range) = &inputs[0] else {
+        panic!("an input is not a compound");
+    };
+    assert_eq!(range.get("start"), Some(&NbtTag::Float(0.0)));
+    assert_eq!(range.get("step"), Some(&NbtTag::Float(0.5)));
 }

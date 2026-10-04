@@ -161,12 +161,6 @@ fn typed<T: DeserializeOwned + Serialize>(text: &str) -> Result<NbtTag, String> 
     mcrs_minecraft_nbt::to_nbt_tag(&value).map_err(|e| e.to_string())
 }
 
-fn dialog(text: &str) -> Result<NbtTag, String> {
-    let raw = serde_json::from_str(text).map_err(|e| e.to_string())?;
-    let dialog = mcrs_minecraft_world::dialog::Dialog { raw, dialogs: None };
-    mcrs_minecraft_nbt::to_nbt_tag(&dialog).map_err(|e| e.to_string())
-}
-
 fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row {
     Row {
         registry: format!("minecraft:{directory}"),
@@ -176,13 +170,10 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 }
 
 fn rows() -> Vec<Row> {
-    vec![
-        row("dialog", dialog),
-        row(
-            "world_clock",
-            typed::<mcrs_minecraft_environment::world_clock::WorldClock>,
-        ),
-    ]
+    vec![row(
+        "world_clock",
+        typed::<mcrs_minecraft_environment::world_clock::WorldClock>,
+    )]
 }
 
 fn shipped_files(directory: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {

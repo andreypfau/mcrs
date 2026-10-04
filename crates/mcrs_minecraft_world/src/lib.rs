@@ -84,8 +84,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<mcrs_minecraft_biome::Biome>();
         app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
-        app.init_asset::<dialog::Dialog>();
-        app.register_asset_loader(dialog::DialogLoader);
         app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
         app.register_asset_loader(
             JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default(),
@@ -177,12 +175,6 @@ impl Plugin for MinecraftWorldPlugin {
                     |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    dialog::Dialog,
-                    "minecraft:dialog",
-                    |v: &dialog::Dialog| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -344,6 +336,12 @@ impl Plugin for MinecraftWorldPlugin {
                     &mut access,
                     &registries,
                     "minecraft:test_instance",
+                    Clone::clone,
+                );
+                registries::register_loaded::<dialog::Dialog, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:dialog",
                     Clone::clone,
                 );
                 registries::register_loaded::<damage_type::DamageType, _>(
