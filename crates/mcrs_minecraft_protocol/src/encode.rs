@@ -53,7 +53,12 @@ pub trait WritePacket {
         P: Packet + Encode,
     {
         if let Err(e) = self.write_packet_fallible(packet) {
-            warn!("failed to write packet '{}': {e:#}", P::NAME);
+            warn!(
+                "failed to write {:?} {:?} packet '{}': {e:#}",
+                P::STATE,
+                P::SIDE,
+                P::NAME
+            );
         }
     }
 

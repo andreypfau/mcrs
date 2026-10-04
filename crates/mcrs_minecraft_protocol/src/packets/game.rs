@@ -18,14 +18,13 @@ pub mod clientbound {
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
     use mcrs_minecraft_protocol::ByteAngle;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use mcrs_minecraft_registry::BlockStateId;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x01, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundAddEntity {
         pub id: VarInt,
         pub uuid: Uuid,
@@ -38,39 +37,33 @@ pub mod clientbound {
         pub data: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x05, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundBlockDestruction {
         pub id: VarInt,
         pub pos: BlockPos,
         pub progress: i8,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x08, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundBlockUpdate {
         pub block_pos: BlockPos,
         pub block_state_id: BlockStateId,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x0B, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundChunkBatchFinished {
         pub batch_size: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x0C, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundChunkBatchStart;
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x11, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundContainerClose {
         pub container_id: VarInt,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x12, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundContainerSetContent {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
@@ -78,16 +71,14 @@ pub mod clientbound {
         pub carried_item: RawStack,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x13, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundContainerSetData {
         pub container_id: VarInt,
         pub id: i16,
         pub value: i16,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x14, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundContainerSetSlot {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
@@ -95,14 +86,12 @@ pub mod clientbound {
         pub item: RawStack,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x20, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundDisconnect {
         pub reason: Text,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x22, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundEntityEvent {
         pub entity_id: i32,
         pub entity_status: i8,
@@ -120,8 +109,7 @@ pub mod clientbound {
         Stepped(Vec<PositionStep>),
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x23, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundEntityPositionSync {
         pub entity_id: VarInt,
         pub position: PositionPath,
@@ -129,33 +117,28 @@ pub mod clientbound {
         pub on_ground: bool,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x26, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundForgetLevelChunk {
         pub z: i32,
         pub x: i32,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x27, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundGameEvent {
         pub game_event: GameEventKind,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x2D, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundKeepAlive(pub KeepAlive);
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x2E, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundLevelChunkWithLight<'a> {
         pub pos: ColumnPos,
         pub chunk_data: crate::chunk::ChunkData<'a>,
         pub light_data: crate::chunk::LightData<'a>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x30, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundLevelParticles {
         pub particle: RawParticle,
         pub override_limiter: bool,
@@ -186,16 +169,14 @@ pub mod clientbound {
         }
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x31, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundLightUpdate<'a> {
         pub x: VarInt,
         pub z: VarInt,
         pub light_data: crate::chunk::LightData<'a>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x32, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundLogin<'a> {
         pub player_id: i32,
         pub hardcore: bool,
@@ -278,8 +259,7 @@ pub mod clientbound {
         (properties.0 & 1 != 0, (properties.0 as u32 >> 1) as i32)
     }
 
-    #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x36, state=Game)]
+    #[derive(Clone, Debug)]
     pub struct ClientboundMoveEntityPos {
         pub entity_id: VarInt,
         pub delta: VecDelta,
@@ -306,8 +286,7 @@ pub mod clientbound {
         }
     }
 
-    #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x37, state=Game)]
+    #[derive(Clone, Debug)]
     pub struct ClientboundMoveEntityPosRot {
         pub entity_id: VarInt,
         pub delta: VecDelta,
@@ -341,8 +320,7 @@ pub mod clientbound {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x35, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundMerchantOffers {
         pub container_id: VarInt,
         pub offers: Vec<RawMerchantOffer>,
@@ -352,15 +330,13 @@ pub mod clientbound {
         pub can_restock: bool,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x38, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundMoveMinecartAlongTrack {
         pub entity_id: VarInt,
         pub lerp_steps: Vec<MinecartStep>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x39, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundMoveEntityRot {
         pub entity_id: VarInt,
         pub y_rot: ByteAngle,
@@ -368,23 +344,20 @@ pub mod clientbound {
         pub on_ground: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x3C, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundOpenScreen {
         pub container_id: VarInt,
         pub menu_type: VarInt,
         pub title: Text,
     }
 
-    #[derive(Clone, Debug, Packet)]
-    #[packet(id=0x47, state=Game)]
+    #[derive(Clone, Debug)]
     pub struct ClientboundPlayerInfoUpdate<'a> {
         pub actions: PlayerListActions,
         pub entries: Cow<'a, [PlayerListEntry<'a>]>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x49, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundPlayerPosition {
         pub teleport_id: VarInt,
         pub position: DVec3,
@@ -393,60 +366,51 @@ pub mod clientbound {
         pub flags: Vec<PositionFlag>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4B, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRecipeBookAdd {
         pub entries: Vec<Raw<RecipeBookEntry>>,
         pub replace: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4C, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRecipeBookRemove {
         pub recipes: Vec<VarInt>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x4D, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRecipeBookSettings {
         pub book_settings: RecipeBookSettings,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x4E, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundRemoveEntities {
         pub entity_ids: Vec<VarInt>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x54, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundRespawn<'a> {
         pub player_spawn_info: PlayerSpawnInfo<'a>,
         pub data_to_keep: u8,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x55, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundRotateHead {
         pub entity_id: VarInt,
         pub y_head_rot: ByteAngle,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x56, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundSectionBlocksUpdate<'a> {
         pub chunk_pos: SectionPos,
         pub blocks: Cow<'a, [ChunkBlockUpdateEntry]>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x62, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetCursorItem {
         pub contents: RawStack,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x65, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetEntityData<'a> {
         pub entity_id: VarInt,
         pub metadata: Metadata<'a>,
@@ -454,8 +418,7 @@ pub mod clientbound {
 
     /// One equipped stack per slot; the wire chains the entries by a
     /// continuation bit on the slot byte, so the list must not be empty.
-    #[derive(Clone, Debug, PartialEq, Packet)]
-    #[packet(id=0x68, state=Game)]
+    #[derive(Clone, Debug, PartialEq)]
     pub struct ClientboundSetEquipment {
         pub entity_id: VarInt,
         pub slots: Vec<(EquipmentSlot, RawStack)>,
@@ -489,28 +452,24 @@ pub mod clientbound {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6B, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetHeldSlot {
         pub slot: VarInt,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6D, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetPassengers {
         pub vehicle: VarInt,
         pub passengers: Vec<VarInt>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x6E, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundSetPlayerInventory {
         pub slot: VarInt,
         pub contents: RawStack,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x7F, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundTakeItemEntity {
         pub item_id: VarInt,
         pub player_id: VarInt,
@@ -538,8 +497,7 @@ pub mod clientbound {
         pub modifiers: Vec<AttributeModifier<'a>>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x85, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateAdvancements {
         pub reset: bool,
         pub added: Vec<RawAdvancement>,
@@ -548,8 +506,7 @@ pub mod clientbound {
         pub show_advancements: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x86, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateAttributes<'a> {
         pub entity_id: VarInt,
         pub attributes: Vec<AttributeSnapshot<'a>>,
@@ -557,32 +514,27 @@ pub mod clientbound {
 
     /// `item_sets` is keyed by `recipe_property_set` id; vanilla writes it
     /// from a hash map, so the order is whatever was received.
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x88, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ClientboundUpdateRecipes {
         pub item_sets: Vec<(ResourceLocation, Raw<RecipePropertySet>)>,
         pub stonecutter_recipes: Vec<Raw<SelectableRecipe>>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x60, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundSetChunkCacheCenter {
         pub x: VarInt,
         pub z: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x61, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundChunkCacheRadius {
         pub radius: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x78, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundStartConfiguration;
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x7C, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundSystemChatPacket {
         pub content: Text,
         pub overlay: bool,
@@ -685,57 +637,49 @@ pub mod serverbound {
     use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
     use derive_more::From;
     use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use uuid::Uuid;
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x00, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundAcceptTeleportation {
         pub teleport_id: VarInt,
         pub position: Position,
         pub look: Look,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x02, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundBlockEntityTagQuery {
         pub transaction_id: VarInt,
         pub block_pos: BlockPos,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x03, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundSelectBundleItem {
         pub slot_id: VarInt,
         pub selected_item_index: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x04, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChangeDifficulty {
         pub difficulty: Difficulty,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x05, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChangeGameMode {
         pub mode: GameMode,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x06, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChatAck {
         pub offset: VarInt,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x07, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChatCommand<'a> {
         pub command: Bounded<&'a str, 32767>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x08, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChatCommandSigned<'a> {
         pub command: Bounded<&'a str, 32767>,
         pub timestamp: u64,
@@ -744,8 +688,7 @@ pub mod serverbound {
         pub last_seen_messages: MessageSignature,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x09, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChat<'a> {
         pub message: Bounded<&'a str, 256>,
         pub timestamp: u64,
@@ -754,29 +697,24 @@ pub mod serverbound {
         pub last_seen_messages: MessageSignature,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x0A, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChatSessionUpdate {
         pub session_id: Uuid,
         pub public_key: [u8; 32],
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x0B, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundChunkBatchReceived {
         pub desired_chunks_per_tick: f32,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, From, Packet)]
-    #[packet(id=0x0E, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode, From)]
     pub struct ServerboundClientInformation<'a>(pub ClientInformation<'a>);
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x10, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundConfigurationAcknowledged;
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x11, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundContainerButtonClick {
         pub container_id: VarInt,
         pub button_id: VarInt,
@@ -784,8 +722,7 @@ pub mod serverbound {
 
     pub const MAX_CHANGED_SLOTS: usize = 128;
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x12, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundContainerClick {
         pub container_id: VarInt,
         pub state_seqno: VarInt,
@@ -796,14 +733,12 @@ pub mod serverbound {
         pub carried_item: Option<HashedStack>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x13, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundContainerClose {
         pub container_id: VarInt,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x14, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundContainerSlotStateChanged {
         pub slot_id: VarInt,
         pub container_id: VarInt,
@@ -814,70 +749,60 @@ pub mod serverbound {
     pub const MAX_BOOK_PAGE_CHARS: usize = 1024;
     pub const MAX_BOOK_TITLE_CHARS: usize = 32;
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x18, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundEditBook<'a> {
         pub slot: VarInt,
         pub pages: Bounded<Vec<Bounded<&'a str, MAX_BOOK_PAGE_CHARS>>, MAX_BOOK_PAGES>,
         pub title: Option<Bounded<&'a str, MAX_BOOK_TITLE_CHARS>>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x1C, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundKeepAlive(pub KeepAlive);
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x1E, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundMovePlayerPos {
         pub position: Position,
         pub flags: MoveFlags,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x1F, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundMovePlayerPosRot {
         pub position: Position,
         pub look: Look,
         pub flags: MoveFlags,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x20, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundMovePlayerRot {
         pub look: Look,
         pub flags: MoveFlags,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x21, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundMovePlayerStatusOnly {
         pub flags: MoveFlags,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x24, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundPickItemFromBlock {
         pub pos: BlockPos,
         pub include_data: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x25, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundPickItemFromEntity {
         pub id: VarInt,
         pub include_data: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x27, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundPlaceRecipe {
         pub container_id: VarInt,
         pub recipe: VarInt,
         pub use_max_items: bool,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x29, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundPlayerAction {
         pub action: PlayerAction,
         pub pos: BlockPos,
@@ -885,28 +810,24 @@ pub mod serverbound {
         pub sequence: VarInt,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x31, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundRenameItem<'a> {
         pub name: &'a str,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x34, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundSelectTrade {
         pub item: VarInt,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x2F, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundRecipeBookChangeSettings {
         pub book_type: RecipeBookType,
         pub is_open: bool,
         pub is_filtering: bool,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x30, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundRecipeBookSeenRecipe {
         pub recipe: VarInt,
     }
@@ -917,27 +838,23 @@ pub mod serverbound {
         ClosedScreen,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x33, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundSeenAdvancements {
         pub action: SeenAdvancementsAction,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x36, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundSetCarriedItem {
         pub slot: u16,
     }
 
-    #[derive(Clone, Debug, PartialEq, Encode, Decode, Packet)]
-    #[packet(id=0x39, state=Game)]
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
     pub struct ServerboundSetCreativeModeSlot {
         pub slot: i16,
         pub item: RawDelimitedStack,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x42, state=Game)]
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundUseItemOn {
         pub hand: crate::Hand,
         pub block_pos: BlockPos,

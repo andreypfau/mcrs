@@ -11,3 +11,4 @@ pub mod intent;
 pub mod login;
 pub mod ping;
 pub mod status;
+pub mod table;

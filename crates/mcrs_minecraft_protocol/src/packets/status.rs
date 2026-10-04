@@ -1,20 +1,20 @@
 pub mod clientbound {
-    use crate::PacketSide;
     use derive_more::Into;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
-    #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into, Packet)]
-    #[packet(id = 0x00, state = Status, side = PacketSide::Clientbound)]
+    pub use crate::packets::ping::clientbound::PongResponse;
+
+    #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into)]
     pub struct StatusResponse<'a> {
         pub json: &'a str,
     }
 }
 
 pub mod serverbound {
-    use crate::PacketSide;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
-    #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Packet)]
-    #[packet(id = 0x00, state = Status, side = PacketSide::Serverbound)]
+    pub use crate::packets::ping::serverbound::PingRequest;
+
+    #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
     pub struct StatusRequest;
 }
