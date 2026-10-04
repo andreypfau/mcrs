@@ -3,9 +3,10 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registry::key::BlockEntityType;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{BlockEntityTypeReg, TypedEntityData};
+use crate::component::common::TypedEntityData;
 use crate::harness::Sample;
 
 macro_rules! typed_entity_component {
@@ -31,7 +32,7 @@ macro_rules! typed_entity_component {
 
 typed_entity_component! {
     EntityData(EntityType) ["zombie", "pig"],
-    BlockEntityData(BlockEntityTypeReg) ["chest", "sign"],
+    BlockEntityData(BlockEntityType) ["chest", "sign"],
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]

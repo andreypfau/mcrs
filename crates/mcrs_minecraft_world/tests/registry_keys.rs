@@ -350,13 +350,17 @@ fn every_tag_marker_is_a_key() {
 fn every_marker_registry_has_a_key() {
     let holder = workspace_root().join("crates/mcrs_minecraft_registry/src/holder.rs");
     let text = std::fs::read_to_string(&holder).unwrap();
-    let body = text
+    let rest = text
         .split_once("registries! {")
         .expect("holder.rs has no registries! invocation")
-        .1
-        .split_once("\n}")
-        .expect("the registries! invocation is not closed")
-        .0;
+        .1;
+    let body = if rest.starts_with('}') {
+        ""
+    } else {
+        rest.split_once("\n}")
+            .expect("the registries! invocation is not closed")
+            .0
+    };
     let paths: Vec<&str> = body
         .lines()
         .filter_map(|line| {
@@ -368,7 +372,10 @@ fn every_marker_registry_has_a_key() {
         })
         .map(|(path, _)| path)
         .collect();
-    assert!(!paths.is_empty(), "no registry path read from holder.rs");
+    assert!(
+        !paths.is_empty() || body.trim().is_empty(),
+        "no registry path read from holder.rs"
+    );
 
     let keys = key_types();
     let missing: Vec<&str> = paths

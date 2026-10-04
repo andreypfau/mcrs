@@ -30,14 +30,7 @@ macro_rules! registries {
     };
 }
 
-registries! {
-    BlockReg = "block",
-    BlockEntityTypeReg = "block_entity_type",
-    BlockTransformerReg = "block_transformer",
-    DecoratedPotPatternReg = "decorated_pot_pattern",
-    DimensionReg = "dimension",
-    DialogReg = "dialog",
-}
+registries! {}
 
 pub trait Registered: Serialize + DeserializeOwned + Clone + PartialEq + fmt::Debug {
     type Registry: RegistryKey + Clone + PartialEq + fmt::Debug;
@@ -120,7 +113,6 @@ mod tests {
 
     #[test]
     fn every_marker_key_has_its_name_as_its_path() {
-        assert!(!MARKERS.is_empty());
         for (name, key) in MARKERS {
             assert_eq!(key.namespace(), "minecraft", "{name}");
             assert_eq!(key.path(), *name);

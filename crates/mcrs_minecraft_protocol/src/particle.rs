@@ -6,11 +6,12 @@ use anyhow::Context;
 use mcrs_minecraft_core::codec::{self, PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::key::Block;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::item::Template;
-use crate::item::component::{ArgbInt, BlockReg, RgbInt};
+use crate::item::component::{ArgbInt, RgbInt};
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
 use crate::item::wire::record_ctx_wire;
 use crate::{Decode, Encode, VarInt};
@@ -295,16 +296,16 @@ impl DecodeCtx<'_> for ParticleOptions {
 /// the id is resolved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockStateValue {
-    pub block: ResourceKey<BlockReg>,
+    pub block: ResourceKey<Block>,
     pub properties: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum BlockStateRepr {
-    Id(ResourceKey<BlockReg>),
+    Id(ResourceKey<Block>),
     State {
-        id: ResourceKey<BlockReg>,
+        id: ResourceKey<Block>,
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         properties: BTreeMap<String, String>,
     },

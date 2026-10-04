@@ -1,6 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_registry::key::Block;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -8,8 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::Item;
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
-    BlockReg, CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher,
-    deserialize_unit, key, map_only, serialize_entries, serialize_unit, transparent_newtype,
+    CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
+    key, map_only, serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::instrument::JukeboxSong;
@@ -57,7 +58,7 @@ impl<'de> Deserialize<'de> for AdventureModePredicate {
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct BlockPredicate {
-    pub blocks: Option<HolderSet<ResourceKey<BlockReg>>>,
+    pub blocks: Option<HolderSet<ResourceKey<Block>>>,
     pub state: Option<StatePropertiesPredicate>,
     pub nbt: Option<NbtPredicate>,
     pub matchers: DataComponentMatchers,
@@ -86,7 +87,7 @@ impl<'de> Deserialize<'de> for BlockPredicate {
         #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
-            blocks: Option<HolderSet<ResourceKey<BlockReg>>>,
+            blocks: Option<HolderSet<ResourceKey<Block>>>,
             #[serde(default)]
             state: Option<StatePropertiesPredicate>,
             #[serde(default)]

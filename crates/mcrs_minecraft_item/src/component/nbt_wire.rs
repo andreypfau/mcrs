@@ -5,9 +5,10 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
+use mcrs_minecraft_registry::key::Block;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::{BlockReg, compound_or_snbt};
+use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
 use crate::key::{LootTable, MapDecorationType, Recipe};
 
@@ -126,7 +127,7 @@ impl Sample for MapDecorations {
 /// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct DebugStickState(pub BTreeMap<ResourceKey<BlockReg>, String>);
+pub struct DebugStickState(pub BTreeMap<ResourceKey<Block>, String>);
 
 impl Sample for DebugStickState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
