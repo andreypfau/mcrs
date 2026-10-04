@@ -21,7 +21,7 @@ use mcrs_minecraft_level::entity::physics::{Rotation, Transform, Velocity};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
-use mcrs_minecraft_world::entity::minecraft as entity_types;
+use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use rand::{Rng, RngExt, rng};
 
 pub const EYE_HEIGHT: f64 = 1.62;
@@ -60,6 +60,7 @@ pub fn place_dropped(world: &mut World, stack: Entity, dim: Entity, pos: DVec3, 
     let section = world
         .get::<SectionIndex>(dim)
         .and_then(|index| index.get(SectionPos::from(pos)));
+    let item = world.resource::<EntityIds>().item;
     let mut entity = world.entity_mut(stack);
     entity.insert((
         InDimension(dim),
@@ -69,7 +70,7 @@ pub fn place_dropped(world: &mut World, stack: Entity, dim: Entity, pos: DVec3, 
         },
         Velocity(velocity),
         EntityUuid::default(),
-        EntityKind(&entity_types::ITEM),
+        EntityKind(item),
         TrackedBy::default(),
     ));
     if let Some(section) = section {

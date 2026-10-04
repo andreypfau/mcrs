@@ -68,6 +68,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         world.run_schedule(FixedPreUpdate);
         world.run_schedule(FixedPostUpdate);
     });
+    sub_app.insert_resource(crate::support::entity_ids().clone());
     sub_app.add_plugins(PlayerTrackerPlugin);
 
     let dim = sub_app

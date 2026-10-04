@@ -37,6 +37,7 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_world::entity::minecraft::EntityIds;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
@@ -85,7 +86,9 @@ pub fn make_host_app() -> App {
 /// the way the world plugin does at startup.
 pub fn insert_registry_set(app: &mut App) {
     app.insert_resource(crate::support::registry_set().clone());
+    app.insert_resource(crate::support::entity_ids().clone());
     share::<RegistrySet>(app.world_mut());
+    share::<EntityIds>(app.world_mut());
 }
 
 /// Give the dimensions spawned from this host a lighting engine. Production

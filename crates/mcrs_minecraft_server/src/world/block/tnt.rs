@@ -14,6 +14,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::explosion::{BlockExplodedEvent, Detonator};
 use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use rand::{RngExt, rng};
 
 pub struct TntBlockPlugin;
@@ -29,6 +30,7 @@ fn player_will_destroy_tnt(
     mut messages: MessageReader<PlayerWillDestroyBlock>,
     player: Query<(Has<InstantBuild>, &InDimension), With<Player>>,
     blocks: Res<Blocks>,
+    ids: Res<EntityIds>,
     mut commands: Commands,
 ) {
     messages.read().for_each(|event| {
@@ -43,6 +45,7 @@ fn player_will_destroy_tnt(
         }
         commands.spawn((
             PrimedTntBundle::new(
+                &ids,
                 *dim,
                 Transform::from_translation(event.block_pos.as_dvec3() + DVec3::new(0.5, 0.5, 0.5)),
             ),
@@ -61,7 +64,12 @@ fn is_unstable_tnt(blocks: &Blocks, state: mcrs_minecraft_registry::BlockStateId
         && blocks.owner(state).value_of(state, "unstable") == Some(&PropertyValue::Bool(true))
 }
 
-fn tnt_block_exploded(event: On<BlockExplodedEvent>, blocks: Res<Blocks>, mut commands: Commands) {
+fn tnt_block_exploded(
+    event: On<BlockExplodedEvent>,
+    blocks: Res<Blocks>,
+    ids: Res<EntityIds>,
+    mut commands: Commands,
+) {
     if !is_tnt(&blocks, event.block_state_id) {
         return;
     }
@@ -69,6 +77,7 @@ fn tnt_block_exploded(event: On<BlockExplodedEvent>, blocks: Res<Blocks>, mut co
 
     commands.spawn(
         PrimedTntBundle::new(
+            &ids,
             InDimension(event.dimension),
             Transform::from_translation(event.block_pos.as_dvec3() + DVec3::new(0.5, 0.0, 0.5)),
         )

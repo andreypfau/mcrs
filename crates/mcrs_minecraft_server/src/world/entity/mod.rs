@@ -20,6 +20,7 @@ use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
+use mcrs_minecraft_registry::Id;
 
 pub mod explosive;
 pub mod item;
@@ -27,6 +28,24 @@ pub mod mob;
 pub mod player;
 
 pub use mcrs_minecraft_level::entity::mob::EntityUuid;
+
+#[cfg(test)]
+pub(crate) fn report_registries() -> (
+    mcrs_minecraft_registry::RegistrySet,
+    mcrs_minecraft_world::entity::minecraft::EntityIds,
+) {
+    let report = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/reports/registries.json"
+    ))
+    .expect("the registries report is readable");
+    mcrs_minecraft_world::registries::static_registries(&report)
+        .unwrap_or_else(|report| panic!("{report}"))
+}
+
+pub fn registry_varint<R>(id: Id<R>) -> VarInt {
+    VarInt(i32::try_from(id.index()).expect("a registry id fits the 32 bits of the wire"))
+}
 
 pub struct MinecraftEntityPlugin;
 

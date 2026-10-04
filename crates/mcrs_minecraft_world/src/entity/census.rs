@@ -1,9 +1,11 @@
-use super::minecraft;
+use super::minecraft::{self, EntityIds};
 use super::villager::VillagerProfession;
 use crate::data_pack::registry_files::{FILES_CAT_SOUND_VARIANT, FILES_CAT_VARIANT};
 use bytes::Buf;
 use mcrs_minecraft_entity::VillagerType;
 use mcrs_minecraft_entity::attribute;
+use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -69,49 +71,63 @@ fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
         .collect()
 }
 
-fn entity_type_registry()
--> mcrs_minecraft_registry::StaticRegistry<mcrs_minecraft_entity::EntityType> {
+fn report_set() -> RegistrySet {
     let report = std::fs::read(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
     )
     .unwrap();
-    let set = mcrs_minecraft_registry::static_report::from_report(&report).unwrap();
-    let mut registry = mcrs_minecraft_registry::StaticRegistry::new();
-    minecraft::register_all_entity_types(
-        &mut registry,
-        set.table("minecraft:entity_type").unwrap(),
-    );
-    registry
+    from_report(&report).unwrap()
 }
 
 #[test]
 fn entity_types_follow_the_registry_order() {
     let census = read_census();
-    let expected = &census.ids["minecraft:entity_type"];
-    let registry = entity_type_registry();
-    let actual: Vec<String> = registry
-        .iter()
-        .map(|(_, _, t)| t.identifier.to_string())
-        .collect();
-    assert_eq!(actual, *expected);
-    for (id, _, entity_type) in registry.iter() {
+    let set = report_set();
+    let table = set.table("minecraft:entity_type").unwrap();
+    let actual: Vec<String> = table.names().iter().map(ToString::to_string).collect();
+    assert_eq!(actual, census.ids["minecraft:entity_type"]);
+
+    let mut missing = LoadReport::new();
+    let ids = EntityIds::resolve(&set, &mut missing).unwrap_or_else(|| panic!("{missing}"));
+    for (resolved, named) in [
+        (ids.allay, &minecraft::ALLAY),
+        (ids.cat, &minecraft::CAT),
+        (ids.chest_minecart, &minecraft::CHEST_MINECART),
+        (ids.chicken, &minecraft::CHICKEN),
+        (ids.drowned, &minecraft::DROWNED),
+        (ids.elder_guardian, &minecraft::ELDER_GUARDIAN),
+        (ids.evoker, &minecraft::EVOKER),
+        (ids.item, &minecraft::ITEM),
+        (ids.item_frame, &minecraft::ITEM_FRAME),
+        (ids.shulker, &minecraft::SHULKER),
+        (ids.primed_tnt, &minecraft::PRIMED_TNT),
+        (ids.villager, &minecraft::VILLAGER),
+        (ids.vindicator, &minecraft::VINDICATOR),
+        (ids.witch, &minecraft::WITCH),
+        (ids.zombie_nautilus, &minecraft::ZOMBIE_NAUTILUS),
+        (ids.zombie_villager, &minecraft::ZOMBIE_VILLAGER),
+        (ids.player, &minecraft::PLAYER),
+    ] {
         assert_eq!(
-            entity_type.protocol_id,
-            id.raw(),
-            "{}",
-            entity_type.identifier
+            table.name(resolved.index()).map(|name| name.as_str()),
+            Some(named.identifier.as_str())
         );
     }
-    assert_eq!(minecraft::PLAYER.protocol_id, 159);
-    assert_eq!(minecraft::PRIMED_TNT.protocol_id, 136);
-    assert_eq!(minecraft::ITEM.protocol_id, 72);
+    let attributes = set.table("minecraft:attribute").unwrap();
+    assert_eq!(
+        attributes
+            .name(ids.max_health.index())
+            .map(|name| name.as_str()),
+        Some(attribute::MAX_HEALTH.identifier.as_str())
+    );
 }
 
 #[test]
 fn every_template_entity_kind_is_a_registered_entity_type() {
-    let registry = entity_type_registry();
+    let set = report_set();
+    let table = set.table("minecraft:entity_type").unwrap();
     for id in mcrs_minecraft_worldgen_feature::template::EntityKind::IDS {
-        assert!(registry.id_of(id).is_some(), "{id} is not an entity type");
+        assert!(table.number(id).is_some(), "{id} is not an entity type");
     }
 }
 
@@ -136,9 +152,16 @@ fn attributes_match_the_registry_entry_for_entry() {
     assert_eq!(attribute::ALL.len(), census.attributes.len());
     let order: Vec<String> = census.attributes.iter().map(|a| a.id.clone()).collect();
     assert_eq!(order, census.ids["minecraft:attribute"]);
+    let set = report_set();
+    let attributes = set.table("minecraft:attribute").unwrap();
     for (index, (ours, theirs)) in attribute::ALL.iter().zip(&census.attributes).enumerate() {
         assert_eq!(ours.identifier.to_string(), theirs.id);
-        assert_eq!(ours.protocol_id as usize, index, "{}", theirs.id);
+        assert_eq!(
+            attributes.number(&theirs.id),
+            Some(index as u32),
+            "{} is numbered differently in the report",
+            theirs.id
+        );
         assert_eq!(
             ours.default.to_bits(),
             theirs.default.to_bits(),

@@ -1,8 +1,9 @@
+use crate::entity::minecraft::EntityIds;
 use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 
-pub fn static_registries(report: &[u8]) -> Result<RegistrySet, LoadReport> {
+pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {
     let set = from_report(report).map_err(|error| {
         let mut report = LoadReport::new();
         report.invalid_report(error);
@@ -10,10 +11,10 @@ pub fn static_registries(report: &[u8]) -> Result<RegistrySet, LoadReport> {
     })?;
     let mut missing = LoadReport::new();
     missing.registry::<SoundEvent>(&set);
-    if missing.is_empty() {
-        Ok(set)
-    } else {
-        Err(missing)
+    let entity_ids = EntityIds::resolve(&set, &mut missing);
+    match entity_ids {
+        Some(entity_ids) if missing.is_empty() => Ok((set, entity_ids)),
+        _ => Err(missing),
     }
 }
 
