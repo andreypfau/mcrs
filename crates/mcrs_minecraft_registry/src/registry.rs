@@ -1,8 +1,8 @@
 use crate::id::{Id, id_number};
+use crate::names::NameTable;
 use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -10,24 +10,28 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryError {
     DuplicateEntry {
-        registry: ResourceLocation<&'static str>,
+        registry: ResourceLocation<Arc<str>>,
         name: ResourceLocation<Arc<str>>,
     },
     DuplicateTag {
-        registry: ResourceLocation<&'static str>,
+        registry: ResourceLocation<Arc<str>>,
         tag: ResourceLocation<Arc<str>>,
     },
     TooManyEntries {
-        registry: ResourceLocation<&'static str>,
+        registry: ResourceLocation<Arc<str>>,
         len: usize,
     },
     LengthMismatch {
-        registry: ResourceLocation<&'static str>,
+        registry: ResourceLocation<Arc<str>>,
         expected: usize,
         found: usize,
     },
     DuplicateRegistry {
-        registry: ResourceLocation<&'static str>,
+        registry: ResourceLocation<Arc<str>>,
+    },
+    WrongRegistry {
+        expected: ResourceLocation<Arc<str>>,
+        found: ResourceLocation<Arc<str>>,
     },
 }
 
@@ -59,6 +63,9 @@ impl fmt::Display for RegistryError {
             RegistryError::DuplicateRegistry { registry } => {
                 write!(f, "a registry set already holds the registry {registry}")
             }
+            RegistryError::WrongRegistry { expected, found } => {
+                write!(f, "registry {expected} cannot view the table of {found}")
+            }
         }
     }
 }
@@ -67,7 +74,7 @@ impl std::error::Error for RegistryError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownEntry {
-    pub registry: ResourceLocation<&'static str>,
+    pub registry: ResourceLocation<Arc<str>>,
     pub name: String,
 }
 
@@ -83,14 +90,8 @@ impl fmt::Display for UnknownEntry {
 
 impl std::error::Error for UnknownEntry {}
 
-struct Table {
-    names: Vec<ResourceLocation<Arc<str>>>,
-    numbers: HashMap<ResourceLocation<Arc<str>>, u32>,
-    tags: HashSet<ResourceLocation<Arc<str>>>,
-}
-
 pub struct Registry<R> {
-    table: Arc<Table>,
+    table: Arc<NameTable>,
     _marker: PhantomData<fn() -> R>,
 }
 
@@ -108,64 +109,56 @@ impl<R: RegistryKey> Registry<R> {
         names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
         tags: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
     ) -> Result<Self, RegistryError> {
-        let names: Vec<_> = names.into_iter().collect();
-        let mut numbers = HashMap::with_capacity(names.len());
-        for (position, name) in names.iter().enumerate() {
-            let number = id_number(position).ok_or(RegistryError::TooManyEntries {
-                registry: R::KEY,
-                len: names.len(),
-            })?;
-            if numbers.insert(name.clone(), number).is_some() {
-                return Err(RegistryError::DuplicateEntry {
-                    registry: R::KEY,
-                    name: name.clone(),
-                });
-            }
+        let table = NameTable::new(R::KEY.into(), names, tags)?;
+        Ok(Self::view(Arc::new(table)))
+    }
+
+    pub fn from_table(table: Arc<NameTable>) -> Result<Self, RegistryError> {
+        if table.registry() != &R::KEY {
+            return Err(RegistryError::WrongRegistry {
+                expected: R::KEY.into(),
+                found: table.registry().clone(),
+            });
         }
-        let mut tag_names = HashSet::new();
-        for tag in tags {
-            if !tag_names.insert(tag.clone()) {
-                return Err(RegistryError::DuplicateTag {
-                    registry: R::KEY,
-                    tag,
-                });
-            }
-        }
-        Ok(Registry {
-            table: Arc::new(Table {
-                names,
-                numbers,
-                tags: tag_names,
-            }),
+        Ok(Self::view(table))
+    }
+
+    pub(crate) fn view(table: Arc<NameTable>) -> Self {
+        Registry {
+            table,
             _marker: PhantomData,
-        })
+        }
+    }
+
+    pub fn table(&self) -> &Arc<NameTable> {
+        &self.table
     }
 
     pub fn len(&self) -> usize {
-        self.table.names.len()
+        self.table.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.table.names.is_empty()
+        self.table.is_empty()
     }
 
     pub fn key(&self, id: Id<R>) -> Option<&ResourceLocation<Arc<str>>> {
-        self.table.names.get(id.index())
+        self.table.name(id.index())
     }
 
     pub fn get(&self, name: &str) -> Option<Id<R>> {
-        self.table.numbers.get(name).copied().map(Id::from_number)
+        self.table.number(name).map(Id::from_number)
     }
 
     pub fn require(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
         self.get(name).ok_or_else(|| UnknownEntry {
-            registry: R::KEY,
+            registry: R::KEY.into(),
             name: name.to_owned(),
         })
     }
 
     pub fn has_tag(&self, name: &str) -> bool {
-        self.table.tags.contains(name)
+        self.table.has_tag(name)
     }
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {

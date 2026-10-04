@@ -1,13 +1,18 @@
 use crate::id::Id;
 use crate::registry::Registry;
+use crate::set::RegistrySet;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::rl;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
+
+const ROOT: ResourceLocation<&'static str> = rl!("minecraft:root");
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LoadReport {
-    misses: BTreeMap<(ResourceLocation<&'static str>, String), String>,
+    misses: BTreeMap<(ResourceLocation<Arc<str>>, String), String>,
 }
 
 impl LoadReport {
@@ -26,6 +31,17 @@ impl LoadReport {
                 None
             }
         }
+    }
+
+    pub fn registry<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Registry<R>> {
+        let registry = set.registry::<R>();
+        if registry.is_none() {
+            self.misses.insert(
+                (ROOT.into(), R::KEY.as_str().to_owned()),
+                format!("registry {} is absent from the registries report", R::KEY),
+            );
+        }
+        registry
     }
 
     pub fn is_empty(&self) -> bool {
@@ -48,8 +64,6 @@ impl fmt::Display for LoadReport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::rl;
-    use std::sync::Arc;
 
     struct Alpha;
 
@@ -115,5 +129,21 @@ mod tests {
         report.require(&alpha, "minecraft:absent");
         report.require(&alpha, "minecraft:absent");
         assert_eq!(report.to_string().lines().count(), 1);
+    }
+
+    #[test]
+    fn a_registry_the_report_lacks_is_reported() {
+        let set = RegistrySet::new()
+            .with(registry::<Alpha>(&["minecraft:one"]))
+            .unwrap();
+        let mut report = LoadReport::new();
+        assert!(report.registry::<Alpha>(&set).is_some());
+        assert!(report.is_empty());
+        assert!(report.registry::<Beta>(&set).is_none());
+        assert!(!report.is_empty());
+        let text = report.to_string();
+        assert_eq!(text.lines().count(), 1, "{text}");
+        assert!(text.contains("minecraft:beta"), "{text}");
+        assert!(text.contains("absent from the registries report"), "{text}");
     }
 }
