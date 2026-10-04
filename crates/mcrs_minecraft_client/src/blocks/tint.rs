@@ -276,6 +276,14 @@ mod tests {
     }
 
     #[test]
+    fn biome_tints_read_the_resource_pack() {
+        a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap();
+        a_biome_that_names_its_own_colour_takes_it_over_the_colormap();
+        dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green();
+        swamp_grass_is_one_of_two_colours_by_where_it_grows();
+        a_biome_the_pack_does_not_ship_is_reported_rather_than_quietly_defaulted();
+    }
+
     fn a_biome_without_a_colour_of_its_own_is_tinted_from_the_colormap() {
         let plains = tints_of("minecraft:plains");
         assert_eq!(
@@ -286,7 +294,6 @@ mod tests {
         assert_eq!(plains.foliage, 0x77ab2f);
     }
 
-    #[test]
     fn a_biome_that_names_its_own_colour_takes_it_over_the_colormap() {
         let swamp = tints_of("minecraft:swamp");
         assert_eq!(
@@ -297,7 +304,6 @@ mod tests {
         assert_eq!(swamp.dry_foliage, 0x7b5334, "and its dry foliage colour");
     }
 
-    #[test]
     fn dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green() {
         let base = sample_colormap(
             load_colormap(Pack::corpus(), "grass").ok().as_deref(),
@@ -310,7 +316,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn swamp_grass_is_one_of_two_colours_by_where_it_grows() {
         let swamp = tints_of("minecraft:swamp");
         let seen: std::collections::BTreeSet<u32> = (0..64)
@@ -352,7 +357,6 @@ mod tests {
         assert_eq!(surface_biome(&store, column, 4, 7), 2);
     }
 
-    #[test]
     fn a_biome_the_pack_does_not_ship_is_reported_rather_than_quietly_defaulted() {
         let mut catalog = crate::blocks::empty();
         extend_tints(Pack::corpus(), &mut catalog, &["mcrs:nowhere".to_string()]);

@@ -1,8 +1,4 @@
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::AssetPlugin;
-use bevy_state::app::StatesPlugin;
-use bevy_state::state::State;
-use mcrs_minecraft_assets::AppState;
+use bevy_app::App;
 use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::Blocks;
@@ -10,48 +6,10 @@ use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_world::MinecraftWorldPlugin;
 
-/// The vanilla registries read some files through paths relative to the
-/// working directory, so the whole test runs from the workspace root.
-fn workspace_root() -> std::path::PathBuf {
-    let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop();
-    path.pop();
-    path
-}
+use crate::common::workspace_root;
 
-#[test]
-fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
-    std::env::set_current_dir(workspace_root()).unwrap();
-
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin {
-        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
-    });
-    app.add_plugins(StatesPlugin);
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-    app.add_plugins(MinecraftWorldPlugin);
-    app.finish();
-    app.cleanup();
-
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-    loop {
-        app.update();
-        let state = app.world().resource::<State<AppState>>().get().clone();
-        if state == AppState::Playing {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "stuck in {state:?} before reaching Playing"
-        );
-    }
-
+pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     assert!(
         app.world()
             .get_resource::<TagLoader<Block, u32>>()

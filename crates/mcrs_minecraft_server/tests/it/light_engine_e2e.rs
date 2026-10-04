@@ -177,7 +177,6 @@ fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
     emission
 }
 
-#[test]
 fn a_placed_torch_lights_its_neighbourhood() {
     let (mut app, label) = spawn_dimension("test:overworld", true);
     light_one_column(&mut app, label, true);
@@ -193,7 +192,6 @@ fn a_placed_torch_lights_its_neighbourhood() {
     assert_eq!(block.0.get(8, 8, 10), emission - 2);
 }
 
-#[test]
 fn a_dimension_without_a_sky_publishes_none() {
     let (mut app, label) = spawn_dimension("test:nether", false);
     light_one_column(&mut app, label, false);
@@ -300,7 +298,6 @@ fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
 
 /// A player that holds the column is sent every correction to its light, standing
 /// still or not.
-#[test]
 fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     let (captured, anchor) = torch_delta(true);
 
@@ -348,7 +345,6 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     );
 }
 
-#[test]
 fn a_column_the_player_never_received_gets_no_delta() {
     let (captured, _) = torch_delta(false);
     assert!(
@@ -362,7 +358,6 @@ fn a_column_the_player_never_received_gets_no_delta() {
 /// other's halo rather than in the order the queue handed them out.
 const SPREAD: [(i32, i32); 6] = [(0, 0), (2, 0), (0, 2), (4, 0), (0, 4), (4, 4)];
 
-#[test]
 fn the_column_under_the_player_is_lit_before_the_far_ones() {
     let (mut app, label) = spawn_dimension("test:overworld", true);
     let blocks = app.world().resource::<Blocks>().clone();
@@ -497,4 +492,13 @@ fn a_column_is_not_sent_while_a_neighbour_still_has_lighting_work() {
         !world.run_system_once(settled).unwrap(),
         "the neighbour's work will repair this column's seam"
     );
+}
+
+#[test]
+fn the_dimension_lights_its_columns_and_sends_what_changed() {
+    a_placed_torch_lights_its_neighbourhood();
+    a_dimension_without_a_sky_publishes_none();
+    a_torch_sends_one_delta_carrying_only_the_rows_it_changed();
+    a_column_the_player_never_received_gets_no_delta();
+    the_column_under_the_player_is_lit_before_the_far_ones();
 }

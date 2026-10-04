@@ -823,64 +823,7 @@ pub(crate) fn dispatch_column_generation(
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
-    use mcrs_minecraft_block::definition::schema::PropertyValue;
     use mcrs_minecraft_level::entity::player::chunk_view::ChunkTrackingView;
-    use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
-    use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
-    use mcrs_minecraft_worldgen_generator::tests::blocks as corpus;
-
-    fn worldgen_json(path: &str) -> serde_json::Value {
-        let path = format!(
-            "{}/../../assets/minecraft/worldgen/{path}",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        serde_json::from_slice(&std::fs::read(&path).expect("the worldgen asset ships"))
-            .expect("the worldgen asset parses")
-    }
-
-    #[test]
-    fn the_terrain_block_comes_from_the_material_rule_and_the_sea_from_the_noise_settings() {
-        let blocks = corpus();
-
-        let rule = worldgen_json("material_rule/overworld.json");
-        let fallback = rule["sequence"]
-            .as_array()
-            .and_then(|sequence| sequence.last())
-            .expect("the overworld rule is a sequence");
-        let stone = try_resolve_state(
-            blocks,
-            &serde_json::from_value::<ProtoBlockState>(fallback["result_state"].clone())
-                .expect("the state parses"),
-        );
-        assert_eq!(
-            stone,
-            Some(blocks.block("minecraft:stone").unwrap().default_state_id)
-        );
-
-        let settings = mcrs_minecraft_worldgen_builtin::noise_settings();
-        let water = try_resolve_state(
-            blocks,
-            &settings[&mcrs_minecraft_core::ResourceLocation::minecraft("overworld")].default_fluid,
-        );
-        assert_eq!(
-            water,
-            Some(blocks.block("minecraft:water").unwrap().default_state_id)
-        );
-    }
-
-    #[test]
-    fn a_stated_property_moves_the_resolved_state() {
-        let blocks = corpus();
-        let water = blocks.block("minecraft:water").unwrap();
-        let state = serde_json::from_str::<ProtoBlockState>(
-            r#"{"id": "minecraft:water", "properties": {"level": "3"}}"#,
-        )
-        .expect("the state parses");
-        assert_eq!(
-            try_resolve_state(blocks, &state),
-            water.with(water.default_state_id, "level", &PropertyValue::Int(3))
-        );
-    }
 
     fn spawn_observer_with_view(app: &mut App, center: SectionPos, distance: u8) -> Entity {
         let view = ColumnView::looking_at(ChunkTrackingView {

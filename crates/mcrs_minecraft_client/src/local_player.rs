@@ -345,36 +345,20 @@ mod tests {
     }
 
     #[test]
-    fn the_first_forward_tick_from_rest_moves_one_acceleration() {
+    fn forward_accelerates_settles_and_glides_to_a_stop_at_the_vanilla_speeds() {
         let displacement = Local::new().step(0.0, forward());
         assert!((displacement.z - 0.049).abs() < 1e-12, "{displacement:?}");
-    }
 
-    #[test]
-    fn forward_settles_at_the_vanilla_terminal_speed() {
-        let (_, displacement) = at_terminal(forward());
-        assert!(
-            (displacement.z - 0.5444444444444444).abs() < 1e-9,
-            "{displacement:?}"
-        );
-    }
-
-    #[test]
-    fn sprinting_forward_settles_at_twice_the_terminal_speed() {
-        let input = Input {
+        let sprint = Input {
             sprint: true,
             ..forward()
         };
-        let (local, displacement) = at_terminal(input);
-        assert!(local.sprint.active);
-        assert!(
-            (displacement.z - 1.0888888888888888).abs() < 1e-9,
-            "{displacement:?}"
-        );
-    }
+        for (input, terminal) in [(forward(), 0.5444444444444444), (sprint, 1.0888888888888888)] {
+            let (local, displacement) = at_terminal(input);
+            assert_eq!(local.sprint.active, input.sprint);
+            assert!((displacement.z - terminal).abs() < 1e-9, "{displacement:?}");
+        }
 
-    #[test]
-    fn releasing_forward_at_terminal_glides_to_a_stop() {
         let (mut local, _) = at_terminal(forward());
         local.position = DVec3::ZERO;
         let (mut ticks, mut glided) = (0, 0.0);

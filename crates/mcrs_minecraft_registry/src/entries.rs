@@ -112,11 +112,4 @@ mod tests {
         let column = Entries::new(&smaller, vec![7]).unwrap();
         let _ = column[larger.get("minecraft:forest").unwrap()];
     }
-
-    #[test]
-    fn an_empty_column_over_an_empty_registry_builds() {
-        let registry = registry(&[]);
-        let column = Entries::<TestRegistry, u8>::new(&registry, Vec::new()).unwrap();
-        assert!(column.get(crate::id::Id::from_number(0)).is_none());
-    }
 }

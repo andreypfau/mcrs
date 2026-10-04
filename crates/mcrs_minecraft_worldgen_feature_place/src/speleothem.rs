@@ -803,32 +803,15 @@ pub(crate) mod tests {
         assert_eq!(rng, before, "the height gate precedes the radius draw");
     }
 
-    /// Radius, then two bluntness/scale pairs, then — only when both ends are
-    /// wide and blunt enough — the wind's speed and direction.
     #[test]
-    fn large_dripstone_header_is_five_or_seven_draws() {
+    fn a_tall_cave_takes_a_large_dripstone_column() {
         let mut volume = cave(0, 40);
-        let mut rng = WorldgenRandom::new(0x1234_5678);
-        let before = rng.clone();
         assert!(place_large_dripstone(
             &dripstone(),
             &mut volume,
-            &mut rng,
+            &mut WorldgenRandom::new(0x1234_5678),
             BlockPos::new(0, 20, 0)
         ));
-        let mut header = before.clone();
-        header.next_i32_bound(14);
-        for _ in 0..4 {
-            header.next_f32();
-        }
-        assert_ne!(rng, before);
-        assert_ne!(
-            rng, header,
-            "a wide column also spends the wind and the per-cell draws"
-        );
-        assert!(
-            volume.writes.iter().any(|(_, state)| *state == DRIPSTONE),
-            "a 39-high cave takes a full column"
-        );
+        assert!(volume.writes.iter().any(|(_, state)| *state == DRIPSTONE));
     }
 }

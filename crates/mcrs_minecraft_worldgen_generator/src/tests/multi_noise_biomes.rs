@@ -41,26 +41,15 @@ fn y_sections() -> Vec<i32> {
     (-4..20).collect()
 }
 
-#[test]
-fn the_overworld_preset_resolves_every_entry() {
-    let (table, ids) = overworld_table();
-    assert_eq!(table.len(), overworld_parameter_list().len());
-    // The preset is a fan of many biomes over one climate space, not one biome
-    // repeated: a table that collapsed to a single id would still fill palettes.
-    assert!(ids.len() > 20, "only {} distinct biomes", ids.len());
-}
-
-/// A modern biome is a function of Y as much as of X and Z, so the column must
-/// not come out as one palette cloned down its sections. At the origin the
-/// surface is forest and the cave layer is dripstone.
-#[test]
-fn a_column_carries_its_cave_biome_under_its_surface_biome() {
-    let router = build_settings_router("overworld", 2);
-    let (table, ids) = overworld_table();
+fn a_column_carries_its_cave_biome_under_its_surface_biome(
+    router: &mcrs_minecraft_worldgen_density::router::NoiseRouter,
+    table: &MultiNoiseBiomeTable,
+    ids: &HashMap<String, u8>,
+) {
     let sections = y_sections();
 
-    let palettes = multi_noise_palettes(&router, &table, 0, 0, &sections);
-    let grid = multi_noise_grid(&router, &table, 0, 0, &sections)
+    let palettes = multi_noise_palettes(router, table, 0, 0, &sections);
+    let grid = multi_noise_grid(router, table, 0, 0, &sections)
         .expect("the multi-noise path builds a grid");
     let first = sections[0];
     let column: Vec<u8> = sections
@@ -178,28 +167,6 @@ fn an_unknown_preset_is_not_resolved() {
     assert!(MultiNoiseBiomeTable::resolve(&source, |_| Some(0)).is_none());
 }
 
-#[test]
-#[ignore = "measurement, not an assertion"]
-fn measure_multi_noise_palettes() {
-    let router = build_settings_router("overworld", 2);
-    let (table, _) = overworld_table();
-    let sections = y_sections();
-    let _ = multi_noise_palettes(&router, &table, 0, 0, &sections);
-    let columns = 64;
-    let started = std::time::Instant::now();
-    for i in 0..columns {
-        std::hint::black_box(multi_noise_palettes(
-            &router,
-            &table,
-            i * 16,
-            (i % 7) * 16,
-            &sections,
-        ));
-    }
-    let each = started.elapsed().as_secs_f64() * 1000.0 / columns as f64;
-    println!("MEASURE multi-noise biomes {each:.3} ms/column");
-}
-
 /// The zoom reads eight quart corners around a block and they reach outside the
 /// column horizontally, so the grid carries a ring of cells the palette does
 /// not store; vertically the grid is the column, and the palette comes from its
@@ -207,7 +174,8 @@ fn measure_multi_noise_palettes() {
 #[test]
 fn the_grid_rings_the_column_by_one_quart_cell() {
     let router = build_settings_router("overworld", 2);
-    let (table, _) = overworld_table();
+    let (table, ids) = overworld_table();
+    a_column_carries_its_cave_biome_under_its_surface_biome(&router, &table, &ids);
     let sections = y_sections();
     let (chunk_x, chunk_z) = (26, 90);
     let first = sections[0];

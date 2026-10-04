@@ -270,8 +270,9 @@ mod tests {
     use tokio::time::timeout;
 
     const LIVENESS: Duration = Duration::from_secs(10);
-    const SILENCE: Duration = Duration::from_millis(300);
     const FAST: Duration = Duration::from_millis(50);
+    const SILENCE: Duration = Duration::from_millis(100);
+    const PERIOD: Duration = Duration::from_millis(500);
     const PORT: u16 = 25565;
 
     async fn loopback() -> UdpSocket {
@@ -290,7 +291,7 @@ mod tests {
     async fn drain(receiver: &UdpSocket) -> usize {
         let mut buffer = [0u8; 2048];
         let mut drained = 0;
-        while timeout(Duration::from_millis(100), receiver.recv_from(&mut buffer))
+        while timeout(SILENCE, receiver.recv_from(&mut buffer))
             .await
             .is_ok()
         {
@@ -324,7 +325,7 @@ mod tests {
             let task = tokio::spawn(announce(
                 sender,
                 receiver.local_addr().unwrap(),
-                INTERVAL,
+                PERIOD,
                 crate::intent::MOTD,
                 PORT,
                 std::future::pending(),
@@ -337,14 +338,14 @@ mod tests {
             assert_eq!(first, expected());
             assert_eq!(second, expected());
             let first_after = first_at - started;
-            assert!(first_after < Duration::from_millis(1000), "{first_after:?}");
+            assert!(first_after < PERIOD / 2, "{first_after:?}");
             let since_start = second_at - started;
-            assert!(since_start >= INTERVAL, "{since_start:?}");
+            assert!(since_start >= PERIOD, "{since_start:?}");
             // A receiver that wakes late for the first datagram shortens the gap, so its lower bound
             // only tells an interval from none.
             let gap = second_at - first_at;
-            assert!(gap >= Duration::from_millis(1000), "{gap:?}");
-            assert!(gap < Duration::from_millis(2500), "{gap:?}");
+            assert!(gap >= PERIOD / 2, "{gap:?}");
+            assert!(gap < PERIOD * 2, "{gap:?}");
         });
     }
 

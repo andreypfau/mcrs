@@ -55,7 +55,7 @@ mod tests {
     use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 
     #[test]
-    fn a_stream_is_named_after_the_layer_and_shape_it_stands_for() {
+    fn every_stream_is_named_after_its_layer_and_shape_and_sits_in_one_group() {
         for stream in 0..STREAMS as u32 {
             let name = format!(
                 "{} {}",
@@ -63,12 +63,6 @@ mod tests {
                 Shape::of_stream(stream).label()
             );
             assert_eq!(name, STREAM_NAMES[stream as usize]);
-        }
-    }
-
-    #[test]
-    fn the_two_groups_between_them_hold_every_stream_exactly_once() {
-        for stream in 0..STREAMS as u32 {
             let held = LayerGroup::ALL
                 .into_iter()
                 .filter(|group| group.holds(stream))

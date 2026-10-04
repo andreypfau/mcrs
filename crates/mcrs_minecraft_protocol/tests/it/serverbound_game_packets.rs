@@ -88,17 +88,13 @@ fn flags(spec: &[bool; 7]) -> PlayerInputFlags {
 }
 
 #[test]
-fn attack_decodes_the_games_bytes() {
+fn every_packet_decodes_the_games_bytes() {
     check(
         "attack",
         ServerboundAttack {
             entity_id: VarInt(300),
         },
     );
-}
-
-#[test]
-fn client_command_decodes_the_games_bytes() {
     check(
         "client_command",
         ServerboundClientCommand {
@@ -111,15 +107,7 @@ fn client_command_decodes_the_games_bytes() {
             action: ClientCommandAction::RequestGameRuleValues,
         },
     );
-}
-
-#[test]
-fn client_tick_end_decodes_the_games_bytes() {
     check("client_tick_end", ServerboundClientTickEnd);
-}
-
-#[test]
-fn interact_decodes_the_games_bytes() {
     check(
         "interact",
         ServerboundInteract {
@@ -129,10 +117,6 @@ fn interact_decodes_the_games_bytes() {
             using_secondary_action: true,
         },
     );
-}
-
-#[test]
-fn move_vehicle_decodes_the_games_bytes() {
     check(
         "move_vehicle",
         ServerboundMoveVehicle {
@@ -144,10 +128,6 @@ fn move_vehicle_decodes_the_games_bytes() {
             on_ground: true,
         },
     );
-}
-
-#[test]
-fn player_abilities_decodes_the_games_bytes() {
     check(
         "player_abilities",
         ServerboundPlayerAbilities { flying: true },
@@ -156,10 +136,6 @@ fn player_abilities_decodes_the_games_bytes() {
         "player_abilities_grounded",
         ServerboundPlayerAbilities { flying: false },
     );
-}
-
-#[test]
-fn player_command_decodes_the_games_bytes() {
     check(
         "player_command",
         ServerboundPlayerCommand {
@@ -176,10 +152,6 @@ fn player_command_decodes_the_games_bytes() {
             data: VarInt(1000),
         },
     );
-}
-
-#[test]
-fn player_input_decodes_the_games_bytes() {
     check(
         "player_input",
         ServerboundPlayerInput {
@@ -198,20 +170,8 @@ fn player_input_decodes_the_games_bytes() {
             input: flags(&[true; 7]),
         },
     );
-}
-
-#[test]
-fn player_loaded_decodes_the_games_bytes() {
     check("player_loaded", ServerboundPlayerLoaded);
-}
-
-#[test]
-fn punch_decodes_the_games_bytes() {
     check("punch", ServerboundPunch);
-}
-
-#[test]
-fn use_item_decodes_the_games_bytes() {
     check(
         "use_item",
         ServerboundUseItem {
@@ -223,39 +183,25 @@ fn use_item_decodes_the_games_bytes() {
             },
         },
     );
-}
-
-#[test]
-fn cookie_response_decodes_the_games_bytes() {
-    let key = ResourceLocation::from(rl!("minecraft:session"));
-    check(
-        "cookie_response",
-        ServerboundCookieResponse(CookieResponse {
-            key: key.clone(),
-            payload: Some(Bounded(&[1, 2, 3][..])),
-        }),
-    );
-    check(
-        "cookie_response_absent",
-        ServerboundCookieResponse(CookieResponse { key, payload: None }),
-    );
-}
-
-#[test]
-fn custom_payload_decodes_the_games_bytes() {
+    {
+        let key = ResourceLocation::from(rl!("minecraft:session"));
+        check(
+            "cookie_response",
+            ServerboundCookieResponse(CookieResponse {
+                key: key.clone(),
+                payload: Some(Bounded(&[1, 2, 3][..])),
+            }),
+        );
+        check(
+            "cookie_response_absent",
+            ServerboundCookieResponse(CookieResponse { key, payload: None }),
+        );
+    }
     check(
         "custom_payload",
         ServerboundCustomPayload(Payload::Brand(Brand { brand: "vanilla" })),
     );
-}
-
-#[test]
-fn pong_decodes_the_games_bytes() {
     check("pong", ServerboundPong(Pong { payload: -1234 }));
-}
-
-#[test]
-fn resource_pack_decodes_the_games_bytes() {
     check(
         "resource_pack",
         ServerboundResourcePack(ResourcePack {
@@ -263,25 +209,23 @@ fn resource_pack_decodes_the_games_bytes() {
             status: Status::Discarded,
         }),
     );
-}
-
-#[test]
-fn custom_click_action_decodes_the_games_bytes() {
-    let id = ResourceLocation::from(rl!("example:action"));
-    let mut payload = NbtCompound::new();
-    payload.put_string("name", "ok".into());
-    payload.put_int("count", 3);
-    check(
-        "custom_click_action",
-        ServerboundCustomClickAction(CustomClickAction {
-            id: id.clone(),
-            payload: Some(NbtTag::Compound(payload)),
-        }),
-    );
-    check(
-        "custom_click_action_absent",
-        ServerboundCustomClickAction(CustomClickAction { id, payload: None }),
-    );
+    {
+        let id = ResourceLocation::from(rl!("example:action"));
+        let mut payload = NbtCompound::new();
+        payload.put_string("name", "ok".into());
+        payload.put_int("count", 3);
+        check(
+            "custom_click_action",
+            ServerboundCustomClickAction(CustomClickAction {
+                id: id.clone(),
+                payload: Some(NbtTag::Compound(payload)),
+            }),
+        );
+        check(
+            "custom_click_action_absent",
+            ServerboundCustomClickAction(CustomClickAction { id, payload: None }),
+        );
+    }
 }
 
 #[test]

@@ -71,11 +71,14 @@ fn break_coal_ore(app: &mut App, tool: Option<Entity>, breaks: usize) -> Vec<i32
     app.world().resource::<Awarded>().0.clone()
 }
 
-/// `minecraft:coal_ore` carries `UniformInt(0, 2)`, so a break pays 0, 1 or 2 —
-/// and only the non-zero ones reach `AwardExperience`.
+/// `minecraft:coal_ore` carries `UniformInt(0, 2)`, so a break pays 0, 1 or 2,
+/// and only the non-zero ones reach `AwardExperience`. Silk touch states
+/// `block_experience: set 0` and an unrelated enchantment states nothing, so
+/// nothing here knows an enchantment by name.
 #[test]
-fn coal_ore_experience_stays_within_its_declared_range() {
+fn block_experience_is_the_block_sample_after_the_tool_effects() {
     let mut app = harness();
+
     let awarded = break_coal_ore(&mut app, None, 200);
     assert!(!awarded.is_empty(), "some break must pay out");
     for amount in &awarded {
@@ -88,44 +91,27 @@ fn coal_ore_experience_stays_within_its_declared_range() {
         awarded.contains(&2),
         "the upper end of the range must be reachable: {awarded:?}"
     );
-}
 
-/// Silk touch states `block_experience: set 0`. Nothing here knows the
-/// enchantment by name: the amount is zero because the effect says so.
-#[test]
-fn silk_touch_suppresses_block_experience() {
-    let mut app = harness();
-    let tool = enchanted_pickaxe(&mut app, "minecraft:silk_touch", 1);
-
-    let awarded = break_coal_ore(&mut app, Some(tool), 200);
+    let silk_touch = enchanted_pickaxe(&mut app, "minecraft:silk_touch", 1);
+    let awarded = break_coal_ore(&mut app, Some(silk_touch), 200);
     assert!(
         awarded.is_empty(),
         "silk touch must suppress every payout, got {awarded:?}"
     );
-}
 
-/// An unrelated enchantment states no `block_experience`, so the amount is the
-/// block's own sample.
-#[test]
-fn an_unrelated_enchantment_leaves_block_experience_alone() {
-    let mut app = harness();
-    let tool = enchanted_pickaxe(&mut app, "minecraft:efficiency", 3);
-
-    let awarded = break_coal_ore(&mut app, Some(tool), 200);
+    let efficiency = enchanted_pickaxe(&mut app, "minecraft:efficiency", 3);
+    let awarded = break_coal_ore(&mut app, Some(efficiency), 200);
     assert!(!awarded.is_empty(), "efficiency must not suppress payouts");
-}
 
-/// A block with no `mcrs:experience_drop` pays nothing at all.
-#[test]
-fn a_block_without_an_experience_drop_pays_nothing() {
-    let mut app = harness();
-    let state = app
+    let stone = app
         .world()
         .resource::<Blocks>()
         .default_state("minecraft:stone");
+    app.update();
+    app.world_mut().resource_mut::<Awarded>().0.clear();
     for _ in 0..50 {
         app.world_mut().write_message(BlockDestroyed {
-            state,
+            state: stone,
             pos: BlockPos::new(0, 64, 0),
             dim: Entity::PLACEHOLDER,
             tool: None,
@@ -133,15 +119,17 @@ fn a_block_without_an_experience_drop_pays_nothing() {
         });
         app.update();
     }
-    assert!(app.world().resource::<Awarded>().0.is_empty());
-}
+    assert!(
+        app.world().resource::<Awarded>().0.is_empty(),
+        "a block with no experience drop paid out"
+    );
 
-/// The dimension owns the stream: the same seed replays the same samples.
-#[test]
-fn the_sample_comes_from_the_dimension_random() {
-    let mut app = harness();
+    *app.world_mut().resource_mut::<DimensionRandom>() = DimensionRandom::default();
     let first = break_coal_ore(&mut app, None, 50);
     *app.world_mut().resource_mut::<DimensionRandom>() = DimensionRandom::default();
     let second = break_coal_ore(&mut app, None, 50);
-    assert_eq!(first, second);
+    assert_eq!(
+        first, second,
+        "the same dimension seed replays the same samples"
+    );
 }

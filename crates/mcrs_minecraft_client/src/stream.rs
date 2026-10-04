@@ -1821,6 +1821,12 @@ mod tests {
     }
 
     #[test]
+    fn columns_the_server_takes_back_or_completes_reach_the_loader() {
+        a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does();
+        a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away();
+        a_column_taken_back_before_it_is_adopted_leaves_the_section_count_where_it_was();
+    }
+
     fn a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does() {
         use crate::columns::{Column, Extent, Section};
 
@@ -1877,7 +1883,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_mesh_read_out_of_a_column_the_server_took_back_is_thrown_away() {
         use crate::columns::{Column, Extent, Section};
 
@@ -1941,7 +1946,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_column_taken_back_before_it_is_adopted_leaves_the_section_count_where_it_was() {
         use crate::columns::{Column, Extent, Section};
 

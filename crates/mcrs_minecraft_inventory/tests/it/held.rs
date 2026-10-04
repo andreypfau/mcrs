@@ -10,6 +10,14 @@ fn slots_of(world: &World, holder: Entity) -> Vec<(u16, Entity)> {
 }
 
 #[test]
+fn slot_tables_follow_what_is_held() {
+    place_move_and_swap_keep_the_table_exact();
+    despawning_a_stack_clears_its_slot();
+    despawning_a_holder_cascades_through_nested_stacks();
+    a_list_grows_on_append_and_keeps_a_hole();
+    a_replaced_table_is_rebuilt_from_held();
+}
+
 fn place_move_and_swap_keep_the_table_exact() {
     let mut world = world();
     let chest = holder(&mut world, 4);
@@ -49,7 +57,6 @@ fn place_move_and_swap_keep_the_table_exact() {
     );
 }
 
-#[test]
 fn despawning_a_stack_clears_its_slot() {
     let mut world = world();
     let chest = holder(&mut world, 2);
@@ -63,7 +70,6 @@ fn despawning_a_stack_clears_its_slot() {
     );
 }
 
-#[test]
 fn despawning_a_holder_cascades_through_nested_stacks() {
     let mut world = world();
     let chest = holder(&mut world, 27);
@@ -88,7 +94,6 @@ fn despawning_a_holder_cascades_through_nested_stacks() {
     );
 }
 
-#[test]
 fn a_list_grows_on_append_and_keeps_a_hole() {
     let mut world = world();
     let bundle = world.spawn(SlotTable::list()).id();
@@ -113,7 +118,6 @@ fn a_list_grows_on_append_and_keeps_a_hole() {
     assert_eq!(world.get::<SlotTable>(bundle).unwrap().len(), 4);
 }
 
-#[test]
 fn a_replaced_table_is_rebuilt_from_held() {
     let mut world = world();
     let chest = holder(&mut world, 2);

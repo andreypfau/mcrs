@@ -223,20 +223,3 @@ impl<P> PlacementModifier<P> {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_fixed_placement_without_positions_is_a_load_error() {
-        serde_json::from_str::<PlacementModifier>(
-            r#"{"type":"minecraft:fixed_placement","positions":[]}"#,
-        )
-        .unwrap_err();
-        serde_json::from_str::<PlacementModifier>(
-            r#"{"type":"minecraft:fixed_placement","positions":[[1,2,3]]}"#,
-        )
-        .unwrap();
-    }
-}

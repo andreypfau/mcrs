@@ -239,157 +239,12 @@ const RING_DIVERGENCE_BUDGET: usize = if mcrs_minecraft_worldgen_density::FAST_P
 };
 const RING_WINDOW_CHUNKS: i32 = 15;
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn stronghold_rings_match_the_oracle() {
-    let dump = read_dump();
-    let frozen = frozen_shared();
-    let mut diverged = Vec::new();
-    for entry in &dump {
-        let index = build_index(&dimension("minecraft:overworld"), entry.seed);
-        assert_eq!(entry.rings.len(), 1);
-        for (set_id, positions) in &entry.rings {
-            let set = frozen.set_ids[&ResourceLocation::parse(set_id).unwrap()];
-            let ours = index.rings(set).unwrap();
-            assert_eq!(ours.len(), positions.len(), "seed {}: {set_id}", entry.seed);
-            for (i, (&ColumnPos { x, z }, &(ox, oz))) in ours.iter().zip(positions).enumerate() {
-                if (x, z) == (ox, oz) {
-                    continue;
-                }
-                assert!(
-                    (x - ox).abs() <= RING_WINDOW_CHUNKS && (z - oz).abs() <= RING_WINDOW_CHUNKS,
-                    "seed {}: {set_id} #{i} ours ({x}, {z}) oracle ({ox}, {oz}) is outside the biome window",
-                    entry.seed
-                );
-                diverged.push((entry.seed, i, (x, z), (ox, oz)));
-            }
-        }
-    }
-    assert!(
-        diverged.len() <= RING_DIVERGENCE_BUDGET,
-        "{} ring positions diverged, budget {RING_DIVERGENCE_BUDGET}: {diverged:?}",
-        diverged.len()
-    );
-}
-
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn structure_sites_match_the_oracle() {
-    let dump = read_dump();
-    assert_eq!(dump.len(), 5, "the dump lost seeds");
-    let frozen = frozen_shared();
-    let mut cases = 0;
-    let mut present = 0;
-    let mut biome_ok = 0;
-    for entry in &dump {
-        let seed = entry.seed;
-        assert_eq!(entry.sites.len(), 2);
-        for (dimension_id, structures) in &entry.sites {
-            let index = build_index(&dimension(dimension_id), seed);
-            for structure in structures {
-                let set = frozen.set_ids[&ResourceLocation::parse(&structure.set).unwrap()];
-                let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
-                assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
-                for case in &structure.cases {
-                    let ColumnPos { x, z } = case.chunk;
-                    let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
-                    assert!(index.gate(set, case.chunk), "{label}: gate");
-                    let site = index.site(case.chunk, id);
-                    assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
-                    cases += 1;
-                    if let (Some(site), Some((position, ok))) = (site, case.site) {
-                        assert_eq!(site.position, position, "{label}: position");
-                        assert_eq!(site.biome_ok, ok, "{label}: biome");
-                        present += 1;
-                        biome_ok += ok as u32;
-                    }
-                }
-            }
-        }
-    }
-    assert_eq!((cases, present, biome_ok), (5 * 28 * 16, 295, 206));
-}
-
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn hardcoded_sites_match_the_oracle() {
-    let dump = read_dump();
-    let frozen = frozen_shared();
-    let mut cases = 0;
-    let mut present = 0;
-    let mut biome_ok = 0;
-    for entry in &dump {
-        let seed = entry.seed;
-        assert_eq!(entry.hardcoded.len(), 2);
-        for (dimension_id, structures) in &entry.hardcoded {
-            let index = build_index(&dimension(dimension_id), seed);
-            for structure in structures {
-                let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
-                assert!(!matches!(
-                    frozen.structures[id.0 as usize].kind,
-                    StructureKind::Jigsaw { .. } | StructureKind::Mineshaft { .. }
-                ));
-                assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
-                for case in &structure.cases {
-                    let ColumnPos { x, z } = case.chunk;
-                    let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
-                    let site = index.site(case.chunk, id);
-                    assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
-                    cases += 1;
-                    if let (Some(site), Some((position, ok))) = (site, case.site) {
-                        assert_eq!(site.position, position, "{label}: position");
-                        assert_eq!(site.biome_ok, ok, "{label}: biome");
-                        present += 1;
-                        biome_ok += ok as u32;
-                    }
-                }
-            }
-        }
-    }
-    assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
-}
-
-/// Every set whose entries all have a site, which since the mineshaft's port
-/// is every set the dump holds.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn set_selection_matches_the_oracle() {
-    let dump = read_dump();
-    let frozen = frozen_shared();
-    let mut cases = 0;
-    let mut selected = 0;
-    for entry in &dump {
-        let seed = entry.seed;
-        assert_eq!(entry.selection.len(), 2);
-        for (dimension_id, sets) in &entry.selection {
-            let index = build_index(&dimension(dimension_id), seed);
-            for dumped in sets {
-                let set = frozen.set_ids[&ResourceLocation::parse(&dumped.set).unwrap()];
-                assert_eq!(dumped.cases.len(), 16, "{}: cases", dumped.set);
-                for (chunk, expected) in &dumped.cases {
-                    let ColumnPos { x, z } = *chunk;
-                    let label = format!("seed {seed} {} at chunk ({x}, {z})", dumped.set);
-                    let ours = index
-                        .selected(set, *chunk)
-                        .map(|id| frozen.structures[id.0 as usize].id.to_string());
-                    assert_eq!(ours, *expected, "{label}");
-                    cases += 1;
-                    selected += ours.is_some() as u32;
-                }
-            }
-        }
-    }
-    assert_eq!((cases, selected), (5 * 21 * 16, 660));
-}
-
-#[test]
-fn base_heights_match_the_oracle() {
-    let dump = read_dump();
+fn assert_base_heights_match_the_oracle(dump: &[DumpSeed], dimensions: usize) {
     let predicates = heightmap_predicates(blocks(), block_tags());
     let mut ws = Workspace::new();
-    for entry in &dump {
+    for entry in dump {
         assert_eq!(entry.heights.len(), 2);
-        for (dimension_id, probes) in &entry.heights {
+        for (dimension_id, probes) in entry.heights.iter().take(dimensions) {
             let dimension = dimension(dimension_id);
             let router = build_settings_router(dimension.settings, entry.seed as u64);
             assert_eq!(probes.len(), 64);
@@ -426,47 +281,202 @@ fn base_heights_match_the_oracle() {
 }
 
 #[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn site_positions_ignore_the_top_sixteen_seed_bits() {
-    let dump = read_dump();
-    let frozen = frozen_shared();
-    for entry in &dump {
-        for (dimension_id, structures) in &entry.sites {
-            let dimension = dimension(dimension_id);
-            let index = build_index(&dimension, entry.seed);
-            let flipped = build_index(&dimension, entry.seed ^ (0xFFFF << 48));
-            let mut checked = 0;
-            let hardcoded = entry
-                .hardcoded
-                .iter()
-                .find(|(id, _)| id == dimension_id)
-                .map(|(_, structures)| structures.as_slice())
-                .unwrap_or_default();
-            for structure in structures.iter().chain(hardcoded) {
-                let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
-                let reads_a_height = match &frozen.structures[id.0 as usize].kind {
-                    StructureKind::Jigsaw { config, .. } => {
-                        config.project_start_to_heightmap.is_some()
+fn base_heights_match_the_oracle() {
+    assert_base_heights_match_the_oracle(&read_dump()[..1], 1);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn base_heights_match_the_oracle_at_every_seed_and_dimension() {
+        assert_base_heights_match_the_oracle(&read_dump(), 2);
+    }
+
+    #[test]
+    fn stronghold_rings_match_the_oracle() {
+        let dump = read_dump();
+        let frozen = frozen_shared();
+        let mut diverged = Vec::new();
+        for entry in &dump {
+            let index = build_index(&dimension("minecraft:overworld"), entry.seed);
+            assert_eq!(entry.rings.len(), 1);
+            for (set_id, positions) in &entry.rings {
+                let set = frozen.set_ids[&ResourceLocation::parse(set_id).unwrap()];
+                let ours = index.rings(set).unwrap();
+                assert_eq!(ours.len(), positions.len(), "seed {}: {set_id}", entry.seed);
+                for (i, (&ColumnPos { x, z }, &(ox, oz))) in ours.iter().zip(positions).enumerate()
+                {
+                    if (x, z) == (ox, oz) {
+                        continue;
                     }
-                    StructureKind::Fortress | StructureKind::Stronghold => false,
-                    _ => true,
-                };
-                if reads_a_height {
-                    continue;
-                }
-                for case in structure.cases.iter().take(3) {
-                    let label = format!("seed {} {} at {:?}", entry.seed, structure.id, case.chunk);
-                    let expected = index.site(case.chunk, id).expect(&label).position;
-                    let actual = flipped.site(case.chunk, id).expect(&label).position;
-                    assert_eq!(actual, expected, "{label}");
-                    checked += 1;
+                    assert!(
+                        (x - ox).abs() <= RING_WINDOW_CHUNKS
+                            && (z - oz).abs() <= RING_WINDOW_CHUNKS,
+                        "seed {}: {set_id} #{i} ours ({x}, {z}) oracle ({ox}, {oz}) is outside the biome window",
+                        entry.seed
+                    );
+                    diverged.push((entry.seed, i, (x, z), (ox, oz)));
                 }
             }
-            assert!(
-                checked > 0,
-                "seed {} {dimension_id}: nothing checked",
-                entry.seed
-            );
+        }
+        assert!(
+            diverged.len() <= RING_DIVERGENCE_BUDGET,
+            "{} ring positions diverged, budget {RING_DIVERGENCE_BUDGET}: {diverged:?}",
+            diverged.len()
+        );
+    }
+
+    #[test]
+    fn structure_sites_match_the_oracle() {
+        let dump = read_dump();
+        assert_eq!(dump.len(), 5, "the dump lost seeds");
+        let frozen = frozen_shared();
+        let mut cases = 0;
+        let mut present = 0;
+        let mut biome_ok = 0;
+        for entry in &dump {
+            let seed = entry.seed;
+            assert_eq!(entry.sites.len(), 2);
+            for (dimension_id, structures) in &entry.sites {
+                let index = build_index(&dimension(dimension_id), seed);
+                for structure in structures {
+                    let set = frozen.set_ids[&ResourceLocation::parse(&structure.set).unwrap()];
+                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
+                    for case in &structure.cases {
+                        let ColumnPos { x, z } = case.chunk;
+                        let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
+                        assert!(index.gate(set, case.chunk), "{label}: gate");
+                        let site = index.site(case.chunk, id);
+                        assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
+                        cases += 1;
+                        if let (Some(site), Some((position, ok))) = (site, case.site) {
+                            assert_eq!(site.position, position, "{label}: position");
+                            assert_eq!(site.biome_ok, ok, "{label}: biome");
+                            present += 1;
+                            biome_ok += ok as u32;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!((cases, present, biome_ok), (5 * 28 * 16, 295, 206));
+    }
+
+    #[test]
+    fn hardcoded_sites_match_the_oracle() {
+        let dump = read_dump();
+        let frozen = frozen_shared();
+        let mut cases = 0;
+        let mut present = 0;
+        let mut biome_ok = 0;
+        for entry in &dump {
+            let seed = entry.seed;
+            assert_eq!(entry.hardcoded.len(), 2);
+            for (dimension_id, structures) in &entry.hardcoded {
+                let index = build_index(&dimension(dimension_id), seed);
+                for structure in structures {
+                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    assert!(!matches!(
+                        frozen.structures[id.0 as usize].kind,
+                        StructureKind::Jigsaw { .. } | StructureKind::Mineshaft { .. }
+                    ));
+                    assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
+                    for case in &structure.cases {
+                        let ColumnPos { x, z } = case.chunk;
+                        let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
+                        let site = index.site(case.chunk, id);
+                        assert_eq!(site.is_some(), case.site.is_some(), "{label}: present");
+                        cases += 1;
+                        if let (Some(site), Some((position, ok))) = (site, case.site) {
+                            assert_eq!(site.position, position, "{label}: position");
+                            assert_eq!(site.biome_ok, ok, "{label}: biome");
+                            present += 1;
+                            biome_ok += ok as u32;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
+    }
+
+    /// Every set whose entries all have a site, which since the mineshaft's port
+    /// is every set the dump holds.
+    #[test]
+    fn set_selection_matches_the_oracle() {
+        let dump = read_dump();
+        let frozen = frozen_shared();
+        let mut cases = 0;
+        let mut selected = 0;
+        for entry in &dump {
+            let seed = entry.seed;
+            assert_eq!(entry.selection.len(), 2);
+            for (dimension_id, sets) in &entry.selection {
+                let index = build_index(&dimension(dimension_id), seed);
+                for dumped in sets {
+                    let set = frozen.set_ids[&ResourceLocation::parse(&dumped.set).unwrap()];
+                    assert_eq!(dumped.cases.len(), 16, "{}: cases", dumped.set);
+                    for (chunk, expected) in &dumped.cases {
+                        let ColumnPos { x, z } = *chunk;
+                        let label = format!("seed {seed} {} at chunk ({x}, {z})", dumped.set);
+                        let ours = index
+                            .selected(set, *chunk)
+                            .map(|id| frozen.structures[id.0 as usize].id.to_string());
+                        assert_eq!(ours, *expected, "{label}");
+                        cases += 1;
+                        selected += ours.is_some() as u32;
+                    }
+                }
+            }
+        }
+        assert_eq!((cases, selected), (5 * 21 * 16, 660));
+    }
+
+    #[test]
+    fn site_positions_ignore_the_top_sixteen_seed_bits() {
+        let dump = read_dump();
+        let frozen = frozen_shared();
+        for entry in &dump {
+            for (dimension_id, structures) in &entry.sites {
+                let dimension = dimension(dimension_id);
+                let index = build_index(&dimension, entry.seed);
+                let flipped = build_index(&dimension, entry.seed ^ (0xFFFF << 48));
+                let mut checked = 0;
+                let hardcoded = entry
+                    .hardcoded
+                    .iter()
+                    .find(|(id, _)| id == dimension_id)
+                    .map(|(_, structures)| structures.as_slice())
+                    .unwrap_or_default();
+                for structure in structures.iter().chain(hardcoded) {
+                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    let reads_a_height = match &frozen.structures[id.0 as usize].kind {
+                        StructureKind::Jigsaw { config, .. } => {
+                            config.project_start_to_heightmap.is_some()
+                        }
+                        StructureKind::Fortress | StructureKind::Stronghold => false,
+                        _ => true,
+                    };
+                    if reads_a_height {
+                        continue;
+                    }
+                    for case in structure.cases.iter().take(3) {
+                        let label =
+                            format!("seed {} {} at {:?}", entry.seed, structure.id, case.chunk);
+                        let expected = index.site(case.chunk, id).expect(&label).position;
+                        let actual = flipped.site(case.chunk, id).expect(&label).position;
+                        assert_eq!(actual, expected, "{label}");
+                        checked += 1;
+                    }
+                }
+                assert!(
+                    checked > 0,
+                    "seed {} {dimension_id}: nothing checked",
+                    entry.seed
+                );
+            }
         }
     }
 }

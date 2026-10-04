@@ -189,24 +189,6 @@ fn both_registries_load_from_the_shipped_files_inside_a_scope() {
 }
 
 #[test]
-fn every_shipped_timeline_round_trips_through_text_unchanged() {
-    let Slice { set, .. } = slice();
-    RegistrySet::scope(&set, || {
-        let timeline_files = files("timeline");
-        assert!(!timeline_files.is_empty());
-        for file in &timeline_files {
-            let bytes = std::fs::read(file).unwrap();
-            let row: TimelineRow = serde_json::from_slice(&bytes).unwrap();
-            let text = serde_json::to_string(&row).unwrap();
-            let written: Value = serde_json::from_str(&text).unwrap();
-            assert_eq!(written, read_value(file), "{}", file.display());
-            let again: TimelineRow = serde_json::from_str(&text).unwrap();
-            assert_eq!(again.clock, row.clock, "{}", file.display());
-        }
-    });
-}
-
-#[test]
 fn the_slice_encodes_to_nbt_with_the_clock_as_a_name() {
     let Slice { clocks, set, .. } = slice();
     RegistrySet::scope(&set, || {

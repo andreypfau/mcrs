@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn below_heightmap_is_true_under_the_height_and_false_at_it() {
-        let volume = BoxRegion::columns(4, -64, 319, VoxelId(0))
+        let volume = BoxRegion::new(BlockPos::new(0, 60, 0), BlockPos::new(0, 70, 0), VoxelId(0))
             .floor(64, VoxelId(1))
             .with_height(|_, _, _, _| 65);
         let predicate = Predicate::BelowHeightmap(HeightmapName::MotionBlocking);

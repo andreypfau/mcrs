@@ -462,7 +462,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn fixture_names_are_unique() {
         let mut names = names();
         let all = names.len();
@@ -471,7 +470,6 @@ mod tests {
         assert_eq!(names.len(), all);
     }
 
-    #[test]
     fn a_dump_fixture_passes_only_the_oracle_output_directory() {
         let root = Path::new("/repo");
         let out = Path::new("/tmp/out");
@@ -481,7 +479,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_golden_fixture_passes_its_name_its_current_file_and_the_output_directory() {
         let root = Path::new("/repo");
         let out = Path::new("/tmp/out");
@@ -498,7 +495,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn every_golden_current_file_exists_in_the_repository() {
         let root = repository();
         for fixture in FIXTURES
@@ -510,7 +506,6 @@ mod tests {
         }
     }
 
-    #[test]
     fn every_destination_directory_exists_in_the_repository() {
         let root = repository();
         for fixture in FIXTURES {
@@ -525,7 +520,6 @@ mod tests {
         }
     }
 
-    #[test]
     fn a_named_output_is_copied_to_its_destination() {
         let fixture = fixture("beard");
         let root = root_for(fixture);
@@ -536,7 +530,6 @@ mod tests {
         assert_eq!(fs::read(to).unwrap(), b"MC");
     }
 
-    #[test]
     fn an_every_file_output_copies_everything_the_task_wrote() {
         let fixture = fixture("density");
         let root = root_for(fixture);
@@ -548,7 +541,6 @@ mod tests {
         assert_eq!(fs::read(to.join("overworld_b.bin")).unwrap(), b"b");
     }
 
-    #[test]
     fn a_fixture_with_two_destinations_writes_both() {
         let fixture = fixture("structure_placement");
         let root = root_for(fixture);
@@ -568,7 +560,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_missing_file_of_two_leaves_both_destinations_untouched() {
         let fixture = fixture("structure_placement");
         let root = root_for(fixture);
@@ -586,7 +577,6 @@ mod tests {
         assert_eq!(fs::read(sites).unwrap(), b"old sites");
     }
 
-    #[test]
     fn an_empty_file_of_two_leaves_both_destinations_untouched() {
         let fixture = fixture("structure_placement");
         let root = root_for(fixture);
@@ -606,7 +596,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_task_output_with_no_file_is_an_error() {
         let fixture = fixture("density");
         let root = root_for(fixture);
@@ -614,7 +603,6 @@ mod tests {
         assert!(store(&root, fixture, &out).is_err());
     }
 
-    #[test]
     fn an_empty_file_among_every_file_is_an_error_and_nothing_is_copied() {
         let fixture = fixture("density");
         let root = root_for(fixture);
@@ -624,7 +612,6 @@ mod tests {
         assert_eq!(fs::read_dir(to).unwrap().count(), 0);
     }
 
-    #[test]
     fn the_manifest_is_pretty_printed_with_sorted_keys_and_one_trailing_newline() {
         let path = scratch("format").join("captures.json");
         record(&path, "surface", "x").unwrap();
@@ -635,7 +622,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn recording_keeps_the_other_entries_and_replaces_the_same_one() {
         let path = scratch("replace").join("captures.json");
         record(&path, "density", "old").unwrap();
@@ -676,7 +662,6 @@ mod tests {
         }
     }
 
-    #[test]
     fn a_successful_capture_copies_and_records_the_corpus_id() {
         let fixture = fixture("beard");
         let root = root_for(fixture);
@@ -689,7 +674,6 @@ mod tests {
         assert_eq!(manifest["beard"], id());
     }
 
-    #[test]
     fn a_failing_task_records_nothing() {
         let fixture = fixture("beard");
         let root = root_for(fixture);
@@ -697,7 +681,6 @@ mod tests {
         assert!(!root.join(MANIFEST).exists());
     }
 
-    #[test]
     fn a_task_that_wrote_an_empty_file_records_nothing_and_copies_nothing() {
         let fixture = fixture("beard");
         let root = root_for(fixture);
@@ -710,7 +693,6 @@ mod tests {
         assert_eq!(fs::read_dir(destination).unwrap().count(), 0);
     }
 
-    #[test]
     fn a_two_destination_capture_has_one_manifest_entry() {
         let fixture = fixture("structure_placement");
         let root = root_for(fixture);
@@ -721,5 +703,51 @@ mod tests {
         .unwrap();
         let manifest = read_manifest(&root.join(MANIFEST)).unwrap();
         assert_eq!(manifest.keys().collect::<Vec<_>>(), ["structure_placement"]);
+    }
+
+    #[test]
+    fn the_fixture_table_agrees_with_the_repository() {
+        fixture_names_are_unique();
+        every_golden_current_file_exists_in_the_repository();
+        every_destination_directory_exists_in_the_repository();
+    }
+
+    #[test]
+    fn the_task_properties_follow_the_fixture_kind() {
+        a_dump_fixture_passes_only_the_oracle_output_directory();
+        a_golden_fixture_passes_its_name_its_current_file_and_the_output_directory();
+    }
+
+    #[test]
+    fn storing_copies_every_output_to_its_destination() {
+        a_named_output_is_copied_to_its_destination();
+        an_every_file_output_copies_everything_the_task_wrote();
+        a_fixture_with_two_destinations_writes_both();
+    }
+
+    #[test]
+    fn a_missing_or_empty_output_fails_the_store_and_copies_nothing() {
+        a_missing_file_of_two_leaves_both_destinations_untouched();
+        an_empty_file_of_two_leaves_both_destinations_untouched();
+        a_task_output_with_no_file_is_an_error();
+        an_empty_file_among_every_file_is_an_error_and_nothing_is_copied();
+    }
+
+    #[test]
+    fn the_manifest_is_rewritten_sorted_and_keeps_other_entries() {
+        the_manifest_is_pretty_printed_with_sorted_keys_and_one_trailing_newline();
+        recording_keeps_the_other_entries_and_replaces_the_same_one();
+    }
+
+    #[test]
+    fn a_successful_capture_records_one_entry_with_the_corpus_id() {
+        a_successful_capture_copies_and_records_the_corpus_id();
+        a_two_destination_capture_has_one_manifest_entry();
+    }
+
+    #[test]
+    fn a_failed_capture_records_nothing() {
+        a_failing_task_records_nothing();
+        a_task_that_wrote_an_empty_file_records_nothing_and_copies_nothing();
     }
 }

@@ -64,30 +64,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_record_composes_translation_rotation_scale_and_rotation_in_that_order() {
+    fn records_matrices_and_quaternions_read_as_vanilla_writes_them() {
         let record: Transformation = serde_json::from_str(
             r#"{"translation": [1, 2, 3], "left_rotation": {"angle": 1.5707964, "axis": [0, 1, 0]},
                 "scale": [2, 2, 2], "right_rotation": [0, 0, 0, 1]}"#,
         )
         .unwrap();
         let point = record.matrix().transform_point3(Vec3::X);
-        assert!(point.abs_diff_eq(Vec3::new(1.0, 2.0, 1.0), 1e-5), "{point}");
-    }
+        assert!(
+            point.abs_diff_eq(Vec3::new(1.0, 2.0, 1.0), 1e-5),
+            "translation, rotation, scale and rotation compose in that order: {point}"
+        );
 
-    #[test]
-    fn a_matrix_reads_row_major() {
         let matrix: Transformation =
             serde_json::from_str("[1,0,0,5, 0,1,0,6, 0,0,1,7, 0,0,0,1]").unwrap();
         assert_eq!(
             matrix.matrix().transform_point3(Vec3::ZERO),
-            Vec3::new(5.0, 6.0, 7.0)
+            Vec3::new(5.0, 6.0, 7.0),
+            "a matrix reads row major"
         );
         assert!(matches!(matrix, Transformation::Matrix(_)));
-    }
 
-    #[test]
-    fn a_component_quaternion_is_normalised_on_use_but_kept_as_written() {
         let q: Quaternion = serde_json::from_str("[0, 0, 0, 2]").unwrap();
-        assert_eq!(q.quat(), Quat::IDENTITY);
+        assert_eq!(q.quat(), Quat::IDENTITY, "normalised on use");
     }
 }

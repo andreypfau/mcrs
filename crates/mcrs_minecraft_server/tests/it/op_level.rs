@@ -186,12 +186,12 @@ fn other_mode(mode: GameMode) -> GameMode {
 }
 
 #[test]
-fn listed_op_receives_its_level_after_login() {
+fn a_listed_op_receives_its_level_after_login_and_may_use_it() {
     let uuid = Uuid::new_v4();
-    let mut server = Server::start(&[(uuid, 4)], 0);
+    let mut server = Server::start(&[(uuid, 2)], 0);
     let packets = server.join(uuid);
 
-    assert_eq!(op_statuses(&packets), vec![28]);
+    assert_eq!(op_statuses(&packets), vec![26]);
     let login = packets
         .iter()
         .position(|packet| matches!(packet.data, PacketPayload::PlayerLogin(_)))
@@ -204,20 +204,18 @@ fn listed_op_receives_its_level_after_login() {
         login < status,
         "the client applies the status to the player the login packet creates"
     );
+
+    let target = other_mode(server.game_mode());
+    server.send(&ServerboundChangeGameMode { mode: target });
+    let packets = server.ticks(2);
+    assert_eq!(game_mode_changes(&packets), vec![target]);
+    assert_eq!(server.game_mode(), target);
 }
 
 #[test]
-fn unlisted_player_receives_the_default_level() {
+fn an_unlisted_player_receives_the_default_level_and_every_change_to_it() {
     let mut server = Server::start(&[(Uuid::new_v4(), 4)], 1);
-    let packets = server.join(Uuid::new_v4());
-
-    assert_eq!(op_statuses(&packets), vec![25]);
-}
-
-#[test]
-fn a_changed_level_is_sent_again() {
-    let mut server = Server::start(&[], 0);
-    assert_eq!(op_statuses(&server.join(Uuid::new_v4())), vec![24]);
+    assert_eq!(op_statuses(&server.join(Uuid::new_v4())), vec![25]);
     assert!(op_statuses(&server.ticks(2)).is_empty());
 
     let player = server.player();
@@ -225,18 +223,3 @@ fn a_changed_level_is_sent_again() {
 
     assert_eq!(op_statuses(&server.ticks(2)), vec![27]);
 }
-
-#[test]
-fn level_two_may_switch_game_mode() {
-    let uuid = Uuid::new_v4();
-    let mut server = Server::start(&[(uuid, 2)], 0);
-    server.join(uuid);
-    let target = other_mode(server.game_mode());
-
-    server.send(&ServerboundChangeGameMode { mode: target });
-    let packets = server.ticks(2);
-
-    assert_eq!(game_mode_changes(&packets), vec![target]);
-    assert_eq!(server.game_mode(), target);
-}
-

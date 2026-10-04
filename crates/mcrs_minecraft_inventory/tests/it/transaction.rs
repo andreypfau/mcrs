@@ -31,6 +31,23 @@ fn count(world: &World, stack: Entity) -> u8 {
 }
 
 #[test]
+fn transactions_edit_stacks_and_slots() {
+    a_stack_carries_its_effective_components();
+    insert_equal_to_the_prototype_leaves_no_patch();
+    remove_tombstones_a_prototype_value_and_clears_the_rest();
+    a_child_kind_is_never_a_component();
+    set_count_zero_despawns_the_subtree();
+    a_change_deep_in_a_chest_bumps_the_chain();
+    moving_between_two_shulkers_bumps_both_parents();
+    move_errors_are_returned_not_panicked();
+    a_failed_op_stops_the_rest_of_the_transaction();
+    transfer_splits_merges_and_moves_counts();
+    clone_grows_a_slot_that_already_holds_the_item_to_its_max();
+    swap_exchanges_two_slots_either_of_which_may_be_empty();
+    drop_takes_a_stack_out_of_its_slot_and_pickup_puts_it_back();
+    placing_a_non_stack_or_dropped_stack_is_an_error();
+}
+
 fn a_stack_carries_its_effective_components() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
@@ -46,7 +63,6 @@ fn a_stack_carries_its_effective_components() {
     );
 }
 
-#[test]
 fn insert_equal_to_the_prototype_leaves_no_patch() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
@@ -66,7 +82,6 @@ fn insert_equal_to_the_prototype_leaves_no_patch() {
     assert_eq!(revision(&world, stone), 3);
 }
 
-#[test]
 fn remove_tombstones_a_prototype_value_and_clears_the_rest() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
@@ -89,7 +104,6 @@ fn remove_tombstones_a_prototype_value_and_clears_the_rest() {
     );
 }
 
-#[test]
 fn a_child_kind_is_never_a_component() {
     let mut world = world();
     let shulker = spawn(&mut world, "shulker_box", 1);
@@ -106,7 +120,6 @@ fn a_child_kind_is_never_a_component() {
     ));
 }
 
-#[test]
 fn set_count_zero_despawns_the_subtree() {
     let mut world = world();
     let shulker = spawn(&mut world, "shulker_box", 1);
@@ -129,7 +142,6 @@ fn chest_of_shulker(world: &mut World, chest_slot: u16) -> (Entity, Entity, Enti
     (chest, shulker, pickaxe)
 }
 
-#[test]
 fn a_change_deep_in_a_chest_bumps_the_chain() {
     let mut world = world();
     let (_chest, shulker, pickaxe) = chest_of_shulker(&mut world, 7);
@@ -139,7 +151,6 @@ fn a_change_deep_in_a_chest_bumps_the_chain() {
     assert_eq!(revision(&world, shulker), before_shulker + 1);
 }
 
-#[test]
 fn moving_between_two_shulkers_bumps_both_parents() {
     let mut world = world();
     let (_chest_a, shulker_a, pickaxe) = chest_of_shulker(&mut world, 1);
@@ -170,7 +181,6 @@ fn moving_between_two_shulkers_bumps_both_parents() {
     );
 }
 
-#[test]
 fn move_errors_are_returned_not_panicked() {
     let mut world = world();
     let chest = holder(&mut world, 3);
@@ -208,7 +218,6 @@ fn move_errors_are_returned_not_panicked() {
     ));
 }
 
-#[test]
 fn a_failed_op_stops_the_rest_of_the_transaction() {
     let mut world = world();
     let chest = holder(&mut world, 3);
@@ -232,7 +241,6 @@ fn a_failed_op_stops_the_rest_of_the_transaction() {
     assert_eq!(world.get::<Held>(b), None);
 }
 
-#[test]
 fn transfer_splits_merges_and_moves_counts() {
     let mut world = world();
     let chest = holder(&mut world, 3);
@@ -301,7 +309,6 @@ fn transfer_splits_merges_and_moves_counts() {
     ));
 }
 
-#[test]
 fn clone_grows_a_slot_that_already_holds_the_item_to_its_max() {
     let mut world = world();
     let chest = holder(&mut world, 3);
@@ -351,7 +358,6 @@ fn clone_grows_a_slot_that_already_holds_the_item_to_its_max() {
     ));
 }
 
-#[test]
 fn swap_exchanges_two_slots_either_of_which_may_be_empty() {
     let mut world = world();
     let chest = holder(&mut world, 3);
@@ -371,7 +377,6 @@ fn swap_exchanges_two_slots_either_of_which_may_be_empty() {
     assert_eq!(world.get::<SlotTable>(chest).unwrap().get(1), None);
 }
 
-#[test]
 fn drop_takes_a_stack_out_of_its_slot_and_pickup_puts_it_back() {
     let mut world = world();
     let player = holder(&mut world, 47);
@@ -407,7 +412,6 @@ fn drop_takes_a_stack_out_of_its_slot_and_pickup_puts_it_back() {
     assert!(world.get_entity(thrown).is_err());
 }
 
-#[test]
 fn placing_a_non_stack_or_dropped_stack_is_an_error() {
     let mut world = world();
     let chest = holder(&mut world, 2);

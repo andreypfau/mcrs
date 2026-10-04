@@ -112,25 +112,16 @@ mod tests {
     }
 
     #[test]
-    fn an_all_zero_field_normalizes_to_empty() {
-        let cells = field_of(|_| 0);
+    fn a_field_normalizes_to_the_smallest_storage_and_round_trips() {
         assert!(matches!(
-            LightStorage::from_field(&cells),
+            LightStorage::from_field(&field_of(|_| 0)),
             LightStorage::Empty
         ));
-    }
-
-    #[test]
-    fn a_constant_field_normalizes_to_uniform() {
-        let cells = field_of(|_| 12);
         assert!(matches!(
-            LightStorage::from_field(&cells),
+            LightStorage::from_field(&field_of(|_| 12)),
             LightStorage::Uniform(12)
         ));
-    }
 
-    #[test]
-    fn field_round_trips_through_storage() {
         let cells = field_of(|i| (i % 16) as u8);
         let storage = LightStorage::from_field(&cells);
         assert!(matches!(storage, LightStorage::Dense(_)));
@@ -138,44 +129,25 @@ mod tests {
             storage.get(3, 7, 11),
             cells[SectionNibbles::index(3, 7, 11)]
         );
-
         let mut back = Box::new([0u8; SectionPos::VOLUME]);
         storage.write_field(&mut back);
         assert_eq!(&back[..], &cells[..]);
+
+        LightStorage::Empty.write_field(&mut back);
+        assert!(back.iter().all(|&c| c == 0));
+        LightStorage::Uniform(4).write_field(&mut back);
+        assert!(back.iter().all(|&c| c == 4));
     }
 
     #[test]
-    fn empty_and_uniform_expand_to_constant_fields() {
-        let mut cells = Box::new([9u8; SectionPos::VOLUME]);
-        LightStorage::Empty.write_field(&mut cells);
-        assert!(cells.iter().all(|&c| c == 0));
-
-        LightStorage::Uniform(4).write_field(&mut cells);
-        assert!(cells.iter().all(|&c| c == 4));
-        assert!(matches!(
-            LightStorage::from_field(&cells),
-            LightStorage::Uniform(4)
-        ));
-    }
-
-    #[test]
-    fn mixed_set_writes_through() {
-        let mut s = LightStorage::Uniform(5);
-        s.set(0, 0, 0, 9);
-        s.set(4, 4, 4, 2);
-        assert!(matches!(s, LightStorage::Dense(_)));
-        assert_eq!(s.get(4, 4, 4), 2);
-        assert_eq!(s.get(0, 0, 0), 9);
-        assert_eq!(s.get(7, 8, 9), 5);
-    }
-
-    #[test]
-    fn writing_a_shared_dense_storage_leaves_the_other_holder_alone() {
+    fn a_set_densifies_and_leaves_a_shared_copy_alone() {
         let mut original = LightStorage::Uniform(5);
         original.set(0, 0, 0, 9);
+        assert!(matches!(original, LightStorage::Dense(_)));
         let shared = original.clone();
         original.set(1, 0, 0, 2);
         assert_eq!(original.get(1, 0, 0), 2);
+        assert_eq!(original.get(7, 8, 9), 5);
         assert_eq!(shared.get(1, 0, 0), 5);
         assert_eq!(shared.get(0, 0, 0), 9);
     }

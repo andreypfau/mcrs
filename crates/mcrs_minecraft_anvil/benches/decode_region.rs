@@ -33,7 +33,7 @@ impl PaletteLookup<u8> for Names {
 }
 
 fn bench_decode(c: &mut Criterion) {
-    let chunks = fixture::region_chunks();
+    let chunks: Vec<_> = fixture::region_chunks().collect();
 
     let mut group = c.benchmark_group("anvil_decode");
     group.throughput(Throughput::Elements(fixture::cell_count()));

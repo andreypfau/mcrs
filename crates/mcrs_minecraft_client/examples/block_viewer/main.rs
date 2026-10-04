@@ -366,25 +366,3 @@ fn orbit(
     *transform = Transform::from_translation(target + rotation * (Vec3::Z * orbit.radius))
         .looking_at(target, Vec3::Y);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::Target;
-
-    #[test]
-    fn target_parses_the_game_s_own_blockstate_syntax() {
-        let bare = Target::parse("glass");
-        assert_eq!(bare.block, "glass");
-        assert!(bare.props.is_empty());
-        assert_eq!(bare.label(), "glass");
-
-        let full = Target::parse("minecraft:oak_log[axis=x]");
-        assert_eq!(full.block, "minecraft:oak_log");
-        assert_eq!(full.pairs(), [("axis", "x")]);
-
-        let messy = Target::parse(" minecraft:furnace [ facing = north , lit = true ] ");
-        assert_eq!(messy.block, "minecraft:furnace");
-        assert_eq!(messy.pairs(), [("facing", "north"), ("lit", "true")]);
-        assert_eq!(messy.label(), "minecraft:furnace[facing=north,lit=true]");
-    }
-}

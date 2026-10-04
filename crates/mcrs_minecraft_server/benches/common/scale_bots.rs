@@ -7,12 +7,9 @@
 //! transfers (reassign their session's placement) halfway through the
 //! run to exercise the session mutation + teardown path.
 //!
-//! The smoke runner is tick-bounded (`run_profile_ticks`) so it is
-//! deterministic and finishes in milliseconds: a fixed number of ticks
-//! covers every code path (injection, cross-dim reassignment, queue routing,
-//! teardown) without spinning on the wall clock. The opt-in long baseline
-//! runner (`run_profile`) is wall-clock-bounded and used only by the
-//! `#[ignore]` observational variants invoked manually.
+//! The runner is tick-bounded (`run_profile_ticks`) so it is deterministic: a
+//! fixed number of ticks covers every code path (injection, cross-dim
+//! reassignment, queue routing, teardown) without spinning on the wall clock.
 //!
 //! Every injected packet carries the originating bot's real `PlayerSession`,
 //! so `bridge_outbound` resolves it against the sessions and routes it to
@@ -23,7 +20,7 @@
 #![allow(dead_code)]
 
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockUpdate;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -41,16 +38,13 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::session::{HostAnchorRef, SessionBundle};
 
-/// Per-run report. Carries the functional invariants the smoke tests assert
-/// on (all local to this run's `World`, race-free under parallel test
-/// execution) alongside the soft observational telemetry consumed by the
-/// long-baseline JSON writer.
+/// Per-run report: the functional invariants the bench asserts on, all local
+/// to this run's `World`, alongside soft observational telemetry.
 #[derive(Debug)]
 pub struct ScaleReport {
     pub profile_name: String,
     pub dims: usize,
     pub bots_total: usize,
-    pub duration_secs: u64,
     pub snapshot_start: BridgeTelemetry,
     pub snapshot_end: BridgeTelemetry,
     /// entity count at T=0
@@ -85,75 +79,14 @@ impl ScaleReport {
     pub fn entity_delta(&self) -> i64 {
         self.entity_count_end as i64 - self.entity_count_start as i64
     }
-
-    /// Bus-saturation gap: packets the harness wrote minus packets `bridge_outbound`
-    /// consumed over the run — a SOFT observational dimension only, never a
-    /// pass/fail gate. Use `total_queued` for routing assertions.
-    pub fn saturation_gap(&self) -> i64 {
-        let consumed_delta = (self.consumed_end - self.consumed_start) as i64;
-        self.packets_injected as i64 - consumed_delta
-    }
 }
 
-/// How long a profile runs.
-enum RunLength {
-    /// Deterministic: execute exactly this many ticks.
-    Ticks(u64),
-    /// Wall-clock: run until this much time elapses (opt-in baselines only).
-    Duration(Duration),
-}
-
-/// Duration to run the long baseline profiles — reads `TR07_DURATION_SECS`
-/// env var (default 10).
-pub fn profile_duration_secs() -> u64 {
-    std::env::var("TR07_DURATION_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(10)
-}
-
-/// Run a scale profile for a fixed number of ticks. Deterministic and fast —
-/// this is the smoke runner used by the always-on tests.
 pub fn run_profile_ticks(
     name: &str,
     dims: usize,
     bots_total: usize,
     cross_dim_rate: f32,
     ticks: u64,
-) -> ScaleReport {
-    run_profile_bounded(
-        name,
-        dims,
-        bots_total,
-        cross_dim_rate,
-        RunLength::Ticks(ticks),
-    )
-}
-
-/// Run a scale profile for `duration_secs` of wall clock. Used only by the
-/// opt-in `#[ignore]` baseline variants; not deterministic.
-pub fn run_profile(
-    name: &str,
-    dims: usize,
-    bots_total: usize,
-    cross_dim_rate: f32,
-    duration_secs: u64,
-) -> ScaleReport {
-    run_profile_bounded(
-        name,
-        dims,
-        bots_total,
-        cross_dim_rate,
-        RunLength::Duration(Duration::from_secs(duration_secs)),
-    )
-}
-
-fn run_profile_bounded(
-    name: &str,
-    dims: usize,
-    bots_total: usize,
-    cross_dim_rate: f32,
-    length: RunLength,
 ) -> ScaleReport {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -194,10 +127,6 @@ fn run_profile_bounded(
     let entity_count_start = world.entities().len() as u64;
 
     let run_start = Instant::now();
-    let deadline = match &length {
-        RunLength::Ticks(_) => run_start,
-        RunLength::Duration(d) => run_start + *d,
-    };
 
     let mut tick_count: u64 = 0;
     let mut tick_min_us = u64::MAX;
@@ -207,22 +136,11 @@ fn run_profile_bounded(
     let mut cross_dim_triggered = false;
 
     loop {
-        // Fraction of the run completed, in [0, 1). Drives the one-shot
-        // cross-dim transfer at the halfway mark for both bound kinds.
-        let elapsed_frac = match &length {
-            RunLength::Ticks(n) => {
-                if tick_count >= *n {
-                    break;
-                }
-                tick_count as f32 / *n as f32
-            }
-            RunLength::Duration(_) => {
-                if Instant::now() >= deadline {
-                    break;
-                }
-                run_start.elapsed().as_secs_f32() / deadline.duration_since(run_start).as_secs_f32()
-            }
-        };
+        if tick_count >= ticks {
+            break;
+        }
+        // Drives the one-shot cross-dim transfer at the halfway mark.
+        let elapsed_frac = tick_count as f32 / ticks as f32;
 
         let tick_start = Instant::now();
 
@@ -321,10 +239,6 @@ fn run_profile_bounded(
         profile_name: name.to_string(),
         dims,
         bots_total,
-        duration_secs: match &length {
-            RunLength::Ticks(_) => 0,
-            RunLength::Duration(d) => d.as_secs(),
-        },
         snapshot_start,
         snapshot_end,
         entity_count_start,
@@ -340,44 +254,4 @@ fn run_profile_bounded(
         cross_dim_transfers,
         sessions_remaining_after_teardown,
     }
-}
-
-/// Serialize `report` to a JSON file at `path` for local baseline review.
-pub fn write_baseline_json(report: &ScaleReport, path: &std::path::Path) -> std::io::Result<()> {
-    use std::io::Write;
-
-    let json = serde_json::json!({
-        "profile": report.profile_name,
-        "dims": report.dims,
-        "bots_total": report.bots_total,
-        "duration_secs": report.duration_secs,
-        "tick_count": report.tick_count,
-        "tick_min_us": report.tick_min_us,
-        "tick_max_us": report.tick_max_us,
-        "tick_mean_us": report.tick_mean_us,
-        "entity_count_start": report.entity_count_start,
-        "entity_count_end": report.entity_count_end,
-        "entity_delta": report.entity_delta(),
-        "packets_injected": report.packets_injected,
-        "total_queued": report.total_queued,
-        "cross_dim_transfers": report.cross_dim_transfers,
-        "consumed_start": report.consumed_start,
-        "consumed_end": report.consumed_end,
-        "saturation_gap": report.saturation_gap(),
-        "drop_normal_delta": report.snapshot_end.drop_normal_total
-            - report.snapshot_start.drop_normal_total,
-        "drop_low_delta": report.snapshot_end.drop_low_total
-            - report.snapshot_start.drop_low_total,
-        "kick_overflow_delta": report.snapshot_end.kick_overflow_total
-            - report.snapshot_start.kick_overflow_total,
-        "kick_flood_delta": report.snapshot_end.kick_flood_total
-            - report.snapshot_start.kick_flood_total,
-    });
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut file = std::fs::File::create(path)?;
-    file.write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())?;
-    Ok(())
 }

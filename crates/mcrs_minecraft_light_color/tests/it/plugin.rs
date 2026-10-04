@@ -1,5 +1,4 @@
-mod corpus;
-
+use crate::corpus;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_state::app::{AppExtStates, StatesPlugin};

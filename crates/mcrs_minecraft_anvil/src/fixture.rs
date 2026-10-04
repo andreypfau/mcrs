@@ -9,11 +9,9 @@ use crate::LIGHT_BYTES;
 pub const CHUNKS: usize = 1024;
 pub const SECTIONS_PER_CHUNK: usize = 24;
 
-pub fn region_chunks() -> Vec<Vec<u8>> {
+pub fn region_chunks() -> impl Iterator<Item = Vec<u8>> {
     let mut rng = Rng(0x2545_f491_4f6c_dd1d);
-    (0..CHUNKS)
-        .map(|i| chunk(i as i32 % 32, i as i32 / 32, &mut rng))
-        .collect()
+    (0..CHUNKS).map(move |i| chunk(i as i32 % 32, i as i32 / 32, &mut rng))
 }
 
 pub fn cell_count() -> u64 {

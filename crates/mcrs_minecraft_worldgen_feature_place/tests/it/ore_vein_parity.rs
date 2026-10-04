@@ -121,72 +121,11 @@ fn stone_world(origin: [i32; 3], stone: VoxelId, air: VoxelId, ocean_floor: i32)
     world
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_dumped_vein_matches_block_for_block() {
-    let cases = read_dump();
-    assert_eq!(cases.len(), 21, "the dump lost cases");
-    // One buffer across every case, the way a column's run holds it: the first
-    // vein starts from an empty one and the rest would show any residue the
-    // previous vein left behind.
-    let mut scratch = OreScratch::default();
-    for case in &cases {
-        let mut interner = Interner::default();
-        let stone = interner.id("minecraft:stone");
-        let air = interner.id("minecraft:air");
-        let targets = case
-            .targets
-            .iter()
-            .map(|target| OreReplacement {
-                target: match target.kind.as_str() {
-                    "always_true" => Rule::AlwaysTrue,
-                    "block_match" => Rule::MatchingStates(single_state(interner.id(&target.block))),
-                    "random_block_match" => Rule::RandomStates {
-                        states: single_state(interner.id(&target.block)),
-                        probability: target.probability,
-                    },
-                    other => panic!("{}: unhandled rule test {other}", case.name),
-                },
-                state: interner.id(&target.state),
-            })
-            .collect();
-        let cfg = CompiledOre {
-            targets,
-            size: case.size,
-            discard_chance_on_air_exposure: case.discard_chance,
-        };
-        let mut world = stone_world(case.origin, stone, air, MAX_Y);
-        let mut rng = WorldgenRandom::new(case.seed as u64);
-        let result = place_modern_ore(
-            &cfg,
-            &mut world,
-            &mut rng,
-            BlockPos::from(case.origin),
-            &mut scratch,
-        );
-
-        assert_eq!(result, case.result, "{}: return value", case.name);
-        let expected: Vec<(BlockPos, VoxelId)> = case
-            .placements
-            .iter()
-            .map(|(pos, name)| (BlockPos::from(*pos), interner.id(name)))
-            .collect();
-        assert_eq!(world.writes, expected, "{}: writes in order", case.name);
-        assert_eq!(
-            [rng.next_java_long(), rng.next_java_long()],
-            case.state_after,
-            "{}: random state after the vein — the draw count diverged",
-            case.name
-        );
-    }
-}
-
 /// The probe box is the one thing the flat-world dump cannot pin, because the
 /// oracle stands `getHeight` in for a constant. At size 20 from (0, 64, 0) the
 /// reference's arithmetic gives a spread of 2.5 rounded up to 3 and a max radius
 /// of 2, so columns -5..=4 are tested against y 60.
 #[test]
-#[ignore = "reference parity check; run with --ignored"]
 fn the_probe_box_is_the_reference_box() {
     let cfg = CompiledOre {
         targets: vec![OreReplacement {
@@ -218,7 +157,6 @@ fn the_probe_box_is_the_reference_box() {
 /// The three segment draws are spent before the probe, so a vein whose probe box
 /// is entirely below the floor still advances the source.
 #[test]
-#[ignore = "reference parity check; run with --ignored"]
 fn a_failed_probe_still_costs_the_segment_draws() {
     let cfg = CompiledOre {
         targets: vec![OreReplacement {
@@ -244,4 +182,69 @@ fn a_failed_probe_still_costs_the_segment_draws() {
     replay.next_i32_bound(3);
     replay.next_i32_bound(3);
     assert_eq!(rng, replay, "an aborted vein must draw exactly three times");
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn every_dumped_vein_matches_block_for_block() {
+        let cases = read_dump();
+        assert_eq!(cases.len(), 21, "the dump lost cases");
+        // One buffer across every case, the way a column's run holds it: the first
+        // vein starts from an empty one and the rest would show any residue the
+        // previous vein left behind.
+        let mut scratch = OreScratch::default();
+        for case in &cases {
+            let mut interner = Interner::default();
+            let stone = interner.id("minecraft:stone");
+            let air = interner.id("minecraft:air");
+            let targets = case
+                .targets
+                .iter()
+                .map(|target| OreReplacement {
+                    target: match target.kind.as_str() {
+                        "always_true" => Rule::AlwaysTrue,
+                        "block_match" => {
+                            Rule::MatchingStates(single_state(interner.id(&target.block)))
+                        }
+                        "random_block_match" => Rule::RandomStates {
+                            states: single_state(interner.id(&target.block)),
+                            probability: target.probability,
+                        },
+                        other => panic!("{}: unhandled rule test {other}", case.name),
+                    },
+                    state: interner.id(&target.state),
+                })
+                .collect();
+            let cfg = CompiledOre {
+                targets,
+                size: case.size,
+                discard_chance_on_air_exposure: case.discard_chance,
+            };
+            let mut world = stone_world(case.origin, stone, air, MAX_Y);
+            let mut rng = WorldgenRandom::new(case.seed as u64);
+            let result = place_modern_ore(
+                &cfg,
+                &mut world,
+                &mut rng,
+                BlockPos::from(case.origin),
+                &mut scratch,
+            );
+
+            assert_eq!(result, case.result, "{}: return value", case.name);
+            let expected: Vec<(BlockPos, VoxelId)> = case
+                .placements
+                .iter()
+                .map(|(pos, name)| (BlockPos::from(*pos), interner.id(name)))
+                .collect();
+            assert_eq!(world.writes, expected, "{}: writes in order", case.name);
+            assert_eq!(
+                [rng.next_java_long(), rng.next_java_long()],
+                case.state_after,
+                "{}: random state after the vein — the draw count diverged",
+                case.name
+            );
+        }
+    }
 }

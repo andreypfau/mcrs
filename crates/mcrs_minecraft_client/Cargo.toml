@@ -100,4 +100,3 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
-test = true

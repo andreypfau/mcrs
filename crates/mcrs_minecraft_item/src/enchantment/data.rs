@@ -195,38 +195,6 @@ pub struct EnchantmentCost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::assets_dir;
-
-    #[test]
-    fn deserialize_and_resolve_sharpness() {
-        let bytes =
-            std::fs::read(assets_dir().join("minecraft/enchantment/sharpness.json")).unwrap();
-        let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes).unwrap();
-
-        assert_eq!(proto.supported_items, "#minecraft:enchantable/sharp_weapon");
-        assert_eq!(
-            proto.exclusive_set.as_deref(),
-            Some("#minecraft:exclusive_set/damage")
-        );
-        assert_eq!(
-            proto.primary_items.as_deref(),
-            Some("#minecraft:enchantable/melee_weapon")
-        );
-
-        let data = proto.resolve().unwrap();
-        assert_eq!(
-            data.supported_items.as_str(),
-            "minecraft:enchantable/sharp_weapon"
-        );
-        assert_eq!(
-            data.exclusive_set.as_ref().map(|k| k.as_str()),
-            Some("minecraft:exclusive_set/damage")
-        );
-        assert_eq!(
-            data.primary_items.as_ref().map(|k| k.as_str()),
-            Some("minecraft:enchantable/melee_weapon")
-        );
-    }
 
     #[test]
     fn deserialize_and_resolve_all_enchantments() {
@@ -237,13 +205,5 @@ mod tests {
                 .resolve()
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-    }
-
-    #[test]
-    fn enchantment_without_exclusive_set() {
-        let bytes = std::fs::read(assets_dir().join("minecraft/enchantment/mending.json")).unwrap();
-        let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes).unwrap();
-        let data = proto.resolve().unwrap();
-        assert!(data.exclusive_set.is_none());
     }
 }

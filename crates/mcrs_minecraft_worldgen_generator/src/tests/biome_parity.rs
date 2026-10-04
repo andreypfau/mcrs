@@ -69,78 +69,80 @@ fn read_dump() -> Vec<Column> {
     columns
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn the_stored_biomes_match_the_reference_block_for_block() {
-    let (table, ids) = overworld_table();
-    let mut names = vec![""; ids.len()];
-    for (name, &id) in &ids {
-        names[id as usize] = name;
-    }
+mod exhaustive {
+    use super::*;
 
-    let columns = read_dump();
-    let mut checked = 0usize;
-    for column in &columns {
-        let router = build_settings_router("overworld", column.seed);
-        let sections = column.section_ys();
-        let containers = multi_noise_palettes(
-            &router,
-            &table,
-            column.chunk_x * 16,
-            column.chunk_z * 16,
-            &sections,
-        );
-        assert_eq!(containers.len(), sections.len());
+    #[test]
+    fn the_stored_biomes_match_the_reference_block_for_block() {
+        let (table, ids) = overworld_table();
+        let mut names = vec![""; ids.len()];
+        for (name, &id) in &ids {
+            names[id as usize] = name;
+        }
 
-        for (index, container) in containers.iter().enumerate() {
-            for y in 0..16 {
-                for z in 0..16 {
-                    for x in 0..16 {
-                        let want = column.at(index, x, y, z);
-                        let got = names[container.get_cell(x, y, z) as usize];
-                        assert_eq!(
-                            got, want,
-                            "seed {} chunk {},{} section {} block {x},{y},{z}",
-                            column.seed, column.chunk_x, column.chunk_z, sections[index],
-                        );
-                        checked += 1;
+        let columns = read_dump();
+        let mut checked = 0usize;
+        for column in &columns {
+            let router = build_settings_router("overworld", column.seed);
+            let sections = column.section_ys();
+            let containers = multi_noise_palettes(
+                &router,
+                &table,
+                column.chunk_x * 16,
+                column.chunk_z * 16,
+                &sections,
+            );
+            assert_eq!(containers.len(), sections.len());
+
+            for (index, container) in containers.iter().enumerate() {
+                for y in 0..16 {
+                    for z in 0..16 {
+                        for x in 0..16 {
+                            let want = column.at(index, x, y, z);
+                            let got = names[container.get_cell(x, y, z) as usize];
+                            assert_eq!(
+                                got, want,
+                                "seed {} chunk {},{} section {} block {x},{y},{z}",
+                                column.seed, column.chunk_x, column.chunk_z, sections[index],
+                            );
+                            checked += 1;
+                        }
                     }
                 }
             }
         }
+        assert_eq!(
+            checked,
+            columns
+                .iter()
+                .map(|c| c.sections.len() * BLOCKS)
+                .sum::<usize>(),
+            "a block went uncompared"
+        );
     }
-    assert_eq!(
-        checked,
-        columns
-            .iter()
-            .map(|c| c.sections.len() * BLOCKS)
-            .sum::<usize>(),
-        "a block went uncompared"
-    );
-}
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn the_dump_holds_a_section_with_more_than_one_biome() {
-    let columns = read_dump();
+    #[test]
+    fn the_dump_holds_a_section_with_more_than_one_biome() {
+        let columns = read_dump();
 
-    let mixed_section = columns.iter().any(|column| {
-        column
-            .sections
-            .iter()
-            .any(|cells| cells.iter().any(|&id| id != cells[0]))
-    });
-    assert!(mixed_section, "every section of the dump is one biome");
+        let mixed_section = columns.iter().any(|column| {
+            column
+                .sections
+                .iter()
+                .any(|cells| cells.iter().any(|&id| id != cells[0]))
+        });
+        assert!(mixed_section, "every section of the dump is one biome");
 
-    let mixed_layer = columns.iter().any(|column| {
-        column.sections.iter().any(|cells| {
-            cells
-                .chunks(16 * 16)
-                .any(|layer| layer.iter().any(|&id| id != layer[0]))
-        })
-    });
-    assert!(
-        mixed_layer,
-        "no horizontal layer of the dump holds two biomes"
-    );
+        let mixed_layer = columns.iter().any(|column| {
+            column.sections.iter().any(|cells| {
+                cells
+                    .chunks(16 * 16)
+                    .any(|layer| layer.iter().any(|&id| id != layer[0]))
+            })
+        });
+        assert!(
+            mixed_layer,
+            "no horizontal layer of the dump holds two biomes"
+        );
+    }
 }

@@ -60,7 +60,6 @@ tracing = { workspace = true }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"
-proptest = "1.11.0"
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
@@ -68,8 +67,4 @@ telemetry-tracy = ["bevy_ecs/trace", "mcrs_minecraft_worldgen_generator/telemetr
 
 [[bench]]
 name = "tr07_scale"
-harness = false
-
-[[bench]]
-name = "tr07_baseline"
 harness = false

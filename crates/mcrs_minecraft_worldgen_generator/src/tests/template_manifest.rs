@@ -152,122 +152,126 @@ fn is_structure_void(state: &str) -> bool {
     state.split('[').next() == Some("minecraft:structure_void")
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_template_manifest_matches_the_oracle() {
-    let (dynamic, manifests, listed) = read_dump();
-    assert_eq!(dynamic, DYNAMIC_SHAPE_BLOCKS);
-    assert_eq!(manifests.len(), 1511);
-    assert_eq!(listed.len(), 33);
+mod exhaustive {
+    use super::*;
 
-    for dump in &manifests {
-        let id = &dump.id;
-        let (template, frozen, manifest) = freeze(id);
-        let frozen = frozen.palettes;
-        assert_eq!(manifest.size.map(i32::from), dump.size, "{id}: size");
-        assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
-        let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes) {
-            (Some(p), None) => vec![p],
-            (None, Some(ps)) => ps.iter().map(Vec::as_slice).collect(),
-            _ => unreachable!("freeze accepted it"),
-        };
-        for (p, expected) in dump.palettes.iter().enumerate() {
-            let entries: Vec<_> = file_palettes[p]
-                .iter()
-                .map(|state| resolve_palette_state(corpus(), state).unwrap())
-                .collect();
-            assert_eq!(
-                entries.len(),
-                expected.entries.len(),
-                "{id}[{p}]: entry count"
-            );
-            for (i, text) in expected.entries.iter().enumerate() {
-                assert_eq!(
-                    resolve(&parse_state(text)),
-                    entries[i].id,
-                    "{id}[{p}]: entry {i}"
-                );
-            }
-            let full: HashMap<VoxelId, bool> =
-                entries.iter().map(|e| (e.id, e.full_block)).collect();
-            let sections: Vec<u8> = frozen[p]
-                .iter()
-                .map(|b| match (b.nbt.is_some(), full[&b.state]) {
-                    (true, _) => 2,
-                    (false, true) => 0,
-                    (false, false) => 1,
-                })
-                .collect();
-            assert!(sections.is_sorted(), "{id}[{p}]: sections interleave");
-            let count = |section| sections.iter().filter(|&&s| s == section).count() as u32;
-            assert_eq!(
-                (count(0), count(1), count(2)),
-                (expected.full, expected.other, expected.entity),
-                "{id}[{p}]: section lengths"
-            );
+    #[test]
+    fn every_template_manifest_matches_the_oracle() {
+        let (dynamic, manifests, listed) = read_dump();
+        assert_eq!(dynamic, DYNAMIC_SHAPE_BLOCKS);
+        assert_eq!(manifests.len(), 1511);
+        assert_eq!(listed.len(), 33);
 
-            let jigsaws = &manifest.jigsaws[p];
-            assert_eq!(
-                jigsaws.len(),
-                expected.jigsaws.len(),
-                "{id}[{p}]: jigsaw count"
-            );
-            for (j, (ours, theirs)) in jigsaws.iter().zip(&expected.jigsaws).enumerate() {
-                let at = format!("{id}[{p}] jigsaw {j}");
-                assert_eq!(ours.pos.map(i32::from), theirs.pos, "{at}: pos");
-                assert_eq!(ours.front.name(), theirs.front, "{at}: front");
-                assert_eq!(ours.top.name(), theirs.top, "{at}: top");
-                let joint = match ours.joint {
-                    Joint::Rollable => "rollable",
-                    Joint::Aligned => "aligned",
-                };
-                assert_eq!(joint, theirs.joint, "{at}: joint");
-                assert_eq!(ours.name.to_string(), theirs.name, "{at}: name");
-                assert_eq!(ours.pool.to_string(), theirs.pool, "{at}: pool");
-                assert_eq!(ours.target.to_string(), theirs.target, "{at}: target");
+        for dump in &manifests {
+            let id = &dump.id;
+            let (template, frozen, manifest) = freeze(id);
+            let frozen = frozen.palettes;
+            assert_eq!(manifest.size.map(i32::from), dump.size, "{id}: size");
+            assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
+            let file_palettes: Vec<&[PaletteState]> = match (&template.palette, &template.palettes)
+            {
+                (Some(p), None) => vec![p],
+                (None, Some(ps)) => ps.iter().map(Vec::as_slice).collect(),
+                _ => unreachable!("freeze accepted it"),
+            };
+            for (p, expected) in dump.palettes.iter().enumerate() {
+                let entries: Vec<_> = file_palettes[p]
+                    .iter()
+                    .map(|state| resolve_palette_state(corpus(), state).unwrap())
+                    .collect();
                 assert_eq!(
-                    ours.placement_priority, theirs.placement,
-                    "{at}: placement_priority"
+                    entries.len(),
+                    expected.entries.len(),
+                    "{id}[{p}]: entry count"
                 );
+                for (i, text) in expected.entries.iter().enumerate() {
+                    assert_eq!(
+                        resolve(&parse_state(text)),
+                        entries[i].id,
+                        "{id}[{p}]: entry {i}"
+                    );
+                }
+                let full: HashMap<VoxelId, bool> =
+                    entries.iter().map(|e| (e.id, e.full_block)).collect();
+                let sections: Vec<u8> = frozen[p]
+                    .iter()
+                    .map(|b| match (b.nbt.is_some(), full[&b.state]) {
+                        (true, _) => 2,
+                        (false, true) => 0,
+                        (false, false) => 1,
+                    })
+                    .collect();
+                assert!(sections.is_sorted(), "{id}[{p}]: sections interleave");
+                let count = |section| sections.iter().filter(|&&s| s == section).count() as u32;
                 assert_eq!(
-                    ours.selection_priority, theirs.selection,
-                    "{at}: selection_priority"
+                    (count(0), count(1), count(2)),
+                    (expected.full, expected.other, expected.entity),
+                    "{id}[{p}]: section lengths"
                 );
-                assert!(
-                    !theirs.final_state.is_empty(),
-                    "{at}: vanilla failed to parse final_state"
+
+                let jigsaws = &manifest.jigsaws[p];
+                assert_eq!(
+                    jigsaws.len(),
+                    expected.jigsaws.len(),
+                    "{id}[{p}]: jigsaw count"
                 );
-                let final_state = (!is_structure_void(&theirs.final_state))
-                    .then(|| resolve(&parse_state(&theirs.final_state)));
-                assert_eq!(ours.final_state, final_state, "{at}: final_state");
+                for (j, (ours, theirs)) in jigsaws.iter().zip(&expected.jigsaws).enumerate() {
+                    let at = format!("{id}[{p}] jigsaw {j}");
+                    assert_eq!(ours.pos.map(i32::from), theirs.pos, "{at}: pos");
+                    assert_eq!(ours.front.name(), theirs.front, "{at}: front");
+                    assert_eq!(ours.top.name(), theirs.top, "{at}: top");
+                    let joint = match ours.joint {
+                        Joint::Rollable => "rollable",
+                        Joint::Aligned => "aligned",
+                    };
+                    assert_eq!(joint, theirs.joint, "{at}: joint");
+                    assert_eq!(ours.name.to_string(), theirs.name, "{at}: name");
+                    assert_eq!(ours.pool.to_string(), theirs.pool, "{at}: pool");
+                    assert_eq!(ours.target.to_string(), theirs.target, "{at}: target");
+                    assert_eq!(
+                        ours.placement_priority, theirs.placement,
+                        "{at}: placement_priority"
+                    );
+                    assert_eq!(
+                        ours.selection_priority, theirs.selection,
+                        "{at}: selection_priority"
+                    );
+                    assert!(
+                        !theirs.final_state.is_empty(),
+                        "{at}: vanilla failed to parse final_state"
+                    );
+                    let final_state = (!is_structure_void(&theirs.final_state))
+                        .then(|| resolve(&parse_state(&theirs.final_state)));
+                    assert_eq!(ours.final_state, final_state, "{at}: final_state");
+                }
             }
         }
-    }
 
-    let mut states: HashMap<String, VoxelId> = HashMap::new();
-    for dump in &listed {
-        let id = &dump.id;
-        let (_, frozen, _) = freeze(id);
-        let frozen = frozen.palettes;
-        assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
-        for (p, (blocks, bits)) in dump.palettes.iter().enumerate() {
-            let expected: Vec<([i32; 3], VoxelId)> = blocks
-                .iter()
-                .map(|(pos, text)| {
-                    let state = *states
-                        .entry(text.clone())
-                        .or_insert_with(|| resolve(&parse_state(text)));
-                    (*pos, state)
-                })
-                .collect();
-            let ours: Vec<([i32; 3], VoxelId)> = frozen[p]
-                .iter()
-                .map(|b| (b.pos.map(i32::from), b.state))
-                .collect();
-            assert_eq!(ours, expected, "{id}[{p}]: block list");
-            for (i, block) in frozen[p].iter().enumerate() {
-                let bit = bits[i >> 3] & (1 << (i & 7)) != 0;
-                assert_eq!(block.nbt.is_some(), bit, "{id}[{p}] block {i}: nbt");
+        let mut states: HashMap<String, VoxelId> = HashMap::new();
+        for dump in &listed {
+            let id = &dump.id;
+            let (_, frozen, _) = freeze(id);
+            let frozen = frozen.palettes;
+            assert_eq!(frozen.len(), dump.palettes.len(), "{id}: palette count");
+            for (p, (blocks, bits)) in dump.palettes.iter().enumerate() {
+                let expected: Vec<([i32; 3], VoxelId)> = blocks
+                    .iter()
+                    .map(|(pos, text)| {
+                        let state = *states
+                            .entry(text.clone())
+                            .or_insert_with(|| resolve(&parse_state(text)));
+                        (*pos, state)
+                    })
+                    .collect();
+                let ours: Vec<([i32; 3], VoxelId)> = frozen[p]
+                    .iter()
+                    .map(|b| (b.pos.map(i32::from), b.state))
+                    .collect();
+                assert_eq!(ours, expected, "{id}[{p}]: block list");
+                for (i, block) in frozen[p].iter().enumerate() {
+                    let bit = bits[i >> 3] & (1 << (i & 7)) != 0;
+                    assert_eq!(block.nbt.is_some(), bit, "{id}[{p}] block {i}: nbt");
+                }
             }
         }
     }

@@ -496,88 +496,93 @@ mod tests {
     }
 
     #[test]
-    fn delta_leaves_every_untouched_row_unchanged() {
-        let (mut world, column, sections) = column_world(true);
+    fn a_delta_carries_only_the_changed_rows() {
         let mut nibbles = LightNibbles::zeros();
         nibbles.set(1, 2, 3, 0xB);
-        world
-            .entity_mut(sections[2])
-            .insert(BlockLight(LightStorage::Dense(Arc::new(nibbles.clone()))));
-
-        let data = delta(&mut world, column, vec![sections[2]], Vec::new());
-        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
-
-        assert_eq!(unpacked.block[3], RowLight::Filled(LightChunk(*nibbles.0)));
-        for row in 0..ROWS {
-            if row != 3 {
-                assert_eq!(unpacked.block[row], RowLight::Unchanged, "block row {row}");
-            }
-            assert_eq!(unpacked.sky[row], RowLight::Unchanged, "sky row {row}");
-        }
-    }
-
-    #[test]
-    fn delta_of_a_dark_section_is_empty_not_unchanged() {
-        let (mut world, column, sections) = column_world(true);
-        world
-            .entity_mut(sections[2])
-            .insert(BlockLight(LightStorage::Uniform(0)));
-
-        let data = delta(&mut world, column, vec![sections[2]], Vec::new());
-        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
-
-        assert_eq!(unpacked.block[3], RowLight::Empty);
-        assert!(data.block_light_arrays.is_empty());
-    }
-
-    #[test]
-    fn delta_carries_sky_without_block() {
-        let (mut world, column, sections) = column_world(true);
-        world
-            .entity_mut(sections[1])
-            .insert(SkyLight(LightStorage::Uniform(0xF)));
-
-        let data = delta(&mut world, column, Vec::new(), vec![sections[1]]);
-        let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
-
-        assert_eq!(
-            unpacked.sky[2],
-            RowLight::Filled(LightChunk([0xFFu8; 2048]))
-        );
-        for row in 0..ROWS {
-            assert_eq!(unpacked.block[row], RowLight::Unchanged, "block row {row}");
-            if row != 2 {
-                assert_eq!(unpacked.sky[row], RowLight::Unchanged, "sky row {row}");
-            }
-        }
-    }
-
-    #[test]
-    fn delta_row_index_is_the_section_index_plus_the_bottom_padding() {
+        let dense = LightStorage::Dense(Arc::new(nibbles.clone()));
+        let mut cases = vec![
+            (
+                true,
+                2,
+                Layer::Block,
+                dense,
+                Some(RowLight::Filled(LightChunk(*nibbles.0))),
+            ),
+            (
+                true,
+                2,
+                Layer::Block,
+                LightStorage::Uniform(0),
+                Some(RowLight::Empty),
+            ),
+            (
+                true,
+                1,
+                Layer::Sky,
+                LightStorage::Uniform(0xF),
+                Some(RowLight::Filled(LightChunk([0xFF; 2048]))),
+            ),
+            (false, 2, Layer::Sky, LightStorage::Uniform(0xF), None),
+        ];
         for index in 0..SECTIONS {
-            let (mut world, column, sections) = column_world(true);
-            world
-                .entity_mut(sections[index])
-                .insert(BlockLight(LightStorage::Uniform(0x3)));
-
-            let data = delta(&mut world, column, vec![sections[index]], Vec::new());
-            let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
-
-            let filled: Vec<usize> = (0..ROWS)
-                .filter(|&row| unpacked.block[row] != RowLight::Unchanged)
-                .collect();
-            assert_eq!(filled, vec![index + 1], "section {index}");
+            cases.push((
+                true,
+                index,
+                Layer::Block,
+                LightStorage::Uniform(0x3),
+                Some(RowLight::Filled(LightChunk([0x33; 2048]))),
+            ));
         }
-    }
 
-    #[test]
-    fn delta_in_a_skyless_dimension_sends_no_sky_payload() {
-        let (mut world, column, sections) = column_world(false);
-        world
-            .entity_mut(sections[2])
-            .insert(SkyLight(LightStorage::Uniform(0xF)));
+        for (has_sky, index, layer, storage, expected) in cases {
+            let what = format!("{layer:?} {storage:?} in section {index}, sky {has_sky}");
+            let (mut world, column, sections) = column_world(has_sky);
+            let changed = vec![sections[index]];
+            let data = match layer {
+                Layer::Block => {
+                    world
+                        .entity_mut(sections[index])
+                        .insert(BlockLight(storage));
+                    delta(&mut world, column, changed, Vec::new())
+                }
+                Layer::Sky => {
+                    world.entity_mut(sections[index]).insert(SkyLight(storage));
+                    delta(&mut world, column, Vec::new(), changed)
+                }
+            };
+            let unpacked = unpack_light_data(&data, ROWS).expect("delta round-trips");
+            let (rows, arrays) = match layer {
+                Layer::Block => (&unpacked.block, data.block_light_arrays.len()),
+                Layer::Sky => (&unpacked.sky, data.sky_light_arrays.len()),
+            };
+            let filled = rows
+                .iter()
+                .filter(|row| matches!(row, RowLight::Filled(_)))
+                .count();
+            assert_eq!(arrays, filled, "{what}: one array per filled row");
 
-        let data = delta(&mut world, column, Vec::new(), vec![sections[2]]);
-        assert!(data.sky_light_arrays.is_empty());
+            let Some(expected) = expected else {
+                assert_eq!(arrays, 0, "{what}: no payload");
+                continue;
+            };
+            let changed_row = index + 1;
+            for row in 0..ROWS {
+                let block_expected = if layer == Layer::Block && row == changed_row {
+                    &expected
+                } else {
+                    &RowLight::Unchanged
+                };
+                let sky_expected = if layer == Layer::Sky && row == changed_row {
+                    &expected
+                } else {
+                    &RowLight::Unchanged
+                };
+                assert_eq!(
+                    &unpacked.block[row], block_expected,
+                    "{what}: block row {row}"
+                );
+                assert_eq!(&unpacked.sky[row], sky_expected, "{what}: sky row {row}");
+            }
+        }
     }
 }

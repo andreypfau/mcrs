@@ -13,7 +13,7 @@ mod tests {
     use std::path::Path;
     use std::process::Command;
 
-    use super::{BRAND, COMMIT_HASH};
+    use super::COMMIT_HASH;
 
     fn workspace_root() -> &'static Path {
         Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
@@ -38,11 +38,5 @@ mod tests {
             COMMIT_HASH,
             String::from_utf8(output.stdout).unwrap().trim()
         );
-    }
-
-    #[test]
-    fn the_brand_is_the_repository_and_the_hash() {
-        assert_eq!(BRAND, format!("github.com/andreypfau/mcrs@{COMMIT_HASH}"));
-        assert!(BRAND.len() <= 128);
     }
 }

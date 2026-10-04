@@ -38,15 +38,19 @@ fn check(world: &LightWorld, columns_x: i32, columns_z: i32) {
 
 /// Water ends the sky column but still passes light, so a seam here shows up as
 /// a band of the surface being darker than the column beside it.
-#[test]
-fn water_columns_arriving_one_at_a_time_match_one_pass() {
+fn water_columns_arriving_one_at_a_time_match_one_pass(columns: i32) {
     let mut world = world();
-    for x in 0..3 {
-        for z in 0..3 {
+    for x in 0..columns {
+        for z in 0..columns {
             load_column(&mut world, x, z, 1, WATER);
         }
     }
-    check(&world, 3, 3);
+    check(&world, columns, columns);
+}
+
+#[test]
+fn two_by_two_water_columns_arriving_one_at_a_time_match_one_pass() {
+    water_columns_arriving_one_at_a_time_match_one_pass(2);
 }
 
 /// `process_completed_columns` inserts a column's sections as their tasks
@@ -143,5 +147,12 @@ fn an_ocean_surface_is_lit_the_same_everywhere_including_chunk_borders() {
                 (x % 16).min(15 - x % 16).min((z % 16).min(15 - z % 16)),
             );
         }
+    }
+}
+
+mod exhaustive {
+    #[test]
+    fn three_by_three_water_columns_arriving_one_at_a_time_match_one_pass() {
+        super::water_columns_arriving_one_at_a_time_match_one_pass(3);
     }
 }

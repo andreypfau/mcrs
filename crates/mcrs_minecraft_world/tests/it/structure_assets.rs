@@ -1,13 +1,10 @@
+use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_worldgen::bevy::{
     ProcessorListAsset, StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
 };
 
-use crate::common::run_to_playing;
-
-#[test]
-fn the_structure_registries_land_before_playing() {
-    let app = run_to_playing();
+pub fn the_structure_registries_land_before_playing(app: &App) {
     let world = app.world();
 
     assert_eq!(world.resource::<Assets<StructureSetAsset>>().len(), 21);
@@ -42,15 +39,14 @@ fn the_structure_registries_land_before_playing() {
     let missing = mcrs_minecraft_core::ResourceLocation::minecraft(
         "ancient_city/walls/intact_horizontal_wall_stairs_5",
     );
-    let handle = pool
-        .deps
-        .templates
-        .get(&missing)
-        .expect("the pool names it");
+    assert!(!pool.deps.templates.contains_key(&missing));
     assert!(
         world
-            .resource::<Assets<TemplateAsset>>()
-            .get(handle)
-            .is_none()
+            .resource::<AssetServer>()
+            .get_handle::<TemplateAsset>(
+                "minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_5.nbt",
+            )
+            .is_none(),
+        "a template that does not ship is never requested"
     );
 }

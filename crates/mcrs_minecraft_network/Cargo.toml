@@ -52,14 +52,6 @@ bevy = ["dep:bevy_app", "dep:bevy_ecs"]
 telemetry-tracy = []
 
 [[test]]
-name = "accept_rate_unit"
-required-features = ["bevy"]
-
-[[test]]
 name = "it"
 path = "tests/it/main.rs"
-required-features = ["bevy"]
-
-[[test]]
-name = "webtransport_session"
 required-features = ["bevy"]

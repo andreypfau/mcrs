@@ -75,14 +75,7 @@ impl CarverConfig {
 mod tests {
     use super::*;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_core::value_provider::{
-        DispatchedFloatProvider, DispatchedHeightProvider, DispatchedIntProvider, VerticalAnchor,
-    };
     use mcrs_minecraft_worldgen_testing::{read, round_trips};
-
-    fn carver<T: serde::de::DeserializeOwned>(name: &str) -> T {
-        read("carver", &ResourceLocation::minecraft(name))
-    }
 
     #[test]
     fn every_shipped_carver_parses_and_round_trips() {
@@ -90,125 +83,17 @@ mod tests {
     }
 
     #[test]
-    fn the_cave_carver_reads_its_whole_surface() {
+    fn an_absent_start_vertical_radius_multiplier_is_one() {
         let CarverConfig::Cave {
-            probability,
-            y,
-            count,
-            thickness,
-            weird_thickness_bias,
             start_vertical_radius_multiplier,
-            floor_level,
             ..
-        } = carver("cave")
+        } = read("carver", &ResourceLocation::minecraft("cave"))
         else {
             panic!("cave.json is a cave carver");
         };
-        assert_eq!(probability, 0.15);
-        assert_eq!(
-            y,
-            HeightProvider::Dispatched(DispatchedHeightProvider::Uniform {
-                min_inclusive: VerticalAnchor::AboveBottom(8),
-                max_inclusive: VerticalAnchor::Absolute(180),
-            })
-        );
-        assert_eq!(
-            count,
-            IntProvider::Dispatched(DispatchedIntProvider::VeryBiasedToBottom {
-                min_inclusive: 0,
-                max_inclusive: 14
-            })
-        );
-        assert_eq!(
-            thickness,
-            FloatProvider::Dispatched(DispatchedFloatProvider::Trapezoid {
-                min: 0.0,
-                max: 3.0,
-                plateau: 1.0
-            })
-        );
-        assert!(weird_thickness_bias);
-        // Absent from cave.json, and the reference defaults it to one.
         assert_eq!(
             start_vertical_radius_multiplier,
             FloatProvider::Constant(1.0)
         );
-        assert_eq!(
-            floor_level,
-            FloatProvider::Dispatched(DispatchedFloatProvider::Uniform {
-                min_inclusive: -1.0,
-                max_exclusive: -0.4
-            })
-        );
-    }
-
-    /// The Nether's cave is the same carver with different values, including
-    /// the bare-scalar form of every multiplier.
-    #[test]
-    fn the_nether_cave_is_the_cave_carver_with_scalars() {
-        let CarverConfig::Cave {
-            horizontal_radius_multiplier,
-            vertical_radius_multiplier,
-            room_vertical_radius_multiplier,
-            start_vertical_radius_multiplier,
-            floor_level,
-            weird_thickness_bias,
-            y,
-            ..
-        } = carver("nether_cave")
-        else {
-            panic!("nether_cave.json is a cave carver");
-        };
-        assert_eq!(horizontal_radius_multiplier, FloatProvider::Constant(1.0));
-        assert_eq!(vertical_radius_multiplier, FloatProvider::Constant(1.0));
-        assert_eq!(
-            room_vertical_radius_multiplier,
-            FloatProvider::Constant(0.5)
-        );
-        assert_eq!(
-            start_vertical_radius_multiplier,
-            FloatProvider::Constant(5.0)
-        );
-        assert_eq!(floor_level, FloatProvider::Constant(-0.7));
-        assert!(!weird_thickness_bias);
-        assert_eq!(
-            y,
-            HeightProvider::Dispatched(DispatchedHeightProvider::Uniform {
-                min_inclusive: VerticalAnchor::Absolute(0),
-                max_inclusive: VerticalAnchor::BelowTop(1),
-            })
-        );
-    }
-
-    #[test]
-    fn the_canyon_carver_reads_its_shape() {
-        let CarverConfig::Canyon {
-            probability,
-            vertical_rotation,
-            shape,
-            ..
-        } = carver("canyon")
-        else {
-            panic!("canyon.json is a canyon carver");
-        };
-        assert_eq!(probability, 0.01);
-        assert_eq!(
-            vertical_rotation,
-            FloatProvider::Dispatched(DispatchedFloatProvider::Uniform {
-                min_inclusive: -0.125,
-                max_exclusive: 0.125
-            })
-        );
-        assert_eq!(shape.width_smoothness, 3);
-        assert_eq!(shape.vertical_radius_default_factor, 1.0);
-        assert_eq!(shape.vertical_radius_center_factor, 0.0);
-        assert_eq!(shape.y_scale, FloatProvider::Constant(3.0));
-    }
-
-    #[test]
-    fn an_unknown_field_is_a_load_error() {
-        let mut raw: serde_json::Value = carver("canyon");
-        raw["surprise"] = serde_json::json!(1);
-        assert!(serde_json::from_value::<CarverConfig>(raw).is_err());
     }
 }

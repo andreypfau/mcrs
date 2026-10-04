@@ -38,7 +38,6 @@ fn aabb(min: [f32; 3], max: [f32; 3]) -> Aabb {
     }
 }
 
-#[test]
 fn every_file_parses_and_the_states_tile_the_id_space() {
     let (definitions, report) = corpus();
     println!(
@@ -71,7 +70,6 @@ fn every_file_parses_and_the_states_tile_the_id_space() {
 /// The game packs a section that dropped its palette at the smallest width
 /// that tells every block state apart, and a reader has no other way to learn
 /// that width than to count the states itself.
-#[test]
 fn the_block_container_width_is_the_narrowest_that_holds_every_state() {
     let (definitions, _) = corpus();
     let states = definitions.state_count();
@@ -87,7 +85,6 @@ fn the_block_container_width_is_the_narrowest_that_holds_every_state() {
     );
 }
 
-#[test]
 fn every_default_state_lies_in_its_block_and_named_defaults_reconstruct() {
     let (definitions, _) = corpus();
     for block in definitions.blocks() {
@@ -131,7 +128,6 @@ fn every_default_state_lies_in_its_block_and_named_defaults_reconstruct() {
     );
 }
 
-#[test]
 fn stone_has_one_state_and_a_full_cube() {
     let (definitions, _) = corpus();
     let stone = definitions.block("minecraft:stone").unwrap();
@@ -174,7 +170,6 @@ fn stone_has_one_state_and_a_full_cube() {
     );
 }
 
-#[test]
 fn water_carries_its_fluid_state_per_level() {
     let (definitions, _) = corpus();
     let water = definitions.block("minecraft:water").unwrap();
@@ -203,7 +198,6 @@ fn water_carries_its_fluid_state_per_level() {
     );
 }
 
-#[test]
 fn oak_stairs_collision_follows_facing_and_half_but_not_waterlogging() {
     let (definitions, _) = corpus();
     let stairs = definitions.block("minecraft:oak_stairs").unwrap();
@@ -263,7 +257,6 @@ fn oak_stairs_collision_follows_facing_and_half_but_not_waterlogging() {
     assert_eq!(definitions.state(wet).light_dampening, 1);
 }
 
-#[test]
 fn note_block_carries_a_large_integer_property() {
     let (definitions, _) = corpus();
     let note_block = definitions.block("minecraft:note_block").unwrap();
@@ -287,7 +280,6 @@ fn note_block_carries_a_large_integer_property() {
     assert_eq!(definitions.state(last).hardness, 0.8);
 }
 
-#[test]
 fn torch_is_not_a_cube() {
     let (definitions, _) = corpus();
     let torch = definitions.block("minecraft:torch").unwrap();
@@ -309,7 +301,6 @@ fn torch_is_not_a_cube() {
 /// `BlockState.isSolid` is the collision shape's bounds, not the occlusion
 /// shape: leaves, ice, glass and a slab are solid to the reference while none
 /// of them fills the cube for rendering.
-#[test]
 fn solidity_follows_the_collision_shape_and_not_the_occlusion_shape() {
     let (definitions, _) = corpus();
     for name in [
@@ -335,7 +326,6 @@ fn solidity_follows_the_collision_shape_and_not_the_occlusion_shape() {
     }
 }
 
-#[test]
 fn a_button_selection_box_varies_with_every_property() {
     let (definitions, _) = corpus();
     let button = definitions.block("minecraft:acacia_button").unwrap();
@@ -359,7 +349,6 @@ fn a_button_selection_box_varies_with_every_property() {
     );
 }
 
-#[test]
 fn one_property_at_a_time_walks_the_same_states_as_naming_them_all() {
     let (definitions, _) = corpus();
     let note_block = definitions.block("minecraft:note_block").unwrap();
@@ -404,7 +393,6 @@ fn one_property_at_a_time_walks_the_same_states_as_naming_them_all() {
     );
 }
 
-#[test]
 fn every_state_is_reachable_one_property_at_a_time() {
     let (definitions, _) = corpus();
     for block in definitions.blocks() {
@@ -430,11 +418,26 @@ fn every_state_is_reachable_one_property_at_a_time() {
     }
 }
 
+#[test]
+fn the_block_corpus_loads_once_and_answers_per_state() {
+    every_file_parses_and_the_states_tile_the_id_space();
+    the_block_container_width_is_the_narrowest_that_holds_every_state();
+    every_default_state_lies_in_its_block_and_named_defaults_reconstruct();
+    stone_has_one_state_and_a_full_cube();
+    water_carries_its_fluid_state_per_level();
+    oak_stairs_collision_follows_facing_and_half_but_not_waterlogging();
+    note_block_carries_a_large_integer_property();
+    torch_is_not_a_cube();
+    solidity_follows_the_collision_shape_and_not_the_occlusion_shape();
+    a_button_selection_box_varies_with_every_property();
+    one_property_at_a_time_walks_the_same_states_as_naming_them_all();
+    every_state_is_reachable_one_property_at_a_time();
+}
+
 /// The read-ahead pipe under the asset reader has reported EOF with a whole
 /// file still buffered, so a corpus file came back as zero bytes whenever
 /// several readers swept the directory at once.
-#[test]
-fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once() {
+fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once(readers: usize) {
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin::default());
     app.add_plugins(AssetPlugin {
@@ -445,7 +448,7 @@ fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once() {
     let (_, expected) = corpus();
 
     std::thread::scope(|scope| {
-        for _ in 0..16 {
+        for _ in 0..readers {
             let asset_server = asset_server.clone();
             scope.spawn(move || {
                 let (_, report) = load_block_definitions(&asset_server).expect("the corpus loads");
@@ -454,4 +457,16 @@ fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once() {
             });
         }
     });
+}
+
+#[test]
+fn four_readers_sweeping_at_once_all_receive_the_whole_corpus() {
+    the_whole_corpus_arrives_at_every_reader_that_asks_at_once(4);
+}
+
+mod exhaustive {
+    #[test]
+    fn sixteen_readers_sweeping_at_once_all_receive_the_whole_corpus() {
+        super::the_whole_corpus_arrives_at_every_reader_that_asks_at_once(16);
+    }
 }

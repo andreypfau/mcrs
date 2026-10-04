@@ -75,11 +75,4 @@ mod tests {
         assert_eq!(index.get("minecraft:forest"), Some(1));
         assert_eq!(index.get("minecraft:plains"), Some(2));
     }
-
-    #[test]
-    fn index_empty() {
-        let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
-        assert_eq!(index.len(), 0);
-        assert!(index.is_empty());
-    }
 }

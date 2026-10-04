@@ -229,120 +229,6 @@ fn block_name(id: VoxelId) -> &'static str {
     corpus().blocks()[index as usize].identifier.as_str()
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn the_block_entity_type_order_is_the_registry_s() {
-    assert_eq!(BLOCK_ENTITY_TYPES.to_vec(), dump().types);
-}
-
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn the_loot_seeded_kinds_and_every_template_block_entity_id_are_pinned() {
-    let dump = dump();
-    let type_of: BTreeMap<&str, &str> = dump
-        .blocks
-        .iter()
-        .map(|(block, kind, _)| (block.as_str(), kind.as_str()))
-        .collect();
-    let mut seeded: BTreeSet<&str> = BTreeSet::new();
-    for (_, kind, loot_seeded) in &dump.blocks {
-        if *loot_seeded {
-            seeded.insert(kind);
-        }
-    }
-    for id in GeneratedBlockEntity::IDS {
-        assert!(
-            dump.types.iter().any(|t| t == id),
-            "{id} is not a registered block entity type"
-        );
-        assert_eq!(
-            GeneratedBlockEntity::LOOT_SEEDED_IDS.contains(&id),
-            seeded.contains(id),
-            "{id}: RandomizableContainer membership"
-        );
-    }
-    for sand in ["minecraft:suspicious_sand", "minecraft:suspicious_gravel"] {
-        assert_eq!(type_of[sand], "minecraft:brushable_block");
-    }
-
-    let frozen = frozen_shared();
-    let mut checked = 0;
-    for template in &frozen.templates {
-        for block in template.palettes.iter().flat_map(|palette| palette.iter()) {
-            let Some(nbt) = &block.nbt else { continue };
-            let block_id = block_name(block.state);
-            assert_eq!(
-                nbt.get_string("id"),
-                type_of.get(block_id).copied(),
-                "{block_id} at {:?}",
-                block.pos
-            );
-            checked += 1;
-        }
-    }
-    assert!(checked > 1000, "only {checked} block entities checked");
-}
-
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_block_state_rotates_and_mirrors_as_the_reference_does() {
-    let dump = dump();
-    let program = program();
-    let mut resolved: HashMap<&str, VoxelId> = HashMap::new();
-    let mut resolve_text = |text: &'static str| {
-        *resolved
-            .entry(text)
-            .or_insert_with(|| resolve(&parse_state(text)))
-    };
-    let census: HashMap<VoxelId, [VoxelId; 5]> = dump
-        .rotations
-        .iter()
-        .map(|row| {
-            let [state, cw, half, ccw, left_right, front_back] =
-                row.map(|index| resolve_text(dump.rotation_palette[index as usize].as_str()));
-            (state, [cw, half, ccw, left_right, front_back])
-        })
-        .collect();
-    assert_eq!(
-        census.len(),
-        dump.rotations.len(),
-        "two census rows resolve to one state"
-    );
-
-    let turns = [
-        Rotation::Clockwise90,
-        Rotation::Clockwise180,
-        Rotation::Counterclockwise90,
-    ];
-    let mirrors = [Mirror::LeftRight, Mirror::FrontBack];
-    let mut mismatches = Vec::new();
-    for id in 0..corpus().state_count() {
-        let state = VoxelId(id as u16);
-        let expected = census.get(&state).copied().unwrap_or([state; 5]);
-        let got = turns
-            .map(|turn| rotate_state(&program.world, state, turn))
-            .into_iter()
-            .chain(mirrors.map(|mirror| mirror_state(&program.world, state, mirror)));
-        let labels = ["cw90", "cw180", "ccw90", "left_right", "front_back"];
-        for ((label, want), got) in labels.iter().zip(expected).zip(got) {
-            if got != want {
-                mismatches.push(format!(
-                    "{} {label}: want {}, got {}",
-                    state_named(state),
-                    state_named(want),
-                    state_named(got)
-                ));
-            }
-        }
-    }
-    assert!(
-        mismatches.is_empty(),
-        "{} states rotate or mirror differently; the first 20:\n{}",
-        mismatches.len(),
-        mismatches[..mismatches.len().min(20)].join("\n")
-    );
-}
-
 fn id_of(entity: &GeneratedBlockEntity) -> String {
     to_nbt_compound(entity)
         .unwrap()
@@ -648,71 +534,6 @@ fn report(faults: &[String], placements: usize) {
     );
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_pool_element_places_as_the_reference_does() {
-    let dump = dump();
-    let program = program();
-    let frozen = frozen_shared();
-    let mut by_key: BTreeMap<CaseKey, ElementId> = BTreeMap::new();
-    for (key, element) in element_key(frozen) {
-        by_key.entry(key).or_insert(element);
-    }
-    let fixture_keys: BTreeSet<CaseKey> = dump
-        .cases
-        .iter()
-        .filter(|case| case.kind == 0)
-        .map(|case| case.key.clone())
-        .collect();
-    assert_same_keys("pool", &by_key.keys().cloned().collect(), &fixture_keys);
-
-    let mut faults = Vec::new();
-    let mut placements = 0;
-    for case in dump.cases.iter().filter(|case| case.kind == 0) {
-        let element = by_key[&case.key];
-        let rotation = Rotation::ALL[case.rotation as usize];
-        let liquid = match case.liquid {
-            0 => LiquidSettings::ApplyWaterlogging,
-            _ => LiquidSettings::IgnoreWaterlogging,
-        };
-        for placement in &case.placements {
-            placements += 1;
-            let label = format!(
-                "{} {} projection {} legacy {} rotation {rotation:?} liquid {liquid:?} floor {} seed {}",
-                case.key.0, case.key.1, case.key.2, case.key.3, placement.floor, placement.seed
-            );
-            let mut region = region(
-                BlockPos::new(-48, -64, -48),
-                BlockPos::new(63, 319, 63),
-                placement.floor,
-            );
-            let mut run = program.run(RunScratch::default());
-            let mut rng = WorldgenRandom::new(placement.seed as u64);
-            let placed = place_element(
-                program,
-                &mut run,
-                &mut region,
-                element,
-                IVec3::from_array(case.position),
-                IVec3::from_array(case.reference),
-                rotation,
-                case.clip,
-                &mut rng,
-                liquid,
-            );
-            let (entities, _, _) = run.finish();
-            let outcome = Outcome {
-                placed,
-                writes: region.writes,
-                entities,
-                rng: [rng.next_java_long(), rng.next_java_long()],
-            };
-            faults.extend(compare(&label, placement, &outcome));
-        }
-    }
-    report(&faults, placements);
-}
-
 fn feature_key(feature: &Feature) -> Option<CaseKey> {
     let ids = |ids: &[ResourceLocation]| {
         ids.iter()
@@ -774,100 +595,6 @@ fn feature_program(node: &Feature) -> FeatureProgram {
         WORLD_SEED,
         None,
     )
-}
-
-/// A region whose bottom sits just under the floor clamps the fossil to ten
-/// blocks above that bottom, into the air, where every corner is empty; the
-/// three draws before the corner check still happen.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn a_fossil_with_too_many_empty_corners_places_nothing() {
-    let node = &corpus_features().features[&ResourceLocation::minecraft("fossil_coal")];
-    let program = feature_program(node);
-    let generator = program.generator_at(0, 0).expect("a fossil compiles");
-    let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);
-    let mut run = program.run(RunScratch::default());
-    let mut rng = WorldgenRandom::new(7);
-    let placed = generator.place(
-        &mut run,
-        &mut region,
-        &mut rng,
-        BlockPos::new(8, 64, 8),
-        &|_| true,
-    );
-    assert!(!placed);
-    assert!(region.writes.is_empty());
-    let mut expected = WorldgenRandom::new(7);
-    for bound in [4, 8, 10] {
-        expected.next_i32_bound(bound);
-    }
-    assert_eq!(rng.next_i64(), expected.next_i64());
-}
-
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_template_feature_places_as_the_reference_does() {
-    let dump = dump();
-    let mut nodes: BTreeMap<CaseKey, Feature> = BTreeMap::new();
-    for feature in corpus_features().features.values() {
-        super::for_each_feature(feature, &mut |node| {
-            if let Some(key) = feature_key(node) {
-                nodes.entry(key).or_insert_with(|| node.clone());
-            }
-        });
-    }
-    let fixture_keys: BTreeSet<CaseKey> = dump
-        .cases
-        .iter()
-        .filter(|case| case.kind == 1)
-        .map(|case| case.key.clone())
-        .collect();
-    assert_same_keys("feature", &nodes.keys().cloned().collect(), &fixture_keys);
-
-    let mut faults = Vec::new();
-    let mut placements = 0;
-    for case in dump.cases.iter().filter(|case| case.kind == 1) {
-        let program = feature_program(&nodes[&case.key]);
-        let generator = program
-            .generator_at(0, 0)
-            .unwrap_or_else(|| panic!("{:?} compiled to no generator", case.key));
-        for placement in &case.placements {
-            placements += 1;
-            let label = format!(
-                "{} {} floor {} seed {} (drew {} rotation {} at {:?})",
-                case.key.0,
-                case.key.1,
-                placement.floor,
-                placement.seed,
-                placement.template_drawn,
-                placement.rotation_drawn,
-                placement.pos
-            );
-            let mut region = region(
-                BlockPos::new(-16, -64, -16),
-                BlockPos::new(31, 319, 31),
-                placement.floor,
-            );
-            let mut run = program.run(RunScratch::default());
-            let mut rng = WorldgenRandom::new(placement.seed as u64);
-            let placed = generator.place(
-                &mut run,
-                &mut region,
-                &mut rng,
-                IVec3::from_array(case.position).into(),
-                &|_| true,
-            );
-            let (entities, _, _) = run.finish();
-            let outcome = Outcome {
-                placed,
-                writes: region.writes,
-                entities,
-                rng: [rng.next_java_long(), rng.next_java_long()],
-            };
-            faults.extend(compare(&label, placement, &outcome));
-        }
-    }
-    report(&faults, placements);
 }
 
 /// `RuinedPortalPiece.makeSettings`, from the properties the case key spells.
@@ -932,85 +659,357 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     list
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_ruined_portal_chain_places_as_the_reference_does() {
-    let dump = dump();
-    let biomes = biome_registry(&[BIOME]);
-    let resolver = crate::feature_program::Resolver::new(
-        &blocks().0,
-        Some(block_tags()),
-        Some(fluid_tags()),
-        &biomes,
-        WORLD_SEED,
-        &[],
-        &super::corpus_features().block_state_providers,
-    )
-    .expect("the corpus resolves");
-    let mut templates: BTreeMap<&str, mcrs_minecraft_worldgen_feature::template::FrozenTemplate> =
-        BTreeMap::new();
-    let mut faults = Vec::new();
-    let mut placements = 0;
-    let cases: Vec<&DumpCase> = dump.cases.iter().filter(|case| case.kind == 2).collect();
-    assert_eq!(cases.len(), 78);
-    for case in cases {
-        let template = templates
-            .entry(case.key.0.as_str())
-            .or_insert_with(|| freeze(&case.key.0).1);
-        let chain = compile_chain(
-            &portal_processors(&case.key.1),
-            ChainKind::Feature,
-            &resolver,
-            WORLD_SEED,
-        )
-        .unwrap_or_else(|error| panic!("{}: {error}", case.key.1));
-        let rotation = Rotation::ALL[case.rotation as usize];
-        let mirror = Mirror::ALL[case.mirror as usize];
-        let position = IVec3::from_array(case.position);
-        let palette = LegacyRandom::new(block_pos_seed(position))
-            .next_i32_bound(template.palettes.len() as i32) as usize;
-        for placement in &case.placements {
-            placements += 1;
-            let label = format!(
-                "{} {} rotation {rotation:?} mirror {mirror:?} floor {} seed {}",
-                case.key.0, case.key.1, placement.floor, placement.seed
-            );
-            let mut region = region(
-                BlockPos::new(-48, -64, -48),
-                BlockPos::new(63, 319, 63),
-                placement.floor,
-            );
-            let mut rng = WorldgenRandom::new(placement.seed as u64);
-            let mut entities = Vec::new();
-            let placed = place_template(
-                &Placement {
-                    template,
-                    jigsaws: &[],
-                    palette,
-                    position,
-                    reference: IVec3::from_array(case.reference),
-                    rotation,
-                    mirror,
-                    pivot: IVec3::from_array(case.pivot),
-                    random: SettingsRandom::Positional,
-                    clip: case.clip,
-                    chain: &chain,
-                    waterlog: true,
-                    place_entities: false,
-                },
-                &mut region,
-                &mut rng,
-                &mut entities,
-                &mut Vec::new(),
-            );
-            let outcome = Outcome {
-                placed,
-                writes: region.writes,
-                entities,
-                rng: [rng.next_java_long(), rng.next_java_long()],
-            };
-            faults.extend(compare(&label, placement, &outcome));
-        }
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_block_entity_type_order_is_the_registry_s() {
+        assert_eq!(BLOCK_ENTITY_TYPES.to_vec(), dump().types);
     }
-    report(&faults, placements);
+
+    #[test]
+    fn the_loot_seeded_kinds_and_every_template_block_entity_id_are_pinned() {
+        let dump = dump();
+        let type_of: BTreeMap<&str, &str> = dump
+            .blocks
+            .iter()
+            .map(|(block, kind, _)| (block.as_str(), kind.as_str()))
+            .collect();
+        let mut seeded: BTreeSet<&str> = BTreeSet::new();
+        for (_, kind, loot_seeded) in &dump.blocks {
+            if *loot_seeded {
+                seeded.insert(kind);
+            }
+        }
+        for id in GeneratedBlockEntity::IDS {
+            assert!(
+                dump.types.iter().any(|t| t == id),
+                "{id} is not a registered block entity type"
+            );
+            assert_eq!(
+                GeneratedBlockEntity::LOOT_SEEDED_IDS.contains(&id),
+                seeded.contains(id),
+                "{id}: RandomizableContainer membership"
+            );
+        }
+        for sand in ["minecraft:suspicious_sand", "minecraft:suspicious_gravel"] {
+            assert_eq!(type_of[sand], "minecraft:brushable_block");
+        }
+
+        let frozen = frozen_shared();
+        let mut checked = 0;
+        for template in &frozen.templates {
+            for block in template.palettes.iter().flat_map(|palette| palette.iter()) {
+                let Some(nbt) = &block.nbt else { continue };
+                let block_id = block_name(block.state);
+                assert_eq!(
+                    nbt.get_string("id"),
+                    type_of.get(block_id).copied(),
+                    "{block_id} at {:?}",
+                    block.pos
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 1000, "only {checked} block entities checked");
+    }
+
+    #[test]
+    fn every_block_state_rotates_and_mirrors_as_the_reference_does() {
+        let dump = dump();
+        let program = program();
+        let mut resolved: HashMap<&str, VoxelId> = HashMap::new();
+        let mut resolve_text = |text: &'static str| {
+            *resolved
+                .entry(text)
+                .or_insert_with(|| resolve(&parse_state(text)))
+        };
+        let census: HashMap<VoxelId, [VoxelId; 5]> = dump
+            .rotations
+            .iter()
+            .map(|row| {
+                let [state, cw, half, ccw, left_right, front_back] =
+                    row.map(|index| resolve_text(dump.rotation_palette[index as usize].as_str()));
+                (state, [cw, half, ccw, left_right, front_back])
+            })
+            .collect();
+        assert_eq!(
+            census.len(),
+            dump.rotations.len(),
+            "two census rows resolve to one state"
+        );
+
+        let turns = [
+            Rotation::Clockwise90,
+            Rotation::Clockwise180,
+            Rotation::Counterclockwise90,
+        ];
+        let mirrors = [Mirror::LeftRight, Mirror::FrontBack];
+        let mut mismatches = Vec::new();
+        for id in 0..corpus().state_count() {
+            let state = VoxelId(id as u16);
+            let expected = census.get(&state).copied().unwrap_or([state; 5]);
+            let got = turns
+                .map(|turn| rotate_state(&program.world, state, turn))
+                .into_iter()
+                .chain(mirrors.map(|mirror| mirror_state(&program.world, state, mirror)));
+            let labels = ["cw90", "cw180", "ccw90", "left_right", "front_back"];
+            for ((label, want), got) in labels.iter().zip(expected).zip(got) {
+                if got != want {
+                    mismatches.push(format!(
+                        "{} {label}: want {}, got {}",
+                        state_named(state),
+                        state_named(want),
+                        state_named(got)
+                    ));
+                }
+            }
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} states rotate or mirror differently; the first 20:\n{}",
+            mismatches.len(),
+            mismatches[..mismatches.len().min(20)].join("\n")
+        );
+    }
+
+    #[test]
+    fn every_pool_element_places_as_the_reference_does() {
+        let dump = dump();
+        let program = program();
+        let frozen = frozen_shared();
+        let mut by_key: BTreeMap<CaseKey, ElementId> = BTreeMap::new();
+        for (key, element) in element_key(frozen) {
+            by_key.entry(key).or_insert(element);
+        }
+        let fixture_keys: BTreeSet<CaseKey> = dump
+            .cases
+            .iter()
+            .filter(|case| case.kind == 0)
+            .map(|case| case.key.clone())
+            .collect();
+        assert_same_keys("pool", &by_key.keys().cloned().collect(), &fixture_keys);
+
+        let mut faults = Vec::new();
+        let mut placements = 0;
+        for case in dump.cases.iter().filter(|case| case.kind == 0) {
+            let element = by_key[&case.key];
+            let rotation = Rotation::ALL[case.rotation as usize];
+            let liquid = match case.liquid {
+                0 => LiquidSettings::ApplyWaterlogging,
+                _ => LiquidSettings::IgnoreWaterlogging,
+            };
+            for placement in &case.placements {
+                placements += 1;
+                let label = format!(
+                    "{} {} projection {} legacy {} rotation {rotation:?} liquid {liquid:?} floor {} seed {}",
+                    case.key.0, case.key.1, case.key.2, case.key.3, placement.floor, placement.seed
+                );
+                let mut region = region(
+                    BlockPos::new(-48, -64, -48),
+                    BlockPos::new(63, 319, 63),
+                    placement.floor,
+                );
+                let mut run = program.run(RunScratch::default());
+                let mut rng = WorldgenRandom::new(placement.seed as u64);
+                let placed = place_element(
+                    program,
+                    &mut run,
+                    &mut region,
+                    element,
+                    IVec3::from_array(case.position),
+                    IVec3::from_array(case.reference),
+                    rotation,
+                    case.clip,
+                    &mut rng,
+                    liquid,
+                );
+                let (entities, _, _) = run.finish();
+                let outcome = Outcome {
+                    placed,
+                    writes: region.writes,
+                    entities,
+                    rng: [rng.next_java_long(), rng.next_java_long()],
+                };
+                faults.extend(compare(&label, placement, &outcome));
+            }
+        }
+        report(&faults, placements);
+    }
+
+    /// A region whose bottom sits just under the floor clamps the fossil to ten
+    /// blocks above that bottom, into the air, where every corner is empty; the
+    /// three draws before the corner check still happen.
+    #[test]
+    fn a_fossil_with_too_many_empty_corners_places_nothing() {
+        let node = &corpus_features().features[&ResourceLocation::minecraft("fossil_coal")];
+        let program = feature_program(node);
+        let generator = program.generator_at(0, 0).expect("a fossil compiles");
+        let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);
+        let mut run = program.run(RunScratch::default());
+        let mut rng = WorldgenRandom::new(7);
+        let placed = generator.place(
+            &mut run,
+            &mut region,
+            &mut rng,
+            BlockPos::new(8, 64, 8),
+            &|_| true,
+        );
+        assert!(!placed);
+        assert!(region.writes.is_empty());
+        let mut expected = WorldgenRandom::new(7);
+        for bound in [4, 8, 10] {
+            expected.next_i32_bound(bound);
+        }
+        assert_eq!(rng.next_i64(), expected.next_i64());
+    }
+
+    #[test]
+    fn every_template_feature_places_as_the_reference_does() {
+        let dump = dump();
+        let mut nodes: BTreeMap<CaseKey, Feature> = BTreeMap::new();
+        for feature in corpus_features().features.values() {
+            crate::tests::for_each_feature(feature, &mut |node| {
+                if let Some(key) = feature_key(node) {
+                    nodes.entry(key).or_insert_with(|| node.clone());
+                }
+            });
+        }
+        let fixture_keys: BTreeSet<CaseKey> = dump
+            .cases
+            .iter()
+            .filter(|case| case.kind == 1)
+            .map(|case| case.key.clone())
+            .collect();
+        assert_same_keys("feature", &nodes.keys().cloned().collect(), &fixture_keys);
+
+        let mut faults = Vec::new();
+        let mut placements = 0;
+        for case in dump.cases.iter().filter(|case| case.kind == 1) {
+            let program = feature_program(&nodes[&case.key]);
+            let generator = program
+                .generator_at(0, 0)
+                .unwrap_or_else(|| panic!("{:?} compiled to no generator", case.key));
+            for placement in &case.placements {
+                placements += 1;
+                let label = format!(
+                    "{} {} floor {} seed {} (drew {} rotation {} at {:?})",
+                    case.key.0,
+                    case.key.1,
+                    placement.floor,
+                    placement.seed,
+                    placement.template_drawn,
+                    placement.rotation_drawn,
+                    placement.pos
+                );
+                let mut region = region(
+                    BlockPos::new(-16, -64, -16),
+                    BlockPos::new(31, 319, 31),
+                    placement.floor,
+                );
+                let mut run = program.run(RunScratch::default());
+                let mut rng = WorldgenRandom::new(placement.seed as u64);
+                let placed = generator.place(
+                    &mut run,
+                    &mut region,
+                    &mut rng,
+                    IVec3::from_array(case.position).into(),
+                    &|_| true,
+                );
+                let (entities, _, _) = run.finish();
+                let outcome = Outcome {
+                    placed,
+                    writes: region.writes,
+                    entities,
+                    rng: [rng.next_java_long(), rng.next_java_long()],
+                };
+                faults.extend(compare(&label, placement, &outcome));
+            }
+        }
+        report(&faults, placements);
+    }
+
+    #[test]
+    fn every_ruined_portal_chain_places_as_the_reference_does() {
+        let dump = dump();
+        let biomes = biome_registry(&[BIOME]);
+        let resolver = crate::feature_program::Resolver::new(
+            &blocks().0,
+            Some(block_tags()),
+            Some(fluid_tags()),
+            &biomes,
+            WORLD_SEED,
+            &[],
+            &crate::tests::corpus_features().block_state_providers,
+        )
+        .expect("the corpus resolves");
+        let mut templates: BTreeMap<
+            &str,
+            mcrs_minecraft_worldgen_feature::template::FrozenTemplate,
+        > = BTreeMap::new();
+        let mut faults = Vec::new();
+        let mut placements = 0;
+        let cases: Vec<&DumpCase> = dump.cases.iter().filter(|case| case.kind == 2).collect();
+        assert_eq!(cases.len(), 78);
+        for case in cases {
+            let template = templates
+                .entry(case.key.0.as_str())
+                .or_insert_with(|| freeze(&case.key.0).1);
+            let chain = compile_chain(
+                &portal_processors(&case.key.1),
+                ChainKind::Feature,
+                &resolver,
+                WORLD_SEED,
+            )
+            .unwrap_or_else(|error| panic!("{}: {error}", case.key.1));
+            let rotation = Rotation::ALL[case.rotation as usize];
+            let mirror = Mirror::ALL[case.mirror as usize];
+            let position = IVec3::from_array(case.position);
+            let palette = LegacyRandom::new(block_pos_seed(position))
+                .next_i32_bound(template.palettes.len() as i32) as usize;
+            for placement in &case.placements {
+                placements += 1;
+                let label = format!(
+                    "{} {} rotation {rotation:?} mirror {mirror:?} floor {} seed {}",
+                    case.key.0, case.key.1, placement.floor, placement.seed
+                );
+                let mut region = region(
+                    BlockPos::new(-48, -64, -48),
+                    BlockPos::new(63, 319, 63),
+                    placement.floor,
+                );
+                let mut rng = WorldgenRandom::new(placement.seed as u64);
+                let mut entities = Vec::new();
+                let placed = place_template(
+                    &Placement {
+                        template,
+                        jigsaws: &[],
+                        palette,
+                        position,
+                        reference: IVec3::from_array(case.reference),
+                        rotation,
+                        mirror,
+                        pivot: IVec3::from_array(case.pivot),
+                        random: SettingsRandom::Positional,
+                        clip: case.clip,
+                        chain: &chain,
+                        waterlog: true,
+                        place_entities: false,
+                    },
+                    &mut region,
+                    &mut rng,
+                    &mut entities,
+                    &mut Vec::new(),
+                );
+                let outcome = Outcome {
+                    placed,
+                    writes: region.writes,
+                    entities,
+                    rng: [rng.next_java_long(), rng.next_java_long()],
+                };
+                faults.extend(compare(&label, placement, &outcome));
+            }
+        }
+        report(&faults, placements);
+    }
 }

@@ -101,10 +101,10 @@ mod tests {
             .into()
     }
 
-    #[test]
-    fn shaped_states_are_exactly_the_states_the_corpus_flags() {
-        let blocks = corpus();
-        let registry = block_light_registry(blocks);
+    fn shaped_states_are_exactly_the_states_the_corpus_flags(
+        blocks: &Blocks,
+        registry: &LightRegistry,
+    ) {
         let mut flagged = 0usize;
         for index in 0..blocks.state_count() {
             let id = VoxelId(index as u16);
@@ -123,10 +123,7 @@ mod tests {
         assert!(flagged < blocks.state_count() / 2);
     }
 
-    #[test]
-    fn a_slab_is_shaped_and_a_full_block_is_not() {
-        let blocks = corpus();
-        let registry = block_light_registry(blocks);
+    fn a_slab_is_shaped_and_a_full_block_is_not(blocks: &Blocks, registry: &LightRegistry) {
         let slab = blocks.block("minecraft:oak_slab").expect("oak slab");
         let bottom: VoxelId = slab
             .with_text(slab.default_state_id, "type", "bottom")
@@ -140,10 +137,7 @@ mod tests {
         assert_eq!(registry.get(default_state("minecraft:air")).dampening, 0);
     }
 
-    #[test]
-    fn emission_comes_from_the_corpus() {
-        let blocks = corpus();
-        let registry = block_light_registry(blocks);
+    fn emission_comes_from_the_corpus(blocks: &Blocks, registry: &LightRegistry) {
         let torch = default_state("minecraft:torch");
         let expected = blocks.state(torch.into()).light_emission;
         assert!(expected > 0, "a torch emits light");
@@ -154,13 +148,20 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_filler_ids_sit_past_the_corpus() {
-        let blocks = corpus();
-        let registry = block_light_registry(blocks);
+    fn the_filler_ids_sit_past_the_corpus(blocks: &Blocks, registry: &LightRegistry) {
         assert_eq!(registry.unloaded(), VoxelId(blocks.state_count() as u16));
         assert_eq!(registry.outside(), VoxelId(blocks.state_count() as u16 + 1));
         assert_eq!(registry.get(registry.unloaded()).dampening, 15);
         assert_eq!(registry.get(registry.outside()).dampening, 0);
+    }
+
+    #[test]
+    fn the_light_registry_is_built_from_the_corpus() {
+        let blocks = corpus();
+        let registry = block_light_registry(blocks);
+        shaped_states_are_exactly_the_states_the_corpus_flags(blocks, &registry);
+        a_slab_is_shaped_and_a_full_block_is_not(blocks, &registry);
+        emission_comes_from_the_corpus(blocks, &registry);
+        the_filler_ids_sit_past_the_corpus(blocks, &registry);
     }
 }

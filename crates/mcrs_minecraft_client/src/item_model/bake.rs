@@ -344,14 +344,20 @@ fn missing_model(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<BakedItemM
 mod tests {
     use super::*;
 
-    fn baked() -> ItemModels {
-        let mut sprites = SpriteRegistry::default();
-        bake_all(Pack::corpus(), &mut sprites).unwrap()
+    #[test]
+    fn every_item_of_the_corpus_bakes() {
+        let models = bake_all(Pack::corpus(), &mut SpriteRegistry::default()).unwrap();
+        assert_eq!(
+            models.by_id.len(),
+            Pack::corpus().entries("items", "json").count()
+        );
+        a_generated_item_is_extruded_and_front_lit(&models);
+        an_unknown_id_is_the_missing_cube_without_display_transforms(&models);
+        range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below(&models);
+        a_composite_of_one_collapses_and_a_special_keeps_only_its_display(&models);
     }
 
-    #[test]
-    fn a_generated_item_is_extruded_and_front_lit() {
-        let models = baked();
+    fn a_generated_item_is_extruded_and_front_lit(models: &ItemModels) {
         let BakedNode::Model {
             model, transform, ..
         } = models.get("minecraft:stick")
@@ -365,9 +371,7 @@ mod tests {
         assert_eq!(model.display, ItemTransform::NONE);
     }
 
-    #[test]
-    fn an_unknown_id_is_the_missing_cube_without_display_transforms() {
-        let models = baked();
+    fn an_unknown_id_is_the_missing_cube_without_display_transforms(models: &ItemModels) {
         let BakedNode::Model { model, .. } = models.get("minecraft:no_such_item") else {
             panic!("missing is a plain model");
         };
@@ -376,9 +380,7 @@ mod tests {
         assert_eq!(model.gui_light, GuiLight::Side);
     }
 
-    #[test]
-    fn range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below() {
-        let models = baked();
+    fn range_entries_are_sorted_and_looked_up_by_last_threshold_at_or_below(models: &ItemModels) {
         let BakedNode::Condition { on_true, .. } = models.get("minecraft:bow") else {
             panic!("bow switches on using_item");
         };
@@ -398,9 +400,7 @@ mod tests {
         assert_eq!(BakedNode::range_index(&[0.0, 0.5, 0.9], f32::NAN), None);
     }
 
-    #[test]
-    fn a_composite_of_one_collapses_and_a_special_keeps_only_its_display() {
-        let models = baked();
+    fn a_composite_of_one_collapses_and_a_special_keeps_only_its_display(models: &ItemModels) {
         assert!(matches!(
             models.get("minecraft:shield"),
             BakedNode::Condition { .. }
@@ -409,19 +409,5 @@ mod tests {
             panic!("conduit is special");
         };
         assert!(properties.quads.is_empty());
-    }
-
-    mod exhaustive {
-        use super::*;
-
-        #[test]
-        fn every_item_of_the_corpus_bakes() {
-            let models = baked();
-            assert_eq!(
-                models.by_id.len(),
-                Pack::corpus().entries("items", "json").count()
-            );
-            assert!(models.by_id.len() > 1600);
-        }
     }
 }

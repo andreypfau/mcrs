@@ -427,17 +427,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_deferred_table_holds_one_gbuffer_pipeline_per_opaque_layer_shape_and_wireframe() {
-        let mut slots: Vec<usize> = gbuffer_slots()
-            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
-            .collect();
-        slots.sort_unstable();
-        slots.dedup();
-        assert_eq!(slots.len(), 8);
-        assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
-    }
-
-    #[test]
     fn the_deferred_table_fills_every_terrain_slot_exactly_once() {
         let mut slots: Vec<usize> = gbuffer_slots()
             .chain(forward_slots())
@@ -445,6 +434,7 @@ mod tests {
             .collect();
         slots.sort_unstable();
         assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());
+        assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
         assert!(forward_slots().all(|(layer, _, _)| layer == Pass::Translucent));
     }
 

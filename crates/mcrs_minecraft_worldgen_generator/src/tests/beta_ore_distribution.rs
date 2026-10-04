@@ -148,26 +148,10 @@ fn drive(seed: i64, ids: &BetaOreBlockIds) -> (BoxVolume, u64) {
 }
 
 #[test]
-fn beta_ore_draw_count_pin() {
+fn veins_cross_the_column_border_on_the_pinned_draw_count() {
     let ids = BetaOreBlockIds::resolve(super::corpus());
-    let seed = populate_seed(0, 0, 12345);
-    let (_, driver_count) = drive(seed, &ids);
-
-    if ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
-        println!(
-            "ORE DRAW COUNT PIN (chunk 0,0 seed 12345): {}",
-            driver_count
-        );
-        assert!(driver_count > 0);
-    } else {
-        assert_eq!(driver_count, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);
-    }
-}
-
-#[test]
-fn veins_cross_the_column_border() {
-    let ids = BetaOreBlockIds::resolve(super::corpus());
-    let (volume, _) = drive(populate_seed(0, 0, 12345), &ids);
+    let (volume, draws) = drive(populate_seed(0, 0, 12345), &ids);
+    assert_eq!(draws, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);
     let placed = placed(&volume, ids.stone.into());
 
     let own = placed.iter().filter(|(col, _)| *col == (0, 0)).count();

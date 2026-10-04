@@ -1,7 +1,7 @@
 use mcrs_minecraft_protocol::{ColumnPos, Decode, Encode};
 
 #[test]
-fn column_pos_encode_byte_layout() {
+fn column_pos_is_two_big_endian_ints_and_round_trips() {
     let pos = ColumnPos { x: 3, z: -7 };
     let mut buf = Vec::new();
     pos.encode(&mut buf).expect("encode");
@@ -10,10 +10,7 @@ fn column_pos_encode_byte_layout() {
         vec![0x00, 0x00, 0x00, 0x03, 0xFF, 0xFF, 0xFF, 0xF9],
         "wire layout must be big-endian i32 x then big-endian i32 z"
     );
-}
 
-#[test]
-fn column_pos_decode_round_trip() {
     let cases = [
         ColumnPos { x: 0, z: 0 },
         ColumnPos { x: 1, z: -1 },

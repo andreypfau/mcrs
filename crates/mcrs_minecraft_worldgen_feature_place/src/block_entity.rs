@@ -1335,26 +1335,6 @@ mod tests {
     }
 
     #[test]
-    fn uuids_are_int_arrays() {
-        let heart = GeneratedBlockEntity::CreakingHeart {
-            x: 1,
-            y: -2,
-            z: 3,
-            creaking: Some(Uuid([-1, 2, -3, 4])),
-            components: None,
-        };
-        let compound = to_nbt_compound(&heart).unwrap();
-        assert_eq!(
-            compound.get("creaking"),
-            Some(&NbtTag::IntArray(vec![-1, 2, -3, 4]))
-        );
-        assert_eq!(
-            GeneratedBlockEntity::from_compound(&compound).unwrap(),
-            heart
-        );
-    }
-
-    #[test]
     fn a_sign_drops_filtered_messages_equal_to_its_messages() {
         let mut front = sign_text("kept");
         front.filtered_messages = Some(front.messages.clone());

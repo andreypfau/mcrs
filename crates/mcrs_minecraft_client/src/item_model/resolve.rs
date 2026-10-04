@@ -386,6 +386,17 @@ mod tests {
     }
 
     #[test]
+    fn item_stacks_evaluate_and_resolve_against_the_corpus() {
+        damage_and_count_ranges_follow_the_stack();
+        bundle_fullness_weighs_children_and_nested_bundles();
+        charge_type_reads_the_loaded_projectiles();
+        has_component_distinguishes_prototype_and_patch();
+        tints_follow_vanilla_colour_rules();
+        a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side();
+        a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted();
+        the_system_resolves_held_stacks_once_per_revision();
+    }
+
     fn damage_and_count_ranges_follow_the_stack() {
         let mut world = world();
         let pick = spawn(
@@ -410,7 +421,6 @@ mod tests {
         assert!(!e.condition(&ConditionProperty::Damaged));
     }
 
-    #[test]
     fn bundle_fullness_weighs_children_and_nested_bundles() {
         let mut world = world();
         let inner = value(
@@ -438,7 +448,6 @@ mod tests {
         assert_eq!(e.range(&RangeProperty::BundleFullness), 0.0);
     }
 
-    #[test]
     fn charge_type_reads_the_loaded_projectiles() {
         let mut world = world();
         let charged = |projectile: Option<&str>| {
@@ -467,7 +476,6 @@ mod tests {
         assert!(e.select(switch).is_some());
     }
 
-    #[test]
     fn has_component_distinguishes_prototype_and_patch() {
         let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
@@ -497,7 +505,6 @@ mod tests {
         assert!(e.condition(&max_stack(true)));
     }
 
-    #[test]
     fn tints_follow_vanilla_colour_rules() {
         let mut world = world();
         let star = spawn(
@@ -574,7 +581,6 @@ mod tests {
         })
     }
 
-    #[test]
     fn a_block_item_shows_its_top_north_and_east_faces_lit_from_the_side() {
         let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
@@ -609,7 +615,6 @@ mod tests {
         assert!(all.iter().any(|p| near(*p, [0.9289322, 3.6698723, 2.5])));
     }
 
-    #[test]
     fn a_flat_item_is_drawn_at_sprite_colour_and_glints_when_enchanted() {
         let mut world = world();
         let stick = spawn(&mut world, "stick", 1, ComponentPatch::EMPTY);
@@ -646,7 +651,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn the_system_resolves_held_stacks_once_per_revision() {
         let mut app = App::new();
         app.insert_resource(items().clone());

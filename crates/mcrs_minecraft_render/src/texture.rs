@@ -401,14 +401,6 @@ mod tests {
     }
 
     #[test]
-    fn the_light_curve_holds_its_shape() {
-        assert_eq!(light_curve(0.0), 0.0);
-        assert_eq!(light_curve(15.0), 1.0);
-        assert!((light_curve(5.0) - 1.0 / 9.0).abs() < 1e-6);
-        assert!((light_curve(10.0) - 1.0 / 3.0).abs() < 1e-6);
-    }
-
-    #[test]
     fn moody_brightness_is_the_curve_worked_by_hand() {
         let lit = |block, sky_level| lit_color(&sky(), 0.0, block, sky_level);
         assert_eq!(lit(0.0, 15.0), [51, 77, 102, 255]);

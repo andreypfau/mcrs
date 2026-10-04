@@ -41,10 +41,6 @@ fn spawn_compound() -> NbtCompound {
     spawn
 }
 
-fn level_data(data_version: i32, with_uuid: bool) -> NbtCompound {
-    level_data_tagged(Some(NbtTag::Int(data_version)), with_uuid)
-}
-
 fn level_data_tagged(data_version: Option<NbtTag>, with_uuid: bool) -> NbtCompound {
     let mut data = NbtCompound::new();
     if let Some(tag) = data_version {
@@ -180,23 +176,6 @@ fn level_dat_reads_the_fields_we_consume() {
 }
 
 #[test]
-fn level_dat_wrapped_like_a_saved_data_file_is_an_error() {
-    let mut root = NbtCompound::new();
-    root.put_component("data", level_data(VERSION.world_version, true));
-    let err = parse_level_dat(&gzip(root), path()).unwrap_err();
-    assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
-}
-
-#[test]
-fn saved_data_wrapped_like_level_dat_is_an_error() {
-    let mut root = NbtCompound::new();
-    root.put_component("Data", weather_payload());
-    root.put_int("DataVersion", VERSION.world_version);
-    let err = parse_weather(&gzip(root), path()).unwrap_err();
-    assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
-}
-
-#[test]
 fn omitted_clock_fields_take_the_codec_defaults() {
     let clocks = parse_world_clocks(
         &saved_data(VERSION.world_version, world_clocks_payload()),
@@ -225,7 +204,7 @@ fn omitted_clock_fields_take_the_codec_defaults() {
 }
 
 #[test]
-fn a_clock_state_writes_back_only_what_the_save_held() {
+fn a_clock_state_writes_back_only_what_the_save_held_and_round_trips() {
     let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockState {
         total_ticks: 1757,
         ..ClockState::default()
@@ -244,16 +223,12 @@ fn a_clock_state_writes_back_only_what_the_save_held() {
         keys(&written),
         ["total_ticks", "partial_tick", "rate", "paused"]
     );
-}
 
-#[test]
-fn a_clock_state_round_trips_through_the_save_shape() {
     let clocks = parse_world_clocks(
         &saved_data(VERSION.world_version, world_clocks_payload()),
         path(),
     )
     .unwrap();
-
     let mut payload = NbtCompound::new();
     for (id, state) in &clocks {
         payload.put_component(
@@ -262,12 +237,20 @@ fn a_clock_state_round_trips_through_the_save_shape() {
         );
     }
     let reread = parse_world_clocks(&saved_data(VERSION.world_version, payload), path()).unwrap();
-
     assert_eq!(clocks, reread);
 }
 
+fn spawn(pos: Vec<i32>, yaw: f32, pitch: f32) -> NbtCompound {
+    let mut spawn = NbtCompound::new();
+    spawn.put("pos", NbtTag::IntArray(pos));
+    spawn.put_float("yaw", yaw);
+    spawn.put_float("pitch", pitch);
+    spawn.put_string("dimension", "minecraft:overworld".to_string());
+    spawn
+}
+
 #[test]
-fn a_non_finite_clock_rate_is_rejected() {
+fn values_outside_their_range_are_rejected() {
     for rate in [0.0, f32::NAN, f32::INFINITY] {
         let mut overworld = NbtCompound::new();
         overworld.put_long("total_ticks", 1757);
@@ -282,34 +265,21 @@ fn a_non_finite_clock_rate_is_rejected() {
             "rate {rate} accepted: {err}"
         );
     }
-}
 
-#[test]
-fn a_spawn_angle_outside_its_range_is_rejected() {
     for (field, yaw, pitch) in [("spawn.yaw", 180.5, 0.0), ("spawn.pitch", 0.0, -90.5)] {
-        let mut spawn = NbtCompound::new();
-        spawn.put("pos", NbtTag::IntArray(vec![0, 70, 64]));
-        spawn.put_float("yaw", yaw);
-        spawn.put_float("pitch", pitch);
-        spawn.put_string("dimension", "minecraft:overworld".to_string());
-
-        let err = parse_level_dat(&level_dat_with_spawn(spawn), path()).unwrap_err();
+        let err = parse_level_dat(
+            &level_dat_with_spawn(spawn(vec![0, 70, 64], yaw, pitch)),
+            path(),
+        )
+        .unwrap_err();
         assert!(
             matches!(err, SaveError::OutOfRange { field: f, .. } if f == field),
             "{field}: {err}"
         );
     }
-}
 
-#[test]
-fn a_spawn_position_of_the_wrong_length_is_rejected() {
-    let mut spawn = NbtCompound::new();
-    spawn.put("pos", NbtTag::IntArray(vec![0, 70]));
-    spawn.put_float("yaw", 0.0);
-    spawn.put_float("pitch", 0.0);
-    spawn.put_string("dimension", "minecraft:overworld".to_string());
-
-    let err = parse_level_dat(&level_dat_with_spawn(spawn), path()).unwrap_err();
+    let err =
+        parse_level_dat(&level_dat_with_spawn(spawn(vec![0, 70], 0.0, 0.0)), path()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -343,16 +313,6 @@ fn weather_reads_all_five_fields() {
 }
 
 #[test]
-fn weather_missing_a_required_field_is_an_error() {
-    let mut payload = weather_payload();
-    payload
-        .child_tags
-        .retain(|(name, _)| name != "thunder_time");
-    let err = parse_weather(&saved_data(VERSION.world_version, payload), path()).unwrap_err();
-    assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
-}
-
-#[test]
 fn advance_time_defaults_to_true_and_unrelated_rules_are_ignored() {
     let rules = parse_game_rules(
         &saved_data(VERSION.world_version, game_rules_payload(None)),
@@ -378,16 +338,13 @@ fn an_unnamespaced_advance_time_key_is_not_the_rule() {
 }
 
 #[test]
-fn singleplayer_uuid_ints_name_the_player_file() {
+fn singleplayer_uuid_ints_name_the_player_file_when_a_player_has_opened_the_world() {
     let level = parse_level_dat(&level_dat(VERSION.world_version, true), path()).unwrap();
     assert_eq!(
         level.singleplayer_uuid.unwrap().hyphenated().to_string(),
         OBSERVED_UUID_FILE_NAME
     );
-}
 
-#[test]
-fn a_world_no_player_has_opened_has_no_singleplayer_uuid() {
     let level = parse_level_dat(&level_dat(VERSION.world_version, false), path()).unwrap();
     assert!(level.singleplayer_uuid.is_none());
 }

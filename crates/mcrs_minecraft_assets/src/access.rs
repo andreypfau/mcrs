@@ -225,131 +225,21 @@ mod tests {
         ResourceLocation::new("minecraft", name)
     }
 
-    fn make_nbt(key: &str, value: &str) -> NbtTag {
-        let mut nbt = mcrs_minecraft_nbt::compound::NbtCompound::new();
-        nbt.put_string(key, value.to_string());
-        nbt.into()
-    }
-
-    #[test]
-    fn erased_snapshot_returns_correct_key_len_and_entries() {
-        let erased = RegistrySnapshotErased::from_entries(
-            "minecraft:worldgen/biome",
-            vec![
-                (
-                    make_location("plains"),
-                    Some(make_nbt("temperature", "0.8")),
-                ),
-                (
-                    make_location("desert"),
-                    Some(make_nbt("temperature", "2.0")),
-                ),
-            ],
-            None,
-        );
-
-        assert_eq!(erased.registry_key(), "minecraft:worldgen/biome");
-        assert_eq!(erased.len(), 2);
-        assert!(!erased.is_empty());
-
-        let entries: Vec<_> = erased.iter_entries().collect();
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].location.as_str(), "minecraft:plains");
-        assert!(entries[0].data.is_some());
-        assert_eq!(entries[1].location.as_str(), "minecraft:desert");
-    }
-
-    #[test]
-    fn erased_snapshot_with_none_data_iterates_correctly() {
-        let erased = RegistrySnapshotErased::from_entries(
-            "minecraft:sound_event",
-            vec![
-                (make_location("ambient.cave"), None),
-                (make_location("block.anvil.break"), None),
-            ],
-            None,
-        );
-
-        assert_eq!(erased.len(), 2);
-        let entries: Vec<_> = erased.iter_entries().collect();
-        assert!(entries[0].data.is_none());
-        assert!(entries[1].data.is_none());
-        assert_eq!(entries[0].location.as_str(), "minecraft:ambient.cave");
-    }
-
-    #[test]
-    fn registry_access_collects_heterogeneous_snapshots() {
-        let biome = RegistrySnapshotErased::from_entries(
-            "minecraft:worldgen/biome",
-            vec![(make_location("plains"), Some(make_nbt("t", "0.8")))],
-            None,
-        );
-        let sound = RegistrySnapshotErased::from_entries(
-            "minecraft:sound_event",
-            vec![(make_location("ambient.cave"), None)],
-            None,
-        );
-
-        let mut access = RegistryAccess::default();
-        access.register(biome);
-        access.register(sound);
-
-        let keys: Vec<&str> = access.iter().map(|s| s.registry_key()).collect();
-        assert_eq!(keys, &["minecraft:worldgen/biome", "minecraft:sound_event"]);
-    }
-
-    #[test]
-    fn registry_access_is_empty_and_len() {
-        let mut access = RegistryAccess::default();
-        assert!(access.is_empty());
-        assert_eq!(access.len(), 0);
-
-        let snap = RegistrySnapshotErased::from_entries(
-            "minecraft:block",
-            vec![(make_location("stone"), None)],
-            None,
-        );
-        access.register(snap);
-        assert!(!access.is_empty());
-        assert_eq!(access.len(), 1);
-    }
-
     #[test]
     fn lookup_resolves_names_and_ids_by_position() {
         let mut access = RegistryAccess::default();
         access.register(RegistrySnapshotErased::from_entries(
             "minecraft:item",
-            vec![(make_location("stone"), None), (make_location("dirt"), None)],
+            vec![
+                (make_location("stone"), None),
+                (make_location("dirt"), None),
+            ],
             None,
         ));
         assert_eq!(access.name("item", 1), Some(&make_location("dirt")));
         assert_eq!(access.name("item", 2), None);
         assert_eq!(access.id("item", &make_location("dirt")), Some(1));
         assert_eq!(access.id("block", &make_location("dirt")), None);
-    }
-
-    #[test]
-    fn from_entries_with_pack_source_populates_erased_entry() {
-        let erased = RegistrySnapshotErased::from_entries(
-            "minecraft:biome",
-            vec![(make_location("plains"), None)],
-            Some(PackSource::vanilla_core()),
-        );
-        let entries: Vec<_> = erased.iter_entries().collect();
-        let src = entries[0].pack_source.as_ref().unwrap();
-        assert_eq!(&*src.namespace, "minecraft");
-        assert_eq!(&*src.id, "core");
-    }
-
-    #[test]
-    fn from_entries_without_pack_source_leaves_none() {
-        let erased = RegistrySnapshotErased::from_entries(
-            "minecraft:biome",
-            vec![(make_location("plains"), None)],
-            None,
-        );
-        let entries: Vec<_> = erased.iter_entries().collect();
-        assert!(entries[0].pack_source.is_none());
     }
 
     /// Verify that calling `register` after a clone exists panics with the

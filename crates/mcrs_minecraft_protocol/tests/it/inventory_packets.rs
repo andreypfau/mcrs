@@ -107,7 +107,7 @@ fn plain(f: &Fixture, path: &str, n: i32) -> RawStack {
 }
 
 #[test]
-fn clientbound_container_packets() {
+fn container_packets_are_the_games_bytes() {
     let f = &fixture();
     check(
         f,
@@ -186,59 +186,6 @@ fn clientbound_container_packets() {
             amount: VarInt(3),
         },
     );
-}
-
-fn key(path: &str) -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
-}
-
-fn offers(f: &Fixture) -> Vec<MerchantOffer> {
-    let mut sell_patch = ComponentPatch::EMPTY;
-    sell_patch.set(Damage(Range(3)));
-    vec![
-        MerchantOffer {
-            cost_a: ItemCost {
-                item: key("emerald"),
-                count: 3,
-                components: ComponentMap::default(),
-            },
-            result: ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
-            cost_b: None,
-            uses: 1,
-            max_uses: 12,
-            xp: 5,
-            special_price_diff: -1,
-            price_multiplier: 0.05,
-            demand: 2,
-        },
-        MerchantOffer {
-            cost_a: ItemCost {
-                item: key("diamond"),
-                count: 1,
-                components: ComponentMap(vec![
-                    MaxStackSize(Range(16)).into(),
-                    CustomName(Text::text("x")).into(),
-                ]),
-            },
-            result: ProtoStack::new(item(f, "diamond_sword"), 1, sell_patch),
-            cost_b: Some(ItemCost {
-                item: key("stone"),
-                count: 4,
-                components: ComponentMap::default(),
-            }),
-            uses: 4,
-            max_uses: 4,
-            xp: 0,
-            special_price_diff: 0,
-            price_multiplier: 0.2,
-            demand: 0,
-        },
-    ]
-}
-
-#[test]
-fn clientbound_container_set_content() {
-    let f = &fixture();
     let mut player = vec![RawStack::EMPTY; 46];
     player[9] = plain(f, "apple", 3);
     player[36] = raw(f, sword(f));
@@ -268,69 +215,6 @@ fn clientbound_container_set_content() {
             carried_item: RawStack::EMPTY,
         },
     );
-}
-
-#[test]
-fn merchant_offers() {
-    let f = &fixture();
-    let offers = offers(f);
-    check(
-        f,
-        "merchant_offers",
-        ClientboundMerchantOffers {
-            container_id: VarInt(5),
-            offers: offers
-                .iter()
-                .map(|offer| RawMerchantOffer::from_offer(offer, f).unwrap())
-                .collect(),
-            villager_level: VarInt(2),
-            villager_xp: VarInt(15),
-            show_progress: true,
-            can_restock: false,
-        },
-    );
-    let (packet, _) = decode::<ClientboundMerchantOffers>(f, "merchant_offers");
-    let resolved: Vec<MerchantOffer> = packet
-        .offers
-        .iter()
-        .map(|raw| raw.resolve(f).unwrap())
-        .collect();
-    assert_eq!(resolved, offers);
-    assert!(!resolved[0].is_out_of_stock());
-    assert!(resolved[1].is_out_of_stock());
-    check(
-        f,
-        "merchant_offers_empty",
-        ClientboundMerchantOffers {
-            container_id: VarInt(1),
-            offers: vec![],
-            villager_level: VarInt(1),
-            villager_xp: VarInt(0),
-            show_progress: false,
-            can_restock: true,
-        },
-    );
-}
-
-#[test]
-fn an_offer_never_sells_an_empty_stack() {
-    let f = &fixture();
-    let mut offer = offers(f).remove(0);
-    offer.result = ProtoStack::EMPTY;
-    let error = RawMerchantOffer::from_offer(&offer, f).unwrap_err();
-    assert!(error.to_string().contains("Empty ItemStack not allowed"));
-    let mut bytes = f.packets["merchant_offers"].clone();
-    let result_count = 6;
-    assert_eq!(bytes[result_count], 2);
-    bytes[result_count] = 0;
-    let mut r = &bytes[..];
-    let error = ClientboundMerchantOffers::decode(&mut r).unwrap_err();
-    assert!(format!("{error:#}").contains("Empty ItemStack not allowed"));
-}
-
-#[test]
-fn serverbound_container_packets() {
-    let f = &fixture();
     check(
         f,
         "set_creative_mode_slot",
@@ -417,6 +301,112 @@ fn serverbound_container_packets() {
             include_data: false,
         },
     );
+}
+
+fn key(path: &str) -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
+    ResourceKey::from_location(ResourceLocation::minecraft(path))
+}
+
+fn offers(f: &Fixture) -> Vec<MerchantOffer> {
+    let mut sell_patch = ComponentPatch::EMPTY;
+    sell_patch.set(Damage(Range(3)));
+    vec![
+        MerchantOffer {
+            cost_a: ItemCost {
+                item: key("emerald"),
+                count: 3,
+                components: ComponentMap::default(),
+            },
+            result: ProtoStack::new(item(f, "apple"), 2, ComponentPatch::EMPTY),
+            cost_b: None,
+            uses: 1,
+            max_uses: 12,
+            xp: 5,
+            special_price_diff: -1,
+            price_multiplier: 0.05,
+            demand: 2,
+        },
+        MerchantOffer {
+            cost_a: ItemCost {
+                item: key("diamond"),
+                count: 1,
+                components: ComponentMap(vec![
+                    MaxStackSize(Range(16)).into(),
+                    CustomName(Text::text("x")).into(),
+                ]),
+            },
+            result: ProtoStack::new(item(f, "diamond_sword"), 1, sell_patch),
+            cost_b: Some(ItemCost {
+                item: key("stone"),
+                count: 4,
+                components: ComponentMap::default(),
+            }),
+            uses: 4,
+            max_uses: 4,
+            xp: 0,
+            special_price_diff: 0,
+            price_multiplier: 0.2,
+            demand: 0,
+        },
+    ]
+}
+
+#[test]
+fn merchant_offers() {
+    let f = &fixture();
+    let offers = offers(f);
+    check(
+        f,
+        "merchant_offers",
+        ClientboundMerchantOffers {
+            container_id: VarInt(5),
+            offers: offers
+                .iter()
+                .map(|offer| RawMerchantOffer::from_offer(offer, f).unwrap())
+                .collect(),
+            villager_level: VarInt(2),
+            villager_xp: VarInt(15),
+            show_progress: true,
+            can_restock: false,
+        },
+    );
+    let (packet, _) = decode::<ClientboundMerchantOffers>(f, "merchant_offers");
+    let resolved: Vec<MerchantOffer> = packet
+        .offers
+        .iter()
+        .map(|raw| raw.resolve(f).unwrap())
+        .collect();
+    assert_eq!(resolved, offers);
+    assert!(!resolved[0].is_out_of_stock());
+    assert!(resolved[1].is_out_of_stock());
+    check(
+        f,
+        "merchant_offers_empty",
+        ClientboundMerchantOffers {
+            container_id: VarInt(1),
+            offers: vec![],
+            villager_level: VarInt(1),
+            villager_xp: VarInt(0),
+            show_progress: false,
+            can_restock: true,
+        },
+    );
+}
+
+#[test]
+fn an_offer_never_sells_an_empty_stack() {
+    let f = &fixture();
+    let mut offer = offers(f).remove(0);
+    offer.result = ProtoStack::EMPTY;
+    let error = RawMerchantOffer::from_offer(&offer, f).unwrap_err();
+    assert!(error.to_string().contains("Empty ItemStack not allowed"));
+    let mut bytes = f.packets["merchant_offers"].clone();
+    let result_count = 6;
+    assert_eq!(bytes[result_count], 2);
+    bytes[result_count] = 0;
+    let mut r = &bytes[..];
+    let error = ClientboundMerchantOffers::decode(&mut r).unwrap_err();
+    assert!(format!("{error:#}").contains("Empty ItemStack not allowed"));
 }
 
 /// Vanilla hashes the patch into a hash map, so the entry order on the wire

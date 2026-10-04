@@ -191,35 +191,6 @@ mod tests {
     }
 
     #[test]
-    fn statuses_24_to_28_are_the_five_permission_levels() {
-        assert_eq!(PermissionLevel::from_entity_event(23), None);
-        for level in 0..=4u8 {
-            assert_eq!(
-                PermissionLevel::from_entity_event(24 + level as i8),
-                Some(PermissionLevel(level))
-            );
-        }
-        assert_eq!(PermissionLevel::from_entity_event(29), None);
-        assert_eq!(PermissionLevel::from_entity_event(-100), None);
-    }
-
-    #[test]
-    fn a_change_to_the_same_mode_keeps_the_previous_one() {
-        let mode = LocalGameMode {
-            current: GameMode::Creative,
-            previous: Some(GameMode::Adventure),
-        };
-        assert_eq!(mode.changed_to(GameMode::Creative), mode);
-        assert_eq!(
-            mode.changed_to(GameMode::Spectator),
-            LocalGameMode {
-                current: GameMode::Spectator,
-                previous: Some(GameMode::Creative),
-            }
-        );
-    }
-
-    #[test]
     fn login_game_events_and_respawn_set_the_mode() {
         let (mut app, connection) = app();
         receive(&mut app, connection, change(GameMode::Creative));
@@ -237,14 +208,17 @@ mod tests {
             )
         );
 
-        receive(&mut app, connection, change(GameMode::Creative));
-        assert_eq!(
-            state(&mut app).0,
-            Some(LocalGameMode {
-                current: GameMode::Creative,
-                previous: Some(GameMode::Survival)
-            })
-        );
+        for _ in 0..2 {
+            receive(&mut app, connection, change(GameMode::Creative));
+            assert_eq!(
+                state(&mut app).0,
+                Some(LocalGameMode {
+                    current: GameMode::Creative,
+                    previous: Some(GameMode::Survival)
+                }),
+                "a change to the same mode keeps the previous one"
+            );
+        }
 
         receive(
             &mut app,
@@ -277,15 +251,21 @@ mod tests {
         );
         assert_eq!(state(&mut app).1, Some(PermissionLevel(0)));
 
-        receive(
-            &mut app,
-            connection,
-            ClientboundEntityEvent {
-                entity_id: PLAYER_ID,
-                entity_status: 26,
-            },
-        );
-        assert_eq!(state(&mut app).1, Some(PermissionLevel::GAMEMASTERS));
+        for (status, level) in [(26, 2), (24, 0), (28, 4), (23, 4), (29, 4), (25, 1), (27, 3)] {
+            receive(
+                &mut app,
+                connection,
+                ClientboundEntityEvent {
+                    entity_id: PLAYER_ID,
+                    entity_status: status,
+                },
+            );
+            assert_eq!(
+                state(&mut app).1,
+                Some(PermissionLevel(level)),
+                "status {status}"
+            );
+        }
 
         receive(
             &mut app,

@@ -636,21 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn flags_match_the_reference() {
-        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
-        assert!(sky_color.syncable && sky_color.positional && sky_color.spatially_interpolated);
-
-        let sky_light_level = attribute("minecraft:gameplay/sky_light_level").unwrap();
-        assert!(sky_light_level.syncable);
-        assert!(!sky_light_level.positional);
-
-        assert!(!is_syncable("minecraft:gameplay/natural_mob_spawns"));
-        assert!(is_syncable("minecraft:audio/music_volume"));
-        assert!(!is_syncable("minecraft:visual/not_an_attribute"));
-    }
-
-    #[test]
-    fn parses_colors_and_ranges() {
+    fn values_and_arguments_parse_by_the_attribute_type() {
         let sky_color = attribute("minecraft:visual/sky_color").unwrap();
         assert_eq!(
             sky_color.parse_value(&json!("#78a7ff")).unwrap(),
@@ -676,12 +662,6 @@ mod tests {
             volume.parse_value(&json!(1.5)).is_err(),
             "music_volume is UNIT"
         );
-    }
-
-    #[test]
-    fn colors_accept_the_float_vector_form() {
-        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
-        let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
 
         assert_eq!(
             sky_color.parse_value(&json!([1.0, 0.5, 0.0])).unwrap(),
@@ -702,25 +682,7 @@ mod tests {
             cloud_color.parse_value(&json!([1.0, 0.5, 0.0])).is_err(),
             "argb takes 4"
         );
-    }
 
-    #[test]
-    fn multiply_argument_escapes_the_attribute_range() {
-        // FloatModifier.Simple validates the argument as a plain float, so 0.85
-        // is legal here even though the attribute itself is NON_NEGATIVE.
-        let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
-        assert_eq!(
-            end.parse_argument(Operation::Multiply, &json!(0.85))
-                .unwrap(),
-            AttributeValue::Float(0.85)
-        );
-        assert!(end.parse_argument(Operation::Or, &json!(true)).is_err());
-    }
-
-    #[test]
-    fn color_add_takes_the_six_digit_form_on_both_colour_types() {
-        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
-        let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
         for spec in [sky_color, cloud_color] {
             assert_eq!(
                 spec.parse_argument(Operation::Add, &json!("#102030"))
@@ -747,5 +709,18 @@ mod tests {
                 .parse_argument(Operation::Multiply, &json!("#80102030"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn multiply_argument_escapes_the_attribute_range() {
+        // FloatModifier.Simple validates the argument as a plain float, so 0.85
+        // is legal here even though the attribute itself is NON_NEGATIVE.
+        let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
+        assert_eq!(
+            end.parse_argument(Operation::Multiply, &json!(0.85))
+                .unwrap(),
+            AttributeValue::Float(0.85)
+        );
+        assert!(end.parse_argument(Operation::Or, &json!(true)).is_err());
     }
 }

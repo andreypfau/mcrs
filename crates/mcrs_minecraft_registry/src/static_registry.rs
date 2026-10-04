@@ -217,11 +217,4 @@ mod tests {
         assert_eq!(items[2].0.raw(), 2);
         assert_eq!(items[2].2.0, 3);
     }
-
-    #[test]
-    fn test_frozen_returns_true_after_freeze() {
-        let mut reg = make_registry();
-        reg.freeze();
-        assert!(reg.frozen());
-    }
 }

@@ -91,47 +91,27 @@ mod tests {
     const UUID: &str = "069a79f4-44e9-4726-a5be-fca90e38aaf5";
 
     #[test]
-    fn reads_vanilla_layout() {
+    fn reads_vanilla_layout_with_a_missing_and_an_out_of_range_level() {
         let entries: Vec<OpListEntry> = serde_json::from_str(&format!(
-            r#"[{{"uuid":"{UUID}","name":"Notch","level":4,"bypassesPlayerLimit":false}}]"#
+            r#"[{{"uuid":"{UUID}","name":"Notch","level":4,"bypassesPlayerLimit":false}},
+                {{"uuid":"{}","name":"a"}},
+                {{"uuid":"{}","name":"b","level":9}}]"#,
+            Uuid::nil(),
+            Uuid::max()
         ))
         .unwrap();
+        assert_eq!(entries[1].level, 0);
+        assert!(!entries[1].bypasses_player_limit);
+        assert_eq!(entries[2].level, 4);
+
         let ops = OpList::new(entries);
         let uuid = Uuid::parse_str(UUID).unwrap();
         assert_eq!(ops.level_of(&uuid, DefaultOpLevel::default()).0, 4);
         assert_eq!(
-            ops.level_of(&Uuid::nil(), DefaultOpLevel(PlayerOpLevel(1)))
+            ops.level_of(&Uuid::from_u128(7), DefaultOpLevel(PlayerOpLevel(1)))
                 .0,
             1
         );
-    }
-
-    #[test]
-    fn missing_level_is_zero_and_out_of_range_clamps() {
-        let entries: Vec<OpListEntry> = serde_json::from_str(&format!(
-            r#"[{{"uuid":"{UUID}","name":"a"}},{{"uuid":"{}","name":"b","level":9}}]"#,
-            Uuid::nil()
-        ))
-        .unwrap();
-        assert_eq!(entries[0].level, 0);
-        assert!(!entries[0].bypasses_player_limit);
-        assert_eq!(entries[1].level, 4);
-    }
-
-    #[test]
-    fn round_trips() {
-        let entry = OpListEntry {
-            uuid: Uuid::parse_str(UUID).unwrap(),
-            name: "Notch".into(),
-            level: 3,
-            bypasses_player_limit: true,
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        assert_eq!(
-            json,
-            format!(r#"{{"uuid":"{UUID}","name":"Notch","level":3,"bypassesPlayerLimit":true}}"#)
-        );
-        assert_eq!(serde_json::from_str::<OpListEntry>(&json).unwrap(), entry);
     }
 
     #[test]

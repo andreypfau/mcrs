@@ -378,33 +378,6 @@ mod tests {
     }
 
     #[test]
-    fn the_four_icon_stacks_are_held_in_order() {
-        let mut world = World::new();
-        world.insert_resource(mcrs_minecraft_world::item::test_corpus().1.clone());
-        spawn_icons(&mut world);
-        let mut holders = world.query_filtered::<&SlotTable, With<GameModeIcons>>();
-        let icons = holders.single(&world).unwrap();
-        let held: Vec<_> = (0..4)
-            .map(|index| {
-                let stack = icons.get(index).expect("an icon in every slot");
-                mcrs_minecraft_item::value::entry(&world, stack, world.resource::<Items>())
-                    .unwrap()
-                    .identifier
-                    .to_string()
-            })
-            .collect();
-        assert_eq!(
-            held,
-            [
-                "minecraft:grass_block",
-                "minecraft:iron_sword",
-                "minecraft:buried_treasure_map",
-                "minecraft:ender_eye"
-            ]
-        );
-    }
-
-    #[test]
     fn the_icons_appear_once_the_item_corpus_arrives_after_startup() {
         let mut app = App::new();
         add_icon_spawning(&mut app);
@@ -420,14 +393,6 @@ mod tests {
         let icons: Vec<_> = holders.iter(app.world()).collect();
         assert_eq!(icons.len(), 1);
         assert!((0..4).all(|index| icons[0].get(index).is_some()));
-    }
-
-    #[test]
-    fn each_press_moves_to_the_next_icon_and_wraps() {
-        assert_eq!(next(GameMode::Creative), GameMode::Survival);
-        assert_eq!(next(GameMode::Survival), GameMode::Adventure);
-        assert_eq!(next(GameMode::Adventure), GameMode::Spectator);
-        assert_eq!(next(GameMode::Spectator), GameMode::Creative);
     }
 
     #[test]

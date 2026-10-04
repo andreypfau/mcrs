@@ -14,6 +14,11 @@ fn held_and_dropped(world: &mut World) -> usize {
 }
 
 #[test]
+fn dropped_items_are_never_held() {
+    never_held_and_dropped();
+    merging_dropped_items_keeps_the_longer_delay_and_the_younger_age();
+}
+
 fn never_held_and_dropped() {
     let mut world = world();
     let player = holder(&mut world, 47);
@@ -82,7 +87,6 @@ fn never_held_and_dropped() {
     assert_eq!(held_and_dropped(&mut world), 0);
 }
 
-#[test]
 fn merging_dropped_items_keeps_the_longer_delay_and_the_younger_age() {
     let mut world = world();
     let drop = |world: &mut World, count: i32, delay: i16, age: i16| {

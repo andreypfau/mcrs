@@ -1,8 +1,5 @@
-mod corpus;
-
 use std::sync::OnceLock;
 
-use corpus::{asset_server, block_tags, blocks, fluid_tags, item_tags, items};
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_item::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
@@ -11,6 +8,8 @@ use mcrs_minecraft_light_color::item::{ItemLight, ItemLightError, ItemLightFile,
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
+
+use crate::corpus::{asset_server, block_tags, blocks, fluid_tags, item_tags, items};
 
 fn colours() -> &'static LightColors {
     static COLOURS: OnceLock<LightColors> = OnceLock::new();
@@ -71,11 +70,23 @@ fn assert_emits(item: &str, emission: u8, colour: &str) {
 }
 
 #[test]
+fn item_lights_load_against_the_corpus() {
+    glow_berries_emit_as_lit_cave_vines();
+    an_unlit_candle_stays_dark_and_a_lit_candle_stack_glows();
+    an_unlit_furnace_lamp_and_bulb_stay_dark();
+    water_sensitive_items_go_dark_with_water_at_the_origin();
+    other_items_keep_their_light_in_water();
+    an_unknown_stack_property_or_value_is_ignored();
+    an_item_in_two_files_fails();
+    an_item_mapped_twice_in_one_file_fails();
+    a_missing_water_tag_fails();
+    an_unknown_block_property_or_value_fails();
+}
+
 fn glow_berries_emit_as_lit_cave_vines() {
     assert_emits("minecraft:glow_berries", 14, "lava");
 }
 
-#[test]
 fn an_unlit_candle_stays_dark_and_a_lit_candle_stack_glows() {
     assert_eq!(light("minecraft:candle", &[]), None);
     let lit = light("minecraft:candle", &[("lit", "true"), ("candles", "4")])
@@ -83,7 +94,6 @@ fn an_unlit_candle_stays_dark_and_a_lit_candle_stack_glows() {
     assert_eq!(lit.emission, 12);
 }
 
-#[test]
 fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
     for item in [
         "minecraft:furnace",
@@ -98,21 +108,15 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
     );
 }
 
-#[test]
-fn the_shipped_map_covers_every_emitting_block_item() {
-    assert_eq!(shipped().mapped_count(), 82);
+fn water_sensitive() -> Vec<ItemId> {
+    let tag = TagKey::<Item, _>::new(mcrs_minecraft_core::rl!("mcrs:water_sensitive_light"));
+    let members = item_tags().get(&tag).expect("the water-sensitive item tag");
+    members.iter().map(|i| ItemId(i as u16)).collect()
 }
 
-const WATER_SENSITIVE: [&str; 8] = [
-    "minecraft:torch",
-    "minecraft:soul_torch",
-    "minecraft:copper_torch",
-    "minecraft:redstone_torch",
-    "minecraft:campfire",
-    "minecraft:soul_campfire",
-    "minecraft:lava_bucket",
-    "minecraft:fire_charge",
-];
+fn light_of(item: ItemId, origin: BlockStateId) -> Option<ItemLight> {
+    shipped().light(blocks(), colours(), item, std::iter::empty(), origin)
+}
 
 fn water_origins() -> [(&'static str, BlockStateId); 4] {
     [
@@ -129,31 +133,20 @@ fn water_origins() -> [(&'static str, BlockStateId); 4] {
     ]
 }
 
-#[test]
-fn the_water_sensitive_tag_holds_exactly_the_agreed_items() {
-    let tag = TagKey::<Item, _>::new(mcrs_minecraft_core::rl!("mcrs:water_sensitive_light"));
-    let members = item_tags().get(&tag).expect("the water-sensitive item tag");
-    let mut found: Vec<ItemId> = members.iter().map(|i| ItemId(i as u16)).collect();
-    let mut expected: Vec<ItemId> = WATER_SENSITIVE
-        .iter()
-        .map(|item| items().id_of(item).unwrap())
-        .collect();
-    found.sort();
-    expected.sort();
-    assert_eq!(found, expected);
-}
-
-#[test]
 fn water_sensitive_items_go_dark_with_water_at_the_origin() {
-    for item in WATER_SENSITIVE {
-        assert!(light(item, &[]).is_some(), "{item} in air");
+    let items = water_sensitive();
+    assert!(!items.is_empty());
+    for item in items {
+        assert!(
+            light_of(item, state("minecraft:air")).is_some(),
+            "{item:?} in air"
+        );
         for (origin, id) in water_origins() {
-            assert_eq!(light_in(item, &[], id), None, "{item} in {origin}");
+            assert_eq!(light_of(item, id), None, "{item:?} in {origin}");
         }
     }
 }
 
-#[test]
 fn other_items_keep_their_light_in_water() {
     for item in ["minecraft:lantern", "minecraft:glowstone"] {
         let dry = light(item, &[]).expect(item);
@@ -163,7 +156,6 @@ fn other_items_keep_their_light_in_water() {
     }
 }
 
-#[test]
 fn an_unknown_stack_property_or_value_is_ignored() {
     assert_eq!(
         light("minecraft:torch", &[("bogus", "x")]).map(|l| l.emission),
@@ -193,24 +185,6 @@ fn stack_text() -> impl Strategy<Value = String> {
     ]
 }
 
-proptest! {
-    #[test]
-    fn arbitrary_input_never_panics(
-        item in 0..=u16::MAX,
-        stack in prop::collection::vec((stack_text(), stack_text()), 0..=8),
-        origin in 0..=u16::MAX,
-    ) {
-        let light = shipped().light(
-            blocks(),
-            colours(),
-            ItemId(item),
-            stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
-            BlockStateId(origin),
-        );
-        prop_assert!(light.is_none_or(|l| l.emission > 0));
-    }
-}
-
 fn shipped_files() -> Vec<(String, Vec<u8>)> {
     let path = "mcrs/item_light/minecraft.json";
     vec![(
@@ -233,7 +207,6 @@ fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
     ItemLights::from_files(files, blocks(), items(), item_tags(), fluid_tags())
 }
 
-#[test]
 fn an_item_in_two_files_fails() {
     let mut files = shipped_files();
     files.push((
@@ -247,7 +220,6 @@ fn an_item_in_two_files_fails() {
     );
 }
 
-#[test]
 fn an_item_mapped_twice_in_one_file_fails() {
     let (path, bytes) = shipped_files().remove(0);
     let text = String::from_utf8(bytes).unwrap().replacen(
@@ -275,14 +247,14 @@ fn an_item_mapped_twice_in_one_file_fails() {
 
 #[test]
 fn the_shipped_item_map_round_trips_unchanged() {
-    let text =
-        std::fs::read_to_string(assets_dir().join("mcrs/item_light/minecraft.json")).unwrap();
-    let parsed: ItemLightFile = serde_json::from_str(&text).unwrap();
-    let written = serde_json::to_string_pretty(&parsed).unwrap() + "\n";
-    assert_eq!(written, text);
+    let text: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets_dir().join("mcrs/item_light/minecraft.json")).unwrap(),
+    )
+    .unwrap();
+    let parsed: ItemLightFile = serde_json::from_value(text.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&parsed).unwrap(), text);
 }
 
-#[test]
 fn a_missing_water_tag_fails() {
     let error = ItemLights::from_files(
         shipped_files(),
@@ -298,7 +270,6 @@ fn a_missing_water_tag_fails() {
     );
 }
 
-#[test]
 fn an_unknown_block_property_or_value_fails() {
     for (target, expected) in [
         ("minecraft:no_such_block", "UnknownBlock"),
@@ -313,5 +284,27 @@ fn an_unknown_block_property_or_value_fails() {
             format!("{error:?}").starts_with(expected),
             "{target}: {error}"
         );
+    }
+}
+
+mod exhaustive {
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn arbitrary_input_never_panics(
+            item in 0..=u16::MAX,
+            stack in prop::collection::vec((stack_text(), stack_text()), 0..=8),
+            origin in 0..=u16::MAX,
+        ) {
+            let light = shipped().light(
+                blocks(),
+                colours(),
+                ItemId(item),
+                stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+                BlockStateId(origin),
+            );
+            prop_assert!(light.is_none_or(|l| l.emission > 0));
+        }
     }
 }

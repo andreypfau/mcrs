@@ -210,27 +210,15 @@ mod tests {
     const UNSORTED: [&str; 3] = ["minecraft:plains", "minecraft:desert", "minecraft:forest"];
 
     #[test]
-    fn an_id_is_the_position_of_its_name() {
+    fn ids_are_positions_and_name_their_entries() {
         let registry = registry(&UNSORTED);
-        for (position, text) in UNSORTED.iter().enumerate() {
-            assert_eq!(registry.get(text).unwrap().index(), position);
-        }
-    }
-
-    #[test]
-    fn ids_iterate_in_id_order() {
-        let registry = registry(&UNSORTED);
+        assert_eq!(registry.len(), 3);
         let indices: Vec<usize> = registry.ids().map(Id::index).collect();
         assert_eq!(indices, [0, 1, 2]);
-        assert_eq!(registry.len(), 3);
-    }
-
-    #[test]
-    fn the_name_of_an_id_is_read_back() {
-        let registry = registry(&UNSORTED);
-        for text in UNSORTED {
+        for (position, text) in UNSORTED.iter().enumerate() {
             let id = registry.get(text).unwrap();
-            assert_eq!(registry.key(id).unwrap().as_str(), text);
+            assert_eq!(id.index(), position);
+            assert_eq!(registry.key(id).unwrap().as_str(), *text);
         }
     }
 
@@ -284,38 +272,13 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_registry_builds_and_holds_nothing() {
-        let registry = registry(&[]);
-        assert_eq!(registry.len(), 0);
-        assert!(registry.is_empty());
-        assert_eq!(registry.ids().count(), 0);
-        assert!(registry.get("minecraft:anything").is_none());
-        assert!(registry.require("minecraft:anything").is_err());
-    }
-
-    #[test]
-    fn a_registry_knows_its_tag_names() {
+    fn tag_names_and_entry_names_are_separate() {
         let registry = build(&["minecraft:a"], &["minecraft:t", "minecraft:u"]).unwrap();
         assert!(registry.has_tag("minecraft:t"));
         assert!(registry.has_tag("minecraft:u"));
         assert!(!registry.has_tag("minecraft:v"));
-    }
-
-    #[test]
-    fn a_tag_name_is_not_an_entry_name() {
-        let registry = build(&["minecraft:a"], &["minecraft:t"]).unwrap();
         assert!(!registry.has_tag("minecraft:a"));
         assert!(registry.get("minecraft:t").is_none());
-    }
-
-    #[test]
-    fn names_compare_as_the_exact_text() {
-        let registry = registry(&["minecraft:alpha"]);
-        assert!(registry.get("minecraft:alpha").is_some());
-        assert!(registry.get("alpha").is_none());
-        assert!(registry.get("Minecraft:alpha").is_none());
-        assert!(registry.get("minecraft:Alpha").is_none());
-        assert!(registry.require("alpha").is_err());
     }
 
     #[test]

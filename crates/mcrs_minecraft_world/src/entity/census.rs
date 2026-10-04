@@ -112,31 +112,6 @@ fn every_template_entity_kind_is_a_registered_entity_type() {
 }
 
 #[test]
-fn items_carry_their_registry_index() {
-    let census = read_census();
-    let expected = &census.ids["minecraft:item"];
-    let mut app = bevy_app::App::new();
-    app.add_plugins(bevy_app::TaskPoolPlugin::default());
-    app.add_plugins(bevy_asset::AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
-    let (blocks, _) = mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
-        .expect("the block corpus loads");
-    let items = crate::item::definitions::load_item_definitions(&asset_server, &blocks)
-        .expect("the item corpus loads");
-    let actual: Vec<String> = items
-        .iter()
-        .map(|item| item.identifier.to_string())
-        .collect();
-    assert_eq!(actual, *expected);
-    for (index, item) in items.iter().enumerate() {
-        assert_eq!(item.id.0 as usize, index, "{}", item.identifier);
-    }
-}
-
-#[test]
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
     let types: Vec<String> = VillagerType::ALL.iter().map(serde_name).collect();

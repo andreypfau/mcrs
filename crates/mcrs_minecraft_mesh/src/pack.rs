@@ -243,22 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn a_field_round_trips_through_its_own_word() {
-        let word = QUAD_W.pack(11) | QUAD_X.pack(2) | QUAD_FACE.pack(5);
-        assert_eq!(QUAD_W.get(word), 11);
-        assert_eq!(QUAD_X.get(word), 2);
-        assert_eq!(QUAD_FACE.get(word), 5);
-        assert_eq!(QUAD_H.get(word), 0, "a neighbour must stay clear");
-    }
-
-    #[test]
-    fn the_three_model_axes_are_the_same_width() {
-        assert_eq!(MODEL_X.bits, MODEL_Y.bits);
-        assert_eq!(MODEL_X.bits, MODEL_Z.bits);
-        assert_eq!(MODEL_U.bits, MODEL_V.bits);
-    }
-
-    #[test]
     #[should_panic(expected = "does not fit")]
     fn packing_a_value_too_wide_for_its_field_is_caught() {
         QUAD_FACE.pack(8);

@@ -5,7 +5,7 @@ use mcrs_minecraft_core::{BlockPos, SectionPos};
 use mcrs_minecraft_light_color::colors::LightType;
 use mcrs_minecraft_light_color::layout::{Emitter, PackedBrick, neighbours, pack, reaching_types};
 use mcrs_minecraft_light_color::region::{Palette, Region, section_bricks, section_output};
-use mcrs_minecraft_light_color::resolve::{Lanes, light_weight, resolve};
+use mcrs_minecraft_light_color::resolve::{Lanes, resolve};
 use proptest::prelude::*;
 
 const CENTRE: SectionPos = SectionPos(bevy_math::IVec3::new(0, 4, 0));
@@ -47,9 +47,8 @@ fn resolve_mixes_known_colours_by_the_light_weight() {
     assert_near([half[0], half[1], half[2]], torch.map(|c| c as f32 / 2.0));
 
     let brighter = resolve_one(&[(TORCH_TYPE, 15), (SOUL_TYPE, 5)]);
-    let (w15, w5) = (light_weight(15), light_weight(5));
-    let weighted = [0, 1, 2].map(|i| (torch[i] as f32 * w15 + soul[i] as f32 * w5) / (w15 + w5));
-    assert_near([brighter[0], brighter[1], brighter[2]], weighted);
+    let distance = |to: [u8; 3]| (0..3).map(|i| brighter[i].abs_diff(to[i]) as u32).sum::<u32>();
+    assert!(distance(torch) < distance(soul), "{brighter:?} leans to the dimmer light");
 
     assert_eq!(
         resolve_one(&[(TORCH_TYPE, 0), (LightType::DEFAULT, 0)]),

@@ -125,7 +125,6 @@ fn record_sub_inbound(
     }
 }
 
-#[test]
 fn outbound_latency_is_one_host_tick() {
     let mut app = build_app();
 
@@ -171,7 +170,6 @@ fn outbound_latency_is_one_host_tick() {
     );
 }
 
-#[test]
 fn inbound_latency_is_zero_host_ticks() {
     let mut app = build_app();
 
@@ -226,3 +224,8 @@ fn inbound_latency_is_zero_host_ticks() {
     );
 }
 
+#[test]
+fn the_bus_costs_one_host_tick_out_and_none_in() {
+    outbound_latency_is_one_host_tick();
+    inbound_latency_is_zero_host_ticks();
+}

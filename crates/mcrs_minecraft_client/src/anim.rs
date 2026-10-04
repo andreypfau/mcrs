@@ -138,57 +138,34 @@ mod tests {
     }
 
     #[test]
-    fn a_step_with_its_own_duration_is_repeated_to_the_common_beat() {
-        let meta = animation(
+    fn metadata_unrolls_into_frames_on_the_common_beat() {
+        let timed = animation(
             r#"{"animation": {"frametime": 2, "frames": [0, {"index": 1, "time": 6}, 2]}}"#,
-        );
-        let unrolled = meta.unroll("timed", strip(3));
-        assert_eq!(unrolled.frames, [0, 1, 1, 1, 2]);
-        assert_eq!(
-            unrolled.frametime, 2,
-            "the common beat is the shortest step"
-        );
-    }
+        )
+        .unroll("timed", strip(3));
+        assert_eq!(timed.frames, [0, 1, 1, 1, 2]);
+        assert_eq!(timed.frametime, 2, "the common beat is the shortest step");
 
-    #[test]
-    fn a_sequence_worn_down_to_one_step_does_not_animate() {
-        let meta = animation(r#"{"animation": {"frames": [0, 9]}}"#);
-        assert!(meta.unroll("worn down", strip(3)).frames.is_empty());
-    }
+        let worn_down = animation(r#"{"animation": {"frames": [0, 9]}}"#);
+        assert!(worn_down.unroll("worn down", strip(3)).frames.is_empty());
 
-    #[test]
-    fn frames_are_counted_across_the_image_as_well_as_down_it() {
-        let meta = animation(r#"{"animation": {"width": 16, "height": 16}}"#);
-        assert_eq!(meta.frame_count((SIDE * 3, SIDE * 2)), 6);
+        let grid = animation(r#"{"animation": {"width": 16, "height": 16}}"#);
+        assert_eq!(grid.frame_count((SIDE * 3, SIDE * 2)), 6);
         assert_eq!(
-            meta.unroll("grid", (SIDE * 3, SIDE * 2)).frames,
+            grid.unroll("grid", (SIDE * 3, SIDE * 2)).frames,
             [0, 1, 2, 3, 4, 5]
         );
-    }
 
-    #[test]
-    fn a_frame_is_sized_the_way_the_metadata_leaves_it() {
-        assert_eq!(
-            animation(r#"{"animation": {}}"#).frame_size((16, 96)),
-            (16, 16)
-        );
-        assert_eq!(
-            animation(r#"{"animation": {"width": 8}}"#).frame_size((16, 96)),
-            (8, 96),
-        );
-        assert_eq!(
-            animation(r#"{"animation": {"height": 4}}"#).frame_size((16, 96)),
-            (16, 4),
-        );
-        assert_eq!(
-            animation(r#"{"animation": {"width": 8, "height": 4}}"#).frame_size((16, 96)),
-            (8, 4),
-        );
-    }
+        for (json, size) in [
+            (r#"{"animation": {}}"#, (16, 16)),
+            (r#"{"animation": {"width": 8}}"#, (8, 96)),
+            (r#"{"animation": {"height": 4}}"#, (16, 4)),
+            (r#"{"animation": {"width": 8, "height": 4}}"#, (8, 4)),
+        ] {
+            assert_eq!(animation(json).frame_size((16, 96)), size, "{json}");
+        }
 
-    #[test]
-    fn metadata_without_an_animation_section_is_not_one() {
-        let file = from_json(br#"{"texture": {"blur": true}}"#).expect("the metadata parses");
-        assert!(file.is_none());
+        let still = from_json(br#"{"texture": {"blur": true}}"#).expect("the metadata parses");
+        assert!(still.is_none());
     }
 }

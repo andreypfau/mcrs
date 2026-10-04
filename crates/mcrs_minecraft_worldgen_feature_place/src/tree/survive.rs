@@ -192,67 +192,32 @@ mod tests {
     }
 
     #[test]
-    fn a_hanging_propagule_reads_above_instead() {
-        let rule = SurviveRule::SupportedBy {
+    fn each_rule_reads_its_support_where_the_reference_does() {
+        let hanging_propagule = SurviveRule::SupportedBy {
             offset_y: 1,
             supports: mask_of([LEAVES]).as_ref().clone(),
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(DIRT, LEAVES, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(LEAVES, AIR, AIR, AIR)));
-    }
-
-    #[test]
-    fn a_lily_pad_wants_water_below_and_nothing_in_its_own_square() {
-        let rule = SurviveRule::SupportedByUnless {
+        let lily_pad = SurviveRule::SupportedByUnless {
             offset_y: -1,
             supports: mask_of([WATER]).as_ref().clone(),
             blocked: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(WATER, AIR, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
-        let submerged = |p: BlockPos| if p.y <= 0 { WATER } else { AIR };
-        assert!(!rule.test(BlockPos::new(0, 0, 0), submerged));
-    }
-
-    #[test]
-    fn sugar_cane_stacks_on_itself_without_asking_for_water() {
-        let rule = SurviveRule::SugarCane {
+        let sugar_cane = SurviveRule::SugarCane {
             sugar_cane: mask_of([SUGAR_CANE]).as_ref().clone(),
             supports: mask_of([SAND]).as_ref().clone(),
             adjacent: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(SUGAR_CANE, AIR, AIR, AIR)));
-        assert!(
-            !rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, WATER, AIR)),
-            "the adjacency is read beside the block below, not beside the cane"
-        );
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, WATER)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(STONE, AIR, AIR, WATER)));
-    }
-
-    #[test]
-    fn cactus_refuses_a_solid_neighbour_and_a_liquid_above() {
-        let rule = SurviveRule::Cactus {
+        let cactus = SurviveRule::Cactus {
             supports: mask_of([SAND, CACTUS]).as_ref().clone(),
             blocked: mask_of([STONE, SAND]).as_ref().clone(),
             liquid: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, AIR)));
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(CACTUS, AIR, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, STONE, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(SAND, WATER, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
-    }
-
-    #[test]
-    fn a_small_dripleaf_takes_plain_soil_only_under_water() {
-        let rule = SurviveRule::SmallDripleaf {
+        let small_dripleaf = SurviveRule::SmallDripleaf {
             supports: mask_of([SAND]).as_ref().clone(),
             wet_supports: mask_of([DIRT]).as_ref().clone(),
             water: mask_of([WATER]).as_ref().clone(),
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), world(SAND, AIR, AIR, AIR)));
-        assert!(!rule.test(BlockPos::new(0, 0, 0), world(DIRT, AIR, AIR, AIR)));
+        let submerged = |p: BlockPos| if p.y <= 0 { WATER } else { AIR };
         let flooded = |p: BlockPos| {
             if p == BlockPos::new(0, 0, 0) {
                 WATER
@@ -260,7 +225,104 @@ mod tests {
                 DIRT
             }
         };
-        assert!(rule.test(BlockPos::new(0, 0, 0), flooded));
+
+        type World<'a> = &'a dyn Fn(BlockPos) -> VoxelId;
+        let cases: &[(&str, &SurviveRule, World, bool)] = &[
+            (
+                "propagule under leaves",
+                &hanging_propagule,
+                &world(DIRT, LEAVES, AIR, AIR),
+                true,
+            ),
+            (
+                "propagule over leaves",
+                &hanging_propagule,
+                &world(LEAVES, AIR, AIR, AIR),
+                false,
+            ),
+            (
+                "lily pad on water",
+                &lily_pad,
+                &world(WATER, AIR, AIR, AIR),
+                true,
+            ),
+            (
+                "lily pad on dirt",
+                &lily_pad,
+                &world(DIRT, AIR, AIR, AIR),
+                false,
+            ),
+            ("submerged lily pad", &lily_pad, &submerged, false),
+            (
+                "cane on cane",
+                &sugar_cane,
+                &world(SUGAR_CANE, AIR, AIR, AIR),
+                true,
+            ),
+            (
+                "cane beside water",
+                &sugar_cane,
+                &world(SAND, AIR, WATER, AIR),
+                false,
+            ),
+            (
+                "cane on sand beside water",
+                &sugar_cane,
+                &world(SAND, AIR, AIR, WATER),
+                true,
+            ),
+            (
+                "cane on stone beside water",
+                &sugar_cane,
+                &world(STONE, AIR, AIR, WATER),
+                false,
+            ),
+            ("cactus on sand", &cactus, &world(SAND, AIR, AIR, AIR), true),
+            (
+                "cactus on cactus",
+                &cactus,
+                &world(CACTUS, AIR, AIR, AIR),
+                true,
+            ),
+            (
+                "cactus beside stone",
+                &cactus,
+                &world(SAND, AIR, STONE, AIR),
+                false,
+            ),
+            (
+                "cactus under water",
+                &cactus,
+                &world(SAND, WATER, AIR, AIR),
+                false,
+            ),
+            (
+                "cactus on dirt",
+                &cactus,
+                &world(DIRT, AIR, AIR, AIR),
+                false,
+            ),
+            (
+                "dripleaf on sand",
+                &small_dripleaf,
+                &world(SAND, AIR, AIR, AIR),
+                true,
+            ),
+            (
+                "dry dripleaf on dirt",
+                &small_dripleaf,
+                &world(DIRT, AIR, AIR, AIR),
+                false,
+            ),
+            ("flooded dripleaf on dirt", &small_dripleaf, &flooded, true),
+        ];
+        for (name, rule, world, survives) in cases {
+            assert_eq!(
+                rule.test(BlockPos::new(0, 0, 0), world),
+                *survives,
+                "{name}"
+            );
+        }
     }
 
     #[test]

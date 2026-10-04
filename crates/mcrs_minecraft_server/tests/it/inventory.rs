@@ -323,7 +323,6 @@ fn set_slots<'a>(
     })
 }
 
-#[test]
 fn join_sends_held_slot_then_the_full_inventory_after_the_login_packets() {
     let mut server = Server::start();
     let packets = server.join();
@@ -363,7 +362,6 @@ fn join_sends_held_slot_then_the_full_inventory_after_the_login_packets() {
     assert!(inventory_packets(&server.ticks(3)).is_empty());
 }
 
-#[test]
 fn a_creative_slot_is_answered_with_one_set_slot() {
     let mut server = Server::start();
     server.join();
@@ -400,7 +398,6 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
     );
 }
 
-#[test]
 fn a_stale_state_id_resends_the_whole_menu() {
     let mut server = Server::start();
     server.join();
@@ -424,7 +421,6 @@ fn a_stale_state_id_resends_the_whole_menu() {
     assert_ne!(slots[slots::HOTBAR.start as usize], RawStack::EMPTY);
 }
 
-#[test]
 fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let mut server = Server::start();
     server.join();
@@ -454,7 +450,6 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     );
 }
 
-#[test]
 fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
     let mut server = Server::start();
     server.join();
@@ -503,7 +498,6 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
     assert_eq!(server.cell(slots::HOTBAR.start), None);
 }
 
-#[test]
 fn a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell() {
     let mut server = Server::start();
     server.join();
@@ -551,7 +545,6 @@ fn a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell() 
     assert!(server.world().get_entity(item).is_err());
 }
 
-#[test]
 fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     let mut server = Server::start();
     let mut planted = NbtCompound::new();
@@ -639,7 +632,6 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     assert_ne!(content[slots::MAIN.start as usize], RawStack::EMPTY);
 }
 
-#[test]
 fn a_dimension_releases_a_leaving_player_only_once_its_file_is_written() {
     let mut server = Server::start();
     server.join();
@@ -676,4 +668,16 @@ fn a_dimension_releases_a_leaving_player_only_once_its_file_is_written() {
         }
     }
     panic!("the dimension never released the player");
+}
+
+#[test]
+fn a_player_inventory_is_synced_dropped_picked_up_and_saved() {
+    join_sends_held_slot_then_the_full_inventory_after_the_login_packets();
+    a_creative_slot_is_answered_with_one_set_slot();
+    a_stale_state_id_resends_the_whole_menu();
+    damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell();
+    a_drop_adds_an_item_entity_and_its_stack_metadata();
+    a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell();
+    a_relog_round_trips_the_player_file_with_keys_it_does_not_model();
+    a_dimension_releases_a_leaving_player_only_once_its_file_is_written();
 }

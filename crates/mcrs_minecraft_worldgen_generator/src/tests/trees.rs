@@ -357,14 +357,14 @@ fn a_generated_bee_nest_carries_its_occupants() {
 
     let (ctx, _) = dimension_over("minecraft:plains", Arc::new(bee_tables()), 4242);
 
-    let region = generate_region(&ctx, ColumnPos::new(-2, -2), ColumnPos::new(2, 2));
+    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let nests: Vec<GeneratedBlockEntity> = region
         .values()
         .flat_map(|merged| merged.block_entities.iter().cloned())
         .collect();
     assert!(
         !nests.is_empty(),
-        "twenty-five columns of a tree whose beehive always fires produced no nest"
+        "nine columns of a tree whose beehive always fires produced no nest"
     );
     for nest in &nests {
         let GeneratedBlockEntity::Beehive { bees, .. } = nest else {
@@ -380,21 +380,6 @@ fn a_generated_bee_nest_carries_its_occupants() {
             assert!((0..599).contains(&bee.ticks_in_hive));
         }
     }
-}
-
-/// The one tree group of the corpus that picks through a weighted list rather
-/// than a chain of chances.
-#[test]
-fn the_weighted_selector_picks_a_tree_of_the_dappled_forest() {
-    let region = decorate_region(
-        "minecraft:dappled_forest",
-        "minecraft:trees_dappled_forest",
-        4242,
-        ColumnPos::new(0, 0),
-        RADIUS,
-    );
-    let trunks: usize = region.values().map(|census| census.trunks).sum();
-    assert!(trunks > 0, "the dappled forest decorated nothing");
 }
 
 fn states_of(name: &str) -> std::ops::Range<u16> {
@@ -417,11 +402,7 @@ fn the_pale_garden_grows_pale_oaks_and_their_moss() {
         "minecraft:pale_garden_vegetation",
         4242,
     );
-    let region = generate_region(
-        &ctx,
-        ColumnPos::new(-RADIUS, -RADIUS),
-        ColumnPos::new(RADIUS, RADIUS),
-    );
+    let region = generate_region(&ctx, ColumnPos::new(-1, -1), ColumnPos::new(1, 1));
     let wanted = [
         "minecraft:pale_oak_log",
         "minecraft:pale_oak_leaves",

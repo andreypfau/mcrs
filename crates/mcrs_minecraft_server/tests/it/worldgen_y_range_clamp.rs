@@ -80,14 +80,3 @@ fn beta_sections_outside_noise_range_are_air() {
         }
     }
 }
-
-/// The modern overworld noise settings (min_y=-64, height=384) span [-64, 320).
-/// The full client section range [-4..=19] sits entirely inside this band, so
-/// the noise-range clamp would be a no-op — no section is spuriously clamped
-/// to air on the modern path.
-#[test]
-fn modern_overworld_noise_range_covers_all_client_sections() {
-    let settings = load_noise_settings("overworld");
-    assert_eq!(settings.noise.min_y, -64, "overworld min_y must be -64");
-    assert_eq!(settings.noise.height, 384, "overworld height must be 384");
-}

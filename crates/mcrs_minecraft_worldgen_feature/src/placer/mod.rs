@@ -184,9 +184,13 @@ mod tests {
 
     /// Stone to y=64, air above, one heightmap value, one biome.
     fn stub() -> BoxRegion {
-        let mut volume = BoxRegion::columns(4, -64, 319, AIR)
-            .floor(64, STONE)
-            .with_height(|_, _, _, _| 65);
+        let mut volume = BoxRegion::new(
+            BlockPos::new(-16, -64, -16),
+            BlockPos::new(47, 319, 63),
+            AIR,
+        )
+        .floor(64, STONE)
+        .with_height(|_, _, _, _| 65);
         volume.biome = 7;
         volume.world.air_states = mask_of([AIR.0]);
         volume

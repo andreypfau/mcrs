@@ -244,23 +244,24 @@ fn disjoint_jobs_publish_in_any_order() {
 
 /// The point of the whole exercise: work spread over several passes has to end
 /// up where one big pass would have.
-#[test]
-fn batching_reaches_the_same_answer_as_one_pass() {
+fn batching_reaches_the_same_answer_as_one_pass(columns: i32) {
+    let width = columns * 16;
+    let (far, mid) = (width - 8, width / 2);
     let edits: Vec<(BlockPos, VoxelId)> = vec![
         (BlockPos::new(8, 30, 8), GLOWSTONE),
-        (BlockPos::new(40, 30, 8), TORCH),
-        (BlockPos::new(8, 30, 40), TORCH),
-        (BlockPos::new(40, 30, 40), GLOWSTONE),
-        (BlockPos::new(24, 40, 24), STONE),
-        (BlockPos::new(24, 39, 24), STONE),
+        (BlockPos::new(far, 30, 8), TORCH),
+        (BlockPos::new(8, 30, far), TORCH),
+        (BlockPos::new(far, 30, far), GLOWSTONE),
+        (BlockPos::new(mid, 40, mid), STONE),
+        (BlockPos::new(mid, 39, mid), STONE),
         (BlockPos::new(20, 20, 20), WATER),
-        (BlockPos::new(36, 22, 12), BOTTOM_SLAB),
+        (BlockPos::new(far - 4, 22, 12), BOTTOM_SLAB),
     ];
 
-    let mut in_one_pass = TestWorld::new(3, 3, 3);
+    let mut in_one_pass = TestWorld::new(columns, 3, columns);
     in_one_pass.set_many(edits.clone());
 
-    let mut in_batches = TestWorld::new(3, 3, 3);
+    let mut in_batches = TestWorld::new(columns, 3, columns);
     let mut queue = LightQueue::default();
     for (pos, block) in &edits {
         for (col, influence) in in_batches.world.apply_edits([Edit::SetBlock {
@@ -288,8 +289,8 @@ fn batching_reaches_the_same_answer_as_one_pass() {
     );
 
     for y in 0..48 {
-        for z in 0..48 {
-            for x in 0..48 {
+        for z in 0..width {
+            for x in 0..width {
                 let pos = BlockPos::new(x, y, z);
                 assert_eq!(
                     in_one_pass.block_light(pos),
@@ -305,6 +306,11 @@ fn batching_reaches_the_same_answer_as_one_pass() {
         }
     }
     in_batches.check_against_reference();
+}
+
+#[test]
+fn batching_two_columns_wide_reaches_the_same_answer_as_one_pass() {
+    batching_reaches_the_same_answer_as_one_pass(2);
 }
 
 /// Holding lighting work back must not hold the block change back with it.
@@ -418,4 +424,11 @@ fn batches_filled_in_one_pass_do_not_overlap() {
         BlockPos::new(8, 8, 8),
         "the most urgent column opens the first batch"
     );
+}
+
+mod exhaustive {
+    #[test]
+    fn batching_three_columns_wide_reaches_the_same_answer_as_one_pass() {
+        super::batching_reaches_the_same_answer_as_one_pass(3);
+    }
 }

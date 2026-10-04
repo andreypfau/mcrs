@@ -258,7 +258,7 @@ pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>()
         if kind.is_persistent() {
             let json = persistent_json(&value);
             let back = from_json(kind, &json);
-            assert_eq!(back, value, "JSON round trip of {json}");
+            assert_eq!(back, value, "{kind}: JSON round trip of {json}");
             assert_eq!(persistent_json(&back), json, "JSON is stable for {kind}");
 
             let mut nbt = Vec::new();
@@ -334,16 +334,13 @@ pub fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
     value
 }
 
-macro_rules! kind_tests {
-    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {$(
-        #[allow(non_snake_case)]
-        mod $ty {
-            #[test]
-            fn samples_round_trip() {
-                super::check_samples::<mcrs_minecraft_protocol::item::$ty>();
-            }
+macro_rules! samples_round_trip {
+    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        #[test]
+        fn every_kinds_samples_round_trip() {
+            $(check_samples::<mcrs_minecraft_protocol::item::$ty>();)*
         }
-    )*};
+    };
 }
 
-for_each_data_component!(kind_tests);
+for_each_data_component!(samples_round_trip);

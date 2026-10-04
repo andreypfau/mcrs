@@ -1370,7 +1370,6 @@ pub(crate) mod write {
 
     fn fixture_region(fixture: &Fixture, chunks: usize) -> RegionFile {
         let slots: Vec<_> = region_chunks()
-            .into_iter()
             .take(chunks)
             .enumerate()
             .map(|(i, nbt)| {

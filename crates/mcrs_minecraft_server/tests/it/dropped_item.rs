@@ -91,7 +91,6 @@ fn tick(world: &mut World, times: usize) {
     }
 }
 
-#[test]
 fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
     let (mut world, player, _) = world();
     let dim = dimension(&mut world);
@@ -120,7 +119,6 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
     assert!(world.get::<WireStack>(stack).is_some());
 }
 
-#[test]
 fn resting_items_merge_into_the_larger_stack_every_forty_ticks() {
     let (mut world, _, _) = world();
     let dim = dimension(&mut world);
@@ -133,7 +131,6 @@ fn resting_items_merge_into_the_larger_stack_every_forty_ticks() {
     assert_eq!(world.get::<ItemStack>(large).unwrap().count, 10);
 }
 
-#[test]
 fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_moves() {
     let (mut world, player, _) = world();
     let dim = dimension(&mut world);
@@ -184,7 +181,6 @@ fn pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_move
     assert_eq!(world.get::<ItemStack>(main).unwrap().count, 3);
 }
 
-#[test]
 fn a_block_drop_scatters_inside_the_broken_block() {
     let (mut world, _, _) = world();
     let dim = dimension(&mut world);
@@ -224,7 +220,6 @@ fn chest(world: &mut World, dim: Entity) -> Entity {
     chest
 }
 
-#[test]
 fn opening_a_chest_swaps_the_menu_and_sends_its_contents() {
     let (mut world, player, _) = world();
     let dim = dimension(&mut world);
@@ -299,7 +294,6 @@ fn opening_a_chest_swaps_the_menu_and_sends_its_contents() {
     );
 }
 
-#[test]
 fn a_loaded_chest_holds_its_saved_items_as_stacks() {
     let (mut world, _, _) = world();
     let dim = dimension(&mut world);
@@ -366,4 +360,14 @@ mod exhaustive {
             "the item despawns at 6000"
         );
     }
+}
+
+#[test]
+fn items_drop_merge_get_picked_up_and_fill_chests() {
+    a_thrown_stack_becomes_an_item_entity_in_front_of_the_player();
+    resting_items_merge_into_the_larger_stack_every_forty_ticks();
+    pickup_fills_the_held_slot_first_and_announces_the_take_before_the_stack_moves();
+    a_block_drop_scatters_inside_the_broken_block();
+    opening_a_chest_swaps_the_menu_and_sends_its_contents();
+    a_loaded_chest_holds_its_saved_items_as_stacks();
 }

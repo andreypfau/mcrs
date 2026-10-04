@@ -74,7 +74,6 @@ fn same_shape(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     }
 }
 
-#[test]
 fn ids_are_dense_and_named() {
     let items = items();
     assert_eq!(items.len(), files().len());
@@ -87,7 +86,6 @@ fn ids_are_dense_and_named() {
     assert_eq!(items.id_of("minecraft:nothing"), None);
 }
 
-#[test]
 fn every_prototype_kind_is_round_tripped_by_the_protocol() {
     let kinds = round_tripped_kinds();
     for entry in items().iter() {
@@ -108,7 +106,6 @@ fn every_prototype_kind_is_round_tripped_by_the_protocol() {
     }
 }
 
-#[test]
 fn block_placers_and_remainders_resolve() {
     let (blocks, items) = corpus();
     let shulker = items
@@ -137,7 +134,6 @@ fn block_placers_and_remainders_resolve() {
     assert!(items.iter().filter(|e| e.block_placer.is_some()).count() > 1000);
 }
 
-#[test]
 fn the_plainest_item_carries_the_common_components() {
     let items = items();
     let map = &items
@@ -182,7 +178,6 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(map.diff(map), ComponentPatch::EMPTY);
 }
 
-#[test]
 fn a_repeated_identifier_fails_to_load() {
     let (blocks, _) = corpus();
     let mut files = files();
@@ -209,6 +204,15 @@ fn a_repeated_identifier_fails_to_load() {
         ),
         "{error}"
     );
+}
+
+#[test]
+fn the_item_corpus_resolves_against_the_block_corpus() {
+    ids_are_dense_and_named();
+    every_prototype_kind_is_round_tripped_by_the_protocol();
+    block_placers_and_remainders_resolve();
+    the_plainest_item_carries_the_common_components();
+    a_repeated_identifier_fails_to_load();
 }
 
 #[derive(Deserialize)]
@@ -257,10 +261,7 @@ fn assert_no_mismatches(what: &str, mismatches: Vec<String>) {
     );
 }
 
-#[test]
-fn definition_files_are_named_after_their_identifier() {
-    let files = raw_files();
-    assert!(!files.is_empty(), "no item definition was read");
+fn definition_files_are_named_after_their_identifier(files: &[(String, RawFile)]) {
     let mismatches = files
         .iter()
         .filter_map(|(path, file)| {
@@ -273,10 +274,7 @@ fn definition_files_are_named_after_their_identifier() {
     assert_no_mismatches("files not named after their identifier", mismatches);
 }
 
-#[test]
-fn definition_prototypes_state_no_removal_key() {
-    let files = raw_files();
-    assert!(!files.is_empty(), "no item definition was read");
+fn definition_prototypes_state_no_removal_key(files: &[(String, RawFile)]) {
     let mismatches = files
         .iter()
         .flat_map(|(path, file)| {
@@ -290,10 +288,7 @@ fn definition_prototypes_state_no_removal_key() {
     assert_no_mismatches("removal keys in a prototype", mismatches);
 }
 
-#[test]
-fn definition_protocol_ids_match_the_registries_report() {
-    let files = raw_files();
-    assert!(!files.is_empty(), "no item definition was read");
+fn definition_protocol_ids_match_the_registries_report(files: &[(String, RawFile)]) {
     let registries = StaticRegistryTable::load(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../assets/mcrs/reports/registries.json"
@@ -318,4 +313,13 @@ fn definition_protocol_ids_match_the_registries_report() {
         })
         .collect();
     assert_no_mismatches("items with a different protocol id", mismatches);
+}
+
+#[test]
+fn the_definition_files_agree_with_their_names_and_the_registries_report() {
+    let files = raw_files();
+    assert!(!files.is_empty(), "no item definition was read");
+    definition_files_are_named_after_their_identifier(&files);
+    definition_prototypes_state_no_removal_key(&files);
+    definition_protocol_ids_match_the_registries_report(&files);
 }

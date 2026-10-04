@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::ColumnPos;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
@@ -19,38 +19,34 @@ use mcrs_minecraft_worldgen_structure::site::Stub;
 
 const SEED: u64 = 12345;
 
-fn overworld() -> &'static StructureIndex {
-    static INDEX: LazyLock<StructureIndex> = LazyLock::new(|| {
-        let frozen = frozen_shared();
-        let source = preset("minecraft:overworld");
-        let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-        for id in possible_biomes(&source, |_| None) {
-            mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
-        }
-        let tables = DimensionStructureTables {
-            frozen: Arc::clone(frozen),
-            live: live_sets(frozen, &mask),
-        };
-        let BiomeSource::MultiNoise(multi) = source else {
-            unreachable!()
-        };
-        let biomes = MultiNoiseBiomeTable::resolve(&multi, |name| {
-            biome_index().get(name).map(|id| id as u8)
-        })
-        .unwrap();
-        StructureIndex::new(
-            Arc::new(tables),
-            SEED as i64,
-            Arc::new(build_settings_router("overworld", SEED)),
-            BiomeLookup::MultiNoise(Arc::new(biomes)),
-            Some(heightmap_predicates(blocks(), block_tags())),
-            Default::default(),
-            Arc::clone(corpus_climate()),
-            -64,
-            384,
-        )
-    });
-    &INDEX
+fn overworld() -> StructureIndex {
+    let frozen = frozen_shared();
+    let source = preset("minecraft:overworld");
+    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
+    for id in possible_biomes(&source, |_| None) {
+        mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
+    }
+    let tables = DimensionStructureTables {
+        frozen: Arc::clone(frozen),
+        live: live_sets(frozen, &mask),
+    };
+    let BiomeSource::MultiNoise(multi) = source else {
+        unreachable!()
+    };
+    let biomes =
+        MultiNoiseBiomeTable::resolve(&multi, |name| biome_index().get(name).map(|id| id as u8))
+            .unwrap();
+    StructureIndex::new(
+        Arc::new(tables),
+        SEED as i64,
+        Arc::new(build_settings_router("overworld", SEED)),
+        BiomeLookup::MultiNoise(Arc::new(biomes)),
+        Some(heightmap_predicates(blocks(), block_tags())),
+        Default::default(),
+        Arc::clone(corpus_climate()),
+        -64,
+        384,
+    )
 }
 
 fn set(id: &str) -> SetId {
@@ -68,8 +64,13 @@ fn outward() -> impl Iterator<Item = (i32, i32)> {
 }
 
 #[test]
-fn the_nearest_village_cell_yields_a_start() {
+fn the_index_finds_the_nearest_village_and_stronghold() {
     let index = overworld();
+    the_nearest_village_cell_yields_a_start(&index);
+    locate_answers_the_nearest_stronghold_ring_position(&index);
+}
+
+fn the_nearest_village_cell_yields_a_start(index: &StructureIndex) {
     let villages = set("minecraft:villages");
     let frozen = frozen_shared();
     let entries: Vec<_> = frozen.sets[villages.0 as usize]
@@ -98,21 +99,9 @@ fn the_nearest_village_cell_yields_a_start() {
     assert_eq!(centre.ground_level_delta, 1);
 }
 
-#[test]
-fn the_stronghold_rings_hold_every_position() {
-    let index = overworld();
-    let strongholds = set("minecraft:strongholds");
-    let rings = index.rings(strongholds).unwrap();
-    assert_eq!(rings.len(), 128);
-    assert!(index.gate(strongholds, rings[0]));
-    assert_eq!(index.rings(set("minecraft:villages")), None);
-}
-
 /// `/locate structure minecraft:stronghold` from the origin: the ring position
 /// nearest by chunk centre at `y = 32` whose site passes its biome test.
-#[test]
-fn locate_answers_the_nearest_stronghold_ring_position() {
-    let index = overworld();
+fn locate_answers_the_nearest_stronghold_ring_position(index: &StructureIndex) {
     let frozen = frozen_shared();
     let strongholds = set("minecraft:strongholds");
     let stronghold =

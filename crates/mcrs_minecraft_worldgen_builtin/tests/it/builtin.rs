@@ -77,13 +77,12 @@ fn a_path_outside_the_built_in_folders_is_not_served() {
     );
 }
 
-#[test]
-fn every_template_reads_back_from_the_bytes_it_is_served_as() {
+fn templates_read_back_from_the_bytes_they_are_served_as(count: usize) {
     let built = builtin::templates();
     assert_eq!(built.len(), 483);
     let listed = builtin::paths("minecraft/structure");
     assert_eq!(listed.len(), built.len());
-    for (id, template) in built {
+    for (id, template) in built.into_iter().take(count) {
         let path = format!("minecraft/structure/{}.nbt", id.path());
         assert!(listed.contains(&path), "{path} is not listed");
         let bytes = builtin::asset(&path).unwrap_or_else(|| panic!("{path} is not served"));
@@ -91,6 +90,18 @@ fn every_template_reads_back_from_the_bytes_it_is_served_as() {
         assert_eq!(read, template, "{path}");
     }
     assert!(builtin::asset("minecraft/structure/igloo/top.nbt").is_none());
+}
+
+#[test]
+fn a_template_reads_back_from_the_bytes_it_is_served_as() {
+    templates_read_back_from_the_bytes_they_are_served_as(5);
+}
+
+mod exhaustive {
+    #[test]
+    fn every_template_reads_back_from_the_bytes_it_is_served_as() {
+        super::templates_read_back_from_the_bytes_they_are_served_as(usize::MAX);
+    }
 }
 
 fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> String {
