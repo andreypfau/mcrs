@@ -482,3 +482,15 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         0.25
     );
 }
+
+#[test]
+fn a_dimension_type_with_an_unknown_field_fails() {
+    let mut file: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets_dir().join("dimension_type/overworld.json")).unwrap(),
+    )
+    .unwrap();
+    file["weather"] = json!(true);
+
+    let error = serde_json::from_value::<ProtoDimensionType>(file).unwrap_err();
+    assert!(error.to_string().contains("weather"), "{error}");
+}
