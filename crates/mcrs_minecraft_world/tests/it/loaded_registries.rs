@@ -20,6 +20,7 @@ use mcrs_minecraft_world::registries::{
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
+use mcrs_minecraft_world::villager_trade::VillagerTrade;
 use serde::Deserialize;
 use std::sync::LazyLock;
 
@@ -52,6 +53,8 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
     "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
     "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
+    "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
+    "minecraft:trade_set":{"elements":true,"stable":false,"tags":true},
     "minecraft:worldgen/block_state_provider":{"elements":true,"stable":false,"tags":false}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
@@ -1554,4 +1557,270 @@ fn a_provider_the_game_refuses_fails_to_parse() {
         });
         assert!(message.contains(expected), "{json}: {message}");
     }
+}
+
+#[test]
+fn a_trade_set_naming_an_unknown_trade_tag_fails() {
+    let text = refused_by_the_loader(
+        "trade_set",
+        "odd",
+        r##"{"amount":2,"trades":"#minecraft:nowhere"}"##,
+    );
+    for part in [
+        "minecraft:trade_set",
+        "minecraft:odd",
+        "minecraft:villager_trade",
+        "minecraft:nowhere",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn a_trade_wanting_an_unknown_item_fails() {
+    let text = refused_by_the_loader(
+        "villager_trade",
+        "odd",
+        r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:no_such_item"}}"#,
+    );
+    for part in [
+        "minecraft:villager_trade",
+        "minecraft:odd",
+        "minecraft:item",
+        "minecraft:no_such_item",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+fn trade_with_modifier(modifier: &str) -> String {
+    format!(
+        r#"{{"gives":{{"id":"minecraft:emerald"}},"wants":{{"id":"minecraft:stick"}},
+        "given_item_modifier":{modifier}}}"#
+    )
+}
+
+#[test]
+fn a_trade_with_an_unmodelled_loot_function_fails() {
+    let text = refused_by_the_loader(
+        "villager_trade",
+        "odd",
+        &trade_with_modifier(r#"{"type":"minecraft:set_name"}"#),
+    );
+    for part in [
+        "minecraft:villager_trade",
+        "minecraft:odd",
+        "minecraft:set_name",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn trade_forms_beyond_the_shipped_files_round_trip() {
+    let trade = |overrides: serde_json::Value| {
+        let mut trade = serde_json::json!({
+            "gives": {"id": "minecraft:emerald"},
+            "wants": {"id": "minecraft:stick"},
+        });
+        trade
+            .as_object_mut()
+            .unwrap()
+            .extend(overrides.as_object().unwrap().clone());
+        trade
+    };
+    let cases = [
+        (trade(serde_json::json!({})), trade(serde_json::json!({}))),
+        (
+            trade(serde_json::json!({"gives": "minecraft:emerald", "max_uses": 4, "xp": 1})),
+            trade(serde_json::json!({})),
+        ),
+        (
+            trade(serde_json::json!({
+                "max_uses": {"type": "minecraft:constant", "value": 3},
+                "xp": {"type": "minecraft:uniform", "min": 1,
+                    "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
+                "reputation_discount": {"type": "minecraft:constant", "value": 0.25},
+            })),
+            trade(serde_json::json!({
+                "max_uses": 3,
+                "xp": {"type": "minecraft:uniform", "min": 1,
+                    "max": {"type": "minecraft:binomial", "n": 4, "p": 0.5}},
+                "reputation_discount": 0.25,
+            })),
+        ),
+        (
+            trade(serde_json::json!({"given_item_modifier": [
+                {"type": "minecraft:discard"},
+                {"type": "minecraft:set_potion", "id": "minecraft:water"},
+            ]})),
+            trade(serde_json::json!({"given_item_modifier": [
+                {"type": "minecraft:discard"},
+                {"type": "minecraft:set_potion", "id": "minecraft:water"},
+            ]})),
+        ),
+        (
+            trade(serde_json::json!({"given_item_modifier": {
+                "type": "minecraft:filtered",
+                "condition": {"type": "minecraft:inverted",
+                    "term": {"type": "minecraft:weather_check", "raining": true}},
+                "item_filter": {"items": "minecraft:bow"},
+                "on_pass": [{"type": "minecraft:set_random_potion"}],
+                "on_fail": {"type": "minecraft:discard"},
+            }})),
+            trade(serde_json::json!({"given_item_modifier": {
+                "type": "minecraft:filtered",
+                "condition": {"type": "minecraft:inverted",
+                    "term": {"type": "minecraft:weather_check", "raining": true}},
+                "item_filter": {"items": "minecraft:bow"},
+                "on_pass": [{"type": "minecraft:set_random_potion"}],
+                "on_fail": {"type": "minecraft:discard"},
+            }})),
+        ),
+        (
+            trade(serde_json::json!({"given_item_modifier": {
+                "type": "minecraft:exploration_map",
+                "destination": "#minecraft:on_woodland_mansion_maps",
+                "zoom": 2, "search_radius": 50, "skip_existing_chunks": true,
+            }})),
+            trade(serde_json::json!({"given_item_modifier": {
+                "type": "minecraft:exploration_map",
+                "destination": "#minecraft:on_woodland_mansion_maps",
+            }})),
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(round_trip::<VillagerTrade>(&input.to_string()), expected);
+    }
+}
+
+#[test]
+fn trade_values_the_game_refuses_fail_to_parse() {
+    let wants =
+        |id: &str| format!(r#"{{"gives":{{"id":"minecraft:emerald"}},"wants":{{"id":"{id}"}}}}"#);
+    let modifier = |modifier: &str| trade_with_modifier(modifier);
+    let cases = [
+        (wants("minecraft:air"), "minecraft:air"),
+        (
+            r#"{"gives":{"id":"minecraft:emerald","count":0},"wants":{"id":"minecraft:stick"}}"#
+                .to_owned(),
+            "[1;99]",
+        ),
+        (
+            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},"bogus":1}"#
+                .to_owned(),
+            "bogus",
+        ),
+        (
+            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
+                "max_uses":{"type":"minecraft:abs","value":1}}"#
+                .to_owned(),
+            "minecraft:abs",
+        ),
+        (
+            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
+                "reputation_discount":{"type":"minecraft:uniform","min":0.0,"max":1.0}}"#
+                .to_owned(),
+            "minecraft:uniform",
+        ),
+        (
+            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
+                "max_uses":3000000000}"#
+                .to_owned(),
+            "3000000000",
+        ),
+        (
+            modifier(r#""minecraft:some_item_modifier""#),
+            "minecraft:some_item_modifier",
+        ),
+        (
+            modifier(
+                r#"{"type":"minecraft:set_stew_effect","effects":[
+                {"type":"minecraft:poison","duration":5},{"type":"minecraft:poison","duration":6}]}"#,
+            ),
+            "duplicate mob effect",
+        ),
+        (
+            modifier(
+                r#"{"type":"minecraft:set_stew_effect","effects":[
+                {"type":"minecraft:no_such_effect","duration":5}]}"#,
+            ),
+            "minecraft:no_such_effect",
+        ),
+        (
+            modifier(r#"{"type":"minecraft:set_potion","id":"minecraft:no_such_potion"}"#),
+            "minecraft:no_such_potion",
+        ),
+        (
+            modifier(
+                r##"{"type":"minecraft:enchant_randomly","options":"#minecraft:no_such_tag"}"##,
+            ),
+            "minecraft:no_such_tag",
+        ),
+        (
+            modifier(
+                r##"{"type":"minecraft:exploration_map","destination":"#minecraft:no_such_tag"}"##,
+            ),
+            "minecraft:no_such_tag",
+        ),
+        (
+            modifier(r#"{"type":"minecraft:discard","bogus":1}"#),
+            "bogus",
+        ),
+    ];
+    for (json, expected) in cases {
+        let message = test_registries().scope(|| {
+            serde_json::from_str::<VillagerTrade>(&json)
+                .expect_err(&json)
+                .to_string()
+        });
+        assert!(message.contains(expected), "{json}: {message}");
+    }
+}
+
+fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {
+    for entry in std::fs::read_dir(directory).unwrap() {
+        let entry = entry.unwrap();
+        let file = entry.file_name().into_string().unwrap();
+        if entry.path().is_dir() {
+            json_names(&entry.path(), &format!("{prefix}{file}/"), names);
+        } else if let Some(stem) = file.strip_suffix(".json") {
+            names.insert(format!("minecraft:{prefix}{stem}"));
+        }
+    }
+}
+
+#[test]
+fn trial_spawners_have_names_and_no_values() {
+    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&datapack).expect("the report parses");
+    assert!(!world.parses("minecraft:trial_spawner"));
+    assert!(
+        world
+            .declared()
+            .any(|registry| registry.as_str() == "minecraft:trial_spawner")
+    );
+    for loot in [
+        "minecraft:loot_table",
+        "minecraft:predicate",
+        "minecraft:item_modifier",
+    ] {
+        assert!(
+            !world.declared().any(|registry| registry.as_str() == loot),
+            "{loot} is declared"
+        );
+        assert!(
+            test_registries().table(loot).is_none(),
+            "{loot} has a table"
+        );
+    }
+
+    let mut shipped = BTreeSet::new();
+    json_names(&assets().join("minecraft/trial_spawner"), "", &mut shipped);
+    let table = test_registries()
+        .table("minecraft:trial_spawner")
+        .expect("trial spawner table");
+    let named: BTreeSet<String> = table.names().iter().map(|name| name.to_string()).collect();
+    assert!(!named.is_empty());
+    assert_eq!(named, shipped);
 }

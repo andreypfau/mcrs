@@ -21,6 +21,7 @@ pub mod save;
 pub mod sulfur_cube_archetype;
 pub mod test_types;
 pub mod variant;
+pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
