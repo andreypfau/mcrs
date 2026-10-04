@@ -77,6 +77,14 @@ pub struct LookupIndex {
 }
 
 impl LookupIndex {
+    pub fn declare(&mut self, registry: &str) {
+        self.by_id.entry(registry.into()).or_default();
+    }
+
+    pub fn holds(&self, registry: &str) -> bool {
+        self.by_id.contains_key(registry)
+    }
+
     pub fn insert(&mut self, registry: &str, id: u32, location: Option<ResourceLocation>) {
         let by_id = self.by_id.entry(registry.into()).or_default();
         let id = id as usize;

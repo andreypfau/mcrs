@@ -2,6 +2,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use crate::registry::Registry;
+use crate::set::ScopeError;
 use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
 use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
 use serde::ser::Error as _;
@@ -42,12 +43,13 @@ impl<'de, T: RegistryKey + DeserializeOwned> Deserialize<'de> for Holder<T> {
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 let location = ResourceLocation::read(text).map_err(E::custom)?;
-                if let Ok(Err(unknown)) = Registry::<T>::in_scope("Holder", |registry| {
+                match Registry::<T>::in_scope("Holder", |registry| {
                     registry.require(location.as_str())
                 }) {
-                    return Err(E::custom(unknown));
+                    Ok(Err(unknown)) => Err(E::custom(unknown)),
+                    Err(missing @ ScopeError::MissingRegistry { .. }) => Err(E::custom(missing)),
+                    Ok(Ok(_)) | Err(ScopeError::NoScope { .. }) => Ok(Holder::reference(location)),
                 }
-                Ok(Holder::reference(location))
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
@@ -129,8 +131,13 @@ mod tests {
             assert!(message.contains("minecraft:stick"), "{message}");
         });
 
-        let unchecked = Holder::reference(ResourceLocation::minecraft("stick"));
-        assert_eq!(read("minecraft:stick").unwrap(), unchecked);
-        RegistrySet::new().scope(|| assert_eq!(read("minecraft:stick").unwrap(), unchecked));
+        assert_eq!(
+            read("minecraft:stick").unwrap(),
+            Holder::reference(ResourceLocation::minecraft("stick"))
+        );
+        RegistrySet::new().scope(|| {
+            let message = read("minecraft:stick").unwrap_err().to_string();
+            assert!(message.contains("no such registry"), "{message}");
+        });
     }
 }

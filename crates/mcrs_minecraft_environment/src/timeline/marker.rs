@@ -15,6 +15,7 @@ pub struct TimeMarker {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FullTimeMarker {
+    #[serde(deserialize_with = "super::non_negative_ticks")]
     ticks: u32,
     #[serde(default)]
     show_in_commands: bool,
@@ -41,10 +42,10 @@ impl<'de> Deserialize<'de> for TimeMarker {
             }
 
             fn visit_u64<E: de::Error>(self, ticks: u64) -> Result<TimeMarker, E> {
-                let ticks = u32::try_from(ticks)
+                let ticks = i32::try_from(ticks)
                     .map_err(|_| E::invalid_value(de::Unexpected::Unsigned(ticks), &self))?;
                 Ok(TimeMarker {
-                    ticks,
+                    ticks: ticks as u32,
                     show_in_commands: false,
                 })
             }

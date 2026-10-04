@@ -5,6 +5,8 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use mcrs_minecraft_core::codec::NonNegativeInt;
+
 use crate::attribute::spec::{Draft, DraftSeed};
 use crate::attribute::{ArgumentRef, AttributeSpec, AttributeValue, Operation, attribute};
 
@@ -216,7 +218,9 @@ impl<'de> Visitor<'de> for KeyframeSeed {
         let (mut ticks, mut value) = (None, None);
         while let Some(key) = map.next_key::<String>()? {
             match key.as_str() {
-                "ticks" if ticks.is_none() => ticks = Some(map.next_value::<u32>()?),
+                "ticks" if ticks.is_none() => {
+                    ticks = Some(map.next_value::<NonNegativeInt>()?.0 as u32);
+                }
                 "value" if value.is_none() => {
                     value = Some(map.next_value_seed(DraftSeed(self.0))?);
                 }

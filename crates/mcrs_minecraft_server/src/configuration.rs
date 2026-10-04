@@ -65,51 +65,6 @@ use crate::world_options::{
     LoadedWorldPreset, process_loaded_world_preset, start_loading_world_preset,
 };
 
-/// Canonical list of registries that the server synchronizes via
-/// `ClientboundRegistryData` during the Configuration phase.
-///
-/// 30 registries are protocol-synced (see `synced_registries_count`). The
-/// non-synced static registries — block, item, sound_event, entity_type —
-/// remain in `RegistryAccess` for internal lookups but must not be sent as
-/// `ClientboundRegistryData`. Enchantment is the only static registry that
-/// is synced.
-///
-/// The list is sorted alphabetically so the protocol send order is
-/// deterministic and reproducible across restarts.
-const SYNCED_REGISTRIES: &[&str] = &[
-    "minecraft:banner_pattern",
-    "minecraft:block_transformer",
-    "minecraft:cat_sound_variant",
-    "minecraft:cat_variant",
-    "minecraft:chat_type",
-    "minecraft:chicken_sound_variant",
-    "minecraft:chicken_variant",
-    "minecraft:cow_sound_variant",
-    "minecraft:cow_variant",
-    "minecraft:damage_type",
-    "minecraft:decorated_pot_pattern",
-    "minecraft:dialog",
-    "minecraft:dimension_type",
-    "minecraft:enchantment",
-    "minecraft:frog_variant",
-    "minecraft:instrument",
-    "minecraft:jukebox_song",
-    "minecraft:painting_variant",
-    "minecraft:pig_sound_variant",
-    "minecraft:pig_variant",
-    "minecraft:test_environment",
-    "minecraft:test_instance",
-    "minecraft:timeline",
-    "minecraft:trim_material",
-    "minecraft:trim_pattern",
-    "minecraft:wolf_sound_variant",
-    "minecraft:wolf_variant",
-    "minecraft:world_clock",
-    "minecraft:worldgen/biome",
-    "minecraft:worldgen/block_state_provider",
-    "minecraft:zombie_nautilus_variant",
-];
-
 /// Allowlist of registries that emit tag groups in `ClientboundUpdateTags`.
 ///
 /// The vanilla 1.21.11 client expects exactly these 7 entries. Any other
@@ -444,12 +399,9 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    // RegistryData: filter to the 30 protocol-synced registries and send
-    // them in alphabetical order by registry key for deterministic output.
-    let mut registries: Vec<_> = access
-        .iter()
-        .filter(|r| SYNCED_REGISTRIES.contains(&r.registry_key()))
-        .collect();
+    // `RegistryAccess` holds exactly the registries with a network projection,
+    // which is the set the game synchronizes.
+    let mut registries: Vec<_> = access.iter().collect();
     registries.sort_by_key(|r| r.registry_key());
 
     for registry in &registries {

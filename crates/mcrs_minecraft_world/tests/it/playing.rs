@@ -11,6 +11,7 @@ fn the_data_pack_reaches_playing_with_every_registry_in_place() {
     biome_tags::the_shipped_biome_tags_resolve(&app);
     biome_tags::the_biome_index_and_snapshot_agree_on_the_id_space(&app);
     registry_values::the_synced_values_differ_from_the_game_as_recorded(&app);
+    registry_values::the_app_projects_exactly_the_registries_the_game_synchronizes(&app);
     structure_assets::the_structure_registries_land_before_playing(&app);
     tag_pipeline::tags_load_resolve_and_freeze_on_the_way_to_playing(&app);
     tag_pipeline::entity_type_tags_are_numbered_by_the_report(&app);

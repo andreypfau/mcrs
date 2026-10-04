@@ -679,11 +679,13 @@ mod sky_regression {
         });
 
     fn read<T: serde::de::DeserializeOwned>(relative: &str) -> T {
+        CLOCKS.scope(|| read_unscoped(relative))
+    }
+
+    fn read_unscoped<T: serde::de::DeserializeOwned>(relative: &str) -> T {
         let path = crate::asset_corpus().join("minecraft").join(relative);
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        CLOCKS.scope(|| {
-            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-        })
+        serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
     }
 
     fn tagged_timelines(tag: &str, out: &mut Vec<Timeline>) {
@@ -704,7 +706,7 @@ mod sky_regression {
     }
 
     fn overworld() -> SkyEnvironment {
-        let dimension: Dimension = read("dimension_type/overworld.json");
+        let dimension: Dimension = read_unscoped("dimension_type/overworld.json");
         let mut timelines = Vec::new();
         tagged_timelines("in_overworld", &mut timelines);
         let attributes = EnvironmentAttributes::build(

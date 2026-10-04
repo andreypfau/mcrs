@@ -19,7 +19,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 use crate::player::{self, Player};
 
@@ -83,7 +83,7 @@ fn receive_inventory_packets(
     let Ok((ConnectionState::Game, received)) = connections.get(event.entity) else {
         return;
     };
-    let lookup = ChainLookup(&[&*registries as &dyn RegistryLookup, received]);
+    let lookup = received.over(&*registries);
     if let Some(packet) = event.decode::<ClientboundContainerSetContent>() {
         let slots: anyhow::Result<Vec<_>> = packet
             .slot_data

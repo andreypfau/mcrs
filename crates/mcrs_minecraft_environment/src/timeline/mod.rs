@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_core::{ResourceLocation, rl};
@@ -21,6 +22,10 @@ pub use sampler::{AttributeTrackSampler, TrackSampler};
 pub use track::{Keyframe, Track, TrackError, Tracks};
 
 pub type TimeMarkers = BTreeMap<ResourceLocation<Arc<str>>, TimeMarker>;
+
+fn non_negative_ticks<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    NonNegativeInt::deserialize(d).map(|ticks| ticks.0 as u32)
+}
 
 #[derive(Debug, Clone)]
 pub struct Timeline {
@@ -43,7 +48,7 @@ impl RegistryKey for Timeline {
 struct TimelineRepr {
     clock: Id<WorldClock>,
     #[serde(default)]
-    period_ticks: Option<u32>,
+    period_ticks: Option<PositiveInt>,
     #[serde(default)]
     tracks: Tracks,
     #[serde(default)]
@@ -53,7 +58,8 @@ struct TimelineRepr {
 impl<'de> Deserialize<'de> for Timeline {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let repr = TimelineRepr::deserialize(d)?;
-        if let Some(period) = repr.period_ticks {
+        let period_ticks = repr.period_ticks.map(|period| period.0 as u32);
+        if let Some(period) = period_ticks {
             for (marker, info) in &repr.time_markers {
                 // Exclusive at the top, unlike the inclusive keyframe bound: a
                 // marker on the period boundary would occur twice a period.
@@ -76,7 +82,7 @@ impl<'de> Deserialize<'de> for Timeline {
         }
         Ok(Timeline {
             clock: repr.clock,
-            period_ticks: repr.period_ticks,
+            period_ticks,
             tracks: repr.tracks,
             time_markers: repr.time_markers,
         })
@@ -255,6 +261,43 @@ mod tests {
         }))
         .unwrap();
         assert!(sent(&only_server_side).get("tracks").is_none());
+    }
+
+    #[test]
+    fn tick_counts_outside_the_games_int_ranges_are_refused() {
+        let past_int = i64::from(i32::MAX) + 1;
+        let track = |ticks: Value| json!({"minecraft:visual/sky_light_factor": {"keyframes": [{"ticks": ticks, "value": 1.0}]}});
+        for (field, document) in [
+            ("period_ticks", json!({"period_ticks": 0})),
+            ("period_ticks", json!({"period_ticks": past_int})),
+            ("keyframe ticks", json!({"tracks": track(json!(-1))})),
+            ("keyframe ticks", json!({"tracks": track(json!(past_int))})),
+            (
+                "bare marker",
+                json!({"time_markers": {"minecraft:noon": past_int}}),
+            ),
+            (
+                "marker ticks",
+                json!({"time_markers": {"minecraft:noon": {"ticks": past_int}}}),
+            ),
+            (
+                "marker ticks",
+                json!({"time_markers": {"minecraft:noon": {"ticks": -1}}}),
+            ),
+        ] {
+            let mut document = document;
+            document["clock"] = json!("minecraft:overworld");
+            let read = TEST_CLOCKS.scope(|| serde_json::from_value::<Timeline>(document.clone()));
+            assert!(read.is_err(), "{field}: {document} loads");
+        }
+        let edge = TEST_CLOCKS.scope(|| {
+            serde_json::from_value::<Timeline>(json!({
+                "clock": "minecraft:overworld",
+                "time_markers": {"minecraft:noon": i32::MAX},
+                "tracks": track(json!(i32::MAX)),
+            }))
+        });
+        assert!(edge.is_ok(), "{edge:?}");
     }
 
     #[test]

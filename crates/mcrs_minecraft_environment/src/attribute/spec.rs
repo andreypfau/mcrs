@@ -97,8 +97,8 @@ pub enum AttributeType {
 /// What a map found where an attribute entry belongs stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MapMeaning {
-    /// The attribute's own value is an object, and no other modifier than
-    /// `override` exists to write `{argument, modifier}` with.
+    /// The attribute's own value is an object whose every field is optional,
+    /// so the game's value codec accepts any object first.
     Value,
     /// The attribute's own value is never an object, so this is the entry.
     Entry,
@@ -137,22 +137,17 @@ impl AttributeType {
 
         match self {
             T::Boolean
+            | T::TriState
             | T::Float
             | T::AngleDegrees
             | T::RgbColor
             | T::ArgbColor
             | T::Integer
-            | T::AmbientParticles => MapMeaning::Entry,
-            // Every field is optional, so a lone `{}` and the keys of both
-            // shapes are all fine; only the first key says which this is.
-            T::MobSpawnSettings => MapMeaning::Peek,
-            T::TriState
             | T::MoonPhase
             | T::Activity
-            | T::BedRule
-            | T::Particle
-            | T::BackgroundMusic
-            | T::AmbientSounds => MapMeaning::Value,
+            | T::AmbientParticles => MapMeaning::Entry,
+            T::BedRule | T::Particle | T::MobSpawnSettings => MapMeaning::Peek,
+            T::BackgroundMusic | T::AmbientSounds => MapMeaning::Value,
         }
     }
 }
