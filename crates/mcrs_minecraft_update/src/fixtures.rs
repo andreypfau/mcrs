@@ -206,6 +206,13 @@ pub const FIXTURES: &[Fixture] = &[
         "join_packets",
         &[named("join_packets_golden.txt", PROTOCOL_FIXTURES)],
     ),
+    golden(
+        "serverbound_game_packets",
+        &[named(
+            "serverbound_game_packets_golden.txt",
+            PROTOCOL_FIXTURES,
+        )],
+    ),
     golden("frames", &[named("frames_golden.txt", PROTOCOL_FIXTURES)]),
     golden(
         "vanilla_player",

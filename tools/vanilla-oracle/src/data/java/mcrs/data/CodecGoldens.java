@@ -77,6 +77,7 @@ public final class CodecGoldens {
         GOLDENS.put("particles", PacketGoldens::particles);
         GOLDENS.put("inventory_packets", PacketGoldens::inventoryPackets);
         GOLDENS.put("join_packets", PacketGoldens::joinPackets);
+        GOLDENS.put("serverbound_game_packets", PacketGoldens::serverboundGamePackets);
         GOLDENS.put("frames", FrameGoldens::frames);
         GOLDENS.put("vanilla_player", PlayerGoldens::vanillaPlayer);
         GOLDENS.put("registry_values", RegistryGoldens::registryValues);

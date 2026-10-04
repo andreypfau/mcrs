@@ -234,6 +234,22 @@ fn structures() -> Seen {
         game::serverbound::ServerboundSetCarriedItem,
         game::serverbound::ServerboundSetCreativeModeSlot,
         game::serverbound::ServerboundUseItemOn,
+        game::serverbound::ServerboundAttack,
+        game::serverbound::ServerboundClientCommand,
+        game::serverbound::ServerboundClientTickEnd,
+        game::serverbound::ServerboundInteract,
+        game::serverbound::ServerboundMoveVehicle,
+        game::serverbound::ServerboundPlayerAbilities,
+        game::serverbound::ServerboundPlayerCommand,
+        game::serverbound::ServerboundPlayerInput,
+        game::serverbound::ServerboundPlayerLoaded,
+        game::serverbound::ServerboundPunch,
+        game::serverbound::ServerboundUseItem,
+        game::serverbound::ServerboundPong,
+        game::serverbound::ServerboundResourcePack,
+        game::serverbound::ServerboundCookieResponse<'_>,
+        game::serverbound::ServerboundCustomPayload<'_>,
+        game::serverbound::ServerboundCustomClickAction<'_>,
     }
 }
 

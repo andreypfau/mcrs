@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
 import mcrs.data.CodecGoldens.Session;
 import net.minecraft.SharedConstants;
@@ -38,6 +39,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
+import net.minecraft.core.PositionAndRotation;
 import net.minecraft.core.component.DataComponentExactPredicate;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
@@ -48,10 +50,19 @@ import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.HashedPatchMap;
 import net.minecraft.network.HashedStack;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
+import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
+import net.minecraft.network.protocol.common.ServerboundPongPacket;
+import net.minecraft.network.protocol.common.ServerboundResourcePackPacket;
+import net.minecraft.network.protocol.common.custom.BrandPayload;
+import net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetDataPacket;
@@ -71,20 +82,31 @@ import net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.network.protocol.game.CommonPlayerSpawnInfo;
+import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundClientTickEndPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerButtonClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ServerboundContainerSlotStateChangedPacket;
 import net.minecraft.network.protocol.game.ServerboundEditBookPacket;
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
+import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
 import net.minecraft.network.protocol.game.ServerboundPickItemFromBlockPacket;
 import net.minecraft.network.protocol.game.ServerboundPickItemFromEntityPacket;
 import net.minecraft.network.protocol.game.ServerboundPlaceRecipePacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerAbilitiesPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket;
+import net.minecraft.network.protocol.game.ServerboundPunchPacket;
 import net.minecraft.network.protocol.game.ServerboundRecipeBookChangeSettingsPacket;
 import net.minecraft.network.protocol.game.ServerboundRecipeBookSeenRecipePacket;
 import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
 import net.minecraft.network.protocol.game.ServerboundSeenAdvancementsPacket;
 import net.minecraft.network.protocol.game.ServerboundSelectTradePacket;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
+import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
 import net.minecraft.network.protocol.handshake.ClientIntent;
 import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraft.resources.Identifier;
@@ -92,6 +114,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.stats.RecipeBookSettings;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Unit;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.RecipeBookType;
@@ -124,6 +149,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.phys.Vec3;
 
 public final class PacketGoldens {
     private static final Map<String, String> PARSE_ERROR_INPUTS = Map.of(
@@ -372,6 +398,135 @@ public final class PacketGoldens {
             );
             rewriteLabelled(session, current, output, labels);
         });
+    }
+
+    static void serverboundGamePackets(final Path current, final Path output) throws Exception {
+        CodecGoldens.withSession(session -> {
+            Map<String, Supplier<String>> labels = new LinkedHashMap<>();
+            labels.put("attack", () -> hex(session, ServerboundAttackPacket.STREAM_CODEC, new ServerboundAttackPacket(300)));
+            labels.put(
+                "client_command",
+                () -> hex(
+                    session,
+                    ServerboundClientCommandPacket.STREAM_CODEC,
+                    new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.REQUEST_STATS)
+                )
+            );
+            labels.put("client_command_last", () -> {
+                refuses(session, ServerboundClientCommandPacket.STREAM_CODEC, "03");
+                return hex(
+                    session,
+                    ServerboundClientCommandPacket.STREAM_CODEC,
+                    new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.REQUEST_GAMERULE_VALUES)
+                );
+            });
+            labels.put("client_tick_end", () -> hex(session, ServerboundClientTickEndPacket.STREAM_CODEC, ServerboundClientTickEndPacket.INSTANCE));
+            labels.put(
+                "interact",
+                () -> hex(
+                    session,
+                    ServerboundInteractPacket.STREAM_CODEC,
+                    new ServerboundInteractPacket(300, InteractionHand.OFF_HAND, new Vec3(1.0, 0.0, -1.0), true)
+                )
+            );
+            labels.put(
+                "move_vehicle",
+                () -> hex(
+                    session,
+                    ServerboundMoveVehiclePacket.STREAM_CODEC,
+                    new ServerboundMoveVehiclePacket(PositionAndRotation.of(new Vec3(1.5, 64.0, -2.5), 90.0F, -15.5F), true)
+                )
+            );
+            labels.put("player_abilities", () -> hex(session, ServerboundPlayerAbilitiesPacket.STREAM_CODEC, new ServerboundPlayerAbilitiesPacket(abilities(true))));
+            labels.put("player_abilities_grounded", () -> hex(session, ServerboundPlayerAbilitiesPacket.STREAM_CODEC, new ServerboundPlayerAbilitiesPacket(abilities(false))));
+            labels.put("player_abilities_foreign_bits", () -> rewritten(session, ServerboundPlayerAbilitiesPacket.STREAM_CODEC, "ff"));
+            labels.put("player_command", () -> rewritten(session, ServerboundPlayerCommandPacket.STREAM_CODEC, "ac02" + "02" + "00"));
+            labels.put("player_command_last", () -> {
+                refuses(session, ServerboundPlayerCommandPacket.STREAM_CODEC, "01" + "07" + "00");
+                return rewritten(session, ServerboundPlayerCommandPacket.STREAM_CODEC, "ac02" + "06" + "e807");
+            });
+            labels.put("player_input", () -> hex(session, ServerboundPlayerInputPacket.STREAM_CODEC, new ServerboundPlayerInputPacket(input(true, false, false, false, true, false, true))));
+            labels.put("player_input_none", () -> hex(session, ServerboundPlayerInputPacket.STREAM_CODEC, new ServerboundPlayerInputPacket(Input.EMPTY)));
+            labels.put("player_input_all", () -> hex(session, ServerboundPlayerInputPacket.STREAM_CODEC, new ServerboundPlayerInputPacket(input(true, true, true, true, true, true, true))));
+            labels.put("player_loaded", () -> hex(session, ServerboundPlayerLoadedPacket.STREAM_CODEC, new ServerboundPlayerLoadedPacket()));
+            labels.put("punch", () -> hex(session, ServerboundPunchPacket.STREAM_CODEC, ServerboundPunchPacket.INSTANCE));
+            labels.put(
+                "use_item",
+                () -> hex(session, ServerboundUseItemPacket.STREAM_CODEC, new ServerboundUseItemPacket(InteractionHand.OFF_HAND, 300, 90.0F, -15.5F))
+            );
+            labels.put(
+                "cookie_response",
+                () -> hex(
+                    session,
+                    ServerboundCookieResponsePacket.STREAM_CODEC,
+                    new ServerboundCookieResponsePacket(Identifier.parse("minecraft:session"), new byte[] {1, 2, 3})
+                )
+            );
+            labels.put(
+                "cookie_response_absent",
+                () -> hex(
+                    session, ServerboundCookieResponsePacket.STREAM_CODEC, new ServerboundCookieResponsePacket(Identifier.parse("minecraft:session"), null)
+                )
+            );
+            labels.put(
+                "custom_payload",
+                () -> hex(session, ServerboundCustomPayloadPacket.STREAM_CODEC, new ServerboundCustomPayloadPacket(new BrandPayload("vanilla")))
+            );
+            labels.put("pong", () -> hex(session, ServerboundPongPacket.STREAM_CODEC, new ServerboundPongPacket(-1234)));
+            labels.put(
+                "resource_pack",
+                () -> hex(
+                    session,
+                    ServerboundResourcePackPacket.STREAM_CODEC,
+                    new ServerboundResourcePackPacket(new UUID(0x0123456789abcdefL, 0xfedcba9876543210L), ServerboundResourcePackPacket.Action.DISCARDED)
+                )
+            );
+            labels.put("custom_click_action", () -> {
+                CompoundTag payload = new CompoundTag();
+                payload.putString("name", "ok");
+                payload.putInt("count", 3);
+                return hex(
+                    session,
+                    ServerboundCustomClickActionPacket.STREAM_CODEC,
+                    new ServerboundCustomClickActionPacket(Identifier.parse("example:action"), Optional.of(payload))
+                );
+            });
+            labels.put(
+                "custom_click_action_absent",
+                () -> hex(
+                    session,
+                    ServerboundCustomClickActionPacket.STREAM_CODEC,
+                    new ServerboundCustomClickActionPacket(Identifier.parse("example:action"), Optional.empty())
+                )
+            );
+            rewriteLabelled(session, current, output, labels);
+        });
+    }
+
+    private static Abilities abilities(final boolean flying) {
+        Abilities abilities = new Abilities();
+        abilities.flying = flying;
+        return abilities;
+    }
+
+    private static Input input(
+        final boolean forward, final boolean backward, final boolean left, final boolean right, final boolean jump, final boolean shift, final boolean sprint
+    ) {
+        return new Input(forward, backward, left, right, jump, shift, sprint);
+    }
+
+    private static <T> String rewritten(final Session session, final StreamCodec<? super RegistryFriendlyByteBuf, T> codec, final String input) {
+        T value = codec.decode(new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(CodecGoldens.HEX.parseHex(input)), session.access()));
+        return hex(session, codec, value);
+    }
+
+    private static void refuses(final Session session, final StreamCodec<? super RegistryFriendlyByteBuf, ?> codec, final String input) {
+        try {
+            codec.decode(new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(CodecGoldens.HEX.parseHex(input)), session.access()));
+        } catch (RuntimeException refused) {
+            return;
+        }
+        throw new IllegalStateException("the game accepted " + input);
     }
 
     private static Holder<DimensionType> dimensionType(final Session session, final String path) {

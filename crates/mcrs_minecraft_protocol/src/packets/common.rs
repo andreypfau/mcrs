@@ -46,10 +46,9 @@ pub mod clientbound {
 }
 
 pub mod serverbound {
-    use crate::{Bounded, RawBytes};
+    use crate::{Bounded, Decode, Encode, RawBytes};
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_nbt::compound::NbtCompound;
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
+    use mcrs_minecraft_nbt::tag::NbtTag;
     use std::borrow::Cow;
     use uuid::Uuid;
 
@@ -90,9 +89,46 @@ pub mod serverbound {
         pub status: crate::resource_pack::Status,
     }
 
-    #[derive(Clone, PartialEq, Debug, Encode, Decode)]
+    pub const MAX_CLICK_PAYLOAD: usize = 65536;
+
+    #[derive(Clone, PartialEq, Debug)]
     pub struct CustomClickAction<'a> {
         pub id: ResourceLocation<Cow<'a, str>>,
-        pub payload: NbtCompound,
+        pub payload: Option<NbtTag>,
+    }
+
+    impl Encode for CustomClickAction<'_> {
+        fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
+            self.id.encode(&mut w)?;
+            let mut body = Vec::new();
+            match &self.payload {
+                None => body.push(NbtTag::End.get_type_id()),
+                Some(NbtTag::End) => anyhow::bail!("a click action payload cannot be an end tag"),
+                Some(tag) => tag.encode(&mut body)?,
+            }
+            anyhow::ensure!(
+                body.len() <= MAX_CLICK_PAYLOAD,
+                "a click action payload of {} bytes exceeds {MAX_CLICK_PAYLOAD}",
+                body.len()
+            );
+            body.as_slice().encode(w)
+        }
+    }
+
+    impl<'a> Decode<'a> for CustomClickAction<'a> {
+        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+            let id = ResourceLocation::decode(r)?;
+            let Bounded(mut body) = Bounded::<&[u8], MAX_CLICK_PAYLOAD>::decode(r)?;
+            let payload = match NbtTag::decode(&mut body)? {
+                NbtTag::End => None,
+                tag => Some(tag),
+            };
+            anyhow::ensure!(
+                body.is_empty(),
+                "{} bytes follow a click action payload",
+                body.len()
+            );
+            Ok(Self { id, payload })
+        }
     }
 }
