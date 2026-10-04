@@ -94,7 +94,9 @@ pub fn apply(
         (Operation::Xor, V::Bool(a), V::Bool(b)) => Ok(V::Bool(a != b)),
         (Operation::Xnor, V::Bool(a), V::Bool(b)) => Ok(V::Bool(a == b)),
 
-        (Operation::Append, V::List(a), V::List(b)) => Ok(V::List([a.clone(), b.clone()].concat())),
+        (Operation::Append, V::AmbientParticles(a), V::AmbientParticles(b)) => {
+            Ok(V::AmbientParticles([a.as_slice(), b.as_slice()].concat()))
+        }
         (Operation::Overlay, V::MobSpawns(a), V::MobSpawns(b)) => {
             Ok(V::MobSpawns(Box::new(overlay_spawns(a, b))))
         }
@@ -205,13 +207,15 @@ fn overlay_spawns(first: &MobSpawnSettings, second: &MobSpawnSettings) -> MobSpa
 mod tests {
     use super::*;
     use crate::attribute::spec::attribute;
+    use mcrs_minecraft_protocol::particle::ParticleOptions;
+    use serde::de::DeserializeSeed;
     use serde_json::json;
 
     fn spec(id: &str) -> &'static super::super::spec::AttributeSpec {
         attribute(id).unwrap()
     }
 
-    /// Apply an entry the way a layer will: parse the base value and the
+    /// Apply an entry the way a layer will: read the base value and the
     /// argument through the registry, then compose them.
     fn compose(
         id: &str,
@@ -220,8 +224,8 @@ mod tests {
         argument: serde_json::Value,
     ) -> AttributeValue {
         let spec = spec(id);
-        let base = spec.parse_value(&base).unwrap();
-        let argument = spec.parse_argument(op, &argument).unwrap();
+        let base = spec.value_seed().deserialize(base).unwrap();
+        let argument = spec.argument_seed(op).deserialize(argument).unwrap();
         apply(spec.ty, op, &base, &argument).unwrap()
     }
 
@@ -236,7 +240,7 @@ mod tests {
     fn append_concatenates_particles() {
         let ash = json!([{"particle": {"type": "minecraft:ash"}, "probability": 0.00625}]);
         let white = json!([{"particle": {"type": "minecraft:white_ash"}, "probability": 0.118}]);
-        let AttributeValue::List(joined) = compose(
+        let AttributeValue::AmbientParticles(joined) = compose(
             "minecraft:visual/ambient_particles",
             ash,
             Operation::Append,
@@ -245,7 +249,8 @@ mod tests {
             panic!("append yields a list");
         };
         assert_eq!(joined.len(), 2);
-        assert_eq!(joined[1]["particle"]["type"], json!("minecraft:white_ash"));
+        assert_eq!(joined[0].particle, ParticleOptions::Ash);
+        assert_eq!(joined[1].particle, ParticleOptions::WhiteAsh);
     }
 
     #[test]
@@ -294,12 +299,12 @@ mod tests {
         );
         assert!(matches!(err, Err(ModifierError::NotAllowed { .. })));
 
-        // blend_to_gray is allowed on a colour, but not with a raw payload
+        // blend_to_gray is allowed on a colour, but not with a colour argument
         let err = apply(
             AttributeType::RgbColor,
             Operation::BlendToGray,
             &AttributeValue::Color(0),
-            &AttributeValue::Opaque(json!({"brightness": 0.5, "factor": 0.5})),
+            &AttributeValue::Color(0xFF10_2030),
         );
         assert!(matches!(err, Err(ModifierError::Mismatch { .. })));
     }

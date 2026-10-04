@@ -14,7 +14,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
-use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
+use mcrs_minecraft_environment::attribute::{
+    AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
+};
 use mcrs_minecraft_registry::key::Carver;
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -58,8 +60,14 @@ impl Biome {
         ))
     }
 
-    pub fn natural_mob_spawns(&self) -> serde_json::Result<Option<MobSpawnSettings>> {
-        self.attributes.argument(id::NATURAL_MOB_SPAWNS.id.as_str())
+    pub fn natural_mob_spawns(&self) -> Option<&MobSpawnSettings> {
+        match self
+            .attributes
+            .argument(id::NATURAL_MOB_SPAWNS.id.as_str())?
+        {
+            AttributeValue::MobSpawns(spawns) => Some(spawns),
+            _ => None,
+        }
     }
 }
 
@@ -297,9 +305,6 @@ mod tests {
         let biomes = mcrs_minecraft_worldgen_testing::registry::<Biome>("biome");
         assert!(biomes.len() >= 78, "{} biomes", biomes.len());
         for (id, biome) in biomes {
-            if let Err(e) = biome.natural_mob_spawns() {
-                panic!("{id}: {e}");
-            }
             let encoded = serde_json::to_string(&biome).unwrap();
             let read: Biome = serde_json::from_str(&encoded).unwrap();
             assert_eq!(read, biome, "{id} must round-trip unchanged");

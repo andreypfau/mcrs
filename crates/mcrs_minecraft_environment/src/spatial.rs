@@ -7,8 +7,8 @@ use std::sync::Arc;
 use bevy_math::DVec3;
 
 use crate::attribute::{
-    AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap,
-    Operation, apply,
+    AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap, Operation,
+    apply,
 };
 
 /// `GaussianSampler`: a 6³ neighbourhood weighted by a separable binomial
@@ -51,8 +51,8 @@ pub fn gaussian_sample<V>(
 /// One biome's attribute map, keyed by the attribute's registry position
 /// rather than by its id.
 ///
-/// Baked when the biome loads so the frame path neither hashes a string nor
-/// re-parses the JSON argument of an entry it walks every frame.
+/// Baked when the biome loads so the frame path hashes no string and walks a
+/// dense table of already-typed arguments.
 #[derive(Debug, Clone)]
 pub struct BiomeAttributes {
     entries: Vec<Option<(Operation, AttributeValue)>>,
@@ -67,14 +67,14 @@ impl Default for BiomeAttributes {
 }
 
 impl BiomeAttributes {
-    pub fn bake(attributes: &EnvironmentAttributeMap) -> Result<Self, AttributeError> {
+    pub fn bake(attributes: &EnvironmentAttributeMap) -> Self {
         let mut baked = BiomeAttributes::default();
         for (position, spec) in ENVIRONMENT_ATTRIBUTES.values().enumerate() {
             if let Some(entry) = attributes.get(spec.id) {
-                baked.entries[position] = Some((entry.modifier, entry.value(spec)?));
+                baked.entries[position] = Some((entry.modifier, entry.value().clone()));
             }
         }
-        Ok(baked)
+        baked
     }
 
     /// `EnvironmentAttributeMap.applyModifier`: a biome that says nothing about
@@ -176,11 +176,12 @@ impl SpatialAttributeInterpolator {
 mod tests {
     use super::*;
     use crate::attribute::attribute;
+    use mcrs_minecraft_protocol::particle::ParticleOptions;
     use serde_json::json;
 
     fn map(json: serde_json::Value) -> Arc<BiomeAttributes> {
         let attributes: EnvironmentAttributeMap = serde_json::from_value(json).unwrap();
-        Arc::new(BiomeAttributes::bake(&attributes).unwrap())
+        Arc::new(BiomeAttributes::bake(&attributes))
     }
 
     fn index(id: &str) -> usize {
@@ -267,7 +268,7 @@ mod tests {
         assert!(!spec.spatially_interpolated);
         assert_eq!(
             interpolator.apply(index, spec, &spec.default),
-            AttributeValue::Opaque(json!({"type": "minecraft:dripping_lava"}))
+            AttributeValue::Particle(Box::new(ParticleOptions::DrippingLava))
         );
     }
 }

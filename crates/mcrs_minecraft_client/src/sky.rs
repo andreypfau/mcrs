@@ -12,11 +12,12 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::ResourceLocation;
 
-use crate::sky_state::{MOON_PHASES, SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
+use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, Weather,
 };
+use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 
@@ -26,13 +27,14 @@ use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, Sk
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
-/// Layer 0 is the sun; the moon phases follow in `MOON_PHASES` order.
+/// Layer 0 is the sun; the moon phases follow in `MoonPhase::ALL` order.
 fn celestial_paths() -> impl Iterator<Item = String> {
-    std::iter::once(SUN.to_owned()).chain(
-        MOON_PHASES
-            .iter()
-            .map(|phase| format!("minecraft/textures/environment/celestial/moon/{phase}.png")),
-    )
+    std::iter::once(SUN.to_owned()).chain(MoonPhase::ALL.iter().map(|phase| {
+        format!(
+            "minecraft/textures/environment/celestial/moon/{}.png",
+            phase.name()
+        )
+    }))
 }
 
 const CLOUD_LAYERS: [&str; 1] = ["minecraft/textures/environment/clouds.png"];

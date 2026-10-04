@@ -7,24 +7,36 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use serde::{Deserialize, Serialize, Serializer};
-use serde_json::{Value, json};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::int_value;
+use mcrs_minecraft_protocol::item::Text;
+use mcrs_minecraft_protocol::particle::ParticleOptions;
+use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::modifier::Operation;
+use super::value::{
+    AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
+};
 use crate::attribute::MobSpawnSettings;
 
-/// An attribute value, parsed according to its [`AttributeType`].
-///
-/// The types the server never inspects keep their payload as raw JSON in
-/// [`AttributeValue::Opaque`].
+/// An attribute value, typed by its [`AttributeType`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
     Bool(bool),
+    TriState(TriState),
     Float(f32),
     /// Packed `0xAARRGGBB`.
     Color(u32),
     Integer(i32),
-    List(Vec<Value>),
+    MoonPhase(MoonPhase),
+    // chisle: the name is not checked against the activity registry, which this crate does not depend on; lifts when it does
+    Activity(ResourceLocation),
+    BedRule(BedRule),
+    Particle(Box<ParticleOptions>),
+    AmbientParticles(Vec<AmbientParticle>),
+    BackgroundMusic(Box<BackgroundMusic>),
+    AmbientSounds(Box<AmbientSounds>),
     MobSpawns(Box<MobSpawnSettings>),
     /// `FloatWithAlpha`: the argument of a float `alpha_blend`.
     FloatWithAlpha {
@@ -36,7 +48,30 @@ pub enum AttributeValue {
         brightness: f32,
         factor: f32,
     },
-    Opaque(Value),
+}
+
+impl AttributeValue {
+    fn is_of(&self, ty: AttributeType) -> bool {
+        use AttributeType as T;
+        use AttributeValue as V;
+
+        matches!(
+            (ty, self),
+            (T::Boolean, V::Bool(_))
+                | (T::TriState, V::TriState(_))
+                | (T::Float | T::AngleDegrees, V::Float(_))
+                | (T::RgbColor | T::ArgbColor, V::Color(_))
+                | (T::Integer, V::Integer(_))
+                | (T::MoonPhase, V::MoonPhase(_))
+                | (T::Activity, V::Activity(_))
+                | (T::BedRule, V::BedRule(_))
+                | (T::Particle, V::Particle(_))
+                | (T::AmbientParticles, V::AmbientParticles(_))
+                | (T::BackgroundMusic, V::BackgroundMusic(_))
+                | (T::AmbientSounds, V::AmbientSounds(_))
+                | (T::MobSpawnSettings, V::MobSpawns(_))
+        )
+    }
 }
 
 /// `AttributeTypes`: what an attribute's value is and which modifiers apply to it.
@@ -57,6 +92,18 @@ pub enum AttributeType {
     BackgroundMusic,
     AmbientSounds,
     MobSpawnSettings,
+}
+
+/// What a map found where an attribute entry belongs stands for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum MapMeaning {
+    /// The attribute's own value is an object, and no other modifier than
+    /// `override` exists to write `{argument, modifier}` with.
+    Value,
+    /// The attribute's own value is never an object, so this is the entry.
+    Entry,
+    /// Either; the first key tells.
+    Peek,
 }
 
 impl AttributeType {
@@ -82,28 +129,30 @@ impl AttributeType {
             )
     }
 
-    /// Whether `value` is this type's own value shape rather than the
-    /// `{argument, modifier}` entry shape.
-    ///
     /// Mirrors `Codec.either(attribute.valueCodec(), fullCodec)`: the value
     /// codec is tried first, so a value that happens to be an object is read as
     /// a value and never mistaken for an entry.
-    pub fn matches_value(self, value: &Value) -> bool {
+    pub(super) fn map_meaning(self) -> MapMeaning {
+        use AttributeType as T;
+
         match self {
-            Self::Boolean => value.is_boolean(),
-            Self::Float | Self::AngleDegrees => value.is_number(),
-            Self::Integer => value.is_i64(),
-            // a hex string, a packed int, or an rgb(a) vector — never an object
-            Self::RgbColor | Self::ArgbColor => !value.is_object(),
-            Self::AmbientParticles => value.is_array(),
-            // Every field is optional, so without `deny_unknown_fields` this
-            // would also accept `{argument, modifier}` and swallow every overlay.
-            Self::MobSpawnSettings => MobSpawnSettings::deserialize(value).is_ok(),
-            // The remaining types have an empty modifier library, and
-            // `Entry.createCodec` encodes `override` through `Either.left`, so
-            // `{argument, modifier: override}` is a shape nothing can emit.
-            // Anything here is the value, kept verbatim rather than validated.
-            _ => true,
+            T::Boolean
+            | T::Float
+            | T::AngleDegrees
+            | T::RgbColor
+            | T::ArgbColor
+            | T::Integer
+            | T::AmbientParticles => MapMeaning::Entry,
+            // Every field is optional, so a lone `{}` and the keys of both
+            // shapes are all fine; only the first key says which this is.
+            T::MobSpawnSettings => MapMeaning::Peek,
+            T::TriState
+            | T::MoonPhase
+            | T::Activity
+            | T::BedRule
+            | T::Particle
+            | T::BackgroundMusic
+            | T::AmbientSounds => MapMeaning::Value,
         }
     }
 }
@@ -140,11 +189,19 @@ pub struct AttributeSpec {
 }
 
 impl AttributeSpec {
-    /// Parse `value` as this attribute's own value, validating it against the range.
-    pub fn parse_value(&self, value: &Value) -> Result<AttributeValue, AttributeError> {
-        let parsed = parse_typed(self.id, self.ty, value)?;
+    /// The attribute's own value, validated against its range.
+    pub fn value_seed(&self) -> ArgumentSeed<'_> {
+        self.argument_seed(Operation::Override)
+    }
+
+    /// The argument `op` takes on this attribute.
+    pub fn argument_seed(&self, op: Operation) -> ArgumentSeed<'_> {
+        ArgumentSeed { spec: self, op }
+    }
+
+    fn check_range(&self, value: AttributeValue) -> Result<AttributeValue, AttributeError> {
         if let (AttributeRange::Bounded { min, max }, AttributeValue::Float(v)) =
-            (self.range, &parsed)
+            (self.range, &value)
             && (*v < min || *v > max)
         {
             return Err(malformed(
@@ -152,7 +209,7 @@ impl AttributeSpec {
                 format!("{v} is not in range [{min}; {max}]"),
             ));
         }
-        Ok(parsed)
+        Ok(value)
     }
 
     /// `AttributeRange.sanitize`: clamp a composed value into the attribute's
@@ -210,20 +267,6 @@ impl AttributeSpec {
         })
     }
 
-    /// Parse the argument of `op` applied to this attribute.
-    pub fn parse_argument(
-        &self,
-        op: Operation,
-        value: &Value,
-    ) -> Result<AttributeValue, AttributeError> {
-        match self.argument_shape(op)? {
-            ArgumentShape::Value => self.parse_value(value),
-            ArgumentShape::Typed(ty) => parse_typed(self.id, ty, value),
-            ArgumentShape::FloatWithAlpha => parse_float_with_alpha(self.id, value),
-            ArgumentShape::BlendToGray => parse_blend_to_gray(self.id, value),
-        }
-    }
-
     /// Write `value` back in the form the argument codec of `op` encodes with.
     ///
     /// Vanilla's codecs are symmetric, so this is what a re-serialized timeline
@@ -244,7 +287,7 @@ impl AttributeSpec {
                 return if *alpha == 1.0 {
                     serializer.serialize_f32(*value)
                 } else {
-                    FloatWithAlpha {
+                    FloatWithAlphaFields {
                         value: *value,
                         alpha: *alpha,
                     }
@@ -252,7 +295,7 @@ impl AttributeSpec {
                 };
             }
             (ArgumentShape::BlendToGray, AttributeValue::BlendToGray { brightness, factor }) => {
-                return BlendToGray {
+                return BlendToGrayFields {
                     brightness: *brightness,
                     factor: *factor,
                 }
@@ -269,6 +312,21 @@ impl AttributeSpec {
     }
 }
 
+/// An argument on its way out, written in the form its operation's codec
+/// encodes with.
+pub struct ArgumentRef<'a> {
+    pub spec: &'a AttributeSpec,
+    pub op: Operation,
+    pub value: &'a AttributeValue,
+}
+
+impl Serialize for ArgumentRef<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.spec
+            .serialize_argument(self.op, self.value, serializer)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum ArgumentShape {
     /// The attribute's own value codec, validated against its range.
@@ -278,35 +336,297 @@ enum ArgumentShape {
     BlendToGray,
 }
 
-#[derive(Serialize)]
-struct FloatWithAlpha {
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FloatWithAlphaFields {
     value: f32,
+    #[serde(default = "opaque", deserialize_with = "alpha_in_unit_range")]
     alpha: f32,
 }
 
-#[derive(Serialize)]
-struct BlendToGray {
+fn opaque() -> f32 {
+    1.0
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BlendToGrayFields {
+    #[serde(deserialize_with = "brightness_in_unit_range")]
     brightness: f32,
+    #[serde(deserialize_with = "factor_in_unit_range")]
     factor: f32,
 }
 
-/// An argument still in the shape the source wrote it.
+fn unit_range<'de, D: Deserializer<'de>>(deserializer: D, name: &str) -> Result<f32, D::Error> {
+    let value = f32::deserialize(deserializer)?;
+    if !(0.0..=1.0).contains(&value) {
+        return Err(de::Error::custom(format_args!(
+            "`{name}` {value} is not in range [0; 1]"
+        )));
+    }
+    Ok(value)
+}
+
+fn alpha_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+    unit_range(deserializer, "alpha")
+}
+
+fn brightness_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+    unit_range(deserializer, "brightness")
+}
+
+fn factor_in_unit_range<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+    unit_range(deserializer, "factor")
+}
+
+/// An argument as far as the attribute's type alone determines it.
 ///
 /// Vanilla decodes from an already-materialized `DynamicOps` tree, so the field
 /// that selects an argument codec may follow the value it selects for — a
-/// track's `modifier` follows its `keyframes`. Serde streams, so that value has
-/// to be held until the sibling that types it has been read.
-#[derive(Debug, Clone, Deserialize)]
-pub struct RawArgument(Value);
+/// track's `modifier` follows its `keyframes`. Serde streams, so what the type
+/// leaves open (a bare float is a float or an `alpha_blend` with alpha 1; a
+/// six-digit colour is an rgb colour and an eight-digit one an argb colour) is
+/// kept as such until the modifier has been read.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Draft {
+    Value(AttributeValue),
+    Number(f32),
+    Color { packed: u32, form: ColorForm },
+}
 
-impl RawArgument {
-    pub fn parse(
-        &self,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ColorForm {
+    Rgb,
+    Argb,
+    /// A packed integer, which both codecs take.
+    Unspecified,
+}
+
+impl Draft {
+    pub(crate) fn finish(
+        self,
         spec: &AttributeSpec,
         op: Operation,
     ) -> Result<AttributeValue, AttributeError> {
-        spec.parse_argument(op, &self.0)
+        let shape = spec.argument_shape(op)?;
+        let wrong = || {
+            malformed(
+                spec.id,
+                format!("{op:?} takes a {shape:?} argument, which this is not"),
+            )
+        };
+        let typed = |draft: Draft, ty: AttributeType| match (ty, draft) {
+            (AttributeType::Float | AttributeType::AngleDegrees, Draft::Number(v)) => {
+                Some(AttributeValue::Float(v))
+            }
+            (
+                AttributeType::RgbColor,
+                Draft::Color {
+                    packed,
+                    form: ColorForm::Rgb | ColorForm::Unspecified,
+                },
+            )
+            | (
+                AttributeType::ArgbColor,
+                Draft::Color {
+                    packed,
+                    form: ColorForm::Argb | ColorForm::Unspecified,
+                },
+            ) => Some(AttributeValue::Color(packed)),
+            (ty, Draft::Value(value)) if value.is_of(ty) => Some(value),
+            _ => None,
+        };
+        match (shape, self) {
+            (ArgumentShape::FloatWithAlpha, Draft::Number(value)) => {
+                Ok(AttributeValue::FloatWithAlpha { value, alpha: 1.0 })
+            }
+            (
+                ArgumentShape::FloatWithAlpha,
+                Draft::Value(value @ AttributeValue::FloatWithAlpha { .. }),
+            )
+            | (
+                ArgumentShape::BlendToGray,
+                Draft::Value(value @ AttributeValue::BlendToGray { .. }),
+            ) => Ok(value),
+            (ArgumentShape::Value, draft) => {
+                spec.check_range(typed(draft, spec.ty).ok_or_else(wrong)?)
+            }
+            (ArgumentShape::Typed(ty), draft) => typed(draft, ty).ok_or_else(wrong),
+            _ => Err(wrong()),
+        }
     }
+}
+
+/// What the map key hands its value: the argument of one operation on one
+/// attribute, read into the type the pair selects.
+pub struct ArgumentSeed<'a> {
+    spec: &'a AttributeSpec,
+    op: Operation,
+}
+
+impl<'de> DeserializeSeed<'de> for ArgumentSeed<'_> {
+    type Value = AttributeValue;
+
+    fn deserialize<D: Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<AttributeValue, D::Error> {
+        DraftSeed(self.spec)
+            .deserialize(deserializer)?
+            .finish(self.spec, self.op)
+            .map_err(de::Error::custom)
+    }
+}
+
+/// An argument whose operation is not known yet.
+pub(crate) struct DraftSeed<'a>(pub(crate) &'a AttributeSpec);
+
+impl<'de> DeserializeSeed<'de> for DraftSeed<'_> {
+    type Value = Draft;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Draft, D::Error> {
+        read_draft(self.0.ty, deserializer).map_err(|error| {
+            de::Error::custom(malformed(
+                self.0.id,
+                format!("{error}; this is not a valid {:?} value", self.0.ty),
+            ))
+        })
+    }
+}
+
+fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draft, D::Error> {
+    use AttributeType as T;
+    use AttributeValue as V;
+
+    Ok(Draft::Value(match ty {
+        T::Boolean => V::Bool(bool::deserialize(d)?),
+        T::TriState => V::TriState(TriState::deserialize(d)?),
+        T::Float | T::AngleDegrees => return d.deserialize_any(FloatDraft),
+        T::Integer => V::Integer(int_value(d)?),
+        T::RgbColor | T::ArgbColor => return d.deserialize_any(ColorDraft),
+        T::MoonPhase => V::MoonPhase(MoonPhase::deserialize(d)?),
+        T::Activity => V::Activity(ResourceLocation::deserialize(d)?),
+        T::BedRule => V::BedRule(BedRule::deserialize(d)?),
+        T::Particle => V::Particle(Box::new(ParticleOptions::deserialize(d)?)),
+        T::AmbientParticles => V::AmbientParticles(Vec::deserialize(d)?),
+        T::BackgroundMusic => V::BackgroundMusic(Box::new(BackgroundMusic::deserialize(d)?)),
+        T::AmbientSounds => V::AmbientSounds(Box::new(AmbientSounds::deserialize(d)?)),
+        T::MobSpawnSettings => V::MobSpawns(Box::new(MobSpawnSettings::deserialize(d)?)),
+    }))
+}
+
+/// `Codec.FLOAT`, or `FloatWithAlpha.CODEC`: a bare float, which implies
+/// `alpha: 1`, or the full `{value, alpha}` form.
+struct FloatDraft;
+
+impl<'de> Visitor<'de> for FloatDraft {
+    type Value = Draft;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a float or a `{value, alpha}` object")
+    }
+
+    fn visit_f64<E: de::Error>(self, v: f64) -> Result<Draft, E> {
+        Ok(Draft::Number(v as f32))
+    }
+
+    fn visit_i64<E: de::Error>(self, v: i64) -> Result<Draft, E> {
+        Ok(Draft::Number(v as f32))
+    }
+
+    fn visit_u64<E: de::Error>(self, v: u64) -> Result<Draft, E> {
+        Ok(Draft::Number(v as f32))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Draft, A::Error> {
+        let FloatWithAlphaFields { value, alpha } =
+            FloatWithAlphaFields::deserialize(de::value::MapAccessDeserializer::new(map))?;
+        Ok(Draft::Value(AttributeValue::FloatWithAlpha {
+            value,
+            alpha,
+        }))
+    }
+}
+
+/// `ExtraCodecs.STRING_RGB_COLOR` / `STRING_ARGB_COLOR`: a `#`-prefixed hex
+/// string of six or eight digits, a packed integer, or the float vector form —
+/// three components for rgb, four for argb with the alpha last — and, for the
+/// colour modifiers, `ColorModifier.BlendToGray.CODEC`.
+struct ColorDraft;
+
+impl<'de> Visitor<'de> for ColorDraft {
+    type Value = Draft;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a colour, as a hex string, an integer or 3 or 4 floats")
+    }
+
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<Draft, E> {
+        let invalid = || E::invalid_value(de::Unexpected::Str(v), &"`#` and 6 or 8 hex digits");
+        let hex = v.strip_prefix('#').ok_or_else(invalid)?;
+        let (form, opaque) = match hex.len() {
+            6 => (ColorForm::Rgb, 0xFF00_0000),
+            8 => (ColorForm::Argb, 0),
+            _ => return Err(invalid()),
+        };
+        let raw = u32::from_str_radix(hex, 16).map_err(|_| invalid())?;
+        Ok(Draft::Color {
+            packed: raw | opaque,
+            form,
+        })
+    }
+
+    fn visit_i64<E: de::Error>(self, v: i64) -> Result<Draft, E> {
+        Ok(Draft::Color {
+            packed: v as u32,
+            form: ColorForm::Unspecified,
+        })
+    }
+
+    fn visit_u64<E: de::Error>(self, v: u64) -> Result<Draft, E> {
+        Ok(Draft::Color {
+            packed: v as u32,
+            form: ColorForm::Unspecified,
+        })
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Draft, A::Error> {
+        let mut components = [0.0f32; 4];
+        let mut len = 0;
+        while let Some(component) = seq.next_element::<f32>()? {
+            *components
+                .get_mut(len)
+                .ok_or_else(|| de::Error::invalid_length(len + 1, &"3 or 4 colour components"))? =
+                component;
+            len += 1;
+        }
+        let (form, alpha) = match len {
+            3 => (ColorForm::Rgb, 255),
+            4 => (ColorForm::Argb, as_8bit_channel(components[3])),
+            _ => return Err(de::Error::invalid_length(len, &"3 or 4 colour components")),
+        };
+        Ok(Draft::Color {
+            packed: alpha << 24
+                | as_8bit_channel(components[0]) << 16
+                | as_8bit_channel(components[1]) << 8
+                | as_8bit_channel(components[2]),
+            form,
+        })
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Draft, A::Error> {
+        let BlendToGrayFields { brightness, factor } =
+            BlendToGrayFields::deserialize(de::value::MapAccessDeserializer::new(map))?;
+        Ok(Draft::Value(AttributeValue::BlendToGray {
+            brightness,
+            factor,
+        }))
+    }
+}
+
+/// `ARGB.as8BitChannel`: floor, then the same truncation `ARGB.color` applies.
+fn as_8bit_channel(value: f32) -> u32 {
+    (value * 255.0).floor() as i32 as u32 & 0xFF
 }
 
 fn serialize_typed<S: Serializer>(
@@ -315,28 +635,28 @@ fn serialize_typed<S: Serializer>(
     value: &AttributeValue,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
+    use AttributeType as T;
+    use AttributeValue as V;
     use serde::ser::Error;
 
     let wrong = || S::Error::custom(malformed(id, format!("{value:?} is not a {ty:?} value")));
     match (ty, value) {
-        (AttributeType::Boolean, AttributeValue::Bool(v)) => serializer.serialize_bool(*v),
-        (AttributeType::Float | AttributeType::AngleDegrees, AttributeValue::Float(v)) => {
-            serializer.serialize_f32(*v)
-        }
-        (AttributeType::Integer, AttributeValue::Integer(v)) => serializer.serialize_i32(*v),
-        (AttributeType::RgbColor, AttributeValue::Color(packed)) => {
+        (T::Boolean, V::Bool(v)) => serializer.serialize_bool(*v),
+        (T::TriState, V::TriState(v)) => v.serialize(serializer),
+        (T::Float | T::AngleDegrees, V::Float(v)) => serializer.serialize_f32(*v),
+        (T::Integer, V::Integer(v)) => serializer.serialize_i32(*v),
+        (T::RgbColor, V::Color(packed)) => {
             serializer.serialize_str(&format!("#{:06x}", packed & 0x00FF_FFFF))
         }
-        (AttributeType::ArgbColor, AttributeValue::Color(packed)) => {
-            serializer.serialize_str(&format!("#{packed:08x}"))
-        }
-        (AttributeType::AmbientParticles, AttributeValue::List(items)) => {
-            items.serialize(serializer)
-        }
-        (AttributeType::MobSpawnSettings, AttributeValue::MobSpawns(spawns)) => {
-            spawns.serialize(serializer)
-        }
-        (_, AttributeValue::Opaque(raw)) => raw.serialize(serializer),
+        (T::ArgbColor, V::Color(packed)) => serializer.serialize_str(&format!("#{packed:08x}")),
+        (T::MoonPhase, V::MoonPhase(v)) => v.serialize(serializer),
+        (T::Activity, V::Activity(v)) => v.serialize(serializer),
+        (T::BedRule, V::BedRule(v)) => v.serialize(serializer),
+        (T::Particle, V::Particle(v)) => v.serialize(serializer),
+        (T::AmbientParticles, V::AmbientParticles(v)) => v.serialize(serializer),
+        (T::BackgroundMusic, V::BackgroundMusic(v)) => v.serialize(serializer),
+        (T::AmbientSounds, V::AmbientSounds(v)) => v.serialize(serializer),
+        (T::MobSpawnSettings, V::MobSpawns(v)) => v.serialize(serializer),
         _ => Err(wrong()),
     }
 }
@@ -347,6 +667,9 @@ pub enum AttributeError {
     UnknownAttribute(String),
     #[error("environment attribute `{id}`: {reason}")]
     Malformed { id: &'static str, reason: String },
+    /// A failure that already names its attribute.
+    #[error("{0}")]
+    Rejected(String),
 }
 
 pub(super) fn malformed(id: &'static str, reason: impl Into<String>) -> AttributeError {
@@ -369,117 +692,6 @@ pub fn attribute(id: &str) -> Option<&'static AttributeSpec> {
 /// Whether the client is allowed to see this attribute.
 pub fn is_syncable(id: &str) -> bool {
     attribute(id).is_some_and(|spec| spec.syncable)
-}
-
-/// `FloatWithAlpha.CODEC`: a bare float, which implies `alpha: 1`, or the full
-/// `{value, alpha}` form.
-fn parse_float_with_alpha(
-    id: &'static str,
-    value: &Value,
-) -> Result<AttributeValue, AttributeError> {
-    let wrong = || malformed(id, format!("{value} is not a valid alpha_blend argument"));
-    if let Some(v) = value.as_f64() {
-        return Ok(AttributeValue::FloatWithAlpha {
-            value: v as f32,
-            alpha: 1.0,
-        });
-    }
-    let fields = value.as_object().ok_or_else(wrong)?;
-    let alpha = match fields.get("alpha") {
-        Some(alpha) => unit(id, "alpha", alpha.as_f64().ok_or_else(wrong)? as f32)?,
-        None => 1.0,
-    };
-    let value = fields
-        .get("value")
-        .and_then(Value::as_f64)
-        .ok_or_else(wrong)? as f32;
-    Ok(AttributeValue::FloatWithAlpha { value, alpha })
-}
-
-/// `ColorModifier.BlendToGray.CODEC`: both fields required and in `[0; 1]`.
-fn parse_blend_to_gray(id: &'static str, value: &Value) -> Result<AttributeValue, AttributeError> {
-    let wrong = || malformed(id, format!("{value} is not a valid blend_to_gray argument"));
-    let fields = value.as_object().ok_or_else(wrong)?;
-    let field = |name: &str| {
-        let raw = fields.get(name).and_then(Value::as_f64).ok_or_else(wrong)? as f32;
-        unit(id, name, raw)
-    };
-    Ok(AttributeValue::BlendToGray {
-        brightness: field("brightness")?,
-        factor: field("factor")?,
-    })
-}
-
-fn unit(id: &'static str, name: &str, value: f32) -> Result<f32, AttributeError> {
-    if !(0.0..=1.0).contains(&value) {
-        return Err(malformed(
-            id,
-            format!("`{name}` {value} is not in range [0; 1]"),
-        ));
-    }
-    Ok(value)
-}
-
-fn parse_typed(
-    id: &'static str,
-    ty: AttributeType,
-    value: &Value,
-) -> Result<AttributeValue, AttributeError> {
-    let wrong = || malformed(id, format!("{value} is not a valid {ty:?} value"));
-    Ok(match ty {
-        AttributeType::Boolean => AttributeValue::Bool(value.as_bool().ok_or_else(wrong)?),
-        AttributeType::Float | AttributeType::AngleDegrees => {
-            AttributeValue::Float(value.as_f64().ok_or_else(wrong)? as f32)
-        }
-        AttributeType::Integer => AttributeValue::Integer(
-            value
-                .as_i64()
-                .ok_or_else(wrong)?
-                .try_into()
-                .map_err(|_| wrong())?,
-        ),
-        AttributeType::RgbColor => AttributeValue::Color(parse_color(value, 6).ok_or_else(wrong)?),
-        AttributeType::ArgbColor => AttributeValue::Color(parse_color(value, 8).ok_or_else(wrong)?),
-        AttributeType::AmbientParticles => {
-            AttributeValue::List(value.as_array().ok_or_else(wrong)?.clone())
-        }
-        AttributeType::MobSpawnSettings => AttributeValue::MobSpawns(Box::new(
-            MobSpawnSettings::deserialize(value).map_err(|e| malformed(id, e.to_string()))?,
-        )),
-        _ => AttributeValue::Opaque(value.clone()),
-    })
-}
-
-/// `ExtraCodecs.STRING_RGB_COLOR` / `STRING_ARGB_COLOR`: a `#`-prefixed hex
-/// string of `digits` length, a packed integer, or the float vector form —
-/// three components for rgb, four for argb with the alpha last.
-fn parse_color(value: &Value, digits: usize) -> Option<u32> {
-    match value {
-        Value::String(s) => {
-            let hex = s.strip_prefix('#')?;
-            if hex.len() != digits {
-                return None;
-            }
-            let raw = u32::from_str_radix(hex, 16).ok()?;
-            Some(if digits == 6 { raw | 0xFF00_0000 } else { raw })
-        }
-        Value::Number(n) => n.as_i64().map(|v| v as u32),
-        Value::Array(components) => {
-            let expected = if digits == 6 { 3 } else { 4 };
-            if components.len() != expected {
-                return None;
-            }
-            let channel = |i: usize| Some(as_8bit_channel(components[i].as_f64()? as f32));
-            let alpha = if expected == 4 { channel(3)? } else { 255 };
-            Some(alpha << 24 | channel(0)? << 16 | channel(1)? << 8 | channel(2)?)
-        }
-        _ => None,
-    }
-}
-
-/// `ARGB.as8BitChannel`: floor, then the same truncation `ARGB.color` applies.
-fn as_8bit_channel(value: f32) -> u32 {
-    (value * 255.0).floor() as i32 as u32 & 0xFF
 }
 
 // ── The table ────────────────────────────────────────────────────────────────
@@ -510,82 +722,97 @@ fn row(
 fn table() -> Vec<AttributeSpec> {
     use AttributeRange as R;
     use AttributeType as T;
-    use AttributeValue::*;
+    use AttributeValue as V;
 
-    let color = |packed: i32| Color(packed as u32);
-    let bed_rule = |can_set_spawn, destroy_on_leave| {
-        let mut fields = json!({
-            "can_sleep": "when_dark",
-            "can_set_spawn": can_set_spawn,
-            "error_message": {"translate": "block.minecraft.bed.no_sleep"},
-        });
-        if destroy_on_leave {
-            fields["destroy_on_leave"] = json!(true);
-        }
-        Opaque(fields)
-    };
+    let color = |packed: i32| V::Color(packed as u32);
+    let float = V::Float;
+    let flag = V::Bool;
+    let activity = || V::Activity(ResourceLocation::minecraft("idle"));
+    let bed_rule = |can_set_spawn, destroy_on_leave| V::BedRule(BedRule {
+        can_sleep: BedRuleCondition::WhenDark,
+        can_set_spawn,
+        destroy_on_use: false,
+        destroy_on_leave,
+        error_message: Some(Text::translate("block.minecraft.bed.no_sleep", Vec::new())),
+    });
 
     vec![
         row("minecraft:visual/fog_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/fog_start_distance", T::Float, Float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/fog_end_distance", T::Float, Float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/sky_fog_end_distance", T::Float, Float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/cloud_fog_end_distance", T::Float, Float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row("minecraft:visual/fog_start_distance", T::Float, float(0.0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/fog_end_distance", T::Float, float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row("minecraft:visual/sky_fog_end_distance", T::Float, float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row("minecraft:visual/cloud_fog_end_distance", T::Float, float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
         row("minecraft:visual/water_fog_color", T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
-        row("minecraft:visual/water_fog_start_distance", T::Float, Float(-8.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/water_fog_end_distance", T::Float, Float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row("minecraft:visual/water_fog_start_distance", T::Float, float(-8.0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/water_fog_end_distance", T::Float, float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
         row("minecraft:visual/sky_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
         row("minecraft:visual/sunrise_sunset_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
         row("minecraft:visual/cloud_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/cloud_height", T::Float, Float(192.33), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sun_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/moon_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/star_angle", T::AngleDegrees, Float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/moon_phase", T::MoonPhase, Opaque(json!("full_moon")), R::Any, SYNC),
-        row("minecraft:visual/star_brightness", T::Float, Float(0.0), R::UNIT, SYNC | INTERP),
-        row("minecraft:visual/has_sky_occluder", T::Boolean, Bool(false), R::Any, SYNC),
+        row("minecraft:visual/cloud_height", T::Float, float(192.33), R::Any, SYNC | INTERP),
+        row("minecraft:visual/sun_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/moon_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/star_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row("minecraft:visual/moon_phase", T::MoonPhase, V::MoonPhase(MoonPhase::FullMoon), R::Any, SYNC),
+        row("minecraft:visual/star_brightness", T::Float, float(0.0), R::UNIT, SYNC | INTERP),
+        row("minecraft:visual/has_sky_occluder", T::Boolean, flag(false), R::Any, SYNC),
         row("minecraft:visual/block_light_tint", T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
         row("minecraft:visual/sky_light_color", T::RgbColor, color(-1), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sky_light_factor", T::Float, Float(1.0), R::UNIT, SYNC | INTERP),
+        row("minecraft:visual/sky_light_factor", T::Float, float(1.0), R::UNIT, SYNC | INTERP),
         row("minecraft:visual/night_vision_color", T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
         row("minecraft:visual/ambient_light_color", T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
-        row("minecraft:visual/default_dripstone_particle", T::Particle, Opaque(json!({"type": "minecraft:dripping_dripstone_water"})), R::Any, SYNC),
-        row("minecraft:visual/ambient_particles", T::AmbientParticles, List(Vec::new()), R::Any, SYNC),
-        row("minecraft:audio/background_music", T::BackgroundMusic, Opaque(json!({})), R::Any, SYNC),
-        row("minecraft:audio/music_volume", T::Float, Float(1.0), R::UNIT, SYNC),
-        row("minecraft:audio/ambient_sounds", T::AmbientSounds, Opaque(json!({})), R::Any, SYNC),
-        row("minecraft:audio/firefly_bush_sounds", T::Boolean, Bool(false), R::Any, SYNC),
-        row("minecraft:gameplay/sky_light_level", T::Float, Float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/can_start_raid", T::Boolean, Bool(true), R::Any, 0),
-        row("minecraft:gameplay/water_evaporates", T::Boolean, Bool(false), R::Any, SYNC),
-        row("minecraft:gameplay/bed_rule", T::BedRule, bed_rule("always", false), R::Any, 0),
-        row("minecraft:gameplay/straw_bed_rule", T::BedRule, bed_rule("never", true), R::Any, 0),
-        row("minecraft:gameplay/respawn_anchor_works", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/nether_portal_spawns_piglin", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/fast_lava", T::Boolean, Bool(false), R::Any, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/increased_fire_burnout", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/eyeblossom_open", T::TriState, Opaque(json!("default")), R::Any, 0),
-        row("minecraft:gameplay/turtle_egg_hatch_chance", T::Float, Float(0.002), R::UNIT, 0),
-        row("minecraft:gameplay/piglins_zombify", T::Boolean, Bool(true), R::Any, SYNC),
-        row("minecraft:gameplay/snow_golem_melts", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/creaking_active", T::Boolean, Bool(false), R::Any, SYNC),
-        row("minecraft:gameplay/surface_slime_spawn_chance", T::Float, Float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/cat_waking_up_gift_chance", T::Float, Float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/bees_stay_in_hive", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/monsters_burn", T::Boolean, Bool(false), R::Any, 0),
-        row("minecraft:gameplay/can_pillager_patrol_spawn", T::Boolean, Bool(true), R::Any, 0),
-        row("minecraft:gameplay/natural_mob_spawns", T::MobSpawnSettings, MobSpawns(Box::default()), R::Any, 0),
-        row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, Float(0.1), R::UNIT_EPSILON, 0),
-        row("minecraft:gameplay/villager_activity", T::Activity, Opaque(json!("minecraft:idle")), R::Any, 0),
-        row("minecraft:gameplay/baby_villager_activity", T::Activity, Opaque(json!("minecraft:idle")), R::Any, 0),
+        row("minecraft:visual/default_dripstone_particle", T::Particle, V::Particle(Box::new(ParticleOptions::DrippingDripstoneWater)), R::Any, SYNC),
+        row("minecraft:visual/ambient_particles", T::AmbientParticles, V::AmbientParticles(Vec::new()), R::Any, SYNC),
+        row("minecraft:audio/background_music", T::BackgroundMusic, V::BackgroundMusic(Box::default()), R::Any, SYNC),
+        row("minecraft:audio/music_volume", T::Float, float(1.0), R::UNIT, SYNC),
+        row("minecraft:audio/ambient_sounds", T::AmbientSounds, V::AmbientSounds(Box::default()), R::Any, SYNC),
+        row("minecraft:audio/firefly_bush_sounds", T::Boolean, flag(false), R::Any, SYNC),
+        row("minecraft:gameplay/sky_light_level", T::Float, float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
+        row("minecraft:gameplay/can_start_raid", T::Boolean, flag(true), R::Any, 0),
+        row("minecraft:gameplay/water_evaporates", T::Boolean, flag(false), R::Any, SYNC),
+        row("minecraft:gameplay/bed_rule", T::BedRule, bed_rule(BedRuleCondition::Always, false), R::Any, 0),
+        row("minecraft:gameplay/straw_bed_rule", T::BedRule, bed_rule(BedRuleCondition::Never, true), R::Any, 0),
+        row("minecraft:gameplay/respawn_anchor_works", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/nether_portal_spawns_piglin", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/fast_lava", T::Boolean, flag(false), R::Any, SYNC | NOT_POSITIONAL),
+        row("minecraft:gameplay/increased_fire_burnout", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/eyeblossom_open", T::TriState, V::TriState(TriState::Default), R::Any, 0),
+        row("minecraft:gameplay/turtle_egg_hatch_chance", T::Float, float(0.002), R::UNIT, 0),
+        row("minecraft:gameplay/piglins_zombify", T::Boolean, flag(true), R::Any, SYNC),
+        row("minecraft:gameplay/snow_golem_melts", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/creaking_active", T::Boolean, flag(false), R::Any, SYNC),
+        row("minecraft:gameplay/surface_slime_spawn_chance", T::Float, float(0.0), R::UNIT, 0),
+        row("minecraft:gameplay/cat_waking_up_gift_chance", T::Float, float(0.0), R::UNIT, 0),
+        row("minecraft:gameplay/bees_stay_in_hive", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/monsters_burn", T::Boolean, flag(false), R::Any, 0),
+        row("minecraft:gameplay/can_pillager_patrol_spawn", T::Boolean, flag(true), R::Any, 0),
+        row("minecraft:gameplay/natural_mob_spawns", T::MobSpawnSettings, V::MobSpawns(Box::default()), R::Any, 0),
+        row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, float(0.1), R::UNIT_EPSILON, 0),
+        row("minecraft:gameplay/villager_activity", T::Activity, activity(), R::Any, 0),
+        row("minecraft:gameplay/baby_villager_activity", T::Activity, activity(), R::Any, 0),
     ]
 }
 
 #[cfg(test)]
 mod tests {
     use mcrs_minecraft_registry::static_report::from_report;
+    use serde_json::json;
 
     use super::*;
+
+    fn value(
+        spec: &AttributeSpec,
+        json: serde_json::Value,
+    ) -> Result<AttributeValue, serde_json::Error> {
+        spec.value_seed().deserialize(json)
+    }
+
+    fn argument(
+        spec: &AttributeSpec,
+        op: Operation,
+        json: serde_json::Value,
+    ) -> Result<AttributeValue, serde_json::Error> {
+        spec.argument_seed(op).deserialize(json)
+    }
 
     #[test]
     fn registry_holds_every_attribute() {
@@ -639,79 +866,78 @@ mod tests {
     }
 
     #[test]
+    fn every_default_is_a_value_of_its_type() {
+        for spec in ENVIRONMENT_ATTRIBUTES.values() {
+            assert!(spec.default.is_of(spec.ty), "{}", spec.id);
+        }
+    }
+
+    #[test]
+    fn an_attribute_value_stays_small_enough_to_clone_per_frame() {
+        assert!(size_of::<AttributeValue>() <= 32);
+    }
+
+    #[test]
     fn values_and_arguments_parse_by_the_attribute_type() {
         let sky_color = attribute("minecraft:visual/sky_color").unwrap();
         assert_eq!(
-            sky_color.parse_value(&json!("#78a7ff")).unwrap(),
+            value(sky_color, json!("#78a7ff")).unwrap(),
             AttributeValue::Color(0xFF78_A7FF)
         );
         assert!(
-            sky_color.parse_value(&json!("#ccffffff")).is_err(),
+            value(sky_color, json!("#ccffffff")).is_err(),
             "rgb takes 6 digits"
         );
 
         let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
         assert_eq!(
-            cloud_color.parse_value(&json!("#ccffffff")).unwrap(),
+            value(cloud_color, json!("#ccffffff")).unwrap(),
             AttributeValue::Color(0xCCFF_FFFF)
         );
 
         let volume = attribute("minecraft:audio/music_volume").unwrap();
         assert_eq!(
-            volume.parse_value(&json!(0.5)).unwrap(),
+            value(volume, json!(0.5)).unwrap(),
             AttributeValue::Float(0.5)
         );
-        assert!(
-            volume.parse_value(&json!(1.5)).is_err(),
-            "music_volume is UNIT"
-        );
+        assert!(value(volume, json!(1.5)).is_err(), "music_volume is UNIT");
 
         assert_eq!(
-            sky_color.parse_value(&json!([1.0, 0.5, 0.0])).unwrap(),
+            value(sky_color, json!([1.0, 0.5, 0.0])).unwrap(),
             AttributeValue::Color(0xFFFF_7F00)
         );
         // the fourth component is the alpha
         assert_eq!(
-            cloud_color
-                .parse_value(&json!([1.0, 0.5, 0.0, 0.5]))
-                .unwrap(),
+            value(cloud_color, json!([1.0, 0.5, 0.0, 0.5])).unwrap(),
             AttributeValue::Color(0x7FFF_7F00)
         );
         assert!(
-            sky_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).is_err(),
+            value(sky_color, json!([1.0, 0.5, 0.0, 0.5])).is_err(),
             "rgb takes 3"
         );
         assert!(
-            cloud_color.parse_value(&json!([1.0, 0.5, 0.0])).is_err(),
+            value(cloud_color, json!([1.0, 0.5, 0.0])).is_err(),
             "argb takes 4"
         );
 
         for spec in [sky_color, cloud_color] {
             assert_eq!(
-                spec.parse_argument(Operation::Add, &json!("#102030"))
-                    .unwrap(),
+                argument(spec, Operation::Add, json!("#102030")).unwrap(),
                 AttributeValue::Color(0xFF10_2030),
                 "{} takes the six-digit form for add",
                 spec.id
             );
             assert!(
-                spec.parse_argument(Operation::Subtract, &json!("#80102030"))
-                    .is_err(),
+                argument(spec, Operation::Subtract, json!("#80102030")).is_err(),
                 "{} must reject an eight-digit subtract argument",
                 spec.id
             );
         }
         assert_eq!(
-            cloud_color
-                .parse_argument(Operation::Multiply, &json!("#80102030"))
-                .unwrap(),
+            argument(cloud_color, Operation::Multiply, json!("#80102030")).unwrap(),
             AttributeValue::Color(0x8010_2030)
         );
-        assert!(
-            sky_color
-                .parse_argument(Operation::Multiply, &json!("#80102030"))
-                .is_err()
-        );
+        assert!(argument(sky_color, Operation::Multiply, json!("#80102030")).is_err());
     }
 
     #[test]
@@ -720,10 +946,34 @@ mod tests {
         // is legal here even though the attribute itself is NON_NEGATIVE.
         let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
         assert_eq!(
-            end.parse_argument(Operation::Multiply, &json!(0.85))
-                .unwrap(),
+            argument(end, Operation::Multiply, json!(0.85)).unwrap(),
             AttributeValue::Float(0.85)
         );
-        assert!(end.parse_argument(Operation::Or, &json!(true)).is_err());
+        assert!(argument(end, Operation::Or, json!(true)).is_err());
+    }
+
+    #[test]
+    fn an_argument_its_modifier_does_not_take_fails() {
+        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
+        let error = argument(
+            sky_color,
+            Operation::Add,
+            json!({"brightness": 0.5, "factor": 0.5}),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("minecraft:visual/sky_color"), "{error}");
+        assert!(error.contains("Add"), "{error}");
+
+        let error = argument(sky_color, Operation::BlendToGray, json!("#102030"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("BlendToGray"), "{error}");
+
+        let volume = attribute("minecraft:audio/music_volume").unwrap();
+        let error = argument(volume, Operation::Add, json!({"value": 0.5, "alpha": 0.5}))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("minecraft:audio/music_volume"), "{error}");
     }
 }

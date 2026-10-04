@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use serde_json::Value;
 
 use mcrs_minecraft_dimension::dimension_type::Skybox;
 use mcrs_minecraft_dimension::environment::{EnvironmentAttributes, EnvironmentContext};
@@ -104,28 +103,12 @@ impl SkyValue {
     }
 }
 
-pub(crate) const MOON_PHASES: [&str; 8] = [
-    "full_moon",
-    "waning_gibbous",
-    "third_quarter",
-    "waning_crescent",
-    "new_moon",
-    "waxing_crescent",
-    "first_quarter",
-    "waxing_gibbous",
-];
-
 fn sky_value(value: &AttributeValue) -> SkyValue {
     match value {
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
         AttributeValue::Color(packed) => SkyValue::Color(*packed),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
-        AttributeValue::Opaque(Value::String(name)) => SkyValue::Scalar(
-            MOON_PHASES
-                .iter()
-                .position(|phase| phase == name)
-                .unwrap_or(0) as f32,
-        ),
+        AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
         _ => SkyValue::Scalar(0.0),
     }
 }

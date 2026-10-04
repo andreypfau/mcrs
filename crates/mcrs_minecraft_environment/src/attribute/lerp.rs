@@ -8,10 +8,10 @@
 //! stored four times.
 
 use mcrs_minecraft_core::mth::{lerp, lerp_int, wrap_degrees};
-use serde_json::Value;
 
 use super::modifier::Operation;
 use super::spec::{AttributeSpec, AttributeType, AttributeValue};
+use super::value::AmbientParticle;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Lerp {
@@ -81,7 +81,9 @@ impl Lerp {
                 brightness: lerp(alpha, *b0, *b1),
                 factor: lerp(alpha, *f0, *f1),
             },
-            (Self::ListCrossFade, V::List(a), V::List(b)) => V::List(cross_fade(alpha, a, b)),
+            (Self::ListCrossFade, V::AmbientParticles(a), V::AmbientParticles(b)) => {
+                V::AmbientParticles(cross_fade(alpha, a, b))
+            }
             // Both endpoints of a segment come from the same attribute and the
             // same operation, so a mismatched pair cannot be built from parsed
             // data; stepping is what the non-interpolated types do anyway.
@@ -177,7 +179,11 @@ fn srgb_lerp(alpha: f32, from: u32, to: u32) -> u32 {
     channel(24) | channel(16) | channel(8) | channel(0)
 }
 
-fn cross_fade(alpha: f32, from: &[Value], to: &[Value]) -> Vec<Value> {
+fn cross_fade(
+    alpha: f32,
+    from: &[AmbientParticle],
+    to: &[AmbientParticle],
+) -> Vec<AmbientParticle> {
     if alpha == 0.0 {
         return from.to_vec();
     }
@@ -190,22 +196,19 @@ fn cross_fade(alpha: f32, from: &[Value], to: &[Value]) -> Vec<Value> {
         .collect()
 }
 
-fn scale_probability(particle: &Value, scale: f32) -> Value {
-    let mut scaled = particle.clone();
-    if let Some(field) = scaled.get_mut("probability")
-        && let Some(probability) = field.as_f64()
-        && let Some(number) = serde_json::Number::from_f64((probability as f32 * scale) as f64)
-    {
-        *field = Value::Number(number);
+fn scale_probability(particle: &AmbientParticle, scale: f32) -> AmbientParticle {
+    AmbientParticle {
+        particle: particle.particle.clone(),
+        probability: particle.probability * scale,
     }
-    scaled
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::attribute::MoonPhase;
     use crate::attribute::attribute;
-    use serde_json::json;
+    use mcrs_minecraft_protocol::particle::ParticleOptions;
 
     #[test]
     fn an_angle_track_lerps_the_long_way_between_keyframes() {
@@ -259,8 +262,8 @@ mod tests {
         let lerp = moon_phase.argument_keyframe_lerp(Operation::Override);
         assert_eq!(lerp, Lerp::Step { threshold: 1.0 });
 
-        let full = AttributeValue::Opaque(json!("full_moon"));
-        let waning = AttributeValue::Opaque(json!("waning_gibbous"));
+        let full = AttributeValue::MoonPhase(MoonPhase::FullMoon);
+        let waning = AttributeValue::MoonPhase(MoonPhase::WaningGibbous);
         assert_eq!(lerp.apply(0.999, &full, &waning), full);
         assert_eq!(lerp.apply(1.0, &full, &waning), waning);
 
@@ -328,17 +331,18 @@ mod tests {
         let lerp = particles.argument_keyframe_lerp(Operation::Append);
         assert_eq!(lerp, Lerp::ListCrossFade);
 
-        let from = AttributeValue::List(vec![
-            json!({"particle": "minecraft:ash", "probability": 1.0}),
-        ]);
-        let to = AttributeValue::List(vec![
-            json!({"particle": "minecraft:spore_blossom_air", "probability": 0.5}),
-        ]);
+        let particle = |particle, probability| AmbientParticle {
+            particle,
+            probability,
+        };
+        let from = AttributeValue::AmbientParticles(vec![particle(ParticleOptions::Ash, 1.0)]);
+        let to =
+            AttributeValue::AmbientParticles(vec![particle(ParticleOptions::SporeBlossomAir, 0.5)]);
         assert_eq!(
             lerp.apply(0.25, &from, &to),
-            AttributeValue::List(vec![
-                json!({"particle": "minecraft:ash", "probability": 0.75}),
-                json!({"particle": "minecraft:spore_blossom_air", "probability": 0.125}),
+            AttributeValue::AmbientParticles(vec![
+                particle(ParticleOptions::Ash, 0.75),
+                particle(ParticleOptions::SporeBlossomAir, 0.125),
             ])
         );
         assert_eq!(lerp.apply(0.0, &from, &to), from);
