@@ -3624,6 +3624,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_entity"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_core",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_environment"
 version = "0.1.0"
 dependencies = [
@@ -3699,6 +3707,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_item",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
@@ -3952,6 +3961,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_inventory",
  "mcrs_minecraft_item",
@@ -4001,6 +4011,7 @@ name = "mcrs_minecraft_text"
 version = "0.1.0"
 dependencies = [
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registry",
@@ -4042,6 +4053,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",

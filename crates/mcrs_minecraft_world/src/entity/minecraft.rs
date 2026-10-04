@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::{StaticRegistry, StaticRegistryTable};
 
-use super::EntityType;
+use mcrs_minecraft_entity::EntityType;
 
 pub static ALLAY: EntityType = EntityType::new(rl!("minecraft:allay"), 2);
 pub static CAT: EntityType = EntityType::new(rl!("minecraft:cat"), 21);

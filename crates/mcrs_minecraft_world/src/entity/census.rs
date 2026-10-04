@@ -67,7 +67,8 @@ fn asset_ids(files: &[&str], folder: &str) -> Vec<String> {
         .collect()
 }
 
-fn entity_type_registry() -> mcrs_minecraft_registry::StaticRegistry<super::EntityType> {
+fn entity_type_registry()
+-> mcrs_minecraft_registry::StaticRegistry<mcrs_minecraft_entity::EntityType> {
     let table = mcrs_minecraft_registry::StaticRegistryTable::load(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
     )

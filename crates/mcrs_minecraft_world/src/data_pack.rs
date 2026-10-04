@@ -1,6 +1,6 @@
 use crate::{
     LoadedRegistryAssets, block_transformer, chat_type, damage_type, decorated_pot_pattern, dialog,
-    entity, test_types, variant,
+    test_types, variant,
 };
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
@@ -17,6 +17,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
 use mcrs_minecraft_item as item;
@@ -566,7 +567,7 @@ pub(crate) fn resolve_timeline_tags(
 pub(crate) fn register_static_registries_with_access(
     items: Res<item::Items>,
     sound_registry: Res<StaticRegistry<mcrs_minecraft_item::SoundEvent>>,
-    entity_registry: Res<StaticRegistry<entity::EntityType>>,
+    entity_registry: Res<StaticRegistry<EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
 ) {

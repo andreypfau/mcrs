@@ -213,7 +213,7 @@ pub enum MovePayload {
         username: String,
     },
     NonPlayer {
-        kind: &'static mcrs_minecraft_world::entity::EntityType,
+        kind: &'static mcrs_minecraft_entity::EntityType,
     },
 }
 

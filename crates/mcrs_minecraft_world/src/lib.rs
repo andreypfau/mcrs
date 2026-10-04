@@ -35,6 +35,7 @@ use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, freeze_timelines};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::seed_world_clocks;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
@@ -143,7 +144,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>()
-            .init_resource::<StaticRegistry<entity::EntityType>>()
+            .init_resource::<StaticRegistry<EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
 
@@ -157,10 +158,7 @@ impl Plugin for MinecraftWorldPlugin {
                     EnchantmentData,
                     mcrs_minecraft_registry::StaticId<EnchantmentData>,
                 >,
-                request_every_tag::<
-                    entity::EntityType,
-                    mcrs_minecraft_registry::StaticId<entity::EntityType>,
-                >,
+                request_every_tag::<EntityType, mcrs_minecraft_registry::StaticId<EntityType>>,
                 request_every_tag::<mcrs_minecraft_biome::Biome, u32>,
                 request_every_tag::<Structure, u32>,
             )
@@ -170,7 +168,7 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
-        .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>()
+        .add_tagged_registry::<EntityType, StaticRegistry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_biome::Biome, DynRegistryIndex<mcrs_minecraft_biome::Biome>>()
         .add_tagged_registry::<Structure, DynRegistryIndex<Structure>>();
@@ -490,9 +488,7 @@ impl Plugin for MinecraftWorldPlugin {
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let mut entity_types = app
-                .world_mut()
-                .resource_mut::<StaticRegistry<entity::EntityType>>();
+            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<EntityType>>();
             entity::minecraft::register_all_entity_types(&mut entity_types, &table);
             tracing::info!(
                 count = entity_types.len(),
