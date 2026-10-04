@@ -223,19 +223,34 @@ pub fn fill_context_with(
     }
 }
 
+pub fn biome_snapshot(
+    pairs: Vec<(
+        ResourceLocation<std::sync::Arc<str>>,
+        bevy_asset::AssetId<Biome>,
+    )>,
+    assets: &bevy_asset::Assets<Biome>,
+) -> RegistrySnapshot<Biome> {
+    let table = text_ordered_table(
+        "minecraft:worldgen/biome",
+        pairs.iter().map(|(name, _)| name.clone()),
+    );
+    RegistrySnapshot::<Biome>::build(&table, pairs, assets, |_| {
+        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
+    })
+}
+
 /// A biome registry naming `names` in order, every one the Beta palette biome:
 /// the feature tables only need the ids to resolve, and the surface stage only
 /// needs its own three to exist.
 pub fn biome_registry(names: &[&str]) -> RegistrySnapshot<Biome> {
     let mut assets = bevy_asset::Assets::<Biome>::default();
     let handle = assets.add(beta_biome_palette::make_beta_biome());
-    RegistrySnapshot::<Biome>::build(
+    biome_snapshot(
         names
             .iter()
             .map(|name| (ResourceLocation::parse(name).unwrap(), handle.id()))
             .collect::<Vec<_>>(),
         &assets,
-        |_| Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into()),
     )
 }
 

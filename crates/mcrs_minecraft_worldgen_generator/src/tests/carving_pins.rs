@@ -221,9 +221,7 @@ fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<Str
             )
         })
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    });
+    let snapshot = super::biome_snapshot(pairs, &assets);
     let ids = names
         .iter()
         .map(|name| {

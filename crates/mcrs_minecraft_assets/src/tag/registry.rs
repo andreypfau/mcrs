@@ -242,6 +242,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagRegistry<T, I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_registry::NameTable;
     use mcrs_minecraft_registry::dyn_index::DynRegistryIndex;
 
     struct TestBlock;
@@ -347,14 +348,7 @@ mod tests {
 
     #[test]
     fn dyn_loader_freezes_against_index() {
-        let index = DynRegistryIndex::<TestBiome>::build(
-            vec![
-                rl_arc("minecraft:desert"),
-                rl_arc("minecraft:forest"),
-                rl_arc("minecraft:plains"),
-            ]
-            .into_iter(),
-        );
+        let index = biome_index();
 
         let mut loader = DynTagLoader::<TestBiome>::default();
         loader.insert(rl_arc("minecraft:is_forest"), HashSet::from([0u32, 2]));
@@ -375,14 +369,18 @@ mod tests {
     // ── resolve_tag_file ──
 
     fn biome_index() -> DynRegistryIndex<TestBiome> {
-        DynRegistryIndex::build(
-            vec![
-                rl_arc("minecraft:desert"),
-                rl_arc("minecraft:forest"),
-                rl_arc("minecraft:plains"),
-            ]
-            .into_iter(),
-        )
+        DynRegistryIndex::from_table(&Arc::new(
+            NameTable::new(
+                rl_arc("minecraft:worldgen/biome"),
+                [
+                    rl_arc("minecraft:desert"),
+                    rl_arc("minecraft:forest"),
+                    rl_arc("minecraft:plains"),
+                ],
+                [],
+            )
+            .unwrap(),
+        ))
     }
 
     #[test]

@@ -1,51 +1,39 @@
+use crate::NameTable;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// A dense `ResourceLocation`-to-`u32` index for dynamic registry types.
-///
-/// Sorts entries alphabetically by full `namespace:path` string and assigns
-/// dense 0..N indices. This deterministic ordering is reusable by
-/// `RegistrySnapshot` for stable network IDs.
+/// A dense `ResourceLocation`-to-`u32` index for dynamic registry types,
+/// numbered by the registry loader's table.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct DynRegistryIndex<T: TaggedRegistry> {
-    map: HashMap<ResourceLocation<Arc<str>>, u32>,
-    sorted: Vec<ResourceLocation<Arc<str>>>,
+    table: Arc<NameTable>,
     _marker: PhantomData<fn() -> T>,
 }
 
 impl<T: TaggedRegistry> DynRegistryIndex<T> {
-    pub fn build(entries: impl Iterator<Item = ResourceLocation<Arc<str>>>) -> Self {
-        let mut sorted: Vec<ResourceLocation<Arc<str>>> = entries.collect();
-        sorted.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-        let map = sorted
-            .iter()
-            .enumerate()
-            .map(|(i, rl)| (rl.clone(), i as u32))
-            .collect();
+    pub fn from_table(table: &Arc<NameTable>) -> Self {
         Self {
-            map,
-            sorted,
+            table: Arc::clone(table),
             _marker: PhantomData,
         }
     }
 
     pub fn get(&self, rl: &str) -> Option<u32> {
-        self.map.get(rl).copied()
+        self.table.number(rl)
     }
 
     pub fn location(&self, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
-        self.sorted.get(id as usize)
+        self.table.name(id as usize)
     }
 
     pub fn len(&self) -> u32 {
-        self.map.len() as u32
+        self.table.len() as u32
     }
 
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.table.is_empty()
     }
 }
 
@@ -63,16 +51,24 @@ mod tests {
     }
 
     #[test]
-    fn index_build_produces_dense_mapping() {
-        let entries = vec![
-            rl_arc("minecraft:plains"),
-            rl_arc("minecraft:desert"),
-            rl_arc("minecraft:forest"),
-        ];
-        let index = DynRegistryIndex::<TestBiome>::build(entries.into_iter());
+    fn index_follows_the_table_order() {
+        let table = Arc::new(
+            NameTable::new(
+                rl_arc("minecraft:worldgen/biome"),
+                [
+                    rl_arc("minecraft:plains"),
+                    rl_arc("minecraft:desert"),
+                    rl_arc("minecraft:forest"),
+                ],
+                [],
+            )
+            .unwrap(),
+        );
+        let index = DynRegistryIndex::<TestBiome>::from_table(&table);
         assert_eq!(index.len(), 3);
-        assert_eq!(index.get("minecraft:desert"), Some(0));
-        assert_eq!(index.get("minecraft:forest"), Some(1));
-        assert_eq!(index.get("minecraft:plains"), Some(2));
+        assert_eq!(index.get("minecraft:plains"), Some(0));
+        assert_eq!(index.get("minecraft:desert"), Some(1));
+        assert_eq!(index.get("minecraft:forest"), Some(2));
+        assert_eq!(index.location(1).unwrap().as_str(), "minecraft:desert");
     }
 }

@@ -427,8 +427,14 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         values: vec![TagEntry::Element(rl("test:zulu")), TagEntry::Tag(nested)],
     };
 
-    let index =
-        DynRegistryIndex::<Timeline>::build([rl("test:alpha"), rl("test:zulu")].into_iter());
+    let index = DynRegistryIndex::<Timeline>::from_table(&std::sync::Arc::new(
+        mcrs_minecraft_registry::NameTable::new(
+            rl("minecraft:timeline"),
+            [rl("test:alpha"), rl("test:zulu")],
+            [],
+        )
+        .unwrap(),
+    ));
     let order = resolve_tag_file_ordered(&listing, &tag_files, &index);
     assert_eq!(
         order,

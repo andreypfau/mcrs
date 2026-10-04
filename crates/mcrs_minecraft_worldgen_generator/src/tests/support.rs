@@ -139,6 +139,22 @@ use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
+pub fn text_ordered_table(
+    registry: &str,
+    names: impl IntoIterator<Item = ResourceLocation<std::sync::Arc<str>>>,
+) -> std::sync::Arc<mcrs_minecraft_registry::NameTable> {
+    let mut names: Vec<_> = names.into_iter().collect();
+    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    std::sync::Arc::new(
+        mcrs_minecraft_registry::NameTable::new(
+            ResourceLocation::parse(registry).expect("a registry key"),
+            names,
+            [],
+        )
+        .expect("a table of distinct names"),
+    )
+}
+
 fn tag_dir(registry: &str) -> PathBuf {
     mcrs_minecraft_worldgen_testing::assets_dir()
         .join("minecraft/tags")
@@ -207,7 +223,10 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 pub fn biome_index() -> &'static DynRegistryIndex<key::Biome> {
     static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
-        DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("biome").into_keys())
+        DynRegistryIndex::from_table(&text_ordered_table(
+            "minecraft:worldgen/biome",
+            registry::<serde::de::IgnoredAny>("biome").into_keys(),
+        ))
     })
 }
 
@@ -242,7 +261,10 @@ pub fn structure_index() -> &'static DynRegistryIndex<key::Structure> {
     static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Structure>> =
         std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
-        DynRegistryIndex::build(registry::<serde::de::IgnoredAny>("structure").into_keys())
+        DynRegistryIndex::from_table(&text_ordered_table(
+            "minecraft:worldgen/structure",
+            registry::<serde::de::IgnoredAny>("structure").into_keys(),
+        ))
     })
 }
 
