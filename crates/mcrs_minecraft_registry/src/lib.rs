@@ -9,6 +9,7 @@ pub mod report;
 pub mod set;
 pub mod static_registry;
 pub mod static_table;
+pub mod tag_source;
 
 pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
@@ -21,3 +22,4 @@ pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
 pub use static_registry::{StaticId, StaticRegistry};
 pub use static_table::{StaticRegistryEntries, StaticRegistryTable};
+pub use tag_source::TagSource;

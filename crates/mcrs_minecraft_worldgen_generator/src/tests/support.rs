@@ -119,12 +119,12 @@ use std::collections::HashSet;
 use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
 use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_structure::Structure;
 

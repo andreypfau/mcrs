@@ -4,45 +4,10 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 use mcrs_minecraft_registry::bitset::{BitSet, TagId};
-use mcrs_minecraft_registry::dyn_index::DynRegistryIndex;
-use mcrs_minecraft_registry::{StaticId, StaticRegistry};
+use mcrs_minecraft_registry::{StaticId, TagSource};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
-
-/// The registry a tag file's element references are resolved against.
-pub trait TagSource: Send + Sync + 'static {
-    type Id: TagId;
-
-    fn id_of(&self, loc: &str) -> Option<Self::Id>;
-
-    /// Upper bound on ids, used to size the frozen bitsets.
-    fn capacity(&self) -> u32;
-}
-
-impl<T: Send + Sync + 'static> TagSource for StaticRegistry<T> {
-    type Id = StaticId<T>;
-
-    fn id_of(&self, loc: &str) -> Option<StaticId<T>> {
-        StaticRegistry::id_of(self, loc)
-    }
-
-    fn capacity(&self) -> u32 {
-        self.len() as u32
-    }
-}
-
-impl<T: TaggedRegistry + Send + Sync + 'static> TagSource for DynRegistryIndex<T> {
-    type Id = u32;
-
-    fn id_of(&self, loc: &str) -> Option<u32> {
-        DynRegistryIndex::get(self, loc)
-    }
-
-    fn capacity(&self) -> u32 {
-        self.len()
-    }
-}
 
 /// Recursively expand a `TagFile` into the set of ids it names.
 ///
@@ -270,6 +235,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagRegistry<T, I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_registry::dyn_index::DynRegistryIndex;
 
     struct TestBlock;
     impl TaggedRegistry for TestBlock {

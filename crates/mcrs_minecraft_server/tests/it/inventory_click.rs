@@ -7,7 +7,7 @@ use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry, TagSource};
+use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
@@ -25,7 +25,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{RegistryLookup, TagSource};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
 use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};

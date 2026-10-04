@@ -3,7 +3,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry, TagSource};
+use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
@@ -12,6 +12,7 @@ use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
 use mcrs_minecraft_item::tags::SHULKER_BOXES;
 use mcrs_minecraft_item::{Item, Items, SlotTable, StackRevision, stack_to_value, test_corpus};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
+use mcrs_minecraft_registry::TagSource;
 
 pub fn items() -> &'static Items {
     &test_corpus().1

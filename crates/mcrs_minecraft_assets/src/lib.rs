@@ -11,5 +11,5 @@ pub use snapshot::{RegistrySnapshot, SnapshotEntry};
 pub use state::AppState;
 pub use tag::{
     DynTagLoader, DynTagRegistry, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagLoader,
-    TagPhase, TagRef, TagRegistry, TagRegistryAppExt, TagSource,
+    TagPhase, TagRef, TagRegistry, TagRegistryAppExt,
 };

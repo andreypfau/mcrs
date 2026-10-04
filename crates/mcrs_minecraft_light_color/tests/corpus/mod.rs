@@ -7,12 +7,12 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::registry::TagSource;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::definition::{Blocks, Fluids};
 use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_core::{ResourceLocation, TaggedRegistry};
 use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 pub fn blocks() -> &'static Blocks {

@@ -16,10 +16,10 @@ use bevy_ecs::resource::Resource;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 #[cfg(feature = "bevy")]
-use mcrs_minecraft_assets::tag::registry::TagSource;
-#[cfg(feature = "bevy")]
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 use mcrs_minecraft_core::ResourceLocation;
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use rustc_hash::FxHashMap;
 
