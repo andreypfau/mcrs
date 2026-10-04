@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_registry::{Entries, Registry};
 use tracing::{debug, warn};
 
 /// The dimension's own random stream, as Java's `ServerLevel.getRandom()`. One
@@ -75,7 +75,8 @@ fn remove_binomial(random: &mut XoroshiroRandom, n: f32, p: f32) -> f32 {
 fn process_block_experience(
     amount: i32,
     enchantments: Option<&Enchantments>,
-    registry: &StaticRegistry<EnchantmentData>,
+    registry: &Registry<EnchantmentData>,
+    values: &Entries<EnchantmentData, EnchantmentData>,
     random: &mut XoroshiroRandom,
 ) -> i32 {
     let Some(enchantments) = enchantments else {
@@ -83,7 +84,7 @@ fn process_block_experience(
     };
     let mut value = amount as f32;
     for (id, level) in &enchantments.0 {
-        let Some(data) = registry.get_by_loc(id.as_str()) else {
+        let Some(data) = registry.get(id.as_str()).and_then(|id| values.get(id)) else {
             continue;
         };
         let Some(effects) = data
@@ -112,7 +113,8 @@ fn award_block_experience(
     mut destroyed: MessageReader<BlockDestroyed>,
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,
-    registry: Res<StaticRegistry<EnchantmentData>>,
+    registry: Res<Registry<EnchantmentData>>,
+    values: Res<Entries<EnchantmentData, EnchantmentData>>,
     tools: Query<Option<&Enchantments>, With<ItemStack>>,
     mut random: ResMut<DimensionRandom>,
 ) {
@@ -125,7 +127,8 @@ fn award_block_experience(
         };
         let sampled = blocks.experience_drop(id).sample(&mut random.0);
         let enchantments = event.tool.and_then(|tool| tools.get(tool).ok()).flatten();
-        let amount = process_block_experience(sampled, enchantments, &registry, &mut random.0);
+        let amount =
+            process_block_experience(sampled, enchantments, &registry, &values, &mut random.0);
         if amount > 0 {
             award.write(AwardExperience {
                 amount,

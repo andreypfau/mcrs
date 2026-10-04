@@ -9,7 +9,7 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
-use mcrs_minecraft_registry::{ItemId, StaticRegistry};
+use mcrs_minecraft_registry::{Entries, ItemId, Registry};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,15 +93,15 @@ impl StackView {
 }
 
 fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> bool {
-    let (Some(enchantments), Some(registry)) = (
-        enchantments,
-        world.get_resource::<StaticRegistry<EnchantmentData>>(),
-    ) else {
+    let Some(enchantments) = enchantments.filter(|enchantments| !enchantments.0.is_empty()) else {
         return false;
     };
+    let registry = world.resource::<Registry<EnchantmentData>>();
+    let values = world.resource::<Entries<EnchantmentData, EnchantmentData>>();
     enchantments.0.iter().any(|(id, _)| {
         registry
-            .get_by_loc(id.as_str())
+            .get(id.as_str())
+            .and_then(|id| values.get(id))
             .and_then(|data| data.effects.as_ref())
             .is_some_and(|effects| effects.prevent_armor_change.is_some())
     })

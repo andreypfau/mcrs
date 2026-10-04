@@ -9,7 +9,7 @@ use mcrs_minecraft_inventory::{
 };
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
-use mcrs_minecraft_world::item::test_enchantments;
+use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);
@@ -29,7 +29,8 @@ fn menu_snapshots_read_what_the_player_may_do() {
 
 fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
     let mut world = world();
-    world.insert_resource(test_enchantments().clone());
+    world.insert_resource(test_enchantment_registry());
+    world.insert_resource(test_enchantments());
     let player = holder(&mut world, slots::COUNT);
     let cursed = enchanted_chestplate(&mut world, "minecraft:binding_curse");
     let unbreaking = enchanted_chestplate(&mut world, "minecraft:unbreaking");

@@ -74,7 +74,7 @@ fn parse_column<T: DeserializeOwned + Send + Sync + 'static>(
         }
     }
     if failures.is_empty() {
-        Ok(Arc::new(values))
+        Ok(Arc::new(Arc::<[T]>::from(values)))
     } else {
         Err(failures)
     }
@@ -84,7 +84,7 @@ fn encode_value<T: Serialize + 'static>(
     column: &(dyn Any + Send + Sync),
     index: usize,
 ) -> Option<Result<String, serde_json::Error>> {
-    let values = column.downcast_ref::<Vec<T>>()?;
+    let values = column.downcast_ref::<Arc<[T]>>()?;
     Some(serde_json::to_string(values.get(index)?))
 }
 
@@ -167,8 +167,8 @@ impl WorldRegistries {
             .unwrap_or_else(|| panic!("registry {registry} does not parse the validated type"));
         codec.validators.push(Box::new(move |column, set| {
             let values = column
-                .downcast_ref::<Vec<T>>()
-                .map_or(&[][..], Vec::as_slice);
+                .downcast_ref::<Arc<[T]>>()
+                .map_or(&[][..], |values| &**values);
             check(values, set)
         }));
         self
@@ -638,6 +638,28 @@ mod tests {
                 r#"{"asset_id":"zeta","next":"b:alpha"}"#,
             ]
         );
+    }
+
+    #[test]
+    fn entries_from_the_set_share_the_column() {
+        let packs = [pack(
+            "vanilla",
+            vec![
+                variant("minecraft/test_variant/a.json", "a", "minecraft:b"),
+                variant("minecraft/test_variant/b.json", "b", "minecraft:a"),
+            ],
+        )];
+        let set = load(&packs).unwrap();
+        let first = set.entries::<Variant, Variant>().unwrap();
+        let second = set.entries::<Variant, Variant>().unwrap();
+        assert!(first.shares_with(&second));
+        let column = set.column::<Variant>(VARIANT).unwrap();
+        assert_eq!(first.as_slice().len(), column.len());
+        for (entry, expected) in first.as_slice().iter().zip(column) {
+            assert_eq!(entry.asset_id, expected.asset_id);
+        }
+        assert!(set.entries::<Variant, Marker>().is_none());
+        assert!(set.entries::<Marker, Variant>().is_none());
     }
 
     #[test]

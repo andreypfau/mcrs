@@ -10,12 +10,11 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{Item, Items};
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::shared::share;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
-use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::static_registries;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
@@ -36,7 +35,8 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(registry_set().clone());
     app.insert_resource(entity_ids().clone());
     app.insert_resource(RegistryAccess::default());
-    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
+    app.insert_resource(test_enchantment_registry());
+    app.insert_resource(test_enchantments());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
@@ -46,7 +46,8 @@ pub fn insert_registries(app: &mut App) {
     share::<RegistryAccess>(world);
     share::<Blocks>(world);
     share::<Items>(world);
-    share::<StaticRegistry<EnchantmentData>>(world);
+    share::<Registry<EnchantmentData>>(world);
+    share::<Entries<EnchantmentData, EnchantmentData>>(world);
     share::<DynTagRegistry<Block>>(world);
     share::<DynTagRegistry<Item>>(world);
     share::<RegistrySnapshot<Biome>>(world);

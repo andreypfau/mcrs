@@ -20,7 +20,7 @@ use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacemen
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::static_registry::StaticRegistry;
+use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_server::world::bus::{
@@ -361,7 +361,8 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<RegistryAccess>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
-        type_name::<StaticRegistry<EnchantmentData>>(),
+        type_name::<Registry<EnchantmentData>>(),
+        type_name::<Entries<EnchantmentData, EnchantmentData>>(),
         type_name::<DynTagRegistry<Block>>(),
         type_name::<DynTagRegistry<Item>>(),
         type_name::<RegistrySnapshot<Biome>>(),

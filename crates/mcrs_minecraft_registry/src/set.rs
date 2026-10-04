@@ -1,3 +1,4 @@
+use crate::entries::Entries;
 use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
@@ -106,8 +107,14 @@ impl RegistrySet {
 
     pub fn column<T: 'static>(&self, registry: &str) -> Option<&[T]> {
         self.column_any(registry)?
-            .downcast_ref::<Vec<T>>()
-            .map(Vec::as_slice)
+            .downcast_ref::<Arc<[T]>>()
+            .map(|values| &**values)
+    }
+
+    pub fn entries<R: RegistryKey, T: 'static>(&self) -> Option<Entries<R, T>> {
+        self.column_any(R::KEY.as_str())?
+            .downcast_ref::<Arc<[T]>>()
+            .map(|values| Entries::from_shared(Arc::clone(values)))
     }
 
     pub fn pack_of(&self, registry: &str, id: usize) -> Option<&str> {
