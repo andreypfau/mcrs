@@ -10,7 +10,8 @@ use mcrs_minecraft_item::{
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
     TooltipDisplay, UseEffects,
 };
-use mcrs_minecraft_registry::{ItemId, StaticRegistryTable};
+use mcrs_minecraft_registry::ItemId;
+use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -289,13 +290,13 @@ fn definition_prototypes_state_no_removal_key(files: &[(String, RawFile)]) {
 }
 
 fn definition_protocol_ids_match_the_registries_report(files: &[(String, RawFile)]) {
-    let registries = StaticRegistryTable::load(concat!(
+    let registries = from_report(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../assets/mcrs/reports/registries.json"
-    ))
+    )))
     .unwrap();
     let items = registries
-        .registry("item")
+        .table("minecraft:item")
         .expect("the registries report has no item registry");
     let mismatches = files
         .iter()

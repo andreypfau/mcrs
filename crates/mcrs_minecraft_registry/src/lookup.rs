@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::set::RegistrySet;
 use mcrs_minecraft_core::ResourceLocation;
 
 pub trait RegistryLookup: Sync {
@@ -44,6 +45,17 @@ impl RegistryLookup for ChainLookup<'_> {
     }
 }
 
+// chisle: string lookups by bare path stay while the item wire codecs take names, not typed ids; they go when the codecs take typed ids.
+impl RegistryLookup for RegistrySet {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        self.table_at_path(registry)?.number(name.as_str())
+    }
+
+    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        self.table_at_path(registry)?.name(id as usize)
+    }
+}
+
 pub struct NoRegistries;
 
 impl RegistryLookup for NoRegistries {
@@ -85,5 +97,59 @@ impl LookupIndex {
 
     pub fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
         self.by_id.get(registry)?.get(id as usize)?.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::RegistrySet;
+    use crate::static_report::from_report;
+    use std::sync::LazyLock;
+
+    static REPORT: LazyLock<Vec<u8>> = LazyLock::new(|| {
+        std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .unwrap()
+    });
+
+    static JSON: LazyLock<serde_json::Value> =
+        LazyLock::new(|| serde_json::from_slice(&REPORT).unwrap());
+
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| from_report(&REPORT).unwrap());
+
+    #[test]
+    fn the_set_answers_the_legacy_lookup_as_the_report_states() {
+        for registry in ["item", "sound_event", "entity_type"] {
+            let entries = JSON[format!("minecraft:{registry}")]["entries"]
+                .as_object()
+                .unwrap();
+            assert!(entries.len() > 2, "{registry}");
+            let mut sampled = 0;
+            for (name, entry) in entries.iter().step_by(entries.len() / 7 + 1) {
+                let stated = entry["protocol_id"].as_u64().unwrap() as u32;
+                let location = ResourceLocation::parse(name).unwrap();
+                assert_eq!(
+                    SET.id(registry, &location),
+                    Some(stated),
+                    "{registry} {name}"
+                );
+                assert_eq!(
+                    SET.name(registry, stated),
+                    Some(&location),
+                    "{registry} {stated}"
+                );
+                sampled += 1;
+            }
+            assert!(sampled >= 5, "{registry}");
+            let absent = ResourceLocation::minecraft("not_an_entry");
+            assert_eq!(SET.id(registry, &absent), None);
+            assert_eq!(SET.name(registry, u32::MAX), None);
+        }
+        let stone = ResourceLocation::minecraft("stone");
+        assert_eq!(SET.id("minecraft:item", &stone), None);
+        assert_eq!(SET.id("no_such_registry", &stone), None);
     }
 }

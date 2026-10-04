@@ -20,7 +20,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
-use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
+use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 
 use super::{ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell};
@@ -51,6 +52,17 @@ fn items() -> &'static Items {
     &test_corpus().1
 }
 
+fn registries() -> &'static RegistrySet {
+    static SET: OnceLock<RegistrySet> = OnceLock::new();
+    SET.get_or_init(|| {
+        let report = crate::asset_corpus().join(super::REGISTRY_REPORT);
+        from_report(
+            &std::fs::read(&report).unwrap_or_else(|err| panic!("{}: {err}", report.display())),
+        )
+        .unwrap_or_else(|err| panic!("{}: {err}", report.display()))
+    })
+}
+
 struct Client {
     app: App,
     player: Entity,
@@ -61,6 +73,7 @@ impl Client {
     fn new() -> Self {
         let mut app = App::new();
         app.insert_resource(items().clone())
+            .insert_resource(registries().clone())
             .init_resource::<ButtonInput<KeyCode>>()
             .add_plugins(InventoryPlugin);
         let player = app
@@ -112,8 +125,7 @@ impl Client {
     }
 
     fn raw(&self, path: &str, count: i32) -> RawStack {
-        let table = self.app.world().resource::<StaticRegistryTable>();
-        let id = table
+        let id = registries()
             .id(
                 "item",
                 &mcrs_minecraft_core::ResourceLocation::minecraft(path),
@@ -124,7 +136,7 @@ impl Client {
             count,
             ComponentPatch::EMPTY,
         );
-        RawStack::from_stack(&slot, table).unwrap()
+        RawStack::from_stack(&slot, registries()).unwrap()
     }
 
     fn cell(&mut self, holder: Entity, cell: u16) -> Option<Entity> {
@@ -173,8 +185,7 @@ impl Client {
     }
 
     fn open_menu(&mut self, menu_type: &'static str, container_id: i32) -> Entity {
-        let table = self.app.world().resource::<StaticRegistryTable>();
-        let id = table
+        let id = registries()
             .id(
                 "menu",
                 &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type),
@@ -502,15 +513,18 @@ mod exhaustive {
     #[test]
     fn registry_report_ids_agree_with_the_item_corpus() {
         let client = Client::new();
-        let table = client.app.world().resource::<StaticRegistryTable>();
+        let registries = client.app.world().resource::<RegistrySet>();
         for entry in items().iter() {
             assert_eq!(
-                table.id("item", &entry.identifier),
+                registries.id("item", &entry.identifier),
                 Some(u32::from(entry.id.0)),
                 "{}",
                 entry.identifier
             );
         }
-        assert_eq!(table.registry("item").unwrap().len(), items().len());
+        assert_eq!(
+            registries.table("minecraft:item").unwrap().len(),
+            items().len()
+        );
     }
 }
