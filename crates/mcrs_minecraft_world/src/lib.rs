@@ -116,8 +116,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
         app.init_asset::<item::asset::PaintingVariant>();
         app.register_asset_loader(JsonLoader::<item::asset::PaintingVariant>::default());
-        app.init_asset::<item::asset::BannerPattern>();
-        app.register_asset_loader(JsonLoader::<item::asset::BannerPattern>::default());
         app.init_asset::<item::asset::JukeboxSong>();
         app.register_asset_loader(JsonLoader::<item::asset::JukeboxSong>::default());
         app.init_asset::<block_transformer::BlockTransformer>();
@@ -328,12 +326,6 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    item::asset::BannerPattern,
-                    "minecraft:banner_pattern",
-                    |v: &item::asset::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     item::asset::JukeboxSong,
                     "minecraft:jukebox_song",
                     |v: &item::asset::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
@@ -460,11 +452,20 @@ impl Plugin for MinecraftWorldPlugin {
                 path,
             ))
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let (registries, entity_ids) = registries::static_registries(&bytes)
+            let (statics, entity_ids) = registries::static_registries(&bytes)
                 .unwrap_or_else(|report| registries::refuse(&report));
             tracing::info!(
-                count = registries.tables().count(),
+                count = statics.tables().count(),
                 "built the static registries"
+            );
+            let started = bevy_platform::time::Instant::now();
+            let registries = registries::load_registries(&asset_server, statics)
+                .unwrap_or_else(|report| registries::refuse(&report));
+            tracing::info!(
+                registries = registries.tables().count(),
+                entries = registries.tables().map(|table| table.len()).sum::<usize>(),
+                elapsed = ?started.elapsed(),
+                "loaded registries"
             );
             let entity_types = registries
                 .registry::<EntityType>()
@@ -475,6 +476,14 @@ impl Plugin for MinecraftWorldPlugin {
             let item_registry = registries
                 .registry::<mcrs_minecraft_item::Item>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:item registry", path.display()));
+            registries::register_loaded::<mcrs_minecraft_item::BannerPattern, _>(
+                &mut app
+                    .world_mut()
+                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
+                &registries,
+                "minecraft:banner_pattern",
+                |pattern| pattern.clone(),
+            );
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);

@@ -290,13 +290,6 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_DAMAGE_TYPE,
     );
-    request_registry::<crate::item::asset::BannerPattern>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_BANNER_PATTERN,
-        "json",
-        FILES_BANNER_PATTERN,
-    );
     request_registry::<crate::item::asset::JukeboxSong>(
         &asset_server,
         &mut loaded,
@@ -404,7 +397,7 @@ pub fn list_tag_files(
     found
 }
 
-async fn walk_files(
+pub(crate) async fn walk_files(
     reader: &dyn bevy_asset::io::ErasedAssetReader,
     root: std::path::PathBuf,
 ) -> Vec<std::path::PathBuf> {

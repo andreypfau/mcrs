@@ -2,6 +2,7 @@ mod biome_tags;
 mod block_definition_corpus;
 mod common;
 mod item_corpus;
+mod loaded_registries;
 mod player_dat;
 mod playing;
 mod registry_keys;

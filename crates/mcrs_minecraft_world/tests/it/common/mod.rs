@@ -27,6 +27,10 @@ pub fn workspace_root() -> PathBuf {
 
 pub fn run_to_playing() -> App {
     std::env::set_current_dir(workspace_root()).unwrap();
+    let _ = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_test_writer()
+        .try_init();
 
     let mut app = App::new();
     app.add_plugins(TaskPoolPlugin {
