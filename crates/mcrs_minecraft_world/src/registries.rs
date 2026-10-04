@@ -4,7 +4,9 @@ use crate::damage_type::DamageType;
 use crate::data_pack::walk_files;
 use crate::decorated_pot_pattern::DecoratedPotPattern;
 use crate::dialog::Dialog;
+use crate::enchantment_provider::EnchantmentProvider;
 use crate::entity::minecraft::EntityIds;
+use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant;
 use bevy_app::{App, TaskPoolPlugin};
@@ -47,6 +49,8 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<TestInstance>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::Dialog, Dialog>(&mut world, &mut undeclared);
     parse::<EnchantmentData>(&mut world, &mut undeclared);
+    parse::<EnchantmentProvider>(&mut world, &mut undeclared);
+    parse::<SulfurCubeArchetype>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
         &mut world,
@@ -417,7 +421,9 @@ mod tests {
             "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
             "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
             "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
-            "minecraft:enchantment":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
+            "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
+            "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),

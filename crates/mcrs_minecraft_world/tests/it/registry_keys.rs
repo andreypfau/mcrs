@@ -105,6 +105,8 @@ fn key_types() -> Vec<KeyType> {
         mcrs_minecraft_item::ItemComponentKind,
         mcrs_minecraft_world::test_types::TestEnvironment,
         mcrs_minecraft_world::chat_type::ChatType,
+        mcrs_minecraft_world::enchantment_provider::EnchantmentProvider,
+        mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype,
         mcrs_minecraft_world::test_types::TestInstance,
     ]
 }

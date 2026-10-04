@@ -12,10 +12,12 @@ use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, 
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
 use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
+use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
     read_packs, register_loaded, static_registries as build_static_registries, test_registries,
     world_registries,
 };
+use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use serde::Deserialize;
@@ -48,6 +50,8 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
     "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
     "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
+    "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
+    "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
     "minecraft:worldgen/block_state_provider":{"elements":true,"stable":false,"tags":false}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
@@ -1364,4 +1368,190 @@ fn a_block_state_provider_reference_is_checked() {
             serde_json::from_str::<BlockStateProvider>(json).expect_err(json);
         }
     });
+}
+
+fn archetype_json(attribute: &str) -> String {
+    format!(
+        r#"{{"attribute_modifiers":[{{"amount":-1.0,"attribute":"{attribute}",
+        "id":"minecraft:odd_add_knockback_resistance","operation":"add_value"}}],
+        "items":"minecraft:slime_ball",
+        "knockback_modifiers":{{"horizontal_power":0.4,"vertical_power":0.1}},
+        "sound_settings":{{"hit_sound":"minecraft:entity.sulfur_cube.regular.hit",
+        "push_sound":"minecraft:entity.sulfur_cube.regular.push",
+        "push_sound_cooldown":0.5,"push_sound_impulse_threshold":0.2}}}}"#
+    )
+}
+
+#[test]
+fn an_archetype_modifier_naming_an_unknown_attribute_fails() {
+    let text = refused_by_the_loader(
+        "sulfur_cube_archetype",
+        "odd",
+        &archetype_json("minecraft:no_such_attribute"),
+    );
+    for part in [
+        "minecraft:sulfur_cube_archetype",
+        "minecraft:odd",
+        "minecraft:attribute",
+        "minecraft:no_such_attribute",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn an_archetype_the_game_refuses_fails_to_parse() {
+    let valid: serde_json::Value =
+        serde_json::from_str(&archetype_json("minecraft:knockback_resistance")).unwrap();
+    assert_eq!(round_trip::<SulfurCubeArchetype>(&valid.to_string()), valid);
+
+    let mut full = valid.clone();
+    full["buoyant"] = serde_json::json!(true);
+    full["explosion"] = serde_json::json!({"power": 3, "causes_fire": false, "fuse": 120});
+    full["contact_damage"] = serde_json::json!({
+        "damage_type": "minecraft:sulfur_cube_hot",
+        "amount": {"type": "minecraft:uniform", "min_inclusive": 0.5, "max_exclusive": 1.5},
+        "attribute_to_source": true,
+    });
+    assert_eq!(round_trip::<SulfurCubeArchetype>(&full.to_string()), full);
+
+    let refused = [
+        (
+            "/explosion",
+            serde_json::json!({"power": -1, "causes_fire": false, "fuse": 10}),
+            "non-negative",
+        ),
+        (
+            "/explosion",
+            serde_json::json!({"power": 1, "causes_fire": false, "fuse": 0}),
+            "positive",
+        ),
+        (
+            "/contact_damage",
+            serde_json::json!({"damage_type": "minecraft:sulfur_cube_hot", "amount": -1.0,
+                "attribute_to_source": false}),
+            "too low",
+        ),
+        (
+            "/contact_damage",
+            serde_json::json!({"damage_type": "minecraft:no_such_damage", "amount": 1.0,
+                "attribute_to_source": false}),
+            "minecraft:no_such_damage",
+        ),
+        (
+            "/sound_settings/hit_sound",
+            serde_json::json!("minecraft:no_such_sound"),
+            "minecraft:no_such_sound",
+        ),
+        (
+            "/attribute_modifiers/0/operation",
+            serde_json::json!("multiply"),
+            "multiply",
+        ),
+        ("/bogus", serde_json::json!(1), "bogus"),
+    ];
+    for (pointer, value, expected) in refused {
+        let mut json = valid.clone();
+        let (parent, key) = pointer.rsplit_once('/').unwrap();
+        json.pointer_mut(parent)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert(key.to_owned(), value);
+        let message = test_registries().scope(|| {
+            serde_json::from_value::<SulfurCubeArchetype>(json)
+                .expect_err(pointer)
+                .to_string()
+        });
+        assert!(message.contains(expected), "{pointer}: {message}");
+    }
+}
+
+#[test]
+fn every_enchantment_provider_type_round_trips() {
+    assert_samples_round_trip::<EnchantmentProvider>(
+        "minecraft:enchantment_provider_type",
+        &[
+            (
+                "minecraft:by_cost",
+                r##"{"type":"minecraft:by_cost","enchantments":"#minecraft:on_mob_spawn_equipment",
+                    "cost":{"type":"minecraft:uniform","min_inclusive":5,"max_inclusive":20}}"##,
+            ),
+            (
+                "minecraft:by_cost_with_difficulty",
+                r#"{"type":"minecraft:by_cost_with_difficulty",
+                    "enchantments":["minecraft:sharpness","minecraft:smite"],
+                    "min_cost":5,"max_cost_span":17}"#,
+            ),
+            (
+                "minecraft:single",
+                r#"{"type":"minecraft:single","enchantment":"minecraft:silk_touch","level":1}"#,
+            ),
+        ],
+    );
+
+    for json in [
+        r#"{"type":"minecraft:by_cost","enchantments":"minecraft:sharpness","cost":7}"#,
+        r##"{"type":"minecraft:by_cost_with_difficulty",
+            "enchantments":"#minecraft:on_mob_spawn_equipment","min_cost":1,"max_cost_span":0}"##,
+        r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness",
+            "level":{"type":"minecraft:uniform","min_inclusive":1,"max_inclusive":3}}"#,
+    ] {
+        let read: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(round_trip::<EnchantmentProvider>(json), read, "{json}");
+    }
+}
+
+#[test]
+fn a_provider_naming_an_unknown_enchantment_fails() {
+    for json in [
+        r#"{"type":"minecraft:single","enchantment":"minecraft:no_such_enchantment","level":1}"#,
+        r#"{"type":"minecraft:by_cost","enchantments":["minecraft:no_such_enchantment"],"cost":1}"#,
+        r##"{"type":"minecraft:by_cost_with_difficulty","enchantments":"#minecraft:no_such_tag",
+            "min_cost":1,"max_cost_span":1}"##,
+    ] {
+        let text = refused_by_the_loader("enchantment_provider", "odd", json);
+        for part in [
+            "minecraft:enchantment",
+            "minecraft:odd",
+            "minecraft:no_such_",
+        ] {
+            assert!(text.contains(part), "{part} missing from:\n{text}");
+        }
+    }
+}
+
+#[test]
+fn a_provider_the_game_refuses_fails_to_parse() {
+    for (json, expected) in [
+        (
+            r#"{"type":"minecraft:by_cost_with_difficulty","enchantments":"minecraft:sharpness",
+                "min_cost":0,"max_cost_span":1}"#,
+            "[1;10000]",
+        ),
+        (
+            r#"{"type":"minecraft:by_cost_with_difficulty","enchantments":"minecraft:sharpness",
+                "min_cost":1,"max_cost_span":10001}"#,
+            "[0;10000]",
+        ),
+        (
+            r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness"}"#,
+            "level",
+        ),
+        (
+            r#"{"type":"minecraft:nowhere","enchantment":"minecraft:sharpness","level":1}"#,
+            "minecraft:nowhere",
+        ),
+        (
+            r#"{"type":"minecraft:single","enchantment":"minecraft:sharpness","level":1,"bogus":1}"#,
+            "bogus",
+        ),
+    ] {
+        let message = test_registries().scope(|| {
+            serde_json::from_str::<EnchantmentProvider>(json)
+                .expect_err(json)
+                .to_string()
+        });
+        assert!(message.contains(expected), "{json}: {message}");
+    }
 }
