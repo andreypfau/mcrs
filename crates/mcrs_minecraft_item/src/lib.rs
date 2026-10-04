@@ -29,7 +29,7 @@ pub mod value;
 pub use component::*;
 #[cfg(feature = "bevy")]
 pub use definition::Items;
-pub use definition::{ItemDefinitions, ItemEntry};
+pub use definition::{ItemDefinitions, ItemEntry, ItemTableError};
 #[cfg(feature = "bevy")]
 pub use dropped::{DroppedItem, Thrower};
 #[cfg(feature = "bevy")]

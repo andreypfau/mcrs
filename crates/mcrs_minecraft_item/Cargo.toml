@@ -25,7 +25,6 @@ mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_text.workspace = true
 anyhow.workspace = true
 crc32c.workspace = true
-rustc-hash.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true

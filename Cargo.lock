@@ -3685,7 +3685,6 @@ dependencies = [
  "mcrs_minecraft_registry",
  "mcrs_minecraft_text",
  "mcrs_minecraft_worldgen_testing",
- "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

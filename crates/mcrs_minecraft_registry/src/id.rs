@@ -108,6 +108,35 @@ impl<R> Id<R> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NarrowError {
+    pub registry: ResourceLocation<&'static str>,
+    pub id: u32,
+    pub bits: u32,
+}
+
+impl fmt::Display for NarrowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id {} of registry {} does not fit in {} bits",
+            self.id, self.registry, self.bits
+        )
+    }
+}
+
+impl std::error::Error for NarrowError {}
+
+impl<R: RegistryKey> Id<R> {
+    pub fn narrow<N: TryFrom<u32>>(self) -> Result<N, NarrowError> {
+        N::try_from(self.number).map_err(|_| NarrowError {
+            registry: R::KEY,
+            id: self.number,
+            bits: (std::mem::size_of::<N>() * 8) as u32,
+        })
+    }
+}
+
 impl<R: RegistryKey> Serialize for Id<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.key(*self) {
@@ -149,4 +178,62 @@ impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
 
 pub(crate) fn id_number(position: usize) -> Option<u32> {
     u32::try_from(position).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_core::rl;
+    use std::sync::Arc;
+
+    struct Wide;
+
+    impl RegistryKey for Wide {
+        const KEY: ResourceLocation<&'static str> = rl!("minecraft:wide");
+    }
+
+    fn registry_of(len: usize) -> Registry<Wide> {
+        Registry::new(
+            (0..len)
+                .map(|n| ResourceLocation::<Arc<str>>::parse(&format!("minecraft:n{n}")).unwrap()),
+            std::iter::empty(),
+        )
+        .unwrap()
+    }
+
+    fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
+        registry.get(&format!("minecraft:n{n}")).unwrap()
+    }
+
+    fn assert_refused<N: TryFrom<u32> + fmt::Debug>(id: Id<Wide>, bits: u32) {
+        let error = id.narrow::<N>().unwrap_err();
+        assert_eq!(
+            error,
+            NarrowError {
+                registry: Wide::KEY,
+                id: u32::try_from(id.index()).unwrap(),
+                bits
+            }
+        );
+        let message = error.to_string();
+        assert!(message.contains("minecraft:wide"), "{message}");
+        assert!(message.contains(&id.index().to_string()), "{message}");
+        assert!(message.contains(&bits.to_string()), "{message}");
+    }
+
+    #[test]
+    fn an_id_narrows_to_eight_bits_up_to_255() {
+        let registry = registry_of(257);
+        assert_eq!(id_at(&registry, 255).narrow::<u8>(), Ok(255));
+        assert_eq!(id_at(&registry, 0).narrow::<u8>(), Ok(0));
+        assert_refused::<u8>(id_at(&registry, 256), 8);
+    }
+
+    #[test]
+    fn an_id_narrows_to_sixteen_bits_up_to_65535() {
+        let registry = registry_of(65537);
+        assert_eq!(id_at(&registry, 65535).narrow::<u16>(), Ok(65535));
+        assert_eq!(id_at(&registry, 256).narrow::<u16>(), Ok(256));
+        assert_refused::<u16>(id_at(&registry, 65536), 16);
+    }
 }

@@ -7,11 +7,11 @@ use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
-    InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
-    TooltipDisplay, UseEffects,
+    InteractAnimation, Item, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost,
+    SwingAnimation, TooltipDisplay, UseEffects,
 };
-use mcrs_minecraft_registry::ItemId;
 use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{ItemId, Registry};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -75,11 +75,30 @@ fn same_shape(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     }
 }
 
+fn item_registry() -> Registry<Item> {
+    from_report(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/reports/registries.json"
+    )))
+    .unwrap()
+    .registry::<Item>()
+    .expect("the registries report has no item registry")
+}
+
 fn ids_are_dense_and_named() {
     let items = items();
+    let registry = item_registry();
     assert_eq!(items.len(), files().len());
+    assert_eq!(items.len(), registry.len());
     for (index, entry) in items.iter().enumerate() {
-        assert_eq!(entry.id, ItemId(index as u16), "{}", entry.identifier);
+        let reported = registry.require(entry.identifier.as_str()).unwrap();
+        assert_eq!(reported.index(), index, "{}", entry.identifier);
+        assert_eq!(
+            Some(entry.id),
+            reported.narrow::<u16>().ok().map(ItemId),
+            "{}",
+            entry.identifier
+        );
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));
         assert!(std::ptr::eq(items.get(entry.id).unwrap(), entry));
     }
@@ -188,15 +207,13 @@ fn a_repeated_identifier_fails_to_load() {
         .unwrap();
     let last = files.len() - 1;
     let stick_json: serde_json::Value = serde_json::from_slice(&files[stick].1).unwrap();
-    let last_json: serde_json::Value = serde_json::from_slice(&files[last].1).unwrap();
-    let mut forged = stick_json;
-    forged["minecraft:item"]["description"]["protocol_id"] =
-        last_json["minecraft:item"]["description"]["protocol_id"].clone();
     files[last] = (
         "forged/stick.json".to_owned(),
-        serde_json::to_vec(&forged).unwrap(),
+        serde_json::to_vec(&stick_json).unwrap(),
     );
-    let error = mcrs_minecraft_world::item::definitions::from_files(files, blocks).unwrap_err();
+    let error =
+        mcrs_minecraft_world::item::definitions::from_files(files, &item_registry(), blocks)
+            .unwrap_err();
     assert!(
         matches!(
             &error,
