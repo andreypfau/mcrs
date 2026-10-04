@@ -180,16 +180,4 @@ mod tests {
         let line = counts.record(keep_alive, &[0; 9]).unwrap();
         assert!(line.contains("1 bytes left over"), "{line}");
     }
-
-    #[test]
-    fn the_counts_are_sized_by_their_tables() {
-        let game = GameDecodeCounts::default();
-        assert_eq!(game.counts().failures.len(), game_serverbound::NAMES.len());
-        let pre = PreGameDecodeCounts::default();
-        assert_eq!(pre.login.failures.len(), login_serverbound::NAMES.len());
-        assert_eq!(
-            pre.configuration.failures.len(),
-            configuration_serverbound::NAMES.len()
-        );
-    }
 }

@@ -249,9 +249,8 @@ fn chunks_touched(center: f64, horizontal_radius: f64) -> (i32, i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::canyon::{carve_canyon, carve_canyon_into};
     use crate::config::CarverConfig;
-    use crate::modern::{carve_caves, carve_caves_into, is_start_chunk};
+    use crate::modern::carve_source_into;
     use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::value_provider::HeightContext;
@@ -279,78 +278,6 @@ mod tests {
         read("carver", &ResourceLocation::minecraft(name))
     }
 
-    fn source_rng(
-        config: &CarverConfig,
-        index: usize,
-        seed: i64,
-        x: i32,
-        z: i32,
-    ) -> Option<LegacyRandom> {
-        let start = LegacyRandom::large_feature_seed(seed.wrapping_add(index as i64), x, z);
-        let mut rng = LegacyRandom::new(start as u64);
-        is_start_chunk(config, &mut rng).then_some(rng)
-    }
-
-    fn walk_source_into_region(
-        config: &CarverConfig,
-        index: usize,
-        seed: i64,
-        source: (i32, i32),
-        region: &mut Region<'_>,
-    ) {
-        let Some(mut rng) = source_rng(config, index, seed, source.0, source.1) else {
-            return;
-        };
-        match config {
-            CarverConfig::Cave { .. } => {
-                carve_caves_into(config, overworld(), region, source.0, source.1, &mut rng)
-            }
-            CarverConfig::Canyon { .. } => {
-                carve_canyon_into(config, overworld(), region, source.0, source.1, &mut rng)
-            }
-            CarverConfig::BetaCave => unreachable!("a region holds the modern carvers"),
-        }
-    }
-
-    fn walk_source_into_column(
-        config: &CarverConfig,
-        index: usize,
-        seed: i64,
-        source: (i32, i32),
-        column: (i32, i32),
-        mask: &mut CarvingMask,
-    ) {
-        let Some(mut rng) = source_rng(config, index, seed, source.0, source.1) else {
-            return;
-        };
-        let water = WaterMask::default();
-        match config {
-            CarverConfig::Cave { .. } => carve_caves(
-                config,
-                overworld(),
-                column.0,
-                column.1,
-                source.0,
-                source.1,
-                &water,
-                mask,
-                &mut rng,
-            ),
-            CarverConfig::Canyon { .. } => carve_canyon(
-                config,
-                overworld(),
-                column.0,
-                column.1,
-                source.0,
-                source.1,
-                &water,
-                mask,
-                &mut rng,
-            ),
-            CarverConfig::BetaCave => unreachable!("a region holds the modern carvers"),
-        }
-    }
-
     fn compare_region_with_columns(
         config: &CarverConfig,
         index: usize,
@@ -362,7 +289,15 @@ mod tests {
         let mut region = Region::new(origin.0, origin.1, width, &mut slots);
         for source_x in origin.0 - SOURCE_RADIUS..=origin.0 + width - 1 + SOURCE_RADIUS {
             for source_z in origin.1 - SOURCE_RADIUS..=origin.1 + width - 1 + SOURCE_RADIUS {
-                walk_source_into_region(config, index, seed, (source_x, source_z), &mut region);
+                carve_source_into(
+                    config,
+                    index,
+                    seed,
+                    overworld(),
+                    &mut region,
+                    source_x,
+                    source_z,
+                );
             }
         }
 
@@ -373,15 +308,18 @@ mod tests {
                 origin.1 + slot as i32 % width,
             );
             let mut expected = empty_mask();
+            let water = WaterMask::default();
+            let mut alone = SingleColumn::new(column.0, column.1, &water, &mut expected);
             for source_x in column.0 - SOURCE_RADIUS..=column.0 + SOURCE_RADIUS {
                 for source_z in column.1 - SOURCE_RADIUS..=column.1 + SOURCE_RADIUS {
-                    walk_source_into_column(
+                    carve_source_into(
                         config,
                         index,
                         seed,
-                        (source_x, source_z),
-                        column,
-                        &mut expected,
+                        overworld(),
+                        &mut alone,
+                        source_x,
+                        source_z,
                     );
                 }
             }

@@ -1,23 +1,21 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_biome::{Biome, climate::ParameterPoint};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::{FloatProvider, HeightContext};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_carver::canyon::carve_canyon_into;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
-use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves_into, is_start_chunk};
+use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_source_into};
 use mcrs_minecraft_worldgen_carver::target::Region;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
-use mcrs_minecraft_worldgen_testing::worldgen_dir;
 
 use super::beta_surface::build_beta_biome_source;
+use super::modern_carvers::carvers_of;
 use super::surface::{fill_context, overworld_biome_registry, overworld_material_router};
 use super::{build_settings_router, corpus};
 use crate::ColumnBlocks;
@@ -27,24 +25,6 @@ use crate::modern_carvers::{
 };
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
-
-fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = ResourceLocation::parse(biome).expect("a biome id");
-    let biome: Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
-    biome
-        .carvers
-        .iter()
-        .map(|name| {
-            let name = name.as_str();
-            let path = worldgen_dir().join(format!(
-                "carver/{}.json",
-                name.strip_prefix("minecraft:").unwrap_or(name)
-            ));
-            serde_json::from_slice(&std::fs::read(&path).expect("the carver is shipped"))
-                .expect("the carver parses")
-        })
-        .collect()
-}
 
 fn table(preset: &str, width: i32, capacity: usize) -> CarverBiomeTable {
     CarverBiomeTable::resolve(preset, carvers_of)
@@ -664,24 +644,6 @@ const CANYON: usize = 1;
 
 type RegionCounts = [[u32; 3]; 2];
 
-fn walk_source(
-    config: &CarverConfig,
-    height: HeightContext,
-    region: &mut Region<'_>,
-    (source_x, source_z): (i32, i32),
-    rng: &mut LegacyRandom,
-) {
-    match config {
-        CarverConfig::Cave { .. } => {
-            carve_caves_into(config, height, region, source_x, source_z, rng)
-        }
-        CarverConfig::Canyon { .. } => {
-            carve_canyon_into(config, height, region, source_x, source_z, rng)
-        }
-        CarverConfig::BetaCave => unreachable!("a modern dimension has no Beta carver"),
-    }
-}
-
 /// Per carver kind: the walks the region driver makes, the walks of sources
 /// that start, and the walks that mark a cell in any column of the region.
 fn region_counts(settings: &str, preset: &str, seed: u64, columns: i32) -> RegionCounts {
@@ -710,25 +672,24 @@ fn region_counts(settings: &str, preset: &str, seed: u64, columns: i32) -> Regio
                             CarverConfig::BetaCave => unreachable!("a modern dimension"),
                         };
                         counts[kind][0] += 1;
-                        let seed = LegacyRandom::large_feature_seed(
-                            (seed as i64).wrapping_add(index as i64),
-                            source_x,
-                            source_z,
-                        );
-                        let started = || {
-                            let mut rng = LegacyRandom::new(seed as u64);
-                            is_start_chunk(config, &mut rng).then_some(rng)
+                        let walk = |region: &mut Region<'_>| {
+                            carve_source_into(
+                                config,
+                                index,
+                                seed as i64,
+                                height,
+                                region,
+                                source_x,
+                                source_z,
+                            )
                         };
-                        let Some(mut rng) = started() else {
+                        if !walk(&mut region) {
                             continue;
-                        };
+                        }
                         counts[kind][1] += 1;
-                        walk_source(config, height, &mut region, (source_x, source_z), &mut rng);
 
                         let mut alone = fresh();
-                        let mut scratch = Region::new(origin_x, origin_z, width, &mut alone);
-                        let mut rng = started().expect("the same draw starts again");
-                        walk_source(config, height, &mut scratch, (source_x, source_z), &mut rng);
+                        walk(&mut Region::new(origin_x, origin_z, width, &mut alone));
                         counts[kind][2] += u32::from(alone.iter().any(|mask| !mask.is_empty()));
                     }
                 }

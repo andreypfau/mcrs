@@ -1,4 +1,5 @@
 use crate::CarveShape;
+use crate::canyon::carve_canyon_into;
 use crate::config::CarverConfig;
 use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
@@ -26,6 +27,38 @@ pub fn is_start_chunk<R: Random>(config: &CarverConfig, rng: &mut R) -> bool {
     config
         .probability()
         .is_none_or(|probability| rng.next_f32() <= probability)
+}
+
+/// What the modern carver `index` of the source chunk's biome carves into
+/// `target`: the source's seed, its start draw, then the carver itself.
+/// Answers whether the source started.
+pub fn carve_source_into<T: CarveTarget>(
+    config: &CarverConfig,
+    index: usize,
+    world_seed: i64,
+    context: HeightContext,
+    target: &mut T,
+    source_x: i32,
+    source_z: i32,
+) -> bool {
+    let seed =
+        LegacyRandom::large_feature_seed(world_seed.wrapping_add(index as i64), source_x, source_z);
+    let mut rng = LegacyRandom::new(seed as u64);
+    if !is_start_chunk(config, &mut rng) {
+        return false;
+    }
+    match config {
+        CarverConfig::Cave { .. } => {
+            carve_caves_into(config, context, target, source_x, source_z, &mut rng)
+        }
+        CarverConfig::Canyon { .. } => {
+            carve_canyon_into(config, context, target, source_x, source_z, &mut rng)
+        }
+        CarverConfig::BetaCave => {
+            unreachable!("a Beta carver seeds from its own chunk seed and carves one column")
+        }
+    }
+    true
 }
 
 /// `CaveWorldCarver.carve`.
@@ -137,23 +170,6 @@ fn sample_thickness<R: Random>(provider: FloatProvider, weird_bias: bool, rng: &
 /// `CaveWorldCarver.createRoom`: one ellipsoid at the sine table's quarter
 /// turn, offset a block east of the cave's origin.
 #[allow(clippy::too_many_arguments)]
-pub fn create_room(
-    chunk_x: i32,
-    chunk_z: i32,
-    x: f64,
-    y: f64,
-    z: f64,
-    thickness: f32,
-    y_scale: f64,
-    shape_kind: CarveShape<'_>,
-    water: &WaterMask,
-    mask: &mut CarvingMask,
-) {
-    let mut target = SingleColumn::new(chunk_x, chunk_z, water, mask);
-    create_room_into(&mut target, (), x, y, z, thickness, y_scale, shape_kind);
-}
-
-#[allow(clippy::too_many_arguments)]
 fn create_room_into<T: CarveTarget>(
     target: &mut T,
     live: T::Live,
@@ -180,7 +196,6 @@ fn create_room_into<T: CarveTarget>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tunnel::walk_tunnel;
     use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, VerticalAnchor};
 
     fn overworld() -> HeightContext {
@@ -281,17 +296,15 @@ mod tests {
         let mut tunnels = 1;
         if replay.next_i32_bound(4) == 0 {
             let thickness = 1.0 + replay.next_f32() * 6.0;
-            create_room(
-                0,
-                0,
+            create_room_into(
+                &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut replayed),
+                (),
                 x,
                 y,
                 z,
                 thickness,
                 0.5,
                 shape_kind,
-                &WaterMask::default(),
-                &mut replayed,
             );
             tunnels += replay.next_i32_bound(4);
         }
@@ -302,9 +315,9 @@ mod tests {
             let length = tunnel_length();
             let distance = length - replay.next_i32_bound(length / 4);
             let mut tunnel_rng = LegacyRandom::new(replay.next_java_long() as u64);
-            walk_tunnel(
-                0,
-                0,
+            walk_tunnel_into(
+                &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut replayed),
+                (),
                 x,
                 y,
                 z,
@@ -322,8 +335,6 @@ mod tests {
                 false,
                 SplitSeeding::FromTunnel,
                 shape_kind,
-                &WaterMask::default(),
-                &mut replayed,
                 &mut tunnel_rng,
                 &mut unused,
             );
@@ -357,17 +368,15 @@ mod tests {
     #[test]
     fn the_room_sits_a_block_east_of_the_cave_origin() {
         let mut offset = empty_mask();
-        create_room(
-            0,
-            0,
+        create_room_into(
+            &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut offset),
+            (),
             8.0,
             40.0,
             8.0,
             3.0,
             1.0,
             CarveShape::Cave { floor_level: -0.7 },
-            &WaterMask::default(),
-            &mut offset,
         );
         let mut centred = empty_mask();
         crate::carve_ellipsoid(

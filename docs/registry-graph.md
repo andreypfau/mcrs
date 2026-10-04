@@ -24,7 +24,7 @@ A discriminator that selects the shape of the value itself, and that the tree mo
 
 ## Registries
 
-The table below has one row per registry and six cells in this order: the registry, the type that names it, what its value refers to, who refers to it, the crate the naming type lives in, and the crate the value lives in. The first cell holds the registry's path in backticks, without the namespace, and nothing else in backticks. The cell on what the value refers to names each registry referred to by its path in backticks and uses backticks for nothing else. The cell on who refers to the registry holds the single word nothing, without backticks, when no value refers to it; in every other row it names the referring values and, in backticks, the crates they live in. A test reads this table: a registry is referred to by a value exactly when the cell on who refers to it is not that word, and every registry path a cell on references names must have a row of its own with a referrer. A row that is edited must keep this form.
+The table below has one row per registry and six cells in this order: the registry, the type that names it, what its value refers to, who refers to it, the crate the naming type lives in, and the crate the value lives in. The first cell holds the registry's path in backticks, without the namespace, and nothing else in backticks. The cell on what the value refers to names each registry referred to by its path in backticks and uses backticks for nothing else. The cell on who refers to the registry holds the single word nothing, without backticks, when no value refers to it; in every other row it names the referring values and, in backticks, the crates they live in. A test reads this table: a registry is referred to by a value exactly when the cell on who refers to it is not that word, and every such registry must have a key type. A row that is edited must keep this form.
 
 Where a referring crate does not depend on the home of the naming type today, and would have to once its field is typed, the cell on who refers to the registry ends with the sentence that begins "Would depend on the home once typed" and lists those crates. Fields that hold names stay untyped until a later change types them.
 
@@ -139,19 +139,11 @@ Each row is a loop between crates that would form if the value type named its re
 
 ## Homes of key types
 
-A home is a crate. The types that name a registry, by home:
-
-| Home | Types that name a registry |
-|------|----------------------------|
-| `mcrs_minecraft_entity` (new; depends on `mcrs_minecraft_core` only; below `mcrs_minecraft_text`) | `EntityType`, `Attribute`, `VillagerType`: plain values that move from the world crate. The empty keys `DamageType`, `MobEffect`, `GameEvent`, `PointOfInterestType` and the twelve mob variants `WolfVariant`, `WolfSoundVariant`, `PigVariant`, `PigSoundVariant`, `CowVariant`, `CowSoundVariant`, `ChickenVariant`, `ChickenSoundVariant`, `ZombieNautilusVariant`, `FrogVariant`, `CatVariant`, `CatSoundVariant`. |
-| `mcrs_minecraft_item` (the merged item crate) | Values that are the key: `Item` (an empty enum today), `EnchantmentData`, `SoundEvent`, `BannerPattern`, `InstrumentValue`, `JukeboxSong`, `PaintingVariantValue`, `TrimMaterial`, `TrimPattern`, `ItemComponentKind`. The empty keys `Potion`, `Recipe`, `LootTable`, `MapDecorationType`, `Menu`, `ContextIntProvider`, `ContextFloatProvider`. |
-| `mcrs_minecraft_registry`, module `key` (new) | The empty keys `Block`, `Fluid`, `BlockEntityType`, `BlockTransformer`, `DecoratedPotPattern`, `Dimension`, `DimensionType`, `Dialog`, `Biome`, `Structure`, `ParticleType`, `Carver`, `EnvironmentAttribute`, `Activity`, `VillagerProfession`, `ContextKeySet`, `TemplatePool`, `MaterialRule`, `BlockStateProvider`, `MultiNoiseBiomeSourceParameterList`, `TestFunction`, `TestInstanceType`, `TestEnvironmentDefinitionType`. |
-| Their own crates | `Timeline` and `WorldClock` in `mcrs_minecraft_environment`; `PlacedFeature`, `Feature` and `StructureProcessorList` in `mcrs_minecraft_worldgen_feature`; `StructureSet` in `mcrs_minecraft_worldgen_structure`; `NoiseParam` in `mcrs_minecraft_worldgen_noise`; `ProtoDensityFunction` and `NoiseGeneratorSettings` in `mcrs_minecraft_worldgen_density`; `MaterialCondition` in `mcrs_minecraft_worldgen_surface`; `RecipeBookCategory` in `mcrs_minecraft_protocol`; `ChunkStatus` in `mcrs_minecraft_anvil`; `TestEnvironment` in `mcrs_minecraft_world`. |
-| The world crate, no key below it | `ChatType`: nothing refers to it. |
+A home is a crate; the Registries table names the home of every type.
 
 `Biome` and `Structure` are empty keys although each registry has a value type, because neither value can live at or below every referrer. A structure holds a set of biomes while the biome crate depends on the structure crate, and a spawn condition of the feature crate holds a set of biomes and a set of structures while both value crates depend on the feature crate. Those references are untyped names today, and an untyped name is a reference. The key of each registry therefore lives in the registry crate's `key` module, below the feature, structure, surface and biome crates, and the value stays in its own crate as the column the key indexes. The fields that hold the names stay untyped.
 
-A registry the table above does not name gets its home by the same rule. Where the tree has a value type for it at or below every referrer, that value type names the registry in its own crate. Where it has none there, or where the values of the registry are not one concrete type, an empty key named after the registry lives in the registry crate's `key` module.
+A registry the Registries table does not name gets its home by the same rule. Where the tree has a value type for it at or below every referrer, that value type names the registry in its own crate. Where it has none there, or where the values of the registry are not one concrete type, an empty key named after the registry lives in the registry crate's `key` module.
 
 ## Names
 

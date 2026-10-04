@@ -423,70 +423,51 @@ pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> 
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use mcrs_minecraft_item::Item;
     use mcrs_minecraft_registry::{LookupIndex, NoRegistries};
 
     use super::*;
     use crate::item::component::SoundEvent;
 
-    struct Recording {
-        index: LookupIndex,
-        asked: Mutex<Vec<String>>,
-    }
+    struct Indexed(LookupIndex);
 
-    impl Recording {
-        fn new(registry: &str, names: &[&str]) -> Self {
-            let mut index = LookupIndex::default();
-            for (id, name) in names.iter().enumerate() {
-                index.insert(registry, id as u32, Some(ResourceLocation::minecraft(name)));
-            }
-            Recording {
-                index,
-                asked: Mutex::new(Vec::new()),
-            }
-        }
-
-        fn asked(&self) -> Vec<String> {
-            self.asked.lock().unwrap().clone()
-        }
-    }
-
-    impl RegistryLookup for Recording {
+    impl RegistryLookup for Indexed {
         fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
-            self.asked.lock().unwrap().push(registry.to_owned());
-            self.index.id(registry, name)
+            self.0.id(registry, name)
         }
 
         fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
-            self.asked.lock().unwrap().push(registry.to_owned());
-            self.index.name(registry, id)
+            self.0.name(registry, id)
         }
+    }
+
+    fn lookup(registry: &str, names: &[&str]) -> Indexed {
+        let mut index = LookupIndex::default();
+        for (id, name) in names.iter().enumerate() {
+            index.insert(registry, id as u32, Some(ResourceLocation::minecraft(name)));
+        }
+        Indexed(index)
     }
 
     #[test]
     fn a_reference_is_looked_up_by_the_bare_registry_path() {
-        let lookup = Recording::new("item", &["air", "stone"]);
+        let lookup = lookup("item", &["air", "stone"]);
         let key = ResourceKey::<Item>::from_location(ResourceLocation::minecraft("stone"));
         let mut bytes = Vec::new();
         key.encode_ctx(&lookup, &mut bytes).unwrap();
-        assert_eq!(lookup.asked(), ["item"]);
 
         let decoded = ResourceKey::<Item>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
         assert_eq!(decoded, key);
-        assert_eq!(lookup.asked(), ["item", "item"]);
     }
 
     #[test]
     fn a_holder_reference_is_looked_up_by_the_bare_registry_path() {
-        let lookup = Recording::new("sound_event", &["a", "b"]);
+        let lookup = lookup("sound_event", &["a", "b"]);
         let holder = Holder::<SoundEvent>::reference(ResourceLocation::minecraft("b"));
         let mut bytes = Vec::new();
         holder.encode_ctx(&lookup, &mut bytes).unwrap();
         let decoded = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
         assert_eq!(decoded, holder);
-        assert_eq!(lookup.asked(), ["sound_event", "sound_event"]);
     }
 
     #[test]

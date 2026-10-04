@@ -80,42 +80,6 @@ pub fn carve_canyon_into<T: CarveTarget, R: Random>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn walk_canyon(
-    context: HeightContext,
-    chunk_x: i32,
-    chunk_z: i32,
-    x: f64,
-    y: f64,
-    z: f64,
-    shape: &CanyonShape,
-    thickness: f32,
-    yaw: f32,
-    pitch: f32,
-    distance: i32,
-    y_scale: f64,
-    water: &WaterMask,
-    mask: &mut CarvingMask,
-    rng: &mut LegacyRandom,
-) {
-    let mut target = SingleColumn::new(chunk_x, chunk_z, water, mask);
-    walk_canyon_into(
-        context,
-        &mut target,
-        (),
-        x,
-        y,
-        z,
-        shape,
-        thickness,
-        yaw,
-        pitch,
-        distance,
-        y_scale,
-        rng,
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
 fn walk_canyon_into<T: CarveTarget>(
     context: HeightContext,
     target: &mut T,
@@ -287,10 +251,10 @@ mod tests {
         let thickness = 3.0;
         let distance = (112.0f32 * 0.875) as i32;
         let mut tunnel_rng = LegacyRandom::new(replay.next_java_long() as u64);
-        walk_canyon(
+        walk_canyon_into(
             overworld(),
-            0,
-            0,
+            &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut replayed),
+            (),
             x,
             y,
             z,
@@ -300,8 +264,6 @@ mod tests {
             pitch,
             distance,
             y_scale,
-            &WaterMask::default(),
-            &mut replayed,
             &mut tunnel_rng,
         );
 
@@ -379,10 +341,10 @@ mod tests {
     fn the_cross_section_stretches_further_than_an_ellipsoid() {
         let mut canyon = empty_mask();
         let mut rng = LegacyRandom::new(8);
-        walk_canyon(
+        walk_canyon_into(
             overworld(),
-            0,
-            0,
+            &mut SingleColumn::new(0, 0, &WaterMask::default(), &mut canyon),
+            (),
             8.0,
             40.0,
             8.0,
@@ -392,8 +354,6 @@ mod tests {
             0.0,
             1,
             1.0,
-            &WaterMask::default(),
-            &mut canyon,
             &mut rng,
         );
         let mut cave = empty_mask();

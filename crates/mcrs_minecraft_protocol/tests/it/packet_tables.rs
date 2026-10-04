@@ -73,29 +73,6 @@ fn the_tables_are_the_reports_tables() {
     assert_eq!(from_tables, from_report.into_iter().collect::<Vec<_>>());
 }
 
-macro_rules! collect_tables {
-    ($($table:ident: $enum:ident $(<$tlt:lifetime>)?, $state:ident, $side:ident in ($($module:tt)*) {
-        $($name:literal $(=> $ty:ident $(<$lt:lifetime>)?)?,)*
-    })*) => {
-        fn expanded() -> Vec<(&'static str, Vec<&'static str>)> {
-            vec![$((stringify!($table), vec![$($name),*])),*]
-        }
-    };
-}
-
-mcrs_minecraft_protocol::for_each_packet_table!(collect_tables);
-
-#[test]
-fn another_crate_expands_the_row_list() {
-    let expanded = expanded();
-    assert_eq!(expanded.len(), TABLES.len());
-    for ((ident, names), table) in expanded.iter().zip(TABLES) {
-        assert_eq!(*ident, table.name);
-        assert_eq!(names.as_slice(), table.names, "{ident}");
-    }
-}
-
-
 #[derive(Debug)]
 enum Outcome {
     Packet,
@@ -237,22 +214,6 @@ fn no_body_makes_a_decode_panic() {
     }
     for body in &bodies {
         decode_each_id(body);
-    }
-}
-
-#[test]
-fn a_table_header_names_its_enum_after_its_side_and_state() {
-    for table in TABLES {
-        let state = match table.state {
-            ConnectionState::Handshaking => "Handshake".to_owned(),
-            other => format!("{other:?}"),
-        };
-        assert_eq!(
-            table.enum_name,
-            format!("{:?}{state}Packet", table.side),
-            "{}",
-            table.name
-        );
     }
 }
 

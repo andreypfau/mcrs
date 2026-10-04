@@ -26,7 +26,7 @@ fn y_sections() -> Vec<i32> {
 }
 
 /// The carver list a biome actually ships, read the way the loader would.
-fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
+pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     let id = mcrs_minecraft_core::ResourceLocation::parse(biome).expect("a biome id");
     let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
     let names: Vec<String> = biome

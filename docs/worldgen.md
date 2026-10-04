@@ -1066,8 +1066,7 @@ sources per unit area fall as `(W+2r)²/W²`. **C3.** Inside a region, scatterin
 stages need neither colouring nor locks — conflicts are possible only at the seam.
 The seam fraction falls as `1 − ((W−2)/W)²`.
 
-The saving of K1 is the walk of the sources; the rasterisation of what a walk carves is
-not shared. The carving region is not the footprint of the staged pipeline. It is a fixed
+The carving region is not the footprint of the staged pipeline. It is a fixed
 tiling, the region of a column found by floor division of its coordinates, built on the
 first request of any of its columns and kept in a bounded cache until another region
 replaces it. It is not a sliding 3 × 3 window around the column being generated. Carving
@@ -1501,7 +1500,7 @@ For checking behaviour against, not for copying. Paths are relative to
 | Cell bounds | none | an interval over eight corners settles a whole cell | The convex hull lemma (§4) |
 | Intermediate buffers | a full-volume buffer per node | tile-sized buffers in cache | T2: otherwise scaling degrades as cores are added |
 | Rank reduction | slice nodes | a stratum with zero stride | E4: no copying at all |
-| Carving region | mask per column | the mask of the modern carvers is built per region by one walk per source with a live set of columns; the Beta carver stays per column | K1, K6: each column's cells equal the mask of that column alone. Beta's splits draw from the source's own generator and its water abort reads the target column's terrain, so a Beta source cannot be walked once for several columns |
+| Carving region | mask per column | the mask of the modern carvers is built per region by one walk per source with a live set of columns; the Beta carver stays per column | K1, K6: each column's cells equal the mask of that column alone; why a Beta source cannot share a walk is in §9 |
 | Heightmaps | a separate pass from the chunk ceiling | the fused descent bounded by the ordering of predicates | `heightmap.md` §3–4. Only the `¬air` map is maintained during fill; the rest must wait for carving, which removes blocks |
 | Fluid skip threshold | one per column from the surface maximum | per strip | A4: one peak otherwise denies the cheap path to the whole volume |
 | Precision | one implementation | two profiles, strict as the oracle | §15: separates "computed differently" from "a different function" |

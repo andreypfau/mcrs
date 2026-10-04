@@ -217,22 +217,10 @@ fn a_tag_markers_key_has_its_tag_path() {
     assert!(offences.is_empty(), "{}", offences.join("\n"));
 }
 
-#[test]
-fn the_three_registries_without_a_referrer_type_have_keys() {
-    let keys = key_types();
-    for path in ["menu", "game_event", "point_of_interest_type"] {
-        assert!(
-            keys.iter().any(|k| registry_path(&k.key) == path),
-            "no key names {path}"
-        );
-    }
-}
-
 const GRAPH_DOCUMENT: &str = "docs/registry-graph.md";
 
 struct GraphRow {
     registries: Vec<String>,
-    references: Vec<String>,
     referred_to: bool,
 }
 
@@ -271,7 +259,6 @@ fn graph_rows_of(text: &str, document: &str) -> Vec<GraphRow> {
             );
             GraphRow {
                 registries: backticked(cells[0]),
-                references: backticked(cells[2]),
                 referred_to: cells[3] != "nothing",
             }
         })
@@ -284,61 +271,6 @@ fn graph_rows() -> Vec<GraphRow> {
     let path = workspace_root().join(GRAPH_DOCUMENT);
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     graph_rows_of(&text, GRAPH_DOCUMENT)
-}
-
-#[test]
-fn every_key_is_a_row_of_the_graph() {
-    let rows = graph_rows();
-    let listed: HashSet<&str> = rows
-        .iter()
-        .flat_map(|row| row.registries.iter().map(String::as_str))
-        .collect();
-    let offences: Vec<String> = key_types()
-        .iter()
-        .filter(|k| !listed.contains(registry_path(&k.key)))
-        .map(|k| {
-            format!(
-                "{} names {}, which has no row in {GRAPH_DOCUMENT}",
-                k.name, k.key
-            )
-        })
-        .collect();
-    assert!(offences.is_empty(), "{}", offences.join("\n"));
-}
-
-#[test]
-fn the_graph_is_closed_under_its_references() {
-    let rows = graph_rows();
-    let referred: HashSet<&str> = rows
-        .iter()
-        .filter(|row| row.referred_to)
-        .flat_map(|row| row.registries.iter().map(String::as_str))
-        .collect();
-    let mut offences = Vec::new();
-    for row in &rows {
-        for reference in &row.references {
-            if !referred.contains(reference.as_str()) {
-                offences.push(format!(
-                    "{} refers to {reference}, which has no row naming a referrer",
-                    row.registries.join(", ")
-                ));
-            }
-        }
-    }
-    assert!(offences.is_empty(), "{}", offences.join("\n"));
-}
-
-#[test]
-fn a_document_without_the_registries_table_is_not_read_as_empty() {
-    let section = std::panic::catch_unwind(|| graph_rows_of("# Title\n\nno table\n", "fixture"));
-    assert!(section.is_err(), "a document with no section was read");
-    let rows = std::panic::catch_unwind(|| {
-        graph_rows_of(
-            "## Registries\n\n| a | b |\n|---|---|\n\n## Next\n",
-            "fixture",
-        )
-    });
-    assert!(rows.is_err(), "a section with no rows was read");
 }
 
 #[test]

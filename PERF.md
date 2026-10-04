@@ -780,12 +780,8 @@ runs each, load 5.4 to 17 at the starts):
 | 777 | 3.554 (0.4%), 0.1043 (1.0%) | 3.514 (0.2%), 0.0593 (1.7%) | -1.1% | -43.1% |
 | 845 | 2.968 (0.1%), 0.0977 (1.0%) | 2.922 (0.7%), 0.0553 (1.8%) | -1.5% | -43.3% |
 
-An earlier round of the same comparison, three runs of widths 1, 2, 4, 8 in turn under load 5 to
-12, gave the carve line at -42%, -58% and -63% for widths 2, 4 and 8 on seed 777 and -43%, -58%
-and -64% on seed 845, and the whole column at -0.3% (spread 0.5 to 1.1%), -0.6% and -1.0% on seed
-777 and -1.3%, -1.4% and -2.3% on seed 845. The carve line settles; the whole column moves by
-about one percent in the same direction in every pair, which is the size of the spread in one
-of them. The 90th percentile of the whole column is the same within the spread (5.11 against
+The carve line settles; the whole column moves by about one percent in the same direction in
+every pair, which is the size of the spread in one of them. The 90th percentile of the whole column is the same within the spread (5.11 against
 5.08 ms and 3.79 against 3.74 ms) and its maximum is one column that moves by 20 to 40% between
 runs, so no tail claim is made from it. Beta is unchanged: `beta_chunks -- 32 1 12345`, three
 runs, 2298 chunks/s (spread 5.4%) and the `caves` stage 0.0773 ms (1.3%), against 2328 and
@@ -799,13 +795,11 @@ columns in flight costs rebuilds at 324 sources per four columns against 289 per
 different block. 256 holds a view of 32 columns in every direction with the margin of two; several
 players in different places share it and evict each other.
 
-**The width-1 path.** Before the capacity existed the carve line at width 1 read 1.7% and 2.2%
-slower than the per-column code (0.002 ms per column, bench), attributed to the one `Arc` the
-region path allocates. Measured in one process, alternating, over the same block, the region
-path at width 1 takes 0.094 and 0.088 ms against 0.086 and 0.081 ms for the per-column sources
-(+9% and +8%, about 0.007 ms), so that cost is not the allocation alone. At the chosen width no
-production table takes the width-1 path, so it is not paid; it is accepted for the configuration
-a test builds with `with_region(1, 0)`; a return to width 1 in production would pay it again.
+**The width-1 path.** Measured in one process, alternating, over the same block, the region path
+at width 1 takes 0.094 and 0.088 ms per column against 0.086 and 0.081 ms for the per-column
+sources (+9% and +8%, about 0.007 ms). No production table takes that path at the chosen width;
+the cost is accepted for the configuration a test builds with `with_region(1, 0)`, and a return
+to width 1 in production would pay it.
 
 ## Findings not yet acted on
 

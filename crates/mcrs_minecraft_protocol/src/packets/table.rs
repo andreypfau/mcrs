@@ -21,7 +21,6 @@ pub const fn row_of(names: &[&str], name: &str) -> i32 {
 #[derive(Debug, Clone, Copy)]
 pub struct Table {
     pub name: &'static str,
-    pub enum_name: &'static str,
     pub state: ConnectionState,
     pub side: PacketSide,
     pub names: &'static [&'static str],
@@ -347,13 +346,11 @@ macro_rules! tables {
                 use $($module)*::{$($($ty,)?)*};
 
                 pub const NAMES: &[&str] = &[$($name),*];
-                pub const ENUM: &str = stringify!($enum);
                 pub const TYPED: &[&str] = &[$($(typed_name!($name, $ty),)?)*];
                 pub const STATE: $crate::ConnectionState = $crate::ConnectionState::$state;
                 pub const SIDE: $crate::PacketSide = $crate::PacketSide::$side;
                 pub const TABLE: $crate::packets::table::Table = $crate::packets::table::Table {
                     name: stringify!($table),
-                    enum_name: ENUM,
                     state: STATE,
                     side: SIDE,
                     names: NAMES,

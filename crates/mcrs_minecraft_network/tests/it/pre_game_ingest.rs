@@ -24,6 +24,7 @@ use mcrs_minecraft_protocol::packets::game;
 use mcrs_minecraft_protocol::packets::login::serverbound::{
     ServerboundHello, ServerboundLoginAcknowledged,
 };
+use mcrs_minecraft_protocol::packets::table::{configuration_serverbound, login_serverbound};
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::{Encode, Packet};
@@ -82,15 +83,35 @@ fn server_world() -> World {
     world
 }
 
-fn counted_faults(world: &World) -> u64 {
+fn raw_frame(id: i32) -> ReceivedPacket {
+    ReceivedPacket {
+        timestamp: Instant::now(),
+        id,
+        payload: Bytes::new(),
+    }
+}
+
+fn counted_faults(world: &World) -> Vec<String> {
     let counts = world.resource::<PreGameDecodeCounts>();
-    [ConnectionState::Login, ConnectionState::Configuration]
-        .into_iter()
-        .map(|state| {
-            let table = counts.counts(state).unwrap();
-            table.failures_total() + table.unknown()
-        })
-        .sum()
+    let mut faults = Vec::new();
+    for (state, names) in [
+        (ConnectionState::Login, login_serverbound::NAMES),
+        (
+            ConnectionState::Configuration,
+            configuration_serverbound::NAMES,
+        ),
+    ] {
+        let table = counts.counts(state).unwrap();
+        for (row, name) in names.iter().enumerate() {
+            if table.failures(row) > 0 {
+                faults.push(format!("{state:?} {name}: {}", table.failures(row)));
+            }
+        }
+        if table.unknown() > 0 {
+            faults.push(format!("{state:?} unknown id: {}", table.unknown()));
+        }
+    }
+    faults
 }
 
 #[derive(Resource, Default)]
@@ -127,7 +148,7 @@ fn a_pass_reads_its_budget_and_leaves_the_rest_queued_in_order() {
 
     assert!(world.entity(connection).contains::<ServerSideConnection>());
     assert_eq!(world.resource::<BridgeTelemetry>().kick_flood_total, 0);
-    assert_eq!(counted_faults(&world), 0);
+    assert_eq!(counted_faults(&world), Vec::<String>::new());
 }
 
 #[test]
@@ -255,8 +276,55 @@ fn a_login_and_configuration_sent_in_one_burst_reaches_the_game_state() {
         Some(&ConnectionState::Game)
     );
     assert_eq!(world.resource::<BridgeTelemetry>().kick_flood_total, 0);
-    assert_eq!(counted_faults(&world), 0);
+    assert_eq!(counted_faults(&world), Vec::<String>::new());
     let mut connection = world.get_mut::<ServerSideConnection>(connection).unwrap();
     let queued = connection.raw.try_recv().unwrap().unwrap();
     assert_eq!(queued.id, game::serverbound::ServerboundKeepAlive::ID);
+}
+
+#[test]
+fn a_fault_behind_an_acknowledgement_nobody_accepts_is_counted_in_its_state() {
+    let mut world = server_world();
+    let (_connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
+    tx.try_send(frame(&ServerboundLoginAcknowledged)).unwrap();
+    tx.try_send(raw_frame(login_serverbound::NAMES.len() as i32))
+        .unwrap();
+
+    run(&mut world);
+    run(&mut world);
+
+    assert_eq!(counted_faults(&world), ["Login unknown id: 1"]);
+}
+
+#[test]
+fn an_unknown_id_before_the_game_state_is_counted_and_nothing_is_despawned() {
+    let mut world = server_world();
+    let (login, login_tx) = spawn_connection(&mut world, ConnectionState::Login);
+    let (configuration, configuration_tx) =
+        spawn_connection(&mut world, ConnectionState::Configuration);
+    login_tx
+        .try_send(raw_frame(login_serverbound::NAMES.len() as i32))
+        .unwrap();
+    configuration_tx
+        .try_send(raw_frame(configuration_serverbound::NAMES.len() as i32 + 3))
+        .unwrap();
+    configuration_tx.try_send(raw_frame(-1)).unwrap();
+
+    run(&mut world);
+
+    let counts = world.resource::<PreGameDecodeCounts>();
+    assert_eq!(counts.counts(ConnectionState::Login).unwrap().unknown(), 1);
+    assert_eq!(
+        counts
+            .counts(ConnectionState::Configuration)
+            .unwrap()
+            .unknown(),
+        2
+    );
+    assert!(world.entity(login).contains::<ServerSideConnection>());
+    assert!(
+        world
+            .entity(configuration)
+            .contains::<ServerSideConnection>()
+    );
 }

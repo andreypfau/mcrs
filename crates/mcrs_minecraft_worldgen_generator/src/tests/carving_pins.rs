@@ -14,10 +14,10 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
-use mcrs_minecraft_worldgen_carver::canyon::carve_canyon;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
-use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
+use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_source_into};
+use mcrs_minecraft_worldgen_carver::target::SingleColumn;
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -25,9 +25,10 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::registry;
 
 use super::beta_surface::build_beta_biome_source;
+use super::modern_carvers::carvers_of;
 use super::surface::fill_context;
 use super::{build_beta_router, build_settings_router, corpus, router_blocks};
 use crate::modern_carvers::{
@@ -87,24 +88,6 @@ impl Dimension {
             Dimension::Nether => nether_parameter_list(),
         }
     }
-}
-
-fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = ResourceLocation::parse(biome).expect("a biome id");
-    let biome: Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
-    biome
-        .carvers
-        .iter()
-        .map(|name| {
-            let name = name.as_str();
-            let path = worldgen_dir().join(format!(
-                "carver/{}.json",
-                name.strip_prefix("minecraft:").unwrap_or(name)
-            ));
-            serde_json::from_slice(&std::fs::read(&path).expect("the carver is shipped"))
-                .expect("the carver parses")
-        })
-        .collect()
 }
 
 fn world(dimension: Dimension, seed: u64) -> (NoiseRouter, CarverBiomeTable) {
@@ -430,56 +413,38 @@ fn tally_column(
         for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
             let carvers = table.carvers_of_source_for_test(router, &mut ws, source_x, source_z);
             for (index, config) in carvers.iter().enumerate() {
-                let (kind, seed) = match config {
-                    CarverConfig::Cave { .. } => (
-                        CAVE,
-                        LegacyRandom::large_feature_seed(
-                            world_seed.wrapping_add(index as i64),
-                            source_x,
-                            source_z,
-                        ),
-                    ),
-                    CarverConfig::Canyon { .. } => (
-                        CANYON,
-                        LegacyRandom::large_feature_seed(
-                            world_seed.wrapping_add(index as i64),
-                            source_x,
-                            source_z,
-                        ),
-                    ),
-                    CarverConfig::BetaCave => {
-                        (BETA_CAVE, beta_chunk_seed(world_seed, source_x, source_z))
-                    }
+                let kind = match config {
+                    CarverConfig::Cave { .. } => CAVE,
+                    CarverConfig::Canyon { .. } => CANYON,
+                    CarverConfig::BetaCave => BETA_CAVE,
                 };
                 counts[kind][0] += 1;
-                let mut rng = LegacyRandom::new(seed as u64);
-                let started = match config {
-                    CarverConfig::BetaCave => {
-                        beta_cave_count(&mut LegacyRandom::new(seed as u64)) > 0
-                    }
-                    _ => is_start_chunk(config, &mut rng),
-                };
-                if !started {
-                    continue;
-                }
-                counts[kind][1] += 1;
                 let mut mask = carving_mask(height);
-                match config {
-                    CarverConfig::Cave { .. } => carve_caves(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
-                        &mut rng,
-                    ),
-                    CarverConfig::Canyon { .. } => carve_canyon(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
-                        &mut rng,
-                    ),
-                    CarverConfig::BetaCave => carve_beta_caves(
-                        chunk_x, chunk_z, source_x, source_z, water, &mut mask, &mut rng,
-                    ),
-                }
-                if !mask.is_empty() {
-                    counts[kind][2] += 1;
-                }
+                let started = if kind == BETA_CAVE {
+                    let seed = beta_chunk_seed(world_seed, source_x, source_z) as u64;
+                    carve_beta_caves(
+                        chunk_x,
+                        chunk_z,
+                        source_x,
+                        source_z,
+                        water,
+                        &mut mask,
+                        &mut LegacyRandom::new(seed),
+                    );
+                    beta_cave_count(&mut LegacyRandom::new(seed)) > 0
+                } else {
+                    carve_source_into(
+                        config,
+                        index,
+                        world_seed,
+                        height,
+                        &mut SingleColumn::new(chunk_x, chunk_z, &no_water, &mut mask),
+                        source_x,
+                        source_z,
+                    )
+                };
+                counts[kind][1] += u32::from(started);
+                counts[kind][2] += u32::from(!mask.is_empty());
             }
         }
     }

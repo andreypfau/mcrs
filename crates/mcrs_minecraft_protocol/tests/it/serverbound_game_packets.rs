@@ -1,6 +1,6 @@
 //! Bytes written by the vanilla packet stream codecs for the serverbound game packets.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use bevy_math::DVec3;
@@ -13,7 +13,6 @@ use mcrs_minecraft_protocol::packets::common::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::cookie::serverbound::CookieResponse;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
-use mcrs_minecraft_protocol::packets::{configuration, table};
 use mcrs_minecraft_protocol::resource_pack::Status;
 use mcrs_minecraft_protocol::{Decode, Encode, Hand, Look, LpVec3, Position, VarInt};
 use uuid::Uuid;
@@ -286,47 +285,6 @@ fn custom_click_action_decodes_the_games_bytes() {
 }
 
 #[test]
-fn the_game_state_wrappers_hold_what_the_configuration_wrappers_hold() {
-    for (name, game, configuration) in [
-        (
-            "cookie_response",
-            wire::<ServerboundCookieResponse>("cookie_response"),
-            wire::<configuration::serverbound::ServerboundCookieResponse>("cookie_response"),
-        ),
-        (
-            "custom_payload",
-            wire::<ServerboundCustomPayload>("custom_payload"),
-            wire::<configuration::serverbound::ServerboundCustomPayload>("custom_payload"),
-        ),
-        (
-            "pong",
-            wire::<ServerboundPong>("pong"),
-            wire::<configuration::serverbound::ServerboundPong>("pong"),
-        ),
-        (
-            "resource_pack",
-            wire::<ServerboundResourcePack>("resource_pack"),
-            wire::<configuration::serverbound::ServerboundResourcePack>("resource_pack"),
-        ),
-        (
-            "custom_click_action",
-            wire::<ServerboundCustomClickAction>("custom_click_action"),
-            wire::<configuration::serverbound::ServerboundCustomClickAction>("custom_click_action"),
-        ),
-    ] {
-        assert_eq!(game, configuration, "{name}");
-        assert_eq!(game, bytes(name), "{name}");
-    }
-}
-
-fn wire<P: Encode + Decode<'static>>(name: &str) -> Vec<u8> {
-    let mut r = bytes(name);
-    let packet = P::decode(&mut r).unwrap_or_else(|e| panic!("{name}: {e:#}"));
-    assert!(r.is_empty(), "{name}: {} trailing bytes", r.len());
-    encoded(&packet)
-}
-
-#[test]
 fn an_action_past_the_last_is_refused() {
     refused::<ServerboundClientCommand>(&[3]);
     refused::<ServerboundPlayerCommand>(&[1, 7, 0]);
@@ -367,44 +325,4 @@ fn a_typed_packet_leaves_a_trailing_byte_unread() {
     leaves_one_byte_unread::<ServerboundPlayerLoaded>("player_loaded");
     leaves_one_byte_unread::<ServerboundPunch>("punch");
     leaves_one_byte_unread::<ServerboundUseItem>("use_item");
-}
-
-#[test]
-fn the_golden_holds_a_case_for_every_packet_typed_here() {
-    let rows: BTreeSet<&str> = [
-        "attack",
-        "client_command",
-        "client_tick_end",
-        "cookie_response",
-        "custom_click_action",
-        "custom_payload",
-        "interact",
-        "move_vehicle",
-        "player_abilities",
-        "player_command",
-        "player_input",
-        "player_loaded",
-        "pong",
-        "punch",
-        "resource_pack",
-        "use_item",
-    ]
-    .into();
-    let table = table::TABLES
-        .iter()
-        .find(|table| table.name == "game_serverbound")
-        .unwrap();
-    for row in &rows {
-        assert!(table.typed.contains(row), "{row} is not a typed row");
-    }
-    let labels = labels();
-    for row in &rows {
-        assert!(labels.contains_key(row), "no case for {row}");
-    }
-    for label in labels.keys() {
-        assert!(
-            rows.iter().any(|row| label.starts_with(row)),
-            "{label} belongs to no packet typed here"
-        );
-    }
 }

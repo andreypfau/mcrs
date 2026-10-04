@@ -13,13 +13,10 @@ use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
-use mcrs_minecraft_worldgen_carver::canyon::{carve_canyon, carve_canyon_into};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
-use mcrs_minecraft_worldgen_carver::modern::{
-    SOURCE_RADIUS, carve_caves, carve_caves_into, is_start_chunk,
-};
-use mcrs_minecraft_worldgen_carver::target::Region;
+use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_source_into};
+use mcrs_minecraft_worldgen_carver::target::{Region, SingleColumn};
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -122,30 +119,44 @@ type TileKey = (u64, i32, i32);
 /// hits; the capacity only matters once more tiles than that are in flight at
 /// once, and then a column degrades to filling its own tiles rather than to
 /// anything worse.
-#[derive(Default)]
-struct SourceTiles {
-    entries: Vec<(TileKey, u64, Tile)>,
-    clock: u64,
-}
+type SourceTiles = Lru<TileKey, Tile>;
 
 const KEPT: usize = 256;
 
-impl SourceTiles {
-    fn get(&mut self, key: TileKey) -> Option<Tile> {
+/// The values asked for most recently.
+struct Lru<K, V> {
+    entries: Vec<(K, u64, V)>,
+    clock: u64,
+}
+
+impl<K, V> Default for Lru<K, V> {
+    fn default() -> Self {
+        Lru {
+            entries: Vec::new(),
+            clock: 0,
+        }
+    }
+}
+
+impl<K: PartialEq, V: Clone> Lru<K, V> {
+    fn get(&mut self, key: &K) -> Option<V> {
         self.clock += 1;
-        let (_, used, tile) = self.entries.iter_mut().find(|(at, ..)| *at == key)?;
+        // chisle: a linear scan, which holds while the capacity is tens of
+        // entries; past a few hundred it wants a map keyed by `K`.
+        let (_, used, value) = self.entries.iter_mut().find(|(at, ..)| at == key)?;
         *used = self.clock;
-        Some(tile.clone())
+        Some(value.clone())
     }
 
-    /// Keeps `tile` unless another worker inserted the key meanwhile, in which
-    /// case theirs is returned: both were computed from the same seed.
-    fn insert(&mut self, key: TileKey, tile: Tile) -> Tile {
-        if let Some(held) = self.get(key) {
+    /// The value held for `key`, or `value()`, which once `capacity` are held
+    /// takes the place of the one asked for longest ago.
+    fn get_or_insert_with(&mut self, key: K, capacity: usize, value: impl FnOnce() -> V) -> V {
+        if let Some(held) = self.get(&key) {
             return held;
         }
-        let entry = (key, self.clock, tile.clone());
-        if self.entries.len() < KEPT {
+        let value = value();
+        let entry = (key, self.clock, value.clone());
+        if self.entries.len() < capacity {
             self.entries.push(entry);
         } else {
             let stale = self
@@ -157,7 +168,7 @@ impl SourceTiles {
                 .expect("a full cache has entries");
             self.entries[stale] = entry;
         }
-        tile
+        value
     }
 }
 
@@ -201,15 +212,9 @@ type RegionCell = OnceLock<Arc<[CarvingMask]>>;
 /// both are the same function of the key.
 struct RegionCache {
     capacity: usize,
-    list: Mutex<RegionList>,
+    list: Mutex<Lru<RegionKey, Arc<RegionCell>>>,
     #[cfg(test)]
     builds: std::sync::atomic::AtomicUsize,
-}
-
-#[derive(Default)]
-struct RegionList {
-    entries: Vec<(RegionKey, u64, Arc<RegionCell>)>,
-    clock: u64,
 }
 
 impl RegionCache {
@@ -231,7 +236,7 @@ impl RegionCache {
             .list
             .lock()
             .expect("carver regions")
-            .cell(key, self.capacity);
+            .get_or_insert_with(key, self.capacity, Arc::default);
         cell.get_or_init(|| {
             #[cfg(test)]
             self.builds
@@ -239,33 +244,6 @@ impl RegionCache {
             build()
         })
         .clone()
-    }
-}
-
-impl RegionList {
-    fn cell(&mut self, key: RegionKey, capacity: usize) -> Arc<RegionCell> {
-        self.clock += 1;
-        // chisle: a linear scan, which holds while the capacity is tens of
-        // entries; past a few hundred it wants a map keyed by `RegionKey`.
-        if let Some((_, used, cell)) = self.entries.iter_mut().find(|(at, ..)| *at == key) {
-            *used = self.clock;
-            return cell.clone();
-        }
-        let entry = (key, self.clock, Arc::<RegionCell>::default());
-        let cell = entry.2.clone();
-        if self.entries.len() < capacity {
-            self.entries.push(entry);
-        } else {
-            let stale = self
-                .entries
-                .iter()
-                .enumerate()
-                .min_by_key(|(_, (_, used, _))| *used)
-                .map(|(index, _)| index)
-                .expect("a full cache has entries");
-            self.entries[stale] = entry;
-        }
-        cell
     }
 }
 
@@ -446,7 +424,7 @@ impl CarverBiomeTable {
     /// any column needs one of them.
     fn tile(&self, router: &NoiseRouter, ws: &mut Workspace, (tile_x, tile_z): (i32, i32)) -> Tile {
         let key = (router.world_seed, tile_x, tile_z);
-        if let Some(tile) = self.tiles.lock().expect("carver tiles").get(key) {
+        if let Some(tile) = self.tiles.lock().expect("carver tiles").get(&key) {
             return tile;
         }
         let volume = SampleGrid::new(
@@ -492,10 +470,12 @@ impl CarverBiomeTable {
                 }
             }
         }
+        // Another worker may have resolved the tile meanwhile; theirs is kept,
+        // both being computed from the same seed.
         self.tiles
             .lock()
             .expect("carver tiles")
-            .insert(key, Arc::new(slots))
+            .get_or_insert_with(key, KEPT, || Arc::new(slots))
     }
 
     #[cfg(test)]
@@ -622,38 +602,27 @@ pub(crate) fn carve_sources(
         for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
             let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
             for (index, config) in carvers.iter().enumerate() {
-                let seed = match config {
-                    CarverConfig::Cave { .. } | CarverConfig::Canyon { .. } => {
-                        LegacyRandom::large_feature_seed(
-                            world_seed.wrapping_add(index as i64),
-                            source_x,
-                            source_z,
-                        )
-                    }
-                    CarverConfig::BetaCave => beta_chunk_seed(world_seed, source_x, source_z),
-                };
-                let mut rng = LegacyRandom::new(seed as u64);
-                if !is_start_chunk(config, &mut rng) {
-                    continue;
-                }
-                match config {
-                    CarverConfig::Cave { .. } => carve_caves(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
-                        &mut rng,
-                    ),
-                    CarverConfig::Canyon { .. } => carve_canyon(
-                        config, height, chunk_x, chunk_z, source_x, source_z, &no_water, &mut mask,
-                        &mut rng,
-                    ),
-                    CarverConfig::BetaCave => carve_beta_caves(
+                if matches!(config, CarverConfig::BetaCave) {
+                    let seed = beta_chunk_seed(world_seed, source_x, source_z);
+                    carve_beta_caves(
                         chunk_x,
                         chunk_z,
                         source_x,
                         source_z,
                         beta_water.get_or_insert_with(&water),
                         &mut mask,
-                        &mut rng,
-                    ),
+                        &mut LegacyRandom::new(seed as u64),
+                    );
+                } else {
+                    carve_source_into(
+                        config,
+                        index,
+                        world_seed,
+                        height,
+                        &mut SingleColumn::new(chunk_x, chunk_z, &no_water, &mut mask),
+                        source_x,
+                        source_z,
+                    );
                 }
             }
         }
@@ -682,28 +651,15 @@ fn carve_region(
         for source_z in (origin.1 - SOURCE_RADIUS)..=(origin.1 + width - 1 + SOURCE_RADIUS) {
             let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
             for (index, config) in carvers.iter().enumerate() {
-                let seed = LegacyRandom::large_feature_seed(
-                    world_seed.wrapping_add(index as i64),
+                carve_source_into(
+                    config,
+                    index,
+                    world_seed,
+                    height,
+                    &mut region,
                     source_x,
                     source_z,
                 );
-                let mut rng = LegacyRandom::new(seed as u64);
-                if !is_start_chunk(config, &mut rng) {
-                    continue;
-                }
-                match config {
-                    CarverConfig::Cave { .. } => {
-                        carve_caves_into(config, height, &mut region, source_x, source_z, &mut rng)
-                    }
-                    CarverConfig::Canyon { .. } => {
-                        carve_canyon_into(config, height, &mut region, source_x, source_z, &mut rng)
-                    }
-                    CarverConfig::BetaCave => {
-                        unreachable!(
-                            "a Beta carver outside a Beta dimension is refused with the tables"
-                        )
-                    }
-                }
             }
         }
     }
@@ -942,28 +898,28 @@ mod source_tiles {
     fn keeps_the_recently_used_tiles_and_drops_the_stalest() {
         let mut tiles = SourceTiles::default();
         for index in 0..KEPT {
-            tiles.insert((0, index as i32, 0), tile(index as u16));
+            tiles.get_or_insert_with((0, index as i32, 0), KEPT, || tile(index as u16));
         }
         assert_eq!(tiles.entries.len(), KEPT);
 
         // Touching the oldest entry makes the one after it the stalest.
-        assert!(tiles.get((0, 0, 0)).is_some());
-        tiles.insert((0, -1, 0), tile(u16::MAX));
+        assert!(tiles.get(&(0, 0, 0)).is_some());
+        tiles.get_or_insert_with((0, -1, 0), KEPT, || tile(u16::MAX));
 
         assert_eq!(tiles.entries.len(), KEPT);
-        assert!(tiles.get((0, 0, 0)).is_some(), "the touched tile stays");
+        assert!(tiles.get(&(0, 0, 0)).is_some(), "the touched tile stays");
         assert!(
-            tiles.get((0, 1, 0)).is_none(),
+            tiles.get(&(0, 1, 0)).is_none(),
             "the stalest tile is evicted"
         );
-        assert_eq!(tiles.get((0, -1, 0)).map(|t| t[0]), Some(u16::MAX));
+        assert_eq!(tiles.get(&(0, -1, 0)).map(|t| t[0]), Some(u16::MAX));
     }
 
     #[test]
     fn a_racing_insert_keeps_the_first_tile() {
         let mut tiles = SourceTiles::default();
-        let first = tiles.insert((7, 1, 2), tile(1));
-        let second = tiles.insert((7, 1, 2), tile(2));
+        let first = tiles.get_or_insert_with((7, 1, 2), KEPT, || tile(1));
+        let second = tiles.get_or_insert_with((7, 1, 2), KEPT, || tile(2));
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(tiles.entries.len(), 1);
     }

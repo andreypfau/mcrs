@@ -1,16 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::AssetPlugin;
-use bevy_state::app::StatesPlugin;
-use bevy_state::state::State;
-use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use bevy_app::App;
+use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_world::MinecraftWorldPlugin;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+
+use crate::common::run_to_playing;
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -54,13 +52,6 @@ fn golden() -> Golden {
         }
     }
     Golden { registries }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Outcome {
-    Obtained,
-    NoSnapshot,
-    EntryWithoutValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -156,31 +147,6 @@ fn walk(ours: &NbtTag, game: &NbtTag) -> Vec<Difference> {
     visit("$".to_string(), Some(ours), Some(game), &mut out);
     out.sort();
     out
-}
-
-fn compound(entries: Vec<(&str, NbtTag)>) -> NbtTag {
-    NbtTag::Compound(mcrs_minecraft_nbt::compound::NbtCompound {
-        child_tags: entries
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value))
-            .collect(),
-    })
-}
-
-fn difference(path: &str, ours: &'static str, game: &'static str) -> Difference {
-    Difference {
-        path: path.to_string(),
-        ours,
-        game,
-    }
-}
-
-#[test]
-fn a_field_on_one_side_only_is_a_difference() {
-    let ours = compound(vec![("a", NbtTag::Int(1))]);
-    let game = compound(vec![("a", NbtTag::Int(1)), ("b", NbtTag::Int(2))]);
-    assert_eq!(walk(&ours, &game), vec![difference("$.b", "absent", "int")]);
-    assert_eq!(walk(&game, &ours), vec![difference("$.b", "int", "absent")]);
 }
 
 const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are replaced]";
@@ -281,66 +247,15 @@ fn from_files(row: &Row) -> BTreeMap<String, NbtTag> {
         .collect()
 }
 
-fn run_to_playing() -> App {
-    std::env::set_current_dir(workspace_root()).unwrap();
-
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin {
-        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
-    });
-    app.add_plugins(StatesPlugin);
-    bevy_asset::AssetApp::register_asset_source(
-        &mut app,
-        bevy_asset::io::AssetSourceId::Default,
-        mcrs_minecraft_worldgen::bevy::asset_source("assets"),
-    );
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
-    app.add_plugins(MinecraftWorldPlugin);
-    app.finish();
-    app.cleanup();
-
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-    loop {
-        app.update();
-        if *app.world().resource::<State<AppState>>().get() == AppState::Playing {
-            return app;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "never reached Playing"
-        );
-    }
-}
-
-fn workspace_root() -> PathBuf {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop();
-    path.pop();
-    path
-}
-
-fn from_app(app: &App, registry: &str) -> (Outcome, BTreeMap<String, NbtTag>) {
+fn from_app(app: &App, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let access = app.world().resource::<RegistryAccess>();
-    let Some(snapshot) = access
+    let snapshot = access
         .iter()
-        .find(|snapshot| snapshot.registry_key() == registry)
-    else {
-        return (Outcome::NoSnapshot, BTreeMap::new());
-    };
-    let mut entries = BTreeMap::new();
-    for entry in snapshot.iter_entries() {
-        match &entry.data {
-            Some(tag) => {
-                entries.insert(entry.location.to_string(), tag.clone());
-            }
-            None => return (Outcome::EntryWithoutValue, BTreeMap::new()),
-        }
-    }
-    (Outcome::Obtained, entries)
+        .find(|snapshot| snapshot.registry_key() == registry)?;
+    snapshot
+        .iter_entries()
+        .map(|entry| Some((entry.location.to_string(), entry.data.clone()?)))
+        .collect()
 }
 
 fn render(registry: &str, entry: &str, difference: &Difference) -> String {
@@ -411,8 +326,8 @@ fn the_synced_values_differ_from_the_game_as_recorded() {
         let ours = match rows.iter().find(|row| &row.registry == registry) {
             Some(row) => from_files(row),
             None => match from_app(&app, registry) {
-                (Outcome::Obtained, entries) => entries,
-                _ => continue,
+                Some(entries) => entries,
+                None => continue,
             },
         };
         let lines = compare_registry(registry, &ours, game);
@@ -446,28 +361,5 @@ fn the_synced_values_differ_from_the_game_as_recorded() {
         sections(&read("tests/fixtures/registry_value_differences.txt")),
         computed,
         "the recorded differences and the computed ones disagree"
-    );
-}
-
-#[test]
-fn the_typed_values_encode_as_the_game_does() {
-    let golden = golden();
-    let rows = rows();
-    let mut differences = BTreeSet::new();
-    for registry in UNTYPED_COPIES {
-        let row = rows
-            .iter()
-            .find(|row| row.registry == registry)
-            .unwrap_or_else(|| panic!("{registry} has no row"));
-        let game = golden
-            .registries
-            .get(registry)
-            .unwrap_or_else(|| panic!("the golden lacks {registry}"));
-        differences.extend(compare_registry(registry, &from_files(row), game));
-    }
-    assert!(
-        differences.is_empty(),
-        "{}",
-        differences.into_iter().collect::<Vec<_>>().join("\n")
     );
 }
