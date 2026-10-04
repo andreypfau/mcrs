@@ -3,7 +3,7 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, Registered};
+use crate::component::common::Holder;
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -11,10 +11,6 @@ use crate::harness::Sample;
 pub struct TrimMaterial {
     pub palette_id: ResourceLocation,
     pub description: Text,
-}
-
-impl Registered for TrimMaterial {
-    type Registry = TrimMaterial;
 }
 
 impl RegistryKey for TrimMaterial {
@@ -29,10 +25,6 @@ pub struct TrimPattern {
     pub description: Text,
     #[serde(default)]
     pub decal: bool,
-}
-
-impl Registered for TrimPattern {
-    type Registry = TrimPattern;
 }
 
 impl RegistryKey for TrimPattern {

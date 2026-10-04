@@ -27,8 +27,8 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_registry::key::Block;
 
-/// chisle: no menu registry is loaded, so the generic 9x3 id is the
-/// vanilla constant. Upgrade: a `minecraft:menu` snapshot in RegistryAccess.
+/// chisle: the generic 9x3 menu id is written by hand; reading the id of the
+/// `menu` registry from the static registries report lifts this.
 const GENERIC_9X3: i32 = 2;
 const CHEST_ROWS: usize = 3;
 

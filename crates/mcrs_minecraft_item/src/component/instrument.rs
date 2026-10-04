@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly, Registered};
+use crate::component::common::{Holder, HolderWireOnly};
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -20,10 +20,6 @@ pub struct InstrumentValue {
     #[serde(default, skip_serializing_if = "is_default")]
     pub durability_damage: NonNegativeInt,
     pub description: Text,
-}
-
-impl Registered for InstrumentValue {
-    type Registry = InstrumentValue;
 }
 
 impl RegistryKey for InstrumentValue {
@@ -42,10 +38,6 @@ pub struct JukeboxSong {
     #[serde(deserialize_with = "positive_float")]
     pub length_in_seconds: f32,
     pub comparator_output: codec::Bounded<0, 15>,
-}
-
-impl Registered for JukeboxSong {
-    type Registry = JukeboxSong;
 }
 
 impl RegistryKey for JukeboxSong {

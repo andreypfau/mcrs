@@ -716,8 +716,8 @@ pub enum ClickEvent {
 }
 
 /// A registry id, or the dialog written inline.
-// chisle: an inline dialog is carried as its compound and not validated; give it the typed
-// dialog codecs once they live below the protocol crate.
+// chisle: an inline dialog is carried as its compound and is not validated; validating it
+// where the dialog value is known, in the crate that owns it, lifts this.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DialogRef {

@@ -75,8 +75,8 @@ impl Sample for BucketEntityData {
 }
 
 /// chisle: the persistent codec carries no registry, so an unknown
-/// decoration type id is accepted here where vanilla fails the load; a
-/// `DeserializeSeed` holding the lookup is the upgrade path.
+/// decoration type id is accepted here where vanilla fails the load; parsing
+/// the field as a registry id inside a registry scope lifts this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {

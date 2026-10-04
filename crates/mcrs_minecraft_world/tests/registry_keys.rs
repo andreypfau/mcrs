@@ -346,46 +346,59 @@ fn every_tag_marker_is_a_key() {
     assert!(offences.is_empty(), "{}", offences.join("\n"));
 }
 
-#[test]
-fn every_marker_registry_has_a_key() {
-    let holder = workspace_root().join("crates/mcrs_minecraft_registry/src/holder.rs");
-    let text = std::fs::read_to_string(&holder).unwrap();
-    let rest = text
-        .split_once("registries! {")
-        .expect("holder.rs has no registries! invocation")
-        .1;
-    let body = if rest.starts_with('}') {
-        ""
-    } else {
-        rest.split_once("\n}")
-            .expect("the registries! invocation is not closed")
-            .0
-    };
-    let paths: Vec<&str> = body
-        .lines()
-        .filter_map(|line| {
-            line.split_once('=')?
-                .1
-                .trim()
-                .strip_prefix('"')?
-                .split_once('"')
-        })
-        .map(|(path, _)| path)
-        .collect();
-    assert!(
-        !paths.is_empty() || body.trim().is_empty(),
-        "no registry path read from holder.rs"
-    );
+fn source_roots() -> Vec<PathBuf> {
+    let crates = workspace_root().join("crates");
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&crates).unwrap() {
+        let krate = entry.unwrap().path();
+        for dir in ["src", "tests"] {
+            let dir = krate.join(dir);
+            if dir.is_dir() {
+                rust_files(&dir, &mut files);
+            }
+        }
+    }
+    files.sort();
+    files
+}
 
-    let keys = key_types();
-    let missing: Vec<&str> = paths
+fn marker_offence(line: &str) -> Option<&'static str> {
+    line.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))
+        .find_map(|word| match word {
+            "RegistryName" | "Registered" => Some("a deleted marker trait"),
+            "$marker" => Some("the marker macro"),
+            _ if word.len() > 3 && word.ends_with("Reg") => Some("a marker type"),
+            _ => None,
+        })
+}
+
+#[test]
+fn no_marker_type_remains() {
+    let this_file = Path::new(file!()).file_name().unwrap().to_owned();
+    let root = workspace_root();
+    let files: Vec<PathBuf> = source_roots()
         .into_iter()
-        .filter(|path| !keys.iter().any(|k| registry_path(&k.key) == *path))
+        .filter(|path| {
+            path.strip_prefix(&root).unwrap()
+                != Path::new("crates/mcrs_minecraft_world/tests").join(&this_file)
+        })
         .collect();
-    assert!(
-        missing.is_empty(),
-        "registries named by a marker with no key: {missing:?}"
-    );
+    assert!(!files.is_empty(), "the scan read no source file");
+    let mut offences = Vec::new();
+    for path in &files {
+        let text =
+            std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        for (index, line) in text.lines().enumerate() {
+            if let Some(what) = marker_offence(line) {
+                offences.push(format!(
+                    "{}:{}: {what}",
+                    path.strip_prefix(&root).unwrap().display(),
+                    index + 1
+                ));
+            }
+        }
+    }
+    assert!(offences.is_empty(), "{}", offences.join("\n"));
 }
 
 #[test]

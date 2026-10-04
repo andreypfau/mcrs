@@ -2,7 +2,7 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, Registered};
+use crate::component::common::Holder;
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
 
@@ -11,10 +11,6 @@ use crate::harness::Sample;
 pub struct BannerPattern {
     pub asset_id: ResourceLocation,
     pub translation_key: String,
-}
-
-impl Registered for BannerPattern {
-    type Registry = BannerPattern;
 }
 
 impl RegistryKey for BannerPattern {

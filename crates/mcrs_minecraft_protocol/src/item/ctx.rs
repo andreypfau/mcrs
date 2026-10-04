@@ -9,7 +9,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use uuid::Uuid;
 
-use crate::item::component::{Holder, Registered};
+use crate::item::component::Holder;
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
 
@@ -240,15 +240,13 @@ impl<'a, R: RegistryKey> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
-impl<T: Registered + EncodeCtx> EncodeCtx for Holder<T> {
+impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             Holder::Reference(key) => {
                 let id = ctx
-                    .id(T::Registry::KEY.path(), key.location())
-                    .with_context(|| {
-                        format!("{key} is not in registry {}", T::Registry::KEY.path())
-                    })?;
+                    .id(T::KEY.path(), key.location())
+                    .with_context(|| format!("{key} is not in registry {}", T::KEY.path()))?;
                 VarInt(id as i32 + 1).encode(w)
             }
             Holder::Direct(value) => {
@@ -259,7 +257,7 @@ impl<T: Registered + EncodeCtx> EncodeCtx for Holder<T> {
     }
 }
 
-impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
+impl<'a, T: RegistryKey + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         if raw == 0 {
@@ -268,8 +266,8 @@ impl<'a, T: Registered + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
         let id = raw.wrapping_sub(1);
         let name = u32::try_from(id)
             .ok()
-            .and_then(|id| ctx.name(T::Registry::KEY.path(), id))
-            .with_context(|| format!("registry {} has no id {id}", T::Registry::KEY.path()))?;
+            .and_then(|id| ctx.name(T::KEY.path(), id))
+            .with_context(|| format!("registry {} has no id {id}", T::KEY.path()))?;
         Ok(Holder::Reference(ResourceKey::from_location(name.clone())))
     }
 }
