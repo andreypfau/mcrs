@@ -22,9 +22,8 @@ pub mod variant;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, index_biomes, index_structures, index_timelines,
-    register_static_registries_with_access, request_data_pack_assets, request_every_tag,
-    resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
+    check_tags_ready, index_biomes, index_structures, index_timelines, request_data_pack_assets,
+    request_every_tag, resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
@@ -216,12 +215,7 @@ impl Plugin for MinecraftWorldPlugin {
                         .after(TagPhase::Freeze)
                         .after(seed_world_clocks)
                         .before(transition_to_playing),
-                    (
-                        register_static_registries_with_access,
-                        transition_to_playing,
-                    )
-                        .chain()
-                        .after(TagPhase::Freeze),
+                    transition_to_playing.after(TagPhase::Freeze),
                 ),
             );
     }
@@ -356,6 +350,12 @@ impl Plugin for MinecraftWorldPlugin {
                     "minecraft:block_transformer",
                     Clone::clone,
                 );
+                registries::register_loaded::<EnchantmentData, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:enchantment",
+                    Clone::clone,
+                );
                 registries::register_loaded::<decorated_pot_pattern::DecoratedPotPattern, _>(
                     &mut access,
                     &registries,
@@ -476,15 +476,9 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                let table = world
-                    .resource::<mcrs_minecraft_registry::RegistrySet>()
-                    .table("minecraft:enchantment")
-                    .expect("minecraft:enchantment is a loaded registry")
-                    .clone();
                 crate::item::enchantments::register_all_enchantments(
                     &mut enchantments,
-                    &table,
-                    world.resource::<AssetServer>(),
+                    world.resource::<mcrs_minecraft_registry::RegistrySet>(),
                 );
                 tracing::info!(
                     count = enchantments.len(),
