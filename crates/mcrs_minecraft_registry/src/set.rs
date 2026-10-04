@@ -2,6 +2,7 @@ use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -9,12 +10,21 @@ use std::sync::Arc;
 
 type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
 type Paths = HashMap<Box<str>, Arc<NameTable>>;
+pub(crate) type Column = Arc<dyn Any + Send + Sync>;
+
+#[derive(Default)]
+pub(crate) struct Values {
+    pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, Column>,
+    pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
+    pub(crate) packs: Box<[Box<str>]>,
+}
 
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct RegistrySet {
     tables: Arc<Tables>,
     paths: Arc<Paths>,
+    values: Arc<Values>,
 }
 
 #[cfg(feature = "bevy")]
@@ -43,10 +53,10 @@ impl RegistrySet {
                 return Err(RegistryError::DuplicateRegistry { registry });
             }
         }
-        Ok(Self::of(by_name))
+        Ok(Self::of(by_name, Arc::default()))
     }
 
-    fn of(tables: Tables) -> Self {
+    fn of(tables: Tables, values: Arc<Values>) -> Self {
         let paths = tables
             .iter()
             .map(|(registry, table)| (registry.path().into(), Arc::clone(table)))
@@ -54,6 +64,14 @@ impl RegistrySet {
         RegistrySet {
             tables: Arc::new(tables),
             paths: Arc::new(paths),
+            values,
+        }
+    }
+
+    pub(crate) fn with_values(self, values: Values) -> Self {
+        RegistrySet {
+            values: Arc::new(values),
+            ..self
         }
     }
 
@@ -65,7 +83,7 @@ impl RegistrySet {
         }
         let mut tables = (*self.tables).clone();
         tables.insert(R::KEY.into(), Arc::clone(registry.table()));
-        Ok(Self::of(tables))
+        Ok(Self::of(tables, Arc::clone(&self.values)))
     }
 
     pub fn registry<R: RegistryKey>(&self) -> Option<Registry<R>> {
@@ -84,6 +102,21 @@ impl RegistrySet {
 
     pub fn tables(&self) -> impl Iterator<Item = &Arc<NameTable>> {
         self.tables.values()
+    }
+
+    pub fn column<T: 'static>(&self, registry: &str) -> Option<&[T]> {
+        self.column_any(registry)?
+            .downcast_ref::<Vec<T>>()
+            .map(Vec::as_slice)
+    }
+
+    pub fn pack_of(&self, registry: &str, id: usize) -> Option<&str> {
+        let pack = *self.values.origins.get(registry)?.get(id)?;
+        self.values.packs.get(pack as usize).map(|name| &**name)
+    }
+
+    pub(crate) fn column_any(&self, registry: &str) -> Option<&Column> {
+        self.values.columns.get(registry)
     }
 
     pub fn scope<T>(&self, run: impl FnOnce() -> T) -> T {

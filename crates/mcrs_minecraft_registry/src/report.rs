@@ -10,9 +10,11 @@ use std::sync::Arc;
 
 const ROOT: ResourceLocation<&'static str> = rl!("minecraft:root");
 
+type Key = (ResourceLocation<Arc<str>>, Option<String>, Option<String>);
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LoadReport {
-    misses: BTreeMap<(ResourceLocation<Arc<str>>, String), String>,
+    errors: BTreeMap<Key, Vec<String>>,
 }
 
 impl LoadReport {
@@ -20,14 +22,48 @@ impl LoadReport {
         Self::default()
     }
 
+    fn record(
+        &mut self,
+        registry: &ResourceLocation<Arc<str>>,
+        entry: Option<&str>,
+        file: Option<&str>,
+        message: String,
+    ) {
+        let key = (
+            registry.clone(),
+            entry.map(str::to_owned),
+            file.map(str::to_owned),
+        );
+        let messages = self.errors.entry(key).or_default();
+        if !messages.contains(&message) {
+            messages.push(message);
+        }
+    }
+
+    pub(crate) fn entry(
+        &mut self,
+        registry: &ResourceLocation<Arc<str>>,
+        entry: &str,
+        file: &str,
+        message: impl fmt::Display,
+    ) {
+        self.record(registry, Some(entry), Some(file), message.to_string());
+    }
+
+    pub(crate) fn whole_registry(
+        &mut self,
+        registry: &ResourceLocation<Arc<str>>,
+        directory: &str,
+        message: impl fmt::Display,
+    ) {
+        self.record(registry, None, Some(directory), message.to_string());
+    }
+
     pub fn require<R: RegistryKey>(&mut self, registry: &Registry<R>, name: &str) -> Option<Id<R>> {
         match registry.require(name) {
             Ok(id) => Some(id),
             Err(error) => {
-                self.misses.insert(
-                    (error.registry.clone(), error.name.clone()),
-                    error.to_string(),
-                );
+                self.record(&error.registry, Some(&error.name), None, error.to_string());
                 None
             }
         }
@@ -36,8 +72,10 @@ impl LoadReport {
     pub fn registry<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Registry<R>> {
         let registry = set.registry::<R>();
         if registry.is_none() {
-            self.misses.insert(
-                (ROOT.into(), R::KEY.as_str().to_owned()),
+            self.record(
+                &ROOT.into(),
+                Some(R::KEY.as_str()),
+                None,
                 format!("registry {} is absent from the registries report", R::KEY),
             );
         }
@@ -45,22 +83,42 @@ impl LoadReport {
     }
 
     pub fn invalid_report(&mut self, error: impl fmt::Display) {
-        self.misses
-            .insert((ROOT.into(), "registries".to_owned()), error.to_string());
+        self.record(&ROOT.into(), Some("registries"), None, error.to_string());
     }
 
     pub fn is_empty(&self) -> bool {
-        self.misses.is_empty()
+        self.errors.is_empty()
     }
 }
 
 impl fmt::Display for LoadReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (position, ((registry, name), message)) in self.misses.iter().enumerate() {
-            if position > 0 {
-                writeln!(f)?;
+        let mut separator = "";
+        if self.errors.keys().any(|(_, _, file)| file.is_some()) {
+            let errors: usize = self.errors.values().map(Vec::len).sum();
+            let mut registries: Vec<_> =
+                self.errors.keys().map(|(registry, ..)| registry).collect();
+            registries.dedup();
+            write!(
+                f,
+                "registry load failed: {errors} errors in {} registries",
+                registries.len()
+            )?;
+            separator = "\n";
+        }
+        for ((registry, entry, file), messages) in &self.errors {
+            for message in messages {
+                f.write_str(separator)?;
+                separator = "\n";
+                write!(f, "{registry}")?;
+                if let Some(entry) = entry {
+                    write!(f, "/{entry}")?;
+                }
+                if let Some(file) = file {
+                    write!(f, " ({file})")?;
+                }
+                write!(f, ": {message}")?;
             }
-            write!(f, "{registry}/{name}: {message}")?;
         }
         Ok(())
     }

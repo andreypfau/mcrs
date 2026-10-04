@@ -72,4 +72,8 @@ impl NameTable {
     pub fn names(&self) -> &[ResourceLocation<Arc<str>>] {
         &self.names
     }
+
+    pub fn tags(&self) -> impl Iterator<Item = &ResourceLocation<Arc<str>>> {
+        self.tags.iter()
+    }
 }
