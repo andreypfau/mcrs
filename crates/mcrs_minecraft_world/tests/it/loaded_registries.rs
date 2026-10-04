@@ -128,6 +128,27 @@ fn the_banner_pattern_column_follows_the_name_table() {
 }
 
 #[test]
+fn a_local_entry_comes_from_its_pack() {
+    let set = test_registries();
+    for (registry, name, pack) in [
+        ("minecraft:dimension_type", "minecraft:beta", "beta"),
+        ("minecraft:dimension_type", "minecraft:overworld", "vanilla"),
+        ("minecraft:worldgen/world_preset", "minecraft:beta", "beta"),
+        (
+            "minecraft:worldgen/world_preset",
+            "minecraft:normal",
+            "vanilla",
+        ),
+    ] {
+        let id = set
+            .table(registry)
+            .and_then(|table| table.number(name))
+            .unwrap_or_else(|| panic!("{registry} has no {name}"));
+        assert_eq!(set.pack_of(registry, id as usize), Some(pack), "{name}");
+    }
+}
+
+#[test]
 fn packs_follow_vanilla_in_name_order() {
     let pattern =
         |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);

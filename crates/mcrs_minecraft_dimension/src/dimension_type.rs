@@ -279,19 +279,32 @@ mod tests {
     use serde_json::Value;
     use std::path::PathBuf;
 
-    fn dimension_type_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    fn dimension_type_dirs() -> Vec<PathBuf> {
+        let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .parent()
             .unwrap()
-            .join("assets/minecraft/dimension_type")
+            .join("assets");
+        let mut dirs = vec![assets.join("minecraft/dimension_type")];
+        for pack in std::fs::read_dir(assets.join(mcrs_minecraft_assets::packs::PACKS_ROOT))
+            .into_iter()
+            .flatten()
+        {
+            let dir = pack.unwrap().path().join("minecraft/dimension_type");
+            if dir.is_dir() {
+                dirs.push(dir);
+            }
+        }
+        dirs
     }
 
     #[test]
     fn every_dimension_type_parses_through_the_registry() {
         let mut count = 0;
-        for entry in std::fs::read_dir(dimension_type_dir()).expect("dimension_type dir") {
+        for entry in dimension_type_dirs().into_iter().flat_map(|dir| {
+            std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        }) {
             let path = entry.unwrap().path();
             if path.extension().and_then(|s| s.to_str()) != Some("json") {
                 continue;
