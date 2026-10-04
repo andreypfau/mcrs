@@ -115,18 +115,7 @@ impl Plugin for MinecraftWorldPlugin {
 
         app.init_resource::<mcrs_minecraft_assets::RegistryAccess>();
 
-        {
-            use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-            use mcrs_minecraft_registry::key::Block;
-            use mcrs_minecraft_registry::shared::share;
-            let world = app.world_mut();
-            share::<mcrs_minecraft_assets::RegistryAccess>(world);
-            share::<mcrs_minecraft_block::definition::Blocks>(world);
-            share::<mcrs_minecraft_item::Items>(world);
-            share::<DynTagRegistry<Block>>(world);
-            share::<DynTagRegistry<mcrs_minecraft_item::Item>>(world);
-            share::<mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_biome::Biome>>(world);
-        }
+        registries::share_registries(app.world_mut());
 
         mcrs_minecraft_assets::snapshot_registry!(
             app,
@@ -279,16 +268,6 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);
-            mcrs_minecraft_registry::shared::share::<
-                mcrs_minecraft_registry::Registry<EnchantmentData>,
-            >(app.world_mut());
-            mcrs_minecraft_registry::shared::share::<
-                mcrs_minecraft_registry::Entries<EnchantmentData, EnchantmentData>,
-            >(app.world_mut());
-            mcrs_minecraft_registry::shared::share::<mcrs_minecraft_registry::RegistrySet>(
-                app.world_mut(),
-            );
-            mcrs_minecraft_registry::shared::share::<entity::minecraft::EntityIds>(app.world_mut());
             (block_registry, item_registry)
         };
         {

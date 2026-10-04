@@ -658,10 +658,11 @@ mod sky_regression {
     use mcrs_minecraft_dimension::environment::{DimensionEnvironment, EnvironmentAttributes};
     use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
     use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock};
+    use mcrs_minecraft_environment::world_clock::ClockState;
 
     use super::reference::*;
     use super::*;
+    use crate::sky_state::TEST_CLOCKS as CLOCKS;
 
     #[derive(serde::Deserialize)]
     struct Dimension {
@@ -672,11 +673,6 @@ mod sky_regression {
         #[serde(default)]
         attributes: EnvironmentAttributeMap,
     }
-
-    static CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
-        std::sync::LazyLock::new(|| {
-            mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
-        });
 
     fn read<T: serde::de::DeserializeOwned>(relative: &str) -> T {
         CLOCKS.scope(|| read_unscoped(relative))

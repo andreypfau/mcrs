@@ -19,3 +19,4 @@ tracing.workspace = true
 [features]
 default = []
 bevy = ["dep:bevy_ecs", "mcrs_minecraft_core/bevy"]
+test-support = []

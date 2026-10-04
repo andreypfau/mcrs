@@ -13,21 +13,30 @@ use crate::villager_trade::{TradeSet, VillagerTrade};
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
+use bevy_ecs::world::World;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
-use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
+use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::{
+    PackSource, RegistryAccess, RegistryEntry, RegistrySnapshot, RegistrySnapshotErased,
+};
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
-    BannerPattern, InstrumentValue, Item, JukeboxSong, PaintingVariantValue, SoundEvent,
+    BannerPattern, InstrumentValue, Item, Items, JukeboxSong, PaintingVariantValue, SoundEvent,
     TrimMaterial, TrimPattern,
 };
 use mcrs_minecraft_registry::key::{self, Block};
+use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
+use mcrs_minecraft_registry::{
+    Entries, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
@@ -318,6 +327,19 @@ pub fn test_registries() -> &'static RegistrySet {
         load_registries(&asset_server, statics).unwrap_or_else(|report| refuse(&report))
     });
     &SET
+}
+
+pub fn share_registries(world: &mut World) {
+    share::<RegistrySet>(world);
+    share::<EntityIds>(world);
+    share::<RegistryAccess>(world);
+    share::<Blocks>(world);
+    share::<Items>(world);
+    share::<Registry<EnchantmentData>>(world);
+    share::<Entries<EnchantmentData, EnchantmentData>>(world);
+    share::<DynTagRegistry<Block>>(world);
+    share::<DynTagRegistry<Item>>(world);
+    share::<RegistrySnapshot<Biome>>(world);
 }
 
 pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {

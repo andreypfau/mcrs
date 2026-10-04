@@ -860,7 +860,7 @@ mod tests {
         app.add_message::<SectionStageChanged>();
         app.insert_resource(ctx.clone());
         app.insert_resource(mcrs_minecraft_item::Items(Arc::default()));
-        app.insert_resource(crate::world::entity::report_registries().1);
+        app.insert_resource(crate::world::entity::report_registries().1.clone());
         app.init_resource::<PendingColumnHeightmaps>();
         app.insert_resource(ColumnScheduler {
             config: SchedulerConfig {

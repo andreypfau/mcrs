@@ -1,33 +1,32 @@
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{
-    BlockDefinitions, CORPUS_DIRECTORY, LoadError, LoadReport, load_block_definitions,
+    BlockDefinitions, CORPUS_DIRECTORY, load_block_definitions,
 };
-use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::static_report::shipped_report;
 use serde::de::DeserializeOwned;
 
-pub fn report_blocks() -> Registry<Block> {
-    let path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json");
-    from_report(&std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())))
-        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-        .registry::<Block>()
-        .expect("the registries report has no block registry")
-}
-
-pub fn load_corpus(blocks: &Registry<Block>) -> Result<(BlockDefinitions, LoadReport), LoadError> {
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
+pub fn corpus() -> &'static BlockDefinitions {
+    static CORPUS: LazyLock<BlockDefinitions> = LazyLock::new(|| {
+        let mut app = App::new();
+        app.add_plugins(TaskPoolPlugin::default());
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        });
+        let asset_server = app.world().resource::<AssetServer>().clone();
+        let blocks = shipped_report()
+            .registry::<Block>()
+            .expect("the registries report has blocks");
+        load_block_definitions(&asset_server, &blocks)
+            .expect("the corpus loads")
+            .0
     });
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    load_block_definitions(&asset_server, blocks)
+    &CORPUS
 }
 
 pub fn definition_files<T: DeserializeOwned>() -> Vec<(PathBuf, T)> {

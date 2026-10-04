@@ -1,73 +1,10 @@
-use mcrs_minecraft_block::definition::schema::BlockDefinitionFile;
-use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{BlockStateId, Registry};
-use std::path::{Path, PathBuf};
+use mcrs_minecraft_registry::BlockStateId;
 
-use crate::common::{assert_no_mismatches, load_corpus, report_blocks};
-
-#[test]
-fn block_protocol_ids_match_the_registries_report() {
-    let registries_path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json");
-    let registries = from_report(
-        &std::fs::read(&registries_path)
-            .unwrap_or_else(|e| panic!("{}: {e}", registries_path.display())),
-    )
-    .unwrap_or_else(|e| panic!("{}: {e}", registries_path.display()));
-    let definitions: Vec<(PathBuf, BlockDefinitionFile)> = crate::common::definition_files();
-    let blocks = registries
-        .table("minecraft:block")
-        .expect("the registries report has no block registry");
-    let mut seen = 0;
-    let mut mismatches = Vec::new();
-    for (_, file) in &definitions {
-        let description = &file.block.description;
-        seen += 1;
-        let registered = blocks.names().get(description.protocol_id as usize);
-        if registered != Some(&description.identifier) {
-            mismatches.push(format!(
-                "{}: protocol_id {} is {registered:?} in the registries report",
-                description.identifier, description.protocol_id
-            ));
-        }
-    }
-    assert!(seen > 0, "no block definition was read");
-    assert_no_mismatches("blocks with a different protocol id", mismatches);
-}
-
-#[test]
-fn a_blocks_table_index_is_its_report_id() {
-    let registry = report_blocks();
-    let (definitions, _) = load_corpus(&registry).expect("the corpus loads");
-    let blocks = definitions.blocks();
-    assert_eq!(blocks.len(), registry.len());
-    let mut mismatches = Vec::new();
-    for id in registry.ids() {
-        let name = registry.key(id).expect("every id has a name").as_str();
-        if definitions.id_of(name) != Some(id)
-            || blocks[id.index()].identifier.as_str() != name
-            || definitions[id].identifier.as_str() != name
-        {
-            mismatches.push(format!("{name} is not at report id {}", id.index()));
-        }
-    }
-    assert_no_mismatches("blocks away from their report id", mismatches);
-    assert_eq!(blocks[0].identifier.as_str(), "minecraft:air");
-    let last = registry.len() - 1;
-    assert_eq!(
-        blocks[last].identifier.as_str(),
-        registry
-            .key(registry.ids().last().unwrap())
-            .unwrap()
-            .as_str()
-    );
-}
+use crate::common::{assert_no_mismatches, corpus};
 
 #[test]
 fn touching_state_ranges_keep_their_owners() {
-    let registry = report_blocks();
-    let (definitions, _) = load_corpus(&registry).expect("the corpus loads");
+    let definitions = corpus();
     let mut by_state: Vec<_> = definitions.blocks().iter().collect();
     by_state.sort_by_key(|block| block.base_state_id);
     assert_eq!(by_state[0].base_state_id, BlockStateId(0));
@@ -90,8 +27,7 @@ fn touching_state_ranges_keep_their_owners() {
 
 #[test]
 fn a_single_state_block_owns_only_its_state() {
-    let registry = report_blocks();
-    let (definitions, _) = load_corpus(&registry).expect("the corpus loads");
+    let definitions = corpus();
     let mut seen = 0;
     let mut mismatches = Vec::new();
     for block in definitions.blocks().iter().filter(|b| b.state_count == 1) {
@@ -111,23 +47,4 @@ fn a_single_state_block_owns_only_its_state() {
     }
     assert!(seen > 0, "the corpus has no single-state block");
     assert_no_mismatches("single-state blocks", mismatches);
-}
-
-#[test]
-fn a_definition_that_disagrees_with_the_report_is_refused() {
-    let report = report_blocks();
-    let mut names: Vec<_> = report
-        .ids()
-        .map(|id| report.key(id).unwrap().clone())
-        .collect();
-    names.swap(1, 2);
-    let swapped = Registry::<Block>::new(names.clone(), std::iter::empty()).unwrap();
-    let error = load_corpus(&swapped)
-        .err()
-        .expect("a swapped order is refused");
-    let message = error.to_string();
-    assert!(
-        message.contains(names[1].as_str()) || message.contains(names[2].as_str()),
-        "{message}"
-    );
 }

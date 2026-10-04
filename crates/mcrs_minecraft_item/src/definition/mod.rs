@@ -190,24 +190,6 @@ mod tests {
     }
 
     #[test]
-    fn ids_follow_the_order_of_the_entries() {
-        let table = ItemDefinitions::from_entries(
-            &registry(&["stone", "apple", "dirt"]),
-            vec![entry("stone"), entry("apple"), entry("dirt")],
-        )
-        .unwrap();
-        assert_eq!(table.id_of("minecraft:stone"), Some(ItemId(0)));
-        assert_eq!(table.id_of("minecraft:apple"), Some(ItemId(1)));
-        assert_eq!(table.id_of("minecraft:dirt"), Some(ItemId(2)));
-        let ids: Vec<_> = table.iter().map(|entry| entry.id).collect();
-        assert_eq!(ids, [ItemId(0), ItemId(1), ItemId(2)]);
-        assert_eq!(
-            table.get(ItemId(1)).unwrap().identifier.as_str(),
-            "minecraft:apple"
-        );
-    }
-
-    #[test]
     fn entries_sit_at_their_report_id_whatever_their_order() {
         let table = ItemDefinitions::from_entries(
             &registry(&["stone", "apple", "dirt"]),
@@ -221,6 +203,13 @@ mod tests {
         );
         let ids: Vec<_> = table.iter().map(|entry| entry.id).collect();
         assert_eq!(ids, [ItemId(0), ItemId(1), ItemId(2)]);
+        assert_eq!(table.id_of("minecraft:stone"), Some(ItemId(0)));
+        assert_eq!(table.id_of("minecraft:apple"), Some(ItemId(1)));
+        assert_eq!(table.id_of("minecraft:dirt"), Some(ItemId(2)));
+        assert_eq!(
+            table.get(ItemId(1)).unwrap().identifier.as_str(),
+            "minecraft:apple"
+        );
     }
 
     #[test]

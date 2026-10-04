@@ -30,4 +30,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true

@@ -193,43 +193,11 @@ impl Pack {
     /// system: a test has none to read them through.
     pub fn corpus() -> &'static Pack {
         static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| {
-            let corpus = crate::asset_corpus();
             let mut files: HashMap<String, Vec<u8>> =
                 vanilla::resource_files().iter().cloned().collect();
-            let mut roots = vec![corpus.clone()];
-            let reader = bevy::asset::io::file::FileAssetReader::new(&corpus);
-            roots.extend(
-                bevy::tasks::block_on(pack_names(&reader))
-                    .into_iter()
-                    .map(|name| corpus.join(PACKS_ROOT).join(name)),
-            );
-            for root in roots {
-                let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
-                    .expect("the corpus is next to the workspace")
-                    .filter_map(|entry| entry.ok())
-                    .flat_map(|namespace| {
-                        DATA_FOLDERS
-                            .iter()
-                            .map(move |folder| namespace.path().join(folder))
-                    })
-                    .collect();
-                while let Some(directory) = pending.pop() {
-                    let Ok(entries) = std::fs::read_dir(&directory) else {
-                        continue;
-                    };
-                    for entry in entries.filter_map(|entry| entry.ok()) {
-                        let path = entry.path();
-                        if path.is_dir() {
-                            pending.push(path);
-                            continue;
-                        }
-                        let relative = path.strip_prefix(&root).expect("walked from the root");
-                        let bytes = std::fs::read(&path).expect("the corpus is readable");
-                        insert_once(&mut files, relative.to_string_lossy().into_owned(), bytes)
-                            .unwrap_or_else(|error| panic!("{error}"));
-                    }
-                }
-            }
+            let reader = bevy::asset::io::file::FileAssetReader::new(crate::asset_corpus());
+            bevy::tasks::block_on(Pack::read_source(&reader, &DATA_FOLDERS, true, &mut files))
+                .unwrap_or_else(|error| panic!("{error}"));
             add_built_in(&mut files);
             Pack { files }
         });

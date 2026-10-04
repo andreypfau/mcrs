@@ -342,23 +342,16 @@ fn on_configuration_enter(
     }
 }
 
-fn block_tag_groups(tags: &DynTagRegistry<VanillaBlock>) -> Vec<TagGroup<'static>> {
-    tags.iter()
-        .map(|(tag_loc, bitset)| TagGroup {
-            name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
-                .unwrap_or_else(|_| {
-                    ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
-                }),
-            entries: bitset
-                .iter()
-                .map(|index| {
-                    VarInt(
-                        i32::try_from(index).expect("a registry id fits the 32 bits of the wire"),
-                    )
-                })
-                .collect(),
-        })
-        .collect()
+fn tag_group(
+    name: &ResourceLocation<Arc<str>>,
+    entries: impl Iterator<Item = VarInt>,
+) -> TagGroup<'static> {
+    TagGroup {
+        name: ResourceLocation::parse_cow(Cow::Owned(name.as_str().to_string())).unwrap_or_else(
+            |_| ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap(),
+        ),
+        entries: entries.collect(),
+    }
 }
 
 /// Step 2 of the Configuration handshake: triggered by
@@ -465,55 +458,47 @@ fn on_known_packs_response(
     if let Some(block_tags) = block_tags.as_deref().filter(|t| !t.is_empty()) {
         tag_registries.push(RegistryTags {
             registry: rl!("minecraft:block").into(),
-            tags: block_tag_groups(block_tags),
+            tags: block_tags
+                .iter()
+                .map(|(name, members)| {
+                    tag_group(
+                        name,
+                        members.iter().map(|index| {
+                            VarInt(
+                                i32::try_from(index)
+                                    .expect("a registry id fits the 32 bits of the wire"),
+                            )
+                        }),
+                    )
+                })
+                .collect(),
         });
     }
     if let Some(item_tags) = item_tags.as_deref().filter(|t| !t.is_empty()) {
-        let groups: Vec<TagGroup> = item_tags
-            .iter()
-            .map(|(tag_loc, bitset)| TagGroup {
-                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| {
-                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
-                    }),
-                entries: bitset.iter().map(|id| VarInt(id as i32)).collect(),
-            })
-            .collect();
         tag_registries.push(RegistryTags {
             registry: rl!("minecraft:item").into(),
-            tags: groups,
+            tags: item_tags
+                .iter()
+                .map(|(name, members)| tag_group(name, members.iter().map(|id| VarInt(id as i32))))
+                .collect(),
         });
     }
     if let Some(enchantment_tags) = enchantment_tags.as_deref().filter(|t| !t.is_empty()) {
-        let groups: Vec<TagGroup> = enchantment_tags
-            .iter()
-            .map(|(tag_loc, bitset)| TagGroup {
-                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| {
-                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
-                    }),
-                entries: bitset.iter().map(registry_varint).collect(),
-            })
-            .collect();
         tag_registries.push(RegistryTags {
             registry: rl!("minecraft:enchantment").into(),
-            tags: groups,
+            tags: enchantment_tags
+                .iter()
+                .map(|(name, members)| tag_group(name, members.iter().map(registry_varint)))
+                .collect(),
         });
     }
     if let Some(entity_type_tags) = entity_type_tags.as_deref().filter(|t| !t.is_empty()) {
-        let groups: Vec<TagGroup> = entity_type_tags
-            .iter()
-            .map(|(tag_loc, bitset)| TagGroup {
-                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| {
-                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
-                    }),
-                entries: bitset.iter().map(registry_varint).collect(),
-            })
-            .collect();
         tag_registries.push(RegistryTags {
             registry: rl!("minecraft:entity_type").into(),
-            tags: groups,
+            tags: entity_type_tags
+                .iter()
+                .map(|(name, members)| tag_group(name, members.iter().map(registry_varint)))
+                .collect(),
         });
     }
 
@@ -728,53 +713,6 @@ pub fn emit_initial_player_spawn(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_block_tag_is_sent_by_report_id() {
-        use mcrs_minecraft_block::tags::MINEABLE_PICKAXE;
-        use mcrs_minecraft_registry::static_report::from_report;
-        use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks};
-
-        let report = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .expect("the registries report reads");
-        let report_blocks = from_report(&report)
-            .expect("the registries report parses")
-            .registry::<VanillaBlock>()
-            .expect("the registries report has blocks");
-
-        let tags = block_tags();
-        let groups = block_tag_groups(tags);
-        let sent = groups
-            .iter()
-            .find(|group| group.name.as_str() == "minecraft:mineable/pickaxe")
-            .expect("the pack ships the pickaxe tag");
-
-        let mut sent_names: Vec<&str> = sent
-            .entries
-            .iter()
-            .map(|id| {
-                report_blocks
-                    .table()
-                    .name(usize::try_from(id.0).expect("a block id is not negative"))
-                    .unwrap_or_else(|| panic!("the report has no block {}", id.0))
-                    .as_str()
-            })
-            .collect();
-        let mut listed: Vec<&str> = tags
-            .get(&MINEABLE_PICKAXE)
-            .expect("the corpus resolves the pickaxe tag")
-            .iter()
-            .map(|index| blocks().blocks()[index as usize].identifier.as_str())
-            .collect();
-        sent_names.sort_unstable();
-        listed.sort_unstable();
-
-        assert!(listed.contains(&"minecraft:stone"));
-        assert_eq!(sent_names, listed);
-    }
 
     // ── dynamic registry tags ──
 

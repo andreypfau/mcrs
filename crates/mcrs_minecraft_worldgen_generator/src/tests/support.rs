@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, load_block_definitions};
-use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::static_report::shipped_report;
 
 /// The corpus, loaded once per process. Worldgen resolves every block it
 /// places against it, so a stub would fail at the first lookup.
@@ -25,13 +25,7 @@ pub fn blocks() -> &'static Blocks {
             ..Default::default()
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
-        let report = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .expect("the registries report reads");
-        let blocks = from_report(&report)
-            .expect("the registries report parses")
+        let blocks = shipped_report()
             .registry::<Block>()
             .expect("the registries report has blocks");
         Blocks(std::sync::Arc::new(

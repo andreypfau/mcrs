@@ -3,7 +3,7 @@ use mcrs_minecraft_protocol::item::{
     ComponentPredicateType, ItemComponentKind, ItemComponentValue, hash_ops,
 };
 use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::static_report::shipped_report;
 use serde::Deserialize;
 
 use crate::item::harness::{TestLookup, decode, from_json, hex, json_value, wire};
@@ -310,10 +310,7 @@ fn predicate_order_does_not_affect_equality() {
 
 #[test]
 fn predicate_type_ids_are_the_registry_protocol_ids() {
-    let report = from_report(include_bytes!(
-        "../../../../../assets/mcrs/reports/registries.json"
-    ))
-    .unwrap();
+    let report = shipped_report();
     let entries = report
         .table("minecraft:data_component_predicate_type")
         .unwrap();

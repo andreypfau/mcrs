@@ -77,7 +77,7 @@ mod tests {
     use bevy_app::TaskPoolPlugin;
     use bevy_asset::{AssetPlugin, AssetServer};
     use mcrs_minecraft_registry::key::Block;
-    use mcrs_minecraft_registry::static_report::from_report;
+    use mcrs_minecraft_registry::static_report::shipped_report;
 
     fn corpus() -> &'static Blocks {
         static CORPUS: OnceLock<Blocks> = OnceLock::new();
@@ -89,13 +89,7 @@ mod tests {
                 ..Default::default()
             });
             let asset_server = app.world().resource::<AssetServer>().clone();
-            let report = std::fs::read(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../assets/mcrs/reports/registries.json"
-            ))
-            .expect("the registries report reads");
-            let blocks = from_report(&report)
-                .expect("the registries report parses")
+            let blocks = shipped_report()
                 .registry::<Block>()
                 .expect("the registries report has blocks");
             let (definitions, _) = load_block_definitions(&asset_server, &blocks)

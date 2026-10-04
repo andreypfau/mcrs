@@ -167,7 +167,7 @@ fn collect(blocks: &Blocks, name: &str, into: &mut HashSet<u32>) {
         if entry.id.is_tag {
             collect(blocks, entry.id.loc.as_str(), into);
         } else if let Some(id) = blocks.id_of(entry.id.loc.as_str()) {
-            into.insert(id.index() as u32);
+            into.insert(id.number());
         }
     }
 }

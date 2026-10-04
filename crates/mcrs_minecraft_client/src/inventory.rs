@@ -23,8 +23,6 @@ use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 use crate::player::{self, Player};
 
-pub const REGISTRY_REPORT: &str = "mcrs/reports/registries.json";
-
 /// The server's state id for the holder's menu, echoed back on every click.
 #[derive(Component, Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContainerSeqno(pub u32);
