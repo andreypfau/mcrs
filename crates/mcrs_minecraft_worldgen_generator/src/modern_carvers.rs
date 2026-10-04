@@ -13,17 +13,21 @@ use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
-use mcrs_minecraft_worldgen_carver::canyon::carve_canyon;
+use mcrs_minecraft_worldgen_carver::canyon::{carve_canyon, carve_canyon_into};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
-use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves, is_start_chunk};
+use mcrs_minecraft_worldgen_carver::modern::{
+    SOURCE_RADIUS, carve_caves, carve_caves_into, is_start_chunk,
+};
+use mcrs_minecraft_worldgen_carver::target::Region;
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseRouter, TEMPERATURE, VEGETATION};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::ops::Deref;
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// The six climate roots at one quart position, which is where a carver source
 /// takes its biome from.
@@ -58,6 +62,12 @@ pub struct CarverBiomeTable {
     /// columns next to it would derive 272 of the same climates again; the
     /// reference memoises the answer on the source chunk itself.
     tiles: Mutex<SourceTiles>,
+    /// Columns per side of the regions the carvers walk at once.
+    width: i32,
+    /// The masks of the regions built so far. Absent when a region is one
+    /// column, which no other column shares, and for a Beta source, which
+    /// carves from each column's own terrain.
+    regions: Option<RegionCache>,
 }
 
 /// How a source chunk's biome is found, and the carvers each answer runs.
@@ -151,6 +161,135 @@ impl SourceTiles {
     }
 }
 
+/// Columns per side of a production region. The cache holds at most
+/// `REGION_CAPACITY` regions of `REGION_WIDTH`^2 column masks, which is
+/// `REGION_CAPACITY * REGION_WIDTH^2 * 12,032` bytes in the overworld; a build
+/// walks (`REGION_WIDTH` + 16)^2 sources against the 289 every column walks
+/// alone.
+// chisle: 1 is one column per region, built for its asker and not kept, which
+// is carving per column through the region path. Both values are provisional;
+// the width stops at `Region::MAX_WIDTH`, where the live set outgrows 64 bits.
+pub const REGION_WIDTH: i32 = 1;
+
+pub const REGION_CAPACITY: usize = 0;
+
+/// What a region's masks depend on besides the carvers of the table that holds
+/// them: the seed the carver draws start from, the seed of the climate that
+/// picks the carvers, the vertical range the carvers and the mask are resolved
+/// against, and where the region is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RegionKey {
+    world_seed: i64,
+    router_seed: u64,
+    min_y: i32,
+    depth: i32,
+    sea_level: i32,
+    x: i32,
+    z: i32,
+}
+
+type RegionCell = OnceLock<Arc<[CarvingMask]>>;
+
+/// The regions built most recently, at most `capacity` of them, each built once
+/// by whichever column asks first.
+///
+/// The list lock covers finding or inserting a cell and nothing else: the
+/// build runs inside the cell, outside the lock, so a second asker of the same
+/// region waits for the first and askers of other regions are not held up. A
+/// region replaced while it is being built is built again by its next asker;
+/// both are the same function of the key.
+struct RegionCache {
+    capacity: usize,
+    list: Mutex<RegionList>,
+    #[cfg(test)]
+    builds: std::sync::atomic::AtomicUsize,
+}
+
+#[derive(Default)]
+struct RegionList {
+    entries: Vec<(RegionKey, u64, Arc<RegionCell>)>,
+    clock: u64,
+}
+
+impl RegionCache {
+    fn new(capacity: usize) -> Self {
+        RegionCache {
+            capacity,
+            list: Mutex::default(),
+            #[cfg(test)]
+            builds: Default::default(),
+        }
+    }
+
+    fn get_or_build(
+        &self,
+        key: RegionKey,
+        build: impl FnOnce() -> Arc<[CarvingMask]>,
+    ) -> Arc<[CarvingMask]> {
+        let cell = self
+            .list
+            .lock()
+            .expect("carver regions")
+            .cell(key, self.capacity);
+        cell.get_or_init(|| {
+            #[cfg(test)]
+            self.builds
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            build()
+        })
+        .clone()
+    }
+}
+
+impl RegionList {
+    fn cell(&mut self, key: RegionKey, capacity: usize) -> Arc<RegionCell> {
+        self.clock += 1;
+        // chisle: a linear scan, which holds while the capacity is tens of
+        // entries; past a few hundred it wants a map keyed by `RegionKey`.
+        if let Some((_, used, cell)) = self.entries.iter_mut().find(|(at, ..)| *at == key) {
+            *used = self.clock;
+            return cell.clone();
+        }
+        let entry = (key, self.clock, Arc::<RegionCell>::default());
+        let cell = entry.2.clone();
+        if self.entries.len() < capacity {
+            self.entries.push(entry);
+        } else {
+            let stale = self
+                .entries
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, (_, used, _))| *used)
+                .map(|(index, _)| index)
+                .expect("a full cache has entries");
+            self.entries[stale] = entry;
+        }
+        cell
+    }
+}
+
+/// One column's mask: its slot of the region it was carved in.
+pub struct RegionSlot {
+    region: Arc<[CarvingMask]>,
+    slot: usize,
+}
+
+impl Deref for RegionSlot {
+    type Target = CarvingMask;
+
+    #[inline]
+    fn deref(&self) -> &CarvingMask {
+        &self.region[self.slot]
+    }
+}
+
+#[cfg(test)]
+impl RegionSlot {
+    pub fn same_region_as(&self, other: &RegionSlot) -> bool {
+        Arc::ptr_eq(&self.region, &other.region)
+    }
+}
+
 impl CarverBiomeTable {
     pub fn entry_count(&self) -> usize {
         self.biomes.lists().count()
@@ -174,10 +313,10 @@ impl CarverBiomeTable {
             "minecraft:nether" => nether_parameter_list(),
             _ => return None,
         };
-        Some(CarverBiomeTable {
-            biomes: SourceBiomes::Climate(Self::map_values(named, lookup)),
-            tiles: Mutex::default(),
-        })
+        Some(
+            Self::with_biomes(SourceBiomes::Climate(Self::map_values(named, lookup)))
+                .with_region(REGION_WIDTH, REGION_CAPACITY),
+        )
     }
 
     /// A source that lists its biomes rather than naming a preset.
@@ -199,10 +338,10 @@ impl CarverBiomeTable {
                 (point, carvers)
             })
             .collect();
-        Some(CarverBiomeTable {
-            biomes: SourceBiomes::Climate(ParameterList::new(values)),
-            tiles: Mutex::default(),
-        })
+        Some(
+            Self::with_biomes(SourceBiomes::Climate(ParameterList::new(values)))
+                .with_region(REGION_WIDTH, REGION_CAPACITY),
+        )
     }
 
     /// A Beta source, whose biome is a function of temperature and humidity
@@ -219,15 +358,49 @@ impl CarverBiomeTable {
         else {
             return None;
         };
-        Some(CarverBiomeTable {
-            biomes: SourceBiomes::Beta {
-                lookup: grid.clone(),
-                land: land_biome_ids
-                    .iter()
-                    .map(|id| lookup(id.as_str()))
-                    .collect(),
-            },
+        Some(Self::with_biomes(SourceBiomes::Beta {
+            lookup: grid.clone(),
+            land: land_biome_ids
+                .iter()
+                .map(|id| lookup(id.as_str()))
+                .collect(),
+        }))
+    }
+
+    fn with_biomes(biomes: SourceBiomes) -> CarverBiomeTable {
+        CarverBiomeTable {
+            biomes,
             tiles: Mutex::default(),
+            width: 1,
+            regions: None,
+        }
+    }
+
+    /// The table carving `width` x `width` columns per region, keeping up to
+    /// `capacity` regions.
+    pub fn with_region(mut self, width: i32, capacity: usize) -> Self {
+        assert!(
+            matches!(self.biomes, SourceBiomes::Climate(_)),
+            "a Beta table carves one column at a time"
+        );
+        assert!(
+            (1..=Region::MAX_WIDTH).contains(&width),
+            "a region is at most {} columns wide, not {width}",
+            Region::MAX_WIDTH
+        );
+        assert!(
+            width == 1 || capacity > 0,
+            "a region of several columns needs room to be kept"
+        );
+        self.width = width;
+        self.regions = (width > 1).then(|| RegionCache::new(capacity));
+        self
+    }
+
+    /// The most bytes the kept regions can hold for masks of `height`.
+    pub fn region_bytes_bound(&self, height: HeightContext) -> usize {
+        self.regions.as_ref().map_or(0, |regions| {
+            regions.capacity * (self.width * self.width) as usize * column_mask_bytes(height)
         })
     }
 
@@ -325,6 +498,20 @@ impl CarverBiomeTable {
     }
 
     #[cfg(test)]
+    pub fn region_entries_for_test(&self) -> Option<usize> {
+        self.regions
+            .as_ref()
+            .map(|regions| regions.list.lock().expect("carver regions").entries.len())
+    }
+
+    #[cfg(test)]
+    pub fn region_builds_for_test(&self) -> usize {
+        self.regions.as_ref().map_or(0, |regions| {
+            regions.builds.load(std::sync::atomic::Ordering::Relaxed)
+        })
+    }
+
+    #[cfg(test)]
     pub fn carvers_at_for_test(&self, target: TargetPoint) -> &[CarverConfig] {
         let SourceBiomes::Climate(table) = &self.biomes else {
             panic!("only a climate table answers a climate target");
@@ -389,10 +576,22 @@ const PROTECTED_BLOCKS_ON_TOP: i32 = 7;
 /// The mask one column's carvers mark, between the floor and the top seven
 /// blocks the reference protects.
 pub(crate) fn carving_mask(height: HeightContext) -> CarvingMask {
-    CarvingMask::new(
+    let (bottom, top) = mask_range(height);
+    CarvingMask::new(bottom, top)
+}
+
+fn mask_range(height: HeightContext) -> (i32, i32) {
+    (
         height.min_y + 1,
         height.min_y + height.depth - 1 - PROTECTED_BLOCKS_ON_TOP,
     )
+}
+
+/// The bits one column's mask holds, one per block of the 16 x 16 column,
+/// without the few words of header.
+fn column_mask_bytes(height: HeightContext) -> usize {
+    let (bottom, top) = mask_range(height);
+    (16 * 16 * (top - bottom + 1).max(0) as usize).div_ceil(8)
 }
 
 /// Every carver of every biome that reaches this chunk, marked into one mask.
@@ -461,8 +660,58 @@ pub(crate) fn carve_sources(
     mask
 }
 
-/// Every modern carver of every biome that reaches this chunk, marked into one
-/// mask before any block of the column is decided.
+/// Every modern carver of every source within reach of any column of the
+/// square at `origin`, walked once into the masks of all its columns.
+#[allow(clippy::too_many_arguments)]
+fn carve_region(
+    origin: (i32, i32),
+    width: i32,
+    world_seed: i64,
+    router: &NoiseRouter,
+    ws: &mut Workspace,
+    biomes: &CarverBiomeTable,
+    height: HeightContext,
+) -> Arc<[CarvingMask]> {
+    let mut masks: Arc<[CarvingMask]> = (0..width * width).map(|_| carving_mask(height)).collect();
+    let slots = Arc::get_mut(&mut masks).expect("a region nobody else holds yet");
+    let mut region = Region::new(origin.0, origin.1, width, slots);
+    let mut held = Vec::with_capacity(4);
+
+    for source_x in (origin.0 - SOURCE_RADIUS)..=(origin.0 + width - 1 + SOURCE_RADIUS) {
+        for source_z in (origin.1 - SOURCE_RADIUS)..=(origin.1 + width - 1 + SOURCE_RADIUS) {
+            let carvers = biomes.carvers_of_source(router, ws, source_x, source_z, &mut held);
+            for (index, config) in carvers.iter().enumerate() {
+                let seed = LegacyRandom::large_feature_seed(
+                    world_seed.wrapping_add(index as i64),
+                    source_x,
+                    source_z,
+                );
+                let mut rng = LegacyRandom::new(seed as u64);
+                if !is_start_chunk(config, &mut rng) {
+                    continue;
+                }
+                match config {
+                    CarverConfig::Cave { .. } => {
+                        carve_caves_into(config, height, &mut region, source_x, source_z, &mut rng)
+                    }
+                    CarverConfig::Canyon { .. } => {
+                        carve_canyon_into(config, height, &mut region, source_x, source_z, &mut rng)
+                    }
+                    CarverConfig::BetaCave => {
+                        unreachable!(
+                            "a Beta carver outside a Beta dimension is refused with the tables"
+                        )
+                    }
+                }
+            }
+        }
+    }
+    masks
+}
+
+/// The mask of the carvers of every source that reaches this chunk, which is
+/// its slot of the region the chunk falls in: marked before any block of the
+/// column is decided.
 #[allow(clippy::too_many_arguments)]
 pub fn modern_carving_mask(
     chunk_x: i32,
@@ -472,17 +721,37 @@ pub fn modern_carving_mask(
     ws: &mut Workspace,
     biomes: &CarverBiomeTable,
     height: HeightContext,
-) -> CarvingMask {
-    carve_sources(
-        || unreachable!("a Beta carver outside a Beta dimension is refused with the tables"),
-        chunk_x,
-        chunk_z,
-        world_seed,
-        router,
-        ws,
-        biomes,
-        height,
-    )
+) -> RegionSlot {
+    let width = biomes.width;
+    let (region_x, region_z) = (chunk_x.div_euclid(width), chunk_z.div_euclid(width));
+    let slot = (chunk_x.rem_euclid(width) * width + chunk_z.rem_euclid(width)) as usize;
+    let mut build = || {
+        carve_region(
+            (region_x * width, region_z * width),
+            width,
+            world_seed,
+            router,
+            ws,
+            biomes,
+            height,
+        )
+    };
+    let region = match &biomes.regions {
+        Some(regions) => regions.get_or_build(
+            RegionKey {
+                world_seed,
+                router_seed: router.world_seed,
+                min_y: height.min_y,
+                depth: height.depth,
+                sea_level: height.sea_level,
+                x: region_x,
+                z: region_z,
+            },
+            build,
+        ),
+        None => build(),
+    };
+    RegionSlot { region, slot }
 }
 
 /// What the carvers make of the solid terrain of one column: the mask they

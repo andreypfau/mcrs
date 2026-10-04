@@ -21,6 +21,8 @@ mod biome_upscale;
 #[cfg(test)]
 mod carving_pins;
 #[cfg(test)]
+mod carving_regions;
+#[cfg(test)]
 mod cell_census;
 #[cfg(test)]
 mod cell_fill;
