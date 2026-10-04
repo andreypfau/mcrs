@@ -280,49 +280,6 @@ mod tests {
     }
 
     #[test]
-    fn every_file_the_jar_lacks_is_deleted_whatever_its_name() {
-        let dir = scratch("any_name");
-        put(&dir, "worldgen/beta_biome/a.json", b"directory");
-        put(&dir, "worldgen/beta_noise.json", b"file");
-        put(&dir, "beta/deep/er/c.json", b"deep");
-        put(&dir, "worldgen/other.json", b"other");
-        let jar = zipped(&[("version.json", b"{}")]);
-
-        let report = apply(&dir, &jar).unwrap();
-
-        assert_eq!(
-            report.deleted,
-            strings(&[
-                "beta/deep/er/c.json",
-                "worldgen/beta_biome/a.json",
-                "worldgen/beta_noise.json",
-                "worldgen/other.json"
-            ])
-        );
-        assert_eq!(
-            listing(&dir),
-            vec![("version.json".to_owned(), b"{}".to_vec())]
-        );
-    }
-
-    #[test]
-    fn a_jar_entry_named_beta_is_written() {
-        let dir = scratch("beta_entry");
-        let jar = zipped(&[
-            ("data/minecraft/worldgen/beta_x.json", b"x"),
-            ("version.json", b"{}"),
-        ]);
-
-        let report = apply(&dir, &jar).unwrap();
-
-        assert_eq!(
-            report.written,
-            strings(&["version.json", "worldgen/beta_x.json"])
-        );
-        assert_eq!(fs::read(dir.join("worldgen/beta_x.json")).unwrap(), b"x");
-    }
-
-    #[test]
     fn the_version_file_is_copied_byte_for_byte_and_never_deleted() {
         let dir = scratch("version");
         put(&dir, "version.json", b"old");

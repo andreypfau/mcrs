@@ -20,7 +20,7 @@ macro_rules! text_newtype {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
                 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, STRING_ID};
                 match &self.0.content {
-                    mcrs_minecraft_text::TextContent::Text { .. } if self.0.italic.is_none() => {
+                    mcrs_minecraft_text::TextContent::Text { .. } if self.0.style.italic.is_none() => {
                         vec![("", STRING_ID)]
                     }
                     mcrs_minecraft_text::TextContent::Text { .. } => vec![

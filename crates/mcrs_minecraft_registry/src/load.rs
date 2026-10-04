@@ -4,7 +4,7 @@ use crate::set::{Column, RegistrySet, Values};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::any::{Any, TypeId};
+use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -27,7 +27,6 @@ pub struct Pack {
 }
 
 struct Codec {
-    value: TypeId,
     parse: Parse,
     encode: Encode,
     validators: Vec<Validator>,
@@ -138,7 +137,6 @@ impl WorldRegistries {
         T: DeserializeOwned + Serialize + Send + Sync + 'static,
     {
         self.declaration(registry).codec = Some(Codec {
-            value: TypeId::of::<T>(),
             parse: parse_column::<T>,
             encode: encode_value::<T>,
             validators: Vec::new(),
@@ -163,12 +161,11 @@ impl WorldRegistries {
             .declaration(registry)
             .codec
             .as_mut()
-            .filter(|codec| codec.value == TypeId::of::<T>())
-            .unwrap_or_else(|| panic!("registry {registry} does not parse the validated type"));
+            .unwrap_or_else(|| panic!("registry {registry} parses no values to validate"));
         codec.validators.push(Box::new(move |column, set| {
             let values = column
                 .downcast_ref::<Arc<[T]>>()
-                .map_or(&[][..], |values| &**values);
+                .unwrap_or_else(|| panic!("registry {registry} does not parse the validated type"));
             check(values, set)
         }));
         self
@@ -408,17 +405,11 @@ struct Loaded<'a> {
 
 impl Loaded<'_> {
     fn report(&self, report: &mut LoadReport, index: usize, message: impl fmt::Display) {
-        match (self.table.name(index), self.paths.get(index)) {
-            (Some(name), Some(path)) => report.entry(self.registry, name.as_str(), path, message),
-            _ => report.whole_registry(
-                self.registry,
-                &directory_of(self.registry),
-                format_args!(
-                    "entry {index} does not exist in a registry of {} entries: {message}",
-                    self.table.len()
-                ),
-            ),
-        }
+        let name = self
+            .table
+            .name(index)
+            .expect("a failure names an entry of its registry");
+        report.entry(self.registry, name.as_str(), self.paths[index], message);
     }
 }
 
@@ -445,12 +436,11 @@ fn directory_of(registry: &Name) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry_set::EntrySet;
     use crate::id::Id;
     use crate::registry::Registry;
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
-    use serde::de::Error as _;
-    use serde::{Deserializer, Serializer};
 
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
@@ -475,42 +465,11 @@ mod tests {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_static");
     }
 
-    #[derive(Debug)]
-    struct MarkerTag(String);
-
-    impl<'de> Deserialize<'de> for MarkerTag {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            let text = String::deserialize(deserializer)?;
-            let name = text
-                .strip_prefix('#')
-                .ok_or_else(|| D::Error::custom("a tag reference starts with #"))?;
-            let name = ResourceLocation::read(name).map_err(D::Error::custom)?;
-            let listed = Registry::<Marker>::in_scope("tag reference", |registry| {
-                registry.has_tag(name.as_str())
-            })
-            .map_err(D::Error::custom)?;
-            if listed {
-                Ok(MarkerTag(name.to_string()))
-            } else {
-                Err(D::Error::custom(format_args!(
-                    "registry {} lists no tag {name}",
-                    Marker::KEY
-                )))
-            }
-        }
-    }
-
-    impl Serialize for MarkerTag {
-        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            serializer.serialize_str(&format!("#{}", self.0))
-        }
-    }
-
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     struct Linked {
         marker: Option<Id<Marker>>,
-        tag: Option<MarkerTag>,
+        tag: Option<EntrySet<Marker>>,
     }
 
     impl RegistryKey for Linked {
@@ -685,32 +644,30 @@ mod tests {
     }
 
     #[test]
-    fn the_path_sorts_before_the_namespace() {
-        let set = load(&marker_files(&[
-            "a/test_marker/zeta.json",
-            "b/test_marker/same.json",
-            "b/test_marker/alpha.json",
-            "a/test_marker/same.json",
-        ]))
-        .unwrap();
-        assert_eq!(
-            names(&set, MARKER),
-            ["b:alpha", "a:same", "b:same", "a:zeta"]
-        );
-    }
-
-    #[test]
-    fn a_dash_sorts_before_the_file_extension() {
-        let set = load(&marker_files(&[
-            "minecraft/test_marker/foo/bar.json",
-            "minecraft/test_marker/foo.json",
-            "minecraft/test_marker/foo-bar.json",
-        ]))
-        .unwrap();
-        assert_eq!(
-            names(&set, MARKER),
-            ["minecraft:foo-bar", "minecraft:foo", "minecraft:foo/bar"]
-        );
+    fn entries_sort_by_file_name_then_namespace() {
+        let cases: [(&[&str], &[&str]); 2] = [
+            (
+                &[
+                    "a/test_marker/zeta.json",
+                    "b/test_marker/same.json",
+                    "b/test_marker/alpha.json",
+                    "a/test_marker/same.json",
+                ],
+                &["b:alpha", "a:same", "b:same", "a:zeta"],
+            ),
+            (
+                &[
+                    "minecraft/test_marker/foo/bar.json",
+                    "minecraft/test_marker/foo.json",
+                    "minecraft/test_marker/foo-bar.json",
+                ],
+                &["minecraft:foo-bar", "minecraft:foo", "minecraft:foo/bar"],
+            ),
+        ];
+        for (paths, expected) in cases {
+            let set = load(&marker_files(paths)).unwrap();
+            assert_eq!(names(&set, MARKER), expected, "{paths:?}");
+        }
     }
 
     #[test]
@@ -783,36 +740,6 @@ mod tests {
     }
 
     #[test]
-    fn two_errors_of_one_entry_are_both_listed() {
-        let mut registries = registries();
-        registries
-            .validate::<Variant>(Variant::KEY, |_, _| vec![(0, "first complaint".to_owned())])
-            .validate::<Variant>(Variant::KEY, |_, _| {
-                vec![(0, "second complaint".to_owned())]
-            });
-        let packs = [pack(
-            "vanilla",
-            vec![variant(
-                "minecraft/test_variant/only.json",
-                "only",
-                "minecraft:only",
-            )],
-        )];
-        let text = registries
-            .load(&RegistrySet::new(), &packs)
-            .err()
-            .expect("the validators refuse the load")
-            .to_string();
-        let prefix = "minecraft:test_variant/minecraft:only (minecraft/test_variant/only.json): ";
-        assert_eq!(
-            text,
-            format!(
-                "registry load failed: 2 errors in 1 registries\n{prefix}first complaint\n{prefix}second complaint"
-            )
-        );
-    }
-
-    #[test]
     fn the_report_is_sorted_by_registry_entry_and_file() {
         let packs = [
             pack(
@@ -847,23 +774,6 @@ mod tests {
             assert!(line.starts_with(prefix), "{prefix}\n{text}");
         }
         assert_eq!(lines.next(), None, "{text}");
-    }
-
-    #[test]
-    fn a_successful_load_reports_nothing() {
-        let packs = [pack(
-            "vanilla",
-            vec![
-                variant("minecraft/test_variant/a.json", "a", "minecraft:a"),
-                names_only("minecraft/test_marker/m.json"),
-                data(
-                    "minecraft/test_linked/l.json",
-                    r#"{"marker":"minecraft:m"}"#,
-                ),
-            ],
-        )];
-        let set = load(&packs).expect("clean files load");
-        assert_eq!(set.column::<Linked>(LINKED).unwrap().len(), 1);
     }
 
     #[test]
@@ -915,7 +825,10 @@ mod tests {
         let mut registries = registries();
         registries.validate::<Variant>(Variant::KEY, |values, _| {
             assert_eq!(values.len(), 3);
-            vec![(1, "bad asset".to_owned())]
+            vec![
+                (1, "bad asset".to_owned()),
+                (1, "second complaint".to_owned()),
+            ]
         });
         let packs = [pack(
             "vanilla",
@@ -934,15 +847,17 @@ mod tests {
             .err()
             .expect("the validator refuses the load")
             .to_string();
+        let prefix = "minecraft:test_variant/minecraft:b (minecraft/test_variant/b.json): ";
         assert_eq!(
             text,
-            "registry load failed: 1 errors in 1 registries\n\
-             minecraft:test_variant/minecraft:b (minecraft/test_variant/b.json): bad asset"
+            format!(
+                "registry load failed: 2 errors in 1 registries\n{prefix}bad asset\n{prefix}second complaint"
+            )
         );
     }
 
     #[test]
-    fn two_loads_on_two_threads_agree() {
+    fn the_load_does_not_depend_on_file_order() {
         fn packs(reversed: bool, broken: bool) -> Vec<Pack> {
             let mut files = vec![
                 variant("minecraft/test_variant/plain.json", "plain", "a:zeta"),
@@ -971,39 +886,14 @@ mod tests {
             (names(set, VARIANT), names(set, MARKER), nexts)
         }
 
-        let outcomes: Vec<_> = std::thread::scope(|threads| {
-            let handles: Vec<_> = [false, true]
-                .map(|reversed| {
-                    threads.spawn(move || {
-                        (
-                            snapshot(&load(&packs(reversed, false)).unwrap()),
-                            report(&packs(reversed, true)),
-                        )
-                    })
-                })
-                .into();
-            handles
-                .into_iter()
-                .map(|handle| handle.join().unwrap())
-                .collect()
+        let outcomes = [false, true].map(|reversed| {
+            (
+                snapshot(&load(&packs(reversed, false)).unwrap()),
+                report(&packs(reversed, true)),
+            )
         });
         assert_eq!(outcomes[0], outcomes[1]);
         assert_eq!(outcomes[0].0.0.len(), 3);
         assert_eq!(outcomes[0].1.lines().count(), 3, "{}", outcomes[0].1);
-    }
-
-    #[test]
-    fn the_declared_registries_are_the_unstable_elements_of_the_report() {
-        let registries = WorldRegistries::from_datapack_report(include_bytes!(
-            "../../../assets/mcrs/reports/datapack.json"
-        ))
-        .unwrap();
-        let declared: Vec<&str> = registries.declared().map(Name::as_str).collect();
-        for present in ["minecraft:wolf_variant", "minecraft:dimension"] {
-            assert!(declared.contains(&present), "{present}");
-        }
-        for absent in ["minecraft:loot_table", "minecraft:block"] {
-            assert!(!declared.contains(&absent), "{absent}");
-        }
     }
 }

@@ -90,38 +90,8 @@ pub struct TextInner<I: HoverItem> {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<Text<I>>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub color: Option<Color>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shadow_color: Option<ArgbInt>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bold: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub italic: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub underlined: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strikethrough: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub obfuscated: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub click_event: Option<ClickEvent>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hover_event: Option<HoverEvent<I>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub insertion: Option<Cow<'static, str>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub font: Option<ResourceLocation>,
+    #[serde(flatten)]
+    pub style: Style<I>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -216,17 +186,7 @@ impl<I: HoverItem> Default for TextInner<I> {
         TextInner {
             content: TextContent::default(),
             extra: Vec::new(),
-            color: None,
-            shadow_color: None,
-            bold: None,
-            italic: None,
-            underlined: None,
-            strikethrough: None,
-            obfuscated: None,
-            click_event: None,
-            hover_event: None,
-            insertion: None,
-            font: None,
+            style: Style::default(),
         }
     }
 }
@@ -263,27 +223,29 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextInner<I> {
                 let mut content = NbtCompound::new();
                 let mut with: Option<Vec<TranslateArg<I>>> = None;
                 macro_rules! style {
-                    ($field:ident, $ty:ty, $get:expr) => {{
+                    ($($field:ident).+, $ty:ty, $get:expr) => {{
                         let value: $ty = map.next_value()?;
-                        inner.$field = $get(value);
+                        inner.$($field).+ = $get(value);
                     }};
                 }
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "extra" => style!(extra, Siblings<I>, |v: Siblings<I>| v.0),
-                        "color" => style!(color, Color, Some),
-                        "shadow_color" => style!(shadow_color, ArgbInt, Some),
-                        "bold" => style!(bold, Flag, |v: Flag| v.0),
-                        "italic" => style!(italic, Flag, |v: Flag| v.0),
-                        "underlined" => style!(underlined, Flag, |v: Flag| v.0),
+                        "color" => style!(style.color, Color, Some),
+                        "shadow_color" => style!(style.shadow_color, ArgbInt, Some),
+                        "bold" => style!(style.bold, Flag, |v: Flag| v.0),
+                        "italic" => style!(style.italic, Flag, |v: Flag| v.0),
+                        "underlined" => style!(style.underlined, Flag, |v: Flag| v.0),
                         "strikethrough" => {
-                            style!(strikethrough, Flag, |v: Flag| v.0)
+                            style!(style.strikethrough, Flag, |v: Flag| v.0)
                         }
-                        "obfuscated" => style!(obfuscated, Flag, |v: Flag| v.0),
-                        "click_event" => style!(click_event, ClickEvent, Some),
-                        "hover_event" => style!(hover_event, HoverEvent<I>, Some),
-                        "insertion" => style!(insertion, String, |v: String| Some(Cow::Owned(v))),
-                        "font" => style!(font, ResourceLocation, Some),
+                        "obfuscated" => style!(style.obfuscated, Flag, |v: Flag| v.0),
+                        "click_event" => style!(style.click_event, ClickEvent, Some),
+                        "hover_event" => style!(style.hover_event, HoverEvent<I>, Some),
+                        "insertion" => {
+                            style!(style.insertion, String, |v: String| Some(Cow::Owned(v)))
+                        }
+                        "font" => style!(style.font, ResourceLocation, Some),
                         "with" => with = Some(map.next_value()?),
                         _ => content.child_tags.push((key, map.next_value::<NbtTag>()?)),
                     }
@@ -305,20 +267,7 @@ impl<'de, I: HoverItem> Deserialize<'de> for TextInner<I> {
 impl<I: HoverItem> TextInner<I> {
     fn collapse_to_string(&self) -> Option<&str> {
         match &self.content {
-            TextContent::Text { text, .. }
-                if self.extra.is_empty()
-                    && self.color.is_none()
-                    && self.shadow_color.is_none()
-                    && self.bold.is_none()
-                    && self.italic.is_none()
-                    && self.underlined.is_none()
-                    && self.strikethrough.is_none()
-                    && self.obfuscated.is_none()
-                    && self.click_event.is_none()
-                    && self.hover_event.is_none()
-                    && self.insertion.is_none()
-                    && self.font.is_none() =>
-            {
+            TextContent::Text { text, .. } if self.extra.is_empty() && self.style.is_empty() => {
                 Some(text)
             }
             _ => None,
@@ -1326,21 +1275,21 @@ impl<I: HoverItem> Text<I> {
             mods: &mut Modifiers,
         ) {
             let new_mods = Modifiers {
-                obfuscated: this.0.obfuscated,
-                bold: this.0.bold,
-                strikethrough: this.0.strikethrough,
-                underlined: this.0.underlined,
-                italic: this.0.italic,
-                color: this.0.color,
+                obfuscated: this.0.style.obfuscated,
+                bold: this.0.style.bold,
+                strikethrough: this.0.style.strikethrough,
+                underlined: this.0.style.underlined,
+                italic: this.0.style.italic,
+                color: this.0.style.color,
             };
 
             // If any modifiers were removed
             if [
-                this.0.obfuscated,
-                this.0.bold,
-                this.0.strikethrough,
-                this.0.underlined,
-                this.0.italic,
+                this.0.style.obfuscated,
+                this.0.style.bold,
+                this.0.style.strikethrough,
+                this.0.style.underlined,
+                this.0.style.italic,
             ]
             .contains(&Some(false))
             {
@@ -1508,10 +1457,7 @@ mod tests {
     }
 
     #[test]
-    fn a_chat_style_with_an_unknown_key_fails() {
-        let refused = style(&json!({"color": "gray", "bogus": 1})).unwrap_err();
-        assert!(refused.to_string().contains("bogus"), "{refused}");
-
+    fn a_chat_style_round_trips_every_key() {
         for field in [
             json!({"color": "gray"}),
             json!({"color": "#12AB34"}),

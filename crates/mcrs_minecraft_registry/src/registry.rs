@@ -29,10 +29,6 @@ pub enum RegistryError {
     DuplicateRegistry {
         registry: ResourceLocation<Arc<str>>,
     },
-    WrongRegistry {
-        expected: ResourceLocation<Arc<str>>,
-        found: ResourceLocation<Arc<str>>,
-    },
 }
 
 impl fmt::Display for RegistryError {
@@ -62,9 +58,6 @@ impl fmt::Display for RegistryError {
             }
             RegistryError::DuplicateRegistry { registry } => {
                 write!(f, "a registry set already holds the registry {registry}")
-            }
-            RegistryError::WrongRegistry { expected, found } => {
-                write!(f, "registry {expected} cannot view the table of {found}")
             }
         }
     }
@@ -128,16 +121,6 @@ impl<R: RegistryKey> Registry<R> {
     ) -> Result<Self, RegistryError> {
         let table = NameTable::new(R::KEY.into(), names, tags)?;
         Ok(Self::view(Arc::new(table)))
-    }
-
-    pub fn from_table(table: Arc<NameTable>) -> Result<Self, RegistryError> {
-        if table.registry() != &R::KEY {
-            return Err(RegistryError::WrongRegistry {
-                expected: R::KEY.into(),
-                found: table.registry().clone(),
-            });
-        }
-        Ok(Self::view(table))
     }
 
     pub(crate) fn view(table: Arc<NameTable>) -> Self {

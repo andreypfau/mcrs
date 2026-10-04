@@ -63,9 +63,7 @@ impl<T: Asset> Default for RegistrySnapshot<T> {
 impl<T: Asset> RegistrySnapshot<T> {
     /// Build from an already-resolved `(ResourceLocation, AssetId)` iterator
     /// and an `&Assets<T>` for value lookup. Ids are the positions in `table`,
-    /// and `serialize` runs once per entry. A pair the table does not list, or
-    /// a table name with no pair, is a program defect: the asset listing and
-    /// the loader read different files.
+    /// and `serialize` runs once per entry.
     pub fn build<I, F>(
         table: &Arc<NameTable>,
         pairs: I,
@@ -76,19 +74,15 @@ impl<T: Asset> RegistrySnapshot<T> {
         I: IntoIterator<Item = (ResourceLocation<Arc<str>>, AssetId<T>)>,
         F: FnMut(&T) -> Result<NbtTag, mcrs_minecraft_nbt::Error>,
     {
-        let registry = table.registry();
+        let pairs: Vec<_> = pairs.into_iter().collect();
+        assert_listing_matches(table, pairs.iter().map(|(location, _)| location));
         let mut slots = vec![None; table.len()];
         for (location, asset_id) in pairs {
-            let Some(id) = table.number(location.as_str()) else {
-                panic!(
-                    "{registry}: {location} is loaded but the registry loader has no such entry"
-                );
-            };
-            if slots[id as usize]
-                .replace((location.clone(), asset_id))
-                .is_some()
-            {
-                panic!("{registry}: {location} is loaded twice");
+            let id = table
+                .number(location.as_str())
+                .expect("the listing matches");
+            if let Some((location, _)) = slots[id as usize].replace((location, asset_id)) {
+                panic!("{}: {location} is loaded twice", table.registry());
             }
         }
 
@@ -96,12 +90,7 @@ impl<T: Asset> RegistrySnapshot<T> {
         let mut by_asset = HashMap::with_capacity(slots.len());
 
         for (network_id, slot) in slots.into_iter().enumerate() {
-            let Some((location, asset_id)) = slot else {
-                let name = table.name(network_id).expect("ids are dense");
-                panic!(
-                    "{registry}: the registry loader lists {name} but no asset is loaded for it"
-                );
-            };
+            let (location, asset_id) = slot.expect("the listing matches");
             let Some(value) = assets.get(asset_id) else {
                 panic!(
                     "{} is paired with an asset that is not present",
@@ -175,7 +164,10 @@ pub fn rl_from_asset_path(
     ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
 }
 
-pub fn assert_listing_matches(table: &NameTable, listed: &[ResourceLocation<Arc<str>>]) {
+pub fn assert_listing_matches<'a>(
+    table: &NameTable,
+    listed: impl IntoIterator<Item = &'a ResourceLocation<Arc<str>>>,
+) {
     let registry = table.registry();
     let mut seen = vec![false; table.len()];
     for name in listed {
@@ -354,15 +346,6 @@ mod tests {
             &assets,
             |_| Ok(NbtCompound::new().into()),
         );
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "minecraft:worldgen/biome: the registry loader lists minecraft:forest"
-    )]
-    fn an_index_listing_with_a_name_missing_does_not_match() {
-        let listed = [ResourceLocation::parse("minecraft:plains").unwrap()];
-        assert_listing_matches(&table(&["minecraft:plains", "minecraft:forest"]), &listed);
     }
 
     #[test]

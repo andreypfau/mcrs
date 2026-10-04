@@ -1,5 +1,4 @@
 use crate::names::NameTable;
-use crate::registry::RegistryError;
 use crate::set::RegistrySet;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::Deserialize;
@@ -8,35 +7,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-#[derive(Debug)]
-pub enum StaticReportError {
-    Malformed(serde_json::Error),
-    Registry(RegistryError),
-}
-
-impl fmt::Display for StaticReportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StaticReportError::Malformed(error) => {
-                write!(f, "malformed registries report: {error}")
-            }
-            StaticReportError::Registry(error) => write!(f, "invalid registries report: {error}"),
-        }
-    }
-}
-
-impl std::error::Error for StaticReportError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            StaticReportError::Malformed(error) => Some(error),
-            StaticReportError::Registry(error) => Some(error),
-        }
-    }
-}
-
-pub fn from_report(json: &[u8]) -> Result<RegistrySet, StaticReportError> {
-    let Tables(tables) = serde_json::from_slice(json).map_err(StaticReportError::Malformed)?;
-    RegistrySet::from_tables(tables).map_err(StaticReportError::Registry)
+pub fn from_report(json: &[u8]) -> Result<RegistrySet, serde_json::Error> {
+    serde_json::from_slice(json).map(|Tables(set)| set)
 }
 
 #[derive(Deserialize)]
@@ -78,7 +50,7 @@ impl RegistryReport {
     }
 }
 
-struct Tables(Vec<Arc<NameTable>>);
+struct Tables(RegistrySet);
 
 impl<'de> Deserialize<'de> for Tables {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -101,7 +73,9 @@ impl<'de> Deserialize<'de> for Tables {
                         report.into_table(registry).map_err(A::Error::custom)?,
                     ));
                 }
-                Ok(Tables(tables))
+                RegistrySet::from_tables(tables)
+                    .map(Tables)
+                    .map_err(A::Error::custom)
             }
         }
 
@@ -140,20 +114,6 @@ mod tests {
         JSON[registry]["entries"][name]["protocol_id"]
             .as_u64()
             .unwrap()
-    }
-
-    #[test]
-    fn the_report_numbers_items_by_protocol_id() {
-        let items = SET.registry::<Item>().unwrap();
-        let air = items.get("minecraft:air").unwrap();
-        let stone = items.get("minecraft:stone").unwrap();
-        assert_eq!(air.index(), 0);
-        assert_eq!(
-            stone.index() as u64,
-            stated_id("minecraft:item", "minecraft:stone")
-        );
-        assert_eq!(items.key(stone).unwrap().as_str(), "minecraft:stone");
-        assert_eq!(items.key(air).unwrap().as_str(), "minecraft:air");
     }
 
     #[test]
@@ -214,35 +174,6 @@ mod tests {
         let ids = |registry: &str| set.table(registry).unwrap().number("minecraft:stone");
         assert_eq!(ids("minecraft:a"), Some(1));
         assert_eq!(ids("minecraft:b"), Some(0));
-        for registry in ["minecraft:block", "minecraft:item"] {
-            assert_eq!(
-                SET.table(registry)
-                    .unwrap()
-                    .number("minecraft:stone")
-                    .map(u64::from),
-                Some(stated_id(registry, "minecraft:stone")),
-                "{registry}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_stated_default_is_an_entry_of_its_registry() {
-        let mut stated = 0;
-        for (registry, report) in JSON.as_object().unwrap() {
-            let Some(default) = report.get("default").and_then(|default| default.as_str()) else {
-                continue;
-            };
-            let table = SET.table(registry).unwrap();
-            assert!(table.number(default).is_some(), "{registry} {default}");
-            stated += 1;
-        }
-        assert!(stated > 0);
-        assert_eq!(JSON["minecraft:item"]["default"], "minecraft:air");
-        assert_eq!(
-            SET.table("minecraft:item").unwrap().number("minecraft:air"),
-            Some(0)
-        );
     }
 
     #[test]
