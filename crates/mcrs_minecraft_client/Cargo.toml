@@ -89,6 +89,7 @@ telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/te
 
 [dev-dependencies]
 bytes.workspace = true
+mcrs_minecraft_worldgen_testing.workspace = true
 
 [build-dependencies]
 flate2.workspace = true

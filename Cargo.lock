@@ -3561,6 +3561,7 @@ dependencies = [
  "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_noise",
+ "mcrs_minecraft_worldgen_testing",
  "objc2-foundation 0.3.2",
  "objc2-metal 0.3.2",
  "serde",
@@ -3618,6 +3619,7 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3637,10 +3639,8 @@ name = "mcrs_minecraft_environment"
 version = "0.4.4"
 dependencies = [
  "bevy_app",
- "bevy_asset",
  "bevy_ecs",
  "bevy_math",
- "bevy_reflect",
  "bevy_state",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_core",
@@ -4302,6 +4302,7 @@ version = "0.4.4"
 dependencies = [
  "bytes",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_builtin",
  "serde",
  "serde_json",

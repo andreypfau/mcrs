@@ -7,7 +7,8 @@ use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
-use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK};
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
+use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
@@ -55,6 +56,8 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
     "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
     "minecraft:trade_set":{"elements":true,"stable":false,"tags":true},
+    "minecraft:world_clock":{"elements":true,"stable":false,"tags":true},
+    "minecraft:timeline":{"elements":true,"stable":false,"tags":true},
     "minecraft:worldgen/block_state_provider":{"elements":true,"stable":false,"tags":false}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
@@ -76,13 +79,31 @@ fn report_declaring(registries: &[&str]) -> Vec<u8> {
 }
 
 fn refused_in(report: &[u8], registry: &str, name: &str, json: &str) -> String {
+    refused_among(report, &[], registry, name, json)
+}
+
+fn refused_among(
+    report: &[u8],
+    others: &[(&str, &str)],
+    registry: &str,
+    name: &str,
+    json: &str,
+) -> String {
     let world = world_registries(report).expect("the report parses");
+    let mut files: Vec<PackFile> = others
+        .iter()
+        .map(|(entry, json)| PackFile {
+            path: format!("minecraft/{entry}.json"),
+            bytes: Some(json.as_bytes().to_vec()),
+        })
+        .collect();
+    files.push(PackFile {
+        path: format!("minecraft/{registry}/{name}.json"),
+        bytes: Some(json.as_bytes().to_vec()),
+    });
     let packs = [Pack {
         name: VANILLA_PACK.to_owned(),
-        files: vec![PackFile {
-            path: format!("minecraft/{registry}/{name}.json"),
-            bytes: Some(json.as_bytes().to_vec()),
-        }],
+        files,
     }];
     world
         .load(&STATICS, &packs)
@@ -707,11 +728,22 @@ fn every_test_environment_type_round_trips() {
         r#"{"type":"minecraft:function"}"#,
         r#"{"type":"minecraft:clock_time","clock":{},"time":0}"#,
         r#"{"type":"minecraft:all_of","definitions":[]}"#,
-        r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld","tracks":{}}]}"#,
+        r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld"}]}"#,
     ] {
         let read: serde_json::Value = serde_json::from_str(json).unwrap();
         assert_eq!(round_trip::<TestEnvironment>(json), read);
     }
+
+    // A field that holds its default is not written.
+    assert_eq!(
+        round_trip::<TestEnvironment>(
+            r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld","tracks":{},"time_markers":{}}]}"#
+        ),
+        serde_json::json!({
+            "type": "minecraft:timeline_attributes",
+            "timelines": [{"clock": "minecraft:overworld"}],
+        })
+    );
 }
 
 #[test]
@@ -837,10 +869,16 @@ fn test_values_the_game_refuses_fail_to_parse() {
     for part in ["minecraft:world_clock", "minecraft:nowhere"] {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
-    refused(
+    let text = refused_among(
+        PARSED_REPORT,
+        &[("world_clock/overworld", "{}")],
         "test_environment",
+        "odd",
         r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":-1}"#,
-        "non-negative",
+    );
+    assert!(
+        text.contains("non-negative"),
+        "non-negative missing from:\n{text}"
     );
     refused(
         "test_environment",
@@ -1776,6 +1814,100 @@ fn trade_values_the_game_refuses_fail_to_parse() {
         });
         assert!(message.contains(expected), "{json}: {message}");
     }
+}
+
+fn timeline_file(clock: &str, markers: &str) -> String {
+    format!(r#"{{"clock":"{clock}","period_ticks":24000,"time_markers":{markers}}}"#)
+}
+
+fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String> {
+    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&datapack).expect("the report parses");
+
+    let mut app = App::new();
+    app.register_asset_source(
+        AssetSourceId::Default,
+        layered_file_source(&AssetPlugin::default().file_path),
+    );
+    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    let asset_server = app.world().resource::<AssetServer>().clone();
+
+    let mut packs = read_packs(&asset_server, &world, &STATICS);
+    packs.push(Pack {
+        name: "extra".to_owned(),
+        files: timelines
+            .iter()
+            .map(|(name, json)| PackFile {
+                path: format!("test/timeline/{name}.json"),
+                bytes: Some(json.clone().into_bytes()),
+            })
+            .collect(),
+    });
+    world
+        .load(&STATICS, &packs)
+        .map_err(|report| report.to_string())
+}
+
+#[test]
+fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
+    let refused = load_shipped_and(&[
+        (
+            "first",
+            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+        ),
+        (
+            "second",
+            timeline_file("minecraft:overworld", r#"{"test:marker":2000}"#),
+        ),
+    ])
+    .err()
+    .expect("a marker defined by two timelines of one clock is refused");
+
+    let (header, line) = refused.split_once('\n').expect("a header and one line");
+    assert_eq!(header, "registry load failed: 1 errors in 1 registries");
+    let key = "minecraft:timeline/test:second (test/timeline/second.json): ";
+    let message = line
+        .strip_prefix(key)
+        .unwrap_or_else(|| panic!("the line is keyed by the second timeline: {line}"));
+    assert!(message.contains("test:marker"), "{message}");
+    assert!(message.contains("minecraft:overworld"), "{message}");
+    assert!(message.contains("more than once"), "{message}");
+}
+
+#[test]
+fn a_marker_reused_on_two_clocks_loads() {
+    let set = load_shipped_and(&[
+        (
+            "first",
+            timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
+        ),
+        (
+            "second",
+            timeline_file("minecraft:the_end", r#"{"test:marker":2000}"#),
+        ),
+    ])
+    .unwrap_or_else(|report| panic!("the markers are on two clocks: {report}"));
+
+    let table = set.table("minecraft:timeline").expect("the timeline table");
+    let timelines = set
+        .column::<Timeline>("minecraft:timeline")
+        .expect("the timelines parse");
+    assert_eq!(timelines.len(), table.len());
+    assert!(table.number("test:first").is_some() && table.number("test:second").is_some());
+}
+
+#[test]
+fn a_timeline_naming_an_unknown_clock_fails() {
+    let refused = load_shipped_and(&[("lost", timeline_file("minecraft:nowhere", "{}"))])
+        .err()
+        .expect("a clock the registry does not hold is refused");
+
+    assert!(refused.contains("minecraft:world_clock"), "{refused}");
+    assert!(refused.contains("minecraft:nowhere"), "{refused}");
+    assert!(
+        refused.contains("minecraft:timeline/test:lost (test/timeline/lost.json)"),
+        "{refused}"
+    );
 }
 
 fn json_names(directory: &Path, prefix: &str, names: &mut BTreeSet<String>) {

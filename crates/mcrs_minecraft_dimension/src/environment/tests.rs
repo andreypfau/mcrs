@@ -1,5 +1,6 @@
 use mcrs_minecraft_core::mth::wrap_degrees;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use serde_json::json;
 
@@ -8,7 +9,7 @@ use mcrs_minecraft_assets::tag::file::TagEntry;
 
 use crate::dimension_type::ProtoDimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
-use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
 
 const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
@@ -27,9 +28,17 @@ fn dimension_type(name: &str) -> ProtoDimensionType {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
+    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+});
+
+fn clock_registry() -> Registry<WorldClock> {
+    CLOCKS.registry().unwrap()
+}
+
 fn timeline(name: &str) -> Timeline {
     let bytes = std::fs::read(assets_dir().join("timeline").join(name)).unwrap();
-    serde_json::from_slice(&bytes).unwrap()
+    CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
 }
 
 /// The timelines a tag names, read from the shipped tag files and flattened
@@ -70,7 +79,7 @@ fn shape<'a>(id: &'a str, proto: &'a ProtoDimensionType) -> DimensionEnvironment
 fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
     let proto = dimension_type(file);
     let borrowed: Vec<&Timeline> = timelines.iter().collect();
-    EnvironmentAttributes::build(&shape(id, &proto), &borrowed).unwrap()
+    EnvironmentAttributes::build(&shape(id, &proto), &borrowed, &clock_registry()).unwrap()
 }
 
 fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -399,17 +408,19 @@ fn a_composed_value_is_clamped_back_into_its_range() {
 #[test]
 fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     fn overriding(level: f32) -> Timeline {
-        serde_json::from_value(json!({
-            "clock": "minecraft:overworld",
-            "period_ticks": 24000,
-            "tracks": {
-                "minecraft:gameplay/sky_light_level": {
-                    "modifier": "override",
-                    "keyframes": [{ "ticks": 0, "value": level }],
+        CLOCKS.scope(|| {
+            serde_json::from_value(json!({
+                "clock": "minecraft:overworld",
+                "period_ticks": 24000,
+                "tracks": {
+                    "minecraft:gameplay/sky_light_level": {
+                        "modifier": "override",
+                        "keyframes": [{ "ticks": 0, "value": level }],
+                    },
                 },
-            },
-        }))
-        .unwrap()
+            }))
+            .unwrap()
+        })
     }
 
     fn rl(id: &str) -> ResourceLocation<Arc<str>> {
@@ -456,8 +467,12 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         .collect();
 
     let proto = dimension_type("overworld.json");
-    let attributes =
-        EnvironmentAttributes::build(&shape("minecraft:overworld", &proto), &ordered).unwrap();
+    let attributes = EnvironmentAttributes::build(
+        &shape("minecraft:overworld", &proto),
+        &ordered,
+        &clock_registry(),
+    )
+    .unwrap();
 
     let ticks = ticks_at(&attributes, 0, 0.0);
     let empty = SpatialAttributeInterpolator::default();

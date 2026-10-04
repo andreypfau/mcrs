@@ -1,15 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
-
-use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
-
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_registry::Id;
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::world_clock::WorldClock;
 
 mod easing;
 mod marker;
@@ -21,12 +20,14 @@ pub use marker::TimeMarker;
 pub use sampler::{AttributeTrackSampler, TrackSampler};
 pub use track::{Keyframe, Track, TrackError, Tracks};
 
-#[derive(Debug, Clone, TypePath)]
+pub type TimeMarkers = BTreeMap<ResourceLocation<Arc<str>>, TimeMarker>;
+
+#[derive(Debug, Clone)]
 pub struct Timeline {
-    pub clock: ResourceLocation<Arc<str>>,
+    pub clock: Id<WorldClock>,
     pub period_ticks: Option<u32>,
     pub tracks: Tracks,
-    pub time_markers: HashMap<String, TimeMarker>,
+    pub time_markers: TimeMarkers,
 }
 
 impl TaggedRegistry for Timeline {
@@ -38,23 +39,35 @@ impl RegistryKey for Timeline {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TimelineRepr {
-    clock: ResourceLocation<Arc<str>>,
+    clock: Id<WorldClock>,
     #[serde(default)]
     period_ticks: Option<u32>,
     #[serde(default)]
     tracks: Tracks,
     #[serde(default)]
-    time_markers: HashMap<String, TimeMarker>,
+    time_markers: TimeMarkers,
 }
 
 impl<'de> Deserialize<'de> for Timeline {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let repr = TimelineRepr::deserialize(d)?;
         if let Some(period) = repr.period_ticks {
+            for (marker, info) in &repr.time_markers {
+                // Exclusive at the top, unlike the inclusive keyframe bound: a
+                // marker on the period boundary would occur twice a period.
+                if info.ticks >= period {
+                    return Err(D::Error::custom(TimelineError::MarkerOutsidePeriod {
+                        marker: marker.clone(),
+                        ticks: info.ticks,
+                        period,
+                    }));
+                }
+            }
             for (id, track) in repr.tracks.iter() {
                 track.validate_period(period).map_err(|kind| {
-                    D::Error::custom(TimelineError {
+                    D::Error::custom(TimelineError::Track {
                         track: (*id).to_owned(),
                         kind,
                     })
@@ -70,54 +83,78 @@ impl<'de> Deserialize<'de> for Timeline {
     }
 }
 
-/// Timeline data subset for NETWORK_CODEC — mirrors the fields the vanilla
-/// 26.1 client expects: clock, optional period_ticks, tracks, time_markers.
-#[derive(Debug, Clone, Serialize)]
-pub struct NetworkTimeline {
-    pub clock: ResourceLocation<Arc<str>>,
+#[derive(Serialize)]
+struct Wire<'a> {
+    clock: Id<WorldClock>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub period_ticks: Option<u32>,
-    pub tracks: Tracks,
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub time_markers: HashMap<String, TimeMarker>,
+    period_ticks: Option<u32>,
+    #[serde(skip_serializing_if = "no_tracks")]
+    tracks: &'a Tracks,
+    #[serde(skip_serializing_if = "no_markers")]
+    time_markers: &'a TimeMarkers,
 }
 
-/// The file form and the network form of a timeline are one codec.
+fn no_tracks(tracks: &&Tracks) -> bool {
+    tracks.is_empty()
+}
+
+fn no_markers(markers: &&TimeMarkers) -> bool {
+    markers.is_empty()
+}
+
 impl Serialize for Timeline {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        NetworkTimeline::from(self).serialize(s)
+        Wire {
+            clock: self.clock,
+            period_ticks: self.period_ticks,
+            tracks: &self.tracks,
+            time_markers: &self.time_markers,
+        }
+        .serialize(s)
     }
 }
+
+/// A timeline as the client receives it: only the tracks it is allowed to see.
+#[derive(Debug, Clone)]
+pub struct NetworkTimeline(Timeline);
 
 impl From<&Timeline> for NetworkTimeline {
-    fn from(tl: &Timeline) -> Self {
-        NetworkTimeline {
-            clock: tl.clock.clone(),
-            period_ticks: tl.period_ticks,
-            tracks: tl.tracks.clone(),
-            time_markers: tl.time_markers.clone(),
-        }
+    fn from(timeline: &Timeline) -> Self {
+        NetworkTimeline(Timeline {
+            clock: timeline.clock,
+            period_ticks: timeline.period_ticks,
+            tracks: timeline.tracks.syncable(),
+            time_markers: timeline.time_markers.clone(),
+        })
     }
 }
 
-impl Asset for Timeline {}
-
-impl VisitAssetDependencies for Timeline {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
+impl Serialize for NetworkTimeline {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("timeline track `{track}`: {kind}")]
-pub struct TimelineError {
-    pub track: String,
-    #[source]
-    pub kind: TrackError,
+pub enum TimelineError {
+    #[error("time marker `{marker}` at tick {ticks} must be in range [0; {period})")]
+    MarkerOutsidePeriod {
+        marker: ResourceLocation<Arc<str>>,
+        ticks: u32,
+        period: u32,
+    },
+    #[error("timeline track `{track}`: {kind}")]
+    Track {
+        track: String,
+        #[source]
+        kind: TrackError,
+    },
 }
 
 impl Timeline {
     /// Bake every track of this timeline.
     ///
-    /// Derived once from the loaded asset and never invalidated, so the result
+    /// Derived once from the loaded timeline and never invalidated, so the result
     /// is worth keeping; the samplers it holds retain nothing themselves.
     pub fn bake(&self) -> BTreeMap<&'static str, AttributeTrackSampler> {
         self.tracks
@@ -126,10 +163,12 @@ impl Timeline {
             .collect()
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::attribute::{AttributeValue, MoonPhase, Operation};
+    use crate::world_clock::TEST_CLOCKS;
     use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_worldgen_testing::assets_dir;
     use serde_json::{Value, json};
@@ -147,7 +186,7 @@ mod tests {
     }
 
     fn timeline(name: &str) -> Timeline {
-        serde_json::from_value(raw(name)).unwrap()
+        TEST_CLOCKS.scope(|| serde_json::from_value(raw(name)).unwrap())
     }
 
     /// A one-track timeline read the way a datapack reaches one.
@@ -156,7 +195,7 @@ mod tests {
         if let Some(period) = period_ticks {
             doc["period_ticks"] = json!(period);
         }
-        serde_json::from_value(doc).map_err(|e| e.to_string())
+        TEST_CLOCKS.scope(|| serde_json::from_value(doc).map_err(|e| e.to_string()))
     }
 
     fn bake_one(
@@ -168,20 +207,73 @@ mod tests {
         Ok(timeline.tracks[attribute].bake(timeline.period_ticks))
     }
 
-    /// What the client actually receives, read back as JSON.
+    /// A value as the encoder writes it, read back as JSON.
     ///
     /// Through the text, never `to_value`: a keyframe holds an `f32` and
     /// `serde_json::Value` has only `f64`, so `to_value` would widen `0.362`
     /// into `0.3619999885559082` where the encoder writes `0.362`.
-    fn sent(timeline: &Timeline) -> Value {
-        let text = serde_json::to_string(&NetworkTimeline::from(timeline)).unwrap();
+    fn json_of<T: Serialize>(value: &T) -> Value {
+        let text = TEST_CLOCKS.scope(|| serde_json::to_string(value).unwrap());
         serde_json::from_str(&text).unwrap()
     }
 
+    fn written(timeline: &Timeline) -> Value {
+        json_of(timeline)
+    }
+
+    fn sent(timeline: &Timeline) -> Value {
+        json_of(&NetworkTimeline::from(timeline))
+    }
+
     #[test]
-    fn every_shipped_timeline_survives_the_network_round_trip_unchanged() {
+    fn the_network_timeline_drops_unsyncable_tracks() {
+        let one_of_each: Timeline = read_document(json!({
+            "clock": "minecraft:overworld",
+            "tracks": {
+                "minecraft:visual/sky_light_factor":
+                    {"keyframes": [{"ticks": 0, "value": 1.0}]},
+                "minecraft:gameplay/monsters_burn":
+                    {"keyframes": [{"ticks": 0, "value": true}]},
+            },
+        }))
+        .unwrap();
+        let tracks = &sent(&one_of_each)["tracks"];
+        let kept: Vec<&str> = tracks
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(kept, ["minecraft:visual/sky_light_factor"]);
+
+        let only_server_side: Timeline = read_document(json!({
+            "clock": "minecraft:overworld",
+            "tracks": {
+                "minecraft:gameplay/monsters_burn":
+                    {"keyframes": [{"ticks": 0, "value": true}]},
+            },
+        }))
+        .unwrap();
+        assert!(sent(&only_server_side).get("tracks").is_none());
+    }
+
+    #[test]
+    fn every_shipped_timeline_survives_the_round_trip_unchanged() {
         for name in SHIPPED {
-            assert_eq!(sent(&timeline(name)), raw(name), "{name}");
+            assert_eq!(written(&timeline(name)), raw(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn the_network_form_of_a_shipped_timeline_is_the_file_minus_unsyncable_tracks() {
+        for name in SHIPPED {
+            let mut expected = raw(name);
+            let tracks = expected["tracks"].as_object_mut().unwrap();
+            tracks.retain(|id, _| crate::attribute::is_syncable(id));
+            if tracks.is_empty() {
+                expected.as_object_mut().unwrap().remove("tracks");
+            }
+            assert_eq!(sent(&timeline(name)), expected, "{name}");
         }
     }
 
@@ -215,7 +307,7 @@ mod tests {
             }
         );
 
-        let sent = sent(&day);
+        let sent = written(&day);
         // the object easing keeps its four controls, the named one stays a name
         assert_eq!(
             sent["tracks"]["minecraft:visual/sun_angle"]["ease"],
@@ -245,7 +337,7 @@ mod tests {
     #[test]
     fn the_nbt_form_types_every_keyframe_the_way_the_client_reads_it() {
         let day = timeline("day.json");
-        let nbt = mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&day)).unwrap();
+        let nbt = TEST_CLOCKS.scope(|| mcrs_minecraft_nbt::to_nbt_compound(&day).unwrap());
 
         assert_eq!(nbt.get_string("clock"), Some("minecraft:overworld"));
         assert_eq!(nbt.get("period_ticks"), Some(&NbtTag::Int(24000)));
@@ -314,9 +406,8 @@ mod tests {
         );
 
         // an opaque payload keeps whatever shape it had, here a string
-        let moon =
-            mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json")))
-                .unwrap();
+        let moon = TEST_CLOCKS
+            .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&timeline("moon.json")).unwrap());
         assert_eq!(
             moon.get_compound("tracks")
                 .unwrap()
@@ -822,6 +913,66 @@ mod tests {
             for tick in [-1_000_000, -1, 0, 500, 23_999, 1_000_000] {
                 assert_eq!(float(&sampler.sample_argument(tick)), 0.25, "at {tick}");
             }
+        }
+    }
+
+    fn read_document(doc: Value) -> Result<Timeline, String> {
+        TEST_CLOCKS.scope(|| serde_json::from_value(doc).map_err(|e| e.to_string()))
+    }
+
+    #[test]
+    fn a_marker_on_the_period_boundary_is_rejected() {
+        let with = |markers: Value| {
+            read_document(json!({
+                "clock": "minecraft:overworld",
+                "period_ticks": 24_000,
+                "time_markers": markers,
+            }))
+        };
+
+        let refused = with(json!({"minecraft:day": 24_000, "minecraft:noon": 23_999})).unwrap_err();
+        assert!(
+            refused.contains("`minecraft:day` at tick 24000 must be in range [0; 24000)"),
+            "{refused}"
+        );
+        assert!(with(json!({"minecraft:noon": 23_999})).is_ok());
+    }
+
+    #[test]
+    fn a_keyframe_on_the_period_boundary_is_still_accepted() {
+        let timeline = load(
+            "minecraft:visual/star_brightness",
+            Some(24_000),
+            json!({"keyframes": [{"ticks": 0, "value": 0.0}, {"ticks": 24_000, "value": 1.0}]}),
+        )
+        .unwrap();
+        assert_eq!(timeline.bake().len(), 1);
+    }
+
+    #[test]
+    fn a_timeline_and_its_markers_refuse_what_the_game_does_not_know() {
+        let refusals = [
+            (
+                json!({"clock": "minecraft:overworld", "extra": 1}),
+                "unknown field `extra`",
+            ),
+            (
+                json!({"clock": "minecraft:overworld", "time_markers": {"minecraft:day": {"ticks": 1, "extra": true}}}),
+                "unknown field `extra`",
+            ),
+            (
+                json!({"clock": "minecraft:overworld", "time_markers": {"minecraft:day": -1}}),
+                "invalid type: integer `-1`",
+            ),
+            (
+                json!({"clock": "minecraft:overworld", "time_markers": {"Not A Name": 1}}),
+                "Not A Name",
+            ),
+            (json!({"clock": "minecraft:nowhere"}), "minecraft:nowhere"),
+        ];
+        for (doc, expected) in refusals {
+            let refused = read_document(doc.clone()).unwrap_err();
+            assert!(refused.contains(expected), "{doc}: {refused}");
         }
     }
 }

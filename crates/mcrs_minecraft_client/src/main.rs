@@ -22,11 +22,11 @@ use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::Weather;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClock, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registry::RegistrySet;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 
@@ -448,14 +448,14 @@ fn fatal(err: SaveError) -> ! {
 fn log_registry_counts(
     dimension_types: Res<Assets<DimensionType>>,
     biomes: Res<Assets<Biome>>,
-    timelines: Res<Assets<Timeline>>,
-    world_clocks: Res<Assets<WorldClock>>,
+    registries: Res<RegistrySet>,
 ) {
+    let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
     info!(
         dimension_types = dimension_types.len(),
         biomes = biomes.len(),
-        timelines = timelines.len(),
-        world_clocks = world_clocks.len(),
+        timelines = loaded("minecraft:timeline"),
+        world_clocks = loaded("minecraft:world_clock"),
         "registry assets loaded"
     );
 }

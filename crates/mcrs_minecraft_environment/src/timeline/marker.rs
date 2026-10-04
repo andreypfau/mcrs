@@ -1,4 +1,8 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use serde::de::value::MapAccessDeserializer;
+use serde::de::{self, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// A time marker as a timeline declares it: a bare tick count, or an object
 /// that also asks for the marker to be offered to commands.
@@ -9,31 +13,48 @@ pub struct TimeMarker {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FullTimeMarker {
     ticks: u32,
     #[serde(default)]
     show_in_commands: bool,
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum TimeMarkerRepr {
-    Bare(u32),
-    Full(FullTimeMarker),
+impl From<FullTimeMarker> for TimeMarker {
+    fn from(full: FullTimeMarker) -> Self {
+        TimeMarker {
+            ticks: full.ticks,
+            show_in_commands: full.show_in_commands,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for TimeMarker {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(match TimeMarkerRepr::deserialize(d)? {
-            TimeMarkerRepr::Bare(ticks) => TimeMarker {
-                ticks,
-                show_in_commands: false,
-            },
-            TimeMarkerRepr::Full(full) => TimeMarker {
-                ticks: full.ticks,
-                show_in_commands: full.show_in_commands,
-            },
-        })
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct MarkerVisitor;
+
+        impl<'de> Visitor<'de> for MarkerVisitor {
+            type Value = TimeMarker;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a tick count or an object with `ticks`")
+            }
+
+            fn visit_u64<E: de::Error>(self, ticks: u64) -> Result<TimeMarker, E> {
+                let ticks = u32::try_from(ticks)
+                    .map_err(|_| E::invalid_value(de::Unexpected::Unsigned(ticks), &self))?;
+                Ok(TimeMarker {
+                    ticks,
+                    show_in_commands: false,
+                })
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<TimeMarker, A::Error> {
+                FullTimeMarker::deserialize(MapAccessDeserializer::new(map)).map(TimeMarker::from)
+            }
+        }
+
+        d.deserialize_any(MarkerVisitor)
     }
 }
 

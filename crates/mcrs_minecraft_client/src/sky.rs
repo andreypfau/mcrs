@@ -658,7 +658,7 @@ mod sky_regression {
     use mcrs_minecraft_dimension::environment::{DimensionEnvironment, EnvironmentAttributes};
     use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
     use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::ClockState;
+    use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock};
 
     use super::reference::*;
     use super::*;
@@ -673,10 +673,17 @@ mod sky_regression {
         attributes: EnvironmentAttributeMap,
     }
 
+    static CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
+        std::sync::LazyLock::new(|| {
+            mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+        });
+
     fn read<T: serde::de::DeserializeOwned>(relative: &str) -> T {
         let path = crate::asset_corpus().join("minecraft").join(relative);
         let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+        CLOCKS.scope(|| {
+            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+        })
     }
 
     fn tagged_timelines(tag: &str, out: &mut Vec<Timeline>) {
@@ -709,6 +716,7 @@ mod sky_regression {
                 has_ceiling: dimension.has_ceiling,
             },
             &timelines.iter().collect::<Vec<_>>(),
+            &CLOCKS.registry().unwrap(),
         )
         .unwrap();
         let layout = SkyLayout::derive(&attributes);
