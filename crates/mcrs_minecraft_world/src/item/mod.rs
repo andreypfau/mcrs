@@ -16,7 +16,7 @@ pub mod definitions;
 pub mod enchantments;
 pub mod tool;
 
-pub use enchantments::test_enchantments;
+pub use enchantments::{test_enchantment_registry, test_enchantments};
 
 /// The whole vanilla corpus, loaded once per process; for tests and tools
 /// that have no app to hand it an asset server from.

@@ -39,7 +39,6 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::seed_world_clocks;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_registry::StaticRegistry;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -89,8 +88,7 @@ impl Plugin for MinecraftWorldPlugin {
         );
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<EnchantmentData>>()
-            .init_resource::<LoadedRegistryAssets>();
+        app.init_resource::<LoadedRegistryAssets>();
 
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
@@ -98,10 +96,7 @@ impl Plugin for MinecraftWorldPlugin {
                 request_every_tag::<mcrs_minecraft_registry::key::Block, u32>,
                 request_every_tag::<mcrs_minecraft_registry::key::Fluid, u32>,
                 request_every_tag::<mcrs_minecraft_item::Item, u32>,
-                request_every_tag::<
-                    EnchantmentData,
-                    mcrs_minecraft_registry::StaticId<EnchantmentData>,
-                >,
+                request_every_tag::<EnchantmentData, mcrs_minecraft_registry::Id<EnchantmentData>>,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
                 request_every_tag::<mcrs_minecraft_registry::key::Biome, u32>,
                 request_every_tag::<mcrs_minecraft_registry::key::Structure, u32>,
@@ -111,7 +106,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_tagged_registry::<mcrs_minecraft_registry::key::Block, mcrs_minecraft_block::definition::Blocks>()
         .add_tagged_registry::<mcrs_minecraft_registry::key::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
-        .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
+        .add_tagged_registry::<EnchantmentData, mcrs_minecraft_registry::Registry<EnchantmentData>>()
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_registry::key::Biome, DynRegistryIndex<mcrs_minecraft_registry::key::Biome>>()
@@ -129,7 +124,6 @@ impl Plugin for MinecraftWorldPlugin {
             share::<mcrs_minecraft_assets::RegistryAccess>(world);
             share::<mcrs_minecraft_block::definition::Blocks>(world);
             share::<mcrs_minecraft_item::Items>(world);
-            share::<StaticRegistry<EnchantmentData>>(world);
             share::<DynTagRegistry<Block>>(world);
             share::<DynTagRegistry<mcrs_minecraft_item::Item>>(world);
             share::<mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_biome::Biome>>(world);
@@ -435,9 +429,25 @@ impl Plugin for MinecraftWorldPlugin {
                     |variant| variant::NetworkZombieNautilusVariant::from(variant),
                 );
             }
+            app.insert_resource(registries.registry::<EnchantmentData>().unwrap_or_else(|| {
+                panic!("{}: no minecraft:enchantment registry", path.display())
+            }));
+            app.insert_resource(
+                registries
+                    .entries::<EnchantmentData, EnchantmentData>()
+                    .unwrap_or_else(|| {
+                        panic!("{}: no minecraft:enchantment values", path.display())
+                    }),
+            );
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);
+            mcrs_minecraft_registry::shared::share::<
+                mcrs_minecraft_registry::Registry<EnchantmentData>,
+            >(app.world_mut());
+            mcrs_minecraft_registry::shared::share::<
+                mcrs_minecraft_registry::Entries<EnchantmentData, EnchantmentData>,
+            >(app.world_mut());
             mcrs_minecraft_registry::shared::share::<mcrs_minecraft_registry::RegistrySet>(
                 app.world_mut(),
             );
@@ -474,20 +484,6 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
             app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
         }
-        app.world_mut().resource_scope(
-            |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                crate::item::enchantments::register_all_enchantments(
-                    &mut enchantments,
-                    world.resource::<mcrs_minecraft_registry::RegistrySet>(),
-                );
-                tracing::info!(
-                    count = enchantments.len(),
-                    "registered StaticRegistry<EnchantmentData>"
-                );
-                enchantments.freeze();
-                tracing::info!("frozen StaticRegistry<EnchantmentData>");
-            },
-        );
     }
 }
 

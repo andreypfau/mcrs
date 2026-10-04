@@ -2,7 +2,7 @@ use crate::world::loot::condition::LootCondition;
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_registry::Registry;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,7 +51,7 @@ impl LootEntry {
         }
     }
 
-    pub fn drop_unknown_enchantments(&mut self, registry: &StaticRegistry<EnchantmentData>) {
+    pub fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
         let conditions = match self {
             LootEntry::Item { conditions, .. } | LootEntry::Empty { conditions } => conditions,
             LootEntry::Alternatives {

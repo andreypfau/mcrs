@@ -1,7 +1,7 @@
 use crate::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_registry::StaticRegistry;
+use mcrs_minecraft_registry::Registry;
 use serde::Deserialize;
 use tracing::warn;
 
@@ -75,11 +75,11 @@ impl LootCondition {
 
     /// A tool predicate naming an enchantment the registry lacks is dropped, so the
     /// condition always holds.
-    pub fn drop_unknown_enchantments(&mut self, registry: &StaticRegistry<EnchantmentData>) {
+    pub fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
         match self {
             LootCondition::MatchTool { predicate } => {
                 if let Some(required) = predicate.enchantment()
-                    && registry.id_of(required.enchantments.as_str()).is_none()
+                    && registry.get(required.enchantments.as_str()).is_none()
                 {
                     warn!(
                         enchantment = %required.enchantments,

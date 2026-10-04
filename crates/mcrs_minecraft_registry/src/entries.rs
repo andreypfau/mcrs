@@ -3,10 +3,47 @@ use crate::registry::{Registry, RegistryError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use std::marker::PhantomData;
 use std::ops::Index;
+use std::sync::Arc;
 
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct Entries<R, T> {
-    values: Box<[T]>,
+    values: Arc<[T]>,
     _marker: PhantomData<fn() -> R>,
+}
+
+impl<R, T> Clone for Entries<R, T> {
+    fn clone(&self) -> Self {
+        Entries {
+            values: Arc::clone(&self.values),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<R, T> Entries<R, T> {
+    pub(crate) fn from_shared(values: Arc<[T]>) -> Self {
+        Entries {
+            values,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.values, &other.values)
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        &self.values
+    }
+}
+
+#[cfg(feature = "bevy")]
+impl<R: Send + Sync + 'static, T: Send + Sync + 'static> crate::shared::SharedResource
+    for Entries<R, T>
+{
+    fn shares_with(&self, other: &Self) -> bool {
+        Entries::shares_with(self, other)
+    }
 }
 
 impl<R: RegistryKey, T> Entries<R, T> {
@@ -18,10 +55,7 @@ impl<R: RegistryKey, T> Entries<R, T> {
                 found: values.len(),
             });
         }
-        Ok(Entries {
-            values: values.into_boxed_slice(),
-            _marker: PhantomData,
-        })
+        Ok(Entries::from_shared(values.into()))
     }
 
     pub fn get(&self, id: Id<R>) -> Option<&T> {

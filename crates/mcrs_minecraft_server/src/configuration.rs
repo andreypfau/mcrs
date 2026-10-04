@@ -420,7 +420,7 @@ fn on_known_packs_response(
     dimension_types: Res<Assets<DimensionType>>,
     block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     item_tags: Option<Res<DynTagRegistry<VanillaItem>>>,
-    enchantment_tags: Option<Res<TagRegistry<EnchantmentData>>>,
+    enchantment_tags: Option<Res<TagRegistry<EnchantmentData, Id<EnchantmentData>>>>,
     entity_type_tags: Option<Res<TagRegistry<VanillaEntityType, Id<VanillaEntityType>>>>,
     dynamic_tags: Res<DynamicRegistryTagFiles>,
     tag_files: Res<Assets<TagFile>>,
@@ -540,7 +540,7 @@ fn on_known_packs_response(
                     .unwrap_or_else(|_| {
                         ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
                     }),
-                entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
+                entries: bitset.iter().map(registry_varint).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
