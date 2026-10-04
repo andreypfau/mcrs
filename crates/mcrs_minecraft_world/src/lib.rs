@@ -13,6 +13,7 @@ pub mod dialog;
 pub mod dimension;
 pub mod entity;
 pub mod item;
+pub mod registries;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
@@ -485,6 +486,16 @@ impl Plugin for MinecraftWorldPlugin {
                 path,
             ))
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let registries = registries::static_registries(&bytes)
+                .unwrap_or_else(|report| registries::refuse(&report));
+            tracing::info!(
+                count = registries.tables().count(),
+                "built the static registries"
+            );
+            app.insert_resource(registries);
+            mcrs_minecraft_registry::shared::share::<mcrs_minecraft_registry::RegistrySet>(
+                app.world_mut(),
+            );
             let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<EntityType>>();
