@@ -1,20 +1,20 @@
 use super::defaults::*;
 use super::mob::*;
 use super::*;
-use crate::keys::PlacedKey;
+use crate::keys::{ParticleKey, PlacedKey, particle};
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 #[derive(Serialize)]
 struct AmbientSounds {
     #[serde(rename = "loop")]
-    looped: Id,
+    looped: SoundKey,
     mood: AmbientMood,
     additions: AmbientAdditions,
 }
 
 #[derive(Serialize)]
 struct AmbientMood {
-    sound: Id,
+    sound: SoundKey,
     tick_delay: i32,
     block_search_extent: i32,
     offset: f64,
@@ -22,7 +22,7 @@ struct AmbientMood {
 
 #[derive(Serialize)]
 struct AmbientAdditions {
-    sound: Id,
+    sound: SoundKey,
     tick_chance: f64,
 }
 
@@ -35,10 +35,10 @@ struct AmbientParticle {
 #[derive(Serialize)]
 struct Particle {
     #[serde(rename = "type")]
-    kind: Id,
+    kind: ParticleKey,
 }
 
-fn ambient_sounds(looped: Id, mood: Id, additions: Id) -> AmbientSounds {
+fn ambient_sounds(looped: SoundKey, mood: SoundKey, additions: SoundKey) -> AmbientSounds {
     AmbientSounds {
         looped,
         mood: AmbientMood {
@@ -54,31 +54,25 @@ fn ambient_sounds(looped: Id, mood: Id, additions: Id) -> AmbientSounds {
     }
 }
 
-fn ambient_particle(particle: Id, probability: f32) -> AmbientParticle {
+fn ambient_particle(particle: ParticleKey, probability: f32) -> AmbientParticle {
     AmbientParticle {
         particle: Particle { kind: particle },
         probability,
     }
 }
 
-macro_rules! id {
-    ($($part:expr),+) => {
-        const { Id::new_static(concat!($($part),+)) }
-    };
-}
-
 macro_rules! nether_biome {
-    ($name:literal, $fog_color:expr, $mobs:expr, $generation:expr) => {
+    ($sounds:ident, $fog_color:expr, $mobs:expr, $generation:expr) => {
         base_biome($mobs, $generation)
             .with(FOG_COLOR, HexRgb::of($fog_color))
-            .music(id!("minecraft:music.nether.", $name))
+            .music(sound::$sounds::MUSIC)
             .modified(
                 AMBIENT_SOUNDS,
                 Operation::Override,
                 ambient_sounds(
-                    id!("minecraft:ambient.", $name, ".loop"),
-                    id!("minecraft:ambient.", $name, ".mood"),
-                    id!("minecraft:ambient.", $name, ".additions"),
+                    sound::$sounds::LOOP,
+                    sound::$sounds::MOOD,
+                    sound::$sounds::ADDITIONS,
                 ),
             )
     };
@@ -132,7 +126,7 @@ pub fn nether_wastes() -> Biome {
         &[],
     );
     default_mushrooms(&mut g);
-    nether_biome!("nether_wastes", -13432824, m, g)
+    nether_biome!(nether_wastes, -13432824, m, g)
 }
 
 pub fn soul_sand_valley() -> Biome {
@@ -150,10 +144,10 @@ pub fn soul_sand_valley() -> Biome {
         &[placed!("ore_soul_sand")],
     );
     g.feature(LocalModifications, placed!("basalt_pillar"));
-    nether_biome!("soul_sand_valley", -14989499, m, g).modified(
+    nether_biome!(soul_sand_valley, -14989499, m, g).modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(rl!("minecraft:ash"), 0.00625)],
+        [ambient_particle(particle::ASH, 0.00625)],
     )
 }
 
@@ -191,10 +185,10 @@ pub fn basalt_deltas() -> Biome {
             ],
         );
     ancient_debris(&mut g);
-    nether_biome!("basalt_deltas", -9937040, m, g).modified(
+    nether_biome!(basalt_deltas, -9937040, m, g).modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(rl!("minecraft:white_ash"), 0.118093334)],
+        [ambient_particle(particle::WHITE_ASH, 0.118093334)],
     )
 }
 
@@ -214,10 +208,10 @@ pub fn crimson_forest() -> Biome {
             placed!("crimson_forest_vegetation"),
         ],
     );
-    nether_biome!("crimson_forest", -13434109, m, g).modified(
+    nether_biome!(crimson_forest, -13434109, m, g).modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(rl!("minecraft:crimson_spore"), 0.025)],
+        [ambient_particle(particle::CRIMSON_SPORE, 0.025)],
     )
 }
 
@@ -237,9 +231,9 @@ pub fn warped_forest() -> Biome {
             placed!("twisting_vines"),
         ],
     );
-    nether_biome!("warped_forest", -15071974, m, g).modified(
+    nether_biome!(warped_forest, -15071974, m, g).modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(rl!("minecraft:warped_spore"), 0.01428)],
+        [ambient_particle(particle::WARPED_SPORE, 0.01428)],
     )
 }

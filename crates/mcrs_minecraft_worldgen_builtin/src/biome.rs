@@ -3,11 +3,12 @@ mod end;
 mod nether;
 mod overworld;
 
-use crate::keys::{Id, carver, placed};
+use crate::keys::{Id, SoundKey, carver, placed, sound};
 use mcrs_minecraft_biome::{Biome, BiomeGeneration as Generation, GrassColorModifier};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_worldgen_structure::MobCategory;
@@ -15,19 +16,19 @@ use serde::Serialize;
 
 #[derive(Clone, Copy)]
 pub struct Mob {
-    id: Id,
+    id: ResourceKey<EntityType, &'static str>,
     category: MobCategory,
 }
 
 pub mod mob {
     use super::Mob;
-    use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_core::{ResourceKey, rl};
     use mcrs_minecraft_worldgen_structure::MobCategory::*;
 
     macro_rules! mobs {
         ($($name:ident = $id:literal, $category:ident;)*) => {
             $(pub const $name: Mob = Mob {
-                id: rl!($id),
+                id: ResourceKey::new(rl!($id)),
                 category: $category,
             };)*
 
@@ -92,15 +93,20 @@ pub mod mob {
     }
 
     #[cfg(test)]
-    #[test]
-    fn every_mob_is_a_registered_entity_type() {
-        let report = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../assets/mcrs/reports/registries.json");
-        let report: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(report).unwrap()).unwrap();
-        let entity_types = &report["minecraft:entity_type"]["entries"];
-        for mob in ALL {
-            assert!(entity_types.get(mob.id.as_str()).is_some(), "{}", mob.id);
+    mod tests {
+        use super::ALL;
+        use crate::keys::report;
+
+        #[test]
+        fn every_mob_is_an_entity_type_of_the_report() {
+            let ids: Vec<_> = ALL.iter().map(|mob| mob.id).collect();
+            assert_eq!(report::missing(&ids), Vec::<String>::new());
+        }
+
+        #[test]
+        fn no_entity_type_is_listed_twice() {
+            let ids: Vec<_> = ALL.iter().map(|mob| mob.id).collect();
+            assert_eq!(report::repeated(&ids), Vec::<String>::new());
         }
     }
 }
@@ -126,26 +132,30 @@ impl Mobs {
         max: i32,
     ) -> &mut Self {
         let weight = NonNegativeInt::new(weight).expect("a spawn weight is not negative");
-        self.0
-            .add_spawn(category, mob.id, weight, IntProvider::between(min, max));
+        self.0.add_spawn(
+            category,
+            *mob.id.location(),
+            weight,
+            IntProvider::between(min, max),
+        );
         self
     }
 
     pub fn cost(&mut self, mob: Mob, charge: f64, energy_budget: f64) -> &mut Self {
-        self.0.add_cost(mob.id, charge, energy_budget);
+        self.0.add_cost(*mob.id.location(), charge, energy_budget);
         self
     }
 }
 
 #[derive(Serialize)]
 pub struct Music {
-    sound: Id,
+    sound: SoundKey,
     min_delay: i32,
     max_delay: i32,
 }
 
 impl Music {
-    pub fn game(sound: Id) -> Self {
+    pub fn game(sound: SoundKey) -> Self {
         Music {
             sound,
             min_delay: 12000,
@@ -165,7 +175,7 @@ pub struct BackgroundMusic {
 }
 
 impl BackgroundMusic {
-    pub fn of(sound: Id) -> Self {
+    pub fn of(sound: SoundKey) -> Self {
         BackgroundMusic {
             default: Some(Music::game(sound)),
             ..Default::default()
@@ -174,9 +184,9 @@ impl BackgroundMusic {
 
     pub fn overworld_with_underwater() -> Self {
         BackgroundMusic {
-            default: Some(Music::game(rl!("minecraft:music.game"))),
-            creative: Some(Music::game(rl!("minecraft:music.creative"))),
-            underwater: Some(Music::game(rl!("minecraft:music.under_water"))),
+            default: Some(Music::game(sound::MUSIC_GAME)),
+            creative: Some(Music::game(sound::MUSIC_CREATIVE)),
+            underwater: Some(Music::game(sound::MUSIC_UNDER_WATER)),
         }
     }
 }
@@ -184,7 +194,7 @@ impl BackgroundMusic {
 pub trait BiomeMusic: Sized {
     fn background_music(self, music: BackgroundMusic) -> Self;
 
-    fn music(self, sound: Id) -> Self {
+    fn music(self, sound: SoundKey) -> Self {
         self.background_music(BackgroundMusic::of(sound))
     }
 }
@@ -236,8 +246,8 @@ const BIOMES: &[(Id, fn() -> Biome)] = {
         (rl!("minecraft:cherry_grove"), || o::meadow_or_cherry_grove(true)),
         (rl!("minecraft:grove"), o::grove),
         (rl!("minecraft:snowy_slopes"), o::snowy_slopes),
-        (rl!("minecraft:frozen_peaks"), || o::peaks(rl!("minecraft:music.overworld.frozen_peaks"))),
-        (rl!("minecraft:jagged_peaks"), || o::peaks(rl!("minecraft:music.overworld.jagged_peaks"))),
+        (rl!("minecraft:frozen_peaks"), || o::peaks(sound::MUSIC_OVERWORLD_FROZEN_PEAKS)),
+        (rl!("minecraft:jagged_peaks"), || o::peaks(sound::MUSIC_OVERWORLD_JAGGED_PEAKS)),
         (rl!("minecraft:stony_peaks"), o::stony_peaks),
         (rl!("minecraft:river"), || o::river(false)),
         (rl!("minecraft:frozen_river"), || o::river(true)),
