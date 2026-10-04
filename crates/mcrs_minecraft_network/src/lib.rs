@@ -6,6 +6,7 @@ pub mod client;
 pub mod connect;
 #[cfg(feature = "bevy")]
 pub mod event;
+pub mod identity;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 mod intent;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
