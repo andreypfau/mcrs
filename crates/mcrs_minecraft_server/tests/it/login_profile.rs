@@ -1,19 +1,27 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::system::{IntoSystem, System};
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::event::{ReceivedPacketEvent, run_event_loop};
+use mcrs_minecraft_network::metrics::PreGameDecodeCounts;
+use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
-use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
+use mcrs_minecraft_protocol::packets::configuration::serverbound::{
+    ServerboundClientInformation, ServerboundFinishConfiguration,
+};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished,
 };
-use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundHello;
+use mcrs_minecraft_protocol::packets::login::serverbound::{
+    ServerboundHello, ServerboundLoginAcknowledged,
+};
+use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Packet, Text};
 use mcrs_minecraft_server::configuration::on_configuration_ack;
@@ -445,4 +453,84 @@ fn a_session_finishing_configuration_while_another_under_its_id_plays_is_refused
         duplicate_login()
     );
     assert!(!connected(&app, &clients[1]));
+}
+
+fn frame<P: Encode + Packet>(packet: &P) -> ReceivedPacket {
+    let mut body = Vec::new();
+    packet.encode(&mut body).unwrap();
+    ReceivedPacket {
+        timestamp: mcrs_minecraft_network::Instant::now(),
+        id: P::ID,
+        payload: body.into(),
+    }
+}
+
+fn read_sockets(app: &mut App) {
+    let mut system = IntoSystem::into_system(run_event_loop);
+    system.initialize(app.world_mut());
+    let _ = system.run((), app.world_mut());
+    system.apply_deferred(app.world_mut());
+}
+
+#[test]
+fn configuration_frames_sent_with_the_login_acknowledgement_count_no_decode_fault() {
+    let mut app = server(None);
+    app.init_resource::<PreGameDecodeCounts>();
+    let (raw, _outgoing, inbound) = mock_connection::make_mock_raw_connection_full();
+    let connection = app
+        .world_mut()
+        .spawn((
+            ServerSideConnection { raw: Box::new(raw) },
+            ConnectionState::Login,
+        ))
+        .id();
+
+    let hello = ServerboundHello {
+        username: Bounded("Steve"),
+        profile_id: Uuid::new_v4(),
+    };
+    inbound.try_send(frame(&hello)).unwrap();
+    read_sockets(&mut app);
+    assert_eq!(
+        app.world().get::<LoginState>(connection),
+        Some(&LoginState::Accepted)
+    );
+
+    inbound
+        .try_send(frame(&ServerboundLoginAcknowledged))
+        .unwrap();
+    inbound
+        .try_send(frame(&ServerboundClientInformation(ClientInformation {
+            locale: "en_us",
+            view_distance: 12,
+            chat_mode: ChatMode::Enabled,
+            chat_colors: true,
+            displayed_skin_parts: DisplayedSkinParts::from_bits(0x7f),
+            main_arm: MainArm::Right,
+            enable_text_filtering: false,
+            allow_server_listings: true,
+            particle_status: ParticleStatus::All,
+        })))
+        .unwrap();
+    read_sockets(&mut app);
+    read_sockets(&mut app);
+
+    assert_eq!(
+        app.world().get::<ConnectionState>(connection),
+        Some(&ConnectionState::Configuration)
+    );
+    let mut socket = app
+        .world_mut()
+        .get_mut::<ServerSideConnection>(connection)
+        .unwrap();
+    assert!(matches!(socket.raw.try_recv(), Ok(None)));
+    let counts = app.world().resource::<PreGameDecodeCounts>();
+    for state in [ConnectionState::Login, ConnectionState::Configuration] {
+        let counts = counts.counts(state).unwrap();
+        assert_eq!(
+            (counts.failures_total(), counts.unknown()),
+            (0, 0),
+            "{state:?}"
+        );
+    }
 }

@@ -48,6 +48,9 @@ mod loop_plugin {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::prelude::Commands;
     use bevy_ecs::system::{Query, ResMut};
+    use mcrs_minecraft_protocol::Packet;
+    use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+    use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundLoginAcknowledged;
     use tracing::warn;
 
     pub(crate) struct EventLoopPlugin;
@@ -69,10 +72,13 @@ mod loop_plugin {
         mut counts: ResMut<PreGameDecodeCounts>,
     ) {
         query.iter_mut().for_each(|(entity, mut conn, state)| {
-            // A connection in game is read by the server's bridge, which rate-limits it.
-            if state == Some(&ConnectionState::Game) {
-                return;
-            }
+            let ends_state = match state {
+                // A connection in game is read by the server's bridge, which rate-limits it.
+                Some(ConnectionState::Game) => return,
+                Some(ConnectionState::Login) => Some(ServerboundLoginAcknowledged::ID),
+                Some(ConnectionState::Configuration) => Some(ServerboundFinishConfiguration::ID),
+                None => None,
+            };
             loop {
                 match conn.raw.try_recv() {
                     Ok(Some(pkt)) => {
@@ -87,6 +93,11 @@ mod loop_plugin {
                             data: pkt.payload,
                             timestamp: pkt.timestamp,
                         });
+                        // The frames behind one that ends the state are in the next state's
+                        // protocol, and the state changes only once this one is handled.
+                        if ends_state == Some(pkt.id) {
+                            break;
+                        }
                     }
                     Ok(None) => break,
                     Err(e) => {
@@ -109,9 +120,22 @@ mod tests {
     use super::*;
     use crate::metrics::PreGameDecodeCounts;
     use crate::{ConnectionState, RawConnection, ReceivedPacket, ServerSideConnection};
-    use bevy_ecs::system::{IntoSystem, System};
+    use bevy_ecs::observer::On;
+    use bevy_ecs::resource::Resource;
+    use bevy_ecs::system::{Commands, IntoSystem, Query, ResMut, System};
     use bevy_ecs::world::World;
+    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_protocol::packets::common::serverbound::{
+        ClientInformation, CustomPayload, KeepAlive,
+    };
+    use mcrs_minecraft_protocol::packets::configuration::serverbound::{
+        ServerboundClientInformation, ServerboundCustomPayload, ServerboundFinishConfiguration,
+    };
+    use mcrs_minecraft_protocol::packets::game;
+    use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundLoginAcknowledged;
     use mcrs_minecraft_protocol::packets::table::{configuration_serverbound, login_serverbound};
+    use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
+    use mcrs_minecraft_protocol::{Bounded, Encode, RawBytes};
     use std::sync::OnceLock;
     use tokio::sync::mpsc;
 
@@ -143,11 +167,160 @@ mod tests {
         }
     }
 
+    fn packet<P: Encode + Packet>(packet: &P) -> ReceivedPacket {
+        let mut body = Vec::new();
+        packet.encode(&mut body).unwrap();
+        ReceivedPacket {
+            timestamp: Instant::now(),
+            id: P::ID,
+            payload: body.into(),
+        }
+    }
+
     fn run(world: &mut World) {
         let mut system = IntoSystem::into_system(loop_plugin::run_event_loop);
         system.initialize(world);
         let _ = system.run((), world);
         system.apply_deferred(world);
+    }
+
+    #[derive(Resource, Default)]
+    struct Dispatched(Vec<(ConnectionState, i32)>);
+
+    fn answer_like_the_server(
+        event: On<ReceivedPacketEvent>,
+        mut states: Query<&mut ConnectionState>,
+        mut dispatched: ResMut<Dispatched>,
+        mut commands: Commands,
+    ) {
+        let mut state = states.get_mut(event.entity).unwrap();
+        dispatched.0.push((*state, event.id));
+        match *state {
+            ConnectionState::Login if event.decode::<ServerboundLoginAcknowledged>().is_some() => {
+                commands
+                    .entity(event.entity)
+                    .insert(ConnectionState::Configuration);
+            }
+            ConnectionState::Configuration
+                if event.decode::<ServerboundFinishConfiguration>().is_some() =>
+            {
+                *state = ConnectionState::Game;
+            }
+            _ => {}
+        }
+    }
+
+    fn server_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<PreGameDecodeCounts>();
+        world.init_resource::<Dispatched>();
+        world.add_observer(answer_like_the_server);
+        world
+    }
+
+    fn counted_faults(world: &World) -> Vec<String> {
+        let counts = world.resource::<PreGameDecodeCounts>();
+        let mut faults = Vec::new();
+        for (state, names) in [
+            (ConnectionState::Login, login_serverbound::NAMES),
+            (
+                ConnectionState::Configuration,
+                configuration_serverbound::NAMES,
+            ),
+        ] {
+            let table = counts.counts(state).unwrap();
+            for (row, name) in names.iter().enumerate() {
+                if table.failures(row) > 0 {
+                    faults.push(format!("{state:?} {name}: {}", table.failures(row)));
+                }
+            }
+            if table.unknown() > 0 {
+                faults.push(format!("{state:?} unknown id: {}", table.unknown()));
+            }
+        }
+        faults
+    }
+
+    #[test]
+    fn valid_frames_of_two_states_queued_together_count_nothing() {
+        let mut world = server_world();
+        let (_connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
+        let mut brand = Vec::new();
+        "vanilla".encode(&mut brand).unwrap();
+        tx.try_send(packet(&ServerboundLoginAcknowledged)).unwrap();
+        tx.try_send(packet(&ServerboundCustomPayload::from(CustomPayload {
+            channel: ResourceLocation::parse_cow("minecraft:brand").unwrap(),
+            data: Bounded(RawBytes(&brand)),
+        })))
+        .unwrap();
+        tx.try_send(packet(&ServerboundClientInformation(ClientInformation {
+            locale: "en_us",
+            view_distance: 12,
+            chat_mode: ChatMode::Enabled,
+            chat_colors: true,
+            displayed_skin_parts: DisplayedSkinParts::from_bits(0x7f),
+            main_arm: MainArm::Right,
+            enable_text_filtering: false,
+            allow_server_listings: true,
+            particle_status: ParticleStatus::All,
+        })))
+        .unwrap();
+
+        run(&mut world);
+        run(&mut world);
+
+        assert_eq!(
+            world.resource::<Dispatched>().0,
+            [
+                (ConnectionState::Login, ServerboundLoginAcknowledged::ID),
+                (ConnectionState::Configuration, ServerboundCustomPayload::ID),
+                (
+                    ConnectionState::Configuration,
+                    ServerboundClientInformation::ID
+                ),
+            ]
+        );
+        assert_eq!(counted_faults(&world), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_game_frame_behind_the_end_of_configuration_stays_queued() {
+        let mut world = server_world();
+        let (connection, tx) = spawn_connection(&mut world, ConnectionState::Configuration);
+        let keep_alive = game::serverbound::ServerboundKeepAlive(KeepAlive { payload: 7 });
+        tx.try_send(packet(&ServerboundFinishConfiguration))
+            .unwrap();
+        tx.try_send(packet(&keep_alive)).unwrap();
+
+        run(&mut world);
+        run(&mut world);
+
+        assert_eq!(
+            world.resource::<Dispatched>().0,
+            [(
+                ConnectionState::Configuration,
+                ServerboundFinishConfiguration::ID
+            )]
+        );
+        assert_eq!(counted_faults(&world), Vec::<String>::new());
+        let mut connection = world.get_mut::<ServerSideConnection>(connection).unwrap();
+        let queued = connection.raw.try_recv().unwrap().unwrap();
+        assert_eq!(queued.id, game::serverbound::ServerboundKeepAlive::ID);
+    }
+
+    #[test]
+    fn a_fault_behind_an_acknowledgement_nobody_accepts_is_counted_in_its_state() {
+        let mut world = World::new();
+        world.init_resource::<PreGameDecodeCounts>();
+        let (_connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
+        tx.try_send(packet(&ServerboundLoginAcknowledged)).unwrap();
+        tx.try_send(frame(login_serverbound::NAMES.len() as i32))
+            .unwrap();
+
+        run(&mut world);
+        run(&mut world);
+
+        assert_eq!(counted_faults(&world), ["Login unknown id: 1"]);
     }
 
     #[test]
