@@ -5,13 +5,16 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
 use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
+use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
 use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
 use mcrs_minecraft_world::registries::{
-    read_packs, static_registries as build_static_registries, test_registries, world_registries,
+    read_packs, register_loaded, static_registries as build_static_registries, test_registries,
+    world_registries,
 };
+use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use serde::Deserialize;
 use std::sync::LazyLock;
 
@@ -24,7 +27,19 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
     "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
     "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
-    "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true}}}"#;
+    "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true},
+    "minecraft:wolf_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:wolf_sound_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:pig_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:pig_sound_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:cow_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:cow_sound_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:chicken_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:chicken_sound_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
@@ -32,7 +47,11 @@ static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
 });
 
 fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
-    let world = world_registries(PARSED_REPORT).expect("the report parses");
+    refused_in(PARSED_REPORT, registry, name, json)
+}
+
+fn refused_in(report: &[u8], registry: &str, name: &str, json: &str) -> String {
+    let world = world_registries(report).expect("the report parses");
     let packs = [Pack {
         name: VANILLA_PACK.to_owned(),
         files: vec![PackFile {
@@ -433,4 +452,101 @@ fn a_damage_type_with_an_unknown_scaling_fails() {
     ] {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
+}
+
+const VARIANT_REGISTRIES: [&str; 13] = [
+    "minecraft:wolf_variant",
+    "minecraft:wolf_sound_variant",
+    "minecraft:pig_variant",
+    "minecraft:pig_sound_variant",
+    "minecraft:cow_variant",
+    "minecraft:cow_sound_variant",
+    "minecraft:chicken_variant",
+    "minecraft:chicken_sound_variant",
+    "minecraft:cat_variant",
+    "minecraft:cat_sound_variant",
+    "minecraft:frog_variant",
+    "minecraft:zombie_nautilus_variant",
+    "minecraft:painting_variant",
+];
+
+#[test]
+fn a_spawn_condition_naming_an_unknown_biome_tag_fails() {
+    let assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
+    let json = format!(
+        r##"{{"assets":{assets},"baby_assets":{assets},"spawn_conditions":[
+            {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
+    );
+    let mut report: serde_json::Value = serde_json::from_slice(PARSED_REPORT).unwrap();
+    for registry in ["minecraft:worldgen/biome", "minecraft:worldgen/structure"] {
+        report["registries"][registry] =
+            serde_json::json!({"elements": true, "stable": false, "tags": true});
+    }
+    let report = serde_json::to_vec(&report).unwrap();
+    let text = refused_in(&report, "wolf_variant", "odd", &json);
+    for part in [
+        "minecraft:wolf_variant",
+        "minecraft:odd",
+        "minecraft:worldgen/biome",
+        "minecraft:no_such_tag",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn an_empty_variant_registry_fails_the_load() {
+    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&datapack).expect("the report parses");
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files: Vec::new(),
+    }];
+    let text = world
+        .load(&STATICS, &packs)
+        .err()
+        .expect("a pack without variants is refused")
+        .to_string();
+    for registry in VARIANT_REGISTRIES {
+        let message = format!("Registry must be non-empty: {registry}");
+        assert!(text.contains(&message), "{message} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn the_synced_wolf_variant_has_no_spawn_conditions() {
+    let set = test_registries();
+    let mut access = RegistryAccess::default();
+    register_loaded::<WolfVariant, _>(&mut access, set, "minecraft:wolf_variant", |variant| {
+        NetworkWolfVariant::from(variant)
+    });
+    let synced = access
+        .iter()
+        .find(|snapshot| snapshot.registry_key() == "minecraft:wolf_variant")
+        .expect("the wolf variants are registered")
+        .iter_entries()
+        .find(|entry| entry.location.as_str() == "minecraft:pale")
+        .and_then(|entry| entry.data.clone())
+        .expect("the pale wolf is synced");
+    let synced = synced.extract_compound().expect("a variant is a compound");
+    assert!(synced.get("assets").is_some());
+    assert!(synced.get("spawn_conditions").is_none());
+
+    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&datapack).expect("the report parses");
+    let index = set
+        .table("minecraft:wolf_variant")
+        .and_then(|table| table.number("minecraft:pale"))
+        .expect("the pale wolf is loaded") as usize;
+    let file: serde_json::Value = serde_json::from_str(
+        &world
+            .encode(set, "minecraft:wolf_variant", index)
+            .expect("the pale wolf has an encoding")
+            .expect("the pale wolf encodes"),
+    )
+    .unwrap();
+    assert_eq!(
+        file["spawn_conditions"],
+        serde_json::json!([{"priority": 0}])
+    );
 }

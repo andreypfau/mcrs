@@ -84,30 +84,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<mcrs_minecraft_biome::Biome>();
         app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
-        app.init_asset::<variant::WolfVariant>();
-        app.register_asset_loader(JsonLoader::<variant::WolfVariant>::default());
-        app.init_asset::<variant::WolfSoundVariant>();
-        app.register_asset_loader(JsonLoader::<variant::WolfSoundVariant>::default());
-        app.init_asset::<variant::PigSoundVariant>();
-        app.register_asset_loader(JsonLoader::<variant::PigSoundVariant>::default());
-        app.init_asset::<variant::CatSoundVariant>();
-        app.register_asset_loader(JsonLoader::<variant::CatSoundVariant>::default());
-        app.init_asset::<variant::CowSoundVariant>();
-        app.register_asset_loader(JsonLoader::<variant::CowSoundVariant>::default());
-        app.init_asset::<variant::ChickenSoundVariant>();
-        app.register_asset_loader(JsonLoader::<variant::ChickenSoundVariant>::default());
-        app.init_asset::<variant::PigVariant>();
-        app.register_asset_loader(JsonLoader::<variant::PigVariant>::default());
-        app.init_asset::<variant::FrogVariant>();
-        app.register_asset_loader(JsonLoader::<variant::FrogVariant>::default());
-        app.init_asset::<variant::CatVariant>();
-        app.register_asset_loader(JsonLoader::<variant::CatVariant>::default());
-        app.init_asset::<variant::CowVariant>();
-        app.register_asset_loader(JsonLoader::<variant::CowVariant>::default());
-        app.init_asset::<variant::ChickenVariant>();
-        app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
-        app.init_asset::<variant::ZombieNautilusVariant>();
-        app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
         app.init_asset::<chat_type::ChatType>();
         app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
@@ -205,78 +181,6 @@ impl Plugin for MinecraftWorldPlugin {
                     chat_type::ChatType,
                     "minecraft:chat_type",
                     |v: &chat_type::ChatType| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::WolfVariant,
-                    "minecraft:wolf_variant",
-                    |v: &variant::WolfVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::WolfSoundVariant,
-                    "minecraft:wolf_sound_variant",
-                    |v: &variant::WolfSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::PigSoundVariant,
-                    "minecraft:pig_sound_variant",
-                    |v: &variant::PigSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::CatSoundVariant,
-                    "minecraft:cat_sound_variant",
-                    |v: &variant::CatSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::CowSoundVariant,
-                    "minecraft:cow_sound_variant",
-                    |v: &variant::CowSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::ChickenSoundVariant,
-                    "minecraft:chicken_sound_variant",
-                    |v: &variant::ChickenSoundVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::PigVariant,
-                    "minecraft:pig_variant",
-                    |v: &variant::PigVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::FrogVariant,
-                    "minecraft:frog_variant",
-                    |v: &variant::FrogVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::CatVariant,
-                    "minecraft:cat_variant",
-                    |v: &variant::CatVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::CowVariant,
-                    "minecraft:cow_variant",
-                    |v: &variant::CowVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::ChickenVariant,
-                    "minecraft:chicken_variant",
-                    |v: &variant::ChickenVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    variant::ZombieNautilusVariant,
-                    "minecraft:zombie_nautilus_variant",
-                    |v: &variant::ZombieNautilusVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -465,6 +369,78 @@ impl Plugin for MinecraftWorldPlugin {
                     &registries,
                     "minecraft:decorated_pot_pattern",
                     Clone::clone,
+                );
+                registries::register_loaded::<variant::WolfVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:wolf_variant",
+                    |variant| variant::NetworkWolfVariant::from(variant),
+                );
+                registries::register_loaded::<variant::WolfSoundVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:wolf_sound_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<variant::PigVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:pig_variant",
+                    |variant| variant::NetworkPigVariant::from(variant),
+                );
+                registries::register_loaded::<variant::PigSoundVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:pig_sound_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<variant::CowVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:cow_variant",
+                    |variant| variant::NetworkCowVariant::from(variant),
+                );
+                registries::register_loaded::<variant::CowSoundVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:cow_sound_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<variant::ChickenVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:chicken_variant",
+                    |variant| variant::NetworkChickenVariant::from(variant),
+                );
+                registries::register_loaded::<variant::ChickenSoundVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:chicken_sound_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<variant::CatVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:cat_variant",
+                    |variant| variant::NetworkCatVariant::from(variant),
+                );
+                registries::register_loaded::<variant::CatSoundVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:cat_sound_variant",
+                    Clone::clone,
+                );
+                registries::register_loaded::<variant::FrogVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:frog_variant",
+                    |variant| variant::NetworkFrogVariant::from(variant),
+                );
+                registries::register_loaded::<variant::ZombieNautilusVariant, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:zombie_nautilus_variant",
+                    |variant| variant::NetworkZombieNautilusVariant::from(variant),
                 );
             }
             app.insert_resource(registries);
