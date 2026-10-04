@@ -17,13 +17,12 @@ use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::{DynRegistryIndex, Registry, RegistrySet};
-use serde_json::json;
 
 use crate::dimension_type::{DimensionType, Skybox};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_environment::attribute::{
-    AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES, EnvironmentAttributeMap,
-    ModifierError, Operation, apply,
+    AttributeEntry, AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES,
+    EnvironmentAttributeMap, ModifierError, Operation, apply,
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
 use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
@@ -374,43 +373,56 @@ fn index_of(id: &str) -> Result<usize, EnvironmentError> {
 /// The colours are the reference's float literals pushed through
 /// `ARGB.as8BitChannel`, which floors: 0.6 is `0x99`, not `0x9a`.
 static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
-    let level = |sky_gray: serde_json::Value,
-                 cloud_gray: serde_json::Value,
-                 tint: &str,
-                 alpha: f32| {
-        json!({
-            "minecraft:visual/sky_color": {"argument": sky_gray, "modifier": "blend_to_gray"},
-            "minecraft:visual/fog_color": {"argument": format!("#{tint}"), "modifier": "multiply"},
-            "minecraft:visual/cloud_color": {"argument": cloud_gray, "modifier": "blend_to_gray"},
-            "minecraft:gameplay/sky_light_level":
-                {"argument": {"value": 4.0, "alpha": alpha}, "modifier": "alpha_blend"},
-            "minecraft:visual/sky_light_color":
-                {"argument": format!("#{:02x}7a7aff", (alpha * 255.0) as u32), "modifier": "alpha_blend"},
-            "minecraft:visual/sky_light_factor":
-                {"argument": {"value": 0.24, "alpha": alpha}, "modifier": "alpha_blend"},
-            "minecraft:visual/star_brightness": 0.0,
-            "minecraft:visual/sunrise_sunset_color":
-                {"argument": format!("#ff{tint}"), "modifier": "multiply"},
-            "minecraft:gameplay/bees_stay_in_hive": true,
-        })
+    let level = |sky_gray: (f32, f32), cloud_gray: (f32, f32), tint: u32, alpha: f32| {
+        let blend_to_gray = |(brightness, factor)| AttributeEntry {
+            argument: AttributeValue::BlendToGray { brightness, factor },
+            modifier: Operation::BlendToGray,
+        };
+        let alpha_blend = |value| AttributeEntry {
+            argument: AttributeValue::FloatWithAlpha { value, alpha },
+            modifier: Operation::AlphaBlend,
+        };
+        let multiply = |packed| AttributeEntry {
+            argument: AttributeValue::Color(packed),
+            modifier: Operation::Multiply,
+        };
+        let sky_light_alpha = (alpha * 255.0) as u32;
+        EnvironmentAttributeMap(
+            [
+                ("minecraft:visual/sky_color", blend_to_gray(sky_gray)),
+                ("minecraft:visual/fog_color", multiply(0xFF00_0000 | tint)),
+                ("minecraft:visual/cloud_color", blend_to_gray(cloud_gray)),
+                ("minecraft:gameplay/sky_light_level", alpha_blend(4.0)),
+                (
+                    "minecraft:visual/sky_light_color",
+                    AttributeEntry {
+                        argument: AttributeValue::Color(sky_light_alpha << 24 | 0x7a_7aff),
+                        modifier: Operation::AlphaBlend,
+                    },
+                ),
+                ("minecraft:visual/sky_light_factor", alpha_blend(0.24)),
+                (
+                    "minecraft:visual/star_brightness",
+                    AttributeEntry::override_value(AttributeValue::Float(0.0)),
+                ),
+                (
+                    "minecraft:visual/sunrise_sunset_color",
+                    multiply(0xFF00_0000 | tint),
+                ),
+                (
+                    "minecraft:gameplay/bees_stay_in_hive",
+                    AttributeEntry::override_value(AttributeValue::Bool(true)),
+                ),
+            ]
+            .into_iter()
+            .map(|(id, entry)| (ResourceLocation::new_static(id).into(), entry))
+            .collect(),
+        )
     };
     [
-        level(
-            json!({"brightness": 0.6, "factor": 0.75}),
-            json!({"brightness": 0.24, "factor": 0.5}),
-            "7f7f99",
-            0.3125,
-        ),
-        level(
-            json!({"brightness": 0.24, "factor": 0.94}),
-            json!({"brightness": 0.095, "factor": 0.94}),
-            "3f3f4c",
-            0.52734375,
-        ),
+        level((0.6, 0.75), (0.24, 0.5), 0x7f_7f99, 0.3125),
+        level((0.24, 0.94), (0.095, 0.94), 0x3f_3f4c, 0.52734375),
     ]
-    .map(|value| {
-        serde_json::from_value(value).expect("the built-in weather layers are well formed")
-    })
 });
 
 type WeatherEntry = Option<(Operation, AttributeValue)>;

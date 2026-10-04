@@ -801,6 +801,33 @@ sources (+9% and +8%, about 0.007 ms). No production table takes that path at th
 the cost is accepted for the configuration a test builds with `with_region(1, 0)`, and a return
 to width 1 in production would pay it.
 
+## Server start
+
+Scenario: the release `mcrs` binary on the reference machine, started with no world folder (the
+server generates), listening on the default port, `BEVY_ASSET_ROOT` set to the repository root.
+The time runs from the process spawn to the moment the `entering Playing state` line reaches the
+parent through the stderr pipe, on a monotonic clock. The loader's duration and entry count are
+the fields of its own `loaded registries` line. Three runs, each a fresh process.
+
+| run | start to Playing | loader duration | registries | entries |
+|---|---|---|---|---|
+| 1 | 1.007 s | 77.6 ms | 147 | 9079 |
+| 2 | 0.769 s | 28.4 ms | 147 | 9079 |
+| 3 | 0.769 s | 29.1 ms | 147 | 9079 |
+| median | 0.769 s | 29.1 ms | 147 | 9079 |
+
+This is the baseline the work that moves the world registries into the loader compares against:
+a later start time or loader duration on the same scenario is a regression, and a later entry
+count is the data it now carries.
+
+The machine was not idle: the load average read 48 over the last minute, 39 over five and 38 over
+fifteen on its 16 cores, from other builds running alongside, so the figures are an upper bound
+and the first run, which also read the data pack cold, shows it. Three earlier attempts to
+measure failed before the server reached Playing and are not counted: three with an empty
+directory as the world folder panicked for want of saved world generation settings, and six
+without `BEVY_ASSET_ROOT` (three from another directory, three from the repository root)
+panicked for want of `version.json` beside the executable.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the
