@@ -7,8 +7,12 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::{FloatProvider, HeightContext};
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_worldgen_carver::canyon::carve_canyon_into;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
+use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_caves_into, is_start_chunk};
+use mcrs_minecraft_worldgen_carver::target::Region;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_testing::worldgen_dir;
@@ -18,7 +22,8 @@ use super::surface::{fill_context, overworld_biome_registry, overworld_material_
 use super::{build_settings_router, corpus};
 use crate::ColumnBlocks;
 use crate::modern_carvers::{
-    CarverBiomeTable, ModernCarverBlockIds, carve_sources, modern_carving_mask, whole_climate_space,
+    CarverBiomeTable, ModernCarverBlockIds, REGION_CAPACITY, REGION_WIDTH, carve_sources,
+    carving_mask, modern_carving_mask, whole_climate_space,
 };
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
@@ -654,6 +659,128 @@ fn a_columns_blocks_do_not_depend_on_the_region_width() {
     assert_blocks_independent_of_width(845, -4, 8, &[2, 4, 8], 1, 3);
 }
 
+const CAVE: usize = 0;
+const CANYON: usize = 1;
+
+type RegionCounts = [[u32; 3]; 2];
+
+fn walk_source(
+    config: &CarverConfig,
+    height: HeightContext,
+    region: &mut Region<'_>,
+    (source_x, source_z): (i32, i32),
+    rng: &mut LegacyRandom,
+) {
+    match config {
+        CarverConfig::Cave { .. } => {
+            carve_caves_into(config, height, region, source_x, source_z, rng)
+        }
+        CarverConfig::Canyon { .. } => {
+            carve_canyon_into(config, height, region, source_x, source_z, rng)
+        }
+        CarverConfig::BetaCave => unreachable!("a modern dimension has no Beta carver"),
+    }
+}
+
+/// Per carver kind: the walks the region driver makes, the walks of sources
+/// that start, and the walks that mark a cell in any column of the region.
+fn region_counts(settings: &str, preset: &str, seed: u64, columns: i32) -> RegionCounts {
+    let router = build_settings_router(settings, seed);
+    let height = extent(&router);
+    let regional = table(preset, REGION_WIDTH, REGION_CAPACITY);
+    let width = REGION_WIDTH;
+    assert_eq!(columns % width, 0, "the block is made of whole regions");
+    let mut ws = Workspace::new();
+    let mut counts = RegionCounts::default();
+    let fresh =
+        || -> Vec<CarvingMask> { (0..width * width).map(|_| carving_mask(height)).collect() };
+
+    for origin_x in (-columns / 2..columns / 2).step_by(width as usize) {
+        for origin_z in (-columns / 2..columns / 2).step_by(width as usize) {
+            let mut walked = fresh();
+            let mut region = Region::new(origin_x, origin_z, width, &mut walked);
+            for source_x in origin_x - SOURCE_RADIUS..=origin_x + width - 1 + SOURCE_RADIUS {
+                for source_z in origin_z - SOURCE_RADIUS..=origin_z + width - 1 + SOURCE_RADIUS {
+                    let carvers =
+                        regional.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
+                    for (index, config) in carvers.iter().enumerate() {
+                        let kind = match config {
+                            CarverConfig::Cave { .. } => CAVE,
+                            CarverConfig::Canyon { .. } => CANYON,
+                            CarverConfig::BetaCave => unreachable!("a modern dimension"),
+                        };
+                        counts[kind][0] += 1;
+                        let seed = LegacyRandom::large_feature_seed(
+                            (seed as i64).wrapping_add(index as i64),
+                            source_x,
+                            source_z,
+                        );
+                        let started = || {
+                            let mut rng = LegacyRandom::new(seed as u64);
+                            is_start_chunk(config, &mut rng).then_some(rng)
+                        };
+                        let Some(mut rng) = started() else {
+                            continue;
+                        };
+                        counts[kind][1] += 1;
+                        walk_source(config, height, &mut region, (source_x, source_z), &mut rng);
+
+                        let mut alone = fresh();
+                        let mut scratch = Region::new(origin_x, origin_z, width, &mut alone);
+                        let mut rng = started().expect("the same draw starts again");
+                        walk_source(config, height, &mut scratch, (source_x, source_z), &mut rng);
+                        counts[kind][2] += u32::from(alone.iter().any(|mask| !mask.is_empty()));
+                    }
+                }
+            }
+            for (slot, mask) in walked.iter().enumerate() {
+                let (x, z) = (
+                    origin_x + slot as i32 / width,
+                    origin_z + slot as i32 % width,
+                );
+                let driven =
+                    modern_carving_mask(x, z, seed as i64, &router, &mut ws, &regional, height);
+                assert!(
+                    *driven == *mask,
+                    "the walks counted for region ({origin_x}, {origin_z}) are not the ones the driver makes: column ({x}, {z}) differs"
+                );
+            }
+        }
+    }
+    counts
+}
+
+const REGION_SOURCE_COUNTS: [RegionCounts; 3] = [
+    [[10368, 1182, 118], [5184, 76, 7]],
+    [[10368, 1334, 64], [5184, 120, 15]],
+    [[5184, 1204, 87], [0, 0, 0]],
+];
+
+#[test]
+fn the_source_counts_per_region_are_what_they_were_measured() {
+    let got = [
+        (
+            "overworld seed 12345",
+            region_counts("overworld", "minecraft:overworld", 12345, 8),
+        ),
+        (
+            "overworld seed 845",
+            region_counts("overworld", "minecraft:overworld", 845, 8),
+        ),
+        (
+            "nether seed 12345",
+            region_counts("nether", "minecraft:nether", 12345, 8),
+        ),
+    ];
+    let moved: Vec<String> = got
+        .iter()
+        .zip(&REGION_SOURCE_COUNTS)
+        .filter(|((_, got), pinned)| got != *pinned)
+        .map(|((label, got), pinned)| format!("{label}: pinned {pinned:?}, now {got:?}"))
+        .collect();
+    assert!(moved.is_empty(), "{}", moved.join("\n"));
+}
+
 mod exhaustive {
     use super::*;
 
@@ -685,12 +812,29 @@ mod exhaustive {
         assert!(carved > 0);
     }
 
-    #[test]
-    fn a_columns_blocks_do_not_depend_on_the_region_width_for_any_seed_and_origin() {
-        for seed in [845, 12345, 7, 1] {
-            for origin in [-8, -5] {
-                assert_blocks_independent_of_width(seed, origin, 16, &[2, 3, 4, 5, 8], 4, 5);
-            }
+    fn blocks_independent_of_width_at_both_origins(seed: u64) {
+        for origin in [-8, -5] {
+            assert_blocks_independent_of_width(seed, origin, 16, &[2, 3, 4, 5, 8], 4, 5);
         }
+    }
+
+    #[test]
+    fn a_columns_blocks_do_not_depend_on_the_region_width_for_seed_845() {
+        blocks_independent_of_width_at_both_origins(845);
+    }
+
+    #[test]
+    fn a_columns_blocks_do_not_depend_on_the_region_width_for_seed_12345() {
+        blocks_independent_of_width_at_both_origins(12345);
+    }
+
+    #[test]
+    fn a_columns_blocks_do_not_depend_on_the_region_width_for_seed_7() {
+        blocks_independent_of_width_at_both_origins(7);
+    }
+
+    #[test]
+    fn a_columns_blocks_do_not_depend_on_the_region_width_for_seed_1() {
+        blocks_independent_of_width_at_both_origins(1);
     }
 }

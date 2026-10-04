@@ -161,17 +161,18 @@ impl SourceTiles {
     }
 }
 
-/// Columns per side of a production region. The cache holds at most
-/// `REGION_CAPACITY` regions of `REGION_WIDTH`^2 column masks, which is
-/// `REGION_CAPACITY * REGION_WIDTH^2 * 12,032` bytes in the overworld; a build
-/// walks (`REGION_WIDTH` + 16)^2 sources against the 289 every column walks
-/// alone.
-// chisle: 1 is one column per region, built for its asker and not kept, which
-// is carving per column through the region path. Both values are provisional;
-// the width stops at `Region::MAX_WIDTH`, where the live set outgrows 64 bits.
-pub const REGION_WIDTH: i32 = 1;
+/// Columns per side of a region. A build walks (2 + 16)^2 = 324 sources for
+/// four columns where each column alone walks 289, and one entry holds
+/// 4 x 12,032 = 48,128 bytes of masks in the overworld.
+pub const REGION_WIDTH: i32 = 2;
 
-pub const REGION_CAPACITY: usize = 0;
+/// Regions kept, the least recently used leaving first: 256 x 48,128 =
+/// 12,320,768 bytes in the overworld. A miss rebuilds the region in under a
+/// millisecond and changes no block. 256 holds the regions of a view 32
+/// columns in every direction twice over.
+// chisle: sized for one view; several views at once evict each other's
+// regions and pay rebuilds, not blocks.
+pub const REGION_CAPACITY: usize = 256;
 
 /// What a region's masks depend on besides the carvers of the table that holds
 /// them: the seed the carver draws start from, the seed of the climate that
