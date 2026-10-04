@@ -1,20 +1,32 @@
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use mcrs_minecraft_item::enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::static_report::from_report;
 
-fn enchantment_dir() -> PathBuf {
+fn assets() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
         .parent()
         .unwrap()
-        .join("assets/minecraft/enchantment")
+        .join("assets")
 }
+
+fn enchantment_dir() -> PathBuf {
+    assets().join("minecraft/enchantment")
+}
+
+static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
+    let report = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
+    from_report(&report).unwrap()
+});
 
 fn effects_of(file: &str) -> EnchantmentEffects {
     let bytes = std::fs::read(enchantment_dir().join(file)).unwrap();
     let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    serde_json::from_value(value["effects"].clone()).unwrap()
+    STATICS.scope(|| serde_json::from_value(value["effects"].clone()).unwrap())
 }
 
 /// Vanilla's codecs read these numbers as `Codec.FLOAT`, so the typed fields are
@@ -58,9 +70,11 @@ fn every_shipped_enchantment_effect_round_trips() {
         for key in effects.as_object().unwrap().keys() {
             keys.insert(key.clone());
         }
-        let parsed: EnchantmentEffects = serde_json::from_value(effects.clone())
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let encoded = serde_json::to_value(&parsed).unwrap();
+        let encoded = STATICS.scope(|| {
+            let parsed: EnchantmentEffects = serde_json::from_value(effects.clone())
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            serde_json::to_value(&parsed).unwrap()
+        });
         assert_eq!(
             as_f32(&encoded),
             as_f32(effects),

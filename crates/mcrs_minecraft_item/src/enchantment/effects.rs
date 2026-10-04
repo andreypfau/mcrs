@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use super::predicate::{BlockPredicate, LootCondition, dispatched_map};
 use super::value::{HolderSet, LevelBasedValue};
 use mcrs_minecraft_core::value_provider::FloatProvider;
+use mcrs_minecraft_registry::{Id, key};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -133,10 +134,9 @@ pub struct VelocitySource {
 
 /// A bare id names a `worldgen/block_state_provider` entry; an object is a
 /// block state or a typed provider.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockStateProvider {
-    Reference(String),
+    Reference(Id<key::BlockStateProvider>),
     State(FullBlockState),
     Typed(TypedBlockStateProvider),
 }
@@ -144,15 +144,14 @@ pub enum BlockStateProvider {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FullBlockState {
-    pub id: String,
+    pub id: Id<key::Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<BTreeMap<String, String>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockState {
-    Block(String),
+    Block(Id<key::Block>),
     Full(FullBlockState),
 }
 
@@ -161,6 +160,114 @@ pub enum BlockState {
 pub enum TypedBlockStateProvider {
     #[serde(rename = "minecraft:simple")]
     Simple { state: BlockState },
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProviderObject {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    id: Option<Id<key::Block>>,
+    properties: Option<BTreeMap<String, String>>,
+    state: Option<BlockState>,
+}
+
+impl ProviderObject {
+    fn into_provider(self) -> Result<BlockStateProvider, String> {
+        match self {
+            ProviderObject {
+                kind: None,
+                id: Some(id),
+                properties,
+                state: None,
+            } => Ok(BlockStateProvider::State(FullBlockState { id, properties })),
+            ProviderObject {
+                kind: Some(kind),
+                id: None,
+                properties: None,
+                state: Some(state),
+            } if kind == "minecraft:simple" => Ok(BlockStateProvider::Typed(
+                TypedBlockStateProvider::Simple { state },
+            )),
+            ProviderObject {
+                kind: Some(kind), ..
+            } if kind != "minecraft:simple" => {
+                Err(format!("unknown block state provider type `{kind}`"))
+            }
+            _ => Err("a block state states an `id` and its `properties`; a provider states a `type` and its fields".to_owned()),
+        }
+    }
+}
+
+impl Serialize for BlockStateProvider {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            BlockStateProvider::Reference(id) => id.serialize(s),
+            BlockStateProvider::State(state) => state.serialize(s),
+            BlockStateProvider::Typed(typed) => typed.serialize(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockStateProvider {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct ProviderVisitor;
+
+        impl<'de> Visitor<'de> for ProviderVisitor {
+            type Value = BlockStateProvider;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a block state provider id, a block state or a typed provider")
+            }
+
+            fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
+                Id::deserialize(de::value::StrDeserializer::new(text))
+                    .map(BlockStateProvider::Reference)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                ProviderObject::deserialize(de::value::MapAccessDeserializer::new(map))?
+                    .into_provider()
+                    .map_err(de::Error::custom)
+            }
+        }
+
+        d.deserialize_any(ProviderVisitor)
+    }
+}
+
+impl Serialize for BlockState {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            BlockState::Block(id) => id.serialize(s),
+            BlockState::Full(state) => state.serialize(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockState {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct StateVisitor;
+
+        impl<'de> Visitor<'de> for StateVisitor {
+            type Value = BlockState;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a block name or a block state")
+            }
+
+            fn visit_str<E: de::Error>(self, text: &str) -> Result<Self::Value, E> {
+                Id::deserialize(de::value::StrDeserializer::new(text)).map(BlockState::Block)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                FullBlockState::deserialize(de::value::MapAccessDeserializer::new(map))
+                    .map(BlockState::Full)
+            }
+        }
+
+        d.deserialize_any(StateVisitor)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

@@ -16,11 +16,9 @@ use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
-use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::NameTable;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
@@ -402,25 +400,4 @@ pub(crate) fn resolve_timeline_tags(
             ),
         }
     }
-}
-
-pub(crate) fn register_static_registries_with_access(
-    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
-    mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
-) {
-    access.register(mcrs_minecraft_assets::RegistrySnapshotErased::from_static(
-        "minecraft:enchantment",
-        &enchantment_registry,
-        |location, data| {
-            use mcrs_minecraft_item::enchantment::data::NetworkEnchantmentData;
-            let network = NetworkEnchantmentData::from(data);
-            Some(
-                mcrs_minecraft_nbt::to_nbt_tag(&network).unwrap_or_else(|e| {
-                    panic!("{} does not encode for the network: {e}", location.as_str())
-                }),
-            )
-        },
-        Some(mcrs_minecraft_assets::PackSource::vanilla_core()),
-    ));
-    tracing::info!(count = access.len(), "populated RegistryAccess");
 }

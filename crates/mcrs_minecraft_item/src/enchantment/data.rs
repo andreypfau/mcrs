@@ -1,109 +1,28 @@
-use std::sync::Arc;
-
+use crate::Item;
 use crate::Text;
-#[cfg(any(test, feature = "bevy"))]
-use mcrs_minecraft_core::ResourceLocation;
+use crate::component::EquipmentSlotGroup;
+use crate::enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_core::tag_key::TagKey;
-#[cfg(any(test, feature = "bevy"))]
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
+use mcrs_minecraft_registry::EntrySet;
+use serde::{Deserialize, Serialize};
 
-use crate::Item;
-use crate::enchantment::effects::EnchantmentEffects;
-
-/// Raw enchantment data as deserialized from JSON.
-///
-/// Tag reference fields (`supported_items`, `primary_items`, `exclusive_set`)
-/// are raw `"#namespace:path"` strings. Converted to [`EnchantmentData`] by
-/// [`ProtoEnchantmentData::resolve`], which parses them into typed `TagKey`s.
-#[cfg(any(test, feature = "bevy"))]
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProtoEnchantmentData {
-    pub description: Text,
-    pub min_cost: EnchantmentCost,
-    pub max_cost: EnchantmentCost,
-    pub anvil_cost: u32,
-    pub slots: Vec<String>,
-    pub supported_items: String,
-    #[serde(default)]
-    pub primary_items: Option<String>,
-    pub weight: u32,
-    pub max_level: u32,
-    #[serde(default)]
-    pub exclusive_set: Option<String>,
-    #[serde(default)]
-    pub effects: Option<EnchantmentEffects>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum EnchantmentResolveError {
-    #[error("tag reference `{0}` does not start with '#'")]
-    MissingHashPrefix(String),
-    #[error("invalid resource location in tag reference: {0}")]
-    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
-}
-
-#[cfg(any(test, feature = "bevy"))]
-fn parse_tag_key<T: TaggedRegistry>(
-    raw: &str,
-) -> Result<TagKey<T, Arc<str>>, EnchantmentResolveError> {
-    let tag_str = raw
-        .strip_prefix('#')
-        .ok_or_else(|| EnchantmentResolveError::MissingHashPrefix(raw.to_string()))?;
-    let rl: ResourceLocation<Arc<str>> = ResourceLocation::parse(tag_str)?;
-    Ok(TagKey::from_location(rl))
-}
-
-#[cfg(any(test, feature = "bevy"))]
-impl ProtoEnchantmentData {
-    pub fn resolve(self) -> Result<EnchantmentData, EnchantmentResolveError> {
-        let supported_items = parse_tag_key::<Item>(&self.supported_items)?;
-        let primary_items = self
-            .primary_items
-            .as_deref()
-            .map(parse_tag_key::<Item>)
-            .transpose()?;
-        let exclusive_set = self
-            .exclusive_set
-            .as_deref()
-            .map(parse_tag_key::<EnchantmentData>)
-            .transpose()?;
-
-        Ok(EnchantmentData {
-            description: self.description,
-            min_cost: self.min_cost,
-            max_cost: self.max_cost,
-            anvil_cost: self.anvil_cost,
-            slots: self.slots,
-            supported_items,
-            primary_items,
-            weight: self.weight,
-            max_level: self.max_level,
-            exclusive_set,
-            effects: self.effects,
-        })
-    }
-}
-
-/// Runtime enchantment data with typed tag key references.
-///
-/// Tag reference fields hold parsed `TagKey` values instead of raw strings,
-/// enabling type-safe lookups against `TagRegistry<Item>` and
-/// `TagRegistry<EnchantmentData>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnchantmentData {
     pub description: Text,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,
     pub anvil_cost: u32,
-    pub slots: Vec<String>,
-    pub supported_items: TagKey<Item, Arc<str>>,
-    pub primary_items: Option<TagKey<Item, Arc<str>>>,
+    pub slots: Vec<EquipmentSlotGroup>,
+    pub supported_items: EntrySet<Item>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_items: Option<EntrySet<Item>>,
     pub weight: u32,
     pub max_level: u32,
-    pub exclusive_set: Option<TagKey<EnchantmentData, Arc<str>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclusive_set: Option<EntrySet<EnchantmentData>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<EnchantmentEffects>,
 }
 
@@ -111,99 +30,9 @@ impl RegistryKey for EnchantmentData {
     const KEY: mcrs_minecraft_core::ResourceLocation<&'static str> = rl!("minecraft:enchantment");
 }
 
-/// Enchantment data for NETWORK_CODEC — tag key fields serialized as
-/// `"#namespace:path"` strings matching the original JSON format.
-#[derive(Debug, Clone)]
-pub struct NetworkEnchantmentData {
-    pub description: Text,
-    pub min_cost: EnchantmentCost,
-    pub max_cost: EnchantmentCost,
-    pub anvil_cost: u32,
-    pub slots: Vec<String>,
-    pub supported_items: String,
-    pub primary_items: Option<String>,
-    pub weight: u32,
-    pub max_level: u32,
-    pub exclusive_set: Option<String>,
-    pub effects: Option<EnchantmentEffects>,
-}
-
-impl Serialize for NetworkEnchantmentData {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut len = 9usize;
-        if self.primary_items.is_some() {
-            len += 1;
-        }
-        if self.exclusive_set.is_some() {
-            len += 1;
-        }
-        if self.effects.is_some() {
-            len += 1;
-        }
-        let mut m = serializer.serialize_map(Some(len))?;
-        m.serialize_entry("description", &self.description)?;
-        m.serialize_entry("min_cost", &self.min_cost)?;
-        m.serialize_entry("max_cost", &self.max_cost)?;
-        m.serialize_entry("anvil_cost", &self.anvil_cost)?;
-        m.serialize_entry("slots", &self.slots)?;
-        m.serialize_entry("supported_items", &self.supported_items)?;
-        if let Some(ref pi) = self.primary_items {
-            m.serialize_entry("primary_items", pi)?;
-        }
-        m.serialize_entry("weight", &self.weight)?;
-        m.serialize_entry("max_level", &self.max_level)?;
-        if let Some(ref es) = self.exclusive_set {
-            m.serialize_entry("exclusive_set", es)?;
-        }
-        if let Some(ref effects) = self.effects {
-            m.serialize_entry("effects", effects)?;
-        }
-        m.end()
-    }
-}
-
-impl From<&EnchantmentData> for NetworkEnchantmentData {
-    fn from(data: &EnchantmentData) -> Self {
-        NetworkEnchantmentData {
-            description: data.description.clone(),
-            min_cost: data.min_cost.clone(),
-            max_cost: data.max_cost.clone(),
-            anvil_cost: data.anvil_cost,
-            slots: data.slots.clone(),
-            supported_items: format!("#{}", data.supported_items.as_str()),
-            primary_items: data
-                .primary_items
-                .as_ref()
-                .map(|k| format!("#{}", k.as_str())),
-            weight: data.weight,
-            max_level: data.max_level,
-            exclusive_set: data
-                .exclusive_set
-                .as_ref()
-                .map(|k| format!("#{}", k.as_str())),
-            effects: data.effects.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnchantmentCost {
     pub base: u32,
     pub per_level_above_first: u32,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn deserialize_and_resolve_all_enchantments() {
-        for (path, proto) in mcrs_minecraft_worldgen_testing::parse_all::<ProtoEnchantmentData>(
-            "minecraft/enchantment",
-        ) {
-            proto
-                .resolve()
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        }
-    }
 }

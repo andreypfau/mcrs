@@ -46,7 +46,9 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
     "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
     "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
-    "minecraft:dialog":{"elements":true,"stable":false,"tags":true}}}"#;
+    "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
+    "minecraft:enchantment":{"elements":true,"stable":false,"tags":true},
+    "minecraft:worldgen/block_state_provider":{"elements":true,"stable":false,"tags":false}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
@@ -1257,4 +1259,109 @@ fn dialog_values_are_synced_with_the_tags_the_game_writes() {
     };
     assert_eq!(range.get("start"), Some(&NbtTag::Float(0.0)));
     assert_eq!(range.get("step"), Some(&NbtTag::Float(0.5)));
+}
+
+fn enchantment_json(supported_items: &str, effects: &str) -> String {
+    format!(
+        r#"{{"description":{{"translate":"enchantment.minecraft.odd"}},
+        "min_cost":{{"base":1,"per_level_above_first":1}},
+        "max_cost":{{"base":2,"per_level_above_first":1}},
+        "anvil_cost":1,"slots":["mainhand"],"supported_items":{supported_items},
+        "weight":1,"max_level":1{effects}}}"#
+    )
+}
+
+fn replacing_with(block_state: &str) -> String {
+    format!(
+        r#","effects":{{"minecraft:location_changed":[{{"effect":{{
+        "type":"minecraft:replace_disk","radius":1.0,"height":1.0,
+        "block_state":{block_state}}}}}]}}"#
+    )
+}
+
+#[test]
+fn an_enchantment_naming_an_unknown_item_tag_fails() {
+    let text = refused_by_the_loader(
+        "enchantment",
+        "odd",
+        &enchantment_json(r##""#minecraft:nowhere""##, ""),
+    );
+    for part in [
+        "minecraft:enchantment",
+        "minecraft:odd",
+        "minecraft:item",
+        "minecraft:nowhere",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn a_block_state_provider_reference_is_checked() {
+    let text = refused_by_the_loader(
+        "enchantment",
+        "odd",
+        &enchantment_json(
+            r#""minecraft:stick""#,
+            &replacing_with(r#""minecraft:no_such_provider""#),
+        ),
+    );
+    for part in [
+        "minecraft:worldgen/block_state_provider",
+        "minecraft:no_such_provider",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+
+    use mcrs_minecraft_item::enchantment::effects::{BlockState, BlockStateProvider};
+    let set = test_registries();
+    let provider = set
+        .table("minecraft:worldgen/block_state_provider")
+        .and_then(|table| table.names().first())
+        .expect("the data pack ships a block state provider")
+        .to_string();
+    set.scope(|| {
+        let provider = format!("\"{provider}\"");
+        for json in [
+            provider.as_str(),
+            r#"{"id":"minecraft:frosted_ice","properties":{"age":"0"}}"#,
+            r#"{"type":"minecraft:simple","state":"minecraft:stone"}"#,
+            r#"{"type":"minecraft:simple","state":{"id":"minecraft:stone"}}"#,
+        ] {
+            let read: BlockStateProvider =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&serde_json::to_string(&read).unwrap())
+                    .unwrap(),
+                serde_json::from_str::<serde_json::Value>(json).unwrap(),
+                "{json}"
+            );
+        }
+        for json in [
+            r#""minecraft:stone""#,
+            r#"{"id":"minecraft:stone","properties":{}}"#,
+        ] {
+            let read: BlockState =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+            assert_eq!(serde_json::to_string(&read).unwrap(), json, "{json}");
+        }
+        for json in [
+            r#""minecraft:no_such_block""#,
+            r#"{"id":"minecraft:no_such_block"}"#,
+        ] {
+            let message = serde_json::from_str::<BlockState>(json)
+                .expect_err(json)
+                .to_string();
+            assert!(message.contains("minecraft:block"), "{message}");
+            assert!(message.contains("minecraft:no_such_block"), "{message}");
+        }
+        for json in [
+            r#"{"type":"minecraft:simple","id":"minecraft:stone"}"#,
+            r#"{"type":"minecraft:nowhere","state":"minecraft:stone"}"#,
+            r#"{"id":"minecraft:stone","state":"minecraft:stone"}"#,
+            r#"{"id":"minecraft:stone","bogus":1}"#,
+        ] {
+            serde_json::from_str::<BlockStateProvider>(json).expect_err(json);
+        }
+    });
 }

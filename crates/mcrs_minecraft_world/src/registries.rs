@@ -15,6 +15,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Item, JukeboxSong, PaintingVariantValue, SoundEvent,
     TrimMaterial, TrimPattern,
@@ -45,6 +46,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<TestEnvironment>(&mut world, &mut undeclared);
     parse::<TestInstance>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::Dialog, Dialog>(&mut world, &mut undeclared);
+    parse::<EnchantmentData>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
         &mut world,
@@ -414,7 +416,8 @@ mod tests {
             "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
             "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
             "minecraft:test_instance":{"elements":true,"stable":false,"tags":true},
-            "minecraft:dialog":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:dialog":{"elements":true,"stable":false,"tags":true},
+            "minecraft:enchantment":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),
