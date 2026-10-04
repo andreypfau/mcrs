@@ -210,6 +210,39 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_light_color"]
 opt-level = 3
 
+# Every test runs in its own process under nextest, so each one that needs the
+# data pack parses it from scratch; the serde and builder code doing that lives
+# in these crates and costs about a second per test at opt-level 0.
+[profile.dev.package."mcrs_minecraft_block"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_item"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_assets"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_core"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_registry"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_world"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_chunk"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_environment"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_biome"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_dimension"]
+opt-level = 3
+
 [profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
