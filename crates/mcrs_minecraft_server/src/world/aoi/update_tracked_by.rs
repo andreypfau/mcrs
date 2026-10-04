@@ -5,8 +5,9 @@
 //! outbound bus.
 
 use crate::world::bus::to;
+use crate::world::entity::registry_varint;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Entity, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Entity, Query, Res, With, Without};
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
@@ -25,7 +26,7 @@ use smallvec::SmallVec;
 use crate::login::GameProfile;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
-use mcrs_minecraft_world::entity::minecraft::PLAYER;
+use mcrs_minecraft_world::entity::minecraft::EntityIds;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
 /// blocks; matches vanilla's mob/player track radius before
@@ -53,6 +54,7 @@ pub fn update_tracked_by(
     all_players: Query<(Entity, &Transform, Option<&GameProfile>), With<Player>>,
     chunk_observers: Query<&PlayerObservers, (With<Column>, Without<Player>)>,
     column_indices: Query<&ColumnIndex>,
+    ids: Res<EntityIds>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (player, transform, in_dim, mut tracked_by) in moved_players.iter_mut() {
@@ -111,7 +113,7 @@ pub fn update_tracked_by(
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                         id: VarInt(player.index_u32() as i32),
                         uuid,
-                        kind: VarInt(PLAYER.protocol_id as i32),
+                        kind: registry_varint(ids.player),
                         pos,
                         movement: LpVec3(DVec3::ZERO),
                         yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

@@ -34,6 +34,7 @@ pub fn make_aoi_app() -> App {
     app.add_schedule(Schedule::new(FixedPostUpdate));
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerDespawn>();
+    app.insert_resource(crate::support::entity_ids().clone());
     app.add_plugins(PlayerTrackerPlugin);
     app
 }

@@ -6,6 +6,7 @@ use bevy_app::App;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::static_registries;
 
@@ -22,8 +23,8 @@ pub fn insert_corpus(app: &mut App) {
     app.insert_resource(items.clone());
 }
 
-pub fn registry_set() -> &'static RegistrySet {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+fn registries() -> &'static (RegistrySet, EntityIds) {
+    static REGISTRIES: LazyLock<(RegistrySet, EntityIds)> = LazyLock::new(|| {
         let report = std::fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../assets/mcrs/reports/registries.json"
@@ -31,5 +32,13 @@ pub fn registry_set() -> &'static RegistrySet {
         .expect("the registries report is readable");
         static_registries(&report).unwrap_or_else(|report| panic!("{report}"))
     });
-    &SET
+    &REGISTRIES
+}
+
+pub fn registry_set() -> &'static RegistrySet {
+    &registries().0
+}
+
+pub fn entity_ids() -> &'static EntityIds {
+    &registries().1
 }

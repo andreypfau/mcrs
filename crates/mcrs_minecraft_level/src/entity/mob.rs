@@ -4,11 +4,12 @@ use bitflags::bitflags;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use uuid::Uuid;
 
 #[derive(Component, Clone, Copy, Debug, Deref)]
-pub struct EntityKind(pub &'static EntityType);
+pub struct EntityKind(pub Id<EntityType>);
 
 #[derive(Debug, Clone, Copy, Component, Deref, PartialEq, Eq)]
 pub struct EntityUuid(pub Uuid);

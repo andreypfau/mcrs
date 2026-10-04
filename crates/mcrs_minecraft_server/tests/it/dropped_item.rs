@@ -1,5 +1,5 @@
 use crate::inventory_sync::{drain, place, set_count, stone, value, world};
-use crate::support::standalone_corpus;
+use crate::support::{registry_set, standalone_corpus};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
@@ -7,6 +7,7 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation, SectionPos};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
@@ -108,7 +109,13 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
 
     let entity = world.entity(stack);
     assert_eq!(entity.get::<DroppedItem>().unwrap().pickup_delay, 40);
-    assert_eq!(entity.get::<EntityKind>().unwrap().0.protocol_id, 72);
+    let report_id = registry_set()
+        .registry::<EntityType>()
+        .unwrap()
+        .get("minecraft:item")
+        .unwrap()
+        .index();
+    assert_eq!(entity.get::<EntityKind>().unwrap().0.index(), report_id);
     let at = entity.get::<Transform>().unwrap().translation;
     assert_eq!(at, DVec3::new(8.5, FLOOR_TOP + 1.62 - 0.3, 8.5));
     let velocity = entity.get::<Velocity>().unwrap().0;

@@ -387,6 +387,7 @@ pub(crate) fn deliver_merged_columns(
     ctx: Option<Res<FillContext>>,
     registry: Option<Res<RegistryAccess>>,
     items: Res<mcrs_minecraft_item::Items>,
+    ids: Res<mcrs_minecraft_world::entity::minecraft::EntityIds>,
     mut commands: Commands,
     mut slow: Local<SlowColumns>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -446,6 +447,7 @@ pub(crate) fn deliver_merged_columns(
                     &sections_data,
                     registry.as_deref(),
                     &items,
+                    &ids,
                     entities,
                 );
             }
@@ -858,6 +860,7 @@ mod tests {
         app.add_message::<SectionStageChanged>();
         app.insert_resource(ctx.clone());
         app.insert_resource(mcrs_minecraft_item::Items(Arc::default()));
+        app.insert_resource(crate::world::entity::report_registries().1);
         app.init_resource::<PendingColumnHeightmaps>();
         app.insert_resource(ColumnScheduler {
             config: SchedulerConfig {
