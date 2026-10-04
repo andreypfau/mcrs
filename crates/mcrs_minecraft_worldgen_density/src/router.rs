@@ -6,6 +6,8 @@ use crate::proto::{BlockState, DensityFunctionHolder, ValueRange};
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use serde::{Deserialize, Serialize};
@@ -143,6 +145,10 @@ pub struct NoiseGeneratorSettings {
     pub legacy_random_source: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub debug_functions: Vec<DebugFunction>,
+}
+
+impl RegistryKey for NoiseGeneratorSettings {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/noise_settings");
 }
 
 impl NoiseGeneratorSettings {

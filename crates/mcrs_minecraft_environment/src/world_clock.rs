@@ -15,6 +15,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -29,6 +31,10 @@ impl Asset for WorldClock {}
 
 impl VisitAssetDependencies for WorldClock {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
+}
+
+impl RegistryKey for WorldClock {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:world_clock");
 }
 
 #[derive(Default, TypePath)]

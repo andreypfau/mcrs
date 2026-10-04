@@ -1,5 +1,8 @@
 use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
@@ -8,6 +11,10 @@ pub struct TestEnvironment {
     pub env_type: String,
     #[serde(default)]
     pub definitions: Vec<serde_json::Value>,
+}
+
+impl RegistryKey for TestEnvironment {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_environment");
 }
 
 impl Asset for TestEnvironment {}

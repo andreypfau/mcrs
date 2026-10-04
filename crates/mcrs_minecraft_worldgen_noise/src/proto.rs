@@ -1,5 +1,7 @@
 use crate::interval::Interval;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,10 @@ pub struct NoiseParam {
     pub normalize: Normalization,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub amplitude_modifiers: Vec<HashableF64>,
+}
+
+impl RegistryKey for NoiseParam {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/noise");
 }
 
 fn default_base_amplitude() -> HashableF64 {

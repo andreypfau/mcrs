@@ -1,6 +1,8 @@
 use std::fmt;
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use serde::de::{DeserializeSeed, Error as _};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -323,6 +325,10 @@ impl fmt::Display for ItemComponentKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.id().as_str())
     }
+}
+
+impl RegistryKey for ItemComponentKind {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:data_component_type");
 }
 
 impl Serialize for ItemComponentKind {

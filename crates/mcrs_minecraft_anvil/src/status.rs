@@ -1,3 +1,6 @@
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -24,6 +27,10 @@ pub enum ChunkStatus {
     Spawn,
     #[serde(rename = "minecraft:full")]
     Full,
+}
+
+impl RegistryKey for ChunkStatus {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:chunk_status");
 }
 
 #[cfg(test)]

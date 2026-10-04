@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::{BlockState, DensityFunctionHolder};
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
@@ -98,6 +100,10 @@ pub enum MaterialCondition {
         secondary_depth_range: i32,
         surface_type: CaveSurface,
     },
+}
+
+impl RegistryKey for MaterialCondition {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/material_condition");
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]

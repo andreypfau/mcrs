@@ -76,6 +76,33 @@ fn key_types() -> Vec<KeyType> {
         mcrs_minecraft_registry::key::Dialog,
         mcrs_minecraft_registry::key::Biome,
         mcrs_minecraft_registry::key::Structure,
+        mcrs_minecraft_registry::key::ParticleType,
+        mcrs_minecraft_registry::key::Carver,
+        mcrs_minecraft_registry::key::EnvironmentAttribute,
+        mcrs_minecraft_registry::key::Activity,
+        mcrs_minecraft_registry::key::DimensionType,
+        mcrs_minecraft_registry::key::TemplatePool,
+        mcrs_minecraft_registry::key::MaterialRule,
+        mcrs_minecraft_registry::key::BlockStateProvider,
+        mcrs_minecraft_registry::key::MultiNoiseBiomeSourceParameterList,
+        mcrs_minecraft_registry::key::VillagerProfession,
+        mcrs_minecraft_registry::key::ContextKeySet,
+        mcrs_minecraft_registry::key::TestFunction,
+        mcrs_minecraft_registry::key::TestInstanceType,
+        mcrs_minecraft_registry::key::TestEnvironmentDefinitionType,
+        mcrs_minecraft_environment::world_clock::WorldClock,
+        mcrs_minecraft_worldgen_feature::proto::PlacedFeature,
+        mcrs_minecraft_worldgen_feature::proto::Feature,
+        mcrs_minecraft_worldgen_feature::proto::StructureProcessorList,
+        mcrs_minecraft_worldgen_structure::StructureSet,
+        mcrs_minecraft_worldgen_noise::proto::NoiseParam,
+        mcrs_minecraft_worldgen_density::proto::ProtoDensityFunction,
+        mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings,
+        mcrs_minecraft_worldgen_surface::proto::MaterialCondition,
+        mcrs_minecraft_anvil::ChunkStatus,
+        mcrs_minecraft_protocol::recipe::RecipeBookCategory,
+        mcrs_minecraft_item::ItemComponentKind,
+        mcrs_minecraft_world::test_types::TestEnvironment,
     ]
 }
 
@@ -363,4 +390,135 @@ fn the_three_registries_without_a_referrer_type_have_keys() {
             "no key names {path}"
         );
     }
+}
+
+const GRAPH_DOCUMENT: &str = "docs/registry-graph.md";
+
+struct GraphRow {
+    registries: Vec<String>,
+    references: Vec<String>,
+    referred_to: bool,
+}
+
+fn backticked(cell: &str) -> Vec<String> {
+    cell.split('`')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_owned)
+        .collect()
+}
+
+fn graph_rows_of(text: &str, document: &str) -> Vec<GraphRow> {
+    let section = text
+        .split_once("\n## Registries\n")
+        .unwrap_or_else(|| panic!("{document} has no Registries section"))
+        .1;
+    let section = section
+        .split_once("\n## ")
+        .map_or(section, |(body, _)| body);
+    let rows: Vec<GraphRow> = section
+        .lines()
+        .filter(|line| line.starts_with('|') && line[1..].trim_start().starts_with('`'))
+        .map(|line| {
+            let cells: Vec<&str> = line
+                .trim()
+                .trim_start_matches('|')
+                .trim_end_matches('|')
+                .split('|')
+                .map(str::trim)
+                .collect();
+            assert_eq!(
+                cells.len(),
+                6,
+                "{document}: a registries row has {} cells instead of 6: {line}",
+                cells.len()
+            );
+            GraphRow {
+                registries: backticked(cells[0]),
+                references: backticked(cells[2]),
+                referred_to: cells[3] != "nothing",
+            }
+        })
+        .collect();
+    assert!(!rows.is_empty(), "{document} has no registries row");
+    rows
+}
+
+fn graph_rows() -> Vec<GraphRow> {
+    let path = workspace_root().join(GRAPH_DOCUMENT);
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    graph_rows_of(&text, GRAPH_DOCUMENT)
+}
+
+#[test]
+fn every_key_is_a_row_of_the_graph() {
+    let rows = graph_rows();
+    let listed: HashSet<&str> = rows
+        .iter()
+        .flat_map(|row| row.registries.iter().map(String::as_str))
+        .collect();
+    let offences: Vec<String> = key_types()
+        .iter()
+        .filter(|k| !listed.contains(registry_path(&k.key)))
+        .map(|k| {
+            format!(
+                "{} names {}, which has no row in {GRAPH_DOCUMENT}",
+                k.name, k.key
+            )
+        })
+        .collect();
+    assert!(offences.is_empty(), "{}", offences.join("\n"));
+}
+
+#[test]
+fn the_graph_is_closed_under_its_references() {
+    let rows = graph_rows();
+    let referred: HashSet<&str> = rows
+        .iter()
+        .filter(|row| row.referred_to)
+        .flat_map(|row| row.registries.iter().map(String::as_str))
+        .collect();
+    let mut offences = Vec::new();
+    for row in &rows {
+        for reference in &row.references {
+            if !referred.contains(reference.as_str()) {
+                offences.push(format!(
+                    "{} refers to {reference}, which has no row naming a referrer",
+                    row.registries.join(", ")
+                ));
+            }
+        }
+    }
+    assert!(offences.is_empty(), "{}", offences.join("\n"));
+}
+
+#[test]
+fn a_document_without_the_registries_table_is_not_read_as_empty() {
+    let section = std::panic::catch_unwind(|| graph_rows_of("# Title\n\nno table\n", "fixture"));
+    assert!(section.is_err(), "a document with no section was read");
+    let rows = std::panic::catch_unwind(|| {
+        graph_rows_of(
+            "## Registries\n\n| a | b |\n|---|---|\n\n## Next\n",
+            "fixture",
+        )
+    });
+    assert!(rows.is_err(), "a section with no rows was read");
+}
+
+#[test]
+fn every_registry_the_graph_lists_as_referred_to_has_a_key() {
+    let keyed: HashSet<String> = key_types().into_iter().map(|k| k.key).collect();
+    let mut missing = BTreeSet::new();
+    for row in graph_rows().iter().filter(|row| row.referred_to) {
+        for path in &row.registries {
+            if !keyed.contains(&format!("minecraft:{path}")) {
+                missing.insert(path.clone());
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "registries the graph lists as referred to, with no key:\n{}",
+        missing.into_iter().collect::<Vec<_>>().join("\n")
+    );
 }
