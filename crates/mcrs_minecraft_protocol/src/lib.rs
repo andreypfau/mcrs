@@ -88,7 +88,7 @@ pub use hand::Hand;
 pub use item::ProtoStack;
 pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_core::Bounded;
-pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
+pub use mcrs_minecraft_protocol_macros::{Decode, Encode};
 pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;

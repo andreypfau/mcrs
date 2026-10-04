@@ -35,7 +35,6 @@ bevy_platform = "0.19.1"
 bevy_state = "0.19.1"
 
 rocksdb = { version = "0.24.0" }
-heck = "0.5.0"
 async-compression = { version = "0.4.36", features = ["tokio", "zlib"] }
 proc-macro2 = "1.0.103"
 syn = "2.0.110"
