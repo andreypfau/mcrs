@@ -1,9 +1,10 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{EntityTypeReg, Holder, key};
+use crate::component::common::{Holder, key};
 use crate::component::registry_ref::null_as_default;
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -86,7 +87,7 @@ pub struct Equippable {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera_overlay: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowed_entities: Option<HolderSet<ResourceKey<EntityTypeReg>>>,
+    pub allowed_entities: Option<HolderSet<ResourceKey<EntityType>>>,
     #[serde(
         default = "default_true",
         deserialize_with = "true_or_default",

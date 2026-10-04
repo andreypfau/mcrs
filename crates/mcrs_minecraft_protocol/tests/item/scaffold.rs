@@ -504,18 +504,18 @@ fn a_patch_compares_as_a_map() {
 
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
+    use mcrs_minecraft_entity::EntityType;
     use mcrs_minecraft_protocol::item::{
-        EntityTypeReg, Holder, ResolvableFloat, ResolvableInt, SoundEvent, TypedEntityData,
+        Holder, ResolvableFloat, ResolvableInt, SoundEvent, TypedEntityData,
     };
     let sound: Holder<SoundEvent> = serde_json::from_str(r#""entity.item.break""#).unwrap();
     assert_eq!(
         sound,
         Holder::reference(ResourceLocation::minecraft("entity.item.break"))
     );
-    let logs: HolderSet<ResourceKey<EntityTypeReg>> = serde_json::from_str("\"#logs\"").unwrap();
+    let logs: HolderSet<ResourceKey<EntityType>> = serde_json::from_str("\"#logs\"").unwrap();
     assert_eq!(logs, HolderSet::Tag(ResourceLocation::minecraft("logs")));
-    let zombie: TypedEntityData<EntityTypeReg> =
-        serde_json::from_str(r#"{"id":"zombie"}"#).unwrap();
+    let zombie: TypedEntityData<EntityType> = serde_json::from_str(r#"{"id":"zombie"}"#).unwrap();
     assert_eq!(zombie.id.location().as_str(), "minecraft:zombie");
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();
     assert_eq!(

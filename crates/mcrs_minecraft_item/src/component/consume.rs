@@ -1,12 +1,11 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{
-    Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance, MobEffectReg,
-};
+use crate::component::common::{Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
 
@@ -105,7 +104,7 @@ pub enum ConsumeEffect {
     },
     #[serde(rename = "minecraft:remove_effects", alias = "remove_effects")]
     RemoveEffects {
-        effects: HolderSet<ResourceKey<MobEffectReg>>,
+        effects: HolderSet<ResourceKey<MobEffect>>,
     },
     #[serde(rename = "minecraft:clear_all_effects", alias = "clear_all_effects")]
     ClearAllEffects,

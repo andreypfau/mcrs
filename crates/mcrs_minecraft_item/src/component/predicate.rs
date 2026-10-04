@@ -7,16 +7,16 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
-    AttributeReg, BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg,
-    JukeboxSongReg, MinMaxBounds, MobEffectReg, NbtPredicate, PotionReg, TrimMaterialReg,
-    TrimPatternReg, ValueMatcher, VillagerTypeReg, deserialize_unit, key, map_only,
-    serialize_entries, serialize_unit, transparent_newtype,
+    BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg, JukeboxSongReg,
+    MinMaxBounds, NbtPredicate, PotionReg, TrimMaterialReg, TrimPatternReg, ValueMatcher,
+    deserialize_unit, key, map_only, serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentMap;
+use mcrs_minecraft_entity::{Attribute, MobEffect, VillagerType};
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
@@ -422,7 +422,7 @@ predicate_types! {
     11 "attribute_modifiers"   : AttributeModifiers(AttributeModifiersPredicate),
     12 "trim"                  : Trim(TrimPredicate),
     13 "jukebox_playable"      : JukeboxPlayable(JukeboxPlayablePredicate),
-    14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerTypeReg>>),
+    14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerType>>),
 }
 
 record_codec! {
@@ -476,7 +476,7 @@ pub struct PotionsPredicate {
 
 /// Effect to instance predicate, in the order read.
 #[derive(Clone, Debug, PartialEq, Default)]
-pub struct MobEffectsPredicate(pub Vec<(ResourceKey<MobEffectReg>, MobEffectInstancePredicate)>);
+pub struct MobEffectsPredicate(pub Vec<(ResourceKey<MobEffect>, MobEffectInstancePredicate)>);
 
 impl Serialize for MobEffectsPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -603,7 +603,7 @@ pub struct AttributeModifiersPredicate {
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct AttributeModifierPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribute: Option<HolderSet<ResourceKey<AttributeReg>>>,
+    pub attribute: Option<HolderSet<ResourceKey<Attribute>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]

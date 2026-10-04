@@ -18,6 +18,7 @@ bevy = [
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_registry.workspace = true

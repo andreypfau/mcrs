@@ -1,8 +1,9 @@
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::DamageType;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{DamageTypeReg, Holder, key};
+use crate::component::common::{Holder, key};
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
@@ -36,7 +37,7 @@ pub struct BlocksAttacks {
     #[serde(default, skip_serializing_if = "ItemDamageFunction::is_default")]
     pub item_damage: ItemDamageFunction,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bypassed_by: Option<HolderSet<ResourceKey<DamageTypeReg>>>,
+    pub bypassed_by: Option<HolderSet<ResourceKey<DamageType>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_sound: Option<Holder<SoundEvent>>,
     #[serde(
@@ -85,7 +86,7 @@ pub struct DamageReduction {
     )]
     pub horizontal_blocking_angle: f32,
     #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
-    pub types: Option<HolderSet<ResourceKey<DamageTypeReg>>>,
+    pub types: Option<HolderSet<ResourceKey<DamageType>>>,
     pub base: f32,
     pub factor: f32,
 }

@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::{
-    ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, EntityTypeReg,
-    ItemComponentKind, ItemComponentValue, RgbInt, TrimMaterialReg,
+    ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, ItemComponentKind,
+    ItemComponentValue, RgbInt, TrimMaterialReg,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -466,7 +467,7 @@ pub enum SelectSwitch {
         alias = "context_entity_type"
     )]
     ContextEntityType {
-        cases: Vec<Case<ResourceKey<EntityTypeReg>>>,
+        cases: Vec<Case<ResourceKey<EntityType>>>,
     },
     #[serde(rename = "minecraft:context_dimension", alias = "context_dimension")]
     ContextDimension {

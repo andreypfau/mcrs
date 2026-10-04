@@ -1,10 +1,11 @@
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{BlockEntityTypeReg, EntityTypeReg, TypedEntityData};
+use crate::component::common::{BlockEntityTypeReg, TypedEntityData};
 use crate::harness::Sample;
 
 macro_rules! typed_entity_component {
@@ -29,7 +30,7 @@ macro_rules! typed_entity_component {
 }
 
 typed_entity_component! {
-    EntityData(EntityTypeReg) ["zombie", "pig"],
+    EntityData(EntityType) ["zombie", "pig"],
     BlockEntityData(BlockEntityTypeReg) ["chest", "sign"],
 }
 
@@ -40,7 +41,7 @@ pub struct Bees(pub Vec<BeeOccupant>);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BeeOccupant {
-    pub entity_data: TypedEntityData<EntityTypeReg>,
+    pub entity_data: TypedEntityData<EntityType>,
     #[serde(deserialize_with = "int_value")]
     pub ticks_in_hive: i32,
     #[serde(deserialize_with = "int_value")]

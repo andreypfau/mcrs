@@ -3,20 +3,21 @@ use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
+use mcrs_minecraft_entity::{DamageType, EntityType, MobEffect};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
-    BannerPatternReg, BlockReg, BlockTransformerReg, DamageTypeReg, EnchantmentReg, EntityTypeReg,
-    ItemReg, MobEffectReg, is_one, key, one, serialize_entries, transparent_newtype,
+    BannerPatternReg, BlockReg, BlockTransformerReg, EnchantmentReg, ItemReg, is_one, key, one,
+    serialize_entries, transparent_newtype,
 };
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
 
 /// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
-    ($($ty:ident($registry:ident) [$($sample:literal),+]),* $(,)?) => {$(
+    ($($ty:ident($registry:ty) [$($sample:literal),+]),* $(,)?) => {$(
         #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]
         pub struct $ty(pub mcrs_minecraft_core::ResourceKey<$registry>);
@@ -43,7 +44,7 @@ macro_rules! registry_key_component {
 pub(crate) use registry_key_component;
 
 registry_key_component! {
-    DamageTypeRef(DamageTypeReg) ["in_fire", "lava"],
+    DamageTypeRef(DamageType) ["in_fire", "lava"],
     BlockTransformerRef(BlockTransformerReg) ["axe", "shovel"],
 }
 
@@ -172,7 +173,7 @@ transparent_newtype!(StoredEnchantments(Enchantments) => [Clone, Debug, PartialE
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant {
-    pub types: HolderSet<ResourceKey<DamageTypeReg>>,
+    pub types: HolderSet<ResourceKey<DamageType>>,
 }
 
 impl Sample for DamageResistant {
@@ -345,7 +346,7 @@ pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility {
-    pub targeting_entity_types: HolderSet<ResourceKey<EntityTypeReg>>,
+    pub targeting_entity_types: HolderSet<ResourceKey<EntityType>>,
     #[serde(deserialize_with = "visibility")]
     pub visibility: f32,
 }
@@ -413,7 +414,7 @@ pub const DEFAULT_STEW_DURATION: i32 = 160;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StewEntry {
-    pub id: ResourceKey<MobEffectReg>,
+    pub id: ResourceKey<MobEffect>,
     #[serde(
         default = "default_stew_duration",
         deserialize_with = "lenient_duration",

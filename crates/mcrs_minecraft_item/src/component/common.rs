@@ -6,6 +6,7 @@ use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::MobEffect;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
@@ -164,7 +165,7 @@ resolvable!(
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobEffectInstance {
-    pub id: ResourceKey<MobEffectReg>,
+    pub id: ResourceKey<MobEffect>,
     #[serde(flatten)]
     pub details: MobEffectDetails,
 }
