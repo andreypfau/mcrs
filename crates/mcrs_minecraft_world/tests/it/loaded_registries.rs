@@ -21,7 +21,10 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
     "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
     "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
-    "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
+    "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true},
+    "minecraft:damage_type":{"elements":true,"stable":false,"tags":true},
+    "minecraft:decorated_pot_pattern":{"elements":true,"stable":false,"tags":true},
+    "minecraft:block_transformer":{"elements":true,"stable":false,"tags":true}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
@@ -384,4 +387,50 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
         |width: u32| format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#);
     assert!(serde_json::from_str::<PaintingVariantValue>(&painting(16)).is_ok());
     assert!(serde_json::from_str::<PaintingVariantValue>(&painting(17)).is_err());
+}
+
+#[test]
+fn a_strict_simple_value_refuses_an_unknown_field() {
+    let stone = r#"{"id":"minecraft:stone"}"#;
+    for (registry, json) in [
+        (
+            "damage_type",
+            r#"{"message_id":"x","scaling":"never","exhaustion":0.0,"bogus":1}"#.to_owned(),
+        ),
+        (
+            "decorated_pot_pattern",
+            r#"{"asset_id":"minecraft:x_pottery_pattern","bogus":1}"#.to_owned(),
+        ),
+        (
+            "block_transformer",
+            format!(r#"[{{"block_state_provider":{stone},"bogus":1}}]"#),
+        ),
+    ] {
+        let text = refused_by_the_loader(registry, "odd", &json);
+        for part in [
+            format!("minecraft:{registry}"),
+            "minecraft:odd".to_owned(),
+            format!("minecraft/{registry}/odd.json"),
+            "bogus".to_owned(),
+        ] {
+            assert!(text.contains(&part), "{part} missing from:\n{text}");
+        }
+    }
+}
+
+#[test]
+fn a_damage_type_with_an_unknown_scaling_fails() {
+    let text = refused_by_the_loader(
+        "damage_type",
+        "odd",
+        r#"{"message_id":"x","scaling":"sometimes","exhaustion":0.0}"#,
+    );
+    for part in [
+        "minecraft:damage_type",
+        "minecraft:odd",
+        "sometimes",
+        "when_caused_by_living_non_player",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
 }

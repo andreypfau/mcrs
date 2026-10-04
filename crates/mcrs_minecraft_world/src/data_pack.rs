@@ -1,7 +1,4 @@
-use crate::{
-    LoadedRegistryAssets, block_transformer, chat_type, damage_type, decorated_pot_pattern, dialog,
-    test_types, variant,
-};
+use crate::{LoadedRegistryAssets, chat_type, dialog, test_types, variant};
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::*;
@@ -282,27 +279,6 @@ pub(crate) fn request_data_pack_assets(
         &set,
         &mut loaded,
         "minecraft:zombie_nautilus_variant",
-        "json",
-    );
-    request_registry::<damage_type::DamageType>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:damage_type",
-        "json",
-    );
-    request_registry::<block_transformer::BlockTransformer>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:block_transformer",
-        "json",
-    );
-    request_registry::<decorated_pot_pattern::DecoratedPotPattern>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:decorated_pot_pattern",
         "json",
     );
     request_registry::<dialog::Dialog>(
