@@ -9,11 +9,13 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
 use mcrs_minecraft_world::registries::{
     read_packs, register_loaded, static_registries as build_static_registries, test_registries,
     world_registries,
 };
+use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use serde::Deserialize;
 use std::sync::LazyLock;
@@ -39,7 +41,10 @@ const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
     "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
     "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
     "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
-    "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true}}}"#;
+    "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
+    "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
+    "minecraft:test_instance":{"elements":true,"stable":false,"tags":true}}}"#;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
@@ -48,6 +53,15 @@ static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
 
 fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
     refused_in(PARSED_REPORT, registry, name, json)
+}
+
+fn report_declaring(registries: &[&str]) -> Vec<u8> {
+    let mut report: serde_json::Value = serde_json::from_slice(PARSED_REPORT).unwrap();
+    for registry in registries {
+        report["registries"][registry] =
+            serde_json::json!({"elements": true, "stable": false, "tags": true});
+    }
+    serde_json::to_vec(&report).unwrap()
 }
 
 fn refused_in(report: &[u8], registry: &str, name: &str, json: &str) -> String {
@@ -424,6 +438,22 @@ fn a_strict_simple_value_refuses_an_unknown_field() {
             "block_transformer",
             format!(r#"[{{"block_state_provider":{stone},"bogus":1}}]"#),
         ),
+        (
+            "chat_type",
+            r#"{"bogus":1,"chat":{"translation_key":"k","parameters":[]},
+                "narration":{"translation_key":"k","parameters":[]}}"#
+                .to_owned(),
+        ),
+        (
+            "test_environment",
+            r#"{"bogus":1,"type":"minecraft:weather","weather":"clear"}"#.to_owned(),
+        ),
+        (
+            "test_instance",
+            r#"{"bogus":1,"type":"minecraft:block_based","environment":"minecraft:default",
+                "structure":"minecraft:empty","max_ticks":1}"#
+                .to_owned(),
+        ),
     ] {
         let text = refused_by_the_loader(registry, "odd", &json);
         for part in [
@@ -477,12 +507,7 @@ fn a_spawn_condition_naming_an_unknown_biome_tag_fails() {
         r##"{{"assets":{assets},"baby_assets":{assets},"spawn_conditions":[
             {{"condition":{{"type":"minecraft:biome","biomes":"#minecraft:no_such_tag"}},"priority":1}}]}}"##
     );
-    let mut report: serde_json::Value = serde_json::from_slice(PARSED_REPORT).unwrap();
-    for registry in ["minecraft:worldgen/biome", "minecraft:worldgen/structure"] {
-        report["registries"][registry] =
-            serde_json::json!({"elements": true, "stable": false, "tags": true});
-    }
-    let report = serde_json::to_vec(&report).unwrap();
+    let report = report_declaring(&["minecraft:worldgen/biome", "minecraft:worldgen/structure"]);
     let text = refused_in(&report, "wolf_variant", "odd", &json);
     for part in [
         "minecraft:wolf_variant",
@@ -549,4 +574,348 @@ fn the_synced_wolf_variant_has_no_spawn_conditions() {
         file["spawn_conditions"],
         serde_json::json!([{"priority": 0}])
     );
+}
+
+#[test]
+fn a_chat_parameter_outside_the_game_set_fails() {
+    let decoration = |parameter: &str| {
+        format!(r#"{{"translation_key":"chat.type.text","parameters":["sender","{parameter}"]}}"#)
+    };
+    let chat_type = |parameter: &str| {
+        format!(
+            r#"{{"chat":{},"narration":{}}}"#,
+            decoration(parameter),
+            decoration("content")
+        )
+    };
+
+    let text = refused_by_the_loader("chat_type", "odd", &chat_type("victim"));
+    for part in [
+        "minecraft:chat_type",
+        "minecraft:odd",
+        "minecraft/chat_type/odd.json",
+        "victim",
+        "sender",
+        "target",
+        "content",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+
+    let world = world_registries(PARSED_REPORT).expect("the report parses");
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files: vec![PackFile {
+            path: "minecraft/chat_type/fine.json".to_owned(),
+            bytes: Some(chat_type("target").into_bytes()),
+        }],
+    }];
+    let text = world
+        .load(&STATICS, &packs)
+        .err()
+        .map(|report| report.to_string())
+        .unwrap_or_default();
+    assert!(!text.contains("minecraft:chat_type"), "{text}");
+}
+
+fn registered_names(registry: &str) -> BTreeSet<String> {
+    test_registries()
+        .table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
+        .names()
+        .iter()
+        .map(|name| name.to_string())
+        .collect()
+}
+
+fn round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> serde_json::Value {
+    test_registries().scope(|| {
+        let value: T = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+        let text = serde_json::to_string(&value).unwrap();
+        serde_json::from_str(&text).unwrap()
+    })
+}
+
+fn assert_samples_round_trip<T: serde::de::DeserializeOwned + serde::Serialize>(
+    type_registry: &str,
+    samples: &[(&str, &str)],
+) {
+    let sampled: BTreeSet<String> = samples.iter().map(|(name, _)| (*name).to_owned()).collect();
+    assert_eq!(
+        sampled,
+        registered_names(type_registry),
+        "a sample for each type {type_registry} registers, and no other"
+    );
+    for (name, json) in samples {
+        let written = round_trip::<T>(json);
+        let read: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(written, read, "{name}");
+        assert_eq!(written["type"], *name, "{json}");
+    }
+}
+
+#[test]
+fn every_test_environment_type_round_trips() {
+    assert_samples_round_trip::<TestEnvironment>(
+        "minecraft:test_environment_definition_type",
+        &[
+            (
+                "minecraft:all_of",
+                r#"{"type":"minecraft:all_of","definitions":["minecraft:default",
+                    {"type":"minecraft:weather","weather":"rain"}]}"#,
+            ),
+            (
+                "minecraft:clock_time",
+                r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":6000}"#,
+            ),
+            (
+                "minecraft:difficulty",
+                r#"{"type":"minecraft:difficulty","difficulty":"hard"}"#,
+            ),
+            (
+                "minecraft:function",
+                r#"{"type":"minecraft:function","setup":"minecraft:prepare","teardown":"minecraft:clean_up"}"#,
+            ),
+            (
+                "minecraft:game_rules",
+                r#"{"type":"minecraft:game_rules","rules":{"minecraft:pvp":false,
+                    "minecraft:random_tick_speed":0,"minecraft:max_minecart_speed":1000}}"#,
+            ),
+            (
+                "minecraft:timeline_attributes",
+                r#"{"type":"minecraft:timeline_attributes","timelines":["minecraft:day"]}"#,
+            ),
+            (
+                "minecraft:weather",
+                r#"{"type":"minecraft:weather","weather":"thunder"}"#,
+            ),
+        ],
+    );
+
+    for json in [
+        r#"{"type":"minecraft:function"}"#,
+        r#"{"type":"minecraft:clock_time","clock":{},"time":0}"#,
+        r#"{"type":"minecraft:all_of","definitions":[]}"#,
+        r#"{"type":"minecraft:timeline_attributes","timelines":[{"clock":"minecraft:overworld","tracks":{}}]}"#,
+    ] {
+        let read: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(round_trip::<TestEnvironment>(json), read);
+    }
+}
+
+#[test]
+fn every_test_instance_type_round_trips() {
+    assert_samples_round_trip::<TestInstance>(
+        "minecraft:test_instance_type",
+        &[
+            (
+                "minecraft:block_based",
+                r#"{"type":"minecraft:block_based","environment":"minecraft:default",
+                    "structure":"minecraft:empty","max_ticks":100}"#,
+            ),
+            (
+                "minecraft:function",
+                r#"{"type":"minecraft:function","function":"minecraft:always_pass",
+                    "environment":{"type":"minecraft:weather","weather":"clear"},
+                    "dimension":"minecraft:the_nether","structure":"minecraft:empty",
+                    "max_ticks":20,"setup_ticks":2,"required":false,"rotation":"180",
+                    "manual_only":true,"max_attempts":3,"required_successes":2,
+                    "sky_access":true,"padding":4}"#,
+            ),
+        ],
+    );
+}
+
+fn instance_naming(field: &str, name: &str) -> String {
+    let (environment, function) = match field {
+        "environment" => (name, "minecraft:always_pass"),
+        _ => ("minecraft:default", name),
+    };
+    format!(
+        r#"{{"type":"minecraft:function","function":"{function}","environment":"{environment}",
+            "structure":"minecraft:empty","max_ticks":1}}"#
+    )
+}
+
+fn refused_with_environment_default(instance: &str) -> String {
+    let world = world_registries(PARSED_REPORT).expect("the report parses");
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files: vec![
+            PackFile {
+                path: "minecraft/test_environment/default.json".to_owned(),
+                bytes: Some(br#"{"type":"minecraft:all_of","definitions":[]}"#.to_vec()),
+            },
+            PackFile {
+                path: "minecraft/test_instance/odd.json".to_owned(),
+                bytes: Some(instance.as_bytes().to_vec()),
+            },
+        ],
+    }];
+    world
+        .load(&STATICS, &packs)
+        .err()
+        .map(|report| report.to_string())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_test_instance_naming_an_unknown_environment_fails() {
+    let text =
+        refused_with_environment_default(&instance_naming("environment", "minecraft:nowhere"));
+    for part in [
+        "minecraft:test_environment",
+        "minecraft:nowhere",
+        "minecraft:odd",
+        "minecraft/test_instance/odd.json",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+
+    let text =
+        refused_with_environment_default(&instance_naming("environment", "minecraft:default"));
+    assert!(!text.contains("minecraft:test_instance"), "{text}");
+}
+
+#[test]
+fn a_test_instance_naming_an_unknown_function_fails() {
+    let text = refused_with_environment_default(&instance_naming("function", "minecraft:nowhere"));
+    for part in [
+        "minecraft:test_function",
+        "minecraft:nowhere",
+        "minecraft:odd",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn test_values_the_game_refuses_fail_to_parse() {
+    let refused = |registry: &str, json: &str, part: &str| {
+        let text = refused_in(PARSED_REPORT, registry, "odd", json);
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    };
+    let environment =
+        |body: &str| format!(r#"{{"type":"minecraft:game_rules","rules":{{{body}}}}}"#);
+    refused(
+        "test_environment",
+        &environment(r#""minecraft:pvp":1"#),
+        "minecraft:pvp",
+    );
+    refused(
+        "test_environment",
+        &environment(r#""minecraft:random_tick_speed":true"#),
+        "minecraft:random_tick_speed",
+    );
+    refused(
+        "test_environment",
+        &environment(r#""minecraft:max_minecart_speed":1001"#),
+        "[1:1000]",
+    );
+    refused(
+        "test_environment",
+        &environment(r#""minecraft:no_such_rule":true"#),
+        "minecraft:no_such_rule",
+    );
+    let text = refused_in(
+        &report_declaring(&["minecraft:world_clock"]),
+        "test_environment",
+        "odd",
+        r#"{"type":"minecraft:clock_time","clock":"minecraft:nowhere","time":0}"#,
+    );
+    for part in ["minecraft:world_clock", "minecraft:nowhere"] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+    refused(
+        "test_environment",
+        r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":-1}"#,
+        "non-negative",
+    );
+    refused(
+        "test_environment",
+        r#"{"type":"minecraft:lightning"}"#,
+        "minecraft:lightning",
+    );
+
+    let instance = |fields: &str| {
+        format!(
+            r#"{{"type":"minecraft:block_based","environment":"minecraft:default",
+                "structure":"minecraft:empty",{fields}}}"#
+        )
+    };
+    for (fields, part) in [
+        (r#""max_ticks":0"#, "positive"),
+        (r#""max_ticks":1,"padding":129"#, "[0;128]"),
+        (r#""max_ticks":1,"rotation":"sideways""#, "sideways"),
+    ] {
+        let text = refused_with_environment_default(&instance(fields));
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn every_integer_game_rule_is_a_registered_rule() {
+    let rules = registered_names("minecraft:game_rule");
+    for (name, ..) in mcrs_minecraft_world::test_types::INTEGER_GAME_RULES {
+        assert!(rules.contains(name), "{name} is not a game rule");
+    }
+}
+
+fn synced<T: serde::de::DeserializeOwned + serde::Serialize>(
+    json: &str,
+) -> mcrs_minecraft_nbt::compound::NbtCompound {
+    test_registries().scope(|| {
+        let value: T = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+        mcrs_minecraft_nbt::to_nbt_compound(&value).unwrap()
+    })
+}
+
+#[test]
+fn test_values_are_synced_with_the_tags_the_game_writes() {
+    let instance = synced::<TestInstance>(
+        r#"{"type":"minecraft:function","function":"minecraft:always_pass",
+            "environment":"minecraft:default","dimension":"minecraft:the_nether",
+            "structure":"minecraft:empty","max_ticks":20,"setup_ticks":2,"required":false,
+            "rotation":"180","manual_only":true,"max_attempts":3,"required_successes":2,
+            "sky_access":true,"padding":4}"#,
+    );
+    for (field, tag) in [
+        ("max_ticks", NbtTag::Int(20)),
+        ("setup_ticks", NbtTag::Int(2)),
+        ("max_attempts", NbtTag::Int(3)),
+        ("required_successes", NbtTag::Int(2)),
+        ("padding", NbtTag::Int(4)),
+        ("required", NbtTag::Byte(0)),
+        ("manual_only", NbtTag::Byte(1)),
+        ("sky_access", NbtTag::Byte(1)),
+        ("rotation", NbtTag::String("180".to_owned())),
+        (
+            "environment",
+            NbtTag::String("minecraft:default".to_owned()),
+        ),
+        (
+            "function",
+            NbtTag::String("minecraft:always_pass".to_owned()),
+        ),
+    ] {
+        assert_eq!(instance.get(field), Some(&tag), "{field}");
+    }
+
+    let rules = synced::<TestEnvironment>(
+        r#"{"type":"minecraft:game_rules","rules":{"minecraft:pvp":false,
+            "minecraft:random_tick_speed":0}}"#,
+    );
+    let rules = rules
+        .get_compound("rules")
+        .expect("the rules are a compound");
+    assert_eq!(rules.get("minecraft:pvp"), Some(&NbtTag::Byte(0)));
+    assert_eq!(
+        rules.get("minecraft:random_tick_speed"),
+        Some(&NbtTag::Int(0))
+    );
+
+    let clock = synced::<TestEnvironment>(
+        r#"{"type":"minecraft:clock_time","clock":"minecraft:overworld","time":6000}"#,
+    );
+    assert_eq!(clock.get("time"), Some(&NbtTag::Int(6000)));
 }

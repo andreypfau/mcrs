@@ -20,6 +20,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_text.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_asset.workspace = true

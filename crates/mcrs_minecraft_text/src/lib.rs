@@ -124,6 +124,87 @@ pub struct TextInner<I: HoverItem> {
     pub font: Option<ResourceLocation>,
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, bound = "")]
+pub struct Style<I: HoverItem = ()> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<Color>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow_color: Option<ArgbInt>,
+
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bold: Option<bool>,
+
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub italic: Option<bool>,
+
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub underlined: Option<bool>,
+
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub strikethrough: Option<bool>,
+
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub obfuscated: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub click_event: Option<ClickEvent>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hover_event: Option<HoverEvent<I>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub insertion: Option<Cow<'static, str>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<ResourceLocation>,
+}
+
+impl<I: HoverItem> Default for Style<I> {
+    fn default() -> Self {
+        Style {
+            color: None,
+            shadow_color: None,
+            bold: None,
+            italic: None,
+            underlined: None,
+            strikethrough: None,
+            obfuscated: None,
+            click_event: None,
+            hover_event: None,
+            insertion: None,
+            font: None,
+        }
+    }
+}
+
+impl<I: HoverItem> Style<I> {
+    pub fn is_empty(&self) -> bool {
+        *self == Style::default()
+    }
+}
+
 /// Style keys are read as they arrive; every other key is kept as the tag it
 /// came as and handed to the content codec once the map ends. Serde's own
 /// `flatten` buffer would do the same through `Content`, which has no array
@@ -1414,5 +1495,40 @@ impl<'de, I: HoverItem> Deserialize<'de> for Text<I> {
         }
 
         deserializer.deserialize_any(TextVisitor(PhantomData))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    fn style(value: &Value) -> Result<Style, serde_json::Error> {
+        serde_json::from_value(value.clone())
+    }
+
+    #[test]
+    fn a_chat_style_with_an_unknown_key_fails() {
+        let refused = style(&json!({"color": "gray", "bogus": 1})).unwrap_err();
+        assert!(refused.to_string().contains("bogus"), "{refused}");
+
+        for field in [
+            json!({"color": "gray"}),
+            json!({"color": "#12AB34"}),
+            json!({"shadow_color": -16777216}),
+            json!({"bold": true}),
+            json!({"italic": false}),
+            json!({"underlined": true}),
+            json!({"strikethrough": true}),
+            json!({"obfuscated": false}),
+            json!({"click_event": {"action": "run_command", "command": "/list"}}),
+            json!({"hover_event": {"action": "show_text", "value": "hello"}}),
+            json!({"insertion": "text"}),
+            json!({"font": "minecraft:uniform"}),
+            json!({}),
+        ] {
+            let read = style(&field).unwrap_or_else(|e| panic!("{field}: {e}"));
+            assert_eq!(serde_json::to_value(&read).unwrap(), field);
+        }
     }
 }

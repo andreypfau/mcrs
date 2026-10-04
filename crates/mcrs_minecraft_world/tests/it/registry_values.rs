@@ -176,14 +176,8 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 }
 
 fn rows() -> Vec<Row> {
-    use mcrs_minecraft_world::{
-        chat_type::ChatType, test_types::TestEnvironment, test_types::TestInstance,
-    };
     vec![
-        row("chat_type", typed::<ChatType>),
         row("dialog", dialog),
-        row("test_environment", typed::<TestEnvironment>),
-        row("test_instance", typed::<TestInstance>),
         row(
             "world_clock",
             typed::<mcrs_minecraft_environment::world_clock::WorldClock>,

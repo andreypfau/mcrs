@@ -1,4 +1,4 @@
-use crate::{LoadedRegistryAssets, chat_type, dialog, test_types};
+use crate::{LoadedRegistryAssets, dialog};
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::*;
@@ -190,13 +190,6 @@ pub(crate) fn request_data_pack_assets(
         "minecraft:dimension_type",
         "json",
     );
-    request_registry::<chat_type::ChatType>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:chat_type",
-        "json",
-    );
     request_registry::<dialog::Dialog>(
         &asset_server,
         &set,
@@ -216,20 +209,6 @@ pub(crate) fn request_data_pack_assets(
         &set,
         &mut loaded,
         "minecraft:world_clock",
-        "json",
-    );
-    request_registry::<test_types::TestEnvironment>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:test_environment",
-        "json",
-    );
-    request_registry::<test_types::TestInstance>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:test_instance",
         "json",
     );
 }

@@ -1,8 +1,10 @@
 use crate::block_transformer::BlockTransformer;
+use crate::chat_type::ChatType;
 use crate::damage_type::DamageType;
 use crate::data_pack::walk_files;
 use crate::decorated_pot_pattern::DecoratedPotPattern;
 use crate::entity::minecraft::EntityIds;
+use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
@@ -38,6 +40,9 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse_required::<PaintingVariantValue, PaintingVariantValue>(&mut world, &mut undeclared);
     parse::<TrimMaterial>(&mut world, &mut undeclared);
     parse::<TrimPattern>(&mut world, &mut undeclared);
+    parse::<ChatType>(&mut world, &mut undeclared);
+    parse::<TestEnvironment>(&mut world, &mut undeclared);
+    parse::<TestInstance>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
         &mut world,
@@ -403,7 +408,10 @@ mod tests {
             "minecraft:cat_variant":{"elements":true,"stable":false,"tags":true},
             "minecraft:cat_sound_variant":{"elements":true,"stable":false,"tags":true},
             "minecraft:frog_variant":{"elements":true,"stable":false,"tags":true},
-            "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:zombie_nautilus_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:chat_type":{"elements":true,"stable":false,"tags":true},
+            "minecraft:test_environment":{"elements":true,"stable":false,"tags":true},
+            "minecraft:test_instance":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),
