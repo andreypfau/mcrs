@@ -1,6 +1,7 @@
 use crate::world::aoi::{PlayerTrackerSet, TrackedBy, on_changed_transform};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::world::entity::player::HostAnchor;
+use crate::world::item::sync::WireStack;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::prelude::{
@@ -12,7 +13,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
-use mcrs_minecraft_item::{ItemStack, Items, WireStack};
+use mcrs_minecraft_item::{ItemStack, Items};
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,

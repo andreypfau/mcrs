@@ -13,7 +13,7 @@ pub mod trim;
 pub mod value;
 
 pub use definition::{ItemDefinitions, ItemEntry, Items, load_item_definitions, test_corpus};
-pub use dropped::{DroppedItem, Thrower, WireStack};
+pub use dropped::{DroppedItem, Thrower};
 pub use effective::{
     children, component_value, damage_value, has_component, has_non_default, is_damageable,
     is_damaged, is_stackable, max_damage, max_stack_size,

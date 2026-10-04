@@ -4,7 +4,7 @@ use crate::world::entity::player::HostAnchor;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Changed, Ref, With};
+use bevy_ecs::prelude::{Changed, Component, Ref, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
@@ -12,7 +12,7 @@ use mcrs_minecraft_inventory::{
     CurrentMenu, Menu, MenuLayout, MenuViewer, Remote, RemoteSlots, Slot, stack_in,
 };
 use mcrs_minecraft_item::{
-    DroppedItem, Held, Items, SlotTable, StackRevision, WireStack, slots, stack_to_slot,
+    DroppedItem, Held, Items, SlotTable, StackRevision, slots, stack_to_slot,
 };
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::VarInt;
@@ -26,6 +26,10 @@ use mcrs_minecraft_registry::ChainLookup;
 use rustc_hash::FxHashSet;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
+
+/// The dropped item's stack as last encoded for the wire; the slot sync owns it.
+#[derive(Component, Debug, Clone, PartialEq, Eq)]
+pub struct WireStack(pub RawStack);
 
 /// Holders whose slots may read differently since the last run: those whose
 /// table changed, and the top-level holder of every stack whose revision

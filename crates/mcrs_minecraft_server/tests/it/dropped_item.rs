@@ -9,7 +9,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, ResourceLocation, SectionPos};
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
-use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, WireStack, slots};
+use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
 use mcrs_minecraft_level::entity::mob::EntityKind;
 use mcrs_minecraft_level::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -36,7 +36,7 @@ use mcrs_minecraft_server::world::item::chest::{
 };
 use mcrs_minecraft_server::world::item::click::{CloseContainerRequest, close_menus, commit};
 use mcrs_minecraft_server::world::item::menu::open_menus;
-use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
+use mcrs_minecraft_server::world::item::sync::{WireStack, sync_stack_slots};
 use mcrs_minecraft_worldgen_feature_place::block_entity::{ContainerData, GeneratedBlockEntity};
 
 const FLOOR_TOP: f64 = 1.0;
