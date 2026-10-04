@@ -2,71 +2,11 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Registry folders whose files with the given extension should be enumerated
-/// at compile time and exposed at runtime as `&[&str]` slices in the generated
-/// module.
-///
-/// Adding a new dynamic registry: append `(rust_const_name, "<folder under assets/>", "<ext>")`.
-/// Adding a new file to an existing registry: drop it into `assets/<folder>/`
-/// — the build script will pick it up on the next rebuild.
-const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[
-    ("TEMPLATE", "minecraft/structure", "nbt"),
-    ("BIOME", "minecraft/worldgen/biome", "json"),
-    ("CARVER", "minecraft/worldgen/carver", "json"),
-    ("FEATURE", "minecraft/worldgen/feature", "json"),
-    (
-        "PLACED_FEATURE",
-        "minecraft/worldgen/placed_feature",
-        "json",
-    ),
-    ("STRUCTURE_SET", "minecraft/worldgen/structure_set", "json"),
-    ("STRUCTURE", "minecraft/worldgen/structure", "json"),
-    ("TEMPLATE_POOL", "minecraft/worldgen/template_pool", "json"),
-    (
-        "BLOCK_STATE_PROVIDER",
-        "minecraft/worldgen/block_state_provider",
-        "json",
-    ),
-    ("CHAT_TYPE", "minecraft/chat_type", "json"),
-    ("DIMENSION_TYPE", "minecraft/dimension_type", "json"),
-    ("TRIM_PATTERN", "minecraft/trim_pattern", "json"),
-    ("TRIM_MATERIAL", "minecraft/trim_material", "json"),
-    ("WOLF_VARIANT", "minecraft/wolf_variant", "json"),
-    ("WOLF_SOUND_VARIANT", "minecraft/wolf_sound_variant", "json"),
-    ("PIG_SOUND_VARIANT", "minecraft/pig_sound_variant", "json"),
-    ("CAT_SOUND_VARIANT", "minecraft/cat_sound_variant", "json"),
-    ("COW_SOUND_VARIANT", "minecraft/cow_sound_variant", "json"),
-    (
-        "CHICKEN_SOUND_VARIANT",
-        "minecraft/chicken_sound_variant",
-        "json",
-    ),
-    ("PIG_VARIANT", "minecraft/pig_variant", "json"),
-    ("FROG_VARIANT", "minecraft/frog_variant", "json"),
-    ("CAT_VARIANT", "minecraft/cat_variant", "json"),
-    ("COW_VARIANT", "minecraft/cow_variant", "json"),
-    ("CHICKEN_VARIANT", "minecraft/chicken_variant", "json"),
-    (
-        "ZOMBIE_NAUTILUS_VARIANT",
-        "minecraft/zombie_nautilus_variant",
-        "json",
-    ),
-    ("PAINTING_VARIANT", "minecraft/painting_variant", "json"),
-    ("DAMAGE_TYPE", "minecraft/damage_type", "json"),
-    ("JUKEBOX_SONG", "minecraft/jukebox_song", "json"),
-    ("BLOCK_TRANSFORMER", "minecraft/block_transformer", "json"),
-    (
-        "DECORATED_POT_PATTERN",
-        "minecraft/decorated_pot_pattern",
-        "json",
-    ),
-    ("INSTRUMENT", "minecraft/instrument", "json"),
-    ("DIALOG", "minecraft/dialog", "json"),
-    ("TIMELINE", "minecraft/timeline", "json"),
-    ("WORLD_CLOCK", "minecraft/world_clock", "json"),
-    ("TEST_ENVIRONMENT", "minecraft/test_environment", "json"),
-    ("TEST_INSTANCE", "minecraft/test_instance", "json"),
-];
+/// Folders whose files with the given extension are enumerated at compile time
+/// and exposed at runtime as `&[&str]` slices in the generated module. Only
+/// what no registry names stays here: structure templates are not a registry,
+/// so nothing but a listing can find them.
+const REGISTRY_FOLDERS: &[(&str, &str, &str)] = &[("TEMPLATE", "minecraft/structure", "nbt")];
 
 fn collect_files(dir: &Path, assets_root: &Path, extension: &str, out: &mut Vec<String>) {
     let Ok(entries) = fs::read_dir(dir) else {

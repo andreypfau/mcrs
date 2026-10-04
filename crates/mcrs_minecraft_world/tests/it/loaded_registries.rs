@@ -1,8 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::io::memory::{Dir, MemoryAssetReader};
+use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
+use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
+use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_item::BannerPattern;
-use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_world::registries::{read_packs, test_registries, world_registries};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -118,4 +125,72 @@ fn the_banner_pattern_column_follows_the_name_table() {
     for (name, pattern) in table.names().iter().zip(column) {
         assert_eq!(&pattern.asset_id.to_string(), &name.to_string());
     }
+}
+
+#[test]
+fn packs_follow_vanilla_in_name_order() {
+    let pattern =
+        |name: &str| format!(r#"{{"asset_id":"minecraft:{name}","translation_key":"k"}}"#);
+    let root = Dir::default();
+    root.insert_asset_text(Path::new("minecraft/banner_pattern/a.json"), &pattern("a"));
+    root.insert_asset_text(
+        Path::new("mcrs/datapacks/extra/minecraft/banner_pattern/b.json"),
+        &pattern("b"),
+    );
+
+    let mut app = App::new();
+    app.register_asset_source(
+        AssetSourceId::Default,
+        AssetSourceBuilder::new(move || {
+            Box::new(PackLayers::new(Box::new(MemoryAssetReader {
+                root: root.clone(),
+            })))
+        }),
+    );
+    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    let asset_server = app.world().resource::<AssetServer>().clone();
+
+    let report = br#"{"others":{},"registries":{"minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
+    let world = world_registries(report).expect("the report parses");
+    let packs = read_packs(&asset_server, &world, &RegistrySet::new());
+
+    let listed: Vec<_> = packs
+        .iter()
+        .map(|pack| {
+            (
+                pack.name.as_str(),
+                pack.files
+                    .iter()
+                    .map(|file| (file.path.as_str(), file.bytes.as_deref()))
+                    .collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            (
+                "vanilla",
+                vec![(
+                    "minecraft/banner_pattern/a.json",
+                    Some(pattern("a").as_bytes())
+                )]
+            ),
+            (
+                "extra",
+                vec![(
+                    "minecraft/banner_pattern/b.json",
+                    Some(pattern("b").as_bytes())
+                )]
+            ),
+        ]
+    );
+
+    let source = asset_server.get_source(AssetSourceId::Default).unwrap();
+    let bytes = bevy_tasks::block_on(read_whole(
+        source.reader(),
+        Path::new("minecraft/banner_pattern/b.json"),
+    ))
+    .expect("the layered reader reads the pack's file at its virtual path");
+    assert_eq!(bytes, pattern("b").as_bytes());
 }

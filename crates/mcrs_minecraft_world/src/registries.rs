@@ -2,9 +2,10 @@ use crate::data_pack::walk_files;
 use crate::entity::minecraft::EntityIds;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
-use bevy_asset::{AssetPlugin, AssetServer};
+use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_item::{BannerPattern, Item, SoundEvent};
@@ -59,22 +60,34 @@ pub fn read_packs(
     let source = asset_server
         .get_source(AssetSourceId::Default)
         .expect("default AssetSource missing");
-    let files = bevy_tasks::block_on(read_files(source.reader(), registries, statics));
-    vec![Pack {
-        name: VANILLA_PACK.to_owned(),
-        files,
-    }]
+    let reader = source.reader();
+    bevy_tasks::block_on(async {
+        let mut packs =
+            vec![read_pack(reader, VANILLA_PACK, Path::new(""), registries, statics).await];
+        for name in pack_names(reader).await {
+            let root = Path::new(PACKS_ROOT).join(&name);
+            packs.push(read_pack(reader, &name, &root, registries, statics).await);
+        }
+        packs
+    })
 }
 
-async fn read_files(
+async fn read_pack(
     reader: &dyn ErasedAssetReader,
+    name: &str,
+    root: &Path,
     registries: &WorldRegistries,
     statics: &RegistrySet,
-) -> Vec<PackFile> {
+) -> Pack {
+    let vanilla = root.as_os_str().is_empty();
     let mut namespaces = Vec::new();
-    if let Ok(mut listing) = reader.read_directory(Path::new("")).await {
-        while let Some(namespace) = listing.next().await {
-            namespaces.push(namespace);
+    if let Ok(mut listing) = reader.read_directory(root).await {
+        while let Some(entry) = listing.next().await {
+            if let Some(namespace) = entry.file_name().and_then(|name| name.to_str())
+                && !(vanilla && namespace == "mcrs")
+            {
+                namespaces.push(namespace.to_owned());
+            }
         }
     }
 
@@ -88,22 +101,24 @@ async fn read_files(
     for namespace in &namespaces {
         for registry in registries.declared() {
             let reads_bytes = registries.parses(registry.as_str());
-            let root = namespace.join(registry.path());
-            for path in walk_files(reader, root.clone()).await {
-                if let Some(path) = path.to_str() {
-                    *found.entry(path.to_owned()).or_default() |= reads_bytes;
+            let directory = root.join(namespace).join(registry.path());
+            for path in walk_files(reader, directory).await {
+                if let Some(path) = relative_to(root, &path) {
+                    *found.entry(path).or_default() |= reads_bytes;
                 }
             }
-            let directory = format!("{}/{}", namespace.display(), registry.path());
-            for path in mcrs_minecraft_worldgen_builtin::paths(&directory) {
-                found.entry(path).or_default();
+            if vanilla {
+                let directory = format!("{namespace}/{}", registry.path());
+                for path in mcrs_minecraft_worldgen_builtin::paths(&directory) {
+                    found.entry(path).or_default();
+                }
             }
         }
         for directory in &tag_directories {
-            let root = namespace.join("tags").join(directory);
-            for path in walk_files(reader, root).await {
-                if let Some(path) = path.to_str() {
-                    found.entry(path.to_owned()).or_default();
+            let directory = root.join(namespace).join("tags").join(directory);
+            for path in walk_files(reader, directory).await {
+                if let Some(path) = relative_to(root, &path) {
+                    found.entry(path).or_default();
                 }
             }
         }
@@ -112,7 +127,7 @@ async fn read_files(
     let mut files = Vec::with_capacity(found.len());
     for (path, reads_bytes) in found {
         let bytes = if reads_bytes {
-            match read_whole(reader, Path::new(&path)).await {
+            match read_whole(reader, &root.join(&path)).await {
                 Ok(bytes) => Some(bytes),
                 Err(error) => {
                     tracing::warn!(path, %error, "a registry file does not read");
@@ -124,7 +139,17 @@ async fn read_files(
         };
         files.push(PackFile { path, bytes });
     }
-    files
+    Pack {
+        name: name.to_owned(),
+        files,
+    }
+}
+
+fn relative_to(root: &Path, path: &Path) -> Option<String> {
+    path.strip_prefix(root)
+        .ok()
+        .and_then(Path::to_str)
+        .map(str::to_owned)
 }
 
 pub fn load_registries(
@@ -184,6 +209,10 @@ pub fn register_loaded<T: 'static, N: Serialize>(
 pub fn test_registries() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let mut app = App::new();
+        app.register_asset_source(
+            AssetSourceId::Default,
+            layered_file_source(&AssetPlugin::default().file_path),
+        );
         app.add_plugins((
             TaskPoolPlugin::default(),
             AssetPlugin {

@@ -81,321 +81,328 @@ fn list_registry_files(
 
 fn request_registry<T: Asset>(
     asset_server: &AssetServer,
+    set: &RegistrySet,
     loaded: &mut LoadedRegistryAssets,
-    folder: &str,
+    registry: &str,
     extension: &str,
-    fallback: &'static [&'static str],
 ) {
-    let files = list_registry_files(asset_server, folder, extension, fallback);
-    let count = files.len();
-    for path in files {
+    let table = set
+        .table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
+    let directory = table.registry().path();
+    for name in table.names() {
+        let path = format!(
+            "{}/{directory}/{}.{extension}",
+            name.namespace(),
+            name.path()
+        );
         loaded.handles.push(asset_server.load::<T>(path).untyped());
     }
     tracing::info!(
-        folder,
-        count,
+        registry,
+        count = table.len(),
         kind = std::any::type_name::<T>(),
         "requested registry assets"
     );
 }
 
-pub(crate) fn request_data_pack_assets(
-    asset_server: Res<AssetServer>,
-    mut loaded: ResMut<LoadedRegistryAssets>,
-) {
-    use registry_files::*;
-    request_registry::<biome::Biome>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_BIOME,
-        "json",
-        FILES_BIOME,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CARVER,
-        "json",
-        FILES_CARVER,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_FEATURE,
-        "json",
-        FILES_FEATURE,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_PLACED_FEATURE,
-        "json",
-        FILES_PLACED_FEATURE,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::StructureSetAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_STRUCTURE_SET,
-        "json",
-        FILES_STRUCTURE_SET,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::StructureAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_STRUCTURE,
-        "json",
-        FILES_STRUCTURE,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::TemplatePoolAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TEMPLATE_POOL,
-        "json",
-        FILES_TEMPLATE_POOL,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_BLOCK_STATE_PROVIDER,
-        "json",
-        FILES_BLOCK_STATE_PROVIDER,
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::TemplateAsset>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TEMPLATE,
-        "nbt",
-        FILES_TEMPLATE,
-    );
-    request_registry::<mcrs_minecraft_dimension::dimension_type::DimensionType>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_DIMENSION_TYPE,
-        "json",
-        FILES_DIMENSION_TYPE,
-    );
-    request_registry::<chat_type::ChatType>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CHAT_TYPE,
-        "json",
-        FILES_CHAT_TYPE,
-    );
-    request_registry::<crate::item::asset::TrimPattern>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TRIM_PATTERN,
-        "json",
-        FILES_TRIM_PATTERN,
-    );
-    request_registry::<crate::item::asset::TrimMaterial>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TRIM_MATERIAL,
-        "json",
-        FILES_TRIM_MATERIAL,
-    );
-    request_registry::<variant::WolfVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_WOLF_VARIANT,
-        "json",
-        FILES_WOLF_VARIANT,
-    );
-    request_registry::<variant::WolfSoundVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_WOLF_SOUND_VARIANT,
-        "json",
-        FILES_WOLF_SOUND_VARIANT,
-    );
-    request_registry::<variant::PigSoundVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_PIG_SOUND_VARIANT,
-        "json",
-        FILES_PIG_SOUND_VARIANT,
-    );
-    request_registry::<variant::CatSoundVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CAT_SOUND_VARIANT,
-        "json",
-        FILES_CAT_SOUND_VARIANT,
-    );
-    request_registry::<variant::CowSoundVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_COW_SOUND_VARIANT,
-        "json",
-        FILES_COW_SOUND_VARIANT,
-    );
-    request_registry::<variant::ChickenSoundVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CHICKEN_SOUND_VARIANT,
-        "json",
-        FILES_CHICKEN_SOUND_VARIANT,
-    );
-    request_registry::<variant::PigVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_PIG_VARIANT,
-        "json",
-        FILES_PIG_VARIANT,
-    );
-    request_registry::<variant::FrogVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_FROG_VARIANT,
-        "json",
-        FILES_FROG_VARIANT,
-    );
-    request_registry::<variant::CatVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CAT_VARIANT,
-        "json",
-        FILES_CAT_VARIANT,
-    );
-    request_registry::<variant::CowVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_COW_VARIANT,
-        "json",
-        FILES_COW_VARIANT,
-    );
-    request_registry::<variant::ChickenVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_CHICKEN_VARIANT,
-        "json",
-        FILES_CHICKEN_VARIANT,
-    );
-    request_registry::<variant::ZombieNautilusVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_ZOMBIE_NAUTILUS_VARIANT,
-        "json",
-        FILES_ZOMBIE_NAUTILUS_VARIANT,
-    );
-    request_registry::<crate::item::asset::PaintingVariant>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_PAINTING_VARIANT,
-        "json",
-        FILES_PAINTING_VARIANT,
-    );
-    request_registry::<damage_type::DamageType>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_DAMAGE_TYPE,
-        "json",
-        FILES_DAMAGE_TYPE,
-    );
-    request_registry::<crate::item::asset::JukeboxSong>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_JUKEBOX_SONG,
-        "json",
-        FILES_JUKEBOX_SONG,
-    );
-    request_registry::<block_transformer::BlockTransformer>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_BLOCK_TRANSFORMER,
-        "json",
-        FILES_BLOCK_TRANSFORMER,
-    );
-    request_registry::<decorated_pot_pattern::DecoratedPotPattern>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_DECORATED_POT_PATTERN,
-        "json",
-        FILES_DECORATED_POT_PATTERN,
-    );
-    request_registry::<crate::item::asset::Instrument>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_INSTRUMENT,
-        "json",
-        FILES_INSTRUMENT,
-    );
-    request_registry::<dialog::Dialog>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_DIALOG,
-        "json",
-        FILES_DIALOG,
-    );
-    request_registry::<timeline::Timeline>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TIMELINE,
-        "json",
-        FILES_TIMELINE,
-    );
-    request_registry::<world_clock::WorldClock>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_WORLD_CLOCK,
-        "json",
-        FILES_WORLD_CLOCK,
-    );
-    request_registry::<test_types::TestEnvironment>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TEST_ENVIRONMENT,
-        "json",
-        FILES_TEST_ENVIRONMENT,
-    );
-    request_registry::<test_types::TestInstance>(
-        &asset_server,
-        &mut loaded,
-        FOLDER_TEST_INSTANCE,
-        "json",
-        FILES_TEST_INSTANCE,
+fn request_templates(asset_server: &AssetServer, loaded: &mut LoadedRegistryAssets) {
+    use registry_files::{FILES_TEMPLATE, FOLDER_TEMPLATE};
+    let files = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
+    let count = files.len();
+    for path in files {
+        loaded.handles.push(
+            asset_server
+                .load::<mcrs_minecraft_worldgen::bevy::TemplateAsset>(path)
+                .untyped(),
+        );
+    }
+    tracing::info!(
+        folder = FOLDER_TEMPLATE,
+        count,
+        "requested structure templates"
     );
 }
 
-/// Every tag file the mounted packs ship for one registry, as
-/// `(tag location, asset path)`, discovered by walking each namespace's
-/// `<namespace>/tags/<registry_path>` tree through the active `AssetSource`.
+pub(crate) fn request_data_pack_assets(
+    asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
+    mut loaded: ResMut<LoadedRegistryAssets>,
+) {
+    request_registry::<biome::Biome>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/biome",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/carver",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/feature",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/placed_feature",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::StructureSetAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/structure_set",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::StructureAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/structure",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::TemplatePoolAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/template_pool",
+        "json",
+    );
+    request_registry::<mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:worldgen/block_state_provider",
+        "json",
+    );
+    request_templates(&asset_server, &mut loaded);
+    request_registry::<mcrs_minecraft_dimension::dimension_type::DimensionType>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:dimension_type",
+        "json",
+    );
+    request_registry::<chat_type::ChatType>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:chat_type",
+        "json",
+    );
+    request_registry::<crate::item::asset::TrimPattern>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:trim_pattern",
+        "json",
+    );
+    request_registry::<crate::item::asset::TrimMaterial>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:trim_material",
+        "json",
+    );
+    request_registry::<variant::WolfVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:wolf_variant",
+        "json",
+    );
+    request_registry::<variant::WolfSoundVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:wolf_sound_variant",
+        "json",
+    );
+    request_registry::<variant::PigSoundVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:pig_sound_variant",
+        "json",
+    );
+    request_registry::<variant::CatSoundVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:cat_sound_variant",
+        "json",
+    );
+    request_registry::<variant::CowSoundVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:cow_sound_variant",
+        "json",
+    );
+    request_registry::<variant::ChickenSoundVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:chicken_sound_variant",
+        "json",
+    );
+    request_registry::<variant::PigVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:pig_variant",
+        "json",
+    );
+    request_registry::<variant::FrogVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:frog_variant",
+        "json",
+    );
+    request_registry::<variant::CatVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:cat_variant",
+        "json",
+    );
+    request_registry::<variant::CowVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:cow_variant",
+        "json",
+    );
+    request_registry::<variant::ChickenVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:chicken_variant",
+        "json",
+    );
+    request_registry::<variant::ZombieNautilusVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:zombie_nautilus_variant",
+        "json",
+    );
+    request_registry::<crate::item::asset::PaintingVariant>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:painting_variant",
+        "json",
+    );
+    request_registry::<damage_type::DamageType>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:damage_type",
+        "json",
+    );
+    request_registry::<crate::item::asset::JukeboxSong>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:jukebox_song",
+        "json",
+    );
+    request_registry::<block_transformer::BlockTransformer>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:block_transformer",
+        "json",
+    );
+    request_registry::<decorated_pot_pattern::DecoratedPotPattern>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:decorated_pot_pattern",
+        "json",
+    );
+    request_registry::<crate::item::asset::Instrument>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:instrument",
+        "json",
+    );
+    request_registry::<dialog::Dialog>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:dialog",
+        "json",
+    );
+    request_registry::<timeline::Timeline>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:timeline",
+        "json",
+    );
+    request_registry::<world_clock::WorldClock>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:world_clock",
+        "json",
+    );
+    request_registry::<test_types::TestEnvironment>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:test_environment",
+        "json",
+    );
+    request_registry::<test_types::TestInstance>(
+        &asset_server,
+        &set,
+        &mut loaded,
+        "minecraft:test_instance",
+        "json",
+    );
+}
+
+/// Every tag the loaded packs ship for one registry, as
+/// `(tag location, asset path)`, in asset path order.
 ///
-/// A pack that adds a tag file is picked up without a code change, and a tag
-/// no Rust constant names is still reachable.
+/// The tags are the loader's: a pack that adds a tag file is picked up without
+/// a code change, and a tag no Rust constant names is still reachable.
 pub fn list_tag_files(
-    asset_server: &AssetServer,
+    set: &RegistrySet,
     registry_path: &str,
 ) -> Vec<(ResourceLocation<std::sync::Arc<str>>, String)> {
-    let Ok(source) = asset_server.get_source(AssetSourceId::Default) else {
-        tracing::warn!(registry_path, "default AssetSource missing");
+    let Some(table) = set
+        .tables()
+        .find(|table| table.registry().path() == registry_path)
+    else {
         return Vec::new();
     };
-    let reader = source.reader();
-    let mut found = Vec::new();
-
-    bevy_tasks::block_on(async {
-        let Ok(mut namespaces) = reader.read_directory(std::path::Path::new("")).await else {
-            return;
-        };
-        let mut roots = Vec::new();
-        while let Some(namespace) = namespaces.next().await {
-            roots.push(namespace.join("tags").join(registry_path));
-        }
-        for root in roots {
-            for path in walk_files(reader, root.clone()).await {
-                let Some(location) = tag_location(&root, &path) else {
-                    continue;
-                };
-                let Some(asset_path) = path.to_str() else {
-                    continue;
-                };
-                found.push((location, asset_path.to_owned()));
-            }
-        }
-    });
-
+    let mut found: Vec<_> = table
+        .tags()
+        .map(|tag| {
+            let path = format!(
+                "{}/tags/{registry_path}/{}.json",
+                tag.namespace(),
+                tag.path()
+            );
+            (tag.clone(), path)
+        })
+        .collect();
     found.sort_by(|a, b| a.1.cmp(&b.1));
     found
 }
@@ -425,8 +432,9 @@ pub(crate) async fn walk_files(
 pub(crate) fn request_every_tag<T: TaggedRegistry + 'static, I: TagId>(
     mut loader: ResMut<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
 ) {
-    let files = list_tag_files(&asset_server, T::REGISTRY_PATH);
+    let files = list_tag_files(&set, T::REGISTRY_PATH);
     let count = files.len();
     for (location, _) in files {
         loader.request(&TagKey::<T, _>::from_location(location), &asset_server);
@@ -436,19 +444,6 @@ pub(crate) fn request_every_tag<T: TaggedRegistry + 'static, I: TagId>(
         registry = T::REGISTRY_PATH,
         "requested every shipped tag"
     );
-}
-
-/// `minecraft/tags/block/mineable/pickaxe.json` under the root
-/// `minecraft/tags/block` is `minecraft:mineable/pickaxe`.
-fn tag_location(
-    root: &std::path::Path,
-    path: &std::path::Path,
-) -> Option<mcrs_minecraft_core::resource_location::ResourceLocation<std::sync::Arc<str>>> {
-    let namespace = root.iter().next()?.to_str()?;
-    let relative = path.strip_prefix(root).ok()?.to_str()?;
-    let name = relative.strip_suffix(".json")?;
-    mcrs_minecraft_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}"))
-        .ok()
 }
 
 pub(crate) fn check_tags_ready(
