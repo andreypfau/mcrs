@@ -1,7 +1,6 @@
 use crate::ColumnBlocks;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
@@ -10,6 +9,7 @@ use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::key::Block;
 use std::cell::Cell;
 use std::sync::Arc;
 

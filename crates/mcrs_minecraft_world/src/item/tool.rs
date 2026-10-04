@@ -1,10 +1,10 @@
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{HolderSet, ResourceKey};
 use mcrs_minecraft_item::Tool;
 use mcrs_minecraft_registry::BlockReg;
+use mcrs_minecraft_registry::key::Block;
 
 pub fn mining_speed(
     tool: &Tool,

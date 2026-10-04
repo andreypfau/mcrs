@@ -151,8 +151,8 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             (
-                request_every_tag::<mcrs_minecraft_block::Block, u32>,
-                request_every_tag::<mcrs_minecraft_block::Fluid, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Block, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Fluid, u32>,
                 request_every_tag::<mcrs_minecraft_item::Item, u32>,
                 request_every_tag::<
                     EnchantmentData,
@@ -164,8 +164,8 @@ impl Plugin for MinecraftWorldPlugin {
             )
                 .in_set(TagPhase::Request),
         );
-        app.add_tagged_registry::<mcrs_minecraft_block::Block, mcrs_minecraft_block::definition::Blocks>()
-        .add_tagged_registry::<mcrs_minecraft_block::Fluid, mcrs_minecraft_block::definition::Fluids>()
+        app.add_tagged_registry::<mcrs_minecraft_registry::key::Block, mcrs_minecraft_block::definition::Blocks>()
+        .add_tagged_registry::<mcrs_minecraft_registry::key::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
         .add_tagged_registry::<EntityType, StaticRegistry<EntityType>>()

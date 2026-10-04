@@ -31,8 +31,8 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use std::time::Duration;
 use tracing::{debug, trace};
 

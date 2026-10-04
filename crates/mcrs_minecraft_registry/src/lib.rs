@@ -3,6 +3,7 @@ pub mod dyn_index;
 pub mod entries;
 pub mod holder;
 pub mod id;
+pub mod key;
 pub mod lookup;
 pub mod registry;
 pub mod report;

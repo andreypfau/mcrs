@@ -4,7 +4,6 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::TagPhase;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
@@ -14,6 +13,7 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_world::transition_to_playing;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap,

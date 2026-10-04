@@ -25,6 +25,7 @@ use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
 use mcrs_minecraft_worldgen_structure::Structure;
 
@@ -473,7 +474,7 @@ pub(crate) fn check_tags_ready(
 /// the block `TagLoader`. The tag files were loaded as sub-assets by
 /// `DimensionTypeLoader`, so they're guaranteed to be available here.
 pub(crate) fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagLoader<block::Block, u32>>,
+    mut tags: ResMut<TagLoader<Block, u32>>,
     tag_files: Res<Assets<TagFile>>,
     registry: Res<block::definition::Blocks>,
     dim_types: Res<Assets<DimensionType>>,

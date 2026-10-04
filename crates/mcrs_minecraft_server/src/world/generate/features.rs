@@ -9,10 +9,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::{DynTagRegistry, RegistrySnapshot};
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
-use mcrs_minecraft_block::Block as VanillaBlock;
-use mcrs_minecraft_block::Fluid;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registry::key::Block as VanillaBlock;
+use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_worldgen::bevy::{
     BlockStateProviderAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset,
     TemplatePoolAsset,

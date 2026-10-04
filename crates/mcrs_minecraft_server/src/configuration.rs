@@ -23,7 +23,6 @@ use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
-use mcrs_minecraft_block::Block as VanillaBlock;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
@@ -48,6 +47,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;

@@ -5,9 +5,10 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagPhase};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::{Block, Fluid};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::key::Fluid;
 
 use crate::colors::{LightColors, LightType};
 use crate::item::ItemLights;

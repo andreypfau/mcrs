@@ -6,9 +6,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::{Block, tags as block_tags};
+use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 
 /// The vanilla registries read some files through paths relative to the

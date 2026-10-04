@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use corpus::{asset_server, block_tags, blocks};
-use mcrs_minecraft_block::Block;
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 fn shipped() -> &'static LightColors {

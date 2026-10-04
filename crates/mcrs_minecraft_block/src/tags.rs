@@ -1,5 +1,5 @@
-use crate::Block;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_registry::key::Block;
 
 // Tools — used by ToolRule / digging system
 pub const MINEABLE_PICKAXE: TagKey<Block> =
