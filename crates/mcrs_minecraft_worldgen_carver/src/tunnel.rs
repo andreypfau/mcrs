@@ -1,6 +1,7 @@
+use crate::CarveShape;
 use crate::mask::CarvingMask;
+use crate::target::{CarveTarget, SingleColumn};
 use crate::water::WaterMask;
-use crate::{CarveShape, carve_ellipsoid};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 
@@ -78,6 +79,48 @@ pub fn can_reach(
 pub fn walk_tunnel<R: Random>(
     chunk_x: i32,
     chunk_z: i32,
+    x: f64,
+    y: f64,
+    z: f64,
+    shape: TunnelShape,
+    yaw: f32,
+    pitch: f32,
+    step: i32,
+    total_steps: i32,
+    room: bool,
+    split_seeding: SplitSeeding,
+    shape_kind: CarveShape<'_>,
+    water: &WaterMask,
+    mask: &mut CarvingMask,
+    rng: &mut LegacyRandom,
+    parent_rng: &mut R,
+) {
+    let mut target = SingleColumn::new(chunk_x, chunk_z, water, mask);
+    walk_tunnel_into(
+        &mut target,
+        (),
+        x,
+        y,
+        z,
+        shape,
+        yaw,
+        pitch,
+        step,
+        total_steps,
+        room,
+        split_seeding,
+        shape_kind,
+        rng,
+        parent_rng,
+    );
+}
+
+/// A split hands each child the `live` its parent holds, so a column that ends
+/// in one child is still live in its sibling.
+#[allow(clippy::too_many_arguments)]
+pub fn walk_tunnel_into<T: CarveTarget, R: Random>(
+    target: &mut T,
+    mut live: T::Live,
     mut x: f64,
     mut y: f64,
     mut z: f64,
@@ -89,8 +132,6 @@ pub fn walk_tunnel<R: Random>(
     room: bool,
     split_seeding: SplitSeeding,
     shape_kind: CarveShape<'_>,
-    water: &WaterMask,
-    mask: &mut CarvingMask,
     rng: &mut LegacyRandom,
     parent_rng: &mut R,
 ) {
@@ -129,9 +170,9 @@ pub fn walk_tunnel<R: Random>(
                 };
                 let thickness = rng.next_f32() * 0.5 + 0.5;
                 let mut split_rng = LegacyRandom::new(seed as u64);
-                walk_tunnel(
-                    chunk_x,
-                    chunk_z,
+                walk_tunnel_into(
+                    target,
+                    live,
                     x,
                     y,
                     z,
@@ -147,8 +188,6 @@ pub fn walk_tunnel<R: Random>(
                     false,
                     split_seeding,
                     shape_kind,
-                    water,
-                    mask,
                     &mut split_rng,
                     parent_rng,
                 );
@@ -157,20 +196,18 @@ pub fn walk_tunnel<R: Random>(
         }
 
         if room || rng.next_i32_bound(4) != 0 {
-            if !can_reach(chunk_x, chunk_z, x, z, step, total_steps, shape.thickness) {
+            let Some(reached) = target.reach(live, x, z, step, total_steps, shape.thickness) else {
                 return;
-            }
-            let carved = carve_ellipsoid(
-                chunk_x,
-                chunk_z,
+            };
+            live = reached;
+            let carved = target.carve(
+                live,
                 x,
                 y,
                 z,
                 horizontal_radius * shape.horizontal_radius_multiplier,
                 vertical_radius * shape.vertical_radius_multiplier,
                 shape_kind,
-                water,
-                mask,
             );
             if room && carved {
                 break;

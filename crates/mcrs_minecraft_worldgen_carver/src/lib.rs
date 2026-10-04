@@ -3,6 +3,7 @@ pub mod canyon;
 pub mod config;
 pub mod mask;
 pub mod modern;
+pub mod target;
 pub mod tunnel;
 pub mod water;
 
