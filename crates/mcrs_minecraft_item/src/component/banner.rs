@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{BannerPatternReg, Holder, Registered};
@@ -14,6 +15,10 @@ pub struct BannerPattern {
 
 impl Registered for BannerPattern {
     type Registry = BannerPatternReg;
+}
+
+impl RegistryKey for BannerPattern {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:banner_pattern");
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

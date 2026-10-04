@@ -1,4 +1,6 @@
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 
 pub mod component;
 pub mod definition;
@@ -16,6 +18,7 @@ pub mod held;
 pub mod inventory;
 #[cfg(feature = "bevy")]
 pub mod item_stack;
+pub mod key;
 pub mod kind;
 pub mod patch;
 pub mod stack;
@@ -49,10 +52,15 @@ pub use value::{StackError, item_of, same_item_same_components, stack_to_slot, s
 /// Text whose `show_item` hover carries an item stack template.
 pub type Text = mcrs_minecraft_text::Text<Template>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Item {}
 
 impl TaggedRegistry for Item {
     const REGISTRY_PATH: &'static str = "item";
+}
+
+impl RegistryKey for Item {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:item");
 }
 
 #[cfg(feature = "bevy")]

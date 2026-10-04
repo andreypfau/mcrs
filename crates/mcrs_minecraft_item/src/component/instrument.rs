@@ -1,5 +1,6 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -25,6 +26,10 @@ impl Registered for InstrumentValue {
     type Registry = InstrumentReg;
 }
 
+impl RegistryKey for InstrumentValue {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:instrument");
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Instrument(pub Holder<InstrumentValue>);
@@ -41,6 +46,10 @@ pub struct JukeboxSong {
 
 impl Registered for JukeboxSong {
     type Registry = JukeboxSongReg;
+}
+
+impl RegistryKey for JukeboxSong {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:jukebox_song");
 }
 
 /// The persistent form is the registry id alone; the wire form carries the

@@ -3,6 +3,8 @@ use std::sync::Arc;
 use crate::Text;
 #[cfg(any(test, feature = "bevy"))]
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::tag_key::TagKey;
 #[cfg(any(test, feature = "bevy"))]
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
@@ -103,6 +105,10 @@ pub struct EnchantmentData {
     pub max_level: u32,
     pub exclusive_set: Option<TagKey<EnchantmentData, Arc<str>>>,
     pub effects: Option<EnchantmentEffects>,
+}
+
+impl RegistryKey for EnchantmentData {
+    const KEY: mcrs_minecraft_core::ResourceLocation<&'static str> = rl!("minecraft:enchantment");
 }
 
 /// Enchantment data for NETWORK_CODEC — tag key fields serialized as

@@ -61,3 +61,31 @@ impl TaggedRegistry for Structure {
 impl RegistryKey for Structure {
     const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/structure");
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlockTransformer {}
+
+impl RegistryKey for BlockTransformer {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:block_transformer");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DecoratedPotPattern {}
+
+impl RegistryKey for DecoratedPotPattern {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:decorated_pot_pattern");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlockEntityType {}
+
+impl RegistryKey for BlockEntityType {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:block_entity_type");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Dimension {}
+
+impl RegistryKey for Dimension {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:dimension");
+}

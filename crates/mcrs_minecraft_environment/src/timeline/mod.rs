@@ -6,9 +6,10 @@ use bevy_reflect::TypePath;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 
 mod easing;
 mod marker;
@@ -30,6 +31,10 @@ pub struct Timeline {
 
 impl TaggedRegistry for Timeline {
     const REGISTRY_PATH: &'static str = "timeline";
+}
+
+impl RegistryKey for Timeline {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:timeline");
 }
 
 #[derive(Deserialize)]

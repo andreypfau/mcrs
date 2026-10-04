@@ -1,4 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -16,6 +17,10 @@ impl Registered for TrimMaterial {
     type Registry = TrimMaterialReg;
 }
 
+impl RegistryKey for TrimMaterial {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:trim_material");
+}
+
 /// `decal`: absent reads as false, always written.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +33,10 @@ pub struct TrimPattern {
 
 impl Registered for TrimPattern {
     type Registry = TrimPatternReg;
+}
+
+impl RegistryKey for TrimPattern {
+    const KEY: ResourceLocation<&'static str> = rl!("minecraft:trim_pattern");
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
