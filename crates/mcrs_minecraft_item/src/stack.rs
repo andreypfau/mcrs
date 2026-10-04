@@ -2,8 +2,8 @@ use std::fmt;
 
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
-use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_registry::{ItemId, ItemReg, RegistryLookup, RegistryName};
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, validated};
+use mcrs_minecraft_registry::{ItemId, ItemReg, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -177,7 +177,7 @@ impl ProtoStack {
 
     pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let id = ctx
-            .id(ItemReg::NAME, value.item.location())
+            .id(ItemReg::KEY.path(), value.item.location())
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
             id: ItemId(u16::try_from(id).with_context(|| format!("item id {id} is out of range"))?),
@@ -189,7 +189,7 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(ItemReg::NAME, self.id.0 as u32)
+            .name(ItemReg::KEY.path(), self.id.0 as u32)
             .with_context(|| format!("registry item has no id {}", self.id.0))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),

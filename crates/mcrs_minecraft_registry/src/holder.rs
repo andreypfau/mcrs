@@ -1,7 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
 use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -11,13 +11,23 @@ pub trait RegistryName: Clone + PartialEq + fmt::Debug {
 }
 
 macro_rules! registries {
-    ($($marker:ident = $name:literal),* $(,)?) => {$(
-        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-        pub enum $marker {}
-        impl RegistryName for $marker {
-            const NAME: &'static str = $name;
-        }
-    )*};
+    ($($marker:ident = $name:literal),* $(,)?) => {
+        $(
+            #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+            pub enum $marker {}
+            impl RegistryName for $marker {
+                const NAME: &'static str = $name;
+            }
+            impl RegistryKey for $marker {
+                const KEY: ResourceLocation<&'static str> =
+                    ResourceLocation::new_static(concat!("minecraft:", $name));
+            }
+        )*
+
+        #[cfg(test)]
+        const MARKERS: &[(&str, ResourceLocation<&'static str>)] =
+            &[$(($name, <$marker as RegistryKey>::KEY)),*];
+    };
 }
 
 registries! {
@@ -62,7 +72,7 @@ registries! {
 }
 
 pub trait Registered: Serialize + DeserializeOwned + Clone + PartialEq + fmt::Debug {
-    type Registry: RegistryName;
+    type Registry: RegistryKey + Clone + PartialEq + fmt::Debug;
 }
 
 /// A registry id, or the entry itself written inline.
@@ -95,7 +105,7 @@ impl<'de, T: Registered> Deserialize<'de> for Holder<T> {
             type Value = Holder<T>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "a {} id or an inline entry", T::Registry::NAME)
+                write!(f, "a {} id or an inline entry", T::Registry::KEY.path())
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
@@ -124,7 +134,7 @@ impl<T: Registered> Serialize for HolderWireOnly<T> {
             Holder::Reference(key) => key.serialize(s),
             Holder::Direct(_) => Err(S::Error::custom(format_args!(
                 "an inline {} entry has no persistent form",
-                T::Registry::NAME
+                T::Registry::KEY.path()
             ))),
         }
     }
@@ -133,5 +143,19 @@ impl<T: Registered> Serialize for HolderWireOnly<T> {
 impl<'de, T: Registered> Deserialize<'de> for HolderWireOnly<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         ResourceKey::deserialize(d).map(|key| HolderWireOnly(Holder::Reference(key)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_marker_key_has_its_name_as_its_path() {
+        assert!(!MARKERS.is_empty());
+        for (name, key) in MARKERS {
+            assert_eq!(key.namespace(), "minecraft", "{name}");
+            assert_eq!(key.path(), *name);
+        }
     }
 }
