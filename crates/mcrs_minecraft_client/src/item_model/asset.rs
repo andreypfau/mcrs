@@ -7,7 +7,7 @@ use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::{
     ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, ItemComponentKind,
-    ItemComponentValue, RgbInt, TrimMaterialReg,
+    ItemComponentValue, RgbInt, TrimMaterial,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -434,7 +434,7 @@ impl<'de, S: DeserializeSeed<'de> + Clone> Visitor<'de> for CompactSeed<S> {
 pub enum SelectSwitch {
     #[serde(rename = "minecraft:trim_material", alias = "trim_material")]
     TrimMaterial {
-        cases: Vec<Case<ResourceKey<TrimMaterialReg>>>,
+        cases: Vec<Case<ResourceKey<TrimMaterial>>>,
     },
     #[serde(rename = "minecraft:display_context", alias = "display_context")]
     DisplayContext { cases: Vec<Case<DisplayContext>> },

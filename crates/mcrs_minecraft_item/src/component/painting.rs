@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly, PaintingVariantReg, Registered};
+use crate::component::common::{Holder, HolderWireOnly, Registered};
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub struct PaintingVariantValue {
 }
 
 impl Registered for PaintingVariantValue {
-    type Registry = PaintingVariantReg;
+    type Registry = PaintingVariantValue;
 }
 
 impl RegistryKey for PaintingVariantValue {

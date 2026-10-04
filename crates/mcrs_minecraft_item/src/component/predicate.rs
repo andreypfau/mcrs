@@ -5,15 +5,19 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::Item;
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
-    BlockReg, CompactList, EnchantmentReg, EquipmentSlotGroup, ItemReg, JukeboxSongReg,
-    MinMaxBounds, NbtPredicate, PotionReg, TrimMaterialReg, TrimPatternReg, ValueMatcher,
+    BlockReg, CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher,
     deserialize_unit, key, map_only, serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
+use crate::component::instrument::JukeboxSong;
 use crate::component::scalar::record_codec;
+use crate::component::trim::{TrimMaterial, TrimPattern};
+use crate::enchantment::EnchantmentData;
 use crate::harness::Sample;
+use crate::key::Potion;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentMap;
 use mcrs_minecraft_entity::{Attribute, MobEffect, VillagerType};
@@ -109,7 +113,7 @@ impl<'de> Deserialize<'de> for BlockPredicate {
 /// The wire form of `lock` is this as one NBT tag.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ItemPredicate {
-    pub items: Option<HolderSet<ResourceKey<ItemReg>>>,
+    pub items: Option<HolderSet<ResourceKey<Item>>>,
     pub count: MinMaxBounds<i32>,
     pub matchers: DataComponentMatchers,
 }
@@ -134,7 +138,7 @@ impl<'de> Deserialize<'de> for ItemPredicate {
         #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
-            items: Option<HolderSet<ResourceKey<ItemReg>>>,
+            items: Option<HolderSet<ResourceKey<Item>>>,
             #[serde(default)]
             count: Option<MinMaxBounds<i32>>,
             #[serde(default)]
@@ -460,7 +464,7 @@ pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enchantments: Option<HolderSet<ResourceKey<EnchantmentReg>>>,
+    pub enchantments: Option<HolderSet<ResourceKey<EnchantmentData>>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
 }
@@ -469,7 +473,7 @@ pub struct EnchantmentPredicate {
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionsPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub potions: Option<HolderSet<ResourceKey<PotionReg>>>,
+    pub potions: Option<HolderSet<ResourceKey<Potion>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<CollectionPredicate<MobEffectsPredicate>>,
 }
@@ -618,16 +622,16 @@ pub struct AttributeModifierPredicate {
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct TrimPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub material: Option<HolderSet<ResourceKey<TrimMaterialReg>>>,
+    pub material: Option<HolderSet<ResourceKey<TrimMaterial>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<HolderSet<ResourceKey<TrimPatternReg>>>,
+    pub pattern: Option<HolderSet<ResourceKey<TrimPattern>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct JukeboxPlayablePredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub song: Option<HolderSet<ResourceKey<JukeboxSongReg>>>,
+    pub song: Option<HolderSet<ResourceKey<JukeboxSong>>>,
 }
 
 impl Sample for AdventureModePredicate {

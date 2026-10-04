@@ -3,7 +3,7 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, Registered, TrimMaterialReg, TrimPatternReg};
+use crate::component::common::{Holder, Registered};
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -14,7 +14,7 @@ pub struct TrimMaterial {
 }
 
 impl Registered for TrimMaterial {
-    type Registry = TrimMaterialReg;
+    type Registry = TrimMaterial;
 }
 
 impl RegistryKey for TrimMaterial {
@@ -32,7 +32,7 @@ pub struct TrimPattern {
 }
 
 impl Registered for TrimPattern {
-    type Registry = TrimPatternReg;
+    type Registry = TrimPattern;
 }
 
 impl RegistryKey for TrimPattern {

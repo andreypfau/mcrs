@@ -7,10 +7,9 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::{
-    BlockReg, LootTableReg, MapDecorationTypeReg, RecipeReg, compound_or_snbt,
-};
+use crate::component::common::{BlockReg, compound_or_snbt};
 use crate::harness::Sample;
+use crate::key::{LootTable, MapDecorationType, Recipe};
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
@@ -81,7 +80,7 @@ impl Sample for BucketEntityData {
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {
     #[serde(rename = "type")]
-    pub kind: ResourceKey<MapDecorationTypeReg>,
+    pub kind: ResourceKey<MapDecorationType>,
     pub x: f64,
     pub z: f64,
     pub rotation: f32,
@@ -151,7 +150,7 @@ impl Sample for DebugStickState {
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Recipes(pub Vec<ResourceKey<RecipeReg>>);
+pub struct Recipes(pub Vec<ResourceKey<Recipe>>);
 
 impl Sample for Recipes {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -172,7 +171,7 @@ impl Sample for Recipes {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerLoot {
-    pub loot_table: ResourceKey<LootTableReg>,
+    pub loot_table: ResourceKey<LootTable>,
     #[serde(
         default,
         deserialize_with = "long_value",

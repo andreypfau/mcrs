@@ -31,26 +31,11 @@ macro_rules! registries {
 }
 
 registries! {
-    ItemReg = "item",
     BlockReg = "block",
     BlockEntityTypeReg = "block_entity_type",
-    PotionReg = "potion",
-    EnchantmentReg = "enchantment",
-    SoundEventReg = "sound_event",
     BlockTransformerReg = "block_transformer",
-    BannerPatternReg = "banner_pattern",
     DecoratedPotPatternReg = "decorated_pot_pattern",
-    InstrumentReg = "instrument",
-    JukeboxSongReg = "jukebox_song",
-    TrimMaterialReg = "trim_material",
-    TrimPatternReg = "trim_pattern",
-    PaintingVariantReg = "painting_variant",
     DimensionReg = "dimension",
-    LootTableReg = "loot_table",
-    RecipeReg = "recipe",
-    MapDecorationTypeReg = "map_decoration_type",
-    ContextIntProviderReg = "context_int_provider",
-    ContextFloatProviderReg = "context_float_provider",
     DialogReg = "dialog",
 }
 

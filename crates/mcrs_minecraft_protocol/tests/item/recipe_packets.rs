@@ -7,8 +7,8 @@ use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
-    ItemReg, Raw, Template, TrimPattern,
+    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, Item, ItemComponentKind,
+    ItemComponentValue, Raw, Template, TrimPattern,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,
@@ -48,7 +48,7 @@ fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
     (TestLookup::with_id_lines(GOLDEN), wires)
 }
 
-fn key(path: &str) -> ResourceKey<ItemReg> {
+fn key(path: &str) -> ResourceKey<Item> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 
@@ -56,7 +56,7 @@ fn item(path: &str) -> SlotDisplay {
     SlotDisplay::Item { item: key(path) }
 }
 
-fn planks() -> HolderSet<ResourceKey<ItemReg>> {
+fn planks() -> HolderSet<ResourceKey<Item>> {
     HolderSet::Tag(ResourceLocation::minecraft("planks"))
 }
 
@@ -223,7 +223,7 @@ fn recipe_book_add_matches_vanilla_and_resolves_every_display() {
 #[test]
 fn update_recipes_matches_vanilla() {
     let (lookup, wires) = golden();
-    let smithing_base: Vec<ResourceKey<ItemReg>> = vec![key("iron_chestplate")];
+    let smithing_base: Vec<ResourceKey<Item>> = vec![key("iron_chestplate")];
     let stonecutter = [
         SelectableRecipe {
             input: Ingredient(HolderSet::One(key("stone"))),

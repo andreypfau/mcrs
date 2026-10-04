@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly, InstrumentReg, JukeboxSongReg, Registered};
+use crate::component::common::{Holder, HolderWireOnly, Registered};
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -23,7 +23,7 @@ pub struct InstrumentValue {
 }
 
 impl Registered for InstrumentValue {
-    type Registry = InstrumentReg;
+    type Registry = InstrumentValue;
 }
 
 impl RegistryKey for InstrumentValue {
@@ -45,7 +45,7 @@ pub struct JukeboxSong {
 }
 
 impl Registered for JukeboxSong {
-    type Registry = JukeboxSongReg;
+    type Registry = JukeboxSong;
 }
 
 impl RegistryKey for JukeboxSong {

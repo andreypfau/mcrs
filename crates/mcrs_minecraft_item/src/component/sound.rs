@@ -2,7 +2,7 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, Registered, SoundEventReg, lenient_float};
+use crate::component::common::{Holder, Registered, lenient_float};
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,7 +18,7 @@ pub struct SoundEvent {
 }
 
 impl Registered for SoundEvent {
-    type Registry = SoundEventReg;
+    type Registry = SoundEvent;
 }
 
 impl RegistryKey for SoundEvent {
