@@ -12,8 +12,10 @@ use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::BridgeTelemetry;
+use mcrs_minecraft_network::event::run_event_loop;
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, GameDecodeCounts, PreGameDecodeCounts};
 use mcrs_minecraft_network::{ConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_protocol::packets::table::{game_serverbound, row_of};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_PACKETS, InboundRateBucket, OutboundQueue,
@@ -36,6 +38,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<DimChannelsResource>();
     world.init_resource::<BridgeTelemetry>();
+    world.init_resource::<GameDecodeCounts>();
     world
 }
 
@@ -346,4 +349,143 @@ fn disconnect_clears_pending() {
         world.get::<OutboundQueue>(socket).is_none(),
         "OutboundQueue must be removed from socket entity after disconnect"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Decode outcomes of inbound frames
+// ---------------------------------------------------------------------------
+
+fn frame(id: i32, payload: &[u8]) -> ReceivedPacket {
+    ReceivedPacket {
+        timestamp: Instant::now(),
+        id,
+        payload: bytes::Bytes::copy_from_slice(payload),
+    }
+}
+
+fn keep_alive_row() -> i32 {
+    row_of(game_serverbound::NAMES, "keep_alive")
+}
+
+fn row_without_structure() -> i32 {
+    game_serverbound::NAMES
+        .iter()
+        .position(|name| !game_serverbound::TYPED.contains(name))
+        .expect("a serverbound game row without a structure") as i32
+}
+
+fn game_counts(world: &World) -> &mcrs_minecraft_network::metrics::TableCounts {
+    world.resource::<GameDecodeCounts>().counts()
+}
+
+#[derive(Resource, Default)]
+struct DeliveredIds(Vec<i32>);
+
+#[test]
+fn an_unknown_id_is_counted_and_the_connection_survives() {
+    let mut world = build_inbound_world();
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    let past_the_table = game_serverbound::NAMES.len() as i32;
+    tx.try_send(frame(past_the_table, &[1, 2, 3])).unwrap();
+    tx.try_send(frame(-1, &[])).unwrap();
+
+    run_inbound(&mut world);
+
+    assert_eq!(game_counts(&world).unknown(), 2);
+    assert_eq!(game_counts(&world).failures_total(), 0);
+    assert!(world.entity(socket).contains::<ServerSideConnection>());
+}
+
+#[test]
+fn a_failed_decode_is_counted_under_its_packet() {
+    let mut world = build_inbound_world();
+    let (_socket, tx) = spawn_ingame_connection(&mut world);
+    tx.try_send(frame(keep_alive_row(), &[0, 0, 0])).unwrap();
+    tx.try_send(frame(keep_alive_row(), &[0; 9])).unwrap();
+
+    run_inbound(&mut world);
+
+    let counts = game_counts(&world);
+    assert_eq!(counts.failures(keep_alive_row() as usize), 2);
+    assert_eq!(counts.failures_total(), 2);
+    assert_eq!(counts.unknown(), 0);
+}
+
+#[test]
+fn a_row_without_a_structure_counts_nothing() {
+    let mut world = build_inbound_world();
+    let (_socket, tx) = spawn_ingame_connection(&mut world);
+    tx.try_send(frame(row_without_structure(), &[5; 12]))
+        .unwrap();
+    tx.try_send(frame(keep_alive_row(), &7i64.to_be_bytes()))
+        .unwrap();
+
+    run_inbound(&mut world);
+
+    assert_eq!(game_counts(&world).failures_total(), 0);
+    assert_eq!(game_counts(&world).unknown(), 0);
+}
+
+#[test]
+fn each_loop_counts_only_its_own_connections() {
+    let mut world = build_inbound_world();
+    world.init_resource::<PreGameDecodeCounts>();
+    let (_game, game_tx) = spawn_ingame_connection(&mut world);
+    let (raw, _outgoing_rx, login_tx) = mock_connection::make_mock_raw_connection_full();
+    world.spawn((
+        ServerSideConnection { raw: Box::new(raw) },
+        ConnectionState::Login,
+    ));
+    let unknown_everywhere = 10_000;
+    game_tx.try_send(frame(unknown_everywhere, &[])).unwrap();
+    login_tx.try_send(frame(unknown_everywhere, &[])).unwrap();
+
+    run_inbound(&mut world);
+    assert_eq!(game_counts(&world).unknown(), 1);
+    let login = |world: &World| {
+        world
+            .resource::<PreGameDecodeCounts>()
+            .counts(ConnectionState::Login)
+            .unwrap()
+            .unknown()
+    };
+    assert_eq!(login(&world), 0);
+
+    let mut sys = IntoSystem::into_system(run_event_loop);
+    sys.initialize(&mut world);
+    let _ = sys.run((), &mut world);
+    sys.apply_deferred(&mut world);
+    assert_eq!(login(&world), 1);
+    assert_eq!(game_counts(&world).unknown(), 1);
+    let configuration = world
+        .resource::<PreGameDecodeCounts>()
+        .counts(ConnectionState::Configuration)
+        .unwrap()
+        .unknown();
+    assert_eq!(configuration, 0);
+}
+
+#[test]
+fn a_valid_frame_after_an_unknown_id_is_still_delivered() {
+    let mut world = build_inbound_world();
+    world.init_resource::<DeliveredIds>();
+    world.add_observer(
+        |event: On<ReceivedPacketEvent>, mut delivered: bevy_ecs::system::ResMut<DeliveredIds>| {
+            delivered.0.push(event.id);
+        },
+    );
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    tx.try_send(frame(game_serverbound::NAMES.len() as i32, &[]))
+        .unwrap();
+    tx.try_send(frame(keep_alive_row(), &7i64.to_be_bytes()))
+        .unwrap();
+
+    run_inbound(&mut world);
+
+    assert_eq!(
+        world.resource::<DeliveredIds>().0.last(),
+        Some(&keep_alive_row())
+    );
+    assert!(world.entity(socket).contains::<ServerSideConnection>());
+    assert_eq!(game_counts(&world).unknown(), 1);
 }
