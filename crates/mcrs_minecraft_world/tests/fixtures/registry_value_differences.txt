@@ -30,7 +30,6 @@ minecraft:dimension_type $.attributes.minecraft:visual/fog_start_distance ours=d
 minecraft:dimension_type $.attributes.minecraft:visual/sky_light_factor ours=double game=float
 minecraft:dimension_type $.cardinal_light ours=string game=absent
 minecraft:dimension_type $.skybox ours=string game=absent
-minecraft:dimension_type entry minecraft:beta ours=compound game=absent
 minecraft:timeline $.tracks ours=compound game=absent
 minecraft:timeline $.tracks.minecraft:gameplay/bees_stay_in_hive ours=compound game=absent
 minecraft:timeline $.tracks.minecraft:gameplay/cat_waking_up_gift_chance ours=compound game=absent
@@ -49,17 +48,6 @@ minecraft:worldgen/biome $.attributes.minecraft:audio/background_music.underwate
 minecraft:worldgen/biome $.attributes.minecraft:audio/music_volume ours=double game=float
 minecraft:worldgen/biome $.attributes.minecraft:visual/ambient_particles.argument[0].probability ours=double game=float
 minecraft:worldgen/biome $.attributes.minecraft:visual/water_fog_end_distance.argument ours=double game=float
-minecraft:worldgen/biome entry minecraft:beta_desert ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_forest ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_ice_desert ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_plains ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_rainforest ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_savanna ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_seasonal_forest ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_shrubland ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_swampland ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_taiga ours=compound game=absent
-minecraft:worldgen/biome entry minecraft:beta_tundra ours=compound game=absent
 minecraft:worldgen/block_state_provider $.high_chance ours=double game=float
 minecraft:worldgen/block_state_provider $.scale ours=double game=float
 minecraft:worldgen/block_state_provider $.slow_scale ours=double game=float

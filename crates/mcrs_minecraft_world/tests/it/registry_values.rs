@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use bevy_app::App;
-use mcrs_minecraft_assets::RegistryAccess;
+use mcrs_minecraft_assets::{PackSource, RegistryAccess};
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::Serialize;
@@ -249,8 +249,14 @@ fn from_app(app: &App, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let snapshot = access
         .iter()
         .find(|snapshot| snapshot.registry_key() == registry)?;
+    let vanilla = PackSource::vanilla_core();
     snapshot
         .iter_entries()
+        .filter(|entry| {
+            entry.pack_source.as_ref().is_some_and(|source| {
+                source.namespace == vanilla.namespace && source.id == vanilla.id
+            })
+        })
         .map(|entry| Some((entry.location.to_string(), entry.data.clone()?)))
         .collect()
 }
