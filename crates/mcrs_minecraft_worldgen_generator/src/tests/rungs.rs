@@ -104,7 +104,7 @@ fn state_of(name: &str) -> VoxelId {
 
 fn named(state: VoxelId) -> &'static str {
     let index = blocks().0.block_index(BlockStateId(state.0));
-    blocks().0.blocks()[index as usize].identifier.as_str()
+    blocks().0[index].identifier.as_str()
 }
 
 fn block_at(column: &FilledSnapshot, x: usize, y: i32, z: usize) -> VoxelId {

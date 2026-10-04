@@ -226,7 +226,7 @@ pub(super) fn state_named(id: VoxelId) -> String {
 
 fn block_name(id: VoxelId) -> &'static str {
     let index = corpus().block_index(BlockStateId(id.0));
-    corpus().blocks()[index as usize].identifier.as_str()
+    corpus()[index].identifier.as_str()
 }
 
 fn id_of(entity: &GeneratedBlockEntity) -> String {

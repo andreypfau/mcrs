@@ -40,9 +40,12 @@ fn contains(
     tags: &DynTagRegistry<Block>,
 ) -> bool {
     match set {
-        HolderSet::Tag(tag) => blocks
-            .index_of(block)
-            .is_some_and(|id| tags.contains(&TagKey::<Block, _>::from_location(tag.clone()), id)),
+        HolderSet::Tag(tag) => blocks.id_of(block).is_some_and(|id| {
+            tags.contains(
+                &TagKey::<Block, _>::from_location(tag.clone()),
+                id.index() as u32,
+            )
+        }),
         _ => set.entries().iter().any(|key| key.as_str() == block),
     }
 }

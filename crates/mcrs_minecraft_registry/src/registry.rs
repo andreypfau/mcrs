@@ -105,6 +105,15 @@ impl<R> Clone for Registry<R> {
     }
 }
 
+impl<R: RegistryKey> fmt::Debug for Registry<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("key", &R::KEY)
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
 impl<R: RegistryKey> Registry<R> {
     pub fn new(
         names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
