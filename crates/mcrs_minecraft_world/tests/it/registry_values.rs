@@ -178,10 +178,8 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 fn rows() -> Vec<Row> {
     use mcrs_minecraft_world::{
         block_transformer::BlockTransformer, chat_type::ChatType, damage_type::DamageType,
-        decorated_pot_pattern::DecoratedPotPattern, item::asset::Instrument,
-        item::asset::JukeboxSong, item::asset::PaintingVariant, item::asset::TrimMaterial,
-        item::asset::TrimPattern, test_types::TestEnvironment, test_types::TestInstance,
-        variant::*,
+        decorated_pot_pattern::DecoratedPotPattern, test_types::TestEnvironment,
+        test_types::TestInstance, variant::*,
     };
     vec![
         row("block_transformer", typed::<BlockTransformer>),
@@ -196,15 +194,10 @@ fn rows() -> Vec<Row> {
         row("decorated_pot_pattern", typed::<DecoratedPotPattern>),
         row("dialog", dialog),
         row("frog_variant", typed::<FrogVariant>),
-        row("instrument", typed::<Instrument>),
-        row("jukebox_song", typed::<JukeboxSong>),
-        row("painting_variant", typed::<PaintingVariant>),
         row("pig_sound_variant", typed::<PigSoundVariant>),
         row("pig_variant", typed::<PigVariant>),
         row("test_environment", typed::<TestEnvironment>),
         row("test_instance", typed::<TestInstance>),
-        row("trim_material", typed::<TrimMaterial>),
-        row("trim_pattern", typed::<TrimPattern>),
         row("wolf_sound_variant", typed::<WolfSoundVariant>),
         row("wolf_variant", typed::<WolfVariant>),
         row(

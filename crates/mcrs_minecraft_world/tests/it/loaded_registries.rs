@@ -6,11 +6,50 @@ use bevy_asset::io::memory::{Dir, MemoryAssetReader};
 use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
-use mcrs_minecraft_assets::packs::PackLayers;
-use mcrs_minecraft_item::BannerPattern;
-use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::registries::{read_packs, test_registries, world_registries};
+use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK};
+use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue, SoundEvent};
+use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet};
+use mcrs_minecraft_world::registries::{
+    read_packs, static_registries as build_static_registries, test_registries, world_registries,
+};
 use serde::Deserialize;
+use std::sync::LazyLock;
+
+const PARSED_REPORT: &[u8] = br#"{"others":{},"registries":{
+    "minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true},
+    "minecraft:instrument":{"elements":true,"stable":false,"tags":true},
+    "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
+    "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
+    "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
+    "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
+
+static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
+    let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
+    build_static_registries(&bytes).unwrap().0
+});
+
+fn refused_by_the_loader(registry: &str, name: &str, json: &str) -> String {
+    let world = world_registries(PARSED_REPORT).expect("the report parses");
+    let packs = [Pack {
+        name: VANILLA_PACK.to_owned(),
+        files: vec![PackFile {
+            path: format!("minecraft/{registry}/{name}.json"),
+            bytes: Some(json.as_bytes().to_vec()),
+        }],
+    }];
+    world
+        .load(&STATICS, &packs)
+        .err()
+        .unwrap_or_else(|| panic!("{registry}/{name} was accepted: {json}"))
+        .to_string()
+}
+
+fn instrument(sound: &str) -> String {
+    format!(
+        r#"{{"sound_event":"{sound}","use_duration":7.0,"range":256.0,
+        "description":{{"translate":"instrument.minecraft.ponder_goat_horn"}}}}"#
+    )
+}
 
 #[derive(Deserialize)]
 struct Flags {
@@ -177,8 +216,7 @@ fn packs_follow_vanilla_in_name_order() {
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
 
-    let report = br#"{"others":{},"registries":{"minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
-    let world = world_registries(report).expect("the report parses");
+    let world = world_registries(PARSED_REPORT).expect("the report parses");
     let packs = read_packs(&asset_server, &world, &RegistrySet::new());
 
     let listed: Vec<_> = packs
@@ -220,4 +258,130 @@ fn packs_follow_vanilla_in_name_order() {
     ))
     .expect("the layered reader reads the pack's file at its virtual path");
     assert_eq!(bytes, pattern("b").as_bytes());
+}
+
+fn shipped_file(
+    pack: &str,
+    registry_path: &str,
+    namespace: &str,
+    path: &str,
+) -> std::path::PathBuf {
+    let root = if pack == VANILLA_PACK {
+        assets()
+    } else {
+        assets().join(PACKS_ROOT).join(pack)
+    };
+    root.join(namespace)
+        .join(registry_path)
+        .join(format!("{path}.json"))
+}
+
+#[test]
+fn every_shipped_file_of_a_parsed_registry_round_trips() {
+    let set = test_registries();
+    let datapack = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    let world = world_registries(&datapack).expect("the report parses");
+
+    let mut parsed = 0;
+    for registry in world.declared().filter(|r| world.parses(r.as_str())) {
+        parsed += 1;
+        let table = set
+            .table(registry.as_str())
+            .unwrap_or_else(|| panic!("{registry} has no table"));
+        assert!(!table.is_empty(), "{registry} parses and has no entries");
+        for (index, name) in table.names().iter().enumerate() {
+            let pack = set
+                .pack_of(registry.as_str(), index)
+                .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
+            let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
+            let text = std::fs::read_to_string(&file)
+                .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            let encoded = world
+                .encode(set, registry.as_str(), index)
+                .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
+                .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
+            let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(
+                from_entry,
+                from_file,
+                "{registry}/{name} ({})",
+                file.display()
+            );
+        }
+    }
+    assert!(parsed > 0, "the loader parses no registry");
+}
+
+#[test]
+fn an_empty_object_names_the_missing_field() {
+    let text = refused_by_the_loader("instrument", "silent", "{}");
+    for part in ["minecraft:instrument", "minecraft:silent", "sound_event"] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn a_bare_name_takes_the_default_namespace() {
+    test_registries().scope(|| {
+        let bare: InstrumentValue =
+            serde_json::from_str(&instrument("item.goat_horn.sound.0")).unwrap();
+        let written = serde_json::to_value(&bare).unwrap();
+        assert_eq!(written["sound_event"], "minecraft:item.goat_horn.sound.0");
+
+        let upper = serde_json::from_str::<InstrumentValue>(&instrument(
+            "minecraft:Item.goat_horn.sound.0",
+        ));
+        assert!(upper.is_err());
+    });
+}
+
+#[test]
+fn an_instrument_naming_an_item_as_its_sound_is_refused() {
+    let text = refused_by_the_loader("instrument", "stick_horn", &instrument("minecraft:stick"));
+    for part in [
+        "minecraft:sound_event",
+        "minecraft:stick",
+        "minecraft:stick_horn",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn a_parse_without_a_scope_fails_on_another_thread() {
+    let name = "\"minecraft:item.goat_horn.sound.0\"";
+    test_registries().scope(|| {
+        assert!(serde_json::from_str::<Id<SoundEvent>>(name).is_ok());
+        let other = std::thread::scope(|threads| {
+            threads
+                .spawn(|| serde_json::from_str::<Id<SoundEvent>>(name).map_err(|e| e.to_string()))
+                .join()
+                .unwrap()
+        });
+        let message = other.unwrap_err();
+        assert!(message.contains("minecraft:sound_event"), "{message}");
+    });
+}
+
+#[test]
+fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
+    let instrument = |extra: &str| {
+        format!(
+            r#"{{
+                "sound_event": "minecraft:item.goat_horn.sound.0",
+                "use_duration": 7.0,
+                "range": 256.0,
+                "description": {{"translate": "instrument.minecraft.ponder_goat_horn"}}
+                {extra}
+            }}"#
+        )
+    };
+    assert!(serde_json::from_str::<InstrumentValue>(&instrument("")).is_ok());
+    assert!(serde_json::from_str::<InstrumentValue>(&instrument(r#", "volume": 1.0"#)).is_err());
+
+    let painting =
+        |width: u32| format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#);
+    assert!(serde_json::from_str::<PaintingVariantValue>(&painting(16)).is_ok());
+    assert!(serde_json::from_str::<PaintingVariantValue>(&painting(17)).is_err());
 }

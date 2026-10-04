@@ -12,7 +12,6 @@ use mcrs_minecraft_registry::static_report::from_report;
 
 use self::definitions::load_item_definitions;
 
-pub mod asset;
 pub mod definitions;
 pub mod enchantments;
 pub mod tool;

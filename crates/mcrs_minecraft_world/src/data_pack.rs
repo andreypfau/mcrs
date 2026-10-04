@@ -200,20 +200,6 @@ pub(crate) fn request_data_pack_assets(
         "minecraft:chat_type",
         "json",
     );
-    request_registry::<crate::item::asset::TrimPattern>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:trim_pattern",
-        "json",
-    );
-    request_registry::<crate::item::asset::TrimMaterial>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:trim_material",
-        "json",
-    );
     request_registry::<variant::WolfVariant>(
         &asset_server,
         &set,
@@ -298,25 +284,11 @@ pub(crate) fn request_data_pack_assets(
         "minecraft:zombie_nautilus_variant",
         "json",
     );
-    request_registry::<crate::item::asset::PaintingVariant>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:painting_variant",
-        "json",
-    );
     request_registry::<damage_type::DamageType>(
         &asset_server,
         &set,
         &mut loaded,
         "minecraft:damage_type",
-        "json",
-    );
-    request_registry::<crate::item::asset::JukeboxSong>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:jukebox_song",
         "json",
     );
     request_registry::<block_transformer::BlockTransformer>(
@@ -331,13 +303,6 @@ pub(crate) fn request_data_pack_assets(
         &set,
         &mut loaded,
         "minecraft:decorated_pot_pattern",
-        "json",
-    );
-    request_registry::<crate::item::asset::Instrument>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:instrument",
         "json",
     );
     request_registry::<dialog::Dialog>(

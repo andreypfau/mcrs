@@ -8,7 +8,10 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_item::{BannerPattern, Item, SoundEvent};
+use mcrs_minecraft_item::{
+    BannerPattern, InstrumentValue, Item, JukeboxSong, PaintingVariantValue, SoundEvent,
+    TrimMaterial, TrimPattern,
+};
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
@@ -26,6 +29,11 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     })?;
     let mut undeclared = LoadReport::new();
     parse::<BannerPattern>(&mut world, &mut undeclared);
+    parse::<InstrumentValue>(&mut world, &mut undeclared);
+    parse::<JukeboxSong>(&mut world, &mut undeclared);
+    parse::<PaintingVariantValue>(&mut world, &mut undeclared);
+    parse::<TrimMaterial>(&mut world, &mut undeclared);
+    parse::<TrimPattern>(&mut world, &mut undeclared);
     if undeclared.is_empty() {
         Ok(world)
     } else {
@@ -292,7 +300,13 @@ mod tests {
     fn a_broken_corpus_is_refused_with_registry_entry_and_file() {
         use mcrs_minecraft_registry::{Pack, PackFile};
 
-        let report = br#"{"others":{},"registries":{"minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
+        let report = br#"{"others":{},"registries":{
+            "minecraft:banner_pattern":{"elements":true,"stable":false,"tags":true},
+            "minecraft:instrument":{"elements":true,"stable":false,"tags":true},
+            "minecraft:jukebox_song":{"elements":true,"stable":false,"tags":true},
+            "minecraft:painting_variant":{"elements":true,"stable":false,"tags":true},
+            "minecraft:trim_material":{"elements":true,"stable":false,"tags":true},
+            "minecraft:trim_pattern":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),
