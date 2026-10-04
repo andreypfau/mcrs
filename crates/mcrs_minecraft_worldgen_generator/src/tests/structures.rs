@@ -358,9 +358,15 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes = DynRegistryIndex::build(std::iter::empty());
+    let biomes = DynRegistryIndex::from_table(&super::text_ordered_table(
+        "minecraft:worldgen/biome",
+        std::iter::empty(),
+    ));
     let tags = DynTagRegistry::default();
-    let structure_index = DynRegistryIndex::build(std::iter::empty());
+    let structure_index = DynRegistryIndex::from_table(&super::text_ordered_table(
+        "minecraft:worldgen/structure",
+        std::iter::empty(),
+    ));
     let structure_tags = DynTagRegistry::default();
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {

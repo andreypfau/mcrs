@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_registry::NameTable;
 use mcrs_minecraft_registry::shared::SharedResource;
 
 /// A single entry in a frozen [`RegistrySnapshot`], carrying the
@@ -20,13 +21,14 @@ pub struct SnapshotEntry<T: Asset> {
 /// Stable `u32` network IDs assigned to all entries of a single dynamic
 /// registry type once `AppState::WorldgenFreeze` is entered.
 ///
-/// Entries are sorted alphabetically by [`ResourceLocation`] and assigned
-/// dense IDs `0..N`. The expensive NBT serialization runs once at build time;
-/// per-client cost is a cheap borrow.
+/// Entries are numbered by the registry loader's [`NameTable`]. The expensive
+/// NBT serialization runs once at build time; per-client cost is a cheap
+/// borrow.
 #[derive(Resource, Debug)]
 pub struct RegistrySnapshot<T: Asset> {
     entries: Arc<[SnapshotEntry<T>]>,
     by_asset: Arc<HashMap<AssetId<T>, u32>>,
+    table: Option<Arc<NameTable>>,
     _marker: PhantomData<fn() -> T>,
 }
 
@@ -35,6 +37,7 @@ impl<T: Asset> Clone for RegistrySnapshot<T> {
         Self {
             entries: Arc::clone(&self.entries),
             by_asset: Arc::clone(&self.by_asset),
+            table: self.table.clone(),
             _marker: PhantomData,
         }
     }
@@ -51,6 +54,7 @@ impl<T: Asset> Default for RegistrySnapshot<T> {
         Self {
             entries: Arc::default(),
             by_asset: Arc::default(),
+            table: None,
             _marker: PhantomData,
         }
     }
@@ -58,21 +62,46 @@ impl<T: Asset> Default for RegistrySnapshot<T> {
 
 impl<T: Asset> RegistrySnapshot<T> {
     /// Build from an already-resolved `(ResourceLocation, AssetId)` iterator
-    /// and an `&Assets<T>` for value lookup.  Alphabetically sorts by
-    /// `ResourceLocation`, assigns dense u32 IDs `0..N`, and invokes
-    /// `serialize` once per entry at build time.
-    pub fn build<I, F>(pairs: I, assets: &Assets<T>, mut serialize: F) -> Self
+    /// and an `&Assets<T>` for value lookup. Ids are the positions in `table`,
+    /// and `serialize` runs once per entry. A pair the table does not list, or
+    /// a table name with no pair, is a program defect: the asset listing and
+    /// the loader read different files.
+    pub fn build<I, F>(
+        table: &Arc<NameTable>,
+        pairs: I,
+        assets: &Assets<T>,
+        mut serialize: F,
+    ) -> Self
     where
         I: IntoIterator<Item = (ResourceLocation<Arc<str>>, AssetId<T>)>,
         F: FnMut(&T) -> Result<NbtTag, mcrs_minecraft_nbt::Error>,
     {
-        let mut pairs: Vec<_> = pairs.into_iter().collect();
-        pairs.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
+        let registry = table.registry();
+        let mut slots = vec![None; table.len()];
+        for (location, asset_id) in pairs {
+            let Some(id) = table.number(location.as_str()) else {
+                panic!(
+                    "{registry}: {location} is loaded but the registry loader has no such entry"
+                );
+            };
+            if slots[id as usize]
+                .replace((location.clone(), asset_id))
+                .is_some()
+            {
+                panic!("{registry}: {location} is loaded twice");
+            }
+        }
 
-        let mut entries = Vec::with_capacity(pairs.len());
-        let mut by_asset = HashMap::with_capacity(pairs.len());
+        let mut entries = Vec::with_capacity(slots.len());
+        let mut by_asset = HashMap::with_capacity(slots.len());
 
-        for (network_id, (location, asset_id)) in pairs.into_iter().enumerate() {
+        for (network_id, slot) in slots.into_iter().enumerate() {
+            let Some((location, asset_id)) = slot else {
+                let name = table.name(network_id).expect("ids are dense");
+                panic!(
+                    "{registry}: the registry loader lists {name} but no asset is loaded for it"
+                );
+            };
             let Some(value) = assets.get(asset_id) else {
                 panic!(
                     "{} is paired with an asset that is not present",
@@ -93,6 +122,7 @@ impl<T: Asset> RegistrySnapshot<T> {
         Self {
             entries: entries.into(),
             by_asset: Arc::new(by_asset),
+            table: Some(Arc::clone(table)),
             _marker: PhantomData,
         }
     }
@@ -115,13 +145,9 @@ impl<T: Asset> RegistrySnapshot<T> {
 
     /// Resolve a network ID by resource location. Unlike [`by_asset_id`], this is
     /// stable across `AssetServer` instances (e.g. the host world vs. a per-dim
-    /// sub-app), where the same biome carries different `AssetId`s. Entries are
-    /// sorted by location at build time, so this binary-searches.
+    /// sub-app), where the same biome carries different `AssetId`s.
     pub fn by_location(&self, location: &str) -> Option<u32> {
-        self.entries
-            .binary_search_by(|e| e.location.as_str().cmp(location))
-            .ok()
-            .map(|i| i as u32)
+        self.table.as_ref()?.number(location)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u32, &SnapshotEntry<T>)> {
@@ -149,6 +175,21 @@ pub fn rl_from_asset_path(
     ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
 }
 
+pub fn assert_listing_matches(table: &NameTable, listed: &[ResourceLocation<Arc<str>>]) {
+    let registry = table.registry();
+    let mut seen = vec![false; table.len()];
+    for name in listed {
+        let Some(id) = table.number(name.as_str()) else {
+            panic!("{registry}: {name} is loaded but the registry loader has no such entry");
+        };
+        seen[id as usize] = true;
+    }
+    if let Some(id) = seen.iter().position(|seen| !seen) {
+        let name = table.name(id).expect("ids are dense");
+        panic!("{registry}: the registry loader lists {name} but no asset is loaded for it");
+    }
+}
+
 /// Register `RegistrySnapshot<T>` resources and their WorldgenFreeze builder
 /// systems for a list of dynamic registry types.
 ///
@@ -171,7 +212,11 @@ macro_rules! snapshot_registry {
                         mut snapshot: ::bevy_ecs::system::ResMut<$crate::RegistrySnapshot<$ty>>,
                         assets: ::bevy_ecs::system::Res<::bevy_asset::Assets<$ty>>,
                         asset_server: ::bevy_ecs::system::Res<::bevy_asset::AssetServer>,
+                        set: ::bevy_ecs::system::Res<::mcrs_minecraft_registry::RegistrySet>,
                     | {
+                        let table = set.table($registry_key).unwrap_or_else(|| {
+                            panic!("{} is not a loaded registry", $registry_key)
+                        });
                         let pairs: Vec<(
                             ::mcrs_minecraft_core::ResourceLocation<::std::sync::Arc<str>>,
                             ::bevy_asset::AssetId<$ty>,
@@ -184,7 +229,7 @@ macro_rules! snapshot_registry {
                             })
                             .collect();
                         let count = pairs.len();
-                        *snapshot = $crate::RegistrySnapshot::<$ty>::build(pairs, &assets, $ser);
+                        *snapshot = $crate::RegistrySnapshot::<$ty>::build(table, pairs, &assets, $ser);
                         ::tracing::info!(
                             kind = ::std::any::type_name::<$ty>(),
                             entries = count,
@@ -224,26 +269,42 @@ mod tests {
         (ResourceLocation::parse(rl).unwrap(), handle.id())
     }
 
+    fn table(names: &[&str]) -> Arc<NameTable> {
+        Arc::new(
+            NameTable::new(
+                ResourceLocation::parse("minecraft:worldgen/biome").unwrap(),
+                names
+                    .iter()
+                    .map(|name| ResourceLocation::parse(name).unwrap()),
+                [],
+            )
+            .unwrap(),
+        )
+    }
+
     #[test]
-    fn build_is_alphabetical_and_repeatable() {
+    fn build_follows_the_table_and_ignores_the_order_of_the_pairs() {
         let mut assets = Assets::<TestBiome>::default();
         let p_plains = make_pair("minecraft:plains", &mut assets);
         let p_desert = make_pair("minecraft:desert", &mut assets);
         let p_forest = make_pair("minecraft:forest", &mut assets);
+        let table = table(&["minecraft:plains", "minecraft:forest", "minecraft:desert"]);
 
         let pairs_a = vec![p_plains.clone(), p_desert.clone(), p_forest.clone()];
         let pairs_b = vec![p_forest.clone(), p_plains.clone(), p_desert.clone()];
 
-        let snap_a = RegistrySnapshot::<TestBiome>::build(pairs_a, &assets, |_| {
+        let snap_a = RegistrySnapshot::<TestBiome>::build(&table, pairs_a, &assets, |_| {
             Ok(NbtCompound::new().into())
         });
-        let snap_b = RegistrySnapshot::<TestBiome>::build(pairs_b, &assets, |_| {
+        let snap_b = RegistrySnapshot::<TestBiome>::build(&table, pairs_b, &assets, |_| {
             Ok(NbtCompound::new().into())
         });
 
-        assert_eq!(snap_a.by_asset_id(p_desert.1).unwrap(), 0);
+        assert_eq!(snap_a.by_asset_id(p_plains.1).unwrap(), 0);
         assert_eq!(snap_a.by_asset_id(p_forest.1).unwrap(), 1);
-        assert_eq!(snap_a.by_asset_id(p_plains.1).unwrap(), 2);
+        assert_eq!(snap_a.by_asset_id(p_desert.1).unwrap(), 2);
+        assert_eq!(snap_a.by_location("minecraft:forest"), Some(1));
+        assert_eq!(snap_a.by_location("minecraft:taiga"), None);
 
         let locs_a: Vec<_> = snap_a
             .entries()
@@ -255,7 +316,51 @@ mod tests {
             .iter()
             .map(|e| e.location.as_str().to_owned())
             .collect();
+        assert_eq!(
+            locs_a,
+            ["minecraft:plains", "minecraft:forest", "minecraft:desert"]
+        );
         assert_eq!(locs_a, locs_b);
+    }
+
+    #[test]
+    #[should_panic(expected = "minecraft:worldgen/biome: minecraft:taiga is loaded but")]
+    fn a_pair_the_loader_does_not_list_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p1 = make_pair("minecraft:plains", &mut assets);
+        let p2 = make_pair("minecraft:taiga", &mut assets);
+
+        RegistrySnapshot::<TestBiome>::build(
+            &table(&["minecraft:plains"]),
+            vec![p1, p2],
+            &assets,
+            |_| Ok(NbtCompound::new().into()),
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "minecraft:worldgen/biome: the registry loader lists minecraft:forest"
+    )]
+    fn a_loader_name_without_an_asset_does_not_build() {
+        let mut assets = Assets::<TestBiome>::default();
+        let p1 = make_pair("minecraft:plains", &mut assets);
+
+        RegistrySnapshot::<TestBiome>::build(
+            &table(&["minecraft:plains", "minecraft:forest"]),
+            vec![p1],
+            &assets,
+            |_| Ok(NbtCompound::new().into()),
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "minecraft:worldgen/biome: the registry loader lists minecraft:forest"
+    )]
+    fn an_index_listing_with_a_name_missing_does_not_match() {
+        let listed = [ResourceLocation::parse("minecraft:plains").unwrap()];
+        assert_listing_matches(&table(&["minecraft:plains", "minecraft:forest"]), &listed);
     }
 
     #[test]
@@ -266,6 +371,7 @@ mod tests {
         let p3 = make_pair("minecraft:forest", &mut assets);
 
         let snapshot = RegistrySnapshot::<TestBiome>::build(
+            &table(&["minecraft:desert", "minecraft:forest", "minecraft:plains"]),
             vec![p1.clone(), p2.clone(), p3.clone()],
             &assets,
             |_| Ok(NbtCompound::new().into()),
@@ -284,11 +390,16 @@ mod tests {
         let p1 = make_pair("minecraft:plains", &mut assets);
         let p2 = make_pair("minecraft:desert", &mut assets);
 
-        let snapshot = RegistrySnapshot::<TestBiome>::build(vec![p1, p2], &assets, |_| {
-            let mut nbt = NbtCompound::new();
-            nbt.put_string("name", "test_value".to_owned());
-            Ok(nbt.into())
-        });
+        let snapshot = RegistrySnapshot::<TestBiome>::build(
+            &table(&["minecraft:desert", "minecraft:plains"]),
+            vec![p1, p2],
+            &assets,
+            |_| {
+                let mut nbt = NbtCompound::new();
+                nbt.put_string("name", "test_value".to_owned());
+                Ok(nbt.into())
+            },
+        );
 
         for (_, entry) in snapshot.iter() {
             let NbtTag::Compound(nbt) = &entry.nbt else {
@@ -313,9 +424,12 @@ mod tests {
         let p3 = make_pair("minecraft:forest", &mut assets);
         assets.remove(p3.1);
 
-        RegistrySnapshot::<TestBiome>::build(vec![p1, p2, p3], &assets, |_| {
-            Ok(NbtCompound::new().into())
-        });
+        RegistrySnapshot::<TestBiome>::build(
+            &table(&["minecraft:desert", "minecraft:forest", "minecraft:plains"]),
+            vec![p1, p2, p3],
+            &assets,
+            |_| Ok(NbtCompound::new().into()),
+        );
     }
 
     #[test]

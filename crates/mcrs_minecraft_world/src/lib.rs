@@ -525,8 +525,14 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
+                let table = world
+                    .resource::<mcrs_minecraft_registry::RegistrySet>()
+                    .table("minecraft:enchantment")
+                    .expect("minecraft:enchantment is a loaded registry")
+                    .clone();
                 crate::item::enchantments::register_all_enchantments(
                     &mut enchantments,
+                    &table,
                     world.resource::<AssetServer>(),
                 );
                 tracing::info!(

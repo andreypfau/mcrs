@@ -4,6 +4,7 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct NameTable {
     registry: ResourceLocation<Arc<str>>,
     names: Vec<ResourceLocation<Arc<str>>>,

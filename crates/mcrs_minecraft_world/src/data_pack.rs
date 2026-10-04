@@ -21,10 +21,13 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::NameTable;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
+use std::sync::Arc;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -491,19 +494,34 @@ pub(crate) fn resolve_infiniburn_tags(
 pub(crate) fn index_timelines(
     timelines: Res<Assets<Timeline>>,
     asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
     mut commands: Commands,
 ) {
     let entries: Vec<_> = timelines
         .iter()
         .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline"))
         .collect();
+    let table = loaded_table(&set, "minecraft:timeline", &entries);
     tracing::info!(count = entries.len(), "indexed timelines");
-    commands.insert_resource(DynRegistryIndex::<Timeline>::build(entries.into_iter()));
+    commands.insert_resource(DynRegistryIndex::<Timeline>::from_table(table));
+}
+
+fn loaded_table<'a>(
+    set: &'a RegistrySet,
+    registry: &str,
+    listed: &[ResourceLocation<Arc<str>>],
+) -> &'a Arc<NameTable> {
+    let table = set
+        .table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
+    mcrs_minecraft_assets::snapshot::assert_listing_matches(table, listed);
+    table
 }
 
 pub(crate) fn index_biomes(
     biomes: Res<Assets<biome::Biome>>,
     asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
     mut commands: Commands,
 ) {
     let entries: Vec<_> = biomes
@@ -512,15 +530,17 @@ pub(crate) fn index_biomes(
             rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/biome")
         })
         .collect();
+    let table = loaded_table(&set, "minecraft:worldgen/biome", &entries);
     tracing::info!(count = entries.len(), "indexed biomes");
     commands.insert_resource(
-        DynRegistryIndex::<mcrs_minecraft_registry::key::Biome>::build(entries.into_iter()),
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Biome>::from_table(table),
     );
 }
 
 pub(crate) fn index_structures(
     structures: Res<Assets<StructureAsset>>,
     asset_server: Res<AssetServer>,
+    set: Res<RegistrySet>,
     mut commands: Commands,
 ) {
     let entries: Vec<_> = structures
@@ -529,9 +549,10 @@ pub(crate) fn index_structures(
             rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/structure")
         })
         .collect();
+    let table = loaded_table(&set, "minecraft:worldgen/structure", &entries);
     tracing::info!(count = entries.len(), "indexed structures");
     commands.insert_resource(
-        DynRegistryIndex::<mcrs_minecraft_registry::key::Structure>::build(entries.into_iter()),
+        DynRegistryIndex::<mcrs_minecraft_registry::key::Structure>::from_table(table),
     );
 }
 

@@ -37,9 +37,7 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>
             .map(|name| (ResourceLocation::parse(name).unwrap(), land_ids[0])),
         )
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    });
+    let snapshot = super::biome_snapshot(all_pairs, &assets);
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });

@@ -5,7 +5,8 @@ use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_registry::{DynRegistryIndex, key};
+use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet, key};
+use mcrs_minecraft_world::registries::test_registries;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -46,21 +47,39 @@ fn names_in_index<T: TaggedRegistry + 'static>(app: &App) -> Vec<String> {
         .collect()
 }
 
-fn ids_by_registry(app: &App) -> BTreeMap<String, Vec<String>> {
+fn loaded_names(set: &RegistrySet, registry: &str) -> Vec<String> {
+    set.table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))
+        .names()
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
+    let set = app.world().resource::<RegistrySet>();
     let world_registries = world_registries();
-    let mut registries: BTreeMap<String, Vec<String>> = app
+
+    let mut snapshots = 0;
+    for snapshot in app
         .world()
         .resource::<RegistryAccess>()
         .iter()
         .filter(|snapshot| world_registries.contains(snapshot.registry_key()))
-        .map(|snapshot| {
-            let names = snapshot
-                .iter_entries()
-                .map(|entry| entry.location.to_string())
-                .collect();
-            (snapshot.registry_key().to_string(), names)
-        })
-        .collect();
+    {
+        let registry = snapshot.registry_key();
+        let numbered: Vec<String> = snapshot
+            .iter_entries()
+            .map(|entry| entry.location.to_string())
+            .collect();
+        assert_eq!(
+            numbered,
+            loaded_names(set, registry),
+            "{registry}: the snapshot numbers the entries differently from the loader"
+        );
+        snapshots += 1;
+    }
+    assert!(snapshots > 0, "no world registry snapshot was compared");
 
     let indexes = [
         (
@@ -73,53 +92,65 @@ fn ids_by_registry(app: &App) -> BTreeMap<String, Vec<String>> {
             names_in_index::<key::Structure>(app),
         ),
     ];
-    for (registry, from_index) in indexes {
-        match registries.get(registry) {
-            Some(from_snapshot) => assert_eq!(
-                from_snapshot, &from_index,
-                "{registry}: the index and the snapshot number the entries differently"
-            ),
-            None => {
-                registries.insert(registry.to_string(), from_index);
-            }
+    for (registry, numbered) in indexes {
+        assert_eq!(
+            numbered,
+            loaded_names(set, registry),
+            "{registry}: the index numbers the entries differently from the loader"
+        );
+    }
+}
+
+fn recorded_by_registry(text: &str) -> BTreeMap<String, Vec<String>> {
+    let mut registries: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in text.lines() {
+        let mut parts = line.split(' ');
+        let registry = parts.next().expect("a line names its registry");
+        let names = registries.entry(registry.to_string()).or_default();
+        if let (Some(_id), Some(name)) = (parts.next(), parts.next()) {
+            names.push(name.to_string());
         }
     }
     registries
 }
 
-fn lines(app: &App) -> Vec<String> {
-    ids_by_registry(app)
-        .into_iter()
-        .flat_map(|(registry, names)| {
-            if names.is_empty() {
-                vec![registry]
-            } else {
-                names
-                    .into_iter()
-                    .enumerate()
-                    .map(|(id, name)| format!("{registry} {id} {name}"))
-                    .collect()
-            }
-        })
-        .collect()
+#[test]
+fn the_loader_keeps_every_recorded_world_registry_id() {
+    let set = test_registries();
+    let changed: BTreeSet<String> =
+        std::fs::read_to_string(crate_path("tests/fixtures/world_registry_id_changes.txt"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect();
+
+    for (registry, recorded) in recorded_by_registry(&read("tests/fixtures/world_registry_ids.txt"))
+    {
+        let table = set
+            .table(&registry)
+            .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
+        let loaded: Vec<String> = table.names().iter().map(|name| name.to_string()).collect();
+        if changed.contains(&registry) {
+            assert_ne!(
+                loaded, recorded,
+                "{registry} is listed as renumbered but keeps its recorded order"
+            );
+            let loaded: BTreeSet<_> = loaded.into_iter().collect();
+            let recorded: BTreeSet<_> = recorded.into_iter().collect();
+            assert_eq!(loaded, recorded, "{registry}: the set of names changed");
+        } else {
+            assert_eq!(
+                loaded, recorded,
+                "{registry}: the loader numbers the entries differently from the recorded ids"
+            );
+        }
+    }
 }
 
-pub fn the_world_registry_ids_match_the_recorded_fixture(app: &App) {
-    let actual = lines(app);
-    for line in &actual {
-        println!("world registry id: {line}");
-    }
-
-    let recorded = read("tests/fixtures/world_registry_ids.txt");
-    let recorded: Vec<&str> = recorded.lines().collect();
-    let first_difference = (0..actual.len().max(recorded.len()))
-        .find(|&at| actual.get(at).map(String::as_str) != recorded.get(at).copied());
-    if let Some(at) = first_difference {
-        panic!(
-            "world registry ids differ from tests/fixtures/world_registry_ids.txt at line {}: running app has {:?}, fixture has {:?}",
-            at + 1,
-            actual.get(at),
-            recorded.get(at),
-        );
-    }
+#[test]
+fn a_world_registry_without_files_is_empty() {
+    let table = test_registries()
+        .table("minecraft:dimension")
+        .expect("minecraft:dimension is a loaded registry");
+    assert!(table.is_empty(), "{} names", table.len());
 }

@@ -156,7 +156,17 @@ fn biome_registry(names: &[String]) -> (RegistrySnapshot<Biome>, bevy_asset::Ass
             )
         })
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |_| {
+    let mut names: Vec<_> = pairs.iter().map(|(name, _)| name.clone()).collect();
+    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    let table = std::sync::Arc::new(
+        mcrs_minecraft_registry::NameTable::new(
+            ResourceLocation::parse("minecraft:worldgen/biome").unwrap(),
+            names,
+            [],
+        )
+        .unwrap(),
+    );
+    let snapshot = RegistrySnapshot::<Biome>::build(&table, pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
     });
     (snapshot, assets)
