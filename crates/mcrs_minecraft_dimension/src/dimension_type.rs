@@ -3,13 +3,14 @@ use std::sync::Arc;
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_assets::tag::tag_ref::TagRef;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::value_provider::IntProvider;
+use mcrs_minecraft_core::codec::{Bounded, is_default};
+use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::key::Block;
@@ -21,19 +22,24 @@ use mcrs_minecraft_registry::key::Block;
 /// `infiniburn` is a raw string like `"#minecraft:infiniburn_overworld"`.
 /// Resolved into [`DimensionType`] by the loader.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub(crate) struct ProtoDimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
-    #[serde(default)]
     pub has_ender_dragon_fight: bool,
+    #[serde(deserialize_with = "coordinate_scale")]
     pub coordinate_scale: f64,
+    #[serde(deserialize_with = "min_y")]
     pub min_y: i32,
+    #[serde(deserialize_with = "height")]
     pub height: u32,
+    #[serde(deserialize_with = "logical_height")]
     pub logical_height: u32,
     pub infiniburn: String,
     pub ambient_light: f32,
+    #[serde(deserialize_with = "block_light_limit")]
     pub monster_spawn_block_light_limit: u32,
+    #[serde(deserialize_with = "spawn_light_level")]
     pub monster_spawn_light_level: IntProvider,
     #[serde(default)]
     pub skybox: Skybox,
@@ -47,6 +53,67 @@ pub(crate) struct ProtoDimensionType {
     pub timelines: Option<String>,
     #[serde(default)]
     pub default_clock: Option<String>,
+}
+
+const Y_SIZE: i32 = (1 << 12) - 32;
+const MAX_Y: i32 = (Y_SIZE >> 1) - 1;
+const MIN_Y: i32 = MAX_Y - Y_SIZE + 1;
+const MIN_COORDINATE_SCALE: f64 = 1.0e-5_f32 as f64;
+const MAX_COORDINATE_SCALE: f64 = 3.0e7;
+
+fn coordinate_scale<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    let scale = f64::deserialize(d)?;
+    if !(MIN_COORDINATE_SCALE..=MAX_COORDINATE_SCALE).contains(&scale) {
+        return Err(D::Error::custom(format!(
+            "Value {scale} outside of range [{MIN_COORDINATE_SCALE}:{MAX_COORDINATE_SCALE}]"
+        )));
+    }
+    Ok(scale)
+}
+
+fn min_y<'de, D: Deserializer<'de>>(d: D) -> Result<i32, D::Error> {
+    Bounded::<MIN_Y, MAX_Y>::deserialize(d).map(|y| y.0)
+}
+
+fn height<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    Bounded::<16, Y_SIZE>::deserialize(d).map(|height| height.0 as u32)
+}
+
+fn logical_height<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    Bounded::<0, Y_SIZE>::deserialize(d).map(|height| height.0 as u32)
+}
+
+fn block_light_limit<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    Bounded::<0, 15>::deserialize(d).map(|limit| limit.0 as u32)
+}
+
+fn spawn_light_level<'de, D: Deserializer<'de>>(d: D) -> Result<IntProvider, D::Error> {
+    BoundedIntProvider::<0, 15>::deserialize(d).map(|level| level.0)
+}
+
+impl<'de> Deserialize<'de> for ProtoDimensionType {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let proto = ProtoDimensionType::deserialize(d)?;
+        let (min_y, height) = (proto.min_y, proto.height as i32);
+        let refused = if min_y + height > MAX_Y + 1 {
+            Some(format!(
+                "min_y + height cannot be higher than: {}",
+                MAX_Y + 1
+            ))
+        } else if proto.logical_height > proto.height {
+            Some("logical_height cannot be higher than height".to_owned())
+        } else if height % 16 != 0 {
+            Some("height has to be multiple of 16".to_owned())
+        } else if min_y % 16 != 0 {
+            Some("min_y has to be a multiple of 16".to_owned())
+        } else {
+            None
+        };
+        match refused {
+            Some(reason) => Err(D::Error::custom(reason)),
+            None => Ok(proto),
+        }
+    }
 }
 
 /// Error when converting a [`ProtoDimensionType`] to [`DimensionType`].

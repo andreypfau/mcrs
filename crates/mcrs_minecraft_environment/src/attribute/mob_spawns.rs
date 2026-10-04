@@ -32,8 +32,33 @@ impl<'de> Deserialize<'de> for MobSpawnSettings {
                 f.write_str("mob spawn settings")
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<MobSpawnSettings, A::Error> {
-                MobSpawnSettings::read_fields(None, map)
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<MobSpawnSettings, A::Error> {
+                let mut spawn_costs = None;
+                let mut spawns_by_category = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "spawn_costs" if spawn_costs.is_none() => {
+                            spawn_costs = Some(map.next_value()?);
+                        }
+                        "spawns_by_category" if spawns_by_category.is_none() => {
+                            spawns_by_category = Some(map.next_value()?);
+                        }
+                        "spawn_costs" => return Err(A::Error::duplicate_field("spawn_costs")),
+                        "spawns_by_category" => {
+                            return Err(A::Error::duplicate_field("spawns_by_category"));
+                        }
+                        other => return Err(A::Error::unknown_field(other, FIELDS)),
+                    }
+                }
+                Ok(MobSpawnSettings {
+                    spawn_costs: spawn_costs
+                        .ok_or_else(|| A::Error::missing_field("spawn_costs"))?,
+                    spawns_by_category: spawns_by_category
+                        .ok_or_else(|| A::Error::missing_field("spawns_by_category"))?,
+                })
             }
         }
 
@@ -42,38 +67,6 @@ impl<'de> Deserialize<'de> for MobSpawnSettings {
 }
 
 impl MobSpawnSettings {
-    /// Read the fields of a map whose first key may already have been taken
-    /// off it, which is how a value is told from a modifier entry.
-    pub(super) fn read_fields<'de, A: MapAccess<'de>>(
-        first_key: Option<String>,
-        mut map: A,
-    ) -> Result<Self, A::Error> {
-        let mut settings = MobSpawnSettings::default();
-        let (mut costs_read, mut categories_read) = (false, false);
-        let mut pending = first_key;
-        while let Some(key) = match pending.take() {
-            Some(key) => Some(key),
-            None => map.next_key::<String>()?,
-        } {
-            match key.as_str() {
-                "spawn_costs" if !costs_read => {
-                    costs_read = true;
-                    settings.spawn_costs = map.next_value()?;
-                }
-                "spawns_by_category" if !categories_read => {
-                    categories_read = true;
-                    settings.spawns_by_category = map.next_value()?;
-                }
-                "spawn_costs" => return Err(A::Error::duplicate_field("spawn_costs")),
-                "spawns_by_category" => {
-                    return Err(A::Error::duplicate_field("spawns_by_category"));
-                }
-                other => return Err(A::Error::unknown_field(other, FIELDS)),
-            }
-        }
-        Ok(settings)
-    }
-
     /// Every category defined and empty, which silences the spawns of the
     /// layers below instead of falling through to them.
     pub fn no_spawns() -> Self {

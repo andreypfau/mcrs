@@ -854,14 +854,10 @@ fn a_test_instance_naming_an_unknown_environment_fails() {
 }
 
 #[test]
-fn a_test_instance_naming_an_unknown_function_fails() {
+fn a_test_instance_naming_a_function_outside_the_report_loads() {
     let text = refused_with_environment_default(&instance_naming("function", "minecraft:nowhere"));
-    for part in [
-        "minecraft:test_function",
-        "minecraft:nowhere",
-        "minecraft:odd",
-    ] {
-        assert!(text.contains(part), "{part} missing from:\n{text}");
+    for part in ["minecraft:test_instance", "minecraft:nowhere"] {
+        assert!(!text.contains(part), "{part} in:\n{text}");
     }
 }
 

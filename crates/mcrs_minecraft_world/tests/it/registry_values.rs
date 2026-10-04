@@ -15,6 +15,41 @@ const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:trim_pattern",
 ];
 
+const SYNCHRONIZED_BY_THE_GAME: [&str; 32] = [
+    "minecraft:banner_pattern",
+    "minecraft:block_transformer",
+    "minecraft:cat_sound_variant",
+    "minecraft:cat_variant",
+    "minecraft:chat_type",
+    "minecraft:chicken_sound_variant",
+    "minecraft:chicken_variant",
+    "minecraft:cow_sound_variant",
+    "minecraft:cow_variant",
+    "minecraft:damage_type",
+    "minecraft:decorated_pot_pattern",
+    "minecraft:dialog",
+    "minecraft:dimension_type",
+    "minecraft:enchantment",
+    "minecraft:frog_variant",
+    "minecraft:instrument",
+    "minecraft:jukebox_song",
+    "minecraft:painting_variant",
+    "minecraft:pig_sound_variant",
+    "minecraft:pig_variant",
+    "minecraft:sulfur_cube_archetype",
+    "minecraft:test_environment",
+    "minecraft:test_instance",
+    "minecraft:timeline",
+    "minecraft:trim_material",
+    "minecraft:trim_pattern",
+    "minecraft:wolf_sound_variant",
+    "minecraft:wolf_variant",
+    "minecraft:world_clock",
+    "minecraft:worldgen/biome",
+    "minecraft:worldgen/block_state_provider",
+    "minecraft:zombie_nautilus_variant",
+];
+
 fn crate_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
 }
@@ -262,4 +297,14 @@ pub fn the_synced_values_differ_from_the_game_as_recorded(app: &App) {
         computed,
         "the recorded differences and the computed ones disagree"
     );
+}
+
+pub fn the_app_projects_exactly_the_registries_the_game_synchronizes(app: &App) {
+    let projected: BTreeSet<&str> = app
+        .world()
+        .resource::<RegistryAccess>()
+        .iter()
+        .map(|snapshot| snapshot.registry_key())
+        .collect();
+    assert_eq!(projected, BTreeSet::from(SYNCHRONIZED_BY_THE_GAME));
 }

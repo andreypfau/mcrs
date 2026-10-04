@@ -108,6 +108,7 @@ impl ReceivedRegistries {
             .split_once(':')
             .map_or(registry.registry.as_str(), |(_, path)| path)
             .into();
+        self.1.declare(&key);
         for (id, entry) in registry.entries.iter().enumerate() {
             self.1
                 .insert(&key, id as u32, ResourceLocation::parse(&entry.id).ok());
@@ -123,6 +124,50 @@ impl RegistryLookup for ReceivedRegistries {
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
         self.1.name(registry, id)
+    }
+}
+
+impl ReceivedRegistries {
+    /// A registry the server sent, even empty, is numbered by the server alone;
+    /// `local` answers only the registries the server never sends.
+    pub fn over<'a>(&'a self, local: &'a dyn RegistryLookup) -> ServerNumbering<'a> {
+        ServerNumbering {
+            received: self,
+            local,
+        }
+    }
+}
+
+pub struct ServerNumbering<'a> {
+    received: &'a ReceivedRegistries,
+    local: &'a dyn RegistryLookup,
+}
+
+impl ServerNumbering<'_> {
+    fn source(&self, registry: &str) -> &dyn RegistryLookup {
+        if self.received.1.holds(registry) {
+            self.received
+        } else {
+            self.local
+        }
+    }
+}
+
+impl RegistryLookup for ServerNumbering<'_> {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        self.source(registry).id(registry, name)
+    }
+
+    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        self.source(registry).name(registry, id)
+    }
+
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+        self.local.block_state_id(block, properties)
+    }
+
+    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        self.local.block_state(id)
     }
 }
 
@@ -731,5 +776,31 @@ mod lookup_tests {
             registries.name("damage_type", 0),
             Some(&ResourceLocation::minecraft("lava"))
         );
+    }
+
+    #[test]
+    fn a_registry_the_server_sent_hides_the_local_numbering_even_when_empty() {
+        let entry = |id: &str| RegistryEntry {
+            id: id.to_owned(),
+            data: None,
+        };
+        let mut local = ReceivedRegistries::default();
+        for registry in ["minecraft:enchantment", "minecraft:item"] {
+            local.push(ReceivedRegistry {
+                registry: registry.to_owned(),
+                entries: vec![entry("minecraft:a")],
+            });
+        }
+        let mut server = ReceivedRegistries::default();
+        server.push(ReceivedRegistry {
+            registry: "minecraft:enchantment".to_owned(),
+            entries: Vec::new(),
+        });
+        let lookup = server.over(&local);
+        let a = ResourceLocation::minecraft("a");
+        assert_eq!(lookup.name("enchantment", 0), None);
+        assert_eq!(lookup.id("enchantment", &a), None);
+        assert_eq!(lookup.name("item", 0), Some(&a));
+        assert_eq!(lookup.id("item", &a), Some(0));
     }
 }

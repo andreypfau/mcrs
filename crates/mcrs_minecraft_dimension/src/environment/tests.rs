@@ -494,3 +494,49 @@ fn a_dimension_type_with_an_unknown_field_fails() {
     let error = serde_json::from_value::<ProtoDimensionType>(file).unwrap_err();
     assert!(error.to_string().contains("weather"), "{error}");
 }
+
+#[test]
+fn a_dimension_type_outside_the_games_bounds_fails() {
+    let overworld: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets_dir().join("dimension_type/overworld.json")).unwrap(),
+    )
+    .unwrap();
+    let with = |changes: serde_json::Value| {
+        let mut file = overworld.clone();
+        for (key, value) in changes.as_object().unwrap() {
+            match value {
+                serde_json::Value::Null => {
+                    file.as_object_mut().unwrap().remove(key);
+                }
+                value => file[key] = value.clone(),
+            }
+        }
+        serde_json::from_value::<ProtoDimensionType>(file)
+    };
+    for refused in [
+        json!({"has_ender_dragon_fight": null}),
+        json!({"coordinate_scale": 0.0}),
+        json!({"coordinate_scale": 3.1e7}),
+        json!({"min_y": -2048}),
+        json!({"min_y": -56}),
+        json!({"min_y": 1792}),
+        json!({"height": 8, "logical_height": 8}),
+        json!({"height": 4080, "min_y": -2032}),
+        json!({"height": 392}),
+        json!({"logical_height": 400}),
+        json!({"logical_height": -1}),
+        json!({"monster_spawn_block_light_limit": 16}),
+        json!({"monster_spawn_light_level": {"type": "minecraft:uniform", "min_inclusive": 0, "max_inclusive": 16}}),
+    ] {
+        assert!(with(refused.clone()).is_err(), "{refused} loads");
+    }
+    for accepted in [
+        json!({"min_y": -2032, "height": 4064, "logical_height": 4064}),
+        json!({"coordinate_scale": 1.0e-5}),
+        json!({"coordinate_scale": 3.0e7}),
+    ] {
+        if let Err(error) = with(accepted.clone()) {
+            panic!("{accepted}: {error}");
+        }
+    }
+}

@@ -3,6 +3,7 @@
 //! Mirrors `net.minecraft.client.resources.model.ModelBakery` / `BlockStateModelLoader`.
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::{Path, PathBuf};
 
 use bevy::asset::io::{AssetSourceId, ErasedAssetReader};
@@ -43,6 +44,20 @@ fn add_built_in(files: &mut HashMap<String, Vec<u8>>) {
     }
 }
 
+fn insert_once(
+    files: &mut HashMap<String, Vec<u8>>,
+    path: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    match files.entry(path) {
+        Entry::Occupied(held) => Err(format!("{} is in more than one pack layer", held.key())),
+        Entry::Vacant(slot) => {
+            slot.insert(bytes);
+            Ok(())
+        }
+    }
+}
+
 pub fn is_resource(path: &str) -> bool {
     path.split_once('/').is_some_and(|(_, rest)| {
         RESOURCE_FOLDERS.iter().any(|folder| {
@@ -68,22 +83,32 @@ impl Pack {
             let reader = assets
                 .get_source(source.clone())
                 .map_err(|error| format!("no {source} asset source: {error}"))?;
-            let reader = reader.reader();
-            let mut roots = vec![PathBuf::new()];
-            if source == AssetSourceId::Default {
-                roots.extend(
-                    pack_names(reader)
-                        .await
-                        .into_iter()
-                        .map(|name| Path::new(PACKS_ROOT).join(name)),
-                );
-            }
-            for root in roots {
-                Self::walk(reader, &root, folders, &mut files).await?;
-            }
+            let layered = source == AssetSourceId::Default;
+            Self::read_source(reader.reader(), folders, layered, &mut files).await?;
         }
         add_built_in(&mut files);
         Ok(Self { files })
+    }
+
+    async fn read_source(
+        reader: &dyn ErasedAssetReader,
+        folders: &[&str],
+        layered: bool,
+        files: &mut HashMap<String, Vec<u8>>,
+    ) -> Result<(), String> {
+        let mut roots = vec![PathBuf::new()];
+        if layered {
+            roots.extend(
+                pack_names(reader)
+                    .await
+                    .into_iter()
+                    .map(|name| Path::new(PACKS_ROOT).join(name)),
+            );
+        }
+        for root in roots {
+            Self::walk(reader, &root, folders, files).await?;
+        }
+        Ok(())
     }
 
     async fn walk(
@@ -114,7 +139,7 @@ impl Pack {
                     .await
                     .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
                 let relative = path.strip_prefix(root).unwrap_or(&path);
-                files.insert(relative.to_string_lossy().into_owned(), bytes);
+                insert_once(files, relative.to_string_lossy().into_owned(), bytes)?;
             }
         }
         Ok(())
@@ -172,12 +197,11 @@ impl Pack {
             let mut files: HashMap<String, Vec<u8>> =
                 vanilla::resource_files().iter().cloned().collect();
             let mut roots = vec![corpus.clone()];
+            let reader = bevy::asset::io::file::FileAssetReader::new(&corpus);
             roots.extend(
-                std::fs::read_dir(corpus.join(PACKS_ROOT))
+                bevy::tasks::block_on(pack_names(&reader))
                     .into_iter()
-                    .flatten()
-                    .filter_map(|entry| entry.ok())
-                    .map(|entry| entry.path()),
+                    .map(|name| corpus.join(PACKS_ROOT).join(name)),
             );
             for root in roots {
                 let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
@@ -201,7 +225,8 @@ impl Pack {
                         }
                         let relative = path.strip_prefix(&root).expect("walked from the root");
                         let bytes = std::fs::read(&path).expect("the corpus is readable");
-                        files.insert(relative.to_string_lossy().into_owned(), bytes);
+                        insert_once(&mut files, relative.to_string_lossy().into_owned(), bytes)
+                            .unwrap_or_else(|error| panic!("{error}"));
                     }
                 }
             }
@@ -648,6 +673,41 @@ mod tests {
             pack.read(&stone).unwrap(),
             Pack::corpus().read(&stone).unwrap(),
         );
+    }
+
+    #[test]
+    fn a_pack_layer_adds_files_and_may_not_replace_one() {
+        let read = |files: &[&str]| {
+            let root = bevy::asset::io::memory::Dir::default();
+            for path in files {
+                root.insert_asset(Path::new(path), path.as_bytes().to_vec());
+            }
+            let reader = bevy::asset::io::memory::MemoryAssetReader { root };
+            let mut read = HashMap::new();
+            bevy::tasks::block_on(Pack::read_source(&reader, &DATA_FOLDERS, true, &mut read))
+                .map(|()| read)
+        };
+        let plains = "minecraft/worldgen/biome/plains.json";
+        let added = read(&[
+            plains,
+            "mcrs/datapacks/.DS_Store",
+            "mcrs/datapacks/beta/minecraft/worldgen/biome/beta_plains.json",
+        ])
+        .unwrap();
+        assert_eq!(
+            added
+                .keys()
+                .map(String::as_str)
+                .collect::<std::collections::BTreeSet<_>>(),
+            [plains, "minecraft/worldgen/biome/beta_plains.json"].into(),
+        );
+
+        let error = read(&[
+            plains,
+            "mcrs/datapacks/beta/minecraft/worldgen/biome/plains.json",
+        ])
+        .unwrap_err();
+        assert!(error.contains(plains), "{error}");
     }
 
     #[test]

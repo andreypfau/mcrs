@@ -229,7 +229,7 @@ macro_rules! test_instance {
 
 test_instance!(BlockBasedTest {});
 test_instance!(FunctionTest {
-    pub function: Id<TestFunction>,
+    pub function: ResourceKey<TestFunction>,
 });
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

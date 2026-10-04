@@ -420,6 +420,12 @@ impl Plugin for MinecraftWorldPlugin {
                     "minecraft:zombie_nautilus_variant",
                     |variant| variant::NetworkZombieNautilusVariant::from(variant),
                 );
+                registries::register_loaded::<sulfur_cube_archetype::SulfurCubeArchetype, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:sulfur_cube_archetype",
+                    Clone::clone,
+                );
             }
             app.insert_resource(registries.registry::<EnchantmentData>().unwrap_or_else(|| {
                 panic!("{}: no minecraft:enchantment registry", path.display())

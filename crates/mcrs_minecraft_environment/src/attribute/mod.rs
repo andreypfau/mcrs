@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use serde::de::value::{
     BoolDeserializer, F64Deserializer, I64Deserializer, MapAccessDeserializer,
-    SeqAccessDeserializer, StrDeserializer, U64Deserializer,
+    SeqAccessDeserializer, StrDeserializer, StringDeserializer, U64Deserializer,
 };
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, SerializeMap};
@@ -226,15 +226,33 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
             MapMeaning::Value => self.value(MapAccessDeserializer::new(map)),
             MapMeaning::Entry => self.entry(None, map),
             MapMeaning::Peek => match map.next_key::<String>()? {
-                None => self.value(MapAccessDeserializer::new(map)),
                 Some(key) if key == "argument" || key == "modifier" => self.entry(Some(key), map),
-                Some(key) => MobSpawnSettings::read_fields(Some(key), map)
-                    .map(|spawns| {
-                        AttributeEntry::override_value(AttributeValue::MobSpawns(Box::new(spawns)))
-                    })
-                    .map_err(|error| A::Error::custom(malformed(self.0.id, error.to_string()))),
+                first => self.value(MapAccessDeserializer::new(Replay { first, rest: map })),
             },
         }
+    }
+}
+
+struct Replay<A> {
+    first: Option<String>,
+    rest: A,
+}
+
+impl<'de, A: MapAccess<'de>> MapAccess<'de> for Replay<A> {
+    type Error = A::Error;
+
+    fn next_key_seed<K: DeserializeSeed<'de>>(
+        &mut self,
+        seed: K,
+    ) -> Result<Option<K::Value>, A::Error> {
+        match self.first.take() {
+            Some(key) => seed.deserialize(StringDeserializer::new(key)).map(Some),
+            None => self.rest.next_key_seed(seed),
+        }
+    }
+
+    fn next_value_seed<V: DeserializeSeed<'de>>(&mut self, seed: V) -> Result<V::Value, A::Error> {
+        self.rest.next_value_seed(seed)
     }
 }
 
@@ -436,14 +454,57 @@ mod tests {
             assert_eq!(read.spawns_by_category.len(), 1);
         }
 
-        let empty: EnvironmentAttributeMap = serde_json::from_value(json!({ spawns: {} })).unwrap();
-        assert_eq!(empty.get(spawns).unwrap().modifier, Operation::Override);
+        for (shape, missing) in [
+            (json!({}), "spawn_costs"),
+            (json!({"spawn_costs": {}}), "spawns_by_category"),
+            (json!({"spawns_by_category": {}}), "spawn_costs"),
+        ] {
+            let error = serde_json::from_value::<EnvironmentAttributeMap>(json!({ spawns: shape }))
+                .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("missing field `{missing}`")),
+                "{error}"
+            );
+        }
 
         let error = serde_json::from_value::<EnvironmentAttributeMap>(json!({
             spawns: {"modifier": "overlay"},
         }))
         .unwrap_err();
         assert!(error.to_string().contains("missing `argument`"), "{error}");
+    }
+
+    #[test]
+    fn an_explicit_override_entry_reads_as_the_bare_value() {
+        let mut checked = 0;
+        for spec in ENVIRONMENT_ATTRIBUTES.values() {
+            if matches!(
+                spec.ty,
+                AttributeType::BackgroundMusic | AttributeType::AmbientSounds
+            ) {
+                continue;
+            }
+            let bare = serde_json::to_value(ArgumentRef {
+                spec,
+                op: Operation::Override,
+                value: &spec.default,
+            })
+            .unwrap();
+            let read = |entry: serde_json::Value| {
+                serde_json::from_value::<EnvironmentAttributeMap>(json!({ spec.id: entry }))
+                    .unwrap_or_else(|error| panic!("{}: {error}", spec.id))
+            };
+            for entry in [
+                json!({"argument": bare, "modifier": "override"}),
+                json!({"modifier": "override", "argument": bare}),
+            ] {
+                assert_eq!(read(entry), read(bare.clone()), "{}", spec.id);
+            }
+            checked += 1;
+        }
+        assert!(checked > 40, "{checked} attributes");
     }
 
     #[test]

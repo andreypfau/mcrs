@@ -1,18 +1,21 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
 };
-use mcrs_minecraft_network::client::ReceivedRegistries;
+use mcrs_minecraft_network::client::{ReceivedRegistries, ReceivedRegistry, RegistryEntry};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
-use mcrs_minecraft_protocol::item::{ComponentPatch, CustomName, Damage, RawStack, Unbreakable};
+use mcrs_minecraft_protocol::item::{
+    ComponentPatch, CustomName, Damage, Enchantments, RawStack, Unbreakable,
+};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundContainerClose, ClientboundContainerSetContent, ClientboundContainerSetSlot,
     ClientboundOpenScreen, ClientboundSetCursorItem, ClientboundSetHeldSlot,
@@ -21,7 +24,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 
 use super::{ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell};
@@ -71,9 +74,13 @@ struct Client {
 
 impl Client {
     fn new() -> Self {
+        Self::with(registries().clone(), ReceivedRegistries::default())
+    }
+
+    fn with(local: RegistrySet, received: ReceivedRegistries) -> Self {
         let mut app = App::new();
         app.insert_resource(items().clone())
-            .insert_resource(registries().clone())
+            .insert_resource(local)
             .init_resource::<ButtonInput<KeyCode>>()
             .add_plugins(InventoryPlugin);
         let player = app
@@ -87,7 +94,7 @@ impl Client {
             .id();
         let connection = app
             .world_mut()
-            .spawn((ConnectionState::Game, ReceivedRegistries::default()))
+            .spawn((ConnectionState::Game, received))
             .id();
         app.finish();
         app.cleanup();
@@ -527,4 +534,59 @@ mod exhaustive {
             items().len()
         );
     }
+}
+
+#[test]
+fn a_registry_the_server_sent_is_numbered_by_the_server() {
+    let enchantment = |path: &str| ResourceLocation::minecraft(path);
+    let local = RegistrySet::from_tables(
+        registries().tables().cloned().chain([Arc::new(
+            NameTable::new(
+                ResourceLocation::minecraft("enchantment").into(),
+                ["sharpness", "protection"].map(|path| enchantment(path).into()),
+                std::iter::empty(),
+            )
+            .unwrap(),
+        )]),
+    )
+    .unwrap();
+    let entry = |path: &str| RegistryEntry {
+        id: enchantment(path).to_string(),
+        data: None,
+    };
+    let mut received = ReceivedRegistries::default();
+    received.push(ReceivedRegistry {
+        registry: "minecraft:enchantment".to_owned(),
+        entries: vec![entry("protection"), entry("sharpness")],
+    });
+    let mut patch = ComponentPatch::EMPTY;
+    patch.set(Enchantments(vec![(
+        ResourceKey::from_location(enchantment("protection")),
+        1,
+    )]));
+    let sword = registries()
+        .id("item", &ResourceLocation::minecraft("diamond_sword"))
+        .unwrap();
+    let raw = RawStack::from_stack(
+        &ProtoStack::new(mcrs_minecraft_registry::ItemId(sword as u16), 1, patch),
+        &received.over(registries()),
+    )
+    .unwrap();
+
+    let mut client = Client::with(local, received);
+    let player = client.player;
+    client.receive(&ClientboundContainerSetSlot {
+        container_id: VarInt(0),
+        state_seqno: VarInt(1),
+        slot: 36,
+        item: raw,
+    });
+    let stack = client.cell(player, 36).expect("the stack decoded");
+    assert_eq!(
+        client.world().get::<Enchantments>(stack),
+        Some(&Enchantments(vec![(
+            ResourceKey::from_location(enchantment("protection")),
+            1
+        )]))
+    );
 }

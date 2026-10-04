@@ -436,6 +436,8 @@ pub enum BlockError {
     },
     #[error("state {state} is already claimed by `{owner}`")]
     OverlappingState { state: u16, owner: String },
+    #[error("the block is already defined by another file")]
+    DuplicateBlock,
     #[error("state {state} states no `{component}`")]
     MissingComponent { state: u16, component: &'static str },
 }
@@ -574,6 +576,9 @@ impl Builder {
                 stated: description.protocol_id,
                 report: id.index(),
             });
+        }
+        if self.blocks[id.index()].is_some() {
+            return Err(BlockError::DuplicateBlock);
         }
         let properties = description.properties;
         let base = description.base_state_id;
@@ -1128,6 +1133,21 @@ mod tests {
             error.contains("state 0 is already claimed by `minecraft:first`"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn a_block_defined_by_two_files_fails_at_load() {
+        let error = build_against(
+            &["minecraft:test"],
+            &[
+                file("minecraft:test", 0, "", ""),
+                file("minecraft:test", 1, "", ""),
+            ],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("minecraft:test"), "{error}");
+        assert!(error.contains("already defined"), "{error}");
     }
 
     #[test]
