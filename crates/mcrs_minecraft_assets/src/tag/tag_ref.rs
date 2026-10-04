@@ -69,6 +69,10 @@ impl<T: TaggedRegistry> TagRef<T> {
         Ok(TagRef { key, handle })
     }
 
+    pub fn new(key: TagKey<T, Arc<str>>, handle: Handle<TagFile>) -> Self {
+        TagRef { key, handle }
+    }
+
     /// The typed tag key.
     #[inline]
     pub fn key(&self) -> &TagKey<T, Arc<str>> {

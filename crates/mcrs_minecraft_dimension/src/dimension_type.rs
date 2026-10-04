@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_assets::tag::tag_ref::TagRef;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
@@ -20,6 +21,7 @@ use mcrs_minecraft_registry::key::Block;
 /// `infiniburn` is a raw string like `"#minecraft:infiniburn_overworld"`.
 /// Resolved into [`DimensionType`] by the loader.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct ProtoDimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
@@ -82,7 +84,15 @@ impl ProtoDimensionType {
             })
             .transpose()?;
 
-        Ok(DimensionType {
+        Ok(self.with_tags(infiniburn, timelines))
+    }
+
+    pub(crate) fn with_tags(
+        self,
+        infiniburn: TagRef<Block>,
+        timelines: Option<TagRef<Timeline>>,
+    ) -> DimensionType {
+        DimensionType {
             has_skylight: self.has_skylight,
             has_ceiling: self.has_ceiling,
             has_ender_dragon_fight: self.has_ender_dragon_fight,
@@ -100,7 +110,7 @@ impl ProtoDimensionType {
             attributes: self.attributes,
             timelines,
             default_clock: self.default_clock,
-        })
+        }
     }
 }
 
@@ -175,7 +185,9 @@ pub struct NetworkDimensionType {
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntProvider,
+    #[serde(skip_serializing_if = "is_default")]
     pub skybox: Skybox,
+    #[serde(skip_serializing_if = "is_default")]
     pub cardinal_light: CardinalLight,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_fixed_time: Option<bool>,
@@ -204,7 +216,7 @@ impl From<&DimensionType> for NetworkDimensionType {
             skybox: dt.skybox,
             cardinal_light: dt.cardinal_light.clone(),
             has_fixed_time: dt.has_fixed_time,
-            attributes: dt.attributes.clone(),
+            attributes: dt.attributes.filter_syncable(),
             timelines: dt
                 .timelines
                 .as_ref()
@@ -323,6 +335,55 @@ mod tests {
             NbtTag::Double(v) => out.push(format!("{path}={}", *v as f32)),
             other => out.push(format!("{path}={other:?}")),
         }
+    }
+
+    fn resolved(name: &str) -> DimensionType {
+        use mcrs_minecraft_assets::tag::tag_ref::TagRef;
+        use mcrs_minecraft_core::tag_key::TagKey;
+
+        let path = dimension_type_dirs()
+            .into_iter()
+            .map(|dir| dir.join(name))
+            .find(|path| path.is_file())
+            .unwrap();
+        let proto: ProtoDimensionType =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        fn tag<T: mcrs_minecraft_core::tag_key::TaggedRegistry>(raw: &str) -> TagRef<T> {
+            TagRef::new(
+                TagKey::from_location(
+                    ResourceLocation::parse(raw.trim_start_matches('#')).unwrap(),
+                ),
+                Handle::default(),
+            )
+        }
+        let infiniburn = tag(&proto.infiniburn);
+        let timelines = proto.timelines.as_deref().map(tag);
+        proto.with_tags(infiniburn, timelines)
+    }
+
+    #[test]
+    fn the_network_dimension_type_is_the_games() {
+        let overworld =
+            serde_json::to_value(NetworkDimensionType::from(&resolved("overworld.json"))).unwrap();
+        assert!(overworld.get("skybox").is_none(), "{overworld}");
+        assert!(overworld.get("cardinal_light").is_none(), "{overworld}");
+        let attributes = overworld["attributes"].as_object().unwrap();
+        assert!(!attributes.is_empty());
+        for id in attributes.keys() {
+            assert!(
+                mcrs_minecraft_environment::attribute::is_syncable(id),
+                "{id} is not syncable"
+            );
+        }
+        assert!(
+            !attributes.contains_key("minecraft:gameplay/bed_rule"),
+            "{overworld}"
+        );
+
+        let nether =
+            serde_json::to_value(NetworkDimensionType::from(&resolved("the_nether.json"))).unwrap();
+        assert_eq!(nether["skybox"], "none");
+        assert_eq!(nether["cardinal_light"], "nether");
     }
 
     #[test]
