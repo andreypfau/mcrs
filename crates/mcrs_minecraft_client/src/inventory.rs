@@ -57,21 +57,6 @@ impl Plugin for InventoryPlugin {
                     .after(player::grab_cursor_on_click),
             );
     }
-
-    fn finish(&self, app: &mut App) {
-        let world = app.world();
-        let registries = world.resource::<RegistrySet>();
-        for entry in world.resource::<Items>().iter() {
-            let reported = registries.id("item", &entry.identifier);
-            assert_eq!(
-                reported,
-                Some(u32::from(entry.id.0)),
-                "{} is #{} in the item corpus but {reported:?} in {REGISTRY_REPORT}",
-                entry.identifier,
-                entry.id.0
-            );
-        }
-    }
 }
 
 pub fn inventory_index_to_cell(index: i32) -> Option<u16> {

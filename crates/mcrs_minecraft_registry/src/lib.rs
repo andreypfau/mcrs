@@ -19,7 +19,7 @@ pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
 pub use entries::Entries;
 pub use holder::*;
-pub use id::{BlockStateId, Id, ItemId};
+pub use id::{BlockStateId, Id, ItemId, NarrowError};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;
 pub use registry::{Registry, RegistryError, UnknownEntry};

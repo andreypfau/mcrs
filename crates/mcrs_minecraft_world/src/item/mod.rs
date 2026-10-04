@@ -6,7 +6,7 @@ use bevy_asset::io::AssetSourceId;
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
-use mcrs_minecraft_item::Items;
+use mcrs_minecraft_item::{Item, Items};
 use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_report::from_report;
 
@@ -41,13 +41,17 @@ pub fn test_corpus() -> &'static (Blocks, Items) {
             Path::new("mcrs/reports/registries.json"),
         ))
         .expect("the registries report reads");
-        let block_registry = from_report(&report)
-            .expect("the registries report parses")
+        let registries = from_report(&report).expect("the registries report parses");
+        let block_registry = registries
             .registry::<Block>()
             .expect("the registries report has blocks");
+        let item_registry = registries
+            .registry::<Item>()
+            .expect("the registries report has items");
         let (blocks, _) =
             load_block_definitions(&asset_server, &block_registry).expect("the block corpus loads");
-        let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
+        let items = load_item_definitions(&asset_server, &item_registry, &blocks)
+            .expect("the item corpus loads");
         (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
     })
 }
