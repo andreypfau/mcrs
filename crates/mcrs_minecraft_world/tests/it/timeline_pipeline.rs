@@ -1,5 +1,6 @@
 use bevy_app::App;
 use bevy_asset::{AssetServer, Assets};
+use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::DynTagRegistry;
 use mcrs_minecraft_core::TagKey;
@@ -8,7 +9,7 @@ use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionTy
 use mcrs_minecraft_dimension::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -104,6 +105,10 @@ pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
 
 pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app: &App) {
     let asset_server = app.world().resource::<AssetServer>();
+    let set = app.world().resource::<RegistrySet>();
+    let dimension_types = set
+        .table("minecraft:dimension_type")
+        .expect("the dimension type table is loaded");
 
     let mut seen = 0;
     for (id, dimension_type) in app.world().resource::<Assets<DimensionType>>().iter() {
@@ -113,12 +118,18 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
         else {
             continue;
         };
+        let number = dimension_types
+            .number(&rl.to_string())
+            .unwrap_or_else(|| panic!("{rl} is not in the loaded names"));
+        let pack = set
+            .pack_of("minecraft:dimension_type", number as usize)
+            .unwrap_or_else(|| panic!("{rl} has no pack"));
+        let root = match pack {
+            "vanilla" => "assets/minecraft".to_owned(),
+            pack => format!("assets/{PACKS_ROOT}/{pack}/minecraft"),
+        };
         let raw: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(format!(
-                "assets/minecraft/dimension_type/{}.json",
-                rl.path()
-            ))
-            .unwrap(),
+            &std::fs::read(format!("{root}/dimension_type/{}.json", rl.path())).unwrap(),
         )
         .unwrap();
 
