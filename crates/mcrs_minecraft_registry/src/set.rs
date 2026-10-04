@@ -1,17 +1,17 @@
+use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-type Registries = HashMap<ResourceLocation<&'static str>, Arc<dyn Any + Send + Sync>>;
+type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
 
 #[derive(Clone, Default)]
 pub struct RegistrySet {
-    registries: Arc<Registries>,
+    tables: Arc<Tables>,
 }
 
 thread_local! {
@@ -23,22 +23,46 @@ impl RegistrySet {
         Self::default()
     }
 
-    pub fn with<R: RegistryKey>(self, registry: Registry<R>) -> Result<Self, RegistryError> {
-        let mut registries = (*self.registries).clone();
-        if registries.contains_key(&R::KEY) {
-            return Err(RegistryError::DuplicateRegistry { registry: R::KEY });
+    pub fn from_tables(
+        tables: impl IntoIterator<Item = Arc<NameTable>>,
+    ) -> Result<Self, RegistryError> {
+        let mut by_name = Tables::new();
+        for table in tables {
+            let registry = table.registry().clone();
+            if by_name.insert(registry.clone(), table).is_some() {
+                return Err(RegistryError::DuplicateRegistry { registry });
+            }
         }
-        registries.insert(R::KEY, Arc::new(registry));
         Ok(RegistrySet {
-            registries: Arc::new(registries),
+            tables: Arc::new(by_name),
+        })
+    }
+
+    pub fn with<R: RegistryKey>(self, registry: Registry<R>) -> Result<Self, RegistryError> {
+        if self.tables.contains_key(R::KEY.as_str()) {
+            return Err(RegistryError::DuplicateRegistry {
+                registry: R::KEY.into(),
+            });
+        }
+        let mut tables = (*self.tables).clone();
+        tables.insert(R::KEY.into(), Arc::clone(registry.table()));
+        Ok(RegistrySet {
+            tables: Arc::new(tables),
         })
     }
 
     pub fn registry<R: RegistryKey>(&self) -> Option<Registry<R>> {
-        self.registries
-            .get(&R::KEY)?
-            .downcast_ref::<Registry<R>>()
-            .cloned()
+        self.tables
+            .get(R::KEY.as_str())
+            .map(|table| Registry::view(Arc::clone(table)))
+    }
+
+    pub fn table(&self, registry: &str) -> Option<&Arc<NameTable>> {
+        self.tables.get(registry)
+    }
+
+    pub fn tables(&self) -> impl Iterator<Item = &Arc<NameTable>> {
+        self.tables.values()
     }
 
     pub fn scope<T>(&self, run: impl FnOnce() -> T) -> T {
@@ -337,7 +361,7 @@ mod tests {
         assert_eq!(
             error,
             RegistryError::DuplicateRegistry {
-                registry: Biome::KEY
+                registry: Biome::KEY.into()
             }
         );
         assert!(error.to_string().contains("minecraft:worldgen/biome"));

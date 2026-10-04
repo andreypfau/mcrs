@@ -13,7 +13,7 @@ impl<R: RegistryKey, T> Entries<R, T> {
     pub fn new(registry: &Registry<R>, values: Vec<T>) -> Result<Self, RegistryError> {
         if values.len() != registry.len() {
             return Err(RegistryError::LengthMismatch {
-                registry: R::KEY,
+                registry: R::KEY.into(),
                 expected: registry.len(),
                 found: values.len(),
             });
