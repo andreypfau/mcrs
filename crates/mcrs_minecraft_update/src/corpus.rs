@@ -11,17 +11,11 @@ use mcrs_minecraft_worldgen_feature::template::{PaletteState, Template};
 
 const PREFIX: &str = "data/minecraft/";
 const VERSION_FILE: &str = "version.json";
-const LOCAL_PREFIX: &str = "beta";
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
     pub written: Vec<String>,
     pub deleted: Vec<String>,
-    pub kept: Vec<String>,
-}
-
-fn is_local(path: &str) -> bool {
-    path.split('/').any(|part| part.starts_with(LOCAL_PREFIX))
 }
 
 fn check(label: &str, path: &str) -> Result<(), String> {
@@ -32,11 +26,6 @@ fn check(label: &str, path: &str) -> Result<(), String> {
         if part.is_empty() || part == "." || part == ".." {
             return Err(format!("{label}: the path is not a plain relative path"));
         }
-    }
-    if is_local(path) {
-        return Err(format!(
-            "{label}: the path would land on a file the corpus keeps for itself"
-        ));
     }
     Ok(())
 }
@@ -166,8 +155,8 @@ pub(crate) fn files_below(root: &Path, dir: &Path, out: &mut Vec<String>) -> Res
     Ok(())
 }
 
-/// Makes `dir` hold exactly `files` and `version`, except for the files the corpus keeps for
-/// itself. Deletion only ever names a file found on disk below `dir`.
+/// Makes `dir` hold exactly `files` and `version`. Deletion only ever names a file found on
+/// disk below `dir`.
 pub fn replace(dir: &Path, files: &[(String, Vec<u8>)], version: &[u8]) -> Result<Report, String> {
     for (path, _) in files {
         check(path, path)?;
@@ -189,10 +178,6 @@ pub fn replace(dir: &Path, files: &[(String, Vec<u8>)], version: &[u8]) -> Resul
     on_disk.sort();
     for path in on_disk {
         if path == VERSION_FILE || wanted.contains(path.as_str()) {
-            continue;
-        }
-        if is_local(&path) {
-            report.kept.push(path);
             continue;
         }
         let full = dir.join(&path);
@@ -295,8 +280,8 @@ mod tests {
     }
 
     #[test]
-    fn files_with_a_beta_component_are_kept_untouched() {
-        let dir = scratch("beta");
+    fn every_file_the_jar_lacks_is_deleted_whatever_its_name() {
+        let dir = scratch("any_name");
         put(&dir, "worldgen/beta_biome/a.json", b"directory");
         put(&dir, "worldgen/beta_noise.json", b"file");
         put(&dir, "beta/deep/er/c.json", b"deep");
@@ -306,23 +291,35 @@ mod tests {
         let report = apply(&dir, &jar).unwrap();
 
         assert_eq!(
-            report.kept,
+            report.deleted,
             strings(&[
                 "beta/deep/er/c.json",
                 "worldgen/beta_biome/a.json",
-                "worldgen/beta_noise.json"
+                "worldgen/beta_noise.json",
+                "worldgen/other.json"
             ])
         );
-        assert_eq!(report.deleted, strings(&["worldgen/other.json"]));
         assert_eq!(
-            fs::read(dir.join("worldgen/beta_biome/a.json")).unwrap(),
-            b"directory"
+            listing(&dir),
+            vec![("version.json".to_owned(), b"{}".to_vec())]
         );
+    }
+
+    #[test]
+    fn a_jar_entry_named_beta_is_written() {
+        let dir = scratch("beta_entry");
+        let jar = zipped(&[
+            ("data/minecraft/worldgen/beta_x.json", b"x"),
+            ("version.json", b"{}"),
+        ]);
+
+        let report = apply(&dir, &jar).unwrap();
+
         assert_eq!(
-            fs::read(dir.join("worldgen/beta_noise.json")).unwrap(),
-            b"file"
+            report.written,
+            strings(&["version.json", "worldgen/beta_x.json"])
         );
-        assert_eq!(fs::read(dir.join("beta/deep/er/c.json")).unwrap(), b"deep");
+        assert_eq!(fs::read(dir.join("worldgen/beta_x.json")).unwrap(), b"x");
     }
 
     #[test]
@@ -406,7 +403,7 @@ mod tests {
     fn a_second_run_writes_and_deletes_nothing() {
         let dir = scratch("twice");
         put(&dir, "stale.json", b"stale");
-        put(&dir, "beta_x/k.json", b"k");
+        put(&dir, "stale/k.json", b"k");
         let jar = zipped(&[
             ("data/minecraft/tags/a.json", b"a"),
             ("version.json", b"{}"),

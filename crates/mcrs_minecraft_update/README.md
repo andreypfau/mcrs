@@ -33,10 +33,10 @@ client jar, plus `version.json`. The resource pack is not in the repository;
 the client reads it from the jar that
 `crates/mcrs_minecraft_client_jar/src/release.json` describes.
 
-The local files are the ones with a path component that begins with `beta`
-(for example `worldgen/biome/beta_forest.json`).
-An update keeps them, reports how many it kept, and refuses a jar entry that
-would land on one.
+The corpus is the game's data pack exactly: an update writes every jar entry
+and deletes every file the jar lacks, whatever its name. Local data lives in
+packs under `assets/mcrs/datapacks/`, layered over the game's data pack, and
+the update never touches them.
 
 Three folders ship no files: `worldgen/density_function`, `worldgen/noise_settings`
 and `worldgen/noise`. Their entries are built by
@@ -71,7 +71,7 @@ The steps, in order:
    verified copy is there.
 2. Read `version.json` from the jar and stop if its id is not the requested one.
 3. Replace `assets/minecraft` with `data/minecraft` of the jar, delete what the
-   jar no longer has (except the `beta` files) and write `version.json`.
+   jar no longer has and write `version.json`.
 4. Write `crates/mcrs_minecraft_client_jar/src/release.json`, the descriptor of
    the jar, its central directory and the package descriptor, and
    `crates/mcrs_minecraft_client_jar/src/font_hint.json`.

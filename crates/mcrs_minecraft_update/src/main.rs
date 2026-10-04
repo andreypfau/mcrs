@@ -164,10 +164,9 @@ fn run(options: &Options) -> Result<(), String> {
     }
     println!("{CORPUS}: {built_in} entries are built by code and ship no file");
     println!(
-        "{CORPUS}: {} written, {} deleted, {} kept",
+        "{CORPUS}: {} written, {} deleted",
         report.written.len(),
-        report.deleted.len(),
-        report.kept.len()
+        report.deleted.len()
     );
 
     let diff_out = options.diff_out.as_deref();
