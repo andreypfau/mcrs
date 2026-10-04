@@ -698,6 +698,38 @@ than from the undecorated snapshot the neighbours still read. Both squares are r
 The counts are the halo rule, exact; the bytes are the measured 44 KB a snapshot owns. The 24
 sections are this dimension's; a taller one scales with them.
 
+## Carving, per column
+
+What the carvers cost today: every column walks the 17 x 17 source chunks around it and runs the
+carvers of each source's biome, reading no neighbour. Taken at commit `84b151e1f` before any
+change to how carving is organised, so it is the figure a later change is compared with.
+
+Machine: Apple M4 Max, 16 logical CPUs, 128 GiB, macOS 26.6 (Darwin 25.6.0). Build: the `bench`
+profile (optimized), nightly `rustc 1.100.0-nightly (5db7f4be8 2026-09-01)`. The machine was not
+idle: desktop applications were open and the one-minute load average read between 4.7 and 7.7
+at the start and end of the runs. Three runs of each command, one
+after the other, the compiled bench binaries started directly from the crate directory with
+`BEVY_ASSET_ROOT` set to the repository root (the same environment `cargo bench` gives them).
+
+| command | per column or chunk, mean of 3 runs | run-to-run spread |
+| --- | --- | --- |
+| `beta_chunks -- 32 1 12345` (1024 chunks, 1 thread) | 0.4287 ms per chunk, 2328 chunks/s (2312 to 2342) | 1.3% |
+| the same, `caves` stage | 0.0773 ms (0.077 to 0.078) | 1.3% |
+| `overworld_pipeline -- 64 777 0` (4096 columns), whole column | 3.567 ms (3.564 to 3.571) | 0.2% |
+| the same, `carve` (the mask build alone) | 0.104 ms (0.103 to 0.106) | 2.9% |
+| `overworld_pipeline -- 64 845 0` (4096 columns), whole column | 2.985 ms (2.969 to 2.995) | 0.9% |
+| the same, `carve` | 0.0967 ms (0.096 to 0.098) | 2.1% |
+
+Per-column distribution of the whole column, p50 / p90 / max over the 3 runs: seed 777 3.32 /
+5.12 / 7.1 to 8.9 ms, seed 845 2.83 / 3.81 / 5.2 to 5.6 ms. The maximum is a single column and
+moves by 22% and 6% between runs; the mean and the percentiles do not. Seed 845 at the origin
+is almost all frozen ocean, so its columns carry water over a carved floor. The carver share of
+the whole column is 2.9% (seed 777) and 3.2% (seed 845).
+
+The spread is the largest minus the smallest of the three runs over their mean. An earlier
+measurement on this machine saw noise up to 13% under heavier load; a difference smaller than
+the spread above is not a finding.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the

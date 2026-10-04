@@ -74,19 +74,13 @@ fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, Mater
 }
 
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let path = worldgen_dir().join(format!(
-        "biome/{}.json",
-        biome.strip_prefix("minecraft:").unwrap_or(biome)
-    ));
-    let raw: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    let names: Vec<String> = match raw.get("carvers") {
-        Some(serde_json::Value::String(one)) => vec![one.clone()],
-        Some(serde_json::Value::Array(many)) => many
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect(),
-        _ => Vec::new(),
-    };
+    let id = ResourceLocation::parse(biome).expect("a biome id");
+    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let names: Vec<String> = biome
+        .carvers
+        .iter()
+        .map(|name| name.as_str().to_owned())
+        .collect();
     names
         .iter()
         .map(|name| {

@@ -19,6 +19,8 @@ mod biome_parity;
 #[cfg(test)]
 mod biome_upscale;
 #[cfg(test)]
+mod carving_pins;
+#[cfg(test)]
 mod cell_census;
 #[cfg(test)]
 mod cell_fill;
