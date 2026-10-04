@@ -15,7 +15,8 @@ use bevy_math::DVec3;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_registry::{DynRegistryIndex, Registry, RegistrySet};
 use serde_json::json;
 
 use crate::dimension_type::{DimensionType, Skybox};
@@ -25,7 +26,7 @@ use mcrs_minecraft_environment::attribute::{
     ModifierError, Operation, apply,
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
-use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
 
 pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
@@ -46,6 +47,8 @@ pub enum EnvironmentError {
     Modifier(#[from] ModifierError),
     #[error("unknown environment attribute `{0}`; the registry is behind the game version")]
     UnknownAttribute(String),
+    #[error("a timeline runs on a clock the world clock registry does not hold")]
+    UnknownClock,
 }
 
 #[derive(Debug, Clone)]
@@ -160,8 +163,8 @@ impl<'a> DimensionEnvironment<'a> {
 
 /// The layer stacks of one dimension, one per registered attribute.
 ///
-/// Derived from the dimension type, the timelines its tag names and the
-/// registry; rebuilt only when those assets change.
+/// Derived once from the dimension type, the timelines its tag names and the
+/// attribute registry.
 #[derive(Resource, Debug, Clone)]
 pub struct EnvironmentAttributes {
     skybox: Skybox,
@@ -173,6 +176,7 @@ impl EnvironmentAttributes {
     pub fn build(
         dimension: &DimensionEnvironment,
         timelines: &[&Timeline],
+        world_clocks: &Registry<WorldClock>,
     ) -> Result<Self, EnvironmentError> {
         let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
             .values()
@@ -196,10 +200,13 @@ impl EnvironmentAttributes {
 
         let mut clocks: Vec<ResourceLocation<Arc<str>>> = Vec::new();
         for timeline in timelines {
-            let clock = match clocks.iter().position(|known| known == &timeline.clock) {
+            let name = world_clocks
+                .key(timeline.clock)
+                .ok_or(EnvironmentError::UnknownClock)?;
+            let clock = match clocks.iter().position(|known| known == name) {
                 Some(known) => known,
                 None => {
-                    clocks.push(timeline.clock.clone());
+                    clocks.push(name.clone());
                     clocks.len() - 1
                 }
             };
@@ -266,8 +273,8 @@ impl EnvironmentAttributes {
 
 /// One layer stack set per loaded dimension type.
 ///
-/// Derived from the dimension type registry, the `timeline` registry and the
-/// tag that joins them; rebuilt whole rather than patched.
+/// Derived once from the dimension type registry, the `timeline` registry and
+/// the tag that joins them.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct DimensionEnvironments(HashMap<ResourceLocation<Arc<str>>, EnvironmentAttributes>);
 
@@ -291,36 +298,25 @@ impl DimensionEnvironments {
     }
 }
 
-/// Fold the loaded `timeline` registry into everything derived from it: the
-/// time marker table beside the clocks, and one layer stack set per dimension.
-pub fn freeze_timelines(
-    timelines: Res<Assets<Timeline>>,
+/// Build one layer stack set per dimension type from the `timeline` column and
+/// the timeline tag each dimension type names.
+pub fn build_dimension_environments(
+    registries: Res<RegistrySet>,
     dimension_types: Res<Assets<DimensionType>>,
     timeline_index: Res<DynRegistryIndex<Timeline>>,
     tag_files: Res<Assets<TagFile>>,
     asset_server: Res<AssetServer>,
-    mut markers: ResMut<ClockTimeMarkers>,
     mut environments: ResMut<DimensionEnvironments>,
 ) {
-    let mut loaded: Vec<(ResourceLocation<Arc<str>>, &Timeline)> = timelines
-        .iter()
-        .filter_map(|(id, timeline)| {
-            Some((
-                rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline")?,
-                timeline,
-            ))
-        })
-        .collect();
-    loaded.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
-
-    for error in markers.rebuild(loaded.iter().map(|(_, timeline)| *timeline)) {
-        tracing::error!(%error, "rejected time marker");
-    }
-
-    let by_id: HashMap<&str, &Timeline> = loaded
-        .iter()
-        .map(|(id, timeline)| (id.as_str(), *timeline))
-        .collect();
+    let (Some(timelines), Some(world_clocks)) = (
+        registries.column::<Timeline>(Timeline::KEY.as_str()),
+        registries.registry::<WorldClock>(),
+    ) else {
+        tracing::error!(
+            "the registry set holds no timelines and clocks to build environments from"
+        );
+        return;
+    };
 
     environments.0.clear();
     for (asset_id, dimension_type) in dimension_types.iter() {
@@ -339,15 +335,13 @@ pub fn freeze_timelines(
             .unwrap_or_default();
         let dimension_timelines: Vec<&Timeline> = members
             .into_iter()
-            .filter_map(|member| {
-                let id = timeline_index.location(member)?;
-                by_id.get(id.as_str()).copied()
-            })
+            .filter_map(|member| timelines.get(member as usize))
             .collect();
 
         match EnvironmentAttributes::build(
             &DimensionEnvironment::of(id.as_str(), dimension_type),
             &dimension_timelines,
+            &world_clocks,
         ) {
             Ok(attributes) => {
                 environments.0.insert(id, attributes);
@@ -358,8 +352,7 @@ pub fn freeze_timelines(
 
     tracing::info!(
         dimensions = environments.len(),
-        markers = markers.len(),
-        "froze timelines"
+        "built dimension environments"
     );
 }
 

@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::{PackSource, RegistryAccess};
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -150,61 +148,6 @@ fn walk(ours: &NbtTag, game: &NbtTag) -> Vec<Difference> {
 const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are replaced]";
 const SECTION_OTHERS: &str = "[other compared registries]";
 
-struct Row {
-    registry: String,
-    directory: &'static str,
-    tag: fn(&str) -> Result<NbtTag, String>,
-}
-
-fn typed<T: DeserializeOwned + Serialize>(text: &str) -> Result<NbtTag, String> {
-    let value: T = serde_json::from_str(text).map_err(|e| e.to_string())?;
-    mcrs_minecraft_nbt::to_nbt_tag(&value).map_err(|e| e.to_string())
-}
-
-fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row {
-    Row {
-        registry: format!("minecraft:{directory}"),
-        directory,
-        tag,
-    }
-}
-
-fn rows() -> Vec<Row> {
-    vec![row(
-        "world_clock",
-        typed::<mcrs_minecraft_environment::world_clock::WorldClock>,
-    )]
-}
-
-fn shipped_files(directory: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) {
-    let entries =
-        std::fs::read_dir(directory).unwrap_or_else(|e| panic!("{}: {e}", directory.display()));
-    for entry in entries {
-        let path = entry.unwrap().path();
-        let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        if path.is_dir() {
-            shipped_files(&path, &format!("{prefix}{name}/"), out);
-        } else if let Some(stem) = name.strip_suffix(".json") {
-            out.push((format!("minecraft:{prefix}{stem}"), path));
-        }
-    }
-}
-
-fn from_files(row: &Row) -> BTreeMap<String, NbtTag> {
-    let directory = crate_path("../../assets/minecraft").join(row.directory);
-    let mut files = Vec::new();
-    shipped_files(&directory, "", &mut files);
-    files
-        .into_iter()
-        .map(|(entry, path)| {
-            let text = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let tag = (row.tag)(&text).unwrap_or_else(|e| panic!("{} {entry}: {e}", row.registry));
-            (entry, tag)
-        })
-        .collect()
-}
-
 fn from_app(app: &App, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
     let access = app.world().resource::<RegistryAccess>();
     let snapshot = access
@@ -280,17 +223,12 @@ fn sections(text: &str) -> BTreeMap<String, Vec<String>> {
 
 pub fn the_synced_values_differ_from_the_game_as_recorded(app: &App) {
     let golden = golden();
-    let rows = rows();
 
     let mut untyped_copies = BTreeSet::new();
     let mut others = BTreeSet::new();
     for (registry, game) in &golden.registries {
-        let ours = match rows.iter().find(|row| &row.registry == registry) {
-            Some(row) => from_files(row),
-            None => match from_app(app, registry) {
-                Some(entries) => entries,
-                None => continue,
-            },
+        let Some(ours) = from_app(app, registry) else {
+            continue;
         };
         let lines = compare_registry(registry, &ours, game);
         if UNTYPED_COPIES.contains(&registry.as_str()) {

@@ -23,6 +23,18 @@ impl Deref for Tracks {
     }
 }
 
+impl Tracks {
+    pub fn syncable(&self) -> Tracks {
+        Tracks(
+            self.0
+                .iter()
+                .filter(|(_, track)| track.attribute.syncable)
+                .map(|(id, track)| (*id, track.clone()))
+                .collect(),
+        )
+    }
+}
+
 impl FromIterator<Track> for Tracks {
     fn from_iter<I: IntoIterator<Item = Track>>(tracks: I) -> Self {
         Tracks(

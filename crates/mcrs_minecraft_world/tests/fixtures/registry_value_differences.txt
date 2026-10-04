@@ -14,13 +14,6 @@ minecraft:dimension_type $.attributes.minecraft:gameplay/snow_golem_melts ours=b
 minecraft:dimension_type $.attributes.minecraft:gameplay/straw_bed_rule ours=compound game=absent
 minecraft:dimension_type $.cardinal_light ours=string game=absent
 minecraft:dimension_type $.skybox ours=string game=absent
-minecraft:timeline $.tracks ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/bees_stay_in_hive ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/cat_waking_up_gift_chance ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/eyeblossom_open ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/monsters_burn ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/surface_slime_spawn_chance ours=compound game=absent
-minecraft:timeline $.tracks.minecraft:gameplay/turtle_egg_hatch_chance ours=compound game=absent
 minecraft:worldgen/block_state_provider $.high_chance ours=double game=float
 minecraft:worldgen/block_state_provider $.scale ours=double game=float
 minecraft:worldgen/block_state_provider $.slow_scale ours=double game=float

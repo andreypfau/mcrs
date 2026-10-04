@@ -25,8 +25,8 @@ pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, index_biomes, index_structures, index_timelines, request_data_pack_assets,
-    request_every_tag, resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
+    check_tags_ready, index_biomes, index_structures, request_data_pack_assets, request_every_tag,
+    resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
@@ -36,10 +36,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_dimension::environment::{DimensionEnvironments, freeze_timelines};
+use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
 use mcrs_minecraft_entity::EntityType;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::seed_world_clocks;
+use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
+use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 
@@ -85,10 +85,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<mcrs_minecraft_biome::Biome>();
         app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
-        app.init_asset::<mcrs_minecraft_environment::timeline::Timeline>();
-        app.register_asset_loader(
-            JsonLoader::<mcrs_minecraft_environment::timeline::Timeline>::default(),
-        );
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
@@ -156,27 +152,9 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    mcrs_minecraft_environment::timeline::Timeline,
-                    "minecraft:timeline",
-                    |t: &mcrs_minecraft_environment::timeline::Timeline| {
-                        mcrs_minecraft_nbt::to_nbt_tag(
-                            &mcrs_minecraft_environment::timeline::NetworkTimeline::from(t),
-                        )
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
                     mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
                     "minecraft:worldgen/block_state_provider",
                     |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
-                        mcrs_minecraft_nbt::to_nbt_tag(v)
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    mcrs_minecraft_environment::world_clock::WorldClock,
-                    "minecraft:world_clock",
-                    |v: &mcrs_minecraft_environment::world_clock::WorldClock| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
@@ -206,11 +184,10 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    (index_timelines, index_biomes, index_structures).before(TagPhase::Resolve),
+                    (index_biomes, index_structures).before(TagPhase::Resolve),
                     (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
-                    freeze_timelines
+                    build_dimension_environments
                         .after(TagPhase::Freeze)
-                        .after(seed_world_clocks)
                         .before(transition_to_playing),
                     transition_to_playing.after(TagPhase::Freeze),
                 ),
@@ -425,6 +402,18 @@ impl Plugin for MinecraftWorldPlugin {
                     "minecraft:frog_variant",
                     |variant| variant::NetworkFrogVariant::from(variant),
                 );
+                registries::register_loaded::<WorldClock, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:world_clock",
+                    Clone::clone,
+                );
+                registries::register_loaded::<Timeline, _>(
+                    &mut access,
+                    &registries,
+                    "minecraft:timeline",
+                    |timeline| NetworkTimeline::from(timeline),
+                );
                 registries::register_loaded::<variant::ZombieNautilusVariant, _>(
                     &mut access,
                     &registries,
@@ -442,6 +431,22 @@ impl Plugin for MinecraftWorldPlugin {
                         panic!("{}: no minecraft:enchantment values", path.display())
                     }),
             );
+            {
+                let clocks = registries.registry::<WorldClock>().unwrap_or_else(|| {
+                    panic!("{}: no minecraft:world_clock registry", path.display())
+                });
+                let timelines = registries
+                    .column::<Timeline>("minecraft:timeline")
+                    .unwrap_or_else(|| panic!("{}: no minecraft:timeline values", path.display()));
+                let timeline_table = registries.table("minecraft:timeline").unwrap_or_else(|| {
+                    panic!("{}: no minecraft:timeline registry", path.display())
+                });
+                app.insert_resource(
+                    ClockTimeMarkers::derive(timelines, &clocks)
+                        .expect("the load refused a time marker defined twice for one clock"),
+                );
+                app.insert_resource(DynRegistryIndex::<Timeline>::from_table(timeline_table));
+            }
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);

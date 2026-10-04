@@ -277,7 +277,7 @@ mod tests {
     use mcrs_minecraft_environment::attribute::{AttributeValue, EnvironmentAttributeMap};
     use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
     use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
+    use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
 
     use super::*;
 
@@ -307,6 +307,15 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap()
     }
 
+    static CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
+        std::sync::LazyLock::new(|| {
+            mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+        });
+
+    fn clock_registry() -> mcrs_minecraft_registry::Registry<WorldClock> {
+        CLOCKS.registry().unwrap()
+    }
+
     fn timeline(name: &str) -> Timeline {
         let bytes = std::fs::read(
             crate::asset_corpus()
@@ -315,7 +324,7 @@ mod tests {
                 .join(name),
         )
         .unwrap();
-        serde_json::from_slice(&bytes).unwrap()
+        CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
     }
 
     /// The timelines a tag names, read from the shipped tag files and flattened
@@ -357,7 +366,7 @@ mod tests {
     fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
         let proto = dimension_type(file);
         let borrowed: Vec<&Timeline> = timelines.iter().collect();
-        EnvironmentAttributes::build(&shape(id, &proto), &borrowed).unwrap()
+        EnvironmentAttributes::build(&shape(id, &proto), &borrowed, &clock_registry()).unwrap()
     }
 
     fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
@@ -456,18 +465,18 @@ mod tests {
     #[test]
     fn a_track_for_cloud_height_moves_it_into_the_frame_block() {
         let mut timelines = tagged_timelines("in_overworld");
-        timelines.push(
-        serde_json::from_value(json!({
-            "clock": "minecraft:overworld",
-            "period_ticks": 24000,
-            "tracks": {
-                "minecraft:visual/cloud_height": {
-                    "keyframes": [{"ticks": 0, "value": 192.33}, {"ticks": 12000, "value": 128.0}],
+        timelines.push(CLOCKS.scope(|| {
+            serde_json::from_value(json!({
+                "clock": "minecraft:overworld",
+                "period_ticks": 24000,
+                "tracks": {
+                    "minecraft:visual/cloud_height": {
+                        "keyframes": [{"ticks": 0, "value": 192.33}, {"ticks": 12000, "value": 128.0}],
+                    },
                 },
-            },
-        }))
-        .unwrap(),
-    );
+            }))
+            .unwrap()
+        }));
         let attributes = build("minecraft:overworld", "overworld.json", &timelines);
         let layout = SkyLayout::derive(&attributes);
 
@@ -538,9 +547,12 @@ mod tests {
         let nether_timelines = [timeline("villager_schedule.json")];
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
-        let attributes =
-            EnvironmentAttributes::build(&shape("minecraft:the_nether", &proto), &borrowed)
-                .unwrap();
+        let attributes = EnvironmentAttributes::build(
+            &shape("minecraft:the_nether", &proto),
+            &borrowed,
+            &clock_registry(),
+        )
+        .unwrap();
 
         let layout = SkyLayout::derive(&attributes);
         let empty = SpatialAttributeInterpolator::default();

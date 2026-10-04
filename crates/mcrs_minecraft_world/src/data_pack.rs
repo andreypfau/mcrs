@@ -15,7 +15,6 @@ use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::{timeline, world_clock};
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::NameTable;
 use mcrs_minecraft_registry::RegistrySet;
@@ -188,20 +187,6 @@ pub(crate) fn request_data_pack_assets(
         "minecraft:dimension_type",
         "json",
     );
-    request_registry::<timeline::Timeline>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:timeline",
-        "json",
-    );
-    request_registry::<world_clock::WorldClock>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:world_clock",
-        "json",
-    );
 }
 
 /// Every tag the loaded packs ship for one registry, as
@@ -310,22 +295,6 @@ pub(crate) fn resolve_infiniburn_tags(
     if resolved > 0 {
         tracing::info!(resolved_tags = resolved, "resolved infiniburn tags");
     }
-}
-
-/// The dense id space the timeline tag bitsets are resolved against.
-pub(crate) fn index_timelines(
-    timelines: Res<Assets<Timeline>>,
-    asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
-    mut commands: Commands,
-) {
-    let entries: Vec<_> = timelines
-        .iter()
-        .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path(), "timeline"))
-        .collect();
-    let table = loaded_table(&set, "minecraft:timeline", &entries);
-    tracing::info!(count = entries.len(), "indexed timelines");
-    commands.insert_resource(DynRegistryIndex::<Timeline>::from_table(table));
 }
 
 fn loaded_table<'a>(

@@ -1,7 +1,9 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
 
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -135,6 +137,25 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
         }
     }
     entries
+}
+
+/// A registry set holding the one registry `R`, numbered by the files the
+/// corpus ships under `assets/minecraft/<folder>`, for reading a value that
+/// names an entry of it inside `RegistrySet::scope`.
+pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
+    let root = assets_dir().join("minecraft").join(folder);
+    let names = json_files(&root).into_iter().map(|file| {
+        let relative = file
+            .strip_prefix(&root)
+            .expect("a corpus file is under its folder")
+            .with_extension("");
+        ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
+    });
+    let registry = Registry::<R>::new(names, std::iter::empty())
+        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
+    RegistrySet::new()
+        .with(registry)
+        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
 }
 
 /// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping

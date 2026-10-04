@@ -10,20 +10,18 @@ doctest = false
 [dependencies]
 mcrs_minecraft_worldgen_structure.workspace = true
 bevy_app.workspace = true
-bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
-bevy_reflect.workspace = true
 bevy_state.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true

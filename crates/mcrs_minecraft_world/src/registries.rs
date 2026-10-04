@@ -18,6 +18,8 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Item, JukeboxSong, PaintingVariantValue, SoundEvent,
@@ -54,6 +56,11 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse::<SulfurCubeArchetype>(&mut world, &mut undeclared);
     parse::<VillagerTrade>(&mut world, &mut undeclared);
     parse::<TradeSet>(&mut world, &mut undeclared);
+    parse::<WorldClock>(&mut world, &mut undeclared);
+    parse::<Timeline>(&mut world, &mut undeclared);
+    if world.parses(Timeline::KEY.as_str()) {
+        world.validate::<Timeline>(Timeline::KEY, check_time_markers);
+    }
     parse_as::<mcrs_minecraft_entity::DamageType, DamageType>(&mut world, &mut undeclared);
     parse_as::<mcrs_minecraft_registry::key::DecoratedPotPattern, DecoratedPotPattern>(
         &mut world,
@@ -428,7 +435,9 @@ mod tests {
             "minecraft:enchantment_provider":{"elements":true,"stable":false,"tags":true},
             "minecraft:sulfur_cube_archetype":{"elements":true,"stable":false,"tags":true},
             "minecraft:villager_trade":{"elements":true,"stable":false,"tags":true},
-            "minecraft:trade_set":{"elements":true,"stable":false,"tags":true}}}"#;
+            "minecraft:trade_set":{"elements":true,"stable":false,"tags":true},
+            "minecraft:world_clock":{"elements":true,"stable":false,"tags":true},
+            "minecraft:timeline":{"elements":true,"stable":false,"tags":true}}}"#;
         let world = world_registries(report).expect("the report parses");
         let packs = [Pack {
             name: VANILLA_PACK.to_owned(),
