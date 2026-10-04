@@ -227,6 +227,25 @@ mod tests {
     }
 
     #[test]
+    fn a_stated_default_is_an_entry_of_its_registry() {
+        let mut stated = 0;
+        for (registry, report) in JSON.as_object().unwrap() {
+            let Some(default) = report.get("default").and_then(|default| default.as_str()) else {
+                continue;
+            };
+            let table = SET.table(registry).unwrap();
+            assert!(table.number(default).is_some(), "{registry} {default}");
+            stated += 1;
+        }
+        assert!(stated > 0);
+        assert_eq!(JSON["minecraft:item"]["default"], "minecraft:air");
+        assert_eq!(
+            SET.table("minecraft:item").unwrap().number("minecraft:air"),
+            Some(0)
+        );
+    }
+
+    #[test]
     fn an_empty_registry_is_present_and_empty() {
         let set = from_report(br#"{"minecraft:none": {"protocol_id": 3, "entries": {}}}"#).unwrap();
         let table = set.table("minecraft:none").unwrap();

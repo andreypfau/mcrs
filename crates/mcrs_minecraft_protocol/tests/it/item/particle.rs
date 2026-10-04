@@ -97,11 +97,11 @@ fn check(label: &str) -> ParticleOptions {
 
 #[test]
 fn particle_kinds_match_the_registry_report() {
-    let table = mcrs_minecraft_registry::StaticRegistryTable::from_json(include_bytes!(
+    let set = mcrs_minecraft_registry::static_report::from_report(include_bytes!(
         "../../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
-    let particles = table.registry("particle_type").unwrap();
+    let particles = set.table("minecraft:particle_type").unwrap();
     assert_eq!(particles.len(), ParticleKind::COUNT);
     for (id, name) in particles.names().iter().enumerate() {
         let kind = ParticleKind::from_id(name.as_str())
@@ -117,7 +117,7 @@ fn particle_kinds_match_the_registry_report() {
         assert_eq!(ParticleKind::from_wire_id(id).unwrap().id().as_str(), name);
     }
 
-    let sources = table.registry("position_source_type").unwrap();
+    let sources = set.table("minecraft:position_source_type").unwrap();
     assert_eq!(sources.len(), 2);
     assert_eq!(sources.names()[0].as_str(), "minecraft:block");
     assert_eq!(sources.names()[1].as_str(), "minecraft:entity");

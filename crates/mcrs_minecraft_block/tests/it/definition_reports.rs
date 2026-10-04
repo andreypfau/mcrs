@@ -1,5 +1,5 @@
 use mcrs_minecraft_block::definition::schema::BlockDefinitionFile;
-use mcrs_minecraft_registry::StaticRegistryTable;
+use mcrs_minecraft_registry::static_report::from_report;
 use std::path::{Path, PathBuf};
 
 use crate::common::assert_no_mismatches;
@@ -8,11 +8,14 @@ use crate::common::assert_no_mismatches;
 fn block_protocol_ids_match_the_registries_report() {
     let registries_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json");
-    let registries = StaticRegistryTable::load(&registries_path)
-        .unwrap_or_else(|e| panic!("{}: {e}", registries_path.display()));
+    let registries = from_report(
+        &std::fs::read(&registries_path)
+            .unwrap_or_else(|e| panic!("{}: {e}", registries_path.display())),
+    )
+    .unwrap_or_else(|e| panic!("{}: {e}", registries_path.display()));
     let definitions: Vec<(PathBuf, BlockDefinitionFile)> = crate::common::definition_files();
     let blocks = registries
-        .registry("block")
+        .table("minecraft:block")
         .expect("the registries report has no block registry");
     let mut seen = 0;
     let mut mismatches = Vec::new();

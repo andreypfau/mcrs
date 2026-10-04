@@ -583,7 +583,7 @@ fn table() -> Vec<AttributeSpec> {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_registry::StaticRegistryTable;
+    use mcrs_minecraft_registry::static_report::from_report;
 
     use super::*;
 
@@ -619,13 +619,16 @@ mod tests {
 
     #[test]
     fn the_table_is_the_registry_in_names_and_order() {
-        let report = StaticRegistryTable::load(
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../assets/mcrs/reports/registries.json"),
+        let report = from_report(
+            &std::fs::read(
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../assets/mcrs/reports/registries.json"),
+            )
+            .unwrap(),
         )
         .unwrap();
         let registry: Vec<String> = report
-            .registry("environment_attribute")
+            .table("minecraft:environment_attribute")
             .unwrap()
             .names()
             .iter()

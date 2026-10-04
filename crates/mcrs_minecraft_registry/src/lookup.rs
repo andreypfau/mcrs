@@ -151,5 +151,17 @@ mod tests {
         let stone = ResourceLocation::minecraft("stone");
         assert_eq!(SET.id("minecraft:item", &stone), None);
         assert_eq!(SET.id("no_such_registry", &stone), None);
+        assert_eq!(SET.name("no_such_registry", 0), None);
+    }
+
+    #[test]
+    fn a_chain_answers_from_the_first_lookup_that_knows() {
+        let stone = ResourceLocation::minecraft("stone");
+        let air = ResourceLocation::minecraft("air");
+        let chain = ChainLookup(&[&NoRegistries, &*SET]);
+        assert_eq!(chain.id("item", &stone), SET.id("item", &stone));
+        assert!(chain.id("item", &stone).is_some());
+        assert_eq!(chain.name("item", 0), Some(&air));
+        assert_eq!(ChainLookup(&[&NoRegistries]).id("item", &stone), None);
     }
 }

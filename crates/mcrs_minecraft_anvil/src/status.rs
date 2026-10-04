@@ -36,7 +36,7 @@ impl RegistryKey for ChunkStatus {
 #[cfg(test)]
 mod tests {
     use super::ChunkStatus;
-    use mcrs_minecraft_registry::StaticRegistryTable;
+    use mcrs_minecraft_registry::static_report::from_report;
     use std::path::PathBuf;
 
     fn serde_name(status: &ChunkStatus) -> String {
@@ -49,13 +49,16 @@ mod tests {
 
     #[test]
     fn the_statuses_are_the_registry_in_names_and_order() {
-        let table = StaticRegistryTable::load(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../assets/mcrs/reports/registries.json"),
+        let set = from_report(
+            &std::fs::read(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../assets/mcrs/reports/registries.json"),
+            )
+            .unwrap(),
         )
         .unwrap();
-        let expected: Vec<String> = table
-            .registry("chunk_status")
+        let expected: Vec<String> = set
+            .table("minecraft:chunk_status")
             .unwrap()
             .names()
             .iter()

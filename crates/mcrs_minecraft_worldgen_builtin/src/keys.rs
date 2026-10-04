@@ -194,27 +194,29 @@ pub mod processors {
 
 #[cfg(test)]
 pub(crate) mod report {
+    use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::registry_key::RegistryKey;
-    use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-    use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
+    use mcrs_minecraft_registry::RegistrySet;
+    use mcrs_minecraft_registry::static_report::from_report;
     use std::collections::BTreeSet;
+    use std::sync::LazyLock;
 
-    fn table() -> StaticRegistryTable {
-        StaticRegistryTable::load(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        from_report(
+            &std::fs::read(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../assets/mcrs/reports/registries.json"
+            ))
+            .unwrap(),
+        )
         .unwrap()
-    }
+    });
 
     pub fn missing<T: RegistryKey>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
-        let table = table();
+        let table = SET.table(T::KEY.as_str());
         keys.iter()
             .map(|key| key.as_str())
-            .filter(|name| {
-                let name = ResourceLocation::from(name.parse::<ResourceLocation>().unwrap());
-                table.id(T::KEY.path(), &name).is_none()
-            })
+            .filter(|name| table.is_none_or(|table| table.number(name).is_none()))
             .map(str::to_owned)
             .collect()
     }
