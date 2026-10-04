@@ -4111,8 +4111,11 @@ version = "0.1.0"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_noise",

@@ -16,7 +16,7 @@ pub fn run_outbound_flush(world: &mut bevy_ecs::world::World) {
 }
 
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::BridgeTelemetry;
+use mcrs_minecraft_network::metrics::{BridgeTelemetry, GameDecodeCounts};
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::chunk::ChunkData;
@@ -424,6 +424,7 @@ pub fn bridge_inbound(
     mut sessions: Query<(&SessionPlacement, &mut PendingInbound)>,
     dim_channels: Res<DimChannelsResource>,
     mut telemetry: ResMut<BridgeTelemetry>,
+    mut decode_counts: ResMut<GameDecodeCounts>,
 ) {
     use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
@@ -448,6 +449,12 @@ pub fn bridge_inbound(
                         commands.entity(entity).remove::<ServerSideConnection>();
                         telemetry.kick_flood_total += 1;
                         break;
+                    }
+
+                    // chisle: every typed frame is decoded here and again by its handler;
+                    // a single typed receive path decodes once and replaces this call.
+                    if let Some(line) = decode_counts.record(pkt.id, &pkt.payload) {
+                        warn!("{line}");
                     }
 
                     commands.trigger(ReceivedPacketEvent {

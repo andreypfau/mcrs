@@ -102,7 +102,7 @@ fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     );
 }
 
-fn diamond_sword() -> ResourceKey<mcrs_minecraft_protocol::item::ItemReg> {
+fn diamond_sword() -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
     ResourceKey::from_location(ResourceLocation::minecraft("diamond_sword"))
 }
 

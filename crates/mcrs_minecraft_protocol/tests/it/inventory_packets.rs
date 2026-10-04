@@ -188,7 +188,7 @@ fn clientbound_container_packets() {
     );
 }
 
-fn key(path: &str) -> ResourceKey<mcrs_minecraft_protocol::item::ItemReg> {
+fn key(path: &str) -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 

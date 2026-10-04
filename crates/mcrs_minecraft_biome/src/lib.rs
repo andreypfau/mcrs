@@ -15,6 +15,7 @@ use mcrs_minecraft_core::codec::{HexRgb, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
+use mcrs_minecraft_registry::key::Carver;
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_structure::DecorationStep;
@@ -130,8 +131,8 @@ pub struct BiomeGeneration {
 }
 
 impl BiomeGeneration {
-    pub fn carver(&mut self, id: StaticResourceLocation) -> &mut Self {
-        self.carvers.push(id);
+    pub fn carver(&mut self, key: ResourceKey<Carver, &'static str>) -> &mut Self {
+        self.carvers.push(*key.location());
         self
     }
 

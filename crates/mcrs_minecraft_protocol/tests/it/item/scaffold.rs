@@ -272,7 +272,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     assert_eq!(HashedStack::create(&ProtoStack::EMPTY).unwrap(), None);
 }
 
-fn stone() -> ResourceKey<mcrs_minecraft_protocol::item::ItemReg> {
+fn stone() -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
     ResourceKey::from_location(ResourceLocation::minecraft("stone"))
 }
 
@@ -373,7 +373,7 @@ fn a_one_entry_holder_set_writes_as_the_bare_entry() {
     );
 
     let lookup = TestLookup::new();
-    type Blocks = HolderSet<ResourceKey<mcrs_minecraft_protocol::item::BlockReg>>;
+    type Blocks = HolderSet<ResourceKey<mcrs_minecraft_registry::key::Block>>;
     let dirt = ResourceKey::from_location(ResourceLocation::minecraft("dirt"));
     let cases: [(Blocks, &[u8]); 4] = [
         (

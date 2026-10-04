@@ -631,14 +631,152 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::entity::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
     use crate::item::{ContainerInput, HashedStack, RawDelimitedStack};
-    use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
+    use crate::packets::common::serverbound::{
+        ClientInformation, CustomClickAction, CustomPayload, KeepAlive, Pong, ResourcePack,
+    };
+    use crate::packets::cookie::serverbound::CookieResponse;
     use crate::pos::MoveFlags;
     use crate::recipe::RecipeBookType;
-    use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
+    use crate::{
+        Bounded, Decode, Difficulty, Direction, Encode, GameMode, Hand, Look, LpVec3, Position,
+        VarInt,
+    };
+    use bitfield_struct::bitfield;
     use derive_more::From;
     use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-    use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use uuid::Uuid;
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundAttack {
+        pub entity_id: VarInt,
+    }
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode)]
+    pub enum ClientCommandAction {
+        PerformRespawn,
+        RequestStats,
+        RequestGameRuleValues,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundClientCommand {
+        pub action: ClientCommandAction,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundClientTickEnd;
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundInteract {
+        pub entity_id: VarInt,
+        pub hand: Hand,
+        pub location: LpVec3,
+        pub using_secondary_action: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundMoveVehicle {
+        pub position: Position,
+        pub look: Look,
+        pub on_ground: bool,
+    }
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub struct ServerboundPlayerAbilities {
+        pub flying: bool,
+    }
+
+    const ABILITIES_FLYING: u8 = 2;
+
+    impl Encode for ServerboundPlayerAbilities {
+        fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+            (if self.flying { ABILITIES_FLYING } else { 0 }).encode(w)
+        }
+    }
+
+    impl Decode<'_> for ServerboundPlayerAbilities {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            Ok(Self {
+                flying: u8::decode(r)? & ABILITIES_FLYING != 0,
+            })
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode)]
+    pub enum PlayerCommandAction {
+        StopSleeping,
+        StartSprinting,
+        StopSprinting,
+        StartRidingJump,
+        StopRidingJump,
+        OpenInventory,
+        StartFallFlying,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundPlayerCommand {
+        pub entity_id: VarInt,
+        pub action: PlayerCommandAction,
+        pub data: VarInt,
+    }
+
+    #[bitfield(u8)]
+    #[derive(PartialEq, Eq)]
+    pub struct PlayerInputFlags {
+        pub forward: bool,
+        pub backward: bool,
+        pub left: bool,
+        pub right: bool,
+        pub jump: bool,
+        pub shift: bool,
+        pub sprint: bool,
+        _pad: bool,
+    }
+
+    impl Encode for PlayerInputFlags {
+        fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+            self.into_bits().encode(w)
+        }
+    }
+
+    impl Decode<'_> for PlayerInputFlags {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            Ok(Self::from_bits(u8::decode(r)?))
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundPlayerInput {
+        pub input: PlayerInputFlags,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundPlayerLoaded;
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundPunch;
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct ServerboundUseItem {
+        pub hand: Hand,
+        pub sequence: VarInt,
+        pub look: Look,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
+    pub struct ServerboundCookieResponse<'a>(pub CookieResponse<'a>);
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
+    pub struct ServerboundCustomPayload<'a>(pub CustomPayload<'a>);
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
+    pub struct ServerboundPong(pub Pong);
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
+    pub struct ServerboundResourcePack(pub ResourcePack);
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
+    pub struct ServerboundCustomClickAction<'a>(pub CustomClickAction<'a>);
 
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ServerboundAcceptTeleportation {

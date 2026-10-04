@@ -16,7 +16,7 @@ use uuid::Uuid;
 use mcrs_minecraft_core::codec::{ArgbInt, IntArray, default_true, lenient, optional_flag};
 use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_profile::Profile;
-use mcrs_minecraft_registry::DialogReg;
+use mcrs_minecraft_registry::key;
 
 /// What a `show_item` hover carries; `()` for a consumer with no item model.
 pub trait HoverItem:
@@ -716,12 +716,12 @@ pub enum ClickEvent {
 }
 
 /// A registry id, or the dialog written inline.
-// chisle: an inline dialog is carried as its compound and not validated; give it the typed
-// dialog codecs once they live below the protocol crate.
+// chisle: an inline dialog is carried as its compound and is not validated; validating it
+// where the dialog value is known, in the crate that owns it, lifts this.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DialogRef {
-    Reference(ResourceKey<DialogReg>),
+    Reference(ResourceKey<key::Dialog>),
     Inline(NbtCompound),
 }
 

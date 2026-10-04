@@ -6,10 +6,11 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::{
-    ComponentPredicate, ComponentPredicateType, DimensionReg, DyeColor, ItemComponentKind,
-    ItemComponentValue, RgbInt, TrimMaterialReg,
+    ComponentPredicate, ComponentPredicateType, DyeColor, ItemComponentKind, ItemComponentValue,
+    RgbInt, TrimMaterial,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::key::Dimension;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -434,7 +435,7 @@ impl<'de, S: DeserializeSeed<'de> + Clone> Visitor<'de> for CompactSeed<S> {
 pub enum SelectSwitch {
     #[serde(rename = "minecraft:trim_material", alias = "trim_material")]
     TrimMaterial {
-        cases: Vec<Case<ResourceKey<TrimMaterialReg>>>,
+        cases: Vec<Case<ResourceKey<TrimMaterial>>>,
     },
     #[serde(rename = "minecraft:display_context", alias = "display_context")]
     DisplayContext { cases: Vec<Case<DisplayContext>> },
@@ -471,7 +472,7 @@ pub enum SelectSwitch {
     },
     #[serde(rename = "minecraft:context_dimension", alias = "context_dimension")]
     ContextDimension {
-        cases: Vec<Case<ResourceKey<DimensionReg>>>,
+        cases: Vec<Case<ResourceKey<Dimension>>>,
     },
     #[serde(rename = "minecraft:component", alias = "component")]
     Component(ComponentSwitch),

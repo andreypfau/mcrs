@@ -21,10 +21,28 @@ pub const fn row_of(names: &[&str], name: &str) -> i32 {
 #[derive(Debug, Clone, Copy)]
 pub struct Table {
     pub name: &'static str,
+    pub enum_name: &'static str,
     pub state: ConnectionState,
     pub side: PacketSide,
     pub names: &'static [&'static str],
     pub typed: &'static [&'static str],
+}
+
+#[derive(Debug)]
+pub enum Decoded<P> {
+    Packet(P),
+    NotImplemented(&'static str),
+    Unknown(i32),
+}
+
+impl<P> Decoded<P> {
+    pub fn forget(self) -> Decoded<()> {
+        match self {
+            Decoded::Packet(_) => Decoded::Packet(()),
+            Decoded::NotImplemented(name) => Decoded::NotImplemented(name),
+            Decoded::Unknown(id) => Decoded::Unknown(id),
+        }
+    }
 }
 
 #[macro_export]
@@ -240,7 +258,7 @@ macro_rules! for_each_packet_table {
             }
             game_serverbound: ServerboundGamePacket<'a>, Game, Serverbound in ($crate::packets::game::serverbound) {
                 "accept_teleportation" => ServerboundAcceptTeleportation,
-                "attack",
+                "attack" => ServerboundAttack,
                 "block_entity_tag_query" => ServerboundBlockEntityTagQuery,
                 "bundle_item_selected" => ServerboundSelectBundleItem,
                 "change_difficulty" => ServerboundChangeDifficulty,
@@ -251,8 +269,8 @@ macro_rules! for_each_packet_table {
                 "chat" => ServerboundChat<'a>,
                 "chat_session_update" => ServerboundChatSessionUpdate,
                 "chunk_batch_received" => ServerboundChunkBatchReceived,
-                "client_command",
-                "client_tick_end",
+                "client_command" => ServerboundClientCommand,
+                "client_tick_end" => ServerboundClientTickEnd,
                 "client_information" => ServerboundClientInformation<'a>,
                 "command_suggestion",
                 "configuration_acknowledged" => ServerboundConfigurationAcknowledged,
@@ -260,12 +278,12 @@ macro_rules! for_each_packet_table {
                 "container_click" => ServerboundContainerClick,
                 "container_close" => ServerboundContainerClose,
                 "container_slot_state_changed" => ServerboundContainerSlotStateChanged,
-                "cookie_response",
-                "custom_payload",
+                "cookie_response" => ServerboundCookieResponse<'a>,
+                "custom_payload" => ServerboundCustomPayload<'a>,
                 "debug_subscription_request",
                 "edit_book" => ServerboundEditBook<'a>,
                 "entity_tag_query",
-                "interact",
+                "interact" => ServerboundInteract,
                 "jigsaw_generate",
                 "keep_alive" => ServerboundKeepAlive,
                 "lock_difficulty",
@@ -273,23 +291,23 @@ macro_rules! for_each_packet_table {
                 "move_player_pos_rot" => ServerboundMovePlayerPosRot,
                 "move_player_rot" => ServerboundMovePlayerRot,
                 "move_player_status_only" => ServerboundMovePlayerStatusOnly,
-                "move_vehicle",
+                "move_vehicle" => ServerboundMoveVehicle,
                 "paddle_boat",
                 "pick_item_from_block" => ServerboundPickItemFromBlock,
                 "pick_item_from_entity" => ServerboundPickItemFromEntity,
                 "ping_request",
                 "place_recipe" => ServerboundPlaceRecipe,
-                "player_abilities",
+                "player_abilities" => ServerboundPlayerAbilities,
                 "player_action" => ServerboundPlayerAction,
-                "player_command",
-                "player_input",
-                "player_loaded",
-                "pong",
-                "punch",
+                "player_command" => ServerboundPlayerCommand,
+                "player_input" => ServerboundPlayerInput,
+                "player_loaded" => ServerboundPlayerLoaded,
+                "pong" => ServerboundPong,
+                "punch" => ServerboundPunch,
                 "recipe_book_change_settings" => ServerboundRecipeBookChangeSettings,
                 "recipe_book_seen_recipe" => ServerboundRecipeBookSeenRecipe,
                 "rename_item" => ServerboundRenameItem<'a>,
-                "resource_pack",
+                "resource_pack" => ServerboundResourcePack,
                 "seen_advancements" => ServerboundSeenAdvancements,
                 "select_trade" => ServerboundSelectTrade,
                 "set_beacon",
@@ -306,8 +324,8 @@ macro_rules! for_each_packet_table {
                 "teleport_to_entity",
                 "test_instance_block_action",
                 "use_item_on" => ServerboundUseItemOn,
-                "use_item",
-                "custom_click_action",
+                "use_item" => ServerboundUseItem,
+                "custom_click_action" => ServerboundCustomClickAction<'a>,
             }
         }
     };
@@ -329,9 +347,18 @@ macro_rules! tables {
                 use $($module)*::{$($($ty,)?)*};
 
                 pub const NAMES: &[&str] = &[$($name),*];
+                pub const ENUM: &str = stringify!($enum);
                 pub const TYPED: &[&str] = &[$($(typed_name!($name, $ty),)?)*];
                 pub const STATE: $crate::ConnectionState = $crate::ConnectionState::$state;
                 pub const SIDE: $crate::PacketSide = $crate::PacketSide::$side;
+                pub const TABLE: $crate::packets::table::Table = $crate::packets::table::Table {
+                    name: stringify!($table),
+                    enum_name: ENUM,
+                    state: STATE,
+                    side: SIDE,
+                    names: NAMES,
+                    typed: TYPED,
+                };
 
                 $($(
                     impl $(<$lt>)? $crate::Packet for $ty $(<$lt>)? {
@@ -341,18 +368,40 @@ macro_rules! tables {
                         const STATE: $crate::ConnectionState = STATE;
                     }
                 )?)*
+
+                #[derive(Debug)]
+                pub enum $enum $(<$tlt>)? {
+                    $($($ty($ty $(<$lt>)?),)?)*
+                }
+
+                // chisle: a linear chain over this table's typed rows; the dispatcher
+                // generated from the exported rows by another crate replaces it.
+                pub fn decode$(<$tlt>)?(
+                    id: i32,
+                    r: &mut &$($tlt)? [u8],
+                ) -> anyhow::Result<$crate::packets::table::Decoded<$enum $(<$tlt>)?>> {
+                    $($(
+                        if id == <$ty as $crate::Packet>::ID {
+                            return <$ty as $crate::Decode>::decode(r)
+                                .map($enum::$ty)
+                                .map($crate::packets::table::Decoded::Packet)
+                                .map_err(|error| {
+                                    error.context(concat!("decoding ", $name, " (", stringify!($table), ")"))
+                                });
+                        }
+                    )?)*
+                    Ok(match usize::try_from(id).ok().and_then(|row| NAMES.get(row)) {
+                        Some(name) => {
+                            *r = &[];
+                            $crate::packets::table::Decoded::NotImplemented(name)
+                        }
+                        None => $crate::packets::table::Decoded::Unknown(id),
+                    })
+                }
             }
         )*
 
-        pub const TABLES: &[Table] = &[$(
-            Table {
-                name: stringify!($table),
-                state: $table::STATE,
-                side: $table::SIDE,
-                names: $table::NAMES,
-                typed: $table::TYPED,
-            },
-        )*];
+        pub const TABLES: &[Table] = &[$($table::TABLE,)*];
     };
 }
 

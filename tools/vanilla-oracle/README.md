@@ -756,9 +756,15 @@ this task and not by hand.
 game's own codecs and stream codecs produce. The file already in the repository
 supplies the cases (the inputs); the game supplies every expected value. The
 goldens are named in `CodecGoldens` (`snbt`, `hash_ops`, the `text_*` and
-`item_*` goldens, `recipe_packets`, `particles`, `inventory_packets` and
-`registry_values`), and the file each one rewrites is in the fixture table of
-the update tool.
+`item_*` goldens, `recipe_packets`, `particles`, `inventory_packets`,
+`serverbound_game_packets` and `registry_values`), and the file each one
+rewrites is in the fixture table of the update tool.
+
+`serverbound_game_packets` holds the serverbound game packets that have a
+structure. A packet whose constructor needs a live entity, and the cases that
+only a decode can reach (a flag byte with foreign bits), are written by feeding
+chosen bytes to the game's stream codec and encoding what it decoded; the
+capture stops if the game accepts an action ordinal past the last one.
 
 ```sh
 cd tools/vanilla-oracle

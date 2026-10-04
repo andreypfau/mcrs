@@ -1,9 +1,10 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ARRAY_ID, STRING_ID};
+use mcrs_minecraft_registry::key::Dimension;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{DimensionReg, IntArray};
+use crate::component::common::IntArray;
 use crate::harness::Sample;
 
 mod pos {
@@ -24,7 +25,7 @@ mod pos {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GlobalPosValue {
-    pub dimension: ResourceKey<DimensionReg>,
+    pub dimension: ResourceKey<Dimension>,
     #[serde(with = "pos")]
     pub pos: BlockPos,
 }

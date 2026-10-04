@@ -2,10 +2,9 @@ use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_item::ProtoStack;
+use mcrs_minecraft_item::{Item, ProtoStack};
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::component::ItemReg;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};
 use crate::item::patch::ComponentMap;
 use crate::{Decode, Encode, VarInt};
@@ -13,7 +12,7 @@ use crate::{Decode, Encode, VarInt};
 /// An item a trade takes, matched by exact component values.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ItemCost {
-    pub item: ResourceKey<ItemReg>,
+    pub item: ResourceKey<Item>,
     pub count: i32,
     pub components: ComponentMap,
 }

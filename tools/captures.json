@@ -19,6 +19,7 @@
   "recipe_packets": "26.4-snapshot-2",
   "registry_census": "26.4-snapshot-2",
   "registry_values": "26.4-snapshot-2",
+  "serverbound_game_packets": "26.4-snapshot-2",
   "snbt": "26.4-snapshot-2",
   "structure_geometry": "26.4-snapshot-2",
   "structure_layouts": "26.4-snapshot-2",

@@ -174,6 +174,22 @@ fn play_serverbound() -> Pins {
     use game::serverbound::*;
     pinned! {
         "accept_teleportation" => ServerboundAcceptTeleportation, Serverbound, Game;
+        "attack" => ServerboundAttack, Serverbound, Game;
+        "client_command" => ServerboundClientCommand, Serverbound, Game;
+        "client_tick_end" => ServerboundClientTickEnd, Serverbound, Game;
+        "interact" => ServerboundInteract, Serverbound, Game;
+        "move_vehicle" => ServerboundMoveVehicle, Serverbound, Game;
+        "player_abilities" => ServerboundPlayerAbilities, Serverbound, Game;
+        "player_command" => ServerboundPlayerCommand, Serverbound, Game;
+        "player_input" => ServerboundPlayerInput, Serverbound, Game;
+        "player_loaded" => ServerboundPlayerLoaded, Serverbound, Game;
+        "punch" => ServerboundPunch, Serverbound, Game;
+        "use_item" => ServerboundUseItem, Serverbound, Game;
+        "cookie_response" => ServerboundCookieResponse<'_>, Serverbound, Game;
+        "custom_payload" => ServerboundCustomPayload<'_>, Serverbound, Game;
+        "pong" => ServerboundPong, Serverbound, Game;
+        "resource_pack" => ServerboundResourcePack, Serverbound, Game;
+        "custom_click_action" => ServerboundCustomClickAction<'_>, Serverbound, Game;
         "block_entity_tag_query" => ServerboundBlockEntityTagQuery, Serverbound, Game;
         "bundle_item_selected" => ServerboundSelectBundleItem, Serverbound, Game;
         "change_difficulty" => ServerboundChangeDifficulty, Serverbound, Game;

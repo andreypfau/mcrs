@@ -3,7 +3,6 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{HolderSet, ResourceKey};
 use mcrs_minecraft_item::Tool;
-use mcrs_minecraft_registry::BlockReg;
 use mcrs_minecraft_registry::key::Block;
 
 pub fn mining_speed(
@@ -35,7 +34,7 @@ pub fn is_correct_for_drops(
 }
 
 fn contains(
-    set: &HolderSet<ResourceKey<BlockReg>>,
+    set: &HolderSet<ResourceKey<Block>>,
     block: &str,
     blocks: &BlockDefinitions,
     tags: &DynTagRegistry<Block>,

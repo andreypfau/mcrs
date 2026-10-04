@@ -14,6 +14,8 @@ use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::key::{ContextFloatProvider, ContextIntProvider};
+
 pub use mcrs_minecraft_core::codec::{
     ArgbInt, BoundedString, IntArray, Number, RgbInt, compound_or_snbt, lenient, lenient_float,
     unsigned_byte,
@@ -150,14 +152,14 @@ macro_rules! resolvable {
 resolvable!(
     ResolvableInt,
     i32,
-    ContextIntProviderReg,
+    ContextIntProvider,
     "an int or a context int provider id",
     int_value
 );
 resolvable!(
     ResolvableFloat,
     f32,
-    ContextFloatProviderReg,
+    ContextFloatProvider,
     "a float or a context float provider id",
     float_value
 );

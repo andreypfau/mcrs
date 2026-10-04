@@ -3,10 +3,11 @@ use std::fmt;
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_core::{RegistryKey, ResourceKey, validated};
-use mcrs_minecraft_registry::{ItemId, ItemReg, RegistryLookup};
+use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::Item;
 use crate::component::common::map_only;
 use crate::hash_ops;
 use crate::kind::ItemComponentKind;
@@ -19,7 +20,7 @@ validated!(ItemStackValue);
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct ItemStackValue {
     #[serde(rename = "id")]
-    pub item: ResourceKey<ItemReg>,
+    pub item: ResourceKey<Item>,
     #[serde(default)]
     pub count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
@@ -44,7 +45,7 @@ impl mcrs_minecraft_text::HoverItem for Template {}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TemplateRepr {
-    id: ResourceKey<ItemReg>,
+    id: ResourceKey<Item>,
     #[serde(default, skip_serializing_if = "is_default")]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
@@ -90,7 +91,7 @@ impl<'de> Deserialize<'de> for Template {
 
 impl Template {
     pub fn new(
-        item: ResourceKey<ItemReg>,
+        item: ResourceKey<Item>,
         count: i32,
         components: ComponentPatch,
     ) -> Result<Self, String> {
@@ -177,7 +178,7 @@ impl ProtoStack {
 
     pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let id = ctx
-            .id(ItemReg::KEY.path(), value.item.location())
+            .id(Item::KEY.path(), value.item.location())
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
             id: ItemId(u16::try_from(id).with_context(|| format!("item id {id} is out of range"))?),
@@ -189,7 +190,7 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(ItemReg::KEY.path(), self.id.0 as u32)
+            .name(Item::KEY.path(), self.id.0 as u32)
             .with_context(|| format!("registry item has no id {}", self.id.0))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),
@@ -233,7 +234,7 @@ impl Serialize for ItemStackWithSlot {
 struct SlotRepr {
     #[serde(rename = "Slot", default, deserialize_with = "codec::int_value")]
     slot: i32,
-    id: ResourceKey<ItemReg>,
+    id: ResourceKey<Item>,
     #[serde(default)]
     count: codec::Bounded<1, 99, 1>,
     #[serde(default)]

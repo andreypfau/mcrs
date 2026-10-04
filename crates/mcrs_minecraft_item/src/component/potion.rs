@@ -6,9 +6,10 @@ use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{MobEffectDetails, MobEffectInstance, PotionReg, key};
+use crate::component::common::{MobEffectDetails, MobEffectInstance, key};
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
+use crate::key::Potion;
 
 /// The full map, or on read a bare potion id. Custom effects never carry a
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder
@@ -17,7 +18,7 @@ use crate::harness::Sample;
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionContents {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub potion: Option<ResourceKey<PotionReg>>,
+    pub potion: Option<ResourceKey<Potion>>,
     #[serde(
         default,
         deserialize_with = "optional_int",
@@ -44,7 +45,7 @@ fn optional_int<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i32>, D::Error
 }
 
 impl PotionContents {
-    pub fn potion(potion: ResourceKey<PotionReg>) -> Self {
+    pub fn potion(potion: ResourceKey<Potion>) -> Self {
         PotionContents {
             potion: Some(potion),
             ..PotionContents::default()

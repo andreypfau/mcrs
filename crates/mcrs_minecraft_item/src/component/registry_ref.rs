@@ -5,14 +5,15 @@ use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_entity::{DamageType, EntityType, MobEffect};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registry::key::{Block, BlockTransformer};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{
-    BannerPatternReg, BlockReg, BlockTransformerReg, EnchantmentReg, ItemReg, is_one, key, one,
-    serialize_entries, transparent_newtype,
-};
+use crate::Item;
+use crate::component::banner::BannerPattern;
+use crate::component::common::{is_one, key, one, serialize_entries, transparent_newtype};
 use crate::component::consume::checked_float;
+use crate::enchantment::EnchantmentData;
 use crate::harness::Sample;
 
 /// An id string, one raw VarInt on the wire, never inline.
@@ -45,7 +46,7 @@ pub(crate) use registry_key_component;
 
 registry_key_component! {
     DamageTypeRef(DamageType) ["in_fire", "lava"],
-    BlockTransformerRef(BlockTransformerReg) ["axe", "shovel"],
+    BlockTransformerRef(BlockTransformer) ["axe", "shovel"],
 }
 
 /// JSON's `null` reads as an absent field.
@@ -61,7 +62,7 @@ pub(crate) use null_as_default;
 /// Enchantment id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
-pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentReg>, i32)>);
+pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentData>, i32)>);
 
 impl Enchantments {
     /// Zero when absent.
@@ -120,7 +121,7 @@ impl<'de> Deserialize<'de> for Enchantments {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut entries: Vec<(Cow<'de, str>, ResourceKey<EnchantmentReg>, i32)> =
+                let mut entries: Vec<(Cow<'de, str>, ResourceKey<EnchantmentData>, i32)> =
                     Vec::with_capacity(map.size_hint().unwrap_or(0));
                 while let Some((raw, Level(level))) = map.next_entry::<Cow<'de, str>, Level>()? {
                     if let Some(entry) = entries.iter_mut().find(|(r, _, _)| *r == raw) {
@@ -248,7 +249,7 @@ impl Default for Tool {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct ToolRule {
-    pub blocks: HolderSet<ResourceKey<BlockReg>>,
+    pub blocks: HolderSet<ResourceKey<Block>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speed: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -318,7 +319,7 @@ impl Sample for Tool {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Repairable {
-    pub items: HolderSet<ResourceKey<ItemReg>>,
+    pub items: HolderSet<ResourceKey<Item>>,
 }
 
 impl Sample for Repairable {
@@ -387,7 +388,7 @@ impl Sample for MobVisibility {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ProvidesBannerPatterns(pub HolderSet<ResourceKey<BannerPatternReg>>);
+pub struct ProvidesBannerPatterns(pub HolderSet<ResourceKey<BannerPattern>>);
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

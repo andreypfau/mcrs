@@ -5,12 +5,12 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
+use mcrs_minecraft_registry::key::Block;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::component::common::{
-    BlockReg, LootTableReg, MapDecorationTypeReg, RecipeReg, compound_or_snbt,
-};
+use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
+use crate::key::{LootTable, MapDecorationType, Recipe};
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
@@ -75,13 +75,13 @@ impl Sample for BucketEntityData {
 }
 
 /// chisle: the persistent codec carries no registry, so an unknown
-/// decoration type id is accepted here where vanilla fails the load; a
-/// `DeserializeSeed` holding the lookup is the upgrade path.
+/// decoration type id is accepted here where vanilla fails the load; parsing
+/// the field as a registry id inside a registry scope lifts this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MapDecoration {
     #[serde(rename = "type")]
-    pub kind: ResourceKey<MapDecorationTypeReg>,
+    pub kind: ResourceKey<MapDecorationType>,
     pub x: f64,
     pub z: f64,
     pub rotation: f32,
@@ -127,7 +127,7 @@ impl Sample for MapDecorations {
 /// vanilla rejects an unknown block and a property the block does not have.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct DebugStickState(pub BTreeMap<ResourceKey<BlockReg>, String>);
+pub struct DebugStickState(pub BTreeMap<ResourceKey<Block>, String>);
 
 impl Sample for DebugStickState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -151,7 +151,7 @@ impl Sample for DebugStickState {
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Recipes(pub Vec<ResourceKey<RecipeReg>>);
+pub struct Recipes(pub Vec<ResourceKey<Recipe>>);
 
 impl Sample for Recipes {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -172,7 +172,7 @@ impl Sample for Recipes {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerLoot {
-    pub loot_table: ResourceKey<LootTableReg>,
+    pub loot_table: ResourceKey<LootTable>,
     #[serde(
         default,
         deserialize_with = "long_value",
