@@ -1,5 +1,6 @@
 use crate::entity::minecraft::EntityIds;
 use mcrs_minecraft_item::SoundEvent;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 
@@ -11,6 +12,7 @@ pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), Load
     })?;
     let mut missing = LoadReport::new();
     missing.registry::<SoundEvent>(&set);
+    missing.registry::<Block>(&set);
     let entity_ids = EntityIds::resolve(&set, &mut missing);
     match entity_ids {
         Some(entity_ids) if missing.is_empty() => Ok((set, entity_ids)),
@@ -39,8 +41,7 @@ mod tests {
         assert!(text.contains("minecraft:x"), "{text}");
     }
 
-    #[test]
-    fn a_report_without_sound_events_is_refused() {
+    fn refused_without(registry: &str) -> LoadReport {
         let mut report: serde_json::Value = serde_json::from_slice(include_bytes!(
             "../../../assets/mcrs/reports/registries.json"
         ))
@@ -48,16 +49,27 @@ mod tests {
         report
             .as_object_mut()
             .unwrap()
-            .remove("minecraft:sound_event")
-            .expect("the report carries sound events");
+            .remove(registry)
+            .unwrap_or_else(|| panic!("the report carries {registry}"));
         let bytes = serde_json::to_vec(&report).unwrap();
 
-        let refused = static_registries(&bytes)
+        static_registries(&bytes)
             .err()
-            .expect("a report without sound events is refused");
+            .unwrap_or_else(|| panic!("a report without {registry} is refused"))
+    }
+
+    #[test]
+    fn a_report_without_sound_events_is_refused() {
+        let refused = refused_without("minecraft:sound_event");
         assert!(
             refused.to_string().contains("minecraft:sound_event"),
             "{refused}"
         );
+    }
+
+    #[test]
+    fn a_report_without_blocks_is_refused() {
+        let refused = refused_without("minecraft:block");
+        assert!(refused.to_string().contains("minecraft:block"), "{refused}");
     }
 }

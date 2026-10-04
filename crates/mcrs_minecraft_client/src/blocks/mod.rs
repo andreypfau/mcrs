@@ -149,6 +149,8 @@ pub fn corpus_blocks() -> &'static mcrs_minecraft_block::definition::Blocks {
     use bevy::app::{App, TaskPoolPlugin};
     use bevy::asset::{AssetPlugin, AssetServer};
     use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
+    use mcrs_minecraft_registry::key::Block;
+    use mcrs_minecraft_registry::static_report::from_report;
 
     static CORPUS: std::sync::OnceLock<Blocks> = std::sync::OnceLock::new();
     CORPUS.get_or_init(|| {
@@ -159,8 +161,17 @@ pub fn corpus_blocks() -> &'static mcrs_minecraft_block::definition::Blocks {
             ..Default::default()
         });
         let assets = app.world().resource::<AssetServer>().clone();
+        let report = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        ))
+        .expect("the registries report reads");
+        let blocks = from_report(&report)
+            .expect("the registries report parses")
+            .registry::<Block>()
+            .expect("the registries report has blocks");
         Blocks(std::sync::Arc::new(
-            load_block_definitions(&assets)
+            load_block_definitions(&assets, &blocks)
                 .expect("the block definition corpus loads")
                 .0,
         ))

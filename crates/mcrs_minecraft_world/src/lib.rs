@@ -435,32 +435,7 @@ impl Plugin for MinecraftWorldPlugin {
             mcrs_minecraft_core::check_corpus_version(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-        {
-            let asset_server = app.world().resource::<AssetServer>().clone();
-            let (definitions, report) =
-                mcrs_minecraft_block::definition::load_block_definitions(&asset_server)
-                    .expect("the block definition corpus loads");
-            tracing::info!(
-                blocks = definitions.blocks().len(),
-                states = report.states,
-                permutations = report.permutations,
-                shapes = report.shapes,
-                bytes = report.table_bytes,
-                elapsed = ?report.elapsed,
-                "loaded block definitions"
-            );
-            let definitions = std::sync::Arc::new(definitions);
-            app.insert_resource(mcrs_minecraft_block::definition::Fluids(
-                definitions.clone(),
-            ));
-            let items =
-                crate::item::definitions::load_item_definitions(&asset_server, &definitions)
-                    .expect("the item definition corpus loads");
-            tracing::info!(items = items.len(), "loaded item definitions");
-            app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
-            app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
-        }
-        {
+        let block_registry = {
             let asset_server = app.world().resource::<AssetServer>().clone();
             let source = asset_server
                 .get_source(bevy_asset::io::AssetSourceId::Default)
@@ -480,6 +455,9 @@ impl Plugin for MinecraftWorldPlugin {
             let entity_types = registries
                 .registry::<EntityType>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));
+            let block_registry = registries
+                .registry::<mcrs_minecraft_registry::key::Block>()
+                .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);
@@ -487,6 +465,34 @@ impl Plugin for MinecraftWorldPlugin {
                 app.world_mut(),
             );
             mcrs_minecraft_registry::shared::share::<entity::minecraft::EntityIds>(app.world_mut());
+            block_registry
+        };
+        {
+            let asset_server = app.world().resource::<AssetServer>().clone();
+            let (definitions, report) = mcrs_minecraft_block::definition::load_block_definitions(
+                &asset_server,
+                &block_registry,
+            )
+            .expect("the block definition corpus loads");
+            tracing::info!(
+                blocks = definitions.blocks().len(),
+                states = report.states,
+                permutations = report.permutations,
+                shapes = report.shapes,
+                bytes = report.table_bytes,
+                elapsed = ?report.elapsed,
+                "loaded block definitions"
+            );
+            let definitions = std::sync::Arc::new(definitions);
+            app.insert_resource(mcrs_minecraft_block::definition::Fluids(
+                definitions.clone(),
+            ));
+            let items =
+                crate::item::definitions::load_item_definitions(&asset_server, &definitions)
+                    .expect("the item definition corpus loads");
+            tracing::info!(items = items.len(), "loaded item definitions");
+            app.insert_resource(mcrs_minecraft_item::Items(std::sync::Arc::new(items)));
+            app.insert_resource(mcrs_minecraft_block::definition::Blocks(definitions));
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {

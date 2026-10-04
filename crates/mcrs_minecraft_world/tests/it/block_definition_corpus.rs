@@ -11,7 +11,21 @@ use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_protocol::section::block_direct_bits;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{BlockStateId, Registry};
+
+fn report_blocks() -> Registry<Block> {
+    let report = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/reports/registries.json"
+    ))
+    .expect("the registries report reads");
+    from_report(&report)
+        .expect("the registries report parses")
+        .registry::<Block>()
+        .expect("the registries report has blocks")
+}
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();
@@ -23,7 +37,7 @@ fn corpus() -> &'static (BlockDefinitions, LoadReport) {
             ..Default::default()
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
-        load_block_definitions(&asset_server).expect("the corpus loads")
+        load_block_definitions(&asset_server, &report_blocks()).expect("the corpus loads")
     })
 }
 
@@ -446,12 +460,15 @@ fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once(readers: usize) {
     });
     let asset_server = app.world().resource::<AssetServer>().clone();
     let (_, expected) = corpus();
+    let blocks = report_blocks();
 
     std::thread::scope(|scope| {
         for _ in 0..readers {
             let asset_server = asset_server.clone();
+            let blocks = blocks.clone();
             scope.spawn(move || {
-                let (_, report) = load_block_definitions(&asset_server).expect("the corpus loads");
+                let (_, report) =
+                    load_block_definitions(&asset_server, &blocks).expect("the corpus loads");
                 assert_eq!(report.files, expected.files);
                 assert_eq!(report.states, expected.states);
             });
