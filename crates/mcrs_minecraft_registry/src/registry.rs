@@ -90,6 +90,7 @@ impl fmt::Display for UnknownEntry {
 
 impl std::error::Error for UnknownEntry {}
 
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct Registry<R> {
     table: Arc<NameTable>,
     _marker: PhantomData<fn() -> R>,

@@ -10,6 +10,7 @@ fn the_data_pack_reaches_playing_with_every_registry_in_place() {
     registry_values::the_synced_values_differ_from_the_game_as_recorded(&app);
     structure_assets::the_structure_registries_land_before_playing(&app);
     tag_pipeline::tags_load_resolve_and_freeze_on_the_way_to_playing(&app);
+    tag_pipeline::entity_type_tags_are_numbered_by_the_report(&app);
     timeline_pipeline::the_timeline_tags_resolve_through_universal(&app);
     timeline_pipeline::every_dimension_builds_its_environment_from_its_tag(&app);
     timeline_pipeline::the_shipped_time_markers_reach_the_overworld_clock(&app);

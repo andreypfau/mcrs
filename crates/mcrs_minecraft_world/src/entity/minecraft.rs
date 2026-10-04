@@ -1,9 +1,9 @@
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_entity::{Attribute, EntityType};
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{Id, LoadReport, NameTable, RegistrySet, StaticRegistry};
+use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -24,51 +24,6 @@ pub static WITCH: EntityType = EntityType::new(rl!("minecraft:witch"));
 pub static ZOMBIE_NAUTILUS: EntityType = EntityType::new(rl!("minecraft:zombie_nautilus"));
 pub static ZOMBIE_VILLAGER: EntityType = EntityType::new(rl!("minecraft:zombie_villager"));
 pub static PLAYER: EntityType = EntityType::new(rl!("minecraft:player"));
-
-static NAMED: &[&EntityType] = &[
-    &ALLAY,
-    &CAT,
-    &CHEST_MINECART,
-    &CHICKEN,
-    &DROWNED,
-    &ELDER_GUARDIAN,
-    &EVOKER,
-    &ITEM,
-    &ITEM_FRAME,
-    &SHULKER,
-    &PRIMED_TNT,
-    &VILLAGER,
-    &VINDICATOR,
-    &WITCH,
-    &ZOMBIE_NAUTILUS,
-    &ZOMBIE_VILLAGER,
-    &PLAYER,
-];
-
-pub fn register_all_entity_types(
-    registry: &mut StaticRegistry<EntityType>,
-    entity_types: &NameTable,
-) {
-    for name in entity_types.names() {
-        let entity_type = match NAMED
-            .iter()
-            .find(|t| t.identifier.as_str() == name.as_str())
-        {
-            Some(named) => *named,
-            None => Box::leak(Box::new(EntityType::new(ResourceLocation::new_static(
-                name.as_str().to_owned().leak(),
-            )))),
-        };
-        registry.register(name.clone(), entity_type);
-    }
-    for named in NAMED {
-        assert!(
-            registry.id_of(named.identifier.as_str()).is_some(),
-            "{} is not in the registry report",
-            named.identifier
-        );
-    }
-}
 
 macro_rules! entity_ids {
     ($($field:ident: $named:ident),* $(,)?) => {
