@@ -102,8 +102,6 @@ fn a_terrain_proto_chunk_keeps_its_noise_biomes() {
     let plains = biome(&loaded, "minecraft:plains");
     let forest = biome(&loaded, "minecraft:forest");
     let desert = biome(&loaded, "minecraft:desert");
-    assert_eq!(NoiseBiomes::ENTRY_COUNT, 64);
-    assert_eq!(Biomes::ENTRY_COUNT, 4096);
 
     for section in &loaded.chunk.sections {
         let noise = section

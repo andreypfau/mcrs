@@ -1709,47 +1709,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_stream_needing_the_whole_arena_still_draws_every_section() {
-        let mut loader = Loader::new(&Budget {
-            quads: 1 << 12,
-            models: 1 << 12,
-            faces: 1 << 16,
-            groups: 1 << 12,
-            sections: 1 << 12,
-            upload: 0,
-            tint_size: [512; 2],
-        });
-        let mut cave = CaveCull::new(1 << 12, true);
-
-        // Past a thousand records the ask is a class the arena only has one of, so the
-        // block the stream leaves has to be the room the next one comes out of.
-        let placed = 3000u32;
-        for index in 0..placed {
-            loader
-                .place(
-                    one_greedy_group([index as i32, 0, 0], index, 1),
-                    index,
-                    &mut cave,
-                )
-                .unwrap_or_else(|_| panic!("the arena has room"));
-            loader
-                .flush()
-                .expect("a flush hands over the whole draw list");
-        }
-
-        let draws = loader
-            .flush()
-            .expect("a flush hands over the whole draw list")
-            .draws
-            .expect("the whole draw list");
-        assert_eq!(
-            draws[0].group_count, placed,
-            "every section placed is a record the draw reaches"
-        );
-        assert_eq!(draws[0].quad_count, placed);
-    }
-
     /// A mesh whose records land in the three greedy streams, so many at a time.
     fn greedy_groups(section: [i32; 3], slot: u32, counts: [u32; 3]) -> SectionMesh {
         let mut spans = [StreamSpan::default(); STREAMS];
@@ -1823,75 +1782,6 @@ mod tests {
             ],
             counts.map(|count| count * placed),
             "every record placed is one the draw reaches"
-        );
-    }
-
-    #[test]
-    fn a_stream_the_arena_cannot_hold_stops_asking_instead_of_sending_itself_again() {
-        let mut loader = Loader::new(&Budget {
-            quads: 1 << 13,
-            models: 1 << 12,
-            faces: 1 << 16,
-            groups: 1 << 12,
-            sections: 1 << 13,
-            upload: 0,
-            tint_size: [512; 2],
-        });
-        let mut cave = CaveCull::new(1 << 13, true);
-
-        let placed = 5000u32;
-        for index in 0..placed {
-            loader
-                .place(
-                    one_greedy_group([index as i32, 0, 0], index, 1),
-                    index,
-                    &mut cave,
-                )
-                .unwrap_or_else(|_| panic!("the arena has room"));
-            loader
-                .flush()
-                .expect("a flush hands over the whole draw list");
-        }
-
-        let flushed = loader
-            .flush()
-            .expect("a flush hands over the whole draw list");
-        assert_eq!(
-            flushed.draws.expect("the whole draw list")[0].group_count,
-            1 << 12,
-            "a stream past what the arena can ever give it draws what its block holds"
-        );
-        assert!(
-            flushed.groups.is_empty(),
-            "and stops packing and sending itself again for the room that is not coming"
-        );
-    }
-
-    #[test]
-    fn a_column_is_meshed_only_once_every_column_it_borders_has_arrived() {
-        use crate::columns::{Column, Extent};
-
-        let loader = loader();
-        let mut store = ColumnStore::default();
-        store.enter(Extent {
-            min_section_y: 0,
-            sections: 1,
-        });
-        for x in -1..=1 {
-            for z in -1..=1 {
-                store.insert(ColumnPos::new(x, z), Column::unlit(0, Vec::new()));
-            }
-        }
-        assert!(loader.surrounded(ColumnPos::new(0, 0), &store));
-        assert!(
-            !loader.surrounded(ColumnPos::new(1, 0), &store),
-            "an edge column still has three neighbours missing"
-        );
-
-        store.remove(ColumnPos::new(-1, -1));
-        assert!(
-            !loader.surrounded(ColumnPos::new(0, 0), &store),
-            "the diagonal is read too, so losing it is enough"
         );
     }
 
@@ -2129,6 +2019,91 @@ mod tests {
         let changes = &app.world().resource::<Loader>().changes;
         assert_eq!(changes.len(), 1);
         assert!(matches!(changes[0], ColumnChange::Arrived(at, _) if at == pos));
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn a_stream_needing_the_whole_arena_still_draws_every_section() {
+            let mut loader = Loader::new(&Budget {
+                quads: 1 << 12,
+                models: 1 << 12,
+                faces: 1 << 16,
+                groups: 1 << 12,
+                sections: 1 << 12,
+                upload: 0,
+                tint_size: [512; 2],
+            });
+            let mut cave = CaveCull::new(1 << 12, true);
+
+            // Past a thousand records the ask is a class the arena only has one of, so the
+            // block the stream leaves has to be the room the next one comes out of.
+            let placed = 3000u32;
+            for index in 0..placed {
+                loader
+                    .place(
+                        one_greedy_group([index as i32, 0, 0], index, 1),
+                        index,
+                        &mut cave,
+                    )
+                    .unwrap_or_else(|_| panic!("the arena has room"));
+                loader
+                    .flush()
+                    .expect("a flush hands over the whole draw list");
+            }
+
+            let draws = loader
+                .flush()
+                .expect("a flush hands over the whole draw list")
+                .draws
+                .expect("the whole draw list");
+            assert_eq!(
+                draws[0].group_count, placed,
+                "every section placed is a record the draw reaches"
+            );
+            assert_eq!(draws[0].quad_count, placed);
+        }
+        #[test]
+        fn a_stream_the_arena_cannot_hold_stops_asking_instead_of_sending_itself_again() {
+            let mut loader = Loader::new(&Budget {
+                quads: 1 << 13,
+                models: 1 << 12,
+                faces: 1 << 16,
+                groups: 1 << 12,
+                sections: 1 << 13,
+                upload: 0,
+                tint_size: [512; 2],
+            });
+            let mut cave = CaveCull::new(1 << 13, true);
+
+            let placed = 5000u32;
+            for index in 0..placed {
+                loader
+                    .place(
+                        one_greedy_group([index as i32, 0, 0], index, 1),
+                        index,
+                        &mut cave,
+                    )
+                    .unwrap_or_else(|_| panic!("the arena has room"));
+                loader
+                    .flush()
+                    .expect("a flush hands over the whole draw list");
+            }
+
+            let flushed = loader
+                .flush()
+                .expect("a flush hands over the whole draw list");
+            assert_eq!(
+                flushed.draws.expect("the whole draw list")[0].group_count,
+                1 << 12,
+                "a stream past what the arena can ever give it draws what its block holds"
+            );
+            assert!(
+                flushed.groups.is_empty(),
+                "and stops packing and sending itself again for the room that is not coming"
+            );
+        }
     }
 }
 

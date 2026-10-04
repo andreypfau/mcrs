@@ -153,46 +153,6 @@ fn bridge_inbound_emits_received_packet_event() {
 }
 
 // ---------------------------------------------------------------------------
-// bridge_inbound_emits_event_regardless_of_transit_state
-//
-// Replaces in_transit_buffering: bridge_inbound no longer buffers in
-// inbound_pending. It emits ReceivedPacketEvent unconditionally (rate-
-// permitting). Buffering for mid-transit players is handled by the consumer
-// observer (e.g. keepalive / movement). This test verifies the event fires
-// while the player is still joining its dimension.
-// ---------------------------------------------------------------------------
-
-#[test]
-fn bridge_inbound_emits_event_regardless_of_transit_state() {
-    let mut world = build_inbound_world();
-    world.init_resource::<EventCounter>();
-
-    world.add_observer(
-        |_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
-            counter.count += 1;
-        },
-    );
-
-    let dim = Entity::from_raw_u32(10).expect("nonzero");
-
-    let (_socket, tx) = spawn_ingame_connection(&mut world);
-    // No in-dim entity yet → player is still joining
-    register_player(&mut world, dim, None);
-
-    tx.try_send(make_received_packet(42)).unwrap();
-
-    run_inbound(&mut world);
-
-    let counter = world.resource::<EventCounter>();
-    assert_eq!(
-        counter.count, 1,
-        "bridge_inbound must emit ReceivedPacketEvent even when player is mid-transit"
-    );
-
-    // bridge_inbound does not route to any partition resource.
-}
-
-// ---------------------------------------------------------------------------
 // inbound_rate_kick
 // ---------------------------------------------------------------------------
 

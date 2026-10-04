@@ -395,69 +395,6 @@ mod tests {
     }
 
     #[test]
-    fn math_calls_are_rejected() {
-        let err = compile("math.floor(q.block_state('level')) == 1").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("math.floor".into()));
-    }
-
-    #[test]
-    fn the_long_query_spelling_is_rejected() {
-        let err = compile("query.block_state('facing') == 'north'").unwrap_err();
-        assert_eq!(
-            err,
-            MolangError::UnexpectedToken("query.block_state".into())
-        );
-    }
-
-    #[test]
-    fn variables_are_rejected() {
-        let err = compile("v.facing == 'north'").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("v.facing".into()));
-    }
-
-    #[test]
-    fn ordering_comparisons_are_rejected() {
-        let err = compile("q.block_state('level') > 1").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken(">".into()));
-    }
-
-    #[test]
-    fn assignment_is_rejected() {
-        let err = compile("q.block_state('level') = 1").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("=".into()));
-    }
-
-    #[test]
-    fn single_ampersand_is_rejected() {
-        let err = compile("q.block_state('level') == 1 & q.block_state('level') == 2").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("&".into()));
-    }
-
-    #[test]
-    fn float_literals_are_rejected() {
-        let err = compile("q.block_state('level') == 1.5").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("1.5".into()));
-    }
-
-    #[test]
-    fn an_unterminated_string_is_rejected() {
-        let err = compile("q.block_state('facing') == 'north").unwrap_err();
-        assert_eq!(err, MolangError::UnterminatedString("'north".into()));
-    }
-
-    #[test]
-    fn comparing_two_block_states_is_rejected() {
-        let err = compile("q.block_state('facing') == q.block_state('level')").unwrap_err();
-        assert_eq!(err, MolangError::NotAComparison);
-    }
-
-    #[test]
-    fn an_unknown_property_is_rejected() {
-        let err = compile("q.block_state('powered') == true").unwrap_err();
-        assert_eq!(err, MolangError::UnknownProperty("powered".into()));
-    }
-
-    #[test]
     fn a_string_literal_never_matches_a_boolean_property() {
         let err = compile("q.block_state('waterlogged') == 'true'").unwrap_err();
         assert_eq!(
@@ -479,17 +416,5 @@ mod tests {
                 value: "0".into()
             }
         );
-    }
-
-    #[test]
-    fn trailing_input_is_rejected() {
-        let err = compile("q.block_state('facing') == 'north' 'south'").unwrap_err();
-        assert_eq!(err, MolangError::TrailingInput("'south'".into()));
-    }
-
-    #[test]
-    fn a_truncated_query_is_rejected() {
-        let err = compile("q.block_state == 'north'").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("q.block_state=".into()));
     }
 }

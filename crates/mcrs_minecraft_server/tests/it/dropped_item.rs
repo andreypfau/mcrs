@@ -121,32 +121,6 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
 }
 
 #[test]
-fn an_item_falls_onto_the_floor_and_ages() {
-    let (mut world, _, _) = world();
-    let dim = dimension(&mut world);
-    let stack = spawn_dropped(
-        &mut world,
-        value("stone", 7),
-        dim,
-        DVec3::new(8.5, 4.0, 8.5),
-        DVec3::ZERO,
-        40,
-        None,
-    );
-    tick(&mut world, 100);
-    let entity = world.entity(stack);
-    assert_eq!(entity.get::<Transform>().unwrap().translation.y, FLOOR_TOP);
-    let item = entity.get::<DroppedItem>().unwrap();
-    assert_eq!(item.pickup_delay, 0);
-    assert_eq!(item.age, 100);
-    tick(&mut world, 5900);
-    assert!(
-        world.get_entity(stack).is_err(),
-        "the item despawns at 6000"
-    );
-}
-
-#[test]
 fn resting_items_merge_into_the_larger_stack_every_forty_ticks() {
     let (mut world, _, _) = world();
     let dim = dimension(&mut world);
@@ -362,4 +336,34 @@ fn a_loaded_chest_holds_its_saved_items_as_stacks() {
     assert_eq!(table.iter().count(), 1);
     let stack = table.get(4).unwrap();
     assert_eq!(world.get::<ItemStack>(stack).unwrap().count, 5);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn an_item_falls_onto_the_floor_and_ages() {
+        let (mut world, _, _) = world();
+        let dim = dimension(&mut world);
+        let stack = spawn_dropped(
+            &mut world,
+            value("stone", 7),
+            dim,
+            DVec3::new(8.5, 4.0, 8.5),
+            DVec3::ZERO,
+            40,
+            None,
+        );
+        tick(&mut world, 100);
+        let entity = world.entity(stack);
+        assert_eq!(entity.get::<Transform>().unwrap().translation.y, FLOOR_TOP);
+        let item = entity.get::<DroppedItem>().unwrap();
+        assert_eq!(item.pickup_delay, 0);
+        assert_eq!(item.age, 100);
+        tick(&mut world, 5900);
+        assert!(
+            world.get_entity(stack).is_err(),
+            "the item despawns at 6000"
+        );
+    }
 }

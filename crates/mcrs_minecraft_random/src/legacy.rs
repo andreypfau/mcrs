@@ -174,18 +174,6 @@ mod test {
     }
 
     #[test]
-    fn large_feature_seed_is_the_reference_formula() {
-        for (seed, cx, cz) in [(12345i64, 0i32, 0i32), (-9, 17, -33), (1, -1, 1)] {
-            let mut rng = LegacyRandom::new(seed as u64);
-            let x_scale = rng.next_java_long();
-            let z_scale = rng.next_java_long();
-            let expected =
-                (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
-            assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
-        }
-    }
-
-    #[test]
     fn large_feature_sources_ignore_the_top_sixteen_seed_bits() {
         let seed = -6_723_991_117_364_058_231i64;
         for flipped in [seed ^ (1 << 63), seed ^ (0xFFFF << 48)] {
@@ -271,20 +259,6 @@ mod test {
         ];
         for e in expected {
             assert_eq!(random.next_f64(), e);
-        }
-    }
-
-    #[test]
-    fn next_f64_bit_pattern_matches_java_util_random() {
-        let mut random = LegacyRandom::new(123);
-        for bits in [
-            0x3fe7243e39e5e024u64,
-            0x3fefb5719a699f85,
-            0x3fd035f4492fa262,
-            0x3fe37b4aea123079,
-            0x3fe9c9aedcfa9ce4,
-        ] {
-            assert_eq!(random.next_f64().to_bits(), bits);
         }
     }
 }

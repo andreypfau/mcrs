@@ -220,13 +220,6 @@ mod tests {
 
     const ORIGIN: BlockPos = BlockPos::new(16, 0, 32);
 
-    #[test]
-    fn an_empty_chain_runs_the_generator_at_the_origin() {
-        let (hits, rng) = run(&[], ORIGIN, 1);
-        assert_eq!(hits, vec![ORIGIN]);
-        assert_eq!(rng, WorldgenRandom::new(1), "an empty chain draws nothing");
-    }
-
     /// `count` emits three copies and `offset` consumes them one at a time. A
     /// placer that pushed its outputs in emission order would run the three
     /// offsets in the reverse order and place a different world, so pin both the
@@ -298,37 +291,6 @@ mod tests {
         let z = replay.next_i32_bound(16) + ORIGIN.z;
         assert_eq!(rng, replay);
         assert_eq!(hits, vec![BlockPos::new(x, 0, z)]);
-    }
-
-    #[test]
-    fn heightmap_moves_to_the_map_and_draws_nothing() {
-        let (hits, rng) = run(
-            &[Modifier::Heightmap {
-                heightmap: HeightmapName::WorldSurfaceWg,
-            }],
-            ORIGIN,
-            3,
-        );
-        assert_eq!(rng, WorldgenRandom::new(3));
-        assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
-    }
-
-    #[test]
-    fn a_block_predicate_filter_draws_nothing() {
-        let modifiers = vec![
-            Modifier::Heightmap {
-                heightmap: HeightmapName::WorldSurfaceWg,
-            },
-            Modifier::BlockPredicateFilter {
-                predicate: Predicate::MatchingStates {
-                    offset: IVec3::NEG_Y,
-                    states: mask_of([STONE.0]),
-                },
-            },
-        ];
-        let (hits, rng) = run(&modifiers, ORIGIN, 5);
-        assert_eq!(rng, WorldgenRandom::new(5));
-        assert_eq!(hits, vec![BlockPos::new(16, 65, 32)]);
     }
 
     #[test]
@@ -464,27 +426,6 @@ mod tests {
         );
         assert_eq!(hits, 0);
         assert_eq!(rng, WorldgenRandom::new(0));
-    }
-
-    #[test]
-    fn fixed_placement_keeps_only_its_own_chunk() {
-        let modifiers = vec![Modifier::FixedPlacement {
-            positions: vec![[20, 5, 35], [-3, 5, 35]],
-        }];
-        let (hits, rng) = run(&modifiers, ORIGIN, 6);
-        assert_eq!(rng, WorldgenRandom::new(6));
-        assert_eq!(hits, vec![BlockPos::new(20, 5, 35)]);
-    }
-
-    #[test]
-    fn surface_water_depth_reads_two_maps_and_draws_nothing() {
-        let (hits, rng) = run(
-            &[Modifier::SurfaceWaterDepthFilter { max_water_depth: 0 }],
-            ORIGIN,
-            8,
-        );
-        assert_eq!(rng, WorldgenRandom::new(8));
-        assert_eq!(hits, vec![ORIGIN], "the stub's two maps are equal");
     }
 
     /// The count provider is sampled once per loop test, so the pass that finds

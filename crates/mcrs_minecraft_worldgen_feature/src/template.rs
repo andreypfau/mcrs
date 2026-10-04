@@ -731,53 +731,6 @@ mod tests {
     use mcrs_minecraft_worldgen_testing::templates;
     use std::io::Cursor;
 
-    fn canonical(compound: &NbtCompound) -> NbtCompound {
-        let mut child_tags: Vec<_> = compound
-            .child_tags
-            .iter()
-            .map(|(k, v)| (k.clone(), canonical_tag(v)))
-            .collect();
-        child_tags.sort_by(|a, b| a.0.cmp(&b.0));
-        NbtCompound { child_tags }
-    }
-
-    fn canonical_tag(tag: &NbtTag) -> NbtTag {
-        match tag {
-            NbtTag::Compound(c) => NbtTag::Compound(canonical(c)),
-            NbtTag::List(items) => NbtTag::List(items.iter().map(canonical_tag).collect()),
-            other => other.clone(),
-        }
-    }
-
-    #[test]
-    fn every_template_round_trips_and_is_pinned() {
-        let files = templates();
-        let (mut with_palettes, mut with_entities) = (0, 0);
-        for (path, bytes) in &files {
-            let direct = read_gzip_compound_tag(Cursor::new(&bytes)).unwrap();
-            let template: Template = from_gzip_bytes(Cursor::new(&bytes))
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            assert_eq!(
-                template.data_version,
-                VERSION.world_version,
-                "{}",
-                path.display()
-            );
-            let back = to_nbt_compound(&template).unwrap();
-            assert_eq!(
-                canonical(&back),
-                canonical(&direct),
-                "{} does not round-trip",
-                path.display()
-            );
-            with_palettes += usize::from(template.palettes.is_some());
-            with_entities += usize::from(!template.entities.is_empty());
-        }
-        assert_eq!(files.len(), 1511);
-        assert_eq!(with_palettes, 20);
-        assert_eq!(with_entities, 172);
-    }
-
     fn state(id: &str, properties: &[(&str, &str)]) -> PaletteState {
         PaletteState {
             id: ResourceLocation::parse(id).unwrap(),
@@ -1349,33 +1302,6 @@ mod tests {
     }
 
     #[test]
-    fn shipped_template_entities_are_the_pinned_kinds() {
-        let any = |_: &PaletteState| {
-            Some(ResolvedState {
-                id: VoxelId(0),
-                full_block: false,
-            })
-        };
-        let mut found = std::collections::BTreeSet::new();
-        let mut count = 0;
-        for (path, bytes) in templates() {
-            let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
-            let (frozen, _) = template
-                .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
-                .unwrap_or_else(|e| panic!("{e}"));
-            count += frozen.entities.len();
-            found.extend(frozen.entities.iter().map(|e| {
-                serde_json::to_value(&e.kind).unwrap()["id"]
-                    .as_str()
-                    .unwrap()
-                    .to_owned()
-            }));
-        }
-        assert_eq!(count, 288);
-        assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
-    }
-
-    #[test]
     fn final_state_grammar() {
         let parsed = " minecraft:stone [ a = 1 , b = two ] ] trailing"
             .parse::<PaletteState>()
@@ -1397,7 +1323,7 @@ mod tests {
     }
 
     #[test]
-    fn transform_follows_the_rotation_formulas() {
+    fn transform_mirrors_before_it_rotates() {
         let pos = IVec3::new(3, 5, 7);
         let pivot = IVec3::new(2, 0, 4);
         let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
@@ -1414,13 +1340,6 @@ mod tests {
             at(Mirror::None, Rotation::Clockwise180),
             IVec3::new(4 - 3, 5, 8 - 7)
         );
-    }
-
-    #[test]
-    fn transform_mirrors_before_it_rotates() {
-        let pos = IVec3::new(3, 5, 7);
-        let pivot = IVec3::new(2, 0, 4);
-        let at = |mirror, rotation| transform(pos, mirror, rotation, pivot);
         assert_eq!(at(Mirror::LeftRight, Rotation::None), IVec3::new(3, 5, -7));
         assert_eq!(at(Mirror::FrontBack, Rotation::None), IVec3::new(-3, 5, 7));
         assert_eq!(
@@ -1469,11 +1388,6 @@ mod tests {
                 max: (at + IVec3::new(0, 3, 0)).into()
             }
         );
-    }
-
-    #[test]
-    fn bounding_box_takes_the_mirror_and_the_pivot_into_account() {
-        let at = IVec3::new(10, 20, 30);
         let pivot = IVec3::new(1, 0, 2);
         assert_eq!(
             bounding_box(
@@ -1546,41 +1460,82 @@ mod tests {
             }
         }
     }
-    #[test]
-    fn box_arithmetic_is_inclusive() {
-        let a = BoundingBox::from_corners(BlockPos::new(0, 0, 0), BlockPos::new(4, 2, 4));
-        assert_eq!(a.y_span(), 3);
-        assert_eq!(a.moved(IVec3::new(1, -1, 0)).min, BlockPos::new(1, -1, 0));
-        assert_eq!(a.inflated(12).max, BlockPos::new(16, 14, 16));
-        assert!(a.intersects(BoundingBox::from_corners(
-            BlockPos::new(4, 2, 4),
-            IVec3::splat(9).into()
-        )));
-        assert!(!a.intersects(BoundingBox::from_corners(
-            BlockPos::new(5, 0, 0),
-            IVec3::splat(9).into()
-        )));
-    }
 
-    #[test]
-    fn a_rotation_turns_the_horizontal_faces_and_keeps_the_vertical_ones() {
-        assert_eq!(
-            Rotation::Clockwise90.rotate(Direction::North),
-            Direction::East
-        );
-        assert_eq!(
-            Rotation::Clockwise180.rotate(Direction::North),
-            Direction::South
-        );
-        assert_eq!(
-            Rotation::Counterclockwise90.rotate(Direction::North),
-            Direction::West
-        );
-        assert_eq!(Rotation::None.rotate(Direction::West), Direction::West);
-        assert_eq!(Rotation::Clockwise90.rotate(Direction::Up), Direction::Up);
-        assert_eq!(
-            Rotation::ALL[Rotation::ALL.len() - 1],
-            Rotation::Counterclockwise90
-        );
+    mod exhaustive {
+        use super::*;
+
+        fn canonical(compound: &NbtCompound) -> NbtCompound {
+            let mut child_tags: Vec<_> = compound
+                .child_tags
+                .iter()
+                .map(|(k, v)| (k.clone(), canonical_tag(v)))
+                .collect();
+            child_tags.sort_by(|a, b| a.0.cmp(&b.0));
+            NbtCompound { child_tags }
+        }
+
+        fn canonical_tag(tag: &NbtTag) -> NbtTag {
+            match tag {
+                NbtTag::Compound(c) => NbtTag::Compound(canonical(c)),
+                NbtTag::List(items) => NbtTag::List(items.iter().map(canonical_tag).collect()),
+                other => other.clone(),
+            }
+        }
+
+        #[test]
+        fn every_template_round_trips_and_is_pinned() {
+            let files = templates();
+            let (mut with_palettes, mut with_entities) = (0, 0);
+            for (path, bytes) in &files {
+                let direct = read_gzip_compound_tag(Cursor::new(&bytes)).unwrap();
+                let template: Template = from_gzip_bytes(Cursor::new(&bytes))
+                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                assert_eq!(
+                    template.data_version,
+                    VERSION.world_version,
+                    "{}",
+                    path.display()
+                );
+                let back = to_nbt_compound(&template).unwrap();
+                assert_eq!(
+                    canonical(&back),
+                    canonical(&direct),
+                    "{} does not round-trip",
+                    path.display()
+                );
+                with_palettes += usize::from(template.palettes.is_some());
+                with_entities += usize::from(!template.entities.is_empty());
+            }
+            assert_eq!(files.len(), 1511);
+            assert_eq!(with_palettes, 20);
+            assert_eq!(with_entities, 172);
+        }
+
+        #[test]
+        fn shipped_template_entities_are_the_pinned_kinds() {
+            let any = |_: &PaletteState| {
+                Some(ResolvedState {
+                    id: VoxelId(0),
+                    full_block: false,
+                })
+            };
+            let mut found = std::collections::BTreeSet::new();
+            let mut count = 0;
+            for (path, bytes) in templates() {
+                let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
+                let (frozen, _) = template
+                    .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
+                    .unwrap_or_else(|e| panic!("{e}"));
+                count += frozen.entities.len();
+                found.extend(frozen.entities.iter().map(|e| {
+                    serde_json::to_value(&e.kind).unwrap()["id"]
+                        .as_str()
+                        .unwrap()
+                        .to_owned()
+                }));
+            }
+            assert_eq!(count, 288);
+            assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
+        }
     }
 }

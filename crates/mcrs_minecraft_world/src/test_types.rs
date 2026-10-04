@@ -40,20 +40,3 @@ impl Asset for TestInstance {}
 impl VisitAssetDependencies for TestInstance {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn deserialize_all_test_environments() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::TestEnvironment>(
-            "minecraft/test_environment",
-        );
-    }
-
-    #[test]
-    fn deserialize_all_test_instances() {
-        mcrs_minecraft_worldgen_testing::parse_all::<super::TestInstance>(
-            "minecraft/test_instance",
-        );
-    }
-}

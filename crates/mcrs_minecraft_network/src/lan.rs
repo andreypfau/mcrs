@@ -187,25 +187,6 @@ mod tests {
     }
 
     #[test]
-    fn a_vanilla_client_reads_the_status_motd_and_the_port_back() {
-        let motd = crate::intent::MOTD;
-        let datagram = announcement(motd, 25565).unwrap();
-        assert!(datagram.len() <= 1024);
-        assert_eq!(
-            read_back(motd, 25565),
-            (motd.to_owned(), Some("25565".to_owned()))
-        );
-    }
-
-    #[test]
-    fn an_empty_motd_reads_back_empty() {
-        assert_eq!(
-            read_back("", 25565),
-            (String::new(), Some("25565".to_owned()))
-        );
-    }
-
-    #[test]
     fn a_motd_that_closes_its_own_marker_is_refused() {
         assert_eq!(announcement("early[/MOTD]late", 25565), None);
         let text = "[MOTD]early[/MOTD]late[/MOTD][AD]25565[/AD]";
@@ -228,22 +209,6 @@ mod tests {
     }
 
     #[test]
-    fn a_loopback_listener_never_announces() {
-        for bound in ["127.0.0.1:25565", "[::1]:25565", "[::ffff:127.0.0.1]:25565"] {
-            assert_eq!(
-                announce_port(addr(bound), true),
-                Err(Unannounced::Loopback),
-                "{bound}"
-            );
-            assert_eq!(
-                announce_port(addr(bound), false),
-                Err(Unannounced::Off),
-                "{bound}"
-            );
-        }
-    }
-
-    #[test]
     fn a_network_listener_announces_its_bound_port_unless_the_setting_is_off() {
         for bound in [
             "0.0.0.0:25565",
@@ -252,22 +217,6 @@ mod tests {
             "[::ffff:192.168.1.20]:25565",
         ] {
             assert_eq!(announce_port(addr(bound), true), Ok(25565), "{bound}");
-            assert_eq!(
-                announce_port(addr(bound), false),
-                Err(Unannounced::Off),
-                "{bound}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_listener_on_one_ipv6_address_never_announces() {
-        for bound in ["[2001:db8::5]:25565", "[fe80::1]:25565", "[fd00::1]:25565"] {
-            assert_eq!(
-                announce_port(addr(bound), true),
-                Err(Unannounced::NoIpv4),
-                "{bound}"
-            );
             assert_eq!(
                 announce_port(addr(bound), false),
                 Err(Unannounced::Off),

@@ -421,15 +421,4 @@ mod tests {
             assert!(!is_valid_player_name(refused), "{refused:?}");
         }
     }
-
-    #[test]
-    fn a_player_name_holds_at_most_sixteen_characters() {
-        assert!(is_valid_player_name(&"a".repeat(16)));
-        assert!(!is_valid_player_name(&"a".repeat(17)));
-    }
-
-    #[test]
-    fn an_empty_player_name_is_valid_as_in_the_game() {
-        assert!(is_valid_player_name(""));
-    }
 }

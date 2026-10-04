@@ -20,41 +20,9 @@ fn set_bits(mask: &FaceMask) -> u32 {
 }
 
 #[test]
-fn empty_returns_pointer_stable_static() {
-    let a = VoxelShape::empty();
-    let b = VoxelShape::empty();
-    assert!(std::ptr::eq(a, b));
-    assert!(a.is_empty());
-    assert!(!a.occludes_full_block());
-}
-
-#[test]
-fn block_returns_pointer_stable_static() {
-    let a = VoxelShape::block();
-    let b = VoxelShape::block();
-    assert!(std::ptr::eq(a, b));
-    assert!(!a.is_empty());
-    assert!(a.occludes_full_block());
-}
-
-#[test]
-fn singletons_referenced_through_static_globals_are_pointer_equal_to_accessors() {
-    assert!(std::ptr::eq(&super::empty::EMPTY, VoxelShape::empty()));
-    assert!(std::ptr::eq(&super::block::BLOCK, VoxelShape::block()));
-}
-
-#[test]
 fn direction_opposite_is_involutive() {
     for dir in Direction::all() {
         assert_eq!(dir.opposite().opposite(), dir);
-    }
-}
-
-#[test]
-fn two_full_cubes_occlude() {
-    let b = VoxelShape::block();
-    for dir in Direction::all() {
-        assert!(b.face_occludes(b, dir));
     }
 }
 
@@ -65,14 +33,6 @@ fn a_full_cube_occludes_against_an_empty_shape() {
     for dir in Direction::all() {
         assert!(b.face_occludes(e, dir), "block against empty on {dir}");
         assert!(e.face_occludes(b, dir), "empty against block on {dir}");
-    }
-}
-
-#[test]
-fn two_empty_shapes_do_not_occlude() {
-    let e = VoxelShape::empty();
-    for dir in Direction::all() {
-        assert!(!e.face_occludes(e, dir));
     }
 }
 

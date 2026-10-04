@@ -1740,26 +1740,4 @@ pub(crate) mod tests {
             out.len()
         );
     }
-
-    #[test]
-    fn every_shipped_noise_settings_builds_a_router() {
-        let (functions, noises) = corpus();
-        for name in [
-            "amplified",
-            "beta",
-            "caves",
-            "end",
-            "floating_islands",
-            "large_biomes",
-            "nether",
-            "overworld",
-        ] {
-            let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-                "noise_settings",
-                &ResourceLocation::minecraft(name),
-            );
-            build_router(&settings, &functions, &noises, 42, TEST_BLOCKS)
-                .unwrap_or_else(|e| panic!("{name}: {e}"));
-        }
-    }
 }

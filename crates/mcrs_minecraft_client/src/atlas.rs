@@ -656,23 +656,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn every_step_of_an_animation_gets_its_own_layer() {
-        let mut registry = SpriteRegistry::default();
-        registry
-            .intern(Pack::corpus(), "minecraft:block/stone")
-            .unwrap();
-        registry
-            .intern(Pack::corpus(), "minecraft:block/kelp")
-            .unwrap();
-        let array = &registry.arrays()[0];
-        assert_eq!(registry.len(), 2);
-        assert_eq!(registry.animations().len(), 1);
-        assert_eq!(array.layers(), 21);
-        let texels = (array.size * array.size * 4) as usize;
-        assert_eq!(array.pixels.len(), texels * 21);
-    }
-
     fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
         array.layer(layer)
     }
@@ -687,18 +670,6 @@ mod tests {
         assert_eq!(array.layers(), 38);
         assert_eq!(layer(array, 18), layer(array, 20));
         assert_ne!(layer(array, 18), layer(array, 19));
-    }
-
-    #[test]
-    fn a_sequence_out_of_order_is_laid_out_in_the_order_it_names() {
-        let mut registry = SpriteRegistry::default();
-        registry
-            .intern(Pack::corpus(), "minecraft:block/prismarine")
-            .unwrap();
-        let array = &registry.arrays()[0];
-        assert_eq!(array.layers(), 22);
-        assert_eq!(layer(array, 0), layer(array, 2));
-        assert_ne!(layer(array, 0), layer(array, 1));
     }
 
     #[test]

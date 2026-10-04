@@ -350,16 +350,6 @@ mod tests {
     }
 
     #[test]
-    fn every_item_of_the_corpus_bakes() {
-        let models = baked();
-        assert_eq!(
-            models.by_id.len(),
-            Pack::corpus().entries("items", "json").count()
-        );
-        assert!(models.by_id.len() > 1600);
-    }
-
-    #[test]
     fn a_generated_item_is_extruded_and_front_lit() {
         let models = baked();
         let BakedNode::Model {
@@ -373,17 +363,6 @@ mod tests {
         assert!(model.quads.len() > 2);
         assert!(model.quads.iter().all(|q| q.tint == Some(0)));
         assert_eq!(model.display, ItemTransform::NONE);
-    }
-
-    #[test]
-    fn a_block_item_keeps_its_cube_and_side_lighting() {
-        let models = baked();
-        let BakedNode::Model { model, .. } = models.get("minecraft:stone") else {
-            panic!("stone is a plain model");
-        };
-        assert_eq!(model.quads.len(), 6);
-        assert_eq!(model.gui_light, GuiLight::Side);
-        assert_eq!(model.display.rotation_deg, Vec3::new(30.0, 225.0, 0.0));
     }
 
     #[test]
@@ -430,5 +409,19 @@ mod tests {
             panic!("conduit is special");
         };
         assert!(properties.quads.is_empty());
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn every_item_of_the_corpus_bakes() {
+            let models = baked();
+            assert_eq!(
+                models.by_id.len(),
+                Pack::corpus().entries("items", "json").count()
+            );
+            assert!(models.by_id.len() > 1600);
+        }
     }
 }

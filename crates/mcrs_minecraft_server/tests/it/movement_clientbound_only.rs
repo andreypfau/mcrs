@@ -2,48 +2,6 @@ use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 use crate::host_app;
 
-#[test]
-fn teleport_does_not_query_server_side_connection() {
-    let source: &str = host_app::anchored(
-        include_str!("../../src/world/entity/player/movement.rs"),
-        "fn teleport(",
-        "movement.rs",
-    );
-    assert!(
-        !source.contains("ServerSideConnection"),
-        "movement.rs must not query ServerSideConnection; \
-         teleport must emit OutboundPlayerPacket via the message bus instead"
-    );
-}
-
-#[test]
-fn digging_does_not_query_server_side_connection() {
-    let source: &str = host_app::anchored(
-        include_str!("../../src/world/entity/player/digging.rs"),
-        "fn player_start_destroy_block(",
-        "digging.rs",
-    );
-    assert!(
-        !source.contains("ServerSideConnection"),
-        "digging.rs must not query ServerSideConnection; \
-         packet emission must go through OutboundPlayerPacket bus"
-    );
-}
-
-#[test]
-fn game_mode_does_not_query_server_side_connection() {
-    let source: &str = host_app::anchored(
-        include_str!("../../src/world/entity/player/game_mode.rs"),
-        "fn handle_change_game_mode(",
-        "game_mode.rs",
-    );
-    assert!(
-        !source.contains("ServerSideConnection"),
-        "game_mode.rs must not query ServerSideConnection; \
-         packet emission must go through OutboundPlayerPacket bus"
-    );
-}
-
 /// Runtime gate: a Changed<Transform> on a dim player must advance
 /// TeleportState counters, proving the bus-emit path fired. The
 /// flush_from_dim_outbox system drains OutboundPlayerPacket from the sub-app

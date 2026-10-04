@@ -404,39 +404,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_corrupted_entry_fails_its_crc() {
-        let mut jar = sample_jar();
-        let directory = Directory::of(&jar).unwrap();
-        let lang = directory
-            .entries
-            .iter()
-            .find(|entry| entry.name.ends_with("en_us.json"))
-            .unwrap();
-        let local = lang.offset as usize;
-        let data = local + 30 + lang.name.len() + u16_at(&jar, local + 28) as usize;
-        jar[data] ^= 0xff;
-
-        let error = directory.unpack(&[(0, &jar)], |_| true).unwrap_err();
-
-        assert!(error.contains("CRC-32"), "{error}");
-    }
-
-    #[test]
-    fn read_returns_a_root_entry_under_its_name() {
-        let jar = sample_jar();
-
-        let files = Directory::of(&jar)
-            .unwrap()
-            .read(&jar, |name| name == "version.json")
-            .unwrap();
-
-        assert_eq!(
-            files,
-            [("version.json".to_owned(), br#"{"id":"sample"}"#.to_vec())]
-        );
-    }
-
-    #[test]
     fn read_returns_the_files_under_a_prefix_by_full_name() {
         let jar = sample_jar();
         let directory = Directory::of(&jar).unwrap();

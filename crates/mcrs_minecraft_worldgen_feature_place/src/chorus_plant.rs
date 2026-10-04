@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn an_open_plant_stays_within_the_spread_and_flowers() {
         let cfg = config();
-        for seed in 0..64u64 {
+        for seed in 0..8u64 {
             let mut volume = island();
             let mut rng = WorldgenRandom::new(seed);
             assert!(place_chorus_plant(&cfg, &mut volume, &mut rng, ORIGIN));
@@ -240,6 +240,31 @@ mod tests {
                         && (z - ORIGIN.z).abs() <= MAX_HORIZONTAL_SPREAD,
                     "seed {seed} wrote at {x},{y},{z}, outside the spread"
                 );
+            }
+        }
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn an_open_plant_stays_within_the_spread_and_flowers() {
+            let cfg = config();
+            for seed in 0..64u64 {
+                let mut volume = island();
+                let mut rng = WorldgenRandom::new(seed);
+                assert!(place_chorus_plant(&cfg, &mut volume, &mut rng, ORIGIN));
+                assert!(
+                    volume.writes.iter().any(|(_, state)| *state == FLOWER),
+                    "seed {seed} grew no flower"
+                );
+                for ((x, y, z), _) in &volume.writes {
+                    assert!(
+                        (x - ORIGIN.x).abs() <= MAX_HORIZONTAL_SPREAD
+                            && (z - ORIGIN.z).abs() <= MAX_HORIZONTAL_SPREAD,
+                        "seed {seed} wrote at {x},{y},{z}, outside the spread"
+                    );
+                }
             }
         }
     }

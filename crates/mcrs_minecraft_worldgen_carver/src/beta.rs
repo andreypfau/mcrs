@@ -119,12 +119,6 @@ mod tests {
     use super::*;
     use crate::carve_ellipsoid;
 
-    #[test]
-    fn next_i32_bound_one_returns_zero() {
-        let mut rng = LegacyRandom::new(12345);
-        assert_eq!(rng.next_i32_bound(1), 0);
-    }
-
     /// The mask marks the Y the ellipsoid test accepts, which sits within the
     /// vertical radius and never below the floor level.
     #[test]

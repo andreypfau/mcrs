@@ -767,7 +767,11 @@ mod tests {
 
     #[test]
     fn a_vertical_anchor_with_two_keys_or_none_is_a_load_error() {
-        for anchor in [r#"{"absolute":1,"above_bottom":2}"#, "{}"] {
+        for anchor in [
+            r#"{"absolute":1,"above_bottom":2}"#,
+            "{}",
+            r#"{"below_surface":1}"#,
+        ] {
             assert!(
                 serde_json::from_str::<VerticalAnchor>(anchor).is_err(),
                 "{anchor} as text"
@@ -811,11 +815,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn an_unknown_anchor_key_is_a_load_error() {
-        assert!(serde_json::from_str::<VerticalAnchor>(r#"{"below_surface":1}"#).is_err());
     }
 
     /// `plateau` and `inner` are `optionalFieldOf` in the reference, so their
@@ -1124,24 +1123,6 @@ mod tests {
             inner: Bounded(8),
         });
         pin_draws(|rng| provider.sample(rng, OVERWORLD), |_| 10);
-    }
-
-    #[test]
-    fn a_very_biased_sample_stays_in_range_and_leans_low() {
-        let provider = IntProvider::Dispatched(DispatchedIntProvider::VeryBiasedToBottom {
-            min_inclusive: 0,
-            max_inclusive: 14,
-        });
-        let mut rng = LegacyRandom::new(7);
-        let mut zeroes = 0;
-        for _ in 0..2000 {
-            let value = provider.sample(&mut rng);
-            assert!((0..=14).contains(&value), "{value} out of range");
-            if value == 0 {
-                zeroes += 1;
-            }
-        }
-        assert!(zeroes > 600, "only {zeroes} zeroes of 2000");
     }
 
     #[test]

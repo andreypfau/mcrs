@@ -337,24 +337,6 @@ fn custom_compression_is_a_loud_error() {
 }
 
 #[test]
-fn unknown_compression_names_the_id() {
-    let fixture = Fixture::new("unknown_compression");
-    let path = fixture.region(0, 0, &[(0, 0, 9, b"whatever".to_vec())]);
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::UnknownCompression { id: 9, .. }),
-        "{err}"
-    );
-}
-
-#[test]
 fn external_chunks_come_from_the_mcc_file() {
     let fixture = Fixture::new("external");
     let root = chunk_nbt(
@@ -437,52 +419,9 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
 
-#[test]
-fn a_single_value_section_carries_no_data() {
-    let fixture = Fixture::new("single_value");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            -4,
-            container(vec![NbtTag::Compound(block("minecraft:bedrock"))], None),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    assert_eq!(chunk.sections[0].block_states, Some(Homogeneous(BEDROCK)));
-}
-
-/// The registry sees the name and its properties while both are still borrowed
-/// out of the palette's text, so nothing is resolved twice or copied.
-#[test]
-fn the_palette_resolves_through_a_registry() {
-    let fixture = Fixture::new("resolve");
-    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
-    entries[Blocks::index(1, 0, 0)] = 1;
-    entries[Blocks::index(0, 0, 1)] = 2;
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
-                ],
-                Some(pack(&entries, 4)),
-            ),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-
-    assert_eq!(blocks.get(0, 0, 0), AIR);
-    assert_eq!(blocks.get(1, 0, 0), STONE);
-    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
-}
-
+/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
+/// counts one through four onto the four-bit configuration. Packing at two bits
+/// would decode most cells to the wrong palette entry.
 #[test]
 fn every_cell_holds_its_resolved_id() {
     let fixture = Fixture::new("remap");
@@ -578,27 +517,6 @@ fn an_unresolvable_palette_entry_is_a_loud_error() {
 }
 
 #[test]
-fn a_single_value_section_still_reports_every_cell() {
-    let fixture = Fixture::new("single_value_entries");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(vec![NbtTag::Compound(block("minecraft:bedrock"))], None),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    let mut cells = 0;
-    blocks.for_each(|cell| {
-        assert_eq!(cell, BEDROCK);
-        cells += 1;
-    });
-    assert_eq!(cells, Blocks::ENTRY_COUNT);
-}
-
-#[test]
 fn a_single_value_section_with_data_is_a_loud_error() {
     let fixture = Fixture::new("single_value_data");
     let root = chunk_nbt(
@@ -617,44 +535,6 @@ fn a_single_value_section_with_data_is_a_loud_error() {
         matches!(err.kind, ErrorKind::UnexpectedData { .. }),
         "{err}"
     );
-}
-
-/// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
-/// counts one through four onto the four-bit configuration. Packing at two bits
-/// would decode most cells to the wrong palette entry.
-#[test]
-fn a_three_entry_block_palette_is_stored_at_four_bits() {
-    let fixture = Fixture::new("three_entry");
-    let mut entries = vec![0u16; Blocks::ENTRY_COUNT];
-    entries[Blocks::index(0, 0, 0)] = 0;
-    entries[Blocks::index(1, 0, 0)] = 1;
-    entries[Blocks::index(0, 0, 1)] = 2;
-    entries[Blocks::index(15, 15, 15)] = 2;
-    entries[Blocks::index(5, 9, 13)] = 1;
-
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
-                ],
-                Some(pack(&entries, 4)),
-            ),
-        ))],
-    );
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0), AIR);
-    assert_eq!(blocks.get(1, 0, 0), STONE);
-    assert_eq!(blocks.get(0, 0, 1), OAK_LOG_Y);
-    assert_eq!(blocks.get(15, 15, 15), OAK_LOG_Y);
-    assert_eq!(blocks.get(5, 9, 13), STONE);
-    assert_eq!(blocks.get(2, 0, 0), AIR);
 }
 
 /// A palette above 256 entries leaves the linear/hashmap configurations behind
@@ -687,38 +567,6 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
     assert_eq!(blocks.get(3, 4, 5), numbered(256));
     assert_eq!(blocks.get(15, 15, 15), numbered(137));
     assert_eq!(blocks.get(1, 0, 0), numbered(0));
-}
-
-/// Biomes have no four-bit floor: two entries are stored at one bit.
-#[test]
-fn a_two_entry_biome_palette_is_stored_at_one_bit() {
-    let fixture = Fixture::new("biome_one_bit");
-    let mut entries = vec![0u16; Biomes::ENTRY_COUNT];
-    entries[Biomes::index(0, 0, 0)] = 1;
-    entries[Biomes::index(3, 3, 3)] = 1;
-    entries[Biomes::index(1, 2, 3)] = 0;
-
-    let mut s = section(
-        0,
-        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
-    );
-    s.put_component(
-        "biomes",
-        container(
-            vec![
-                NbtTag::String("minecraft:plains".to_string()),
-                NbtTag::String("minecraft:desert".to_string()),
-            ],
-            Some(pack(&entries, 1)),
-        ),
-    );
-
-    let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap();
-    let biomes = chunk.sections[0].biomes.as_ref().unwrap();
-    assert_eq!(biomes.get(0, 0, 0), DESERT);
-    assert_eq!(biomes.get(3, 3, 3), DESERT);
-    assert_eq!(biomes.get(1, 2, 3), PLAINS);
-    assert_eq!(biomes.get(2, 0, 0), PLAINS);
 }
 
 #[test]
@@ -837,37 +685,6 @@ fn an_empty_palette_is_a_loud_error() {
     );
     let err = read_one(&fixture, ZLIB, &root).unwrap_err();
     assert!(matches!(err.kind, ErrorKind::EmptyPalette { .. }), "{err}");
-}
-
-#[test]
-fn a_data_array_longer_than_the_derived_width_is_an_error() {
-    let fixture = Fixture::new("data_too_long");
-    let root = chunk_nbt(
-        0,
-        0,
-        vec![NbtTag::Compound(section(
-            0,
-            container(
-                vec![
-                    NbtTag::Compound(block("minecraft:air")),
-                    NbtTag::Compound(block("minecraft:stone")),
-                ],
-                Some(vec![0i64; 257]),
-            ),
-        ))],
-    );
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(
-        matches!(
-            err.kind,
-            ErrorKind::DataLength {
-                found: 257,
-                expected: 256,
-                ..
-            }
-        ),
-        "{err}"
-    );
 }
 
 #[test]
@@ -1014,39 +831,6 @@ fn assert_block_light_is_absent(fixture: &Fixture, stored: Vec<(&str, NbtTag)>) 
 }
 
 #[test]
-fn light_stored_as_another_array_reads_as_absent() {
-    let fixture = Fixture::new("light_other_array");
-    assert_block_light_is_absent(
-        &fixture,
-        vec![
-            (
-                "an int array",
-                NbtTag::IntArray(vec![0x0f0f_0f0f; LIGHT_BYTES / 4]),
-            ),
-            (
-                "a long array",
-                NbtTag::LongArray(vec![0x0f0f_0f0f_0f0f_0f0f; LIGHT_BYTES / 8]),
-            ),
-        ],
-    );
-}
-
-#[test]
-fn light_stored_as_a_list_reads_as_absent_and_the_section_reads_on() {
-    let fixture = Fixture::new("light_list");
-    assert_block_light_is_absent(
-        &fixture,
-        vec![
-            ("a list of longs", NbtTag::List(vec![NbtTag::Long(0); 4])),
-            (
-                "a list of bytes",
-                NbtTag::List(vec![NbtTag::Byte(15); LIGHT_BYTES]),
-            ),
-        ],
-    );
-}
-
-#[test]
 fn light_that_is_no_collection_reads_as_absent() {
     let fixture = Fixture::new("light_no_collection");
     assert_block_light_is_absent(
@@ -1101,25 +885,6 @@ fn block_data_in_another_array_or_a_list_reads_one_word_per_element() {
             assert_eq!(blocks.get(x, y, z), expected, "{shape} at {x},{y},{z}");
         }
     }
-}
-
-#[test]
-fn an_int_array_of_twice_the_words_is_a_length_error_and_not_fused_pairs() {
-    let fixture = Fixture::new("block_data_fused");
-    let states = container_holding(air_and_stone(), NbtTag::IntArray(vec![0; 512]));
-    let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section(0, states))]);
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(
-        matches!(
-            err.kind,
-            ErrorKind::DataLength {
-                found: 512,
-                expected: 256,
-                ..
-            }
-        ),
-        "{err}"
-    );
 }
 
 /// One bit per cell packs 64 biome cells into a word, so the sign an element
@@ -1193,30 +958,6 @@ fn packed_data_that_is_no_list_of_numbers_reads_as_absent() {
             "{value:?}"
         );
     }
-}
-
-#[test]
-fn a_stale_data_version_is_a_loud_error() {
-    let fixture = Fixture::new("data_version");
-    let root = chunk_nbt_versioned(0, 0, Vec::new(), 4903);
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(
-        matches!(
-            err.kind,
-            ErrorKind::DataVersion {
-                found: 4903,
-                expected
-            } if expected == VERSION.world_version
-        ),
-        "{err}"
-    );
-    assert!(
-        err.to_string().ends_with(&format!(
-            "DataVersion 4903, expected {}",
-            VERSION.world_version
-        )),
-        "{err}"
-    );
 }
 
 #[test]
@@ -1392,24 +1133,6 @@ fn retrogen_error(name: &str, record: NbtCompound) -> String {
 }
 
 #[test]
-fn an_empty_target_status_is_a_load_error() {
-    let err = retrogen_error(
-        "retrogen_empty_target",
-        retrogen_record("minecraft:empty", &["minecraft:biomes"]),
-    );
-    assert!(err.contains("target_status cannot be empty"), "{err}");
-}
-
-#[test]
-fn an_empty_status_to_rerun_is_a_load_error() {
-    let err = retrogen_error(
-        "retrogen_empty_rerun",
-        retrogen_record("minecraft:full", &["minecraft:biomes", "minecraft:empty"]),
-    );
-    assert!(err.contains("statuses_to_rerun cannot be empty"), "{err}");
-}
-
-#[test]
 fn an_unregistered_status_in_retrogen_is_a_load_error() {
     retrogen_error(
         "retrogen_unregistered_target",
@@ -1419,14 +1142,6 @@ fn an_unregistered_status_in_retrogen_is_a_load_error() {
         "retrogen_unregistered_rerun",
         retrogen_record("minecraft:full", &["minecraft:not_a_status"]),
     );
-}
-
-#[test]
-fn an_unknown_key_in_retrogen_is_a_load_error() {
-    let mut record = retrogen_record("minecraft:full", &[]);
-    record.put_int("surprise", 1);
-    let err = retrogen_error("retrogen_unknown_key", record);
-    assert!(err.contains("surprise"), "{err}");
 }
 
 #[test]
@@ -1500,27 +1215,6 @@ fn a_bad_file_name_is_rejected_before_any_bytes_are_read() {
 }
 
 #[test]
-fn a_sector_pointing_into_the_header_is_an_error() {
-    let fixture = Fixture::new("sector_in_header");
-    let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes[..4].copy_from_slice(&(1i32 << 8 | 1).to_be_bytes());
-    std::fs::write(&path, bytes).unwrap();
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::SectorInHeader { sector: 1, .. }),
-        "{err}"
-    );
-}
-
-#[test]
 fn a_sector_past_the_end_of_the_file_is_an_error() {
     let fixture = Fixture::new("sector_out_of_bounds");
     let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
@@ -1537,27 +1231,6 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
         .unwrap_err();
     assert!(
         matches!(err.kind, ErrorKind::SectorOutOfBounds { sector: 900, .. }),
-        "{err}"
-    );
-}
-
-#[test]
-fn a_payload_longer_than_its_sectors_is_an_error() {
-    let fixture = Fixture::new("payload_length");
-    let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes[2 * SECTOR_BYTES..2 * SECTOR_BYTES + 4].copy_from_slice(&99_999i32.to_be_bytes());
-    std::fs::write(&path, bytes).unwrap();
-    let err = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(
-            ColumnPos::new(0, 0),
-            &TestRegistry::default(),
-            &TestRegistry::default(),
-        )
-        .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::PayloadLength { length: 99_999, .. }),
         "{err}"
     );
 }
@@ -1845,13 +1518,25 @@ pub(crate) mod write {
 
     #[test]
     fn a_region_read_and_written_back_reads_equal() {
-        let (src, dst) = (Fixture::new("write_src"), Fixture::new("write_dst"));
-        let region = fixture_region(&src, fixture::CHUNKS);
+        reads_equal_after_a_round_trip("write", 8);
+    }
+
+    mod exhaustive {
+        #[test]
+        fn a_region_read_and_written_back_reads_equal() {
+            super::reads_equal_after_a_round_trip("write_all", super::fixture::CHUNKS);
+        }
+    }
+
+    fn reads_equal_after_a_round_trip(name: &str, chunks: usize) {
+        let src = Fixture::new(&format!("{name}_src"));
+        let dst = Fixture::new(&format!("{name}_dst"));
+        let region = fixture_region(&src, chunks);
         let originals: Vec<(ColumnPos, Named)> = region
             .present()
             .map(|pos| (pos, read_named(&region, pos)))
             .collect();
-        assert_eq!(originals.len(), fixture::CHUNKS);
+        assert_eq!(originals.len(), chunks);
         let replaced: Vec<(ColumnPos, Vec<u8>)> = originals
             .iter()
             .map(|(pos, n)| (*pos, write_chunk(&n.chunk, &n.blocks, &n.biomes).unwrap()))

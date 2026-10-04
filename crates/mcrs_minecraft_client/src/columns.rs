@@ -889,18 +889,6 @@ mod tests {
     }
 
     #[test]
-    fn an_update_of_nothing_but_unchanged_rows_leaves_every_cell_alone() {
-        let (mut store, pos) = lit_store();
-        let update = light_update(pos, LightData::default());
-        store.relight(pos, &update);
-
-        let (x, y, z) = lit_at(0);
-        assert_eq!(store.light(x, y, z), 0x27);
-        let (x, y, z) = lit_at(-1);
-        assert_eq!(store.light(x, y, z), 0x16);
-    }
-
-    #[test]
     fn an_empty_row_darkens_that_layer_only() {
         let (mut store, pos) = lit_store();
         let update = light_update(

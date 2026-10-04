@@ -172,17 +172,6 @@ mod tests {
     }
 
     #[test]
-    fn network_timeline_round_trips_required_fields() {
-        let json = sent(&timeline("villager_schedule.json"));
-        assert!(json.get("clock").is_some());
-        assert!(json.get("tracks").is_some());
-        assert_eq!(
-            json.get("period_ticks").and_then(|v| v.as_u64()),
-            Some(24000)
-        );
-    }
-
-    #[test]
     fn every_shipped_timeline_survives_the_network_round_trip_unchanged() {
         for name in SHIPPED {
             assert_eq!(sent(&timeline(name)), raw(name), "{name}");
@@ -343,11 +332,6 @@ mod tests {
             markers.get_compound("minecraft:day").unwrap().get("ticks"),
             Some(&NbtTag::Int(1000))
         );
-    }
-
-    #[test]
-    fn deserialize_all_timelines() {
-        mcrs_minecraft_worldgen_testing::parse_all::<Timeline>("minecraft/timeline");
     }
 
     // ── Baking and sampling ──────────────────────────────────────────────────

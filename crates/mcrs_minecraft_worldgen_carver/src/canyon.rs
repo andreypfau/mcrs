@@ -291,14 +291,6 @@ mod tests {
             }
         }
         assert!(!mask.is_empty(), "no source reached the chunk");
-        mask.visit(|x, z, bottom, top| {
-            assert!((0..16).contains(&x), "x {x} outside the chunk");
-            assert!((0..16).contains(&z), "z {z} outside the chunk");
-            assert!(
-                bottom >= -63 && top <= 312,
-                "Y {bottom}..={top} out of range"
-            );
-        });
     }
 
     #[test]

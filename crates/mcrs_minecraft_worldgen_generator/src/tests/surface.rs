@@ -733,6 +733,17 @@ fn surfaced_column_fixed(
 /// without a badlands column the settled path is never walked.
 #[test]
 fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+    settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7)]);
+}
+
+mod exhaustive {
+    #[test]
+    fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+        super::settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7), (-22, 38)]);
+    }
+}
+
+fn settled_badlands_runs_write_the_bands_the_descent_would(columns: &[(i32, i32)]) {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);
     let y_sections: Vec<i32> = (-4..20).collect();
@@ -745,7 +756,7 @@ fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
         "minecraft:eroded_badlands",
         "minecraft:wooded_badlands",
     ] {
-        for (section_x, section_z) in [(3, -7), (-22, 38)] {
+        for &(section_x, section_z) in columns {
             let settled = surfaced_column_fixed(
                 &router,
                 &material,

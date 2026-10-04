@@ -91,7 +91,7 @@ mod bound_tests {
     }
 
     #[test]
-    fn disabled_normalization_keeps_the_base_amplitude_unscaled() {
+    fn each_normalization_scales_the_octave_amplitudes() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,
@@ -119,10 +119,7 @@ mod bound_tests {
             vec![0.97746503, 0.061091565, 0.061091565]
         );
         assert_eq!(gapped.range().max(), 2.25);
-    }
 
-    #[test]
-    fn enabled_normalization_prescales_the_octave_amplitudes() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,
@@ -150,10 +147,7 @@ mod bound_tests {
             vec![0.50449806, 0.03153113, 0.03153113]
         );
         assert_eq!(gapped.range().max(), 1.1612903);
-    }
 
-    #[test]
-    fn legacy_normalization_swaps_in_the_parity_factor() {
         let noise = sampler(
             &CONTINENTALNESS_MODIFIERS,
             CONTINENTALNESS_AMPLITUDE,

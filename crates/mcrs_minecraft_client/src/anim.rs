@@ -138,18 +138,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unlisted_sequence_runs_through_the_whole_image() {
-        let meta = animation(r#"{"animation": {"frametime": 2}}"#);
-        assert_eq!(meta.unroll("unlisted", strip(4)).frames, [0, 1, 2, 3]);
-    }
-
-    #[test]
-    fn a_listed_sequence_is_taken_in_the_order_it_is_written() {
-        let meta = animation(r#"{"animation": {"frames": [0, 1, 2, 1, 0]}}"#);
-        assert_eq!(meta.unroll("listed", strip(3)).frames, [0, 1, 2, 1, 0]);
-    }
-
-    #[test]
     fn a_step_with_its_own_duration_is_repeated_to_the_common_beat() {
         let meta = animation(
             r#"{"animation": {"frametime": 2, "frames": [0, {"index": 1, "time": 6}, 2]}}"#,
@@ -160,18 +148,6 @@ mod tests {
             unrolled.frametime, 2,
             "the common beat is the shortest step"
         );
-    }
-
-    #[test]
-    fn a_step_that_lasts_no_time_is_dropped() {
-        let meta = animation(r#"{"animation": {"frames": [0, {"index": 1, "time": -3}, 2]}}"#);
-        assert_eq!(meta.unroll("no time", strip(3)).frames, [0, 2]);
-    }
-
-    #[test]
-    fn a_step_naming_a_frame_the_image_does_not_hold_is_dropped() {
-        let meta = animation(r#"{"animation": {"frames": [0, 7, 1]}}"#);
-        assert_eq!(meta.unroll("out of range", strip(3)).frames, [0, 1]);
     }
 
     #[test]

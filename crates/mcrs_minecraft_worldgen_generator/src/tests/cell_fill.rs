@@ -18,13 +18,18 @@ use super::ladder::structure_dimension;
 /// `final_density` or running the search inside those cells. This pins the
 /// result, blocks and fluid ticks both, to what the block-by-block fill through
 /// the naive search would have produced.
+///
+/// The fill settles each strip's highest non-air block as it writes, per cell
+/// class, so a second pass over the column is never owed. Whole-cell classes
+/// answer for a 4x4 footprint at once, which is the part that can be wrong
+/// without any block being wrong.
 #[test]
 fn cell_elimination_matches_the_block_by_block_fill() {
     let router = build_router("overworld", 845);
     let y_sections: Vec<i32> = (-4..20).collect();
     let (section_x, section_z) = (3, -7);
     let mut column = ColumnBlocks::new(&y_sections);
-    fill_column_dense_any(
+    let filled = fill_column_dense_any(
         &mut column,
         section_x,
         section_z,
@@ -72,29 +77,6 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         }
     }
     assert_eq!(checked, 24 * 16 * 16 * 16);
-}
-
-/// The fill settles each strip's highest non-air block as it writes, per cell
-/// class, so a second pass over the column is never owed. Whole-cell classes
-/// answer for a 4x4 footprint at once, which is the part that can be wrong
-/// without any block being wrong.
-#[test]
-fn the_fill_records_the_top_of_every_strip() {
-    let router = build_router("overworld", 845);
-    let y_sections: Vec<i32> = (-4..20).collect();
-    let mut column = ColumnBlocks::new(&y_sections);
-    let filled = fill_column_dense_any(
-        &mut column,
-        3,
-        -7,
-        &y_sections,
-        &router,
-        None,
-        None,
-        None,
-        &CancellationToken::new(),
-    )
-    .expect("the column is not cancelled");
 
     let bottom = y_sections[0] * 16;
     let top = y_sections[y_sections.len() - 1] * 16 + 15;
@@ -125,6 +107,17 @@ fn the_fill_records_the_top_of_every_strip() {
 /// eliminated included.
 #[test]
 fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
+    bearded_columns_match_the_block_by_block_fill_of_the_summed_density(0);
+}
+
+mod exhaustive {
+    #[test]
+    fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
+        super::bearded_columns_match_the_block_by_block_fill_of_the_summed_density(1);
+    }
+}
+
+fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i32) {
     let dim = structure_dimension("minecraft:village_plains", "minecraft:plains");
     let index = dim
         .ctx
@@ -136,7 +129,7 @@ fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
     let stone = router.default_block_state;
     let (mut checked, mut raised, mut carved) = (0usize, 0usize, 0usize);
 
-    for (dx, dz) in (-1..=1).flat_map(|dx| (-1..=1).map(move |dz| (dx, dz))) {
+    for (dx, dz) in (-radius..=radius).flat_map(|dx| (-radius..=radius).map(move |dz| (dx, dz))) {
         let col = ColumnPos::new(dim.centre.x + dx, dim.centre.z + dz);
         let beard = index
             .beard(col)
@@ -197,7 +190,8 @@ fn a_bearded_column_matches_the_block_by_block_fill_of_the_summed_density() {
             }
         }
     }
-    assert_eq!(checked, 9 * y_sections.len() * 16 * 16 * 16);
+    let columns = ((2 * radius + 1) * (2 * radius + 1)) as usize;
+    assert_eq!(checked, columns * y_sections.len() * 16 * 16 * 16);
     assert!(
         raised > 0,
         "the beard raised no air to stone around the village"

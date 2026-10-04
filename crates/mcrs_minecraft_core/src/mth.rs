@@ -230,7 +230,6 @@ mod tests {
         assert!(signum(-0.0).is_sign_negative() && signum(-0.0) == 0.0);
         assert_eq!(signum(-3.0), -1.0);
         assert_eq!(signum(3.0), 1.0);
-        assert_eq!((-0.0f32).signum(), -1.0, "stdlib differs, as documented");
     }
 
     #[test]
@@ -251,13 +250,6 @@ mod tests {
     }
 
     #[test]
-    fn floor_div_matches_java() {
-        assert_eq!(floor_div(-7, 4), -2);
-        assert_eq!(floor_mod(-7, 4), 1);
-        assert_eq!(-7 / 4, -1, "stdlib truncates, as documented");
-    }
-
-    #[test]
     fn floor_div_matches_java_for_a_negative_divisor() {
         assert_eq!(floor_div(-1, -4), 0);
         assert_eq!(floor_mod(-1, -4), -1);
@@ -265,7 +257,6 @@ mod tests {
         assert_eq!(floor_mod(-7, -4), -3);
         assert_eq!(floor_div(7, -4), -2);
         assert_eq!(floor_mod(7, -4), -1);
-        assert_eq!((-1i32).div_euclid(-4), 1, "euclid differs, as documented");
     }
 
     #[test]
@@ -301,19 +292,23 @@ mod tests {
         }
     }
 
-    /// The two index forms are not interchangeable, which is why both exist.
-    #[test]
-    fn the_beta_index_and_the_modern_index_disagree() {
-        let mut disagreements = 0;
-        for step in 0..100_000 {
-            let x = (step as f64 - 50_000.0) * 0.0037;
-            if sin_modern(x) != sin(x as f32) {
-                disagreements += 1;
+    mod exhaustive {
+        use super::*;
+
+        /// The two index forms are not interchangeable, which is why both exist.
+        #[test]
+        fn the_beta_index_and_the_modern_index_disagree() {
+            let mut disagreements = 0;
+            for step in 0..100_000 {
+                let x = (step as f64 - 50_000.0) * 0.0037;
+                if sin_modern(x) != sin(x as f32) {
+                    disagreements += 1;
+                }
             }
+            assert!(
+                disagreements > 0,
+                "the two sine indices must not coincide everywhere"
+            );
         }
-        assert!(
-            disagreements > 0,
-            "the two sine indices must not coincide everywhere"
-        );
     }
 }

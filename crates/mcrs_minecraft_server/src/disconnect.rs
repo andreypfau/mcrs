@@ -358,23 +358,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn disconnect_budget_consume_decrements_until_zero() {
-        let mut b = DisconnectBudget::default();
-        for _ in 0..DISCONNECT_BUDGET {
-            assert!(b.consume());
-        }
-        assert!(!b.consume());
-        assert_eq!(b.0, 0);
-    }
-
-    #[test]
-    fn disconnect_budget_refill_resets_to_max() {
-        let mut b = DisconnectBudget(0);
-        b.refill();
-        assert_eq!(b.0, DISCONNECT_BUDGET);
-    }
-
-    #[test]
     fn pending_disconnect_queue_hard_cap_returns_false() {
         let mut q = PendingDisconnectQueue::default();
         let e = Entity::from_raw_u32(1).expect("nonzero");
@@ -383,10 +366,5 @@ mod tests {
         }
         assert!(!q.push_back(e), "push past hard cap should return false");
         assert_eq!(q.entries.len(), QUEUE_HARD_CAP);
-    }
-
-    #[test]
-    fn overflow_counter_default_is_zero() {
-        assert_eq!(OverflowCounter::default().0, 0);
     }
 }

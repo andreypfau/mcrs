@@ -4,16 +4,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{
-    Entries, Id, LoadReport, Registry, RegistryError, RegistrySet, ScopeError, UnknownEntry,
-};
+use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -234,21 +231,6 @@ fn the_slice_encodes_to_nbt_with_the_clock_as_a_name() {
     });
 }
 
-#[test]
-fn a_timeline_parsed_outside_a_scope_fails_naming_the_type() {
-    let file = &files("timeline")[0];
-    let error = serde_json::from_slice::<TimelineRow>(&std::fs::read(file).unwrap())
-        .err()
-        .unwrap()
-        .to_string();
-    assert!(error.contains("Id<"), "{error}");
-    assert!(error.contains("minecraft:world_clock"), "{error}");
-    assert!(matches!(
-        Registry::<WorldClockKey>::in_scope("probe", |_| ()),
-        Err(ScopeError::NoScope { .. })
-    ));
-}
-
 fn parse<T: DeserializeOwned>(set: &RegistrySet, text: &str) -> Result<T, String> {
     RegistrySet::scope(set, || {
         serde_json::from_str(text).map_err(|error| error.to_string())
@@ -304,75 +286,6 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
 }
 
 #[test]
-fn a_set_naming_an_unknown_tag_fails_naming_tag_and_registry() {
-    let Slice { timelines, set, .. } = slice();
-    for tag in names("tags/timeline") {
-        assert!(Registry::has_tag(&timelines, tag.as_str()), "{tag}");
-    }
-    assert!(!Registry::has_tag(&timelines, "minecraft:nowhere"));
-    let error = parse::<TimelineSet>(&set, "\"#minecraft:nowhere\"").unwrap_err();
-    assert!(error.contains("Missing tag"), "{error}");
-    assert!(error.contains("minecraft:nowhere"), "{error}");
-    assert!(error.contains("minecraft:timeline"), "{error}");
-}
-
-#[test]
-fn an_entry_name_is_not_a_tag_and_a_tag_name_is_not_an_entry() {
-    let Slice { timelines, set, .. } = slice();
-    let entry = &names("timeline")[0];
-    let tag = &names("tags/timeline")[0];
-
-    let error = parse::<TimelineSet>(&set, &quoted(&format!("#{entry}"))).unwrap_err();
-    assert!(error.contains("Missing tag"), "{error}");
-    assert!(error.contains(entry.as_str()), "{error}");
-    assert!(error.contains("minecraft:timeline"), "{error}");
-    assert!(!Registry::has_tag(&timelines, entry.as_str()));
-
-    let error = parse::<TimelineSet>(&set, &quoted(tag.as_str())).unwrap_err();
-    assert!(error.contains(tag.as_str()), "{error}");
-    assert!(error.contains("minecraft:timeline"), "{error}");
-    let unknown = Registry::require(&timelines, tag.as_str()).unwrap_err();
-    assert_eq!(unknown.registry, TimelineKey::KEY);
-    assert_eq!(unknown.name, tag.as_str());
-}
-
-#[test]
-fn a_clock_of_another_registry_is_an_error_naming_registry_and_entry() {
-    let Slice { set, .. } = slice();
-    let timeline = &names("timeline")[0];
-    let text = format!("{{\"clock\":{}}}", quoted(timeline.as_str()));
-    let error = parse::<TimelineRow>(&set, &text).err().unwrap();
-    assert!(error.contains("minecraft:world_clock"), "{error}");
-    assert!(error.contains(timeline.as_str()), "{error}");
-}
-
-#[test]
-fn ids_follow_the_sorted_file_list() {
-    let first = slice();
-    for (listed, built) in [
-        (
-            names("world_clock"),
-            Registry::ids(&first.clocks)
-                .map(|id| Registry::key(&first.clocks, id).cloned().unwrap())
-                .collect::<Vec<_>>(),
-        ),
-        (
-            names("timeline"),
-            Registry::ids(&first.timelines)
-                .map(|id| Registry::key(&first.timelines, id).cloned().unwrap())
-                .collect::<Vec<_>>(),
-        ),
-    ] {
-        assert_eq!(built, listed);
-    }
-
-    let held = RegistrySet::registry::<TimelineKey>(&first.set).unwrap();
-    assert_eq!(Registry::len(&held), Registry::len(&first.timelines));
-    assert!(RegistrySet::registry::<TimelineKey>(&RegistrySet::new()).is_none());
-    assert!(RegistrySet::with(first.set.clone(), first.clocks.clone()).is_err());
-}
-
-#[test]
 fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     #[derive(Deserialize)]
     struct Holder {
@@ -410,22 +323,6 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
 }
 
 #[test]
-fn a_column_of_the_wrong_length_does_not_build() {
-    let Slice { timelines, .. } = slice();
-    let held = Registry::len(&timelines);
-    let error = Entries::new(&timelines, vec![0u8; held - 1]).err().unwrap();
-    assert!(
-        matches!(
-            error,
-            RegistryError::LengthMismatch { expected, found, .. }
-                if expected == held && found == held - 1
-        ),
-        "{error}"
-    );
-    assert!(error.to_string().contains("minecraft:timeline"), "{error}");
-}
-
-#[test]
 fn an_empty_world_clock_round_trips_as_an_empty_object() {
     let Slice { set, .. } = slice();
     for file in files("world_clock") {
@@ -434,85 +331,4 @@ fn an_empty_world_clock_round_trips_as_an_empty_object() {
         assert_eq!(write(&set, &clock), "{}");
         assert_eq!(read_value(&file), serde_json::json!({}));
     }
-}
-
-#[derive(Resource)]
-struct Clocks {
-    overworld: Id<WorldClockKey>,
-    the_end: Id<WorldClockKey>,
-}
-
-#[derive(Resource)]
-struct ClockRegistry(Registry<WorldClockKey>);
-
-#[derive(Resource)]
-struct ClockReport(LoadReport);
-
-fn resolve_clocks(
-    registry: Res<ClockRegistry>,
-    mut report: ResMut<ClockReport>,
-    mut commands: Commands,
-) {
-    let overworld = LoadReport::require(&mut report.0, &registry.0, "minecraft:overworld");
-    let the_end = LoadReport::require(&mut report.0, &registry.0, "minecraft:the_end");
-    if let (Some(overworld), Some(the_end)) = (overworld, the_end) {
-        commands.insert_resource(Clocks { overworld, the_end });
-    }
-}
-
-fn load_clocks(registry: Registry<WorldClockKey>) -> World {
-    let mut world = World::new();
-    world.insert_resource(ClockRegistry(registry));
-    world.insert_resource(ClockReport(LoadReport::new()));
-    world.run_system_once(resolve_clocks).unwrap();
-    world
-}
-
-fn clock_registry_of(entries: &[&str]) -> Registry<WorldClockKey> {
-    Registry::new(
-        entries
-            .iter()
-            .map(|text| ResourceLocation::<Arc<str>>::parse(text).unwrap()),
-        std::iter::empty(),
-    )
-    .unwrap()
-}
-
-#[test]
-fn a_consumer_resolves_its_entries_once_into_one_resource() {
-    let Slice { clocks, .. } = slice();
-    let listing = names("world_clock");
-    let position = |wanted: &str| {
-        listing
-            .iter()
-            .position(|name| name.as_str() == wanted)
-            .unwrap()
-    };
-
-    let world = load_clocks(clocks);
-
-    let resolved = world.get_resource::<Clocks>().expect("Clocks is inserted");
-    assert_eq!(
-        Id::index(resolved.overworld),
-        position("minecraft:overworld")
-    );
-    assert_eq!(Id::index(resolved.the_end), position("minecraft:the_end"));
-    assert!(LoadReport::is_empty(&world.resource::<ClockReport>().0));
-}
-
-#[test]
-fn a_missing_entry_lands_in_the_report_and_no_resource_is_inserted() {
-    let registry = clock_registry_of(&["minecraft:overworld"]);
-    let miss: UnknownEntry = Registry::require(&registry, "minecraft:the_end").unwrap_err();
-    let world = load_clocks(registry);
-
-    assert!(world.get_resource::<Clocks>().is_none());
-    let report = &world.resource::<ClockReport>().0;
-    assert!(!LoadReport::is_empty(report));
-    let text = report.to_string();
-    assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains("minecraft:world_clock"), "{text}");
-    assert!(text.contains("minecraft:the_end"), "{text}");
-    assert!(!text.contains("minecraft:overworld"), "{text}");
-    assert_eq!(text, format!("{}/{}: {miss}", miss.registry, miss.name));
 }

@@ -321,24 +321,6 @@ mod tests {
     }
 
     #[test]
-    fn a_geode_in_rock_lays_all_four_layers() {
-        let mut volume = solid_rock();
-        let mut rng = WorldgenRandom::new(0x0009_e0de);
-        assert!(place_geode(
-            &amethyst_geode(),
-            &mut volume,
-            &mut rng,
-            ORIGIN
-        ));
-        for expected in [SMOOTH_BASALT, CALCITE, AMETHYST, AIR] {
-            assert!(
-                volume.writes.iter().any(|(_, state)| *state == expected),
-                "no {expected:?} in the shell"
-            );
-        }
-    }
-
-    #[test]
     fn crystals_only_grow_where_the_alternate_layer_went_in() {
         let mut volume = solid_rock();
         let mut config = amethyst_geode();
@@ -358,7 +340,18 @@ mod tests {
     fn geode_draw_count_anchor() {
         let mut volume = solid_rock();
         let mut rng = WorldgenRandom::new(0x0009_e0de);
-        place_geode(&amethyst_geode(), &mut volume, &mut rng, ORIGIN);
+        assert!(place_geode(
+            &amethyst_geode(),
+            &mut volume,
+            &mut rng,
+            ORIGIN
+        ));
+        for expected in [SMOOTH_BASALT, CALCITE, AMETHYST, AIR] {
+            assert!(
+                volume.writes.iter().any(|(_, state)| *state == expected),
+                "no {expected:?} in the shell"
+            );
+        }
         assert_eq!(rng.next_java_long(), GEODE_PIN);
     }
 

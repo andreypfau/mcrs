@@ -220,11 +220,6 @@ mod tests {
     }
 
     #[test]
-    fn definitions_that_agree_with_the_report_yield_nothing() {
-        assert_eq!(found(REPORT, &[AIR, CHEST]), Vec::<String>::new());
-    }
-
-    #[test]
     fn a_reversed_property_order_moves_the_state_ids() {
         let reversed = CHEST.replace(
             r#""lit": [true, false], "type": ["single", "left"]"#,
@@ -236,15 +231,6 @@ mod tests {
                 "minecraft:chest: state 2 should be 3",
                 "minecraft:chest: state 3 should be 2",
             ]
-        );
-    }
-
-    #[test]
-    fn a_different_default_state_is_reported() {
-        let moved = CHEST.replace(r#""default_state_id": 3"#, r#""default_state_id": 1"#);
-        assert_eq!(
-            found(REPORT, &[AIR, &moved]),
-            ["minecraft:chest: reported defaults [3], definition 1"]
         );
     }
 

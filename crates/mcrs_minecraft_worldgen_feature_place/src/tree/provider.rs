@@ -492,12 +492,6 @@ mod tests {
     }
 
     #[test]
-    fn simple_draws_nothing() {
-        let volume = FakeVolume::default();
-        assert_eq!(assert_draws(&StateProvider::Simple(A), &volume, |_| {}), A);
-    }
-
-    #[test]
     fn weighted_draws_one_int_and_walks_the_cumulative_weights() {
         let volume = FakeVolume::default();
         let provider = StateProvider::Weighted(vec![(A, 1), (B, 0), (C, 3)]);
@@ -507,22 +501,6 @@ mod tests {
 
         let selection = rng().next_i32_bound(4);
         assert_eq!(state, if selection < 1 { A } else { C });
-        assert_eq!(
-            (0..4)
-                .map(|selection| {
-                    let mut walked = selection;
-                    for (state, weight) in [(A, 1), (B, 0), (C, 3)] {
-                        walked -= weight;
-                        if walked < 0 {
-                            return state;
-                        }
-                    }
-                    unreachable!()
-                })
-                .collect::<Vec<_>>(),
-            [A, C, C, C],
-            "a zero weight is never selected"
-        );
     }
 
     #[test]

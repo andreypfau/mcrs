@@ -1,10 +1,10 @@
-//! ROUT-05 gate: A→B→A round-trip stale-epoch drop and current-epoch delivery.
+//! A→B→A round-trip stale-epoch drop and current-epoch delivery.
 //!
 //! Simulates the hazard where a clientbound packet from a player's first visit
 //! to dimension A is still in transit when the player returns to A after
 //! visiting B (i.e., the A→B→A round trip).
 //!
-//! This is the FILTER half of ROUT-05 in isolation: it bumps the session epoch
+//! This is the filter half in isolation: it bumps the session epoch
 //! by mutating the session's placement directly so the test depends only on
 //! `bridge_outbound`. The WIRING half — that `bridge_player_transfer` actually
 //! performs the bump on each real dim change — is covered by

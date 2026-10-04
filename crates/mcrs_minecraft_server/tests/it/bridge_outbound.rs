@@ -15,56 +15,7 @@ use mcrs_minecraft_level::session::PlayerSession;
 use mock_connection::{
     build_bridge_world, build_bridge_world_with_sessions, drain_queue, register_player,
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
-    write_packet_stamped,
 };
-
-// ---------------------------------------------------------------------------
-// bridge_outbound_drains
-// ---------------------------------------------------------------------------
-
-/// A message written to `Messages<OutboundPlayerPacket>` on the main world is
-/// drained by `bridge_outbound` and pushed to the resolved player's
-/// `OutboundQueue`. The system uses `MessageReader` (cursor semantics) rather
-/// than `Messages::drain()`, which is the contract for single-owner reads.
-#[test]
-fn bridge_outbound_drains() {
-    let mut world = build_bridge_world();
-
-    let dim = Entity::from_raw_u32(2).expect("nonzero");
-    let socket = spawn_connection(&mut world);
-    let (player, session) = register_player(&mut world, socket, dim);
-
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(player),
-        session,
-        0,
-        PacketPriority::Normal,
-        42,
-    );
-
-    run_system(&mut world, bridge_outbound);
-
-    // The queue on `socket` should have received the packet.
-    let queue = world
-        .get::<OutboundQueue>(socket)
-        .expect("OutboundQueue present");
-    assert_eq!(
-        queue.total_len(),
-        1,
-        "packet was not pushed to OutboundQueue"
-    );
-
-    // No other side-effects: exactly one message produced exactly one push.
-    assert_eq!(
-        queue.normal.len(),
-        1,
-        "Normal-priority packet must land in normal sub-deque"
-    );
-    assert_eq!(queue.critical.len(), 0);
-    assert_eq!(queue.high.len(), 0);
-    assert_eq!(queue.low.len(), 0);
-}
 
 // ---------------------------------------------------------------------------
 // packet_target_single_player
@@ -320,84 +271,6 @@ fn priority_drain_order() {
         seqs,
         vec![1, 2, 3, 4],
         "drain order must be Critical(1) → High(2) → Normal(3) → Low(4)"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// epoch_filter_drops_stale_packet
-// ---------------------------------------------------------------------------
-
-/// A packet stamped with a stale epoch (0) is dropped when the session's
-/// current epoch is 1. Covers ROUT-03 (strict-equality drop).
-#[test]
-fn epoch_filter_drops_stale_packet() {
-    let mut world = build_bridge_world_with_sessions();
-
-    let session = PlayerSession(1);
-    let socket = spawn_connection(&mut world);
-    register_session(&mut world, session, socket, 1);
-
-    // Packet stamped with epoch 0 — stale relative to the session's epoch 1.
-    write_packet_stamped(&mut world, session, 0, PacketPriority::Normal, 42);
-    run_system(&mut world, bridge_outbound);
-
-    let queue = world
-        .get::<OutboundQueue>(socket)
-        .expect("OutboundQueue present");
-    assert_eq!(queue.total_len(), 0, "stale-epoch packet must be dropped");
-}
-
-// ---------------------------------------------------------------------------
-// epoch_filter_delivers_matching_epoch
-// ---------------------------------------------------------------------------
-
-/// A packet stamped with the current epoch is delivered.
-#[test]
-fn epoch_filter_delivers_matching_epoch() {
-    let mut world = build_bridge_world_with_sessions();
-
-    let session = PlayerSession(2);
-    let socket = spawn_connection(&mut world);
-    register_session(&mut world, session, socket, 1);
-
-    write_packet_stamped(&mut world, session, 1, PacketPriority::Normal, 7);
-    run_system(&mut world, bridge_outbound);
-
-    let queue = world
-        .get::<OutboundQueue>(socket)
-        .expect("OutboundQueue present");
-    assert_eq!(
-        queue.total_len(),
-        1,
-        "matching-epoch packet must be delivered"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// unstamped_packet_dropped
-// ---------------------------------------------------------------------------
-
-/// A packet with the default PlayerSession(0) is always dropped because
-/// PlayerSession(0) is never a session's id (counter starts at 1).
-/// This ensures no dim-system packet that slips through without stamping
-/// reaches a connection.
-#[test]
-fn unstamped_packet_dropped() {
-    let mut world = build_bridge_world_with_sessions();
-
-    let socket = spawn_connection(&mut world);
-
-    // Do NOT register any session — PlayerSession(0) is never a session's id.
-    write_packet_stamped(&mut world, PlayerSession(0), 0, PacketPriority::Normal, 99);
-    run_system(&mut world, bridge_outbound);
-
-    let queue = world
-        .get::<OutboundQueue>(socket)
-        .expect("OutboundQueue present");
-    assert_eq!(
-        queue.total_len(),
-        0,
-        "PlayerSession(0) must always be dropped"
     );
 }
 

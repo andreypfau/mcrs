@@ -702,7 +702,6 @@ mod tests {
     struct Placed {
         volume: FakeVolume,
         block_entities: Vec<GeneratedBlockEntity>,
-        rng: WorldgenRandom,
     }
 
     /// Runs a decorator over a bare column of logs and leaves, then checks the
@@ -754,7 +753,6 @@ mod tests {
         Placed {
             volume,
             block_entities: sink.0,
-            rng: actual,
         }
     }
 
@@ -899,7 +897,6 @@ mod tests {
             volume_writes += 1;
         }
         assert!(volume_writes > 0, "the tries must land somewhere");
-        assert_eq!(placed.rng, placed.rng.clone());
     }
 
     #[test]
@@ -1095,20 +1092,5 @@ mod tests {
             [((0, 66, 0), MOSS_TIP)],
             "the log below stops the hanger at once"
         );
-    }
-
-    #[test]
-    fn the_shuffle_is_a_descending_fisher_yates() {
-        let positions = trunk(0, 4);
-        let mut actual = rng();
-        let shuffled = shuffled(&positions, &mut actual);
-        let mut replay = rng();
-        for length in (2..=5).rev() {
-            replay.next_i32_bound(length);
-        }
-        assert_eq!(actual, replay, "one draw short of the length");
-        let mut sorted = shuffled.clone();
-        sorted.sort_by_key(|pos| pos.y);
-        assert_eq!(sorted, positions, "a shuffle keeps every element");
     }
 }

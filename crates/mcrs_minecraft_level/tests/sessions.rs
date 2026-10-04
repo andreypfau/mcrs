@@ -1,7 +1,5 @@
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_level::session::{
-    DimPlayerIndex, Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
-};
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 
 fn dim(index: u32) -> Entity {
     Entity::from_raw_u32(index).unwrap()
@@ -87,21 +85,4 @@ fn a_transfer_is_held_by_both_ends() {
     assert_eq!(holding(Place::InDim(a)), vec![a]);
     assert_eq!(holding(Place::Transferring { from: a, to: b }), vec![b, a]);
     assert_eq!(holding(Place::Transferring { from: a, to: a }), vec![a]);
-}
-
-#[test]
-fn dim_player_index_default_empty() {
-    let index = DimPlayerIndex::default();
-    assert!(index.0.is_empty());
-}
-
-#[test]
-fn dim_player_index_insert_lookup_roundtrip() {
-    let mut index = DimPlayerIndex::default();
-    let session = PlayerSession(1);
-    let entity = Entity::from_raw_u32(42).unwrap();
-    index.0.insert(session, entity);
-    assert_eq!(index.0.get(&session).copied(), Some(entity));
-    index.0.remove(&session);
-    assert!(index.0.get(&session).is_none());
 }

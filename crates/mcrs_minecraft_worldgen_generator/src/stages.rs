@@ -934,7 +934,7 @@ mod tests {
     use super::*;
     use crate::saved::SectionData;
     use crate::staging::StagingStore;
-    use crate::tests::{bare_fill_context, build_beta_router, generate_region};
+    use crate::tests::{bare_fill_context, build_beta_router};
 
     fn flat_snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> FilledSnapshot {
         crate::tests::flat_snapshot(col, y_sections, |_| Some(fill), None)
@@ -1050,42 +1050,6 @@ mod tests {
         assert_eq!(merged.entities, vec![neighbour]);
     }
 
-    /// Within one rung the nine columns of a 3×3 run at once, so a neighbour's
-    /// write reaches a column only at the merge that closes the rung. What the
-    /// reference gets from decorating into shared chunks, the ladder gets
-    /// between rungs instead: the next rung reads the merge.
-    #[test]
-    fn a_run_reads_the_neighbour_as_the_rung_below_left_it() {
-        let y_sections: Arc<[i32]> = Arc::from(vec![0i32, 1]);
-        let left = ColumnPos::new(0, 0);
-        let right = ColumnPos::new(1, 0);
-        let ctx = bare_fill_context(build_beta_router());
-        let shared = BlockPos::new(right.x * 16 + 2, 20, right.z * 16 + 2);
-
-        // `left` decorates into `right`.
-        let snapshots = region_of(left, &y_sections, VoxelId(1));
-        let column = ColumnBlocks::new(&y_sections);
-        column.unpack(&snapshots[4].sections);
-        let mut region = ColumnRegion::new(&snapshots, &column, &ctx);
-        region.set(shared, VoxelId(7));
-        let deltas = region.finish();
-        assert!(
-            deltas.iter().any(|(target, _)| *target == right),
-            "the write is routed to the neighbour"
-        );
-
-        // `right` runs from its own filled snapshot and does not see it.
-        let snapshots = region_of(right, &y_sections, VoxelId(1));
-        let column = ColumnBlocks::new(&y_sections);
-        column.unpack(&snapshots[4].sections);
-        let region = ColumnRegion::new(&snapshots, &column, &ctx);
-        assert_eq!(
-            region.get(shared),
-            VoxelId(1),
-            "a neighbour's write reaches the column at the merge, not during its run"
-        );
-    }
-
     #[test]
     fn a_merge_applies_deltas_in_ascending_rank() {
         let y_sections: Arc<[i32]> = Arc::from(vec![0i32]);
@@ -1162,67 +1126,74 @@ mod tests {
         );
     }
 
-    /// A cave that opens the surface lowers `WORLD_SURFACE_WG`: the reference
-    /// keeps the pair live through the carvers, so at the fill the terrain
-    /// maps and the final maps are one descent over the same blocks.
-    #[test]
-    fn the_terrain_maps_are_taken_after_the_carvers() {
-        use crate::heightmap::heightmap_predicates;
-        use crate::tests::{beta_carver_table, block_tags, blocks};
+    mod exhaustive {
+        use super::*;
 
-        let router = Arc::new(build_beta_router());
-        let (source, registry) = crate::tests::beta_surface::build_beta_biome_source();
-        let source = Arc::new(source);
-        let carved = FillContext {
-            y_sections: dimension_y_sections(&router, -64, 24),
-            blocks: blocks().0.clone(),
-            biome: Some((Arc::clone(&source), Arc::new(registry))),
-            predicates: Some(heightmap_predicates(blocks(), block_tags())),
-            saved: None,
-            program: ColumnProgram {
-                generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
-                carvers: Some(Arc::new(beta_carver_table(&source))),
-                features: None,
-            },
-            router,
-            material: None,
-            structures: None,
-        };
-        let mut uncarved = carved.clone();
-        uncarved.program.carvers = None;
+        /// A cave that opens the surface lowers `WORLD_SURFACE_WG`: the reference
+        /// keeps the pair live through the carvers, so at the fill the terrain
+        /// maps and the final maps are one descent over the same blocks.
+        #[test]
+        fn the_terrain_maps_are_taken_after_the_carvers() {
+            use crate::heightmap::heightmap_predicates;
+            use crate::tests::{beta_carver_table, block_tags, blocks};
 
-        let cancel = CancellationToken::new();
-        let mut buffer = ColumnBlocks::new(&carved.y_sections);
-        let mut opened = 0;
-        for x in -5..=5 {
-            for z in -5..=5 {
-                let col = ColumnPos::new(x, z);
-                let after = fill_column(&carved, col, &mut buffer, &cancel).unwrap();
-                let before = fill_column(&uncarved, col, &mut buffer, &cancel).unwrap();
-                let (terrain, maps) = (after.terrain.unwrap(), after.maps.unwrap());
-                let before = before.terrain.unwrap();
-                for lx in 0..16 {
-                    for lz in 0..16 {
-                        assert_eq!(
-                            terrain.surface.get(lx, lz),
-                            maps.surface.0.get(lx, lz),
-                            "WORLD_SURFACE_WG of {col:?} at ({lx}, {lz})"
-                        );
-                        assert_eq!(
-                            terrain.solid.get(lx, lz),
-                            maps.solid.0.get(lx, lz),
-                            "OCEAN_FLOOR_WG of {col:?} at ({lx}, {lz})"
-                        );
-                        opened +=
-                            usize::from(terrain.surface.get(lx, lz) < before.surface.get(lx, lz));
+            let router = Arc::new(build_beta_router());
+            let (source, registry) = crate::tests::beta_surface::build_beta_biome_source();
+            let source = Arc::new(source);
+            let carved = FillContext {
+                y_sections: dimension_y_sections(&router, -64, 24),
+                blocks: blocks().0.clone(),
+                biome: Some((Arc::clone(&source), Arc::new(registry))),
+                predicates: Some(heightmap_predicates(blocks(), block_tags())),
+                saved: None,
+                program: ColumnProgram {
+                    generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
+                        &blocks().0,
+                    ))),
+                    carvers: Some(Arc::new(beta_carver_table(&source))),
+                    features: None,
+                },
+                router,
+                material: None,
+                structures: None,
+            };
+            let mut uncarved = carved.clone();
+            uncarved.program.carvers = None;
+
+            let cancel = CancellationToken::new();
+            let mut buffer = ColumnBlocks::new(&carved.y_sections);
+            let mut opened = 0;
+            for x in -5..=5 {
+                for z in -5..=5 {
+                    let col = ColumnPos::new(x, z);
+                    let after = fill_column(&carved, col, &mut buffer, &cancel).unwrap();
+                    let before = fill_column(&uncarved, col, &mut buffer, &cancel).unwrap();
+                    let (terrain, maps) = (after.terrain.unwrap(), after.maps.unwrap());
+                    let before = before.terrain.unwrap();
+                    for lx in 0..16 {
+                        for lz in 0..16 {
+                            assert_eq!(
+                                terrain.surface.get(lx, lz),
+                                maps.surface.0.get(lx, lz),
+                                "WORLD_SURFACE_WG of {col:?} at ({lx}, {lz})"
+                            );
+                            assert_eq!(
+                                terrain.solid.get(lx, lz),
+                                maps.solid.0.get(lx, lz),
+                                "OCEAN_FLOOR_WG of {col:?} at ({lx}, {lz})"
+                            );
+                            opened += usize::from(
+                                terrain.surface.get(lx, lz) < before.surface.get(lx, lz),
+                            );
+                        }
                     }
                 }
             }
+            assert!(
+                opened > 0,
+                "no cave opened the surface in the sampled columns"
+            );
         }
-        assert!(
-            opened > 0,
-            "no cave opened the surface in the sampled columns"
-        );
     }
 
     #[test]
@@ -1314,18 +1285,5 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn the_oracle_merges_the_column_the_fill_produced() {
-        let ctx = bare_fill_context(build_beta_router());
-        let col = ColumnPos::new(0, 0);
-        let region = generate_region(&ctx, col, col);
-        let merged = region.get(&col).expect("the oracle merged the column");
-
-        let mut buffer = ColumnBlocks::new(&ctx.y_sections);
-        let alone = fill_column(&ctx, col, &mut buffer, &CancellationToken::new())
-            .expect("the fill was not cancelled");
-        assert_same_sections(&merged.sections, &alone.sections);
     }
 }

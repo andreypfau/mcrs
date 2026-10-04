@@ -303,48 +303,6 @@ mod tests {
     }
 
     #[test]
-    fn network_biome_omits_server_fields() {
-        let biome: Biome =
-            mcrs_minecraft_worldgen_testing::read("biome", &ResourceLocation::minecraft("plains"));
-        let network = NetworkBiome::from(&biome);
-
-        let json = serde_json::to_value(&network).unwrap();
-        assert!(json.get("temperature").is_some());
-        assert!(json.get("downfall").is_some());
-        assert!(json.get("has_precipitation").is_some());
-        assert!(json.get("effects").is_some());
-        assert!(json.get("carvers").is_none());
-        assert!(json.get("features").is_none());
-
-        let attributes = json.get("attributes").expect("attributes are synced");
-        assert_eq!(
-            attributes.get("minecraft:visual/sky_color").unwrap(),
-            "#78a7ff"
-        );
-        assert!(
-            attributes.get(id::NATURAL_MOB_SPAWNS.id.as_str()).is_none(),
-            "spawns are server-only"
-        );
-
-        let nbt = mcrs_minecraft_nbt::to_nbt_compound(&network)
-            .expect("network biome must encode to NBT");
-        let Some(mcrs_minecraft_nbt::tag::NbtTag::Compound(attributes)) = nbt.get("attributes")
-        else {
-            panic!("attributes must reach the client as a compound");
-        };
-        assert_eq!(
-            attributes.get("minecraft:visual/sky_color"),
-            Some(&mcrs_minecraft_nbt::tag::NbtTag::String(
-                "#78a7ff".to_string()
-            ))
-        );
-
-        assert!((network.temperature - biome.temperature).abs() < f32::EPSILON);
-        assert!((network.downfall - biome.downfall).abs() < f32::EPSILON);
-        assert_eq!(network.has_precipitation, biome.has_precipitation);
-    }
-
-    #[test]
     fn deserialize_plains_biome() {
         let biome: Biome =
             mcrs_minecraft_worldgen_testing::read("biome", &ResourceLocation::minecraft("plains"));

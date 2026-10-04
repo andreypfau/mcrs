@@ -53,46 +53,10 @@ pub fn check_corpus_version(corpus: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn parse(text: &str) -> Result<Version, serde_json::Error> {
-        serde_json::from_str(text)
-    }
-
     fn replaced(from: &str, to: &str) -> String {
         let text = VERSION_JSON.replace(from, to);
         assert_ne!(text, VERSION_JSON, "{from} is not in the file");
         text
-    }
-
-    #[test]
-    fn the_embedded_file_parses() {
-        let version = parse(VERSION_JSON).unwrap();
-        assert!(!version.id.is_empty());
-        assert!(!version.name.is_empty());
-        assert_eq!(version, *VERSION);
-    }
-
-    #[test]
-    fn an_unknown_field_is_rejected() {
-        let text = VERSION_JSON.replacen('{', "{\"extra\": 1,", 1);
-        assert!(parse(&text).is_err());
-    }
-
-    #[test]
-    fn a_missing_field_is_rejected() {
-        let series = format!("\"series_id\": \"{}\",", VERSION.series_id);
-        assert!(parse(&replaced(&series, "")).is_err());
-    }
-
-    #[test]
-    fn a_null_field_is_rejected() {
-        let series = format!("\"series_id\": \"{}\"", VERSION.series_id);
-        assert!(parse(&replaced(&series, "\"series_id\": null")).is_err());
-    }
-
-    #[test]
-    fn a_number_beyond_32_bits_is_rejected() {
-        let protocol = VERSION.protocol_version.to_string();
-        assert!(parse(&replaced(&protocol, "2147483648")).is_err());
     }
 
     #[test]

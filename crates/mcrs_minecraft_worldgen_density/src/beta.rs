@@ -225,22 +225,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn beta_seeding_returns_the_five_surviving_noises() {
-        let noises = BetaTerrainNoises::new(845);
-        assert!(noises.beach.range().max() > 0.0, "beach not constructed");
-        assert!(
-            noises.beach_flat.range().max() > 0.0,
-            "beach_flat not constructed"
-        );
-        assert!(
-            noises.surface.range().max() > 0.0,
-            "surface not constructed"
-        );
-        assert!(noises.scale.range().max() > 0.0, "scale not constructed");
-        assert!(noises.depth.range().max() > 0.0, "depth not constructed");
-    }
-
     /// The low, high and selector triple is drawn and dropped. Skipping the draw
     /// instead of dropping the result moves every noise that follows it.
     #[test]
@@ -254,17 +238,6 @@ mod tests {
         let shifted = perlin_2d_fbm(lattices(&mut rng, 10));
 
         assert_ne!(kept.get(100.0, 0.0, 300.0), shifted.get(100.0, 0.0, 300.0));
-    }
-
-    #[test]
-    fn beta_climate_seeding_is_independent_from_terrain() {
-        let after_first_terrain_octave = {
-            let mut rng = LegacyRandom::new(12345);
-            let _ = lattices(&mut rng, 16);
-            rng.seed
-        };
-        let climate_start = LegacyRandom::new(12345u64.wrapping_mul(9871)).seed;
-        assert_ne!(after_first_terrain_octave, climate_start);
     }
 
     /// The Beta temperature post-processing, which now lives in the
@@ -286,20 +259,6 @@ mod tests {
             .vegetation
             .get(x * VEGETATION_SCALE, 0.0, z * VEGETATION_SCALE);
         ((raw * 0.15 + 0.5) * 0.998 + detail * 0.002).clamp(0.0, 1.0)
-    }
-
-    #[test]
-    fn beta_climate_postprocess_stays_in_the_unit_interval() {
-        let climate = BetaClimateNoises::new(12345);
-        for (x, z) in [(0.0, 0.0), (8.0, 8.0), (-1024.0, 512.0)] {
-            let temp = sample_temperature(&climate, x, z);
-            let humidity = sample_humidity(&climate, x, z);
-            assert!((0.0..=1.0).contains(&temp), "temperature {temp} at {x},{z}");
-            assert!(
-                (0.0..=1.0).contains(&humidity),
-                "humidity {humidity} at {x},{z}"
-            );
-        }
     }
 
     #[derive(serde::Deserialize)]

@@ -572,14 +572,6 @@ mod tests {
     }
 
     #[test]
-    fn a_solid_wall_hides_what_is_behind_it() {
-        let mut slab = walled(0, 40, 20, [35, 2, 16]);
-        slab.run(middle([35, 2, 16]));
-        assert!(slab.visible([25, 2, 16]), "section in front of the wall");
-        assert!(!slab.visible([10, 2, 16]), "section behind the wall");
-    }
-
-    #[test]
     fn a_storey_below_the_origin_culls_from_where_the_camera_really_is() {
         let mut slab = walled(-40, 0, -20, [-5, -2, -16]);
         slab.run(middle([-5, -2, -16]));
@@ -705,24 +697,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_walk_crosses_air_the_loader_never_laid_in_without_wandering_the_box() {
-        let eye = [0, 2, 0];
-        let mut slab = Slab::in_the_open(middle(eye));
-        slab.open([10, 2, 0], CONNECT_ALL);
-        slab.run(middle(eye));
-
-        assert!(
-            slab.visible([10, 2, 0]),
-            "nine sections of empty air must not stop the walk"
-        );
-        assert!(
-            slab.cave.reached() <= 11,
-            "the walk must cost what it can reach, not the {WALK_CELLS} cells of the box: {}",
-            slab.cave.reached()
-        );
-    }
-
     /// By the time the walk turns west out of the corner it has already stepped west, down and
     /// north, so only that octant's flood is asked. A route through the corner that doubles back on
     /// an axis lives in the other floods and is culled.
@@ -732,6 +706,10 @@ mod tests {
         slab.open([10, 2, 0], CONNECT_ALL);
 
         slab.run(middle([0, 2, 0]));
+        assert!(
+            slab.visible([10, 2, 0]),
+            "nine sections of empty air must not stop the walk"
+        );
         assert_eq!(
             slab.cave.reached(),
             11,

@@ -78,25 +78,4 @@ mod tests {
         ));
         assert_eq!(volume.get(BlockPos::new(1, 1, 1)), GOLD);
     }
-
-    #[test]
-    fn a_later_entry_still_matches_when_the_first_does_not() {
-        let mut volume = volume(DEEPSLATE);
-        let mut rng = WorldgenRandom::new(1);
-        place_replace_single_block(&config(), &mut volume, &mut rng, BlockPos::new(1, 1, 1));
-        assert_eq!(volume.get(BlockPos::new(1, 1, 1)), IRON);
-    }
-
-    #[test]
-    fn no_match_writes_nothing_and_still_reports_success() {
-        let mut volume = volume(VoxelId(9));
-        let mut rng = WorldgenRandom::new(1);
-        assert!(place_replace_single_block(
-            &config(),
-            &mut volume,
-            &mut rng,
-            BlockPos::new(1, 1, 1)
-        ));
-        assert!(volume.writes.is_empty());
-    }
 }

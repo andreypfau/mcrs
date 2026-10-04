@@ -276,48 +276,52 @@ pub(super) fn decorate_region(
 const SEEDS: [u64; 4] = [4242, 7331, 0xC0FFEE, 987654321];
 const RADIUS: i32 = 2;
 
-/// A regression guard: each of the three biomes decorates, and how much it
-/// decorates stays where it was measured.
-///
-/// The band is what the first run over these seeds produced, widened. It is a
-/// guard against a change that moves the picture, not a claim that the counts
-/// are the reference's.
-#[test]
-fn plains_forest_and_taiga_decorate_within_their_measured_band() {
-    // (biome, min trunks, max trunks) over one region, and the least the four
-    // seeds together may come to — plains places a tree in one column in
-    // twenty, so a single region of it is as readily empty as not.
-    const BANDS: [(&str, usize, usize, usize); 3] = [
-        ("minecraft:plains", 0, 40, 4),
-        ("minecraft:forest", 20, 400, 200),
-        ("minecraft:taiga", 20, 400, 200),
-    ];
+mod exhaustive {
+    use super::*;
 
-    for ((biome, placed), (named, low, high, least_total)) in CHECKPOINT.iter().zip(BANDS) {
-        assert_eq!(*biome, named);
-        let mut total = 0;
-        for seed in SEEDS {
-            let region = decorate_region(biome, placed, seed, ColumnPos::new(0, 0), RADIUS);
-            let trunks: usize = region.values().map(|census| census.trunks).sum();
-            let leaves: usize = region.values().map(|census| census.leaves).sum();
-            // A crown from a halo column can reach in without its trunk, so
-            // leaves alone prove nothing; a trunk without leaves is a broken tree.
+    /// A regression guard: each of the three biomes decorates, and how much it
+    /// decorates stays where it was measured.
+    ///
+    /// The band is what the first run over these seeds produced, widened. It is a
+    /// guard against a change that moves the picture, not a claim that the counts
+    /// are the reference's.
+    #[test]
+    fn plains_forest_and_taiga_decorate_within_their_measured_band() {
+        // (biome, min trunks, max trunks) over one region, and the least the four
+        // seeds together may come to — plains places a tree in one column in
+        // twenty, so a single region of it is as readily empty as not.
+        const BANDS: [(&str, usize, usize, usize); 3] = [
+            ("minecraft:plains", 0, 40, 4),
+            ("minecraft:forest", 20, 400, 200),
+            ("minecraft:taiga", 20, 400, 200),
+        ];
+
+        for ((biome, placed), (named, low, high, least_total)) in CHECKPOINT.iter().zip(BANDS) {
+            assert_eq!(*biome, named);
+            let mut total = 0;
+            for seed in SEEDS {
+                let region = decorate_region(biome, placed, seed, ColumnPos::new(0, 0), RADIUS);
+                let trunks: usize = region.values().map(|census| census.trunks).sum();
+                let leaves: usize = region.values().map(|census| census.leaves).sum();
+                // A crown from a halo column can reach in without its trunk, so
+                // leaves alone prove nothing; a trunk without leaves is a broken tree.
+                assert!(
+                    trunks == 0 || leaves > 0,
+                    "{biome} at seed {seed}: {trunks} trunks beside {leaves} leaves"
+                );
+                assert!(
+                    (low..=high).contains(&trunks),
+                    "{biome} at seed {seed}: {trunks} trunks over {} columns, outside \
+                     the measured band {low}..={high}",
+                    (2 * RADIUS + 1) * (2 * RADIUS + 1)
+                );
+                total += trunks;
+            }
             assert!(
-                trunks == 0 || leaves > 0,
-                "{biome} at seed {seed}: {trunks} trunks beside {leaves} leaves"
+                total >= least_total,
+                "{biome} decorated {total} trunks over the four seeds, under {least_total}"
             );
-            assert!(
-                (low..=high).contains(&trunks),
-                "{biome} at seed {seed}: {trunks} trunks over {} columns, outside \
-                 the measured band {low}..={high}",
-                (2 * RADIUS + 1) * (2 * RADIUS + 1)
-            );
-            total += trunks;
         }
-        assert!(
-            total >= least_total,
-            "{biome} decorated {total} trunks over the four seeds, under {least_total}"
-        );
     }
 }
 

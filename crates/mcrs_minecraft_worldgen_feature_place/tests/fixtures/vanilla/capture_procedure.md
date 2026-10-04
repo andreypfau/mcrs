@@ -13,7 +13,7 @@ cargo run -p mcrs_minecraft_update -- recapture ore_vein
 
 Output is deterministic: re-running produces a byte-identical file.
 
-**Consumer:** `crates/mcrs_minecraft_worldgen_feature_place/tests/ore_vein_parity.rs`, which
+**Consumer:** `crates/mcrs_minecraft_worldgen_feature_place/tests/it/ore_vein_parity.rs`, which
 asserts, per case, the return value, every written position and state in write
 order, and the two `nextLong` values the source yields afterwards. The last of
 those pins the draw count, so a diverging number of draws fails even when the

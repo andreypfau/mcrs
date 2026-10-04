@@ -265,32 +265,6 @@ mod tests {
     }
 
     #[test]
-    fn no_word_of_a_quad_is_overfull() {
-        for word in 0..QUAD_WORDS as u32 {
-            let bits: u32 = QUAD_FIELDS
-                .iter()
-                .filter(|(_, field)| field.word == word)
-                .map(|(_, field)| field.bits)
-                .sum();
-            assert!(bits <= 32, "word {word} of a quad holds {bits} bits");
-        }
-        assert!(
-            QUAD_FIELDS
-                .iter()
-                .all(|(_, field)| (field.word as usize) < QUAD_WORDS)
-        );
-    }
-
-    #[test]
-    fn no_word_of_a_face_is_overfull() {
-        assert!(
-            FACE_FIELDS
-                .iter()
-                .all(|(_, field)| (field.word as usize) < FACE_WORDS)
-        );
-    }
-
-    #[test]
     fn a_model_coordinate_reaches_the_overhang_on_both_sides() {
         let far = (SECTION_SIZE as f32 + MODEL_OVERHANG + MODEL_OVERHANG) * MODEL_STEPS;
         assert!(

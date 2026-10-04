@@ -289,12 +289,14 @@ mod tests {
     }
 
     /// The whole point is that a directional flood is tighter, so the one thing it must never do
-    /// is find a face pair the unrestricted flood does not. Swept across every density, so both
+    /// is find a face pair the unrestricted flood does not. Swept across densities, so both
     /// early-outs are covered as well as the floods between them.
-    #[test]
-    fn every_flood_stays_inside_the_unrestricted_one() {
-        for percent in 0..=100u32 {
-            for seed in 0..4u32 {
+    fn every_flood_stays_inside_the_unrestricted_one_over(
+        percents: impl Iterator<Item = u32>,
+        seeds: std::ops::Range<u32>,
+    ) {
+        for percent in percents {
+            for seed in seeds.clone() {
                 let mut state = (seed << 8 | percent).wrapping_mul(0x9e37_79b9) | 1;
                 let occludes = section(|_, _, _| {
                     state ^= state << 13;
@@ -311,6 +313,20 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn every_flood_stays_inside_the_unrestricted_one() {
+        every_flood_stays_inside_the_unrestricted_one_over((0..=100).step_by(5), 0..1);
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn every_flood_stays_inside_the_unrestricted_one() {
+            every_flood_stays_inside_the_unrestricted_one_over(0..=100, 0..4);
         }
     }
 }

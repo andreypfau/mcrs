@@ -42,14 +42,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_task_without_properties_has_the_fixed_flags() {
-        assert_eq!(
-            arguments("dumpReports", &[] as &[(&str, &str)]),
-            ["dumpReports", "--console=plain", "--no-daemon"]
-        );
-    }
-
-    #[test]
     fn a_property_value_with_spaces_quotes_and_a_semicolon_stays_one_argument() {
         let value = "/tmp/a b\"c';d";
         assert_eq!(

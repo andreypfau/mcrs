@@ -1,0 +1,7 @@
+[profile.default]
+default-filter = "not test(/(^|::)exhaustive::/)"
+slow-timeout = { period = "15s", terminate-after = 4 }
+
+[profile.full]
+default-filter = "all()"
+slow-timeout = { period = "60s" }

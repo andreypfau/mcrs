@@ -220,30 +220,6 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
             vec![("snowy", PropertyValue::Bool(false))],
         ),
         (
-            "minecraft:note_block",
-            vec![("instrument", "harp"), ("note", "17"), ("powered", "true")],
-            vec![
-                ("instrument", PropertyValue::Str("harp".into())),
-                ("note", PropertyValue::Int(17)),
-                ("powered", PropertyValue::Bool(true)),
-            ],
-        ),
-        (
-            "minecraft:oak_stairs",
-            vec![
-                ("facing", "east"),
-                ("half", "top"),
-                ("shape", "inner_left"),
-                ("waterlogged", "true"),
-            ],
-            vec![
-                ("facing", PropertyValue::Str("east".into())),
-                ("half", PropertyValue::Str("top".into())),
-                ("shape", PropertyValue::Str("inner_left".into())),
-                ("waterlogged", PropertyValue::Bool(true)),
-            ],
-        ),
-        (
             "minecraft:water",
             vec![("level", "3")],
             vec![("level", PropertyValue::Int(3))],
@@ -256,7 +232,6 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
         let properties: Vec<(&str, String)> =
             saved.iter().map(|(k, v)| (*k, v.to_string())).collect();
         let ids = resolve(vec![(0, vec![entry(name, &properties)])]).unwrap();
-        println!("{name} {saved:?} -> {}", ids[0]);
         assert_eq!(ids, vec![expected.0 as u32], "{name}");
     }
 }

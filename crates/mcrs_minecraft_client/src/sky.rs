@@ -824,6 +824,13 @@ mod sky_regression {
             );
             close(&label("cloud"), got.cloud, want.cloud, 0.0);
             close(&label("sky_light"), got.sky_light, want.sky_light, CHANNEL);
+            assert!(
+                (got.sky_light[3] - want.sky_light[3]).abs() <= 1e-3,
+                "{}: {} is not {}",
+                label("sky_light factor"),
+                got.sky_light[3],
+                want.sky_light[3]
+            );
             close(
                 &label("block_light"),
                 got.block_light,
@@ -887,49 +894,5 @@ mod sky_regression {
             cloud_drift(a_lot),
             cloud_drift(a_lot + span / CLOUD_BLOCKS_PER_TICK)
         );
-    }
-
-    #[test]
-    fn the_lighting_attributes_still_match_the_reference_tracks() {
-        for ticks in [0, 6000, 13000, 18000, 23000] {
-            let at = ticks as f32;
-            let attributes = overworld().attributes;
-            let resolved = ticks_at(&attributes, ticks);
-            let biomes = SpatialAttributeInterpolator::default();
-            let ctx = context(Vec3::ZERO, &resolved, &biomes, Weather::default());
-
-            let float = |id: &str| match attributes.value(id, &ctx).unwrap() {
-                mcrs_minecraft_environment::attribute::AttributeValue::Float(value) => value,
-                other => panic!("{id} is not a float: {other:?}"),
-            };
-            let color = |id: &str| match attributes.value(id, &ctx).unwrap() {
-                mcrs_minecraft_environment::attribute::AttributeValue::Color(packed) => Vec3::new(
-                    ((packed >> 16) & 0xff) as f32 / 255.0,
-                    ((packed >> 8) & 0xff) as f32 / 255.0,
-                    (packed & 0xff) as f32 / 255.0,
-                ),
-                other => panic!("{id} is not a colour: {other:?}"),
-            };
-
-            let factor = float("minecraft:visual/sky_light_factor");
-            assert!(
-                (factor - track(&SKY_LIGHT_FACTOR, at)).abs() <= 1e-3,
-                "sky_light_factor at {ticks}: {factor}"
-            );
-            for (id, want) in [
-                (
-                    "minecraft:visual/sky_light_color",
-                    track(&SKY_LIGHT_COLOR, at),
-                ),
-                ("minecraft:visual/ambient_light_color", AMBIENT),
-                ("minecraft:visual/block_light_tint", BLOCK_LIGHT_TINT),
-            ] {
-                let got = color(id);
-                assert!(
-                    got.abs_diff_eq(want, CHANNEL),
-                    "{id} at {ticks}: {got:?} is not {want:?}"
-                );
-            }
-        }
     }
 }

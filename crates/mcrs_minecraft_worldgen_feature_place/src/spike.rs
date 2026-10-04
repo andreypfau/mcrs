@@ -233,20 +233,24 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// The cone stays inside the 3x3 volume: at most three cells of overhang
-    /// either way, far short of the sixteen the writer allows.
-    #[test]
-    fn the_footprint_never_leaves_the_window() {
-        let cfg = config();
-        for seed in 0..48u64 {
-            let mut volume = snowfield();
-            let mut rng = WorldgenRandom::new(seed);
-            place_spike(&cfg, &mut volume, &mut rng, ORIGIN);
-            for ((x, _, z), _) in &volume.writes {
-                assert!(
-                    (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
-                    "write at {x},{z} left the volume on seed {seed}"
-                );
+    mod exhaustive {
+        use super::*;
+
+        /// The cone stays inside the 3x3 volume: at most three cells of overhang
+        /// either way, far short of the sixteen the writer allows.
+        #[test]
+        fn the_footprint_never_leaves_the_window() {
+            let cfg = config();
+            for seed in 0..48u64 {
+                let mut volume = snowfield();
+                let mut rng = WorldgenRandom::new(seed);
+                place_spike(&cfg, &mut volume, &mut rng, ORIGIN);
+                for ((x, _, z), _) in &volume.writes {
+                    assert!(
+                        (x - ORIGIN.x).abs() <= 16 && (z - ORIGIN.z).abs() <= 16,
+                        "write at {x},{z} left the volume on seed {seed}"
+                    );
+                }
             }
         }
     }

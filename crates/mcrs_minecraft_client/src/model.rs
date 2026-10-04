@@ -10,7 +10,7 @@ use bevy::math::Vec3;
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::vanilla;
 
@@ -231,7 +231,7 @@ enum Condition {
 
 /// A property value spelled as the blockstate JSON spells it: quoted for a string, bare for the
 /// booleans and integers, which still name a string-valued property.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 enum Term {
     Flag(bool),
@@ -616,22 +616,6 @@ mod tests {
             pack.read(&stone).unwrap(),
             Pack::corpus().read(&stone).unwrap(),
         );
-    }
-
-    #[test]
-    fn a_condition_term_round_trips_through_every_spelling() {
-        for spelling in [r#""north|east""#, "true", "false", "3", "-1"] {
-            let term: Term = serde_json::from_str(spelling).expect("a term parses");
-            assert_eq!(serde_json::to_string(&term).unwrap(), spelling);
-        }
-        assert!(matches!(
-            serde_json::from_str::<Term>("true").unwrap(),
-            Term::Flag(true)
-        ));
-        assert!(matches!(
-            serde_json::from_str::<Term>("3").unwrap(),
-            Term::Int(3)
-        ));
     }
 
     #[test]

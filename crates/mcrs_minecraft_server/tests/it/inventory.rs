@@ -401,23 +401,6 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
 }
 
 #[test]
-fn a_click_whose_claim_disagrees_gets_that_cell_resent() {
-    let mut server = Server::start();
-    server.join();
-    let items = server.items();
-    let stone = server.give("stone", 7, slots::HOTBAR.start);
-    server.ticks(2);
-    let claimed = HashedStack::create(&stack_to_slot(server.world(), stone, &items)).unwrap();
-    let untouched = slots::MAIN.start + 3;
-    let state_id = server.state_id();
-    server.click(state_id, vec![(untouched, claimed)]);
-    let packets = server.ticks(3);
-    let resent: Vec<_> = set_slots(&packets).collect();
-    assert_eq!(resent.len(), 1, "{packets:?}");
-    assert_eq!(resent[0], (untouched as i16, &RawStack::EMPTY));
-}
-
-#[test]
 fn a_stale_state_id_resends_the_whole_menu() {
     let mut server = Server::start();
     server.join();

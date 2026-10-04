@@ -234,12 +234,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn an_unknown_name_has_no_id() {
-        let registry = registry(&UNSORTED);
-        assert!(registry.get("minecraft:absent").is_none());
-    }
-
     fn build(names: &[&str], tags: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
         Registry::new(
             names.iter().map(|text| name(text)),
@@ -334,16 +328,5 @@ mod tests {
         assert!(smaller.key(first).is_some());
         assert!(smaller.key(second).is_none());
         assert!(smaller.key(third).is_none());
-    }
-
-    #[test]
-    fn the_first_and_the_last_id_bound_the_table() {
-        let registry = registry(&UNSORTED);
-        let ids: Vec<Id<TestRegistry>> = registry.ids().collect();
-        assert_eq!(ids.len(), registry.len());
-        assert_eq!(ids.first().unwrap().index(), 0);
-        assert_eq!(ids.last().unwrap().index(), registry.len() - 1);
-        assert_eq!(registry.get("minecraft:plains"), ids.first().copied());
-        assert_eq!(registry.get("minecraft:forest"), ids.last().copied());
     }
 }

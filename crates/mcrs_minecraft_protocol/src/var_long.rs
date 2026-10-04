@@ -74,12 +74,11 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn encode_decode() {
+    fn check_encode_decode(count: usize) {
         let mut rng = rand::rng();
         let mut buf = vec![];
 
-        for n in (0..1_000_000)
+        for n in (0..count)
             .map(|_| rng.random())
             .chain([0, i64::MIN, i64::MAX])
         {
@@ -91,6 +90,20 @@ mod tests {
             assert_eq!(n, VarLong::decode(&mut slice).unwrap().0);
             assert!(slice.is_empty());
             buf.clear();
+        }
+    }
+
+    #[test]
+    fn encode_decode() {
+        check_encode_decode(10_000);
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn encode_decode() {
+            check_encode_decode(1_000_000);
         }
     }
 }

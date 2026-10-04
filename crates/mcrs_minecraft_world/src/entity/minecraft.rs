@@ -73,28 +73,3 @@ pub fn register_all_entity_types(
         );
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn protocol_ids_match_the_registry_report() {
-        let table = StaticRegistryTable::load(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .unwrap();
-        let mut registry = StaticRegistry::new();
-        register_all_entity_types(&mut registry, &table);
-        assert_eq!(registry.len(), 161);
-        for (id, location, entity_type) in registry.iter() {
-            assert_eq!(entity_type.protocol_id, id.raw(), "{location}");
-            assert_eq!(entity_type.identifier.as_str(), location.as_str());
-        }
-        for named in NAMED {
-            let id = registry.id_of(named.identifier.as_str()).unwrap();
-            assert_eq!(named.protocol_id, id.raw(), "{}", named.identifier);
-        }
-    }
-}

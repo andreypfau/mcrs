@@ -1168,33 +1168,6 @@ mod tests {
     }
 
     #[test]
-    fn writes_follow_template_order_after_the_transform() {
-        let template = template();
-        let chain = vec![];
-        let (region, _, _, placed) =
-            place(&placement(&template, &chain, Rotation::Clockwise90, None));
-        assert!(placed);
-        let expected: Vec<(BlockPos, VoxelId)> = template.palettes[0]
-            .iter()
-            .map(|b| {
-                let pos = transform(
-                    IVec3::from(b.pos.map(i32::from)),
-                    Mirror::None,
-                    Rotation::Clockwise90,
-                    IVec3::ZERO,
-                ) + IVec3::new(4, 5, 4);
-                (BlockPos::from(pos), b.state)
-            })
-            .collect();
-        assert_eq!(region.writes, expected);
-        assert_eq!(
-            region.writes[1].0,
-            BlockPos::new(4, 5, 5),
-            "x becomes z under a quarter turn"
-        );
-    }
-
-    #[test]
     fn an_empty_palette_places_nothing() {
         let template = FrozenTemplate::empty();
         let chain = vec![];

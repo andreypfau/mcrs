@@ -365,28 +365,6 @@ mod tests {
     }
 
     #[test]
-    fn an_entry_that_lands_on_a_beta_path_stops_the_step_before_any_write() {
-        for name in [
-            "data/minecraft/worldgen/beta_biome/a.json",
-            "data/minecraft/worldgen/beta_noise.json",
-        ] {
-            let dir = scratch("beta-entry");
-            put(&dir, "tags/old.json", b"old");
-            let before = listing(&dir);
-            let jar = zipped(&[
-                ("data/minecraft/tags/new.json", b"new"),
-                (name, b"x"),
-                ("version.json", b"{}"),
-            ]);
-
-            let error = apply(&dir, &jar).unwrap_err();
-
-            assert!(error.contains(name), "{name}: {error}");
-            assert_eq!(listing(&dir), before, "{name}");
-        }
-    }
-
-    #[test]
     fn entries_outside_the_data_pack_are_ignored() {
         let dir = scratch("outside");
         let jar = zipped(&[

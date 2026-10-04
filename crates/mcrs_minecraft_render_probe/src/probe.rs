@@ -508,11 +508,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_span_is_the_ticks_between_its_ends_in_milliseconds() {
-        assert_eq!(elapsed_ms(1_000, 2_500_000, 1.0), Some(2.499));
-    }
-
-    #[test]
     fn a_slot_the_gpu_never_wrote_has_no_answer() {
         assert_eq!(elapsed_ms(u64::MAX, u64::MAX, 1.0), None);
         assert_eq!(elapsed_ms(500, 100, 1.0), None);
@@ -560,11 +555,6 @@ mod tests {
     }
 
     #[test]
-    fn a_pass_with_no_frames_behind_it_reports_nothing() {
-        assert_eq!(GpuTimings::default().median(PassSlot::Cull as usize), None);
-    }
-
-    #[test]
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
@@ -593,16 +583,6 @@ mod tests {
             timings.median_and_p95(PassSlot::Hiz as usize, 10),
             Some([96.0, 100.0])
         );
-    }
-
-    #[test]
-    fn cpu_median_and_p95_cover_only_the_newest_frames() {
-        let timings = CpuTimings::default();
-        for ms in 1..=100 {
-            timings.0.samples.lock().unwrap().push(ENGINE, ms as f32);
-        }
-        assert_eq!(timings.median_and_p95(ENGINE, 100), Some([51.0, 96.0]));
-        assert_eq!(timings.median_and_p95(ENGINE, 10), Some([96.0, 100.0]));
     }
 
     #[test]

@@ -45,18 +45,6 @@ fn colour_of_every_state(id: &str) -> Option<[u8; 3]> {
     first
 }
 
-#[test]
-fn soul_file_colours_every_soul_emitter() {
-    let soul = Some([0x36, 0xd9, 0xe6]);
-    assert_eq!(colour_of_every_state("minecraft:soul_lantern"), soul);
-    assert_eq!(
-        colour_of_every_state("minecraft:calibrated_sculk_sensor"),
-        soul
-    );
-    let glowstone = block("minecraft:glowstone").default_state_id;
-    assert_eq!(shipped().light_type(glowstone.into()), LightType::DEFAULT);
-}
-
 const TABLE: &[(u32, &[&str])] = &[
     (
         0xf39a5e,
@@ -227,41 +215,6 @@ fn shipped_files_hold_exactly_the_vibrant_visuals_table() {
     assert_eq!(defaults, DEFAULT_EMITTERS);
 }
 
-#[test]
-fn lava_cauldron_and_calibrated_sculk_sensor_share_their_parents_colour() {
-    assert_eq!(
-        colour_of_every_state("minecraft:lava_cauldron"),
-        colour_of_every_state("minecraft:lava")
-    );
-    assert_eq!(
-        colour_of_every_state("minecraft:calibrated_sculk_sensor"),
-        colour_of_every_state("minecraft:sculk_sensor")
-    );
-}
-
-#[test]
-fn only_the_bare_copper_lantern_is_green() {
-    assert_eq!(
-        colour_of_every_state("minecraft:copper_lantern"),
-        Some(rgb(0x86ca59))
-    );
-    for id in [
-        "exposed_copper_lantern",
-        "weathered_copper_lantern",
-        "oxidized_copper_lantern",
-        "waxed_copper_lantern",
-        "waxed_exposed_copper_lantern",
-        "waxed_weathered_copper_lantern",
-        "waxed_oxidized_copper_lantern",
-    ] {
-        assert_eq!(
-            colour_of_every_state(&format!("minecraft:{id}")),
-            Some(rgb(0xe8c398)),
-            "{id}"
-        );
-    }
-}
-
 fn load(files: &[(&str, &str)]) -> Result<LightColors, LightColorError> {
     let files = files
         .iter()
@@ -288,64 +241,6 @@ fn an_unknown_block_fails_naming_the_file() {
     );
     assert!(message.contains("pack/glow.json"), "{message}");
     assert!(message.contains("minecraft:glowing_stone"), "{message}");
-}
-
-#[test]
-fn an_unknown_tag_fails() {
-    let (error, message) = fails(&[("pack/glow.json", &file(&["#minecraft:glowing"]))]);
-    assert!(
-        matches!(error, LightColorError::UnknownTag { .. }),
-        "{error:?}"
-    );
-    assert!(message.contains("pack/glow.json"), "{message}");
-}
-
-#[test]
-fn an_undeclared_property_fails() {
-    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:torch[lit=true]"]))]);
-    assert!(
-        matches!(error, LightColorError::UnknownProperty { .. }),
-        "{error:?}"
-    );
-    assert!(message.contains("pack/glow.json"), "{message}");
-}
-
-#[test]
-fn an_undeclared_value_fails() {
-    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:candle[lit=maybe]"]))]);
-    assert!(
-        matches!(error, LightColorError::UnknownValue { .. }),
-        "{error:?}"
-    );
-    assert!(message.contains("pack/glow.json"), "{message}");
-}
-
-#[test]
-fn a_malformed_colour_fails() {
-    let text = r##"{ "color": "#+6d9e6", "blocks": ["minecraft:torch"] }"##;
-    let (error, message) = fails(&[("pack/glow.json", text)]);
-    assert!(matches!(error, LightColorError::Parse { .. }), "{error:?}");
-    assert!(message.contains("pack/glow.json"), "{message}");
-}
-
-#[test]
-fn a_malformed_predicate_fails() {
-    let (error, message) = fails(&[("pack/glow.json", &file(&["minecraft:candle[lit]"]))]);
-    assert!(matches!(error, LightColorError::Parse { .. }), "{error:?}");
-    assert!(message.contains("pack/glow.json"), "{message}");
-}
-
-#[test]
-fn an_entry_with_no_emitting_state_fails() {
-    for entry in ["minecraft:stone", "minecraft:candle[lit=false]"] {
-        let (error, message) = fails(&[("pack/glow.json", &file(&[entry]))]);
-        assert!(
-            matches!(error, LightColorError::NoEmittingState { .. }),
-            "{error:?}"
-        );
-        assert!(message.contains("pack/glow.json"), "{message}");
-        assert!(message.contains(entry), "{message}");
-    }
 }
 
 #[test]

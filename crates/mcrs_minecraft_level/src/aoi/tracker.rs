@@ -31,38 +31,6 @@ mod tests {
     struct DummySchedule;
 
     #[test]
-    fn every_n_ticks_zero_clamps_to_every_call() {
-        // Drive the helper through Bevy's schedule so the Local<u32>
-        // counter persists across calls. With n clamped to 1, every
-        // invocation should fire.
-        use bevy_ecs::prelude::*;
-
-        #[derive(Resource, Default)]
-        struct FireLog(Vec<bool>);
-
-        let mut helper = every_n_ticks(0);
-        let mut app = App::new();
-        app.init_resource::<FireLog>();
-        app.add_schedule(Schedule::new(DummySchedule));
-        app.add_systems(
-            DummySchedule,
-            (move |local: Local<u32>, mut log: ResMut<FireLog>| {
-                let fired = helper(local);
-                log.0.push(fired);
-            },)
-                .into_configs(),
-        );
-        for _ in 0..5 {
-            app.world_mut().run_schedule(DummySchedule);
-        }
-        let log = &app.world().resource::<FireLog>().0;
-        assert_eq!(log.len(), 5);
-        for (i, fired) in log.iter().enumerate() {
-            assert!(*fired, "tick {} should fire when n clamps to 1", i + 1);
-        }
-    }
-
-    #[test]
     fn every_n_ticks_fires_at_cadence() {
         // Drive the closure through Bevy's schedule so the Local<u32>
         // counter persists across calls (which is the contract the

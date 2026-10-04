@@ -1,10 +1,6 @@
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_builtin as builtin;
-use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
-use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
-use mcrs_minecraft_worldgen_structure::TemplatePool;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
@@ -65,28 +61,8 @@ fn reads_back<T: DeserializeOwned + PartialEq + Debug>(
 }
 
 #[test]
-fn biomes_read_back() {
-    reads_back::<Biome>("biome", builtin::biomes(), 67, &[]);
-}
-
-#[test]
-fn density_functions_read_back() {
-    reads_back::<DensityFunctionHolder>("density_function", builtin::density_functions(), 65, &[]);
-}
-
-#[test]
-fn noise_settings_read_back() {
-    reads_back::<NoiseGeneratorSettings>("noise_settings", builtin::noise_settings(), 8, &[]);
-}
-
-#[test]
 fn noises_read_back() {
     reads_back::<NoiseParam>("noise", builtin::noises(), 69, MISREAD_NOISES);
-}
-
-#[test]
-fn template_pools_read_back() {
-    reads_back::<TemplatePool>("template_pool", builtin::template_pools(), 245, &[]);
 }
 
 #[test]

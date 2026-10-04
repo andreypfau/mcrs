@@ -932,64 +932,17 @@ mod tests {
         bevy_ecs::system::SystemState::new(app.world_mut())
     }
 
-    /// The walk above proves the ids are named; this proves they arrive. A
-    /// handle map left out of `visit_dependencies` or a branch missing from the
-    /// collect walk loses the assets with no error anywhere.
-    #[test]
-    fn the_asset_pipeline_delivers_the_material_registries() {
-        use super::{Loaded, NoiseGeneratorSettingsAsset};
-        use bevy_asset::Assets;
-
-        let mut app = load_settings("overworld");
-        let mut state = assets_of(&mut app);
-        let world = app.world();
-        let handle = world.resource::<SettingsHandle>().0.clone();
-        let asset = world
-            .resource::<Assets<NoiseGeneratorSettingsAsset>>()
-            .get(&handle)
-            .unwrap();
-        let mut collected = Loaded::default();
-        collected.collect(&asset.deps, &state.get(world).unwrap());
-
-        for name in SURFACE_NOISE_NAMES {
-            let id = format!("minecraft:{name}");
-            assert!(
-                collected.noises.contains_key(id.as_str()),
-                "the hardcoded surface noise {name} did not arrive"
-            );
-        }
-        for id in [
-            "minecraft:overworld/ore_vein/iron_density",
-            "minecraft:overworld/ore_vein/copper_density",
-            "minecraft:overworld/ore_vein/richness",
-            "minecraft:overworld/ore_vein/gap",
-        ] {
-            assert!(
-                collected.density_functions.contains_key(id),
-                "{id} did not arrive"
-            );
-        }
-
-        fn ids<V>(map: &BTreeMap<ResourceLocation, V>) -> BTreeSet<ResourceLocation> {
-            map.keys().cloned().collect()
-        }
-        let expected = closure(&asset.settings);
-        assert_eq!(ids(&collected.rules), expected.rules);
-        assert_eq!(ids(&collected.conditions), expected.conditions);
-        assert_eq!(
-            ids(&collected.density_functions),
-            expected.density_functions
-        );
-        assert_eq!(ids(&collected.noises), expected.noises);
-    }
-
     /// End to end over the shipped corpus: what the asset pipeline delivers is
     /// what the compiler needs, the terrain block and the sea fluid included —
     /// those come from the settings asset itself, so each dimension gets its
     /// own rather than whichever settings loaded last.
+    ///
+    /// The walk above proves the ids are named; the overworld pass proves they
+    /// arrive. A handle map left out of `visit_dependencies` or a branch missing
+    /// from the collect walk loses the assets with no error anywhere.
     #[test]
     fn the_loaded_settings_compile_into_a_router() {
-        use super::{NoiseGeneratorSettingsAsset, build_dimension_router};
+        use super::{Loaded, NoiseGeneratorSettingsAsset, build_dimension_router};
         use bevy_asset::Assets;
         use mcrs_minecraft_chunk::VoxelId;
         use mcrs_minecraft_worldgen_density::proto::BlockState;
@@ -1004,6 +957,43 @@ mod tests {
                 .resource::<Assets<NoiseGeneratorSettingsAsset>>()
                 .get(&handle)
                 .unwrap();
+            let registries = state.get(world).unwrap();
+
+            if name == "overworld" {
+                let mut collected = Loaded::default();
+                collected.collect(&asset.deps, &registries);
+
+                for name in SURFACE_NOISE_NAMES {
+                    let id = format!("minecraft:{name}");
+                    assert!(
+                        collected.noises.contains_key(id.as_str()),
+                        "the hardcoded surface noise {name} did not arrive"
+                    );
+                }
+                for id in [
+                    "minecraft:overworld/ore_vein/iron_density",
+                    "minecraft:overworld/ore_vein/copper_density",
+                    "minecraft:overworld/ore_vein/richness",
+                    "minecraft:overworld/ore_vein/gap",
+                ] {
+                    assert!(
+                        collected.density_functions.contains_key(id),
+                        "{id} did not arrive"
+                    );
+                }
+
+                fn ids<V>(map: &BTreeMap<ResourceLocation, V>) -> BTreeSet<ResourceLocation> {
+                    map.keys().cloned().collect()
+                }
+                let expected = closure(&asset.settings);
+                assert_eq!(ids(&collected.rules), expected.rules);
+                assert_eq!(ids(&collected.conditions), expected.conditions);
+                assert_eq!(
+                    ids(&collected.density_functions),
+                    expected.density_functions
+                );
+                assert_eq!(ids(&collected.noises), expected.noises);
+            }
 
             // Every distinct state gets a distinct id, so a router that mixed
             // the terrain block up with the sea fluid would not compare equal.
@@ -1013,14 +1003,11 @@ mod tests {
                 let next = VoxelId(states.len() as u16 + 1);
                 Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
             };
-            let (router, _) = build_dimension_router(
-                asset,
-                &state.get(world).unwrap(),
-                0,
-                &block,
-                &|id: &ResourceLocation| biomes.get(id).copied(),
-            )
-            .unwrap_or_else(|error| panic!("{name}: {error}"));
+            let (router, _) =
+                build_dimension_router(asset, &registries, 0, &block, &|id: &ResourceLocation| {
+                    biomes.get(id).copied()
+                })
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
 
             assert_ne!(
                 router.default_block_state, router.default_fluid_state,

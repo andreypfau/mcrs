@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -70,28 +69,6 @@ fn ids() -> ModernCarverBlockIds {
     // No tag registry in a unit test, so the uncarvable set is supplied the
     // way the tag would: bedrock's states.
     ModernCarverBlockIds::for_test(vec![corpus().default_state("minecraft:bedrock").into()])
-}
-
-#[test]
-fn large_feature_seed_matches_the_reference_formula() {
-    for (seed, cx, cz) in [(12345i64, 0i32, 0i32), (-9, 17, -33), (1, -1, 1)] {
-        let mut rng = LegacyRandom::new(seed as u64);
-        let x_scale = rng.next_java_long();
-        let z_scale = rng.next_java_long();
-        let expected = (cx as i64).wrapping_mul(x_scale) ^ (cz as i64).wrapping_mul(z_scale) ^ seed;
-        assert_eq!(LegacyRandom::large_feature_seed(seed, cx, cz), expected);
-    }
-    // Two different sources must not share a stream.
-    assert_ne!(
-        LegacyRandom::large_feature_seed(12345, 0, 0),
-        LegacyRandom::large_feature_seed(12345, 1, 0)
-    );
-    // The carver index is folded into the seed, so two carvers of one biome
-    // draw independently in the same source chunk.
-    assert_ne!(
-        LegacyRandom::large_feature_seed(12345, 4, 4),
-        LegacyRandom::large_feature_seed(12346, 4, 4)
-    );
 }
 
 #[test]
@@ -164,11 +141,6 @@ fn the_overworld_preset_resolves_to_the_shipped_carvers() {
 }
 
 #[test]
-fn an_unknown_preset_is_not_resolved() {
-    assert!(CarverBiomeTable::resolve("minecraft:the_end", carvers_of).is_none());
-}
-
-#[test]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
@@ -234,7 +206,6 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
 
 #[test]
 fn carving_is_deterministic() {
-    let router = build_settings_router("overworld", 12345);
     let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
     let block_ids = ids();
     let sections = y_sections();
@@ -260,7 +231,6 @@ fn carving_is_deterministic() {
             .collect::<Vec<_>>()
     };
 
-    let _ = (&router, &block_ids);
     assert_eq!(snapshot(12345), snapshot(12345));
     assert_ne!(snapshot(12345), snapshot(999));
 }

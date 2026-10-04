@@ -1,19 +1,15 @@
 use mcrs_minecraft_core::LocalPos;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
-use bevy_asset::Assets;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{
-    BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
+    BetaLandBiome, beta_biome_from_climate, build_beta_lookup_table,
 };
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_registry::BlockStateId;
 
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
+use super::beta_surface::build_beta_biome_source;
 use super::build_beta_router;
 use crate::ColumnBlocks;
 use crate::task::CancellationToken;
@@ -280,51 +276,6 @@ fn column_matches(
             biome_mismatch,
         })
     }
-}
-
-// ── Test helpers (shared with beta_biome_palette / beta_surface) ──────────────
-
-fn make_beta_biome() -> Biome {
-    Biome {
-        temperature: 0.5,
-        downfall: 0.5,
-        has_precipitation: true,
-        temperature_modifier: None,
-        effects: mcrs_minecraft_biome::BiomeEffects {
-            water_color: None,
-            foliage_color: None,
-            grass_color: None,
-            grass_color_modifier: Default::default(),
-            dry_foliage_color: None,
-        },
-        carvers: Vec::new(),
-        features: Vec::new(),
-        attributes: Default::default(),
-    }
-}
-
-fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
-    let mut assets = Assets::<Biome>::default();
-    let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
-        .map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
-            (rl, land_ids[i])
-        })
-        .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    });
-    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
-    });
-    let biome_source = BiomeSource::Beta {
-        land_biomes: land_handles.try_into().expect("11 land handles"),
-        land_biome_ids,
-        lookup: Box::new(build_beta_lookup_table()),
-    };
-    (biome_source, snapshot)
 }
 
 // ── Gate test ─────────────────────────────────────────────────────────────────

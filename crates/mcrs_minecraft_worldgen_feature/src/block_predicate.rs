@@ -175,16 +175,6 @@ mod tests {
     }
 
     #[test]
-    fn an_out_of_range_offset_is_a_load_error() {
-        let error = serde_json::from_str::<BlockPredicate>(
-            r#"{"type":"minecraft:solid","offset":[0,17,0]}"#,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("out of range"), "{error}");
-    }
-
-    #[test]
     fn an_inverted_volume_is_a_load_error() {
         let error = serde_json::from_str::<BlockPredicate>(
             r#"{"type":"minecraft:volume_match","min":[0,0,0],"max":[0,-1,0],"match":{"type":"minecraft:true"}}"#,
@@ -192,14 +182,6 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(error.contains("min bound cannot be larger"), "{error}");
-    }
-
-    #[test]
-    fn an_unregistered_type_is_a_load_error() {
-        let error = serde_json::from_str::<BlockPredicate>(r#"{"type":"minecraft:has_water"}"#)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("minecraft:has_water"), "{error}");
     }
 
     #[test]

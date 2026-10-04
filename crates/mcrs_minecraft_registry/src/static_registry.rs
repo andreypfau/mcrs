@@ -219,12 +219,6 @@ mod tests {
     }
 
     #[test]
-    fn test_frozen_returns_false_before_freeze() {
-        let reg = StaticRegistry::<Dummy>::new();
-        assert!(!reg.frozen());
-    }
-
-    #[test]
     fn test_frozen_returns_true_after_freeze() {
         let mut reg = make_registry();
         reg.freeze();

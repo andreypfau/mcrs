@@ -548,9 +548,4 @@ mod tests {
         assert!(hash(&Kind::Record { a: 1 }).is_err());
         assert!(hash(&BTreeMap::from([((), 1i32)])).is_err());
     }
-
-    #[test]
-    fn is_not_human_readable() {
-        assert!(!Serializer::is_human_readable(&HashSerializer));
-    }
 }

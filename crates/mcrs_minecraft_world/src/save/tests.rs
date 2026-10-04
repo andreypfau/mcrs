@@ -197,17 +197,6 @@ fn saved_data_wrapped_like_level_dat_is_an_error() {
 }
 
 #[test]
-fn player_data_has_no_wrapper() {
-    let player = player::parse_player_dat(&player_data(VERSION.world_version), path()).unwrap();
-    assert_eq!(
-        player.pos,
-        [48.8682436000792, 73.02442408821369, -28.14235365298639]
-    );
-    assert_eq!(player.rotation, [OBSERVED_YAW, OBSERVED_PITCH]);
-    assert_eq!(player.dimension, "minecraft:overworld");
-}
-
-#[test]
 fn omitted_clock_fields_take_the_codec_defaults() {
     let clocks = parse_world_clocks(
         &saved_data(VERSION.world_version, world_clocks_payload()),
@@ -232,21 +221,6 @@ fn omitted_clock_fields_take_the_codec_defaults() {
             rate: 1.0,
             paused: false,
         }
-    );
-}
-
-#[test]
-fn a_zero_clock_rate_is_rejected() {
-    let mut overworld = NbtCompound::new();
-    overworld.put_long("total_ticks", 1757);
-    overworld.put_float("rate", 0.0);
-    let mut payload = NbtCompound::new();
-    payload.put_component("minecraft:overworld", overworld);
-
-    let err = parse_world_clocks(&saved_data(VERSION.world_version, payload), path()).unwrap_err();
-    assert!(
-        matches!(err, SaveError::OutOfRange { field: "rate", .. }),
-        "{err}"
     );
 }
 
@@ -294,7 +268,7 @@ fn a_clock_state_round_trips_through_the_save_shape() {
 
 #[test]
 fn a_non_finite_clock_rate_is_rejected() {
-    for rate in [f32::NAN, f32::INFINITY] {
+    for rate in [0.0, f32::NAN, f32::INFINITY] {
         let mut overworld = NbtCompound::new();
         overworld.put_long("total_ticks", 1757);
         overworld.put_float("rate", rate);
@@ -457,13 +431,6 @@ fn every_file_kind_tagged(data_version: Option<NbtTag>) -> [Result<(), SaveError
 }
 
 #[test]
-fn every_file_kind_loads_at_the_world_version() {
-    for result in every_file_kind_at(VERSION.world_version) {
-        result.unwrap();
-    }
-}
-
-#[test]
 fn a_data_version_other_than_the_world_version_is_rejected_by_name_on_every_file_kind() {
     let current = VERSION.world_version;
     for found in [4903, current - 1, current + 1] {
@@ -522,16 +489,6 @@ fn a_refused_player_file_is_left_byte_identical() {
 fn a_missing_file_is_distinguishable_from_a_corrupt_one() {
     let err = read_weather(Path::new("/nonexistent-world")).unwrap_err();
     assert!(matches!(err, SaveError::Missing { .. }), "{err}");
-}
-
-#[test]
-fn every_error_names_the_file() {
-    let err = read_weather(Path::new("/nonexistent-world")).unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("/nonexistent-world/data/minecraft/weather.dat"),
-        "{err}"
-    );
 }
 
 #[test]

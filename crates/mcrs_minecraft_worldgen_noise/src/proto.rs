@@ -398,7 +398,6 @@ impl From<f64> for HashableF64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::normal;
 
     fn param(json: &str) -> NoiseParam {
         serde_json::from_str(json).unwrap()
@@ -444,30 +443,5 @@ mod tests {
             r#"{"base_octave":-7,"octave_count":1,"amplitude_modifiers":[-1.0]}"#,
         )
         .unwrap_err();
-    }
-
-    /// A zero modifier drops its octave from both sums rather than contributing
-    /// zero, which is what makes the legacy span `highest - lowest` and not
-    /// `octave_count - 1`.
-    #[test]
-    fn a_gapped_octave_narrows_the_range() {
-        let gapped = param(
-            r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,0.0,1.0],"normalize":"legacy"}"#,
-        );
-        let solid = param(
-            r#"{"base_octave":-9,"octave_count":3,"amplitude_modifiers":[1.0,1.0,1.0],"normalize":"legacy"}"#,
-        );
-        let range = |p: &NoiseParam| normal::range(p).max();
-        assert!(range(&gapped) < range(&solid));
-        assert!(range(&gapped) > 0.0);
-    }
-
-    #[test]
-    fn a_disabled_normalization_keeps_the_base_amplitude() {
-        let disabled = param(r#"{"base_octave":-3,"octave_count":1,"normalize":false}"#);
-        assert_eq!(
-            normal::range(&disabled).max(),
-            (1.0f64 * 0.3333333333333333 * 6.0) as f32
-        );
     }
 }

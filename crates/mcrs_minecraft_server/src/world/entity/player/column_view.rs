@@ -1133,25 +1133,6 @@ mod tests {
         fx.player
     }
 
-    #[test]
-    fn a_wanted_column_is_raised_without_waiting_for_it_to_land() {
-        let mut world = World::new();
-        let wants = [
-            ColumnPos::new(4, 0),
-            ColumnPos::new(0, 0),
-            ColumnPos::new(0, 2),
-        ];
-        let player = one_player_wanting(&mut world, &wants, ChunkTrackingView::default());
-
-        world
-            .run_system_once(raise_queued_columns)
-            .expect("the raise runs");
-
-        for col in wants {
-            assert_eq!(view(&world, player).state(col), Some(ColumnState::Awaiting));
-        }
-    }
-
     /// Raising a column costs a whole column's worth of spawns. Counting the budget in sections
     /// would let the view ask for more than `spawn_chunks` can hand out, and the ticket queue
     /// would grow every tick without ever draining. What the budget leaves for later is the

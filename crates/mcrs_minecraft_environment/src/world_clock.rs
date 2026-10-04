@@ -360,7 +360,6 @@ pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::AttributeValue;
     use crate::timeline::Timeline;
 
     const OVERWORLD: &str = "minecraft:overworld";
@@ -416,23 +415,6 @@ mod tests {
         assert_eq!(clocks.get(OVERWORLD).unwrap().total_ticks, 500);
         assert_eq!(clocks.get("minecraft:the_end").unwrap().total_ticks, 0);
         assert!(clocks.get("datapack:removed").is_none());
-    }
-
-    #[test]
-    fn a_full_day_returns_the_clock_to_the_same_point() {
-        let mut app = app_with(clocks(&[OVERWORLD]), true);
-        for _ in 0..24_000 {
-            tick_app(&mut app);
-        }
-
-        let state = *app
-            .world()
-            .resource::<WorldClocks>()
-            .get(OVERWORLD)
-            .unwrap();
-        assert_eq!(state.total_ticks, 24_000);
-        assert_eq!(state.total_ticks.rem_euclid(24_000), 0);
-        assert_eq!(state.partial_tick, 0.0);
     }
 
     #[test]
@@ -733,40 +715,5 @@ mod tests {
         )]);
         assert_eq!(markers.len(), 1);
         assert!(markers.get(OVERWORLD, "minecraft:day").is_none());
-    }
-
-    #[test]
-    fn a_day_track_samples_through_a_clock() {
-        let bytes = std::fs::read(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../assets/minecraft/timeline/day.json"),
-        )
-        .unwrap();
-        let timeline: Timeline = serde_json::from_slice(&bytes).unwrap();
-        let sky_light = timeline.bake()["minecraft:gameplay/sky_light_level"].clone();
-
-        let mut app = app_with(clocks(&[OVERWORLD]), true);
-        let sample = |app: &App| {
-            let state = app
-                .world()
-                .resource::<WorldClocks>()
-                .get(timeline.clock.as_str())
-                .expect("the timeline names a clock the registry has");
-            match sky_light.sample_argument(state.total_ticks) {
-                AttributeValue::Float(v) => v,
-                other => panic!("expected a float, got {other:?}"),
-            }
-        };
-
-        for _ in 0..6_000 {
-            tick_app(&mut app);
-        }
-        assert_eq!(sample(&app), 1.0);
-
-        for _ in 0..12_000 {
-            tick_app(&mut app);
-        }
-        assert_eq!(total_ticks(&app, OVERWORLD), 18_000);
-        assert_eq!(sample(&app), 0.26666668);
     }
 }

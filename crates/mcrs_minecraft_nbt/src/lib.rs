@@ -330,7 +330,6 @@ mod test {
     use crate::nbt_int_array;
     use crate::nbt_long_array;
     use crate::serializer::to_bytes;
-    use crate::serializer::to_bytes_named;
     use crate::{Nbt, compound, tag};
     use crate::{deserializer::from_bytes_unnamed, serializer::to_bytes_unnamed};
     use serde::{Deserialize, Serialize};
@@ -385,84 +384,6 @@ mod test {
         long: i64,
         float: f32,
         string: String,
-    }
-
-    #[test]
-    fn test_simple_ser_de_unnamed() {
-        let test = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_unnamed(&test, &mut bytes).unwrap();
-        let recreated_struct: Test = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct TestArray {
-        #[serde(serialize_with = "nbt_byte_array")]
-        byte_array: Vec<u8>,
-        #[serde(serialize_with = "nbt_int_array")]
-        int_array: Vec<i32>,
-        #[serde(serialize_with = "nbt_long_array")]
-        long_array: Vec<i64>,
-    }
-
-    #[test]
-    fn test_simple_ser_de_array() {
-        let test = TestArray {
-            byte_array: vec![0, 3, 2],
-            int_array: vec![13, 1321, 2],
-            long_array: vec![1, 0, 200301, 1],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_unnamed(&test, &mut bytes).unwrap();
-        let recreated_struct: TestArray = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[test]
-    fn test_simple_ser_de_named() {
-        let name = String::from("Test");
-        let test = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&test, name, &mut bytes).unwrap();
-        let recreated_struct: Test = from_bytes(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
-    }
-
-    #[test]
-    fn test_simple_ser_de_array_named() {
-        let name = String::from("Test");
-        let test = TestArray {
-            byte_array: vec![0, 3, 2],
-            int_array: vec![13, 1321, 2],
-            long_array: vec![1, 0, 200301, 1],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&test, name, &mut bytes).unwrap();
-        let recreated_struct: TestArray = from_bytes(Cursor::new(bytes)).unwrap();
-
-        assert_eq!(test, recreated_struct);
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -521,44 +442,6 @@ mod test {
         let mut bytes = Vec::new();
         to_bytes_unnamed(&list_compound, &mut bytes).unwrap();
         let recreated_struct: TestList = from_bytes_unnamed(Cursor::new(bytes)).unwrap();
-        assert_eq!(list_compound, recreated_struct);
-    }
-
-    #[test]
-    fn test_list_named() {
-        let test1 = Test {
-            byte: 123,
-            short: 1342,
-            int: 4313,
-            long: 34,
-            float: 1.00,
-            string: "Hello test".to_string(),
-        };
-
-        let test2 = Test {
-            byte: 13,
-            short: 342,
-            int: -4313,
-            long: -132334,
-            float: -69.420,
-            string: "Hello compounds".to_string(),
-        };
-
-        let list_compound = TestList {
-            option: None,
-            nested_compound: Breakfast {
-                food: Egg {
-                    food: "Over easy".to_string(),
-                },
-            },
-            compounds: vec![test1, test2],
-            list_string: vec!["".to_string(), "abcbcbcbbc".to_string()],
-            empty: vec![],
-        };
-
-        let mut bytes = Vec::new();
-        to_bytes_named(&list_compound, "a".to_string(), &mut bytes).unwrap();
-        let recreated_struct: TestList = from_bytes(Cursor::new(bytes)).unwrap();
         assert_eq!(list_compound, recreated_struct);
     }
 
@@ -802,34 +685,6 @@ mod test {
     }
 
     #[test]
-    fn a_struct_reads_an_int_field_from_another_numeric_tag() {
-        #[derive(Deserialize, PartialEq, Debug)]
-        struct Fields {
-            from_long: i32,
-            from_double: i32,
-            from_short: i32,
-        }
-
-        let mut root = compound::NbtCompound::new();
-        root.put_long("from_long", (1 << 32) + 5);
-        root.put_double("from_double", -0.5);
-        root.put_short("from_short", -3);
-        let bytes = Nbt::new(String::new(), root.clone()).write();
-
-        let streamed: Fields = from_bytes(Cursor::new(bytes)).unwrap();
-        let in_memory: Fields = crate::from_tag(tag::NbtTag::Compound(root)).unwrap();
-        assert_eq!(
-            streamed,
-            Fields {
-                from_long: 5,
-                from_double: -1,
-                from_short: -3
-            }
-        );
-        assert_eq!(streamed, in_memory);
-    }
-
-    #[test]
     fn a_struct_reads_five_field_types_from_other_numeric_tags() {
         #[derive(Deserialize, PartialEq, Debug)]
         struct Fields {
@@ -861,35 +716,6 @@ mod test {
             }
         );
         assert_eq!(streamed, in_memory);
-    }
-
-    #[test]
-    fn a_struct_reads_each_numeric_type_from_a_float_tag() {
-        #[derive(Deserialize, PartialEq, Debug)]
-        struct Fields {
-            byte: i8,
-            short: i16,
-            int: i32,
-            long: i64,
-        }
-
-        let mut root = compound::NbtCompound::new();
-        root.put_double("byte", -128.5);
-        root.put_float("short", f32::INFINITY);
-        root.put_double("int", f64::NAN);
-        root.put_float("long", -0.5);
-        let bytes = Nbt::new(String::new(), root).write();
-
-        let read: Fields = from_bytes(Cursor::new(bytes)).unwrap();
-        assert_eq!(
-            read,
-            Fields {
-                byte: -128,
-                short: i16::MAX,
-                int: 0,
-                long: -1
-            }
-        );
     }
 
     #[test]

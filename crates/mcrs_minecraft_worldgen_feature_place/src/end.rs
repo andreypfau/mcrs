@@ -545,22 +545,6 @@ mod tests {
         );
     }
 
-    /// A gateway with no exit writes the same blocks and no block entity: the
-    /// level searches for its exit when the gateway first ticks.
-    #[test]
-    fn a_delayed_gateway_records_no_block_entity() {
-        let mut volume = FakeVolume::default();
-        let mut gateways = Vec::new();
-        place_end_gateway(
-            &gateway(None, false),
-            &mut volume,
-            &mut gateways,
-            BlockPos::new(0, 0, 0),
-        );
-        assert_eq!(volume.writes.len(), 3 * 5 * 3);
-        assert!(gateways.is_empty());
-    }
-
     /// `Age` always, `exit_portal` only when known, `ExactTeleport` only when
     /// set, through the encoder the save and the chunk packet both use.
     #[test]

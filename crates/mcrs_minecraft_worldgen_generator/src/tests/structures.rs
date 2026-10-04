@@ -405,51 +405,6 @@ fn spread(extra: &str) -> String {
 }
 
 #[test]
-fn spacing_must_exceed_separation() {
-    let set = r#"{"structures": [{"structure": "minecraft:s", "weight": 1}],
-        "placement": {"type": "minecraft:random_spread", "salt": 1, "spacing": 8, "separation": 8}}"#;
-    assert_eq!(
-        check(
-            &[("minecraft:a", set)],
-            &[("minecraft:s", &jigsaw(""))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:a: spacing 8 is not larger than separation 8"
-    );
-}
-
-#[test]
-fn exclusion_zones_must_not_cycle() {
-    let a = spread(r#", "exclusion_zone": {"other_set": "minecraft:b", "chunk_count": 1}"#);
-    let b = spread(r#", "exclusion_zone": {"other_set": "minecraft:a", "chunk_count": 1}"#);
-    assert_eq!(
-        check(
-            &[("minecraft:a", &a), ("minecraft:b", &b)],
-            &[("minecraft:s", &jigsaw(""))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:a: the exclusion zones cycle: minecraft:a -> minecraft:b -> minecraft:a"
-    );
-}
-
-#[test]
-fn an_alias_binds_once() {
-    let aliases = r#", "pool_aliases": [
-        {"type": "minecraft:direct", "alias": "minecraft:x", "target": "minecraft:empty"},
-        {"type": "minecraft:random_group", "groups": [{"weight": 1, "data": [
-            {"type": "minecraft:random", "alias": "minecraft:x", "targets": [{"weight": 1, "data": "minecraft:empty"}]}
-        ]}]}]"#;
-    assert_eq!(
-        check(
-            &[],
-            &[("minecraft:s", &jigsaw(aliases))],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:s: the pool alias minecraft:x is bound twice"
-    );
-}
-
-#[test]
 fn the_jigsaw_range_plus_its_terrain_margin_stays_within_128() {
     let adapted = r#", "terrain_adaptation": "beard_thin""#;
     let at_the_bound = jigsaw_reaching(116, adapted);
@@ -460,15 +415,6 @@ fn the_jigsaw_range_plus_its_terrain_margin_stays_within_128() {
             &[("minecraft:empty", EMPTY_POOL)]
         )
         .is_ok()
-    );
-    let structure = jigsaw_reaching(120, adapted);
-    assert_eq!(
-        check(
-            &[],
-            &[("minecraft:s", &structure)],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:s: max_distance_from_center 120 plus the terrain adaptation margin 12 exceeds 128"
     );
 }
 

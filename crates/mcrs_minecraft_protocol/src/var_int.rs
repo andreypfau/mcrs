@@ -99,12 +99,11 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn varint_written_size() {
+    fn check_written_size(count: usize) {
         let mut rng = rand::rng();
         let mut buf = vec![];
 
-        for n in (0..100_000)
+        for n in (0..count)
             .map(|_| rng.random())
             .chain([0, i32::MIN, i32::MAX])
             .map(VarInt)
@@ -115,12 +114,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn varint_round_trip() {
+    fn check_round_trip(count: usize) {
         let mut rng = rand::rng();
         let mut buf = vec![];
 
-        for n in (0..1_000_000)
+        for n in (0..count)
             .map(|_| rng.random())
             .chain([0, i32::MIN, i32::MAX])
         {
@@ -133,6 +131,30 @@ mod tests {
 
             assert!(slice.is_empty());
             buf.clear();
+        }
+    }
+
+    #[test]
+    fn varint_written_size() {
+        check_written_size(1_000);
+    }
+
+    #[test]
+    fn varint_round_trip() {
+        check_round_trip(10_000);
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn varint_written_size() {
+            check_written_size(100_000);
+        }
+
+        #[test]
+        fn varint_round_trip() {
+            check_round_trip(1_000_000);
         }
     }
 }

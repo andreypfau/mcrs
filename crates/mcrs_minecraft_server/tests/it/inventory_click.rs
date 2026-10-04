@@ -295,57 +295,6 @@ fn a_click_for_a_container_the_player_no_longer_has_open_moves_nothing() {
 }
 
 #[test]
-fn a_wrong_client_claim_is_corrected_and_a_stale_state_id_resends_everything() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 7);
-    place(&mut world, stack, player, slots::HOTBAR.start);
-    sync_stack_slots(&mut world);
-    drain(&mut world);
-
-    let claimed =
-        HashedStack::create(&stack_to_slot(&world, stack, &standalone_corpus().1)).unwrap();
-    let untouched = slots::MAIN.start + 3;
-    click(
-        &mut world,
-        player,
-        ContainerInput::Pickup,
-        -1,
-        0,
-        vec![(untouched, claimed)],
-    );
-    let menu = world.get::<CurrentMenu>(player).unwrap().0;
-    assert!(matches!(
-        world.get::<RemoteSlots>(menu).unwrap().slots[usize::from(untouched)],
-        Remote::Claimed(Some(_))
-    ));
-    sync_stack_slots(&mut world);
-    let packets = drain(&mut world);
-    assert_eq!(packets.len(), 1, "{packets:?}");
-    assert!(matches!(
-        &packets[0].data,
-        PacketPayload::ContainerSetSlot(ClientboundContainerSetSlot { slot, item, .. }) if *slot == untouched as i16 && *item == RawStack::EMPTY
-    ));
-
-    click_at(
-        &mut world,
-        player,
-        0,
-        ContainerInput::Pickup,
-        -1,
-        0,
-        Vec::new(),
-        None,
-    );
-    sync_stack_slots(&mut world);
-    let packets = drain(&mut world);
-    assert_eq!(packets.len(), 1, "{packets:?}");
-    assert!(matches!(
-        &packets[0].data,
-        PacketPayload::ContainerSetContent(_)
-    ));
-}
-
-#[test]
 fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
     let (mut world, player) = opened();
     let sword = item(&mut world, "iron_sword", 1);
@@ -460,6 +409,7 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
         stack_at(&world, player, slots::CARRIED).map(|s| s.1),
         Some(4)
     );
+    assert_eq!(drop_throttle(&world, player), 0);
 
     sync_stack_slots(&mut world);
     let packets = drain(&mut world);
@@ -606,168 +556,6 @@ fn a_click_during_a_drag_resets_it_and_is_swallowed() {
 }
 
 #[test]
-fn a_slot_or_end_packet_without_a_header_moves_nothing() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 64);
-    place(&mut world, stack, player, slots::CARRIED);
-    sync_stack_slots(&mut world);
-    drain(&mut world);
-
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        9,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Slot,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::End,
-        }),
-        Vec::new(),
-    );
-
-    assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(
-        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
-        Some(64)
-    );
-    let menu = world.get::<CurrentMenu>(player).unwrap().0;
-    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
-}
-
-#[test]
-fn a_second_header_mid_drag_resets_the_drag() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 64);
-    place(&mut world, stack, player, slots::CARRIED);
-    sync_stack_slots(&mut world);
-    drain(&mut world);
-
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Header,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        9,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Slot,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Header,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        10,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Slot,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::End,
-        }),
-        Vec::new(),
-    );
-
-    assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(stack_at(&world, player, 10), None);
-    assert_eq!(
-        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
-        Some(64)
-    );
-    let menu = world.get::<CurrentMenu>(player).unwrap().0;
-    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
-}
-
-#[test]
-fn a_header_on_an_empty_cursor_resets() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 7);
-    place(&mut world, stack, player, 9);
-    sync_stack_slots(&mut world);
-    drain(&mut world);
-
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Header,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        9,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::Slot,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage: QuickCraftStage::End,
-        }),
-        Vec::new(),
-    );
-
-    assert_eq!(stack_at(&world, player, 9), Some((stack, 7)));
-    assert_eq!(stack_at(&world, player, slots::CARRIED), None);
-    let menu = world.get::<CurrentMenu>(player).unwrap().0;
-    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
-}
-
-#[test]
 fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -844,57 +632,6 @@ fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
         stack_at(&world, player, slots::CARRIED).map(|s| s.1),
         Some(64)
     );
-    assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
-}
-
-#[test]
-fn a_full_kind_header_from_a_survival_player_resets() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 64);
-    place(&mut world, stack, player, slots::CARRIED);
-    sync_stack_slots(&mut world);
-    drain(&mut world);
-
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Full,
-            stage: QuickCraftStage::Header,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        9,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Full,
-            stage: QuickCraftStage::Slot,
-        }),
-        Vec::new(),
-    );
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Full,
-            stage: QuickCraftStage::End,
-        }),
-        Vec::new(),
-    );
-
-    assert_eq!(stack_at(&world, player, 9), None);
-    assert_eq!(
-        stack_at(&world, player, slots::CARRIED).map(|s| s.1),
-        Some(64)
-    );
-    let menu = world.get::<CurrentMenu>(player).unwrap().0;
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
@@ -1292,51 +1029,6 @@ fn the_drop_throttle_decays_by_one_a_tick() {
             .unwrap()
             .is_changed()
     );
-}
-
-#[test]
-fn a_drag_does_not_charge_the_drop_throttle() {
-    let (mut world, player) = opened();
-    let stack = stone(&mut world, 64);
-    place(&mut world, stack, player, slots::CARRIED);
-    let button = |stage| {
-        u8::from(QuickCraftButton {
-            kind: QuickCraftKind::Split,
-            stage,
-        })
-    };
-
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        button(QuickCraftStage::Header),
-        Vec::new(),
-    );
-    for offset in 0..5 {
-        click(
-            &mut world,
-            player,
-            ContainerInput::QuickCraft,
-            slots::MAIN.start as i16 + offset,
-            button(QuickCraftStage::Slot),
-            Vec::new(),
-        );
-    }
-    click(
-        &mut world,
-        player,
-        ContainerInput::QuickCraft,
-        SLOT_CLICKED_OUTSIDE,
-        button(QuickCraftStage::End),
-        Vec::new(),
-    );
-    assert_eq!(
-        stack_at(&world, player, slots::MAIN.start).map(|s| s.1),
-        Some(12)
-    );
-    assert_eq!(drop_throttle(&world, player), 0);
 }
 
 #[test]

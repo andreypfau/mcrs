@@ -232,37 +232,6 @@ mod tests {
     }
 
     #[test]
-    fn a_key_present_on_one_side_only_yields_one_row_with_the_other_side_absent() {
-        let (a, b) = pair(
-            "keys",
-            &[("x.json", r#"{"gone":1,"kept":true}"#)],
-            &[("x.json", r#"{"kept":true,"new":{"max":5,"min":1}}"#)],
-        );
-
-        assert_eq!(
-            lines(&diff(&a, &b).unwrap()),
-            [
-                "removed\tx.json\t/gone\t1\t-",
-                "added\tx.json\t/new\t-\t{\"max\":5,\"min\":1}",
-            ]
-        );
-    }
-
-    #[test]
-    fn a_path_escapes_a_slash_and_a_tilde_in_a_key() {
-        let (a, b) = pair(
-            "escape",
-            &[("x.json", r#"{"a/b~c":1}"#)],
-            &[("x.json", r#"{"a/b~c":2}"#)],
-        );
-
-        assert_eq!(
-            lines(&diff(&a, &b).unwrap()),
-            ["changed\tx.json\t/a~1b~0c\t1\t2"]
-        );
-    }
-
-    #[test]
     fn documents_that_differ_only_in_key_order_yield_no_row_and_count_as_text_only() {
         let (a, b) = pair(
             "order",
@@ -280,68 +249,6 @@ mod tests {
 
         assert!(diff.rows.is_empty());
         assert_eq!(diff.text_only, 1);
-    }
-
-    #[test]
-    fn a_list_element_that_changed_yields_a_row_for_that_position() {
-        let (a, b) = pair(
-            "list",
-            &[("x.json", r#"{"l":[1,2,3],"short":[1]}"#)],
-            &[("x.json", r#"{"l":[1,9,3],"short":[1,2]}"#)],
-        );
-
-        assert_eq!(
-            lines(&diff(&a, &b).unwrap()),
-            [
-                "changed\tx.json\t/l/1\t2\t9",
-                "added\tx.json\t/short/1\t-\t2"
-            ]
-        );
-    }
-
-    #[test]
-    fn a_value_that_changes_type_is_one_row_for_the_whole_value() {
-        let (a, b) = pair(
-            "type",
-            &[("x.json", r#"{"v":{"a":1}}"#)],
-            &[("x.json", r#"{"v":[1]}"#)],
-        );
-
-        assert_eq!(
-            lines(&diff(&a, &b).unwrap()),
-            ["changed\tx.json\t/v\t{\"a\":1}\t[1]"]
-        );
-    }
-
-    #[test]
-    fn a_file_on_one_side_only_yields_an_added_or_a_removed_row() {
-        let (a, b) = pair(
-            "files",
-            &[("gone.json", "{}"), ("both.json", "{}")],
-            &[("both.json", "{}"), ("new.json", "{}")],
-        );
-
-        assert_eq!(
-            lines(&diff(&a, &b).unwrap()),
-            [
-                "file_removed\tgone.json\t-\t-\t-",
-                "file_added\tnew.json\t-\t-\t-"
-            ]
-        );
-    }
-
-    #[test]
-    fn a_text_file_that_differs_yields_one_row() {
-        let (a, b) = pair(
-            "text",
-            &[("README.md", "old text"), ("same.md", "same")],
-            &[("README.md", "new text"), ("same.md", "same")],
-        );
-
-        let diff = diff(&a, &b).unwrap();
-
-        assert_eq!(lines(&diff), ["text\tREADME.md\t-\t-\t-"]);
-        assert_eq!(diff.text_only, 0);
     }
 
     #[test]

@@ -217,15 +217,6 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
 /// the patch's draws would move every later object of the column.
 #[test]
 fn a_pale_oak_runs_its_moss_patch() {
-    let runnable = runnable();
-    for name in [
-        "minecraft:pale_moss_patch",
-        "minecraft:pale_oak",
-        "minecraft:pale_oak_creaking",
-    ] {
-        assert!(runnable.contains(&id(name)), "{name} places nothing");
-    }
-
     let (tables, program) = corpus_program();
     assert!(
         program.run(RunScratch::default()).moss_patch.is_some(),

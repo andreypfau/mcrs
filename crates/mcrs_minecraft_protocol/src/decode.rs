@@ -124,18 +124,4 @@ mod tests {
         let mut decoder = decoder(256, &[0x01, 0x00]);
         assert!(decoder.try_next_packet().is_err());
     }
-
-    #[test]
-    fn a_threshold_set_between_two_calls_applies_to_buffered_frames() {
-        let first = packet(300);
-        let second = packet(400);
-        let mut input = frame_of(&first, -1);
-        input.extend_from_slice(&frame_of(&second, 256));
-        let mut decoder = decoder(-1, &input);
-
-        assert_decodes(&mut decoder, &first);
-        decoder.set_compression(CompressionThreshold(256));
-        assert_decodes(&mut decoder, &second);
-        assert!(decoder.try_next_packet().unwrap().is_none());
-    }
 }

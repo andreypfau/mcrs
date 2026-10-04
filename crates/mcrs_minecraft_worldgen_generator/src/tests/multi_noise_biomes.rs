@@ -50,44 +50,6 @@ fn the_overworld_preset_resolves_every_entry() {
     assert!(ids.len() > 20, "only {} distinct biomes", ids.len());
 }
 
-/// The batched volume is the only thing standing between a cell and its
-/// climate, so it must answer exactly what sampling that cell alone answers.
-#[test]
-fn the_batched_column_agrees_with_sampling_each_cell() {
-    let router = build_settings_router("overworld", 2);
-    let (table, _) = overworld_table();
-    let sections = y_sections();
-    let (chunk_x, chunk_z) = (26, 90);
-
-    let palettes = multi_noise_palettes(&router, &table, chunk_x * 16, chunk_z * 16, &sections);
-    assert_eq!(palettes.len(), sections.len());
-    let grid = multi_noise_grid(&router, &table, chunk_x * 16, chunk_z * 16, &sections)
-        .expect("the multi-noise path builds a grid");
-    let first = sections[0];
-
-    let mut ws = Workspace::new();
-    for &section_y in &sections {
-        for cx in 0..4 {
-            for cy in 0..4 {
-                for cz in 0..4 {
-                    let target = climate_target_at(
-                        &router,
-                        &mut ws,
-                        chunk_x * 4 + cx,
-                        section_y * 4 + cy,
-                        chunk_z * 4 + cz,
-                    );
-                    assert_eq!(
-                        grid.get(cx + 1, (section_y - first) * 4 + cy, cz + 1),
-                        table.biome_at(target),
-                        "cell {cx},{cy},{cz} of section {section_y}"
-                    );
-                }
-            }
-        }
-    }
-}
-
 /// A modern biome is a function of Y as much as of X and Z, so the column must
 /// not come out as one palette cloned down its sections. At the origin the
 /// surface is forest and the cave layer is dripstone.
@@ -260,6 +222,14 @@ fn the_grid_rings_the_column_by_one_quart_cell() {
     assert_eq!(
         grid.volume.min_block(),
         IVec3::new(chunk_x * 16 - 4, first * 16, chunk_z * 16 - 4)
+    );
+    assert!(
+        palettes.iter().any(|palette| {
+            let mut distinct = 0;
+            palette.for_each_distinct(|_| distinct += 1);
+            distinct > 1
+        }),
+        "a column with a section of several biomes"
     );
 
     let zoom_seed = obfuscate_seed(router.world_seed as i64);

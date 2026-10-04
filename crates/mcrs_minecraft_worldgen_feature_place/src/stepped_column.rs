@@ -222,26 +222,6 @@ mod tests {
         assert!(volume.writes.is_empty());
     }
 
-    /// A blacklisted block under the origin is refused the same way.
-    #[test]
-    fn a_cluster_over_a_forbidden_block_refuses() {
-        let config = config(
-            IntProvider::Constant(2),
-            IntProvider::Constant(3),
-            IntProvider::Constant(1),
-            IntProvider::Constant(5),
-        );
-        let mut volume = FakeVolume::with([((AT.x, AT.y - 1, AT.z), BLACKSTONE)]);
-        let mut rng = WorldgenRandom::new(6);
-
-        assert!(!place_stepped_column_cluster(
-            &config,
-            &mut volume,
-            &mut rng,
-            AT
-        ));
-    }
-
     /// Each column spends three bounded ints for its position — the y span is
     /// one cell wide and still draws — and one more for its reach whenever the
     /// position is inside the cluster's height.

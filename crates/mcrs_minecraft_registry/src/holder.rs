@@ -23,10 +23,6 @@ macro_rules! registries {
                     ResourceLocation::new_static(concat!("minecraft:", $name));
             }
         )*
-
-        #[cfg(test)]
-        const MARKERS: &[(&str, ResourceLocation<&'static str>)] =
-            &[$(($name, <$marker as RegistryKey>::KEY)),*];
     };
 }
 
@@ -126,19 +122,5 @@ impl<T: Registered> Serialize for HolderWireOnly<T> {
 impl<'de, T: Registered> Deserialize<'de> for HolderWireOnly<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         ResourceKey::deserialize(d).map(|key| HolderWireOnly(Holder::Reference(key)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_marker_key_has_its_name_as_its_path() {
-        assert!(!MARKERS.is_empty());
-        for (name, key) in MARKERS {
-            assert_eq!(key.namespace(), "minecraft", "{name}");
-            assert_eq!(key.path(), *name);
-        }
     }
 }

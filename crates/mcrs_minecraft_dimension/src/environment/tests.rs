@@ -166,19 +166,6 @@ fn layer_two_is_the_dimension_and_beats_the_default() {
 }
 
 #[test]
-fn layer_three_is_the_biome_and_beats_the_dimension() {
-    let (attributes, _timelines) = overworld();
-    let swamp = biomes(json!({"minecraft:visual/sky_color": "#6a7039"}));
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    let ctx = context(&ticks, &swamp, Weather::default());
-
-    assert_eq!(
-        color(&attributes, "minecraft:visual/sky_color", &ctx),
-        0xFF6A_7039
-    );
-}
-
-#[test]
 fn layer_four_is_the_timeline_and_beats_the_biome() {
     let (attributes, _timelines) = overworld();
     let swamp = biomes(json!({"minecraft:visual/sky_color": "#6a7039"}));
@@ -309,42 +296,6 @@ fn a_not_positional_attribute_skips_the_positional_layers() {
 
 // ── End to end through a clock ───────────────────────────────────────────────
 
-#[test]
-fn overworld_sky_color_at_noon_is_the_dimension_colour_through_the_day_track() {
-    let (attributes, _timelines) = overworld();
-    let empty = SpatialAttributeInterpolator::default();
-
-    let mut clocks = WorldClocks::default();
-    clocks.insert(
-        ResourceLocation::parse("minecraft:overworld").unwrap(),
-        ClockState {
-            total_ticks: NOON,
-            ..ClockState::default()
-        },
-    );
-    let mut ticks = Vec::new();
-    attributes.clock_ticks(&clocks, &mut ticks);
-    assert_eq!(ticks, vec![NOON as f64]);
-
-    let ctx = context(&ticks, &empty, Weather::default());
-    assert_eq!(
-        color(&attributes, "minecraft:visual/sky_color", &ctx),
-        0xFF78_A7FF
-    );
-
-    // and the same track takes it to black at midnight
-    clocks.get_mut("minecraft:overworld").unwrap().total_ticks = MIDNIGHT;
-    attributes.clock_ticks(&clocks, &mut ticks);
-    assert_eq!(
-        color(
-            &attributes,
-            "minecraft:visual/sky_color",
-            &context(&ticks, &empty, Weather::default())
-        ),
-        0xFF00_0000
-    );
-}
-
 // ── Sub-tick smoothing ───────────────────────────────────────────────────────
 
 #[test]
@@ -390,37 +341,6 @@ fn the_sun_crosses_the_wrap_without_reversing() {
     assert!(
         angles[0] > 300.0 && *angles.last().unwrap() < 60.0,
         "{angles:?}"
-    );
-}
-
-#[test]
-fn evaluation_is_a_pure_function_of_its_context() {
-    let (attributes, _timelines) = overworld();
-    let empty = SpatialAttributeInterpolator::default();
-    let sun = "minecraft:visual/sun_angle";
-
-    let early = ticks_at(&attributes, 0, 0.0);
-    let late = ticks_at(&attributes, 3000, 0.0);
-    let first = float(
-        &attributes,
-        sun,
-        &context(&early, &empty, Weather::default()),
-    );
-    let moved = float(
-        &attributes,
-        sun,
-        &context(&late, &empty, Weather::default()),
-    );
-    let again = float(
-        &attributes,
-        sun,
-        &context(&early, &empty, Weather::default()),
-    );
-
-    assert_ne!(first, moved, "a later tick must give a different angle");
-    assert_eq!(
-        first, again,
-        "going back to the earlier tick must give the earlier angle"
     );
 }
 

@@ -116,11 +116,4 @@ mod tests {
         report.require(&alpha, "minecraft:absent");
         assert_eq!(report.to_string().lines().count(), 1);
     }
-
-    #[test]
-    fn an_empty_report_prints_nothing() {
-        let report = LoadReport::new();
-        assert!(report.is_empty());
-        assert_eq!(report.to_string(), "");
-    }
 }

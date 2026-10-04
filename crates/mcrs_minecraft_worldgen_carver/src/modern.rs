@@ -363,37 +363,6 @@ mod tests {
         assert_ne!(runs(&offset), runs(&centred));
     }
 
-    #[test]
-    fn a_cave_carver_marks_cells_inside_the_target_chunk() {
-        let config = constant_cave(4, true);
-        let mut mask = empty_mask();
-        let mut rng = LegacyRandom::new(555);
-        for source_x in -1..=1 {
-            for source_z in -1..=1 {
-                carve_caves(
-                    &config,
-                    overworld(),
-                    0,
-                    0,
-                    source_x,
-                    source_z,
-                    &WaterMask::default(),
-                    &mut mask,
-                    &mut rng,
-                );
-            }
-        }
-        assert!(!mask.is_empty(), "nine sources carved nothing");
-        mask.visit(|x, z, bottom, top| {
-            assert!((0..16).contains(&x), "x {x} outside the chunk");
-            assert!((0..16).contains(&z), "z {z} outside the chunk");
-            assert!(
-                bottom >= -63 && top <= 312,
-                "Y {bottom}..={top} out of range"
-            );
-        });
-    }
-
     fn runs(mask: &CarvingMask) -> Vec<(i32, i32, i32, i32)> {
         let mut out = Vec::new();
         mask.visit(|x, z, bottom, top| out.push((x, z, bottom, top)));

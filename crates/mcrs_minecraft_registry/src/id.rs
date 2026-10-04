@@ -155,14 +155,6 @@ pub(crate) fn id_number(position: usize) -> Option<u32> {
 mod tests {
     use super::*;
 
-    #[cfg(target_pointer_width = "64")]
-    #[test]
-    fn a_position_past_the_ids_range_has_no_number() {
-        assert_eq!(id_number(0), Some(0));
-        assert_eq!(id_number(u32::MAX as usize), Some(u32::MAX));
-        assert_eq!(id_number(u32::MAX as usize + 1), None);
-    }
-
     #[test]
     fn ids_order_by_position() {
         let first = Id::<()>::from_number(0);

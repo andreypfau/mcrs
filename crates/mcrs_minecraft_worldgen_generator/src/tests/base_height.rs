@@ -12,7 +12,8 @@ const HEIGHT: i32 = 384;
 const COLUMNS: [(i32, i32); 6] = [(0, 0), (15, 15), (7, 8), (3, 12), (15, 0), (0, 15)];
 
 /// The column sampled alone answers what a descent of the raw fill answers, on
-/// land, on the coast and over deep ocean.
+/// land, on the coast and over deep ocean, where the surface is the water and
+/// the floor lies below it. An accessor outside the noise range answers its floor.
 #[test]
 fn base_height_matches_a_descent_of_the_raw_fill() {
     let router = build_settings_router("overworld", 42);
@@ -66,50 +67,18 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
                 maps.solid.get(lx as usize, lz as usize),
                 "OCEAN_FLOOR_WG at ({x}, {z})"
             );
+            if (x, z) == (40 * 16 + 7, 8) {
+                assert_eq!(surface, router.sea_level);
+                assert!(
+                    solid < surface,
+                    "floor {solid} under the water surface {surface}"
+                );
+                assert!(solid > MIN_Y, "the floor is a real block, not the fallback");
+            }
         }
     }
-}
 
-#[test]
-fn deep_ocean_surface_is_the_water_and_the_floor_lies_below_it() {
-    let router = build_settings_router("overworld", 42);
-    let predicates = heightmap_predicates(blocks(), block_tags());
-    let mut ws = Workspace::new();
-    let (x, z) = (40 * 16 + 7, 8);
-    let surface = base_height(
-        &router,
-        &mut ws,
-        &predicates,
-        HeightmapKinds::SURFACE,
-        x,
-        z,
-        MIN_Y,
-        HEIGHT,
-    );
-    let solid = base_height(
-        &router,
-        &mut ws,
-        &predicates,
-        HeightmapKinds::SOLID,
-        x,
-        z,
-        MIN_Y,
-        HEIGHT,
-    );
-    assert_eq!(surface, router.sea_level);
-    assert!(
-        solid < surface,
-        "floor {solid} under the water surface {surface}"
-    );
-    assert!(solid > MIN_Y, "the floor is a real block, not the fallback");
-}
-
-#[test]
-fn an_accessor_outside_the_noise_range_answers_its_floor() {
-    let router = build_settings_router("overworld", 42);
-    let predicates = heightmap_predicates(blocks(), block_tags());
-    let mut ws = Workspace::new();
-    let height = base_height(
+    let above_the_noise = base_height(
         &router,
         &mut ws,
         &predicates,
@@ -119,7 +88,7 @@ fn an_accessor_outside_the_noise_range_answers_its_floor() {
         400,
         16,
     );
-    assert_eq!(height, 400);
+    assert_eq!(above_the_noise, 400);
 }
 
 #[test]

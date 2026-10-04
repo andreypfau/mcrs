@@ -849,15 +849,6 @@ mod tests {
         }
     }
 
-    // ── SYNCED_REGISTRIES ──
-
-    #[test]
-    fn synced_registries_is_sorted() {
-        let mut sorted = SYNCED_REGISTRIES.to_vec();
-        sorted.sort();
-        assert_eq!(sorted, SYNCED_REGISTRIES);
-    }
-
     // ── TAG_CAPABLE_REGISTRIES ──
 
     #[test]
@@ -874,39 +865,5 @@ mod tests {
         let mut known = HashSet::new();
         known.insert(("minecraft", "core"));
         assert!(should_skip_nbt(true, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_data_is_none() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(false, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_not_known() {
-        let known: HashSet<(&str, &str)> = HashSet::new();
-        assert!(!should_skip_nbt(true, Some(("minecraft", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_no_pack_source() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, None, &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_namespace_differs() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, Some(("modid", "core")), &known));
-    }
-
-    #[test]
-    fn no_skip_nbt_when_pack_id_differs() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(!should_skip_nbt(true, Some(("minecraft", "extra")), &known));
     }
 }

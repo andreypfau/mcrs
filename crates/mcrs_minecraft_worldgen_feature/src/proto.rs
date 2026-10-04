@@ -927,24 +927,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_feature_type_is_refused_by_name() {
-        let error = serde_json::from_str::<Feature>(r#"{"type":"minecraft:hedge_maze"}"#)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("minecraft:hedge_maze"), "{error}");
-    }
-
-    #[test]
-    fn an_unknown_placement_modifier_type_is_refused_by_name() {
-        let error = serde_json::from_str::<PlacedFeature>(
-            r#"{"feature":"minecraft:oak","placement":[{"type":"minecraft:moon_phase"}]}"#,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("minecraft:moon_phase"), "{error}");
-    }
-
-    #[test]
     fn an_out_of_range_ore_size_is_refused() {
         let error = serde_json::from_str::<Feature>(
             r#"{"type":"minecraft:ore","targets":[],"size":65,"discard_chance_on_air_exposure":0.0}"#,

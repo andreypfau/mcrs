@@ -579,18 +579,11 @@ mod tests {
     }
 
     #[test]
-    fn a_live_connection_does_not_end_the_session() {
-        let runtime = Runtime::new().unwrap();
-        let (mut app, _inbound, _) = client_app(&runtime);
-        app.update();
-        assert!(app.should_exit().is_none());
-    }
-
-    #[test]
     fn a_closed_connection_ends_the_session() {
         let runtime = Runtime::new().unwrap();
         let (mut app, inbound, _) = client_app(&runtime);
         app.update();
+        assert!(app.should_exit().is_none());
         drop(inbound);
         app.update();
         assert_eq!(app.should_exit(), Some(AppExit::Success));

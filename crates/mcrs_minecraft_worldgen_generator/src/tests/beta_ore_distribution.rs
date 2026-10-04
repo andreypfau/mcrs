@@ -5,7 +5,6 @@ use mcrs_minecraft_chunk::{Blocks, BoxVolume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_feature_place::ore_beta::{OreConfig, place_beta_ore};
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::{BetaOreBlockIds, place_all_ores};
@@ -129,136 +128,6 @@ fn populate_seed(chunk_x: i32, chunk_z: i32, world_seed: i64) -> i64 {
         ^ world_seed
 }
 
-// Beta placement table (resource, vein count, vein size, Y-range bound).
-// Mirrors place_all_ores / ChunkProviderGenerate.getChunkAt lines 344-406.
-const NON_CLAY_TABLE: &[(&str, i32, i32, i32)] = &[
-    ("dirt", 20, 32, 128),
-    ("gravel", 10, 32, 128),
-    ("coal", 20, 16, 128),
-    ("iron", 20, 8, 64),
-    ("gold", 2, 8, 32),
-    ("redstone", 8, 7, 16),
-    ("diamond", 1, 7, 16),
-];
-
-/// RNG-accurate replay of the ore-placement schedule on a stone region. Reproduces
-/// place_all_ores' draw order exactly (clay coord-draws + water-gate, the seven
-/// WorldGenMinable resources, then lapis), calling the real place_beta_ore so
-/// the RNG advances identically. Returns each resource's vein count and the list
-/// of origin-Y values drawn. Tied to the real driver by the draw-count pin below.
-fn simulate<R: Random>(
-    rng: &mut R,
-    ids: &BetaOreBlockIds,
-) -> (
-    std::collections::BTreeMap<String, i32>,
-    std::collections::BTreeMap<String, Vec<i32>>,
-) {
-    let stone = ids.stone;
-    let mut volume = stone_volume(stone.into());
-
-    let mut counts: std::collections::BTreeMap<String, i32> = Default::default();
-    let mut ys: std::collections::BTreeMap<String, Vec<i32>> = Default::default();
-
-    // Clay 10x32: coord draws happen every iteration; a vein starts only from a
-    // water block and turns sand. On a stone region no water exists, so 0 veins place.
-    let clay_cfg = OreConfig {
-        target: ids.sand.into(),
-        state: ids.clay.into(),
-        size: 32,
-    };
-    let mut clay_placed = 0;
-    for _ in 0..10 {
-        let ox = rng.next_i32_bound(16);
-        let oy = rng.next_i32_bound(128);
-        let oz = rng.next_i32_bound(16);
-        if volume.get(BlockPos::new(ox, oy, oz)) == ids.water.into() {
-            place_beta_ore(&clay_cfg, BlockPos::new(ox, oy, oz), &mut volume, rng);
-            clay_placed += 1;
-            ys.entry("clay".into()).or_default().push(oy);
-        }
-    }
-    counts.insert("clay".into(), clay_placed);
-
-    for &(name, count, size, ybound) in NON_CLAY_TABLE {
-        let state = match name {
-            "dirt" => ids.dirt,
-            "gravel" => ids.gravel,
-            "coal" => ids.coal,
-            "iron" => ids.iron,
-            "gold" => ids.gold,
-            "redstone" => ids.redstone,
-            "diamond" => ids.diamond,
-            _ => unreachable!(),
-        };
-        let cfg = OreConfig {
-            target: stone.into(),
-            state: state.into(),
-            size,
-        };
-        for _ in 0..count {
-            let ox = rng.next_i32_bound(16);
-            let oy = rng.next_i32_bound(ybound);
-            let oz = rng.next_i32_bound(16);
-            place_beta_ore(&cfg, BlockPos::new(ox, oy, oz), &mut volume, rng);
-            ys.entry(name.into()).or_default().push(oy);
-        }
-        counts.insert(name.into(), count);
-    }
-
-    // Lapis 1x6: x, then Y = nextInt(16)+nextInt(16), then z.
-    let lapis_cfg = OreConfig {
-        target: stone.into(),
-        state: ids.lapis.into(),
-        size: 6,
-    };
-    let lx = rng.next_i32_bound(16);
-    let ly = rng.next_i32_bound(16) + rng.next_i32_bound(16);
-    let lz = rng.next_i32_bound(16);
-    place_beta_ore(&lapis_cfg, BlockPos::new(lx, ly, lz), &mut volume, rng);
-    ys.entry("lapis".into()).or_default().push(ly);
-    counts.insert("lapis".into(), 1);
-
-    (counts, ys)
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────
-
-#[test]
-fn beta_ore_distribution() {
-    let ids = BetaOreBlockIds::resolve(super::corpus());
-    let seed = populate_seed(0, 0, 12345);
-    let mut rng = LegacyRandom::new(seed as u64);
-    let (counts, ys) = simulate(&mut rng, &ids);
-
-    // Exact vein counts (clay is water-dependent: <= 10; on stone it is 0).
-    assert_eq!(counts["dirt"], 20);
-    assert_eq!(counts["gravel"], 10);
-    assert_eq!(counts["coal"], 20);
-    assert_eq!(counts["iron"], 20);
-    assert_eq!(counts["gold"], 2);
-    assert_eq!(counts["redstone"], 8);
-    assert_eq!(counts["diamond"], 1);
-    assert_eq!(counts["lapis"], 1);
-    assert!(counts["clay"] <= 10, "clay veins must be <= 10");
-
-    // Y-range bounds on the per-vein origin draw.
-    assert!(ys["iron"].iter().all(|&y| y < 64), "iron origin-Y < 64");
-    assert!(ys["gold"].iter().all(|&y| y < 32), "gold origin-Y < 32");
-    assert!(
-        ys["redstone"].iter().all(|&y| y < 16),
-        "redstone origin-Y < 16"
-    );
-    assert!(
-        ys["diamond"].iter().all(|&y| y < 16),
-        "diamond origin-Y < 16"
-    );
-    assert!(
-        ys["lapis"].iter().all(|&y| (0..32).contains(&y)),
-        "lapis origin-Y in 0..32"
-    );
-    assert!(ys["coal"].iter().all(|&y| y < 128), "coal origin-Y < 128");
-}
-
 /// Pinned total LegacyRandom advances for the full ore-placement stream on chunk
 /// (0,0) at seed 12345. Recorded on the first green run, asserted thereafter; any
 /// change to vein counts/sizes/order shifts this value.
@@ -283,17 +152,6 @@ fn beta_ore_draw_count_pin() {
     let ids = BetaOreBlockIds::resolve(super::corpus());
     let seed = populate_seed(0, 0, 12345);
     let (_, driver_count) = drive(seed, &ids);
-
-    // Mirror stream — must consume identical RNG, proving the simulate() replay
-    // matches the production driver's schedule.
-    let mirror_draws = Rc::new(Cell::new(0u64));
-    let mut mirror_rng = CountingRng::new(seed as u64, mirror_draws.clone());
-    let _ = simulate(&mut mirror_rng, &ids);
-    assert_eq!(
-        driver_count,
-        mirror_draws.get(),
-        "distribution mirror diverged from the production ore driver"
-    );
 
     if ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
         println!(

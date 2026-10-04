@@ -13,7 +13,7 @@ cargo run -p mcrs_minecraft_update -- recapture tree_geometry
 
 Output is deterministic: re-running produces a byte-identical file.
 
-**Consumer:** `crates/mcrs_minecraft_worldgen_feature_place/tests/tree_geometry_parity.rs`,
+**Consumer:** `crates/mcrs_minecraft_worldgen_feature_place/tests/it/tree_geometry_parity.rs`,
 which asserts, per case, the return value, every written position and state in
 **first-write order**, and the two `nextLong` values the source yields
 afterwards. The last of those pins the draw count, so a diverging number of
