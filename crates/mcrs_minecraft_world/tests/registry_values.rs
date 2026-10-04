@@ -684,10 +684,10 @@ fn row(directory: &'static str, tag: fn(&str) -> Result<NbtTag, String>) -> Row 
 
 fn rows() -> Vec<Row> {
     use mcrs_minecraft_world::{
-        banner_pattern::BannerPattern, block_transformer::BlockTransformer, chat_type::ChatType,
-        damage_type::DamageType, decorated_pot_pattern::DecoratedPotPattern,
-        instrument::Instrument, item::asset::TrimMaterial, item::asset::TrimPattern,
-        jukebox_song::JukeboxSong, painting_variant::PaintingVariant, test_types::TestEnvironment,
+        block_transformer::BlockTransformer, chat_type::ChatType, damage_type::DamageType,
+        decorated_pot_pattern::DecoratedPotPattern, item::asset::BannerPattern,
+        item::asset::Instrument, item::asset::JukeboxSong, item::asset::PaintingVariant,
+        item::asset::TrimMaterial, item::asset::TrimPattern, test_types::TestEnvironment,
         test_types::TestInstance, variant::*,
     };
     vec![
@@ -952,5 +952,28 @@ fn the_synced_values_differ_from_the_game_as_recorded() {
         sections(&read("tests/fixtures/registry_value_differences.txt")),
         computed,
         "the recorded differences and the computed ones disagree"
+    );
+}
+
+#[test]
+fn the_typed_values_encode_as_the_game_does() {
+    let golden = golden();
+    let rows = rows();
+    let mut differences = BTreeSet::new();
+    for registry in UNTYPED_COPIES {
+        let row = rows
+            .iter()
+            .find(|row| row.registry == registry)
+            .unwrap_or_else(|| panic!("{registry} has no row"));
+        let game = golden
+            .registries
+            .get(registry)
+            .unwrap_or_else(|| panic!("the golden lacks {registry}"));
+        differences.extend(compare_registry(registry, &from_files(row), game));
+    }
+    assert!(
+        differences.is_empty(),
+        "{}",
+        differences.into_iter().collect::<Vec<_>>().join("\n")
     );
 }

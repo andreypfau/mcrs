@@ -4,7 +4,6 @@
     clippy::too_many_arguments
 )]
 
-pub mod banner_pattern;
 pub mod block_transformer;
 pub mod chat_type;
 pub mod damage_type;
@@ -13,10 +12,7 @@ pub mod decorated_pot_pattern;
 pub mod dialog;
 pub mod dimension;
 pub mod entity;
-pub mod instrument;
 pub mod item;
-pub mod jukebox_song;
-pub mod painting_variant;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
@@ -118,20 +114,20 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<crate::item::asset::TrimMaterial>::default());
         app.init_asset::<damage_type::DamageType>();
         app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
-        app.init_asset::<painting_variant::PaintingVariant>();
-        app.register_asset_loader(JsonLoader::<painting_variant::PaintingVariant>::default());
-        app.init_asset::<banner_pattern::BannerPattern>();
-        app.register_asset_loader(JsonLoader::<banner_pattern::BannerPattern>::default());
-        app.init_asset::<jukebox_song::JukeboxSong>();
-        app.register_asset_loader(JsonLoader::<jukebox_song::JukeboxSong>::default());
+        app.init_asset::<item::asset::PaintingVariant>();
+        app.register_asset_loader(JsonLoader::<item::asset::PaintingVariant>::default());
+        app.init_asset::<item::asset::BannerPattern>();
+        app.register_asset_loader(JsonLoader::<item::asset::BannerPattern>::default());
+        app.init_asset::<item::asset::JukeboxSong>();
+        app.register_asset_loader(JsonLoader::<item::asset::JukeboxSong>::default());
         app.init_asset::<block_transformer::BlockTransformer>();
         app.register_asset_loader(JsonLoader::<block_transformer::BlockTransformer>::default());
         app.init_asset::<decorated_pot_pattern::DecoratedPotPattern>();
         app.register_asset_loader(
             JsonLoader::<decorated_pot_pattern::DecoratedPotPattern>::default(),
         );
-        app.init_asset::<instrument::Instrument>();
-        app.register_asset_loader(JsonLoader::<instrument::Instrument>::default());
+        app.init_asset::<item::asset::Instrument>();
+        app.register_asset_loader(JsonLoader::<item::asset::Instrument>::default());
         app.init_asset::<chat_type::ChatType>();
         app.register_asset_loader(JsonLoader::<chat_type::ChatType>::default());
         app.init_asset::<dialog::Dialog>();
@@ -146,7 +142,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<test_types::TestInstance>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<sound::SoundEvent>>()
+        app.init_resource::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
@@ -311,9 +307,9 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    painting_variant::PaintingVariant,
+                    item::asset::PaintingVariant,
                     "minecraft:painting_variant",
-                    |v: &painting_variant::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::PaintingVariant| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -323,15 +319,15 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    banner_pattern::BannerPattern,
+                    item::asset::BannerPattern,
                     "minecraft:banner_pattern",
-                    |v: &banner_pattern::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::BannerPattern| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    jukebox_song::JukeboxSong,
+                    item::asset::JukeboxSong,
                     "minecraft:jukebox_song",
-                    |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::JukeboxSong| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -357,9 +353,9 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    instrument::Instrument,
+                    item::asset::Instrument,
                     "minecraft:instrument",
-                    |v: &instrument::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
+                    |v: &item::asset::Instrument| mcrs_minecraft_nbt::to_nbt_tag(v),
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
@@ -472,7 +468,7 @@ impl Plugin for MinecraftWorldPlugin {
         {
             let mut sounds = app
                 .world_mut()
-                .resource_mut::<StaticRegistry<sound::SoundEvent>>();
+                .resource_mut::<StaticRegistry<mcrs_minecraft_item::SoundEvent>>();
             sound::minecraft::register_all_sounds(&mut sounds);
             tracing::info!(
                 count = sounds.len(),

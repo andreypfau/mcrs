@@ -1,7 +1,8 @@
-use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::StaticRegistry;
+use std::sync::LazyLock;
 
-use super::SoundEvent;
+use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_item::SoundEvent;
+use mcrs_minecraft_registry::StaticRegistry;
 
 pub const EMPTY: ResourceLocation<&'static str> = rl!("minecraft:intentionally_empty");
 
@@ -21,40 +22,74 @@ pub const STONE_PRESSURE_PLATE_CLICK_ON: ResourceLocation<&'static str> =
     rl!("minecraft:block.stone_pressure_plate.click_on");
 pub const STONE_STEP: ResourceLocation<&'static str> = rl!("minecraft:block.stone.step");
 
-pub static EMPTY_EVENT: SoundEvent = SoundEvent::new(EMPTY, None);
-pub static WOOD_BREAK_EVENT: SoundEvent = SoundEvent::new(WOOD_BREAK, None);
-pub static WOOD_FALL_EVENT: SoundEvent = SoundEvent::new(WOOD_FALL, None);
-pub static WOOD_HIT_EVENT: SoundEvent = SoundEvent::new(WOOD_HIT, None);
-pub static WOOD_PLACE_EVENT: SoundEvent = SoundEvent::new(WOOD_PLACE, None);
-pub static WOOD_STEP_EVENT: SoundEvent = SoundEvent::new(WOOD_STEP, None);
-pub static STONE_BREAK_EVENT: SoundEvent = SoundEvent::new(STONE_BREAK, None);
-pub static STONE_FALL_EVENT: SoundEvent = SoundEvent::new(STONE_FALL, None);
-pub static STONE_HIT_EVENT: SoundEvent = SoundEvent::new(STONE_HIT, None);
-pub static STONE_PLACE_EVENT: SoundEvent = SoundEvent::new(STONE_PLACE, None);
-pub static STONE_PRESSURE_PLATE_CLICK_OFF_EVENT: SoundEvent =
-    SoundEvent::new(STONE_PRESSURE_PLATE_CLICK_OFF, None);
-pub static STONE_PRESSURE_PLATE_CLICK_ON_EVENT: SoundEvent =
-    SoundEvent::new(STONE_PRESSURE_PLATE_CLICK_ON, None);
-pub static STONE_STEP_EVENT: SoundEvent = SoundEvent::new(STONE_STEP, None);
+const ALL: [ResourceLocation<&'static str>; 13] = [
+    EMPTY,
+    WOOD_BREAK,
+    WOOD_FALL,
+    WOOD_HIT,
+    WOOD_PLACE,
+    WOOD_STEP,
+    STONE_BREAK,
+    STONE_FALL,
+    STONE_HIT,
+    STONE_PLACE,
+    STONE_PRESSURE_PLATE_CLICK_OFF,
+    STONE_PRESSURE_PLATE_CLICK_ON,
+    STONE_STEP,
+];
+
+static EVENTS: LazyLock<[SoundEvent; 13]> = LazyLock::new(|| {
+    ALL.map(|name| SoundEvent {
+        sound_id: name.into(),
+        range: None,
+    })
+});
 
 pub fn register_all_sounds(registry: &mut StaticRegistry<SoundEvent>) {
-    registry.register(EMPTY, &EMPTY_EVENT);
-    registry.register(WOOD_BREAK, &WOOD_BREAK_EVENT);
-    registry.register(WOOD_FALL, &WOOD_FALL_EVENT);
-    registry.register(WOOD_HIT, &WOOD_HIT_EVENT);
-    registry.register(WOOD_PLACE, &WOOD_PLACE_EVENT);
-    registry.register(WOOD_STEP, &WOOD_STEP_EVENT);
-    registry.register(STONE_BREAK, &STONE_BREAK_EVENT);
-    registry.register(STONE_FALL, &STONE_FALL_EVENT);
-    registry.register(STONE_HIT, &STONE_HIT_EVENT);
-    registry.register(STONE_PLACE, &STONE_PLACE_EVENT);
-    registry.register(
-        STONE_PRESSURE_PLATE_CLICK_OFF,
-        &STONE_PRESSURE_PLATE_CLICK_OFF_EVENT,
-    );
-    registry.register(
-        STONE_PRESSURE_PLATE_CLICK_ON,
-        &STONE_PRESSURE_PLATE_CLICK_ON_EVENT,
-    );
-    registry.register(STONE_STEP, &STONE_STEP_EVENT);
+    for (name, event) in ALL.into_iter().zip(EVENTS.iter()) {
+        registry.register(name, event);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sound_table_keeps_its_names_and_ranges() {
+        let mut registry = StaticRegistry::new();
+        register_all_sounds(&mut registry);
+
+        let expected = [
+            EMPTY,
+            WOOD_BREAK,
+            WOOD_FALL,
+            WOOD_HIT,
+            WOOD_PLACE,
+            WOOD_STEP,
+            STONE_BREAK,
+            STONE_FALL,
+            STONE_HIT,
+            STONE_PLACE,
+            STONE_PRESSURE_PLATE_CLICK_OFF,
+            STONE_PRESSURE_PLATE_CLICK_ON,
+            STONE_STEP,
+        ];
+        let filled: Vec<_> = registry
+            .iter()
+            .map(|(_, name, event)| {
+                (
+                    name.as_str().to_owned(),
+                    event.sound_id.as_str(),
+                    event.range,
+                )
+            })
+            .collect();
+        assert_eq!(filled.len(), expected.len());
+        for ((key, sound_id, range), name) in filled.iter().zip(expected) {
+            assert_eq!(key, name.as_str());
+            assert_eq!(*sound_id, name.as_str());
+            assert_eq!(*range, None);
+        }
+    }
 }

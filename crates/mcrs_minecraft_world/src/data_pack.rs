@@ -1,7 +1,6 @@
 use crate::{
-    LoadedRegistryAssets, banner_pattern, block_transformer, chat_type, damage_type,
-    decorated_pot_pattern, dialog, entity, instrument, jukebox_song, painting_variant, sound,
-    test_types, variant,
+    LoadedRegistryAssets, block_transformer, chat_type, damage_type, decorated_pot_pattern, dialog,
+    entity, test_types, variant,
 };
 use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetServer, Assets};
@@ -278,7 +277,7 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_ZOMBIE_NAUTILUS_VARIANT,
     );
-    request_registry::<painting_variant::PaintingVariant>(
+    request_registry::<crate::item::asset::PaintingVariant>(
         &asset_server,
         &mut loaded,
         FOLDER_PAINTING_VARIANT,
@@ -292,14 +291,14 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_DAMAGE_TYPE,
     );
-    request_registry::<banner_pattern::BannerPattern>(
+    request_registry::<crate::item::asset::BannerPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_BANNER_PATTERN,
         "json",
         FILES_BANNER_PATTERN,
     );
-    request_registry::<jukebox_song::JukeboxSong>(
+    request_registry::<crate::item::asset::JukeboxSong>(
         &asset_server,
         &mut loaded,
         FOLDER_JUKEBOX_SONG,
@@ -320,7 +319,7 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_DECORATED_POT_PATTERN,
     );
-    request_registry::<instrument::Instrument>(
+    request_registry::<crate::item::asset::Instrument>(
         &asset_server,
         &mut loaded,
         FOLDER_INSTRUMENT,
@@ -566,7 +565,7 @@ pub(crate) fn resolve_timeline_tags(
 
 pub(crate) fn register_static_registries_with_access(
     items: Res<item::Items>,
-    sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
+    sound_registry: Res<StaticRegistry<mcrs_minecraft_item::SoundEvent>>,
     entity_registry: Res<StaticRegistry<entity::EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_assets::RegistryAccess>,
