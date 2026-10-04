@@ -1,3 +1,4 @@
+pub use self::clientbound::ClientboundCustomPayload;
 pub use self::clientbound::ClientboundDisconnect;
 pub use self::clientbound::ClientboundFinishConfiguration;
 pub use self::clientbound::ClientboundKeepAlive;
@@ -6,11 +7,15 @@ pub use self::clientbound::ClientboundShowDialog;
 pub use self::clientbound::ClientboundUpdateTags;
 
 pub mod clientbound {
-    use crate::packets::common::clientbound::KeepAlive;
+    use crate::packets::common::clientbound::{KeepAlive, Payload};
+    use derive_more::From;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
+
+    #[derive(Clone, Debug, Encode, Decode, From)]
+    pub struct ClientboundCustomPayload<'a>(pub Payload<'a>);
 
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundDisconnect {
@@ -82,7 +87,7 @@ pub mod serverbound {
     );
 
     #[derive(Clone, Debug, Encode, Decode, From)]
-    pub struct ServerboundCustomPayload<'a>(crate::packets::common::serverbound::CustomPayload<'a>);
+    pub struct ServerboundCustomPayload<'a>(crate::packets::common::serverbound::Payload<'a>);
 
     #[derive(Clone, Debug, Encode, Decode, From)]
     pub struct ServerboundFinishConfiguration;

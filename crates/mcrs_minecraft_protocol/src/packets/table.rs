@@ -77,7 +77,7 @@ macro_rules! for_each_packet_table {
             }
             configuration_clientbound: ClientboundConfigurationPacket<'a>, Configuration, Clientbound in ($crate::packets::configuration::clientbound) {
                 "cookie_request",
-                "custom_payload",
+                "custom_payload" => ClientboundCustomPayload<'a>,
                 "disconnect" => ClientboundDisconnect,
                 "finish_configuration" => ClientboundFinishConfiguration,
                 "keep_alive" => ClientboundKeepAlive,

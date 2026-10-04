@@ -8,9 +8,10 @@ use mcrs_minecraft_core::{BlockPos, ResourceLocation, VERSION};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_mode::OptGameMode;
 use mcrs_minecraft_protocol::handshake::Intent;
+use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, VarInt};
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, VarInt};
 
 const GOLDEN: &str = include_str!("../fixtures/join_packets_golden.txt");
 
@@ -179,4 +180,117 @@ fn the_host_bound_counts_utf16_units() {
             .is_err()
     );
     assert!(decode_handshake(&handshake_frame(&past)).is_err());
+}
+
+fn mod_name() -> ResourceLocation<Cow<'static, str>> {
+    ResourceLocation::parse_cow("github.com:andreypfau/mcrs").unwrap()
+}
+
+#[test]
+fn a_brand_equals_the_reference_bytes() {
+    let fixture = fixture();
+    check(
+        &fixture,
+        "brand_serverbound",
+        serverbound::Payload::Brand(Brand { brand: "sample" }),
+    );
+    check(
+        &fixture,
+        "brand_clientbound",
+        clientbound::Payload::Brand(Brand { brand: "sample" }),
+    );
+}
+
+#[test]
+fn a_mod_list_equals_the_reference_bytes() {
+    let fixture = fixture();
+    let commit = ResourceLocation::parse_cow("mcrs:commit").unwrap();
+    check(
+        &fixture,
+        "mod_list",
+        serverbound::Payload::ModList(serverbound::ModList(vec![(
+            mod_name(),
+            serverbound::PropertyMap(vec![(commit, "unknown")]),
+        )])),
+    );
+    check(
+        &fixture,
+        "mod_list_empty",
+        serverbound::Payload::ModList(serverbound::ModList(vec![])),
+    );
+    check(
+        &fixture,
+        "mod_list_entry_without_property",
+        serverbound::Payload::ModList(serverbound::ModList(vec![(
+            mod_name(),
+            serverbound::PropertyMap(vec![]),
+        )])),
+    );
+}
+
+#[test]
+fn an_unknown_channel_keeps_its_raw_bytes() {
+    let body = [0u8, 255, 1, 2, 3];
+    let mut frame = Vec::new();
+    "example:data".encode(&mut frame).unwrap();
+    frame.extend_from_slice(&body);
+    let channel = || ResourceLocation::parse_cow("example:data").unwrap();
+
+    let mut r = &frame[..];
+    let payload = serverbound::Payload::decode(&mut r).unwrap();
+    assert!(r.is_empty());
+    assert_eq!(
+        payload,
+        serverbound::Payload::Raw(serverbound::CustomPayload {
+            channel: channel(),
+            data: Bounded(RawBytes(&body)),
+        })
+    );
+    assert_eq!(encoded(&payload), frame);
+
+    let mut r = &frame[..];
+    let payload = clientbound::Payload::decode(&mut r).unwrap();
+    assert!(r.is_empty());
+    assert_eq!(
+        payload,
+        clientbound::Payload::Raw(clientbound::CustomPayload {
+            channel: channel(),
+            data: Bounded(Cow::Owned(RawBytes(&body))),
+        })
+    );
+    assert_eq!(encoded(&payload), frame);
+}
+
+#[test]
+fn a_raw_payload_cannot_take_the_channel_of_a_typed_one() {
+    let raw = |channel: &'static str| serverbound::CustomPayload {
+        channel: ResourceLocation::parse_cow(channel).unwrap(),
+        data: Bounded(RawBytes(&[])),
+    };
+    for channel in ["minecraft:brand", "minecraft:mod_list"] {
+        assert!(
+            serverbound::Payload::Raw(raw(channel))
+                .encode(&mut Vec::new())
+                .is_err(),
+            "{channel}"
+        );
+    }
+}
+
+#[test]
+fn an_unknown_channel_body_is_bounded_by_the_direction() {
+    let frame = |size: usize| {
+        let mut frame = Vec::new();
+        "example:data".encode(&mut frame).unwrap();
+        frame.resize(frame.len() + size, 0);
+        frame
+    };
+    assert!(serverbound::Payload::decode(&mut &frame(serverbound::MAX_PAYLOAD_SIZE)[..]).is_ok());
+    assert!(
+        serverbound::Payload::decode(&mut &frame(serverbound::MAX_PAYLOAD_SIZE + 1)[..]).is_err()
+    );
+    assert!(clientbound::Payload::decode(&mut &frame(clientbound::MAX_PAYLOAD_SIZE)[..]).is_ok());
+    assert!(
+        clientbound::Payload::decode(&mut &frame(clientbound::MAX_PAYLOAD_SIZE + 1)[..]).is_err()
+    );
 }

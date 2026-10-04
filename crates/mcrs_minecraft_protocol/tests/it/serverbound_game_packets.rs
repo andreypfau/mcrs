@@ -7,14 +7,15 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::{Bounded, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::serverbound::{
-    CustomClickAction, CustomPayload, Pong, ResourcePack,
+    CustomClickAction, Payload, Pong, ResourcePack,
 };
 use mcrs_minecraft_protocol::packets::cookie::serverbound::CookieResponse;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::packets::{configuration, table};
 use mcrs_minecraft_protocol::resource_pack::Status;
-use mcrs_minecraft_protocol::{Decode, Encode, Hand, Look, LpVec3, Position, RawBytes, VarInt};
+use mcrs_minecraft_protocol::{Decode, Encode, Hand, Look, LpVec3, Position, VarInt};
 use uuid::Uuid;
 
 const GOLDEN: &str = include_str!("../fixtures/serverbound_game_packets_golden.txt");
@@ -245,10 +246,7 @@ fn cookie_response_decodes_the_games_bytes() {
 fn custom_payload_decodes_the_games_bytes() {
     check(
         "custom_payload",
-        ServerboundCustomPayload(CustomPayload {
-            channel: ResourceLocation::from(rl!("minecraft:brand")),
-            data: Bounded(RawBytes(&[7, b'v', b'a', b'n', b'i', b'l', b'l', b'a'])),
-        }),
+        ServerboundCustomPayload(Payload::Brand(Brand { brand: "vanilla" })),
     );
 }
 

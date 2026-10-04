@@ -124,9 +124,10 @@ mod tests {
     use bevy_ecs::resource::Resource;
     use bevy_ecs::system::{Commands, IntoSystem, Query, ResMut, System};
     use bevy_ecs::world::World;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_protocol::Encode;
+    use mcrs_minecraft_protocol::packets::common::Brand;
     use mcrs_minecraft_protocol::packets::common::serverbound::{
-        ClientInformation, CustomPayload, KeepAlive,
+        ClientInformation, KeepAlive, Payload,
     };
     use mcrs_minecraft_protocol::packets::configuration::serverbound::{
         ServerboundClientInformation, ServerboundCustomPayload, ServerboundFinishConfiguration,
@@ -135,7 +136,6 @@ mod tests {
     use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundLoginAcknowledged;
     use mcrs_minecraft_protocol::packets::table::{configuration_serverbound, login_serverbound};
     use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
-    use mcrs_minecraft_protocol::{Bounded, Encode, RawBytes};
     use std::sync::OnceLock;
     use tokio::sync::mpsc;
 
@@ -245,13 +245,10 @@ mod tests {
     fn valid_frames_of_two_states_queued_together_count_nothing() {
         let mut world = server_world();
         let (_connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
-        let mut brand = Vec::new();
-        "vanilla".encode(&mut brand).unwrap();
         tx.try_send(packet(&ServerboundLoginAcknowledged)).unwrap();
-        tx.try_send(packet(&ServerboundCustomPayload::from(CustomPayload {
-            channel: ResourceLocation::parse_cow("minecraft:brand").unwrap(),
-            data: Bounded(RawBytes(&brand)),
-        })))
+        tx.try_send(packet(&ServerboundCustomPayload::from(Payload::Brand(
+            Brand { brand: "vanilla" },
+        ))))
         .unwrap();
         tx.try_send(packet(&ServerboundClientInformation(ClientInformation {
             locale: "en_us",

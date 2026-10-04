@@ -95,6 +95,7 @@ fn login() -> Pins {
 
 fn configuration() -> Pins {
     pinned! {
+        "custom_payload" => configuration::clientbound::ClientboundCustomPayload<'_>, Clientbound, Configuration;
         "disconnect" => configuration::clientbound::ClientboundDisconnect, Clientbound, Configuration;
         "finish_configuration" => configuration::clientbound::ClientboundFinishConfiguration, Clientbound, Configuration;
         "keep_alive" => configuration::clientbound::ClientboundKeepAlive, Clientbound, Configuration;

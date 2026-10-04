@@ -57,11 +57,14 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket;
 import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.ServerboundPongPacket;
 import net.minecraft.network.protocol.common.ServerboundResourcePackPacket;
 import net.minecraft.network.protocol.common.custom.BrandPayload;
+import net.minecraft.network.protocol.common.custom.ModListPayload;
+import net.minecraft.network.protocol.common.custom.PropertyMap;
 import net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
@@ -394,6 +397,36 @@ public final class PacketGoldens {
                     session,
                     ClientIntentionPacket.STREAM_CODEC,
                     new ClientIntentionPacket(SharedConstants.getProtocolVersion(), "a".repeat(1024), 25565, ClientIntent.STATUS)
+                )
+            );
+            labels.put(
+                "brand_serverbound",
+                () -> hex(session, ServerboundCustomPayloadPacket.STREAM_CODEC, new ServerboundCustomPayloadPacket(new BrandPayload("sample")))
+            );
+            labels.put(
+                "brand_clientbound",
+                () -> hex(session, ClientboundCustomPayloadPacket.CONFIG_STREAM_CODEC, new ClientboundCustomPayloadPacket(new BrandPayload("sample")))
+            );
+            labels.put(
+                "mod_list",
+                () -> hex(
+                    session,
+                    ServerboundCustomPayloadPacket.STREAM_CODEC,
+                    new ServerboundCustomPayloadPacket(
+                        new ModListPayload(Map.of(Identifier.parse("github.com:andreypfau/mcrs"), new PropertyMap(Map.of(Identifier.parse("mcrs:commit"), "unknown"))))
+                    )
+                )
+            );
+            labels.put(
+                "mod_list_empty",
+                () -> hex(session, ServerboundCustomPayloadPacket.STREAM_CODEC, new ServerboundCustomPayloadPacket(ModListPayload.createClient()))
+            );
+            labels.put(
+                "mod_list_entry_without_property",
+                () -> hex(
+                    session,
+                    ServerboundCustomPayloadPacket.STREAM_CODEC,
+                    new ServerboundCustomPayloadPacket(new ModListPayload(Map.of(Identifier.parse("github.com:andreypfau/mcrs"), new PropertyMap(Map.of()))))
                 )
             );
             rewriteLabelled(session, current, output, labels);

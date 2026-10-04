@@ -632,7 +632,7 @@ pub mod serverbound {
     use crate::entity::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
     use crate::item::{ContainerInput, HashedStack, RawDelimitedStack};
     use crate::packets::common::serverbound::{
-        ClientInformation, CustomClickAction, CustomPayload, KeepAlive, Pong, ResourcePack,
+        ClientInformation, CustomClickAction, KeepAlive, Payload, Pong, ResourcePack,
     };
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::pos::MoveFlags;
@@ -767,7 +767,7 @@ pub mod serverbound {
     pub struct ServerboundCookieResponse<'a>(pub CookieResponse<'a>);
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
-    pub struct ServerboundCustomPayload<'a>(pub CustomPayload<'a>);
+    pub struct ServerboundCustomPayload<'a>(pub Payload<'a>);
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode, From)]
     pub struct ServerboundPong(pub Pong);
