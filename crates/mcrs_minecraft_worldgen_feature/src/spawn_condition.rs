@@ -7,9 +7,7 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
-/// condition that an absent field leaves always true. The sets a condition
-/// names are the caller's: names for the generator, checked registry entries
-/// for the loader.
+/// condition that an absent field leaves always true.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     deny_unknown_fields,

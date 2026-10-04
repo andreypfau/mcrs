@@ -8,14 +8,12 @@ use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::shared::share;
-use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
-use mcrs_minecraft_world::registries::static_registries;
+use mcrs_minecraft_world::registries::{share_registries, static_registries};
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
 /// resolves the block it fills terrain with against it, so a stub would only
@@ -40,17 +38,7 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(DynTagRegistry::<Item>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
-    let world = app.world_mut();
-    share::<RegistrySet>(world);
-    share::<EntityIds>(world);
-    share::<RegistryAccess>(world);
-    share::<Blocks>(world);
-    share::<Items>(world);
-    share::<Registry<EnchantmentData>>(world);
-    share::<Entries<EnchantmentData, EnchantmentData>>(world);
-    share::<DynTagRegistry<Block>>(world);
-    share::<DynTagRegistry<Item>>(world);
-    share::<RegistrySnapshot<Biome>>(world);
+    share_registries(app.world_mut());
 }
 
 fn registries() -> &'static (RegistrySet, EntityIds) {

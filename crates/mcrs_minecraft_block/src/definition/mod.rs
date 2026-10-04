@@ -352,7 +352,7 @@ impl mcrs_minecraft_registry::TagSource for Blocks {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {
-        BlockDefinitions::id_of(self, loc).map(|id| id.index() as u32)
+        BlockDefinitions::id_of(self, loc).map(|id| id.number())
     }
 
     fn capacity(&self) -> u32 {
@@ -613,7 +613,7 @@ impl Builder {
         }
         self.permutations += permutations.len();
 
-        let block_index = id.index() as u32;
+        let block_index = id.number();
         let end = base as usize + state_count;
         if self.states.len() < end {
             self.states.resize(end, UNCLAIMED);

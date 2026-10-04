@@ -140,15 +140,10 @@ mod tests {
 
     #[test]
     fn every_registered_predicate_type_is_a_variant() {
-        let set = mcrs_minecraft_registry::static_report::from_report(
-            &std::fs::read(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../assets/mcrs/reports/registries.json"),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let names = set.table("minecraft:block_predicate_type").unwrap().names();
+        let names = mcrs_minecraft_registry::static_report::shipped_report()
+            .table("minecraft:block_predicate_type")
+            .unwrap()
+            .names();
         assert!(!names.is_empty());
         for name in names {
             let json = format!(r#"{{"type":"{name}"}}"#);

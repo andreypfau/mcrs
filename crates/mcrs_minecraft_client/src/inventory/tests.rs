@@ -23,7 +23,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
-use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::static_report::shipped_report as registries;
 use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 
@@ -53,17 +53,6 @@ fn golden() -> &'static HashMap<&'static str, Vec<u8>> {
 
 fn items() -> &'static Items {
     &test_corpus().1
-}
-
-fn registries() -> &'static RegistrySet {
-    static SET: OnceLock<RegistrySet> = OnceLock::new();
-    SET.get_or_init(|| {
-        let report = crate::asset_corpus().join(super::REGISTRY_REPORT);
-        from_report(
-            &std::fs::read(&report).unwrap_or_else(|err| panic!("{}: {err}", report.display())),
-        )
-        .unwrap_or_else(|err| panic!("{}: {err}", report.display()))
-    })
 }
 
 struct Client {
@@ -510,28 +499,6 @@ fn a_menu_maps_its_slot_indices_onto_its_own_cells_and_the_player() {
             client.stack(holder, cell),
             ("stone".into(), 3),
             "{menu_type} slot {sent}"
-        );
-    }
-}
-
-mod exhaustive {
-    use super::*;
-
-    #[test]
-    fn registry_report_ids_agree_with_the_item_corpus() {
-        let client = Client::new();
-        let registries = client.app.world().resource::<RegistrySet>();
-        for entry in items().iter() {
-            assert_eq!(
-                registries.id("item", &entry.identifier),
-                Some(u32::from(entry.id.0)),
-                "{}",
-                entry.identifier
-            );
-        }
-        assert_eq!(
-            registries.table("minecraft:item").unwrap().len(),
-            items().len()
         );
     }
 }

@@ -267,6 +267,14 @@ impl SkyStatic {
 }
 
 #[cfg(test)]
+pub(crate) static TEST_CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
+    std::sync::LazyLock::new(|| {
+        mcrs_minecraft_worldgen_testing::shipped_registry_set::<
+            mcrs_minecraft_environment::world_clock::WorldClock,
+        >("world_clock")
+    });
+
+#[cfg(test)]
 mod tests {
     use bevy::math::DVec3;
     use serde_json::json;
@@ -279,6 +287,7 @@ mod tests {
     use mcrs_minecraft_environment::timeline::Timeline;
     use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
 
+    use super::TEST_CLOCKS as CLOCKS;
     use super::*;
 
     const NOON: i64 = 6000;
@@ -306,11 +315,6 @@ mod tests {
         .unwrap();
         serde_json::from_slice(&bytes).unwrap()
     }
-
-    static CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
-        std::sync::LazyLock::new(|| {
-            mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
-        });
 
     fn clock_registry() -> mcrs_minecraft_registry::Registry<WorldClock> {
         CLOCKS.registry().unwrap()

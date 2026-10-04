@@ -1,43 +1,16 @@
-use std::sync::OnceLock;
-
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
-use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, load_block_definitions};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_worldgen_generator::saved::{
     CorpusBlockStates, SnapshotBiomes, column_sections,
 };
 
 fn corpus() -> &'static BlockDefinitions {
-    static CORPUS: OnceLock<BlockDefinitions> = OnceLock::new();
-    CORPUS.get_or_init(|| {
-        let mut app = App::new();
-        app.add_plugins(TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..Default::default()
-        });
-        let asset_server = app.world().resource::<AssetServer>().clone();
-        let report = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .expect("the registries report reads");
-        let blocks = from_report(&report)
-            .expect("the registries report parses")
-            .registry::<Block>()
-            .expect("the registries report has blocks");
-        load_block_definitions(&asset_server, &blocks)
-            .expect("the corpus loads")
-            .0
-    })
+    &crate::support::standalone_corpus().0.0
 }
 
 fn text(value: &PropertyValue) -> String {

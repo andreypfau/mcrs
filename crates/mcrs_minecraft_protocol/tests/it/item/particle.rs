@@ -97,10 +97,7 @@ fn check(label: &str) -> ParticleOptions {
 
 #[test]
 fn particle_kinds_match_the_registry_report() {
-    let set = mcrs_minecraft_registry::static_report::from_report(include_bytes!(
-        "../../../../../assets/mcrs/reports/registries.json"
-    ))
-    .unwrap();
+    let set = mcrs_minecraft_registry::static_report::shipped_report();
     let particles = set.table("minecraft:particle_type").unwrap();
     assert_eq!(particles.len(), ParticleKind::COUNT);
     for (id, name) in particles.names().iter().enumerate() {

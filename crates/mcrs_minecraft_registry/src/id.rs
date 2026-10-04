@@ -106,6 +106,10 @@ impl<R> Id<R> {
     pub fn index(self) -> usize {
         self.number as usize
     }
+
+    pub fn number(self) -> u32 {
+        self.number
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

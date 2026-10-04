@@ -196,24 +196,11 @@ pub mod processors {
 pub(crate) mod report {
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::registry_key::RegistryKey;
-    use mcrs_minecraft_registry::RegistrySet;
-    use mcrs_minecraft_registry::static_report::from_report;
+    use mcrs_minecraft_registry::static_report::shipped_report;
     use std::collections::BTreeSet;
-    use std::sync::LazyLock;
-
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        from_report(
-            &std::fs::read(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../assets/mcrs/reports/registries.json"
-            ))
-            .unwrap(),
-        )
-        .unwrap()
-    });
 
     pub fn missing<T: RegistryKey>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
-        let table = SET.table(T::KEY.as_str());
+        let table = shipped_report().table(T::KEY.as_str());
         keys.iter()
             .map(|key| key.as_str())
             .filter(|name| table.is_none_or(|table| table.number(name).is_none()))

@@ -43,6 +43,7 @@ serde_json = { workspace = true, optional = true }
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 base64.workspace = true
 bevy_app.workspace = true
 bytes.workspace = true
@@ -54,7 +55,7 @@ serde_json.workspace = true
 
 [features]
 # The helpers the generation tests share, for the tests of the crates that drive the pipeline.
-test-support = ["dep:bevy_app", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_worldgen_feature/test-support"]
+test-support = ["dep:bevy_app", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_registry/test-support", "mcrs_minecraft_worldgen_feature/test-support"]
 telemetry-tracy = []
 
 [[bench]]

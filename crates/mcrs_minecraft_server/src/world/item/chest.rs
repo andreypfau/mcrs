@@ -93,10 +93,9 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
     };
     let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)));
     let block = world.resource::<Blocks>().block_index(state);
-    world.resource::<DynTagRegistry<Block>>().contains(
-        &mcrs_minecraft_block::tags::SHULKER_BOXES,
-        block.index() as u32,
-    )
+    world
+        .resource::<DynTagRegistry<Block>>()
+        .contains(&mcrs_minecraft_block::tags::SHULKER_BOXES, block.number())
 }
 
 pub fn open_containers(world: &mut World) {

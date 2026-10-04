@@ -59,15 +59,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
             (rl, land_ids[i])
         })
         .collect();
-    let mut names: Vec<_> = all_pairs.iter().map(|(name, _)| name.clone()).collect();
-    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    let table = Arc::new(
-        mcrs_minecraft_registry::NameTable::new(
-            ResourceLocation::parse("minecraft:worldgen/biome").unwrap(),
-            names,
-            [],
-        )
-        .unwrap(),
+    let table = support::text_ordered_table(
+        "minecraft:worldgen/biome",
+        all_pairs.iter().map(|(name, _)| name.clone()),
     );
     let snapshot = RegistrySnapshot::<Biome>::build(&table, all_pairs, &assets, |_| {
         Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())

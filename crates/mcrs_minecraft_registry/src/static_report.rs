@@ -11,6 +11,19 @@ pub fn from_report(json: &[u8]) -> Result<RegistrySet, serde_json::Error> {
     serde_json::from_slice(json).map(|Tables(set)| set)
 }
 
+#[cfg(feature = "test-support")]
+pub fn shipped_report() -> &'static RegistrySet {
+    static SET: std::sync::LazyLock<RegistrySet> = std::sync::LazyLock::new(|| {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/mcrs/reports/registries.json"
+        );
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
+        from_report(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
+    });
+    &SET
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RegistryReport {
@@ -151,7 +164,7 @@ mod tests {
         for name in ["minecraft:air", "minecraft:stone", "minecraft:stick"] {
             assert_eq!(
                 untyped.number(name),
-                items.get(name).map(|id| id.index() as u32),
+                items.get(name).map(|id| id.number()),
                 "{name}"
             );
         }

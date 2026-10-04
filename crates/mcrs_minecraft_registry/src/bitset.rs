@@ -25,7 +25,7 @@ impl TagId for u32 {
 impl<R: 'static> TagId for Id<R> {
     #[inline]
     fn raw(self) -> u32 {
-        self.index() as u32
+        self.number()
     }
 
     #[inline]

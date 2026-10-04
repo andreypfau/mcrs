@@ -1,5 +1,4 @@
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_entity::{Attribute, EntityType};
 use mcrs_minecraft_registry::shared::SharedResource;
@@ -7,26 +6,8 @@ use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use std::ops::Deref;
 use std::sync::Arc;
 
-pub static ALLAY: EntityType = EntityType::new(rl!("minecraft:allay"));
-pub static CAT: EntityType = EntityType::new(rl!("minecraft:cat"));
-pub static CHEST_MINECART: EntityType = EntityType::new(rl!("minecraft:chest_minecart"));
-pub static CHICKEN: EntityType = EntityType::new(rl!("minecraft:chicken"));
-pub static DROWNED: EntityType = EntityType::new(rl!("minecraft:drowned"));
-pub static ELDER_GUARDIAN: EntityType = EntityType::new(rl!("minecraft:elder_guardian"));
-pub static EVOKER: EntityType = EntityType::new(rl!("minecraft:evoker"));
-pub static ITEM: EntityType = EntityType::new(rl!("minecraft:item"));
-pub static ITEM_FRAME: EntityType = EntityType::new(rl!("minecraft:item_frame"));
-pub static SHULKER: EntityType = EntityType::new(rl!("minecraft:shulker"));
-pub static PRIMED_TNT: EntityType = EntityType::new(rl!("minecraft:tnt"));
-pub static VILLAGER: EntityType = EntityType::new(rl!("minecraft:villager"));
-pub static VINDICATOR: EntityType = EntityType::new(rl!("minecraft:vindicator"));
-pub static WITCH: EntityType = EntityType::new(rl!("minecraft:witch"));
-pub static ZOMBIE_NAUTILUS: EntityType = EntityType::new(rl!("minecraft:zombie_nautilus"));
-pub static ZOMBIE_VILLAGER: EntityType = EntityType::new(rl!("minecraft:zombie_villager"));
-pub static PLAYER: EntityType = EntityType::new(rl!("minecraft:player"));
-
 macro_rules! entity_ids {
-    ($($field:ident: $named:ident),* $(,)?) => {
+    ($($field:ident: $named:literal),* $(,)?) => {
         pub struct NamedEntityIds {
             $(pub $field: Id<EntityType>,)*
             pub max_health: Id<Attribute>,
@@ -39,7 +20,7 @@ macro_rules! entity_ids {
                 $(
                     let $field = types
                         .as_ref()
-                        .and_then(|types| report.require(types, $named.identifier.as_str()));
+                        .and_then(|types| report.require(types, $named));
                 )*
                 let max_health = attributes.as_ref().and_then(|attributes| {
                     report.require(attributes, MAX_HEALTH.identifier.as_str())
@@ -54,23 +35,23 @@ macro_rules! entity_ids {
 }
 
 entity_ids! {
-    allay: ALLAY,
-    cat: CAT,
-    chest_minecart: CHEST_MINECART,
-    chicken: CHICKEN,
-    drowned: DROWNED,
-    elder_guardian: ELDER_GUARDIAN,
-    evoker: EVOKER,
-    item: ITEM,
-    item_frame: ITEM_FRAME,
-    shulker: SHULKER,
-    primed_tnt: PRIMED_TNT,
-    villager: VILLAGER,
-    vindicator: VINDICATOR,
-    witch: WITCH,
-    zombie_nautilus: ZOMBIE_NAUTILUS,
-    zombie_villager: ZOMBIE_VILLAGER,
-    player: PLAYER,
+    allay: "minecraft:allay",
+    cat: "minecraft:cat",
+    chest_minecart: "minecraft:chest_minecart",
+    chicken: "minecraft:chicken",
+    drowned: "minecraft:drowned",
+    elder_guardian: "minecraft:elder_guardian",
+    evoker: "minecraft:evoker",
+    item: "minecraft:item",
+    item_frame: "minecraft:item_frame",
+    shulker: "minecraft:shulker",
+    primed_tnt: "minecraft:tnt",
+    villager: "minecraft:villager",
+    vindicator: "minecraft:vindicator",
+    witch: "minecraft:witch",
+    zombie_nautilus: "minecraft:zombie_nautilus",
+    zombie_villager: "minecraft:zombie_villager",
+    player: "minecraft:player",
 }
 
 #[derive(Resource, Clone)]
