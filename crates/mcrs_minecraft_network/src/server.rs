@@ -1,3 +1,4 @@
+use crate::inbound_rate::InboundRateBucket;
 use crate::{ConnectionState, NetworkSet, RawConnection};
 use crate::{connect, event, intent, lan, webtransport};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
@@ -136,8 +137,7 @@ fn build_plugin(app: &mut App, address: SocketAddr, announce_on_lan: bool) -> an
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
                 Ok(session) => {
-                    // OutboundQueue and InboundRateBucket components live in mcrs_minecraft_server
-                    // and are attached via an observer in the bridge plugin, not here.
+                    // The outbound queue lives in mcrs_minecraft_server, which attaches it.
                     world.spawn((
                         ServerSideConnection { raw: session },
                         ConnectionState::Login,
@@ -173,6 +173,7 @@ pub(crate) struct SharedNetworkStateInner {
 }
 
 #[derive(Component)]
+#[require(InboundRateBucket)]
 pub struct ServerSideConnection {
     pub raw: Box<RawConnection>,
 }

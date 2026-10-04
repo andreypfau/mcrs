@@ -61,7 +61,7 @@ impl Plugin for WorldPlugin {
         // has populated the world with new `ServerSideConnection` entities.
         // Commands from `attach_outbound_queue` are flushed at the FixedPreUpdate
         // command-application point, guaranteeing that by FixedPostUpdate
-        // every connection entity carries `OutboundQueue` + `InboundRateBucket`.
+        // every connection entity carries `OutboundQueue`.
         app.add_systems(
             FixedPreUpdate,
             crate::world::bridge::attach_outbound_queue

@@ -2,7 +2,7 @@ use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bytes::Bytes;
-use mcrs_minecraft_protocol::{Decode, Packet};
+use mcrs_minecraft_protocol::{Decode, Packet, PacketSide};
 use tracing::warn;
 
 #[derive(Debug, Clone, EntityEvent)]
@@ -24,16 +24,17 @@ impl ReceivedPacketEvent {
         }
 
         let mut r = &self.data[..];
-        match P::decode(&mut r) {
-            Ok(pkt) => {
-                if r.is_empty() {
-                    return Some(pkt);
-                }
-                warn!("PacketEvent decode: {} bytes left over", r.len());
-            }
-            Err(e) => {
-                warn!("PacketEvent decode error: {:?}", e);
-            }
+        let fault = match P::decode(&mut r) {
+            Ok(pkt) if r.is_empty() => return Some(pkt),
+            Ok(_) => anyhow::anyhow!("{} bytes left over", r.len()),
+            Err(error) => error,
+        };
+        // A serverbound frame was counted, and its row's first fault logged, by the loop
+        // that read it off the socket.
+        // chisle: nothing counts clientbound rows, so a client logs every fault of one;
+        // a counter in the client's receive loop replaces this line.
+        if P::SIDE == PacketSide::Clientbound {
+            warn!("PacketEvent decode error: {} {fault:#}", P::NAME);
         }
         None
     }
@@ -42,7 +43,8 @@ impl ReceivedPacketEvent {
 #[cfg(not(target_family = "wasm"))]
 mod loop_plugin {
     use super::ReceivedPacketEvent;
-    use crate::metrics::PreGameDecodeCounts;
+    use crate::inbound_rate::InboundRateBucket;
+    use crate::metrics::{BridgeTelemetry, PreGameDecodeCounts};
     use crate::{ConnectionState, ServerSideConnection};
     use bevy_app::{App, Plugin, Update};
     use bevy_ecs::entity::Entity;
@@ -58,30 +60,47 @@ mod loop_plugin {
     impl Plugin for EventLoopPlugin {
         fn build(&self, app: &mut App) {
             app.init_resource::<PreGameDecodeCounts>();
+            app.init_resource::<BridgeTelemetry>();
             app.add_systems(Update, run_event_loop);
         }
     }
+
+    // chisle: a guess above the handful of frames the reference client sends in a
+    // pre-game state; the measured cost of decoding one frame sets it.
+    pub const PRE_GAME_FRAMES_PER_PASS: usize = 16;
 
     #[cfg_attr(
         feature = "telemetry-tracy",
         tracing::instrument(name = "network::process_received_packet", skip_all)
     )]
     pub fn run_event_loop(
-        mut query: Query<(Entity, &mut ServerSideConnection, Option<&ConnectionState>)>,
+        mut query: Query<(
+            Entity,
+            &mut ServerSideConnection,
+            &mut InboundRateBucket,
+            Option<&ConnectionState>,
+        )>,
         mut commands: Commands,
         mut counts: ResMut<PreGameDecodeCounts>,
+        mut telemetry: ResMut<BridgeTelemetry>,
     ) {
-        query.iter_mut().for_each(|(entity, mut conn, state)| {
+        for (entity, mut conn, mut bucket, state) in &mut query {
             let ends_state = match state {
                 // A connection in game is read by the server's bridge, which rate-limits it.
-                Some(ConnectionState::Game) => return,
+                Some(ConnectionState::Game) => continue,
                 Some(ConnectionState::Login) => Some(ServerboundLoginAcknowledged::ID),
                 Some(ConnectionState::Configuration) => Some(ServerboundFinishConfiguration::ID),
                 None => None,
             };
-            loop {
+            // What a pass leaves unread stays in the channel, which stops the socket reader.
+            for _ in 0..PRE_GAME_FRAMES_PER_PASS {
                 match conn.raw.try_recv() {
                     Ok(Some(pkt)) => {
+                        if !bucket.consume_or_flag(pkt.timestamp) {
+                            commands.entity(entity).remove::<ServerSideConnection>();
+                            telemetry.kick_flood_total += 1;
+                            break;
+                        }
                         if let Some(state) = state
                             && let Some(line) = counts.record(*state, pkt.id, &pkt.payload)
                         {
@@ -107,18 +126,18 @@ mod loop_plugin {
                     }
                 }
             }
-        });
+        }
     }
 }
 #[cfg(not(target_family = "wasm"))]
 pub(crate) use loop_plugin::EventLoopPlugin;
 #[cfg(not(target_family = "wasm"))]
-pub use loop_plugin::run_event_loop;
+pub use loop_plugin::{PRE_GAME_FRAMES_PER_PASS, run_event_loop};
 
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::*;
-    use crate::metrics::PreGameDecodeCounts;
+    use crate::metrics::{BridgeTelemetry, PreGameDecodeCounts};
     use crate::{ConnectionState, RawConnection, ReceivedPacket, ServerSideConnection};
     use bevy_ecs::observer::On;
     use bevy_ecs::resource::Resource;
@@ -213,6 +232,7 @@ mod tests {
     fn server_world() -> World {
         let mut world = World::new();
         world.init_resource::<PreGameDecodeCounts>();
+        world.init_resource::<BridgeTelemetry>();
         world.init_resource::<Dispatched>();
         world.add_observer(answer_like_the_server);
         world
@@ -309,6 +329,7 @@ mod tests {
     fn a_fault_behind_an_acknowledgement_nobody_accepts_is_counted_in_its_state() {
         let mut world = World::new();
         world.init_resource::<PreGameDecodeCounts>();
+        world.init_resource::<BridgeTelemetry>();
         let (_connection, tx) = spawn_connection(&mut world, ConnectionState::Login);
         tx.try_send(packet(&ServerboundLoginAcknowledged)).unwrap();
         tx.try_send(frame(login_serverbound::NAMES.len() as i32))
@@ -324,6 +345,7 @@ mod tests {
     fn an_unknown_id_before_the_game_state_is_counted_and_nothing_is_despawned() {
         let mut world = World::new();
         world.init_resource::<PreGameDecodeCounts>();
+        world.init_resource::<BridgeTelemetry>();
         let (login, login_tx) = spawn_connection(&mut world, ConnectionState::Login);
         let (configuration, configuration_tx) =
             spawn_connection(&mut world, ConnectionState::Configuration);

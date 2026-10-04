@@ -36,14 +36,13 @@ use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::{HostAnchorRef, PendingInbound, SessionConnection};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 
-/// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
-/// carries `ServerSideConnection` but not yet an `OutboundQueue`.
+/// Attach `OutboundQueue` to any connection entity that carries
+/// `ServerSideConnection` but not yet an `OutboundQueue`.
 ///
 /// Runs in `FixedPreUpdate`, ordered after `spawn_new_raw_connections`, so by
 /// the time any `FixedPostUpdate` bridge system runs every connection entity
-/// carries both components. The network crate's spawn system cannot insert
-/// these components because they are defined in this crate; this system closes
-/// that cross-crate ownership gap.
+/// carries it. The network crate's spawn system cannot insert the queue because
+/// it is defined in this crate; this system closes that cross-crate ownership gap.
 ///
 /// Even with this ordering, `bridge_outbound` still treats a resolved target
 /// that lacks `OutboundQueue` as a counted event
@@ -55,9 +54,7 @@ pub fn attach_outbound_queue(
     new_connections: Query<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>,
 ) {
     for entity in &new_connections {
-        commands
-            .entity(entity)
-            .insert((OutboundQueue::default(), InboundRateBucket::new()));
+        commands.entity(entity).insert(OutboundQueue::default());
     }
 }
 
