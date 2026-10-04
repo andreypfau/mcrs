@@ -1292,7 +1292,8 @@ fn compile_generator(
                 StateProvider::Simple(state) => {
                     let index = resolver
                         .blocks
-                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0));
+                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0))
+                        .index() as u32;
                     trees.survive.get(&index).cloned()
                 }
                 _ => None,
@@ -2712,7 +2713,7 @@ impl<'a> Resolver<'a> {
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: (0..self.blocks.state_count())
-                .map(|id| self.blocks.block_index(BlockStateId(id as u16)))
+                .map(|id| self.blocks.block_index(BlockStateId(id as u16)).index() as u32)
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
         }
@@ -2793,11 +2794,10 @@ impl<'a> Resolver<'a> {
     /// `would_survive` naming it unanswerable.
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
         let block = self.blocks.block_index(BlockStateId(state.0));
-        if trees.survive.contains_key(&block) {
+        if trees.survive.contains_key(&(block.index() as u32)) {
             return None;
         }
-        let entry = self.blocks.blocks().get(block as usize)?;
-        Some(entry.identifier.as_str().to_owned())
+        Some(self.blocks[block].identifier.as_str().to_owned())
     }
 
     fn add_entry(mask: &mut FixedBitSet, entry: &BlockEntry) {

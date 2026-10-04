@@ -45,9 +45,9 @@ fn a_blocks_table_index_is_its_report_id() {
     let mut mismatches = Vec::new();
     for id in registry.ids() {
         let name = registry.key(id).expect("every id has a name").as_str();
-        if definitions.index_of(name) != Some(id.index() as u32)
+        if definitions.id_of(name) != Some(id)
             || blocks[id.index()].identifier.as_str() != name
-            || usize::from(blocks[id.index()].protocol_id) != id.index()
+            || definitions[id].identifier.as_str() != name
         {
             mismatches.push(format!("{name} is not at report id {}", id.index()));
         }

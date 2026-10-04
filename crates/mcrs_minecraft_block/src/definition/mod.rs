@@ -24,7 +24,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::{BlockStateId, Registry, RegistryLookup, UnknownEntry};
+use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
 
@@ -93,9 +93,6 @@ pub struct BlockStateData {
 #[derive(Debug)]
 pub struct BlockEntry {
     pub identifier: ResourceLocation<Arc<str>>,
-    /// The block's index in the registries report, which is how the protocol
-    /// names a block and where the block sits in the table.
-    pub protocol_id: u16,
     pub base_state_id: BlockStateId,
     pub default_state_id: BlockStateId,
     pub state_count: u16,
@@ -188,8 +185,8 @@ pub struct BlockDefinitions {
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
     blocks: Vec<BlockEntry>,
-    owners: Vec<u32>,
-    by_identifier: FxHashMap<Arc<str>, usize>,
+    owners: Vec<Id<Block>>,
+    registry: Registry<Block>,
 }
 
 impl BlockDefinitions {
@@ -242,7 +239,7 @@ impl BlockDefinitions {
     }
 
     pub fn block(&self, identifier: &str) -> Option<&BlockEntry> {
-        self.by_identifier.get(identifier).map(|&i| &self.blocks[i])
+        self.id_of(identifier).map(|id| &self[id])
     }
 
     /// The block's default state. Panics if the corpus does not name it: the
@@ -257,33 +254,40 @@ impl BlockDefinitions {
     /// `Builder::finish` refuses a table with a state no block claimed.
     #[inline]
     pub fn owner(&self, id: BlockStateId) -> &BlockEntry {
-        &self.blocks[self.owners[id.0 as usize] as usize]
+        &self[self.block_index(id)]
     }
 
-    /// The block's position in the table, which is its id in the registries
-    /// report. This is the id block tags are resolved against, so a state's tag
-    /// membership is two array reads.
+    /// The block's id in the registries report, which is also its position in
+    /// the table and the number the protocol names it by. Block tags are
+    /// resolved against it, so a state's tag membership is two array reads.
     #[inline]
-    pub fn block_index(&self, id: BlockStateId) -> u32 {
+    pub fn block_index(&self, id: BlockStateId) -> Id<Block> {
         self.owners[id.0 as usize]
     }
 
     #[inline]
-    pub fn index_of(&self, identifier: &str) -> Option<u32> {
-        self.by_identifier
-            .get(identifier)
-            .map(|&index| index as u32)
+    pub fn id_of(&self, identifier: &str) -> Option<Id<Block>> {
+        self.registry.get(identifier)
     }
 
     pub fn table_bytes(&self) -> usize {
-        let states =
-            self.states.len() * size_of::<BlockStateData>() + self.owners.len() * size_of::<u32>();
+        let states = self.states.len() * size_of::<BlockStateData>()
+            + self.owners.len() * size_of::<Id<Block>>();
         let shapes: usize = self
             .shapes
             .iter()
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
         states + shapes
+    }
+}
+
+impl std::ops::Index<Id<Block>> for BlockDefinitions {
+    type Output = BlockEntry;
+
+    #[inline]
+    fn index(&self, id: Id<Block>) -> &BlockEntry {
+        &self.blocks[id.index()]
     }
 }
 
@@ -342,7 +346,7 @@ impl mcrs_minecraft_registry::TagSource for Blocks {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {
-        self.index_of(loc)
+        BlockDefinitions::id_of(self, loc).map(|id| id.index() as u32)
     }
 
     fn capacity(&self) -> u32 {
@@ -649,9 +653,13 @@ impl Builder {
             self.states[state] = data;
         }
 
+        let identifier = self
+            .registry
+            .key(id)
+            .expect("the id came from this registry")
+            .clone();
         self.blocks[id.index()] = Some(BlockEntry {
-            identifier: description.identifier,
-            protocol_id: description.protocol_id,
+            identifier,
             base_state_id: BlockStateId(base),
             default_state_id: BlockStateId(default),
             state_count: state_count as u16,
@@ -804,10 +812,11 @@ impl Builder {
         if let Some(state) = self.owners.iter().position(|&owner| owner == NO_OWNER) {
             return Err(LoadError::UnclaimedState(state as u16));
         }
-        let by_identifier = blocks
+        let ids: Vec<Id<Block>> = self.registry.ids().collect();
+        let owners = self
+            .owners
             .iter()
-            .enumerate()
-            .map(|(index, block)| (block.identifier.as_str().into(), index))
+            .map(|&owner| ids[owner as usize])
             .collect();
         Ok(BlockDefinitions {
             states: std::mem::take(&mut self.states),
@@ -816,8 +825,8 @@ impl Builder {
             loot: std::mem::take(&mut self.loot),
             experience: std::mem::take(&mut self.experience),
             blocks,
-            owners: std::mem::take(&mut self.owners),
-            by_identifier,
+            owners,
+            registry: self.registry.clone(),
         })
     }
 }
@@ -986,14 +995,17 @@ mod tests {
         let second = file("minecraft:second", 1, "", "");
         let definitions =
             build_against(&["minecraft:second", "minecraft:first"], &[first, second]).unwrap();
-        assert_eq!(definitions.index_of("minecraft:second"), Some(0));
-        assert_eq!(definitions.index_of("minecraft:first"), Some(1));
+        assert_eq!(
+            definitions.id_of("minecraft:second").map(Id::index),
+            Some(0)
+        );
+        assert_eq!(definitions.id_of("minecraft:first").map(Id::index), Some(1));
         assert_eq!(
             definitions.blocks()[0].identifier.as_str(),
             "minecraft:second"
         );
-        assert_eq!(definitions.block_index(BlockStateId(0)), 1);
-        assert_eq!(definitions.block_index(BlockStateId(1)), 0);
+        assert_eq!(definitions.block_index(BlockStateId(0)).index(), 1);
+        assert_eq!(definitions.block_index(BlockStateId(1)).index(), 0);
     }
 
     #[test]
