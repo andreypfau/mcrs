@@ -17,151 +17,62 @@ use mock_connection::{
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
 };
 
-// ---------------------------------------------------------------------------
-// packet_target_single_player
-// ---------------------------------------------------------------------------
-
-/// `SinglePlayer(e)` resolves the session on `e` → its connection →
-/// pushes to exactly that socket's `OutboundQueue`, no other.
+/// Two players in one dimension and one in another; each target reaches
+/// exactly the sockets it names, and a listed entity without a session is
+/// skipped without a panic.
 #[test]
-fn packet_target_single_player() {
-    let mut world = build_bridge_world();
+fn a_packet_target_reaches_exactly_its_players() {
+    #[derive(Debug)]
+    enum Target {
+        First,
+        FirstDim,
+        All,
+        FirstLastAndAbsent,
+    }
 
-    let dim = Entity::from_raw_u32(2).expect("nonzero");
-    let socket_a = spawn_connection(&mut world);
-    let socket_b = spawn_connection(&mut world);
-    let (player_a, session_a) = register_player(&mut world, socket_a, dim);
-    register_player(&mut world, socket_b, dim);
+    for (target, expected) in [
+        (Target::First, [1, 0, 0]),
+        (Target::FirstDim, [1, 1, 0]),
+        (Target::All, [1, 1, 1]),
+        (Target::FirstLastAndAbsent, [1, 0, 1]),
+    ] {
+        let mut world = build_bridge_world();
+        let dim_a = Entity::from_raw_u32(100).expect("nonzero");
+        let dim_b = Entity::from_raw_u32(101).expect("nonzero");
+        let sockets: Vec<Entity> = (0..3).map(|_| spawn_connection(&mut world)).collect();
+        let players: Vec<(Entity, PlayerSession)> = sockets
+            .iter()
+            .zip([dim_a, dim_a, dim_b])
+            .map(|(&socket, dim)| register_player(&mut world, socket, dim))
+            .collect();
 
-    write_packet(
-        &mut world,
-        PacketTarget::SinglePlayer(player_a),
-        session_a,
-        0,
-        PacketPriority::Normal,
-        1,
-    );
+        let (packet_target, session) = match target {
+            Target::First => (PacketTarget::SinglePlayer(players[0].0), players[0].1),
+            Target::FirstDim => (PacketTarget::AllInDim(dim_a), PlayerSession(0)),
+            Target::All => (PacketTarget::AllPlayers, PlayerSession(0)),
+            Target::FirstLastAndAbsent => {
+                let absent = Entity::from_raw_u32(999).expect("nonzero");
+                let set: SmallVec<[Entity; 8]> =
+                    SmallVec::from_slice(&[players[0].0, players[2].0, absent]);
+                (PacketTarget::PlayerSet(set), PlayerSession(0))
+            }
+        };
+        write_packet(
+            &mut world,
+            packet_target,
+            session,
+            0,
+            PacketPriority::Normal,
+            1,
+        );
+        run_system(&mut world, bridge_outbound);
 
-    run_system(&mut world, bridge_outbound);
-
-    let qa = world.get::<OutboundQueue>(socket_a).unwrap();
-    let qb = world.get::<OutboundQueue>(socket_b).unwrap();
-    assert_eq!(qa.total_len(), 1, "packet_a not in socket_a queue");
-    assert_eq!(qb.total_len(), 0, "packet_a leaked to socket_b");
-}
-
-// ---------------------------------------------------------------------------
-// packet_target_all_in_dim
-// ---------------------------------------------------------------------------
-
-/// `AllInDim(dim)` pushes to every player placed in `dim` and to
-/// no players in other dimensions.
-#[test]
-fn packet_target_all_in_dim() {
-    let mut world = build_bridge_world();
-
-    let dim_a = Entity::from_raw_u32(100).expect("nonzero");
-    let dim_b = Entity::from_raw_u32(101).expect("nonzero");
-
-    let socket_a1 = spawn_connection(&mut world);
-    let socket_a2 = spawn_connection(&mut world);
-    let socket_b = spawn_connection(&mut world);
-
-    register_player(&mut world, socket_a1, dim_a);
-    register_player(&mut world, socket_a2, dim_a);
-    register_player(&mut world, socket_b, dim_b);
-
-    write_packet_broadcast(
-        &mut world,
-        PacketTarget::AllInDim(dim_a),
-        PacketPriority::Normal,
-        5,
-    );
-
-    run_system(&mut world, bridge_outbound);
-
-    assert_eq!(
-        world.get::<OutboundQueue>(socket_a1).unwrap().total_len(),
-        1
-    );
-    assert_eq!(
-        world.get::<OutboundQueue>(socket_a2).unwrap().total_len(),
-        1
-    );
-    assert_eq!(world.get::<OutboundQueue>(socket_b).unwrap().total_len(), 0);
-}
-
-// ---------------------------------------------------------------------------
-// packet_target_all_players
-// ---------------------------------------------------------------------------
-
-/// `AllPlayers` pushes to every session, regardless of dim.
-#[test]
-fn packet_target_all_players() {
-    let mut world = build_bridge_world();
-
-    let dim = Entity::from_raw_u32(200).expect("nonzero");
-
-    let socket_x = spawn_connection(&mut world);
-    let socket_y = spawn_connection(&mut world);
-    let socket_z = spawn_connection(&mut world);
-
-    register_player(&mut world, socket_x, dim);
-    register_player(&mut world, socket_y, dim);
-    register_player(&mut world, socket_z, dim);
-
-    write_packet_broadcast(
-        &mut world,
-        PacketTarget::AllPlayers,
-        PacketPriority::High,
-        7,
-    );
-
-    run_system(&mut world, bridge_outbound);
-
-    assert_eq!(world.get::<OutboundQueue>(socket_x).unwrap().total_len(), 1);
-    assert_eq!(world.get::<OutboundQueue>(socket_y).unwrap().total_len(), 1);
-    assert_eq!(world.get::<OutboundQueue>(socket_z).unwrap().total_len(), 1);
-}
-
-// ---------------------------------------------------------------------------
-// packet_target_player_set
-// ---------------------------------------------------------------------------
-
-/// `PlayerSet` pushes to exactly the listed entities that carry a session;
-/// entities without one are skipped without panic.
-#[test]
-fn packet_target_player_set() {
-    let mut world = build_bridge_world();
-
-    let dim = Entity::from_raw_u32(300).expect("nonzero");
-
-    let absent = Entity::from_raw_u32(999).expect("nonzero");
-
-    let socket_p = spawn_connection(&mut world);
-    let socket_q = spawn_connection(&mut world);
-
-    let (player_p, _) = register_player(&mut world, socket_p, dim);
-    let (player_q, _) = register_player(&mut world, socket_q, dim);
-    // `absent` carries no session
-
-    let mut set: SmallVec<[Entity; 8]> = SmallVec::new();
-    set.push(player_p);
-    set.push(player_q);
-    set.push(absent);
-
-    write_packet_broadcast(
-        &mut world,
-        PacketTarget::PlayerSet(set),
-        PacketPriority::Normal,
-        9,
-    );
-
-    // Must not panic even though `absent` carries no session.
-    run_system(&mut world, bridge_outbound);
-
-    assert_eq!(world.get::<OutboundQueue>(socket_p).unwrap().total_len(), 1);
-    assert_eq!(world.get::<OutboundQueue>(socket_q).unwrap().total_len(), 1);
+        let delivered: Vec<usize> = sockets
+            .iter()
+            .map(|&socket| world.get::<OutboundQueue>(socket).unwrap().total_len())
+            .collect();
+        assert_eq!(delivered, expected, "{target:?}");
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 //! Mid-transit disconnect cleanup — five scenarios covering each tick of
 //! the cross-dim transfer choreography. Each scenario stages the
 //! relevant state then drives the disconnect protocol directly via
-//! `run_system_once` and `process_disconnect`.
+//! `run_system_once` and `Disconnects`.
 //!
 //! Constructing a real `ServerSideConnection` requires a `RawConnection`
 //! socket that integration tests cannot reach, so the tests exercise the
@@ -12,15 +12,13 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_server::disconnect::{
-    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
-    filter_inflight_for_disconnect, process_disconnect,
+    DisconnectProtocolPlugin, Disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -88,23 +86,7 @@ fn insert_location(
 
 fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
     app.world_mut()
-        .run_system_once(
-            move |mut commands: Commands,
-                  mut sessions: LeavingSessions,
-                  dim_channels: ResMut<DimChannelsResource>,
-                  mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
-                  mut budget: ResMut<DisconnectBudget>| {
-                disconnected_this_tick.host_anchors.push(host_anchor);
-                let _ = budget.consume();
-                process_disconnect(
-                    host_anchor,
-                    &mut sessions,
-                    &dim_channels,
-                    &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
-                    &mut commands,
-                );
-            },
-        )
+        .run_system_once(move |mut disconnects: Disconnects| disconnects.disconnect(host_anchor))
         .expect("disconnect helper runs");
 }
 
@@ -150,4 +132,3 @@ fn disconnect_at_tick_n_e1_4_attached_pending_filter() {
         "the session is despawned"
     );
 }
-

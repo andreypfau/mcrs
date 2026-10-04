@@ -420,3 +420,6 @@ fn toggle_inventory(
     *screen = Screen::None;
     grab(&mut cursor, true);
 }
+
+#[cfg(test)]
+mod tests;

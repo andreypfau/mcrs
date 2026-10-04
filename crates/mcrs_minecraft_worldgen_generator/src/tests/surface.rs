@@ -240,21 +240,19 @@ pub(super) fn surfaced_column(
 /// surfaced as if its cut were the sky, so the dispatch site leaves it alone.
 #[test]
 fn only_a_whole_column_is_surfaced() {
-    let ids = biome_ids();
-    let (router, _) = overworld_material_router(2, &ids);
+    let (min_y, height) = (-64, 384);
+    let spans = |sections: &[i32]| spans_dimension(sections, min_y, height);
     let whole: Vec<i32> = (-4..20).collect();
 
-    assert_eq!(router.noise.min_y, -64);
-    assert_eq!(router.noise.height, 384);
-    assert!(spans_dimension(&whole, &router));
-    assert!(!spans_dimension(&whole[..12], &router));
-    assert!(!spans_dimension(&whole[12..], &router));
-    assert!(!spans_dimension(&[], &router));
+    assert!(spans(&whole));
+    assert!(!spans(&whole[..12]));
+    assert!(!spans(&whole[12..]));
+    assert!(!spans(&[]));
 
     let mut holed = whole.clone();
     holed.remove(6);
     holed.push(20);
-    assert!(!spans_dimension(&holed, &router));
+    assert!(!spans(&holed));
 }
 
 /// The rules turn a stone column into a soil profile. Without them every strip
@@ -602,7 +600,6 @@ pub fn fill_context(
 /// rules that biome selects run over whatever terrain the noise gives. Badlands
 /// is the case worth pinning: it is the sole user of the clay band table, and
 /// no multi-noise sample any test takes reaches it.
-#[test]
 fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     use mcrs_minecraft_biome::source::BiomeSource;
     use mcrs_minecraft_protocol::ColumnPos;
@@ -732,7 +729,8 @@ fn surfaced_column_fixed(
 /// with y inside that run. Nothing else in the corpus reaches that rule, so
 /// without a badlands column the settled path is never walked.
 #[test]
-fn a_settled_badlands_run_writes_the_bands_the_descent_would() {
+fn a_fixed_badlands_source_runs_the_clay_bands_and_a_settled_run_writes_what_the_descent_would() {
+    a_fixed_biome_source_drives_that_biome_s_material_rules();
     settled_badlands_runs_write_the_bands_the_descent_would(&[(3, -7)]);
 }
 

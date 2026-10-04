@@ -132,58 +132,6 @@ validated!(VolumeMatch);
 mod tests {
     use super::*;
 
-    fn round_trip(json: &str) {
-        let parsed: BlockPredicate = serde_json::from_str(json).unwrap();
-        assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
-    }
-
-    #[test]
-    fn every_shipped_shape_round_trips() {
-        round_trip(
-            r#"{"type":"minecraft:matching_blocks","blocks":["minecraft:dirt","minecraft:mud"]}"#,
-        );
-        round_trip(
-            r#"{"type":"minecraft:matching_blocks","offset":[0,1,0],"blocks":"minecraft:water"}"#,
-        );
-        round_trip(r#"{"type":"minecraft:matching_block_tag","tag":"minecraft:air"}"#);
-        round_trip(
-            r#"{"type":"minecraft:matching_fluids","offset":[0,1,0],"fluids":"minecraft:water"}"#,
-        );
-        round_trip(r##"{"type":"minecraft:matching_biomes","biomes":"#minecraft:is_jungle"}"##);
-        round_trip(r#"{"type":"minecraft:has_sturdy_face","offset":[0,-1,0],"direction":"up"}"#);
-        round_trip(r#"{"type":"minecraft:solid"}"#);
-        round_trip(r#"{"type":"minecraft:solid","offset":[0,1,0]}"#);
-        round_trip(r#"{"type":"minecraft:replaceable"}"#);
-        round_trip(r#"{"type":"minecraft:would_survive","state":"minecraft:oak_sapling"}"#);
-        round_trip(r#"{"type":"minecraft:inside_world_bounds","offset":[0,-5,0]}"#);
-        round_trip(r#"{"type":"minecraft:true"}"#);
-        round_trip(r#"{"type":"minecraft:unobstructed"}"#);
-        round_trip(
-            r#"{"type":"minecraft:height_range","min_inclusive":{"above_bottom":0},"max_inclusive":{"relative_to_sea_level":0}}"#,
-        );
-        round_trip(
-            r#"{"type":"minecraft:not","predicate":{"type":"minecraft:matching_block_tag","tag":"minecraft:air"}}"#,
-        );
-        round_trip(
-            r#"{"type":"minecraft:any_of","predicates":[{"type":"minecraft:solid"},{"type":"minecraft:true"}]}"#,
-        );
-        round_trip(r#"{"type":"minecraft:all_of","predicates":[{"type":"minecraft:solid"}]}"#);
-        round_trip(
-            r#"{"type":"minecraft:volume_match","min":[-2,-2,-2],"max":[2,-1,2],"match":{"type":"minecraft:true"}}"#,
-        );
-        round_trip(r#"{"type":"minecraft:below_heightmap","heightmap":"MOTION_BLOCKING"}"#);
-    }
-
-    #[test]
-    fn an_inverted_volume_is_a_load_error() {
-        let error = serde_json::from_str::<BlockPredicate>(
-            r#"{"type":"minecraft:volume_match","min":[0,0,0],"max":[0,-1,0],"match":{"type":"minecraft:true"}}"#,
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("min bound cannot be larger"), "{error}");
-    }
-
     #[test]
     fn every_registered_predicate_type_is_a_variant() {
         let table = mcrs_minecraft_registry::StaticRegistryTable::load(

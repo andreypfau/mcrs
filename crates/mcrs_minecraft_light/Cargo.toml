@@ -23,10 +23,7 @@ bevy = ["dep:bevy_ecs", "dep:bevy_app", "dep:bevy_tasks"]
 
 [dev-dependencies]
 bevy_math.workspace = true
-
-[[test]]
-name = "plugin"
-required-features = ["bevy"]
+mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 
 [[example]]
 name = "bulk_load"

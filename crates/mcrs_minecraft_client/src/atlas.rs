@@ -586,6 +586,17 @@ mod tests {
     }
 
     #[test]
+    fn sprites_and_atlases_read_the_resource_pack() {
+        the_mips_of_a_tail_of_stills_match_the_whole_chain();
+        sprites_of_different_sizes_land_in_different_arrays();
+        a_sequence_that_revisits_a_frame_lays_it_down_twice();
+        a_sequence_starting_part_way_through_the_image_starts_there();
+        an_animation_names_its_own_layers_whatever_order_the_interning_took();
+        a_sprite_is_interned_once();
+        every_atlas_parses_and_the_item_trims_permute_into_sprites();
+        the_missing_sprite_is_a_generated_checker();
+    }
+
     fn the_mips_of_a_tail_of_stills_match_the_whole_chain() {
         let mut registry = SpriteRegistry::default();
         for id in [
@@ -606,7 +617,6 @@ mod tests {
         }
     }
 
-    #[test]
     fn sprites_of_different_sizes_land_in_different_arrays() {
         let mut registry = SpriteRegistry::default();
         let small = registry
@@ -660,7 +670,6 @@ mod tests {
         array.layer(layer)
     }
 
-    #[test]
     fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
         let mut registry = SpriteRegistry::default();
         registry
@@ -672,7 +681,6 @@ mod tests {
         assert_ne!(layer(array, 18), layer(array, 19));
     }
 
-    #[test]
     fn a_sequence_starting_part_way_through_the_image_starts_there() {
         let mut registry = SpriteRegistry::default();
         registry
@@ -725,7 +733,6 @@ mod tests {
             .collect()
     }
 
-    #[test]
     fn an_animation_names_its_own_layers_whatever_order_the_interning_took() {
         let mut registry = SpriteRegistry::default();
         let stone = registry
@@ -802,7 +809,6 @@ mod tests {
         assert_eq!(opacity_of(&[cut_out, half].concat()), Opacity::Translucent);
     }
 
-    #[test]
     fn a_sprite_is_interned_once() {
         let mut registry = SpriteRegistry::default();
         let first = registry
@@ -824,7 +830,6 @@ mod tests {
         assert_eq!(dst[3], 63);
     }
 
-    #[test]
     fn every_atlas_parses_and_the_item_trims_permute_into_sprites() {
         let pack = Pack::corpus();
         let mut permuted = 0;
@@ -860,7 +865,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn the_missing_sprite_is_a_generated_checker() {
         let mut registry = SpriteRegistry::default();
         let sprite = registry.intern(Pack::corpus(), MISSING_SPRITE).unwrap();

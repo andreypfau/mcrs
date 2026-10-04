@@ -143,7 +143,7 @@ mod test {
     use crate::xoroshiro::XoroshiroRandom;
 
     #[test]
-    fn next_i64() {
+    fn every_draw_matches_the_java_sequence_for_seed_1() {
         let mut random = XoroshiroRandom::new(1);
         let expected = [
             -1033667707219518978,
@@ -160,10 +160,7 @@ mod test {
         for &e in &expected {
             assert_eq!(random.next_i64(), e);
         }
-    }
 
-    #[test]
-    fn next_i32() {
         let mut random = XoroshiroRandom::new(1);
         let expected = [
             1734564350,
@@ -180,20 +177,14 @@ mod test {
         for &e in &expected {
             assert_eq!(random.next_i32(), e);
         }
-    }
 
-    #[test]
-    fn next_u32_bound() {
         let mut random = XoroshiroRandom::new(1);
         assert_eq!(random.next_u32_bound(25), 10);
         assert_eq!(random.next_u32_bound(256), 49);
         assert_eq!(random.next_u32_bound(255), 48);
         assert_eq!(random.next_u32_bound(254), 169);
         assert_eq!(random.next_u32_bound(0x7FFFFFFF), 383715241);
-    }
 
-    #[test]
-    fn next_f32() {
         let mut random = XoroshiroRandom::new(1);
         let expected = [
             0.9439647, 0.34974587, 0.9012351, 0.04825169, 0.4388219, 0.15067255, 0.88325465,
@@ -202,10 +193,7 @@ mod test {
         for &e in &expected {
             assert_eq!(random.next_f32(), e);
         }
-    }
 
-    #[test]
-    fn next_f64() {
         let mut random = XoroshiroRandom::new(1);
         let expected = [
             0.9439647613102243,

@@ -154,36 +154,7 @@ fn resolve(sections: Vec<(i8, Vec<NbtTag>)>) -> Result<Vec<u32>, ErrorKind> {
     Ok(ids)
 }
 
-#[test]
-fn every_block_default_state_round_trips_through_the_palette() {
-    let definitions = corpus();
-    let palette: Vec<NbtTag> = definitions.blocks().iter().map(default_entry).collect();
-    let ids = resolve(vec![(0, palette)]).expect("every default state resolves");
-
-    let mismatched: Vec<String> = definitions
-        .blocks()
-        .iter()
-        .zip(&ids)
-        .filter(|(block, id)| **id != block.default_state_id.0 as u32)
-        .map(|(block, &id)| {
-            format!(
-                "{} resolved to {id}, expected {}",
-                block.identifier.as_str(),
-                block.default_state_id.0
-            )
-        })
-        .collect();
-    assert!(
-        mismatched.is_empty(),
-        "{} of {} blocks disagree:\n{}",
-        mismatched.len(),
-        ids.len(),
-        mismatched.join("\n")
-    );
-}
-
 /// Every state of a block with all three property types, not just its default.
-#[test]
 fn every_state_of_a_stair_and_a_note_block_round_trips() {
     let definitions = corpus();
     for name in ["minecraft:oak_stairs", "minecraft:note_block"] {
@@ -210,7 +181,6 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
     }
 }
 
-#[test]
 fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
     let definitions = corpus();
     let cases = [
@@ -236,7 +206,6 @@ fn the_typed_cases_resolve_to_the_ids_the_corpus_states() {
     }
 }
 
-#[test]
 fn a_decoded_chunk_resolves_every_section_palette() {
     let definitions = corpus();
     let sections = vec![
@@ -297,7 +266,6 @@ fn a_decoded_chunk_resolves_every_section_palette() {
     );
 }
 
-#[test]
 fn an_unknown_block_name_is_a_loud_error() {
     let err = resolve(vec![(0, vec![entry("minecraft:unobtainium", &[])])]).unwrap_err();
     assert!(
@@ -306,7 +274,6 @@ fn an_unknown_block_name_is_a_loud_error() {
     );
 }
 
-#[test]
 fn a_value_the_block_does_not_declare_is_a_loud_error() {
     let properties = vec![
         ("facing", "up".to_string()),
@@ -323,7 +290,6 @@ fn a_value_the_block_does_not_declare_is_a_loud_error() {
 
 /// Each property stands on its own, so an entry states only what differs from
 /// the block's default state and a bare name is that default.
-#[test]
 fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     let corpus = corpus();
     let stairs = corpus
@@ -347,7 +313,6 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
 
 /// The save's light arrays are not read: nothing writes a region file back, so
 /// every session recomputes light from the blocks.
-#[test]
 fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let stone = corpus().block("minecraft:stone").unwrap();
     let chunk = chunk(vec![section_with_light(
@@ -367,4 +332,47 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
         .as_ref()
         .expect("a Y the save skipped is empty, not absent");
     assert_eq!(non_air_block_count(blocks), 0);
+}
+
+#[test]
+fn a_saved_palette_resolves_against_the_corpus() {
+    every_state_of_a_stair_and_a_note_block_round_trips();
+    the_typed_cases_resolve_to_the_ids_the_corpus_states();
+    a_decoded_chunk_resolves_every_section_palette();
+    an_unknown_block_name_is_a_loud_error();
+    a_value_the_block_does_not_declare_is_a_loud_error();
+    a_property_the_entry_leaves_out_keeps_its_default_value();
+    a_saved_section_decodes_its_blocks_and_nothing_else();
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn every_block_default_state_round_trips_through_the_palette() {
+        let definitions = corpus();
+        let palette: Vec<NbtTag> = definitions.blocks().iter().map(default_entry).collect();
+        let ids = resolve(vec![(0, palette)]).expect("every default state resolves");
+
+        let mismatched: Vec<String> = definitions
+            .blocks()
+            .iter()
+            .zip(&ids)
+            .filter(|(block, id)| **id != block.default_state_id.0 as u32)
+            .map(|(block, &id)| {
+                format!(
+                    "{} resolved to {id}, expected {}",
+                    block.identifier.as_str(),
+                    block.default_state_id.0
+                )
+            })
+            .collect();
+        assert!(
+            mismatched.is_empty(),
+            "{} of {} blocks disagree:\n{}",
+            mismatched.len(),
+            ids.len(),
+            mismatched.join("\n")
+        );
+    }
 }

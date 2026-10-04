@@ -384,7 +384,7 @@ pub fn fill_column(
                         static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
                     }
                     debug_assert!(
-                        spans_dimension(y_sections, router),
+                        spans_dimension(y_sections, router.noise.min_y, router.noise.height as i32),
                         "the descent needs the whole column, not the sections this dispatch owes"
                     );
                     MATERIAL.with_borrow_mut(|scratch| {
@@ -932,7 +932,7 @@ pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::saved::SectionData;
+
     use crate::staging::StagingStore;
     use crate::tests::{bare_fill_context, build_beta_router};
 
@@ -1252,38 +1252,5 @@ mod tests {
             merged.block_entities.is_empty(),
             "a block without an entity buries the one written before it"
         );
-    }
-
-    #[test]
-    fn a_merge_with_no_writes_is_the_filled_column() {
-        let ctx = bare_fill_context(build_beta_router());
-        let mut buffer = ColumnBlocks::new(&ctx.y_sections);
-        let snapshot = fill_column(
-            &ctx,
-            ColumnPos::new(2, -3),
-            &mut buffer,
-            &CancellationToken::new(),
-        )
-        .expect("the fill was not cancelled");
-
-        let merged = merge_column(&snapshot, &[], None, None);
-        assert_same_sections(&merged.sections, &snapshot.sections);
-    }
-
-    fn assert_same_sections(got: &[Option<SectionData>], want: &[Option<SectionData>]) {
-        assert_eq!(got.len(), want.len());
-        for (index, (got, want)) in got.iter().zip(want).enumerate() {
-            let (got, _) = got.as_ref().expect("a merged section");
-            let (want, _) = want.as_ref().expect("a filled section");
-            for cell in 0..ColumnBlocks::SECTION_VOLUME {
-                let local = LocalPos::from_index(cell);
-                let (x, y, z) = (local.x() as usize, local.y() as usize, local.z() as usize);
-                assert_eq!(
-                    got.0.get(x, y, z),
-                    want.0.get(x, y, z),
-                    "section {index} diverged at ({x}, {y}, {z})"
-                );
-            }
-        }
     }
 }

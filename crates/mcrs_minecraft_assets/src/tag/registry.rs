@@ -293,95 +293,46 @@ mod tests {
         ids.into_iter().map(id).collect()
     }
 
-    // ── Lifecycle: insert → freeze → query ──
-
     #[test]
-    fn empty_loader_freezes_to_empty_registry() {
-        let reg = block_loader().freeze(&IdSpace::new(64));
-        assert!(reg.is_empty());
-        assert_eq!(reg.iter().count(), 0);
-    }
+    fn a_frozen_loader_answers_exactly_the_inserted_sets() {
+        let empty = block_loader().freeze(&IdSpace::new(64));
+        assert!(empty.is_empty());
+        assert_eq!(empty.iter().count(), 0);
 
-    #[test]
-    fn get_returns_bitset_after_freeze() {
-        let mut loader = block_loader();
-        loader.insert(rl_arc("minecraft:sand"), set([3, 42]));
-        let reg = loader.freeze(&IdSpace::new(64));
-
-        let bs = reg.get(&tag("minecraft:sand")).expect("tag should exist");
-        assert_eq!(bs.len(), 2);
-        assert!(bs.contains(id(3)));
-        assert!(bs.contains(id(42)));
-        assert!(!bs.contains(id(0)));
-    }
-
-    #[test]
-    fn multiple_tags_independent() {
+        let big: Vec<u32> = vec![0, 1, 15, 63, 64, 100, 127, 255, 500, 999];
         let mut loader = block_loader();
         loader.insert(rl_arc("minecraft:logs"), set([1, 2]));
         loader.insert(rl_arc("minecraft:leaves"), set([2, 3]));
-        let reg = loader.freeze(&IdSpace::new(64));
-
-        let logs = tag("minecraft:logs");
-        let leaves = tag("minecraft:leaves");
-
-        assert!(reg.contains(&logs, id(1)));
-        assert!(reg.contains(&logs, id(2)));
-        assert!(!reg.contains(&logs, id(3)));
-
-        assert!(!reg.contains(&leaves, id(1)));
-        assert!(reg.contains(&leaves, id(2)));
-        assert!(reg.contains(&leaves, id(3)));
-    }
-
-    #[test]
-    fn iter_yields_all_tags() {
-        let mut loader = block_loader();
-        loader.insert(rl_arc("minecraft:wool"), set([10]));
-        loader.insert(rl_arc("minecraft:snow"), set([20]));
-        let reg = loader.freeze(&IdSpace::new(64));
-
-        let mut tag_names: Vec<String> =
-            reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
-        tag_names.sort();
-        assert_eq!(tag_names, vec!["minecraft:snow", "minecraft:wool"]);
-
-        for (rl, bs) in reg.iter() {
-            match rl.as_str() {
-                "minecraft:wool" => {
-                    assert_eq!(bs.len(), 1);
-                    assert!(bs.contains(id(10)));
-                }
-                "minecraft:snow" => {
-                    assert_eq!(bs.len(), 1);
-                    assert!(bs.contains(id(20)));
-                }
-                other => panic!("unexpected tag: {other}"),
-            }
-        }
-    }
-
-    #[test]
-    fn is_empty_false_after_freeze_with_tags() {
-        let mut loader = block_loader();
-        loader.insert(rl_arc("minecraft:test"), set([0]));
-        assert!(!loader.freeze(&IdSpace::new(64)).is_empty());
-    }
-
-    #[test]
-    fn contains_matches_the_inserted_set() {
-        let ids: Vec<u32> = vec![0, 1, 15, 63, 64, 100, 127, 255, 500, 999];
-        let mut loader = block_loader();
-        loader.insert(rl_arc("minecraft:big_tag"), set(ids.iter().copied()));
+        loader.insert(rl_arc("minecraft:big_tag"), set(big.iter().copied()));
         let reg = loader.freeze(&IdSpace::new(1024));
+        assert!(!reg.is_empty());
 
-        let tag = tag("minecraft:big_tag");
-        for raw in 0..1024 {
+        let mut names: Vec<String> = reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
+        names.sort();
+        assert_eq!(
+            names,
+            ["minecraft:big_tag", "minecraft:leaves", "minecraft:logs"]
+        );
+
+        let expected: [(&'static str, &[u32]); 3] = [
+            ("minecraft:logs", &[1, 2]),
+            ("minecraft:leaves", &[2, 3]),
+            ("minecraft:big_tag", &big),
+        ];
+        for (name, members) in expected {
+            let key = tag(name);
             assert_eq!(
-                reg.contains(&tag, id(raw)),
-                ids.contains(&raw),
-                "mismatch at id {raw}"
+                reg.get(&key).expect(name).len() as usize,
+                members.len(),
+                "{name}"
             );
+            for raw in 0..1024 {
+                assert_eq!(
+                    reg.contains(&key, id(raw)),
+                    members.contains(&raw),
+                    "{name} at id {raw}"
+                );
+            }
         }
     }
 
@@ -428,37 +379,26 @@ mod tests {
     }
 
     #[test]
-    fn resolve_elements() {
-        let tag_file = TagFile {
+    fn resolving_a_tag_file_follows_elements_optionals_and_nested_tags() {
+        let mut all_files = Assets::<TagFile>::default();
+        let elements = TagFile {
             replace: false,
             values: vec![
                 TagEntry::Element(rl_arc("minecraft:forest")),
                 TagEntry::Element(rl_arc("minecraft:plains")),
             ],
         };
+        assert_eq!(
+            resolve_tag_file(&elements, &all_files, &biome_index()),
+            HashSet::from([1, 2])
+        );
 
-        let all_files = Assets::<TagFile>::default();
-        let result = resolve_tag_file(&tag_file, &all_files, &biome_index());
-        assert!(result.contains(&1));
-        assert!(result.contains(&2));
-        assert!(!result.contains(&0));
-    }
-
-    #[test]
-    fn resolve_optional_element_missing() {
-        let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
-        let tag_file = TagFile {
+        let missing = TagFile {
             replace: false,
             values: vec![TagEntry::OptionalElement(rl_arc("minecraft:nonexistent"))],
         };
+        assert!(resolve_tag_file(&missing, &all_files, &biome_index()).is_empty());
 
-        let all_files = Assets::<TagFile>::default();
-        assert!(resolve_tag_file(&tag_file, &all_files, &index).is_empty());
-    }
-
-    #[test]
-    fn resolve_follows_nested_tag_references() {
-        let mut all_files = Assets::<TagFile>::default();
         let leaf = all_files.add(TagFile {
             replace: false,
             values: vec![TagEntry::Element(rl_arc("minecraft:desert"))],
@@ -477,8 +417,9 @@ mod tests {
                 TagEntry::Element(rl_arc("minecraft:plains")),
             ],
         };
-
-        let result = resolve_tag_file(&root, &all_files, &biome_index());
-        assert_eq!(result, HashSet::from([0, 1, 2]));
+        assert_eq!(
+            resolve_tag_file(&root, &all_files, &biome_index()),
+            HashSet::from([0, 1, 2])
+        );
     }
 }

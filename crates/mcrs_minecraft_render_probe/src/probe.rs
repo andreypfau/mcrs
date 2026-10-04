@@ -508,13 +508,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_slot_the_gpu_never_wrote_has_no_answer() {
-        assert_eq!(elapsed_ms(u64::MAX, u64::MAX, 1.0), None);
-        assert_eq!(elapsed_ms(500, 100, 1.0), None);
-        assert_eq!(elapsed_ms(0, u64::MAX, 1.0), None);
-    }
-
-    #[test]
     fn the_ring_keeps_what_is_written_and_what_is_read_apart() {
         let timings = GpuTimings::default();
         let mut seen = Vec::new();
@@ -533,29 +526,11 @@ mod tests {
     }
 
     #[test]
-    fn the_median_ignores_the_one_frame_that_stalled() {
-        let timings = GpuTimings::default();
-        for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
-        }
-        timings.push([1.0, 400.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
-        assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
-        assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
-    }
+    fn a_resolved_frame_lands_as_milliseconds_and_unwritten_slots_have_no_answer() {
+        assert_eq!(elapsed_ms(u64::MAX, u64::MAX, 1.0), None);
+        assert_eq!(elapsed_ms(500, 100, 1.0), None);
+        assert_eq!(elapsed_ms(0, u64::MAX, 1.0), None);
 
-    #[test]
-    fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
-        let shared = Shared::default();
-        shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        shared.read(bytemuck::cast_slice(&ticks));
-        let timings = GpuTimings(Arc::new(shared));
-        assert_eq!(timings.median(PassSlot::Cull as usize), Some(2.0));
-        assert_eq!(timings.median(PassSlot::Hiz as usize), None);
-    }
-
-    #[test]
-    fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
         let ticks: [u64; SLOTS * 2] = [
@@ -565,10 +540,19 @@ mod tests {
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
         assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
+        assert_eq!(timings.median(PassSlot::CullSecond as usize), None);
     }
 
     #[test]
-    fn gpu_median_and_p95_cover_only_the_newest_frames() {
+    fn median_and_p95_cover_the_newest_frames_and_ignore_a_stall() {
+        let timings = GpuTimings::default();
+        for _ in 0..8 {
+            timings.push([1.0, 4.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
+        }
+        timings.push([1.0, 400.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
+        assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
+        assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
+
         let timings = GpuTimings::default();
         for ms in 1..=100 {
             let mut frame = [0.0; SLOTS];
@@ -583,10 +567,6 @@ mod tests {
             timings.median_and_p95(PassSlot::Hiz as usize, 10),
             Some([96.0, 100.0])
         );
-    }
-
-    #[test]
-    fn median_and_p95_of_a_slot_without_samples_is_none() {
         assert_eq!(
             GpuTimings::default().median_and_p95(PassSlot::Cull as usize, 100),
             None

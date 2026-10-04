@@ -1231,18 +1231,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "prints the table the pin test asserts against"]
-    fn print_trunk_pins() {
-        for (name, placer) in cases() {
-            let pin = pin_of(&placer);
-            println!(
-                "(\"{name}\", {}, {:#x}, {}, {}),",
-                pin.writes, pin.digest, pin.rng_after[0], pin.rng_after[1]
-            );
-        }
-    }
-
-    #[test]
     fn a_wide_straight_trunk_fills_a_square_hung_from_its_north_west_corner() {
         let origin = BlockPos::new(8, 64, 8);
         for (width, corner, double_trunk) in [(2, origin, true), (3, origin - IVec3::new(1, 0, 1), false)] {

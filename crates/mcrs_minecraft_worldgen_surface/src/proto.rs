@@ -133,23 +133,17 @@ mod tests {
 
     /// Neither shape occurs in the shipped corpus, so nothing else covers them.
     #[test]
-    fn a_stated_result_state_and_a_biome_tag_round_trip() {
+    fn the_unshipped_shapes_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;
         let rule: MaterialRule = serde_json::from_str(stated).unwrap();
         assert_eq!(serde_json::to_string(&rule).unwrap(), stated);
 
-        let tagged = r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##;
-        let condition: MaterialCondition = serde_json::from_str(tagged).unwrap();
-        assert!(
-            matches!(&condition, MaterialCondition::Biome { biome_is } if matches!(biome_is, BiomeSet::Tag(_)))
-        );
-        assert_eq!(serde_json::to_string(&condition).unwrap(), tagged);
-    }
-
-    #[test]
-    fn a_biome_list_keeps_its_shape() {
-        let listed = r#"{"type":"minecraft:biome","biome_is":["minecraft:badlands","minecraft:eroded_badlands"]}"#;
-        let condition: MaterialCondition = serde_json::from_str(listed).unwrap();
-        assert_eq!(serde_json::to_string(&condition).unwrap(), listed);
+        for json in [
+            r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##,
+            r#"{"type":"minecraft:biome","biome_is":["minecraft:badlands","minecraft:eroded_badlands"]}"#,
+        ] {
+            let condition: MaterialCondition = serde_json::from_str(json).unwrap();
+            assert_eq!(serde_json::to_string(&condition).unwrap(), json);
+        }
     }
 }

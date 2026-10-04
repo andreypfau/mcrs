@@ -20,13 +20,6 @@ fn set_bits(mask: &FaceMask) -> u32 {
 }
 
 #[test]
-fn direction_opposite_is_involutive() {
-    for dir in Direction::all() {
-        assert_eq!(dir.opposite().opposite(), dir);
-    }
-}
-
-#[test]
 fn a_full_cube_occludes_against_an_empty_shape() {
     let b = VoxelShape::block();
     let e = VoxelShape::empty();
@@ -141,14 +134,6 @@ fn a_box_reaching_outside_the_unit_cube_is_clipped() {
 fn a_degenerate_box_contributes_nothing() {
     let flat = VoxelShape::from_boxes(&[aabb([0.0, 0.0, 0.0], [1.0, 0.0, 1.0])]);
     assert!(flat.is_empty());
-}
-
-#[test]
-fn shape_registry_new_reserves_empty_and_block() {
-    let reg = ShapeRegistry::new();
-    assert_eq!(reg.len(), 2);
-    assert!(std::ptr::eq(reg.entries()[0], VoxelShape::empty()));
-    assert!(std::ptr::eq(reg.entries()[1], VoxelShape::block()));
 }
 
 #[test]

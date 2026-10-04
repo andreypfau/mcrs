@@ -797,18 +797,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "prints the table the pin test asserts against"]
-    fn print_foliage_pins() {
-        for (name, placer, tree_height, double_trunk) in cases() {
-            let pin = pin_of(&placer, tree_height, double_trunk);
-            println!(
-                "(\"{name}\", {}, {:#x}, {}, {}),",
-                pin.writes, pin.digest, pin.rng_after[0], pin.rng_after[1]
-            );
-        }
-    }
-
-    #[test]
     fn every_foliage_placer_writes_and_draws_what_it_did() {
         assert_eq!(
             cases().len(),

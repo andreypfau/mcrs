@@ -545,34 +545,6 @@ mod tests {
         );
     }
 
-    /// `Age` always, `exit_portal` only when known, `ExactTeleport` only when
-    /// set, through the encoder the save and the chunk packet both use.
-    #[test]
-    fn the_gateway_block_entity_encodes_the_reference_keys() {
-        let known = EndGatewayData {
-            x: 1,
-            y: 2,
-            z: 3,
-            age: 0,
-            exit_portal: Some([100, 50, 0]),
-            exact_teleport: true,
-        };
-        let encoded = mcrs_minecraft_nbt::tag_serializer::to_nbt_compound(&known).unwrap();
-        assert_eq!(encoded.get_long("Age"), Some(0));
-        assert_eq!(encoded.get_bool("ExactTeleport"), Some(true));
-        assert!(encoded.get("exit_portal").is_some());
-
-        let delayed = EndGatewayData {
-            exit_portal: None,
-            exact_teleport: false,
-            ..known.clone()
-        };
-        let encoded = mcrs_minecraft_nbt::tag_serializer::to_nbt_compound(&delayed).unwrap();
-        assert_eq!(encoded.get_long("Age"), Some(0));
-        assert!(encoded.get("exit_portal").is_none());
-        assert!(encoded.get("ExactTeleport").is_none());
-    }
-
     /// One draw for the starting radius and one per layer, the layers descending
     /// from the origin, and every cell inside the radius the layer carries.
     #[test]

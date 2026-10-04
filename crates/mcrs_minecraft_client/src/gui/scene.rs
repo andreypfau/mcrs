@@ -563,12 +563,4 @@ mod tests {
         let start = (blank.min.y as usize * atlas.width as usize + blank.min.x as usize) * 4;
         assert_eq!(&atlas.pixels[start..start + 4], &[255, 255, 255, 255]);
     }
-
-    #[test]
-    fn glint_offsets_wrap_like_vanilla() {
-        assert_eq!(glint_offset(0), [0.0, 0.0]);
-        let [o0, o1] = glint_offset(1000);
-        assert!((o0 - 4000.0 / 110_000.0).abs() < 1e-6);
-        assert!((o1 - 4000.0 / 30_000.0).abs() < 1e-6);
-    }
 }

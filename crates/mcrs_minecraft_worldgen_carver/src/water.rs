@@ -145,52 +145,6 @@ mod tests {
     }
 
     #[test]
-    fn oracle_matches_the_reference_scan() {
-        let mut rng = LegacyRandom::new(0xC0FFEE);
-        let mut checked_aborts = 0u32;
-        let mut checked_passes = 0u32;
-
-        for case in 0..400 {
-            let mut mask = WaterMask::default();
-            let mut water = vec![false; 16 * 16 * 128];
-            // Sparse at first, then dense enough that both verdicts occur often.
-            let drops = 1 + rng.next_i32_bound(if case % 2 == 0 { 8 } else { 600 });
-            for _ in 0..drops {
-                let x = rng.next_i32_bound(16);
-                let z = rng.next_i32_bound(16);
-                let y = rng.next_i32_bound(128);
-                water[((x * 16 + z) * 128 + y) as usize] = true;
-                mask.insert(x, y, z);
-            }
-            let is_water = |x: i32, y: i32, z: i32| water[((x * 16 + z) * 128 + y) as usize];
-
-            for _ in 0..40 {
-                let x_min = rng.next_i32_bound(16);
-                let x_max = (x_min + 1 + rng.next_i32_bound(16 - x_min)).min(16);
-                let z_min = rng.next_i32_bound(16);
-                let z_max = (z_min + 1 + rng.next_i32_bound(16 - z_min)).min(16);
-                let y_min = 1 + rng.next_i32_bound(119);
-                let y_max = (y_min + rng.next_i32_bound(20)).min(120);
-
-                let want = reference_scan(&is_water, x_min, x_max, y_min, y_max, z_min, z_max);
-                let got = water_abort_scan(&mask, x_min, x_max, y_min, y_max, z_min, z_max);
-                assert_eq!(
-                    want, got,
-                    "box x {x_min}..{x_max} y {y_min}..={y_max} z {z_min}..{z_max}"
-                );
-                if want {
-                    checked_aborts += 1;
-                } else {
-                    checked_passes += 1;
-                }
-            }
-        }
-
-        assert!(checked_aborts > 1000, "only {checked_aborts} aborts seen");
-        assert!(checked_passes > 1000, "only {checked_passes} passes seen");
-    }
-
-    #[test]
     fn empty_mask_never_aborts() {
         let mask = WaterMask::default();
         assert!(!water_abort_scan(&mask, 0, 16, 1, 120, 0, 16));
@@ -203,5 +157,55 @@ mod tests {
         assert!(!water_abort_scan(&mask, 4, 12, 50, 70, 4, 12));
         assert!(water_abort_scan(&mask, 8, 12, 50, 70, 4, 12));
         assert!(water_abort_scan(&mask, 4, 12, 61, 70, 4, 12));
+    }
+
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn oracle_matches_the_reference_scan() {
+            let mut rng = LegacyRandom::new(0xC0FFEE);
+            let mut checked_aborts = 0u32;
+            let mut checked_passes = 0u32;
+
+            for case in 0..400 {
+                let mut mask = WaterMask::default();
+                let mut water = vec![false; 16 * 16 * 128];
+                // Sparse at first, then dense enough that both verdicts occur often.
+                let drops = 1 + rng.next_i32_bound(if case % 2 == 0 { 8 } else { 600 });
+                for _ in 0..drops {
+                    let x = rng.next_i32_bound(16);
+                    let z = rng.next_i32_bound(16);
+                    let y = rng.next_i32_bound(128);
+                    water[((x * 16 + z) * 128 + y) as usize] = true;
+                    mask.insert(x, y, z);
+                }
+                let is_water = |x: i32, y: i32, z: i32| water[((x * 16 + z) * 128 + y) as usize];
+
+                for _ in 0..40 {
+                    let x_min = rng.next_i32_bound(16);
+                    let x_max = (x_min + 1 + rng.next_i32_bound(16 - x_min)).min(16);
+                    let z_min = rng.next_i32_bound(16);
+                    let z_max = (z_min + 1 + rng.next_i32_bound(16 - z_min)).min(16);
+                    let y_min = 1 + rng.next_i32_bound(119);
+                    let y_max = (y_min + rng.next_i32_bound(20)).min(120);
+
+                    let want = reference_scan(&is_water, x_min, x_max, y_min, y_max, z_min, z_max);
+                    let got = water_abort_scan(&mask, x_min, x_max, y_min, y_max, z_min, z_max);
+                    assert_eq!(
+                        want, got,
+                        "box x {x_min}..{x_max} y {y_min}..={y_max} z {z_min}..{z_max}"
+                    );
+                    if want {
+                        checked_aborts += 1;
+                    } else {
+                        checked_passes += 1;
+                    }
+                }
+            }
+
+            assert!(checked_aborts > 1000, "only {checked_aborts} aborts seen");
+            assert!(checked_passes > 1000, "only {checked_passes} passes seen");
+        }
     }
 }

@@ -21,6 +21,12 @@ fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
 }
 
 #[test]
+fn menu_snapshots_read_what_the_player_may_do() {
+    only_an_enchantment_preventing_armour_change_marks_the_stack_binding();
+    a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable();
+    an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle();
+}
+
 fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
     let mut world = world();
     world.insert_resource(test_enchantments().clone());
@@ -45,7 +51,6 @@ fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
     assert!(!binding(slots::MAIN.start + 1));
 }
 
-#[test]
 fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     let mut world = world();
     let player = holder(&mut world, slots::COUNT);
@@ -81,7 +86,6 @@ fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     assert_eq!(snapshot.slot_max(head, &plain), Some(1));
 }
 
-#[test]
 fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
     let mut world = world();
     world.insert_resource(crate::common::item_tags());

@@ -877,6 +877,14 @@ mod tests {
     }
 
     #[test]
+    fn the_feeder_follows_columns_the_camera_and_the_colours() {
+        a_departed_column_evicts_every_brick_it_built();
+        moving_the_camera_evicts_what_leaves_and_builds_what_enters_the_radius();
+        switching_off_and_on_resets_and_rescans_without_replaying_old_changes();
+        a_new_extent_resets_the_volume();
+        reloaded_colours_rebuild_and_recolour_the_radius();
+    }
+
     fn a_departed_column_evicts_every_brick_it_built() {
         let mut app = app(2);
         let (lit, plain) = (ColumnPos::new(1, 0), ColumnPos::new(0, 0));
@@ -902,7 +910,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn moving_the_camera_evicts_what_leaves_and_builds_what_enters_the_radius() {
         let mut app = app(1);
         for column in row(-1..=5) {
@@ -933,7 +940,6 @@ mod tests {
         column(&[1])
     }
 
-    #[test]
     fn switching_off_and_on_resets_and_rescans_without_replaying_old_changes() {
         let mut app = app(1);
         let (kept, gone, new) = (
@@ -981,7 +987,6 @@ mod tests {
         assert_eq!(built.len(), bricks(&back).len(), "each brick is built once");
     }
 
-    #[test]
     fn a_new_extent_resets_the_volume() {
         let mut app = app(1);
         let (lit, plain) = (ColumnPos::new(0, 0), ColumnPos::new(1, 0));
@@ -1023,7 +1028,6 @@ mod tests {
         assert_eq!(dirtied(&taller), rows_of(&[lit], -2..=3));
     }
 
-    #[test]
     fn reloaded_colours_rebuild_and_recolour_the_radius() {
         let mut app = app(1);
         store(&mut app).insert(ColumnPos::new(0, 0), column_lit());

@@ -289,132 +289,6 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
 // ── Parity test ───────────────────────────────────────────────────────────────
 
-/// Carve-mask parity gate: for each chunk in the fixture corpus, build a full
-/// 16x16 section palette from `pre_cave` bytes, carve it at seed
-/// 12345, convert the result back to Beta block IDs, and assert equality with
-/// `post_cave`.
-///
-/// The fixed-terrain input (pre_cave from the corpus) removes f32 terrain
-/// divergence by construction, so any carve-mask mismatch is a real parity bug.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn beta_cave_parity_gate() {
-    let corpus = load_corpus();
-    let router = build_beta_router();
-    let table = super::beta_carver_table(&build_beta_biome_source().0);
-
-    let world_seed: i64 = 12345;
-    let y_sections: Vec<i32> = (0..8).collect();
-
-    let mut chunks: BTreeMap<(i32, i32), Vec<&ColumnFixture>> = BTreeMap::new();
-    for col in &corpus.columns {
-        let cx = col.wx >> 4;
-        let cz = col.wz >> 4;
-        chunks.entry((cx, cz)).or_default().push(col);
-    }
-
-    let mut total_columns: u64 = 0;
-    let mut mismatches: Vec<(i32, i32, Vec<(i32, u8, u8)>)> = Vec::new();
-
-    for ((cx, cz), fixture_cols) in &chunks {
-        let block_x = cx * 16;
-        let block_z = cz * 16;
-
-        let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = (0..y_sections.len())
-            .map(|_| Some((BlockPalette::default(), BiomePalette::default())))
-            .collect();
-
-        for fix_col in fixture_cols.iter() {
-            let local_x = fix_col.wx - block_x;
-            let local_z = fix_col.wz - block_z;
-            for (si, &sy) in y_sections.iter().enumerate() {
-                let base_y = sy * 16;
-                if let Some(Some((palette, _))) = sections.get_mut(si) {
-                    for local_y in 0..16i32 {
-                        let world_y = base_y + local_y;
-                        if world_y < 128 {
-                            let beta_id = fix_col.pre_cave[world_y as usize];
-                            palette.set(
-                                LocalPos::from(BlockPos::new(local_x, local_y, local_z)),
-                                modern_id_for_beta(beta_id).into(),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        carve(&column, *cx, *cz, world_seed, &router, &table);
-        column.write_back(&mut sections);
-
-        for fix_col in fixture_cols.iter() {
-            total_columns += 1;
-            let local_x = fix_col.wx - block_x;
-            let local_z = fix_col.wz - block_z;
-
-            let mut col_mismatches: Vec<(i32, u8, u8)> = Vec::new();
-            for (si, &sy) in y_sections.iter().enumerate() {
-                if let Some(Some((palette, _))) = sections.get(si) {
-                    let base_y = sy * 16;
-                    for local_y in 0..16i32 {
-                        let world_y = base_y + local_y;
-                        if world_y < 128 {
-                            let state = palette
-                                .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
-                            let got = beta_id_for_modern(state.into());
-                            let want = fix_col.post_cave[world_y as usize];
-                            if got != want {
-                                col_mismatches.push((world_y, got, want));
-                            }
-                        }
-                    }
-                }
-            }
-            if !col_mismatches.is_empty() {
-                mismatches.push((fix_col.wx, fix_col.wz, col_mismatches));
-            }
-        }
-    }
-
-    if !mismatches.is_empty() {
-        let first_10: Vec<String> = mismatches
-            .iter()
-            .take(10)
-            .map(|(wx, wz, diffs)| {
-                let first_diff = diffs
-                    .first()
-                    .map(|(y, got, want)| format!("Y={} got={} want={}", y, got, want))
-                    .unwrap_or_default();
-                format!(
-                    "  ({:+5},{:+5}): {} block mismatches [{}]",
-                    wx,
-                    wz,
-                    diffs.len(),
-                    first_diff
-                )
-            })
-            .collect();
-
-        panic!(
-            "\nBETA CAVE PARITY GATE FAILED\n\
-             Columns: {} total, {} mismatched\n\
-             First offenders:\n{}\n",
-            total_columns,
-            mismatches.len(),
-            first_10.join("\n"),
-        );
-    }
-
-    assert_eq!(
-        mismatches.len(),
-        0,
-        "cave parity: {} mismatches / {} columns",
-        mismatches.len(),
-        total_columns
-    );
-}
-
 /// LegacyRandom draw-count regression pin for chunk (0,0) at seed 12345.
 ///
 /// Counts total RNG advances consumed by the 17x17 carve loop over a
@@ -424,214 +298,340 @@ fn beta_cave_parity_gate() {
 /// Value recorded on the first green run and asserted on every subsequent run.
 const DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 1883;
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn beta_cave_draw_count_pin() {
-    let count = count_rng_draws_for_chunk(0, 0, 12345);
-
-    if DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
-        // First run: print the value for pinning.
-        println!("DRAW COUNT PIN (chunk 0,0 seed 12345): {}", count);
-        assert!(count > 0, "carver must consume RNG draws");
-    } else {
-        assert_eq!(
-            count, DRAW_COUNT_CHUNK_0_0_SEED_12345,
-            "LegacyRandom draw count for chunk (0,0) at seed 12345 changed: expected {}, got {}",
-            DRAW_COUNT_CHUNK_0_0_SEED_12345, count,
-        );
-    }
-}
-
 // ── Integration smoke test ────────────────────────────────────────────────────
 
-/// Integration smoke: a Beta column generated through the full path (terrain +
-/// surface + caves) at seed 12345 has cave air below the surface and lava at/below Y 10.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn generate_column_beta_has_caves() {
-    let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
-    let cancel = CancellationToken::new();
-    let ids = BetaCaveBlockIds::resolve(super::corpus());
-    let table = super::beta_carver_table(&biome_source);
+mod exhaustive {
+    use super::*;
 
-    let world_seed = router.world_seed as i64;
-    let y_sections: Vec<i32> = (0..8).collect();
+    /// Carve-mask parity gate: for each chunk in the fixture corpus, build a full
+    /// 16x16 section palette from `pre_cave` bytes, carve it at seed
+    /// 12345, convert the result back to Beta block IDs, and assert equality with
+    /// `post_cave`.
+    ///
+    /// The fixed-terrain input (pre_cave from the corpus) removes f32 terrain
+    /// divergence by construction, so any carve-mask mismatch is a real parity bug.
+    #[test]
+    fn beta_cave_parity_gate() {
+        let corpus = load_corpus();
+        let router = build_beta_router();
+        let table = crate::tests::beta_carver_table(&build_beta_biome_source().0);
 
-    let chunk_x = 0i32;
-    let chunk_z = 0i32;
+        let world_seed: i64 = 12345;
+        let y_sections: Vec<i32> = (0..8).collect();
 
-    let mut sections = generate_column(
-        chunk_x,
-        chunk_z,
-        &y_sections,
-        &router,
-        Some((&biome_source, &snapshot)),
-        None,
-        &cancel,
-    );
-
-    let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-    let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    apply_beta_surface(
-        &column,
-        chunk_x * 16,
-        chunk_z * 16,
-        &router,
-        &biome_source,
-        super::corpus(),
-        &mut rng,
-    );
-    column.write_back(&mut sections);
-
-    let column = ColumnBlocks::from_sections(&sections, &y_sections);
-    carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
-    column.write_back(&mut sections);
-
-    let air = ids.air;
-    let lava = ids.lava;
-
-    let mut found_cave_air = false;
-    let mut found_lava_below_10 = false;
-
-    for local_x in 0..16i32 {
-        for local_z in 0..16i32 {
-            // Find surface Y (topmost non-air).
-            let mut surface_y = 0i32;
-            'surface: for si in (0..y_sections.len()).rev() {
-                let sy = y_sections[si];
-                if let Some(Some((blocks, _))) = sections.get(si) {
-                    let base_y = sy * 16;
-                    for local_y in (0..16i32).rev() {
-                        if blocks.get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
-                            != air
-                        {
-                            surface_y = base_y + local_y;
-                            break 'surface;
-                        }
-                    }
-                }
-            }
-
-            // Check below surface for cave air, and at/below Y 10 for lava.
-            for (si, &sy) in y_sections.iter().enumerate() {
-                if let Some(Some((blocks, _))) = sections.get(si) {
-                    let base_y = sy * 16;
-                    for local_y in 0..16i32 {
-                        let world_y = base_y + local_y;
-                        if world_y >= surface_y {
-                            continue;
-                        }
-                        let state =
-                            blocks.get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
-                        if state == air {
-                            found_cave_air = true;
-                        }
-                        if state == lava && world_y <= 10 {
-                            found_lava_below_10 = true;
-                        }
-                    }
-                }
-            }
+        let mut chunks: BTreeMap<(i32, i32), Vec<&ColumnFixture>> = BTreeMap::new();
+        for col in &corpus.columns {
+            let cx = col.wx >> 4;
+            let cz = col.wz >> 4;
+            chunks.entry((cx, cz)).or_default().push(col);
         }
-    }
 
-    assert!(
-        found_cave_air,
-        "chunk (0,0) at seed 12345 must contain cave air below the surface"
-    );
-    assert!(
-        found_lava_below_10,
-        "chunk (0,0) at seed 12345 must contain lava at/below Y 10 from cave carving"
-    );
-}
+        let mut total_columns: u64 = 0;
+        let mut mismatches: Vec<(i32, i32, Vec<(i32, u8, u8)>)> = Vec::new();
 
-/// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_carvers
-/// (exactly as `chunk.rs` does) across an 8x8 chunk grid at seed 12345 and count
-/// air voxels strictly below Y 32. Beta produces no noise caverns, so any air that
-/// deep can only come from the carver. Prints per-chunk counts and requires at
-/// least one chunk to contain deep cave air.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn beta_real_pipeline_has_cave_air_below_y32() {
-    let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
-    let cancel = CancellationToken::new();
-    let ids = BetaCaveBlockIds::resolve(super::corpus());
-    let table = super::beta_carver_table(&biome_source);
-    let world_seed = router.world_seed as i64;
-    let y_sections: Vec<i32> = (0..8).collect();
-    let air = ids.air;
+        for ((cx, cz), fixture_cols) in &chunks {
+            let block_x = cx * 16;
+            let block_z = cz * 16;
 
-    let mut chunks_with_air = 0usize;
-    let mut total_air = 0usize;
+            let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = (0..y_sections.len())
+                .map(|_| Some((BlockPalette::default(), BiomePalette::default())))
+                .collect();
 
-    for chunk_x in 0..8i32 {
-        for chunk_z in 0..8i32 {
-            let mut sections = generate_column(
-                chunk_x,
-                chunk_z,
-                &y_sections,
-                &router,
-                Some((&biome_source, &snapshot)),
-                None,
-                &cancel,
-            );
-            let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
-            let column = ColumnBlocks::from_sections(&sections, &y_sections);
-            apply_beta_surface(
-                &column,
-                chunk_x * 16,
-                chunk_z * 16,
-                &router,
-                &biome_source,
-                super::corpus(),
-                &mut rng,
-            );
-            column.write_back(&mut sections);
-            let column = ColumnBlocks::from_sections(&sections, &y_sections);
-            carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
-            column.write_back(&mut sections);
-
-            let mut air_below_32 = 0usize;
-            for (si, &sy) in y_sections.iter().enumerate() {
-                let base_y = sy * 16;
-                if base_y >= 32 {
-                    continue;
-                }
-                if let Some(Some((blocks, _))) = sections.get(si) {
-                    for local_x in 0..16i32 {
-                        for local_z in 0..16i32 {
-                            for local_y in 0..16i32 {
-                                if base_y + local_y >= 32 {
-                                    continue;
-                                }
-                                if blocks
-                                    .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
-                                    == air
-                                {
-                                    air_below_32 += 1;
-                                }
+            for fix_col in fixture_cols.iter() {
+                let local_x = fix_col.wx - block_x;
+                let local_z = fix_col.wz - block_z;
+                for (si, &sy) in y_sections.iter().enumerate() {
+                    let base_y = sy * 16;
+                    if let Some(Some((palette, _))) = sections.get_mut(si) {
+                        for local_y in 0..16i32 {
+                            let world_y = base_y + local_y;
+                            if world_y < 128 {
+                                let beta_id = fix_col.pre_cave[world_y as usize];
+                                palette.set(
+                                    LocalPos::from(BlockPos::new(local_x, local_y, local_z)),
+                                    modern_id_for_beta(beta_id).into(),
+                                );
                             }
                         }
                     }
                 }
             }
 
-            if air_below_32 > 0 {
-                chunks_with_air += 1;
-                total_air += air_below_32;
-                eprintln!("chunk ({chunk_x},{chunk_z}): {air_below_32} air voxels below Y 32");
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
+            carve(&column, *cx, *cz, world_seed, &router, &table);
+            column.write_back(&mut sections);
+
+            for fix_col in fixture_cols.iter() {
+                total_columns += 1;
+                let local_x = fix_col.wx - block_x;
+                let local_z = fix_col.wz - block_z;
+
+                let mut col_mismatches: Vec<(i32, u8, u8)> = Vec::new();
+                for (si, &sy) in y_sections.iter().enumerate() {
+                    if let Some(Some((palette, _))) = sections.get(si) {
+                        let base_y = sy * 16;
+                        for local_y in 0..16i32 {
+                            let world_y = base_y + local_y;
+                            if world_y < 128 {
+                                let state = palette
+                                    .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
+                                let got = beta_id_for_modern(state.into());
+                                let want = fix_col.post_cave[world_y as usize];
+                                if got != want {
+                                    col_mismatches.push((world_y, got, want));
+                                }
+                            }
+                        }
+                    }
+                }
+                if !col_mismatches.is_empty() {
+                    mismatches.push((fix_col.wx, fix_col.wz, col_mismatches));
+                }
             }
+        }
+
+        if !mismatches.is_empty() {
+            let first_10: Vec<String> = mismatches
+                .iter()
+                .take(10)
+                .map(|(wx, wz, diffs)| {
+                    let first_diff = diffs
+                        .first()
+                        .map(|(y, got, want)| format!("Y={} got={} want={}", y, got, want))
+                        .unwrap_or_default();
+                    format!(
+                        "  ({:+5},{:+5}): {} block mismatches [{}]",
+                        wx,
+                        wz,
+                        diffs.len(),
+                        first_diff
+                    )
+                })
+                .collect();
+
+            panic!(
+                "\nBETA CAVE PARITY GATE FAILED\n\
+             Columns: {} total, {} mismatched\n\
+             First offenders:\n{}\n",
+                total_columns,
+                mismatches.len(),
+                first_10.join("\n"),
+            );
+        }
+
+        assert_eq!(
+            mismatches.len(),
+            0,
+            "cave parity: {} mismatches / {} columns",
+            mismatches.len(),
+            total_columns
+        );
+    }
+
+    #[test]
+    fn beta_cave_draw_count_pin() {
+        let count = count_rng_draws_for_chunk(0, 0, 12345);
+
+        if DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
+            // First run: print the value for pinning.
+            println!("DRAW COUNT PIN (chunk 0,0 seed 12345): {}", count);
+            assert!(count > 0, "carver must consume RNG draws");
+        } else {
+            assert_eq!(
+                count, DRAW_COUNT_CHUNK_0_0_SEED_12345,
+                "LegacyRandom draw count for chunk (0,0) at seed 12345 changed: expected {}, got {}",
+                DRAW_COUNT_CHUNK_0_0_SEED_12345, count,
+            );
         }
     }
 
-    eprintln!(
-        "REAL PIPELINE seed 12345: {chunks_with_air}/64 chunks have cave air below Y 32; {total_air} air voxels total"
-    );
+    /// Integration smoke: a Beta column generated through the full path (terrain +
+    /// surface + caves) at seed 12345 has cave air below the surface and lava at/below Y 10.
+    #[test]
+    fn generate_column_beta_has_caves() {
+        let router = build_beta_router();
+        let (biome_source, snapshot) = build_beta_biome_source();
+        let cancel = CancellationToken::new();
+        let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
+        let table = crate::tests::beta_carver_table(&biome_source);
 
-    assert!(
-        chunks_with_air >= 1,
-        "real Beta generation pipeline must produce at least 1 chunk with air below Y 32"
-    );
+        let world_seed = router.world_seed as i64;
+        let y_sections: Vec<i32> = (0..8).collect();
+
+        let chunk_x = 0i32;
+        let chunk_z = 0i32;
+
+        let mut sections = generate_column(
+            chunk_x,
+            chunk_z,
+            &y_sections,
+            &router,
+            Some((&biome_source, &snapshot)),
+            None,
+            &cancel,
+        );
+
+        let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
+        let column = ColumnBlocks::from_sections(&sections, &y_sections);
+        apply_beta_surface(
+            &column,
+            chunk_x * 16,
+            chunk_z * 16,
+            &router,
+            &biome_source,
+            crate::tests::corpus(),
+            &mut rng,
+        );
+        column.write_back(&mut sections);
+
+        let column = ColumnBlocks::from_sections(&sections, &y_sections);
+        carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
+        column.write_back(&mut sections);
+
+        let air = ids.air;
+        let lava = ids.lava;
+
+        let mut found_cave_air = false;
+        let mut found_lava_below_10 = false;
+
+        for local_x in 0..16i32 {
+            for local_z in 0..16i32 {
+                // Find surface Y (topmost non-air).
+                let mut surface_y = 0i32;
+                'surface: for si in (0..y_sections.len()).rev() {
+                    let sy = y_sections[si];
+                    if let Some(Some((blocks, _))) = sections.get(si) {
+                        let base_y = sy * 16;
+                        for local_y in (0..16i32).rev() {
+                            if blocks.get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                                != air
+                            {
+                                surface_y = base_y + local_y;
+                                break 'surface;
+                            }
+                        }
+                    }
+                }
+
+                // Check below surface for cave air, and at/below Y 10 for lava.
+                for (si, &sy) in y_sections.iter().enumerate() {
+                    if let Some(Some((blocks, _))) = sections.get(si) {
+                        let base_y = sy * 16;
+                        for local_y in 0..16i32 {
+                            let world_y = base_y + local_y;
+                            if world_y >= surface_y {
+                                continue;
+                            }
+                            let state = blocks
+                                .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
+                            if state == air {
+                                found_cave_air = true;
+                            }
+                            if state == lava && world_y <= 10 {
+                                found_lava_below_10 = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(
+            found_cave_air,
+            "chunk (0,0) at seed 12345 must contain cave air below the surface"
+        );
+        assert!(
+            found_lava_below_10,
+            "chunk (0,0) at seed 12345 must contain lava at/below Y 10 from cave carving"
+        );
+    }
+
+    /// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_carvers
+    /// (exactly as `chunk.rs` does) across an 8x8 chunk grid at seed 12345 and count
+    /// air voxels strictly below Y 32. Beta produces no noise caverns, so any air that
+    /// deep can only come from the carver. Prints per-chunk counts and requires at
+    /// least one chunk to contain deep cave air.
+    #[test]
+    fn beta_real_pipeline_has_cave_air_below_y32() {
+        let router = build_beta_router();
+        let (biome_source, snapshot) = build_beta_biome_source();
+        let cancel = CancellationToken::new();
+        let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
+        let table = crate::tests::beta_carver_table(&biome_source);
+        let world_seed = router.world_seed as i64;
+        let y_sections: Vec<i32> = (0..8).collect();
+        let air = ids.air;
+
+        let mut chunks_with_air = 0usize;
+        let mut total_air = 0usize;
+
+        for chunk_x in 0..8i32 {
+            for chunk_z in 0..8i32 {
+                let mut sections = generate_column(
+                    chunk_x,
+                    chunk_z,
+                    &y_sections,
+                    &router,
+                    Some((&biome_source, &snapshot)),
+                    None,
+                    &cancel,
+                );
+                let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);
+                let column = ColumnBlocks::from_sections(&sections, &y_sections);
+                apply_beta_surface(
+                    &column,
+                    chunk_x * 16,
+                    chunk_z * 16,
+                    &router,
+                    &biome_source,
+                    crate::tests::corpus(),
+                    &mut rng,
+                );
+                column.write_back(&mut sections);
+                let column = ColumnBlocks::from_sections(&sections, &y_sections);
+                carve(&column, chunk_x, chunk_z, world_seed, &router, &table);
+                column.write_back(&mut sections);
+
+                let mut air_below_32 = 0usize;
+                for (si, &sy) in y_sections.iter().enumerate() {
+                    let base_y = sy * 16;
+                    if base_y >= 32 {
+                        continue;
+                    }
+                    if let Some(Some((blocks, _))) = sections.get(si) {
+                        for local_x in 0..16i32 {
+                            for local_z in 0..16i32 {
+                                for local_y in 0..16i32 {
+                                    if base_y + local_y >= 32 {
+                                        continue;
+                                    }
+                                    if blocks.get(LocalPos::from(BlockPos::new(
+                                        local_x, local_y, local_z,
+                                    ))) == air
+                                    {
+                                        air_below_32 += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if air_below_32 > 0 {
+                    chunks_with_air += 1;
+                    total_air += air_below_32;
+                    eprintln!("chunk ({chunk_x},{chunk_z}): {air_below_32} air voxels below Y 32");
+                }
+            }
+        }
+
+        eprintln!(
+            "REAL PIPELINE seed 12345: {chunks_with_air}/64 chunks have cave air below Y 32; {total_air} air voxels total"
+        );
+
+        assert!(
+            chunks_with_air >= 1,
+            "real Beta generation pipeline must produce at least 1 chunk with air below Y 32"
+        );
+    }
 }

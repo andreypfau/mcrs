@@ -2329,116 +2329,392 @@ mod tests {
         assert_eq!(junction.get_string("dest_proj"), Some("terrain_matching"));
     }
 
-    #[test]
-    fn a_jungle_temple_piece_round_trips_with_its_constant_fields() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
+    #[derive(Clone, Copy)]
+    enum Field {
+        Int(i32),
+        Byte(i8),
+        Str(&'static str),
+        Ints(&'static [i32]),
+    }
+
+    type Fields = &'static [(&'static str, Field)];
+
+    struct Case {
+        liquid_settings: LiquidSettings,
+        structure: StructureId,
+        piece: Piece,
+        fields: Vec<(&'static str, Field)>,
+        child_count: Option<usize>,
+    }
+
+    fn case(piece: Piece, fields: &[(&'static str, Field)]) -> Case {
+        Case {
+            liquid_settings: LiquidSettings::ApplyWaterlogging,
             structure: StructureId(0),
-        };
-        let piece = Piece::JungleTemple(JungleTemplePiece {
-            bounds: BoundingBox {
-                min: BlockPos::new(-32, 64, 48),
-                max: BlockPos::new(-18, 73, 59),
+            piece,
+            fields: fields.to_vec(),
+            child_count: None,
+        }
+    }
+
+    fn cases() -> Vec<Case> {
+        use Field::*;
+        let mut cases = vec![
+            Case {
+                child_count: Some(12),
+                ..case(
+                    Piece::JungleTemple(JungleTemplePiece {
+                        bounds: BoundingBox {
+                            min: BlockPos::new(-32, 64, 48),
+                            max: BlockPos::new(-18, 73, 59),
+                        },
+                        orientation: Orientation::East,
+                        height_position: 70,
+                    }),
+                    &[
+                        ("id", Str("minecraft:tejp")),
+                        ("O", Int(3)),
+                        ("GD", Int(0)),
+                        ("Width", Int(12)),
+                        ("Height", Int(10)),
+                        ("Depth", Int(15)),
+                        ("HPos", Int(70)),
+                        ("placedMainChest", Byte(0)),
+                        ("placedTrap2", Byte(0)),
+                    ],
+                )
             },
-            orientation: Orientation::East,
-            height_position: 70,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:tejp"));
-        assert_eq!(tag.get_int("O"), Some(3));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.get_int("Width"), Some(12));
-        assert_eq!(tag.get_int("Height"), Some(10));
-        assert_eq!(tag.get_int("Depth"), Some(15));
-        assert_eq!(tag.get_int("HPos"), Some(70));
-        assert_eq!(tag.get_byte("placedMainChest"), Some(0));
-        assert_eq!(tag.get_byte("placedTrap2"), Some(0));
-        assert_eq!(tag.child_tags.len(), 12);
-    }
+            Case {
+                child_count: Some(4),
+                ..case(
+                    Piece::BuriedTreasure(BuriedTreasurePiece {
+                        bounds: BoundingBox::point(BlockPos::new(-23, 90, 41)),
+                    }),
+                    &[
+                        ("id", Str("minecraft:btp")),
+                        ("BB", Ints(&[-23, 90, 41, -23, 90, 41])),
+                        ("O", Int(-1)),
+                        ("GD", Int(0)),
+                    ],
+                )
+            },
+            Case {
+                child_count: Some(9),
+                ..case(
+                    Piece::Igloo(IglooPiece {
+                        template: IglooTemplate::Middle,
+                        position: IVec3::new(-30, 84, 52),
+                        rotation: Rotation::Counterclockwise90,
+                        bounds: BoundingBox {
+                            min: BlockPos::new(-30, 84, 52),
+                            max: BlockPos::new(-28, 86, 54),
+                        },
+                        height: 57,
+                    }),
+                    &[
+                        ("id", Str("minecraft:iglu")),
+                        ("O", Int(2)),
+                        ("GD", Int(0)),
+                        ("TPX", Int(-30)),
+                        ("TPY", Int(57)),
+                        ("TPZ", Int(52)),
+                        ("Template", Str("minecraft:igloo/middle")),
+                        ("Rot", Str("COUNTERCLOCKWISE_90")),
+                    ],
+                )
+            },
+            Case {
+                liquid_settings: LiquidSettings::IgnoreWaterlogging,
+                ..case(
+                    piece(0, Projection::Rigid),
+                    &[("liquid_settings", Str("ignore_waterlogging"))],
+                )
+            },
+        ];
 
-    #[test]
-    fn a_buried_treasure_piece_round_trips_as_its_box_alone() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = Piece::BuriedTreasure(BuriedTreasurePiece {
-            bounds: BoundingBox::point(BlockPos::new(-23, 90, 41)),
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:btp"));
-        assert_eq!(
-            tag.get_int_array("BB").map(<[i32]>::to_vec),
-            Some(vec![-23, 90, 41, -23, 90, 41])
-        );
-        assert_eq!(tag.get_int("O"), Some(-1));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.child_tags.len(), 4);
-    }
-
-    #[test]
-    fn fortress_pieces_round_trip_with_their_constructor_state() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let bounds = BoundingBox {
+        let fortress_bounds = BoundingBox {
             min: BlockPos::new(-94, 53, 146),
             max: BlockPos::new(-90, 62, 153),
         };
-        let piece = |kind| {
-            Piece::Fortress(FortressPiece {
-                kind,
-                bounds,
-                orientation: Orientation::West,
-                gen_depth: 7,
-            })
-        };
-        for (kind, id) in [
-            (FortressKind::BridgeCrossing, "minecraft:nebcr"),
+        let fortress: [(FortressKind, &str, Fields); 6] = [
+            (FortressKind::BridgeCrossing, "minecraft:nebcr", &[]),
             (
                 FortressKind::BridgeEndFiller { seed: -1_234_567 },
                 "minecraft:nebef",
+                &[("Seed", Int(-1_234_567))],
             ),
             (
                 FortressKind::SmallCorridorLeftTurn { chest: true },
                 "minecraft:nesclt",
+                &[("Chest", Byte(1))],
             ),
             (
                 FortressKind::SmallCorridorRightTurn { chest: false },
                 "minecraft:nescrt",
+                &[("Chest", Byte(0))],
             ),
-            (FortressKind::MonsterThrone, "minecraft:nemt"),
-            (FortressKind::StairsRoom, "minecraft:nesr"),
-        ] {
-            let piece = piece(kind);
+            (
+                FortressKind::MonsterThrone,
+                "minecraft:nemt",
+                &[("Mob", Byte(0))],
+            ),
+            (FortressKind::StairsRoom, "minecraft:nesr", &[]),
+        ];
+        for (kind, id, extra) in fortress {
+            let mut fields = vec![
+                ("id", Str(id)),
+                ("O", Int(1)),
+                ("GD", Int(7)),
+                ("BB", Ints(&[-94, 53, 146, -90, 62, 153])),
+            ];
+            fields.extend_from_slice(extra);
+            cases.push(case(
+                Piece::Fortress(FortressPiece {
+                    kind,
+                    bounds: fortress_bounds,
+                    orientation: Orientation::West,
+                    gen_depth: 7,
+                }),
+                &fields,
+            ));
+        }
+
+        let stronghold: [(StrongholdKind, SmallDoor, &str, &str, Fields); 13] = [
+            (
+                StrongholdKind::Start,
+                SmallDoor::Opening,
+                "minecraft:shstart",
+                "OPENING",
+                &[("Source", Byte(1))],
+            ),
+            (
+                StrongholdKind::StairsDown,
+                SmallDoor::WoodDoor,
+                "minecraft:shsd",
+                "WOOD_DOOR",
+                &[("Source", Byte(0))],
+            ),
+            (
+                StrongholdKind::Straight {
+                    left: true,
+                    right: false,
+                },
+                SmallDoor::IronDoor,
+                "minecraft:shs",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::PrisonHall,
+                SmallDoor::IronDoor,
+                "minecraft:shph",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::LeftTurn,
+                SmallDoor::IronDoor,
+                "minecraft:shlt",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::RightTurn,
+                SmallDoor::IronDoor,
+                "minecraft:shrt",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::RoomCrossing { variant: 4 },
+                SmallDoor::Opening,
+                "minecraft:shrc",
+                "OPENING",
+                &[("Type", Int(4))],
+            ),
+            (
+                StrongholdKind::StraightStairsDown,
+                SmallDoor::IronDoor,
+                "minecraft:shssd",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::FiveCrossing {
+                    left_low: true,
+                    left_high: false,
+                    right_low: false,
+                    right_high: true,
+                },
+                SmallDoor::Grates,
+                "minecraft:sh5c",
+                "GRATES",
+                &[("leftLow", Byte(1)), ("rightLow", Byte(0))],
+            ),
+            (
+                StrongholdKind::ChestCorridor,
+                SmallDoor::Opening,
+                "minecraft:shcc",
+                "OPENING",
+                &[("Chest", Byte(0))],
+            ),
+            (
+                StrongholdKind::Library { tall: true },
+                SmallDoor::IronDoor,
+                "minecraft:shli",
+                "IRON_DOOR",
+                &[],
+            ),
+            (
+                StrongholdKind::PortalRoom,
+                SmallDoor::Opening,
+                "minecraft:shpr",
+                "OPENING",
+                &[("Mob", Byte(0))],
+            ),
+            (
+                StrongholdKind::FillerCorridor { steps: 3 },
+                SmallDoor::Opening,
+                "minecraft:shfc",
+                "OPENING",
+                &[("Steps", Int(3))],
+            ),
+        ];
+        for (kind, entry_door, id, door, extra) in stronghold {
+            let mut fields = vec![
+                ("id", Str(id)),
+                ("O", Int(0)),
+                ("GD", Int(3)),
+                ("EntryDoor", Str(door)),
+            ];
+            fields.extend_from_slice(extra);
+            cases.push(case(
+                Piece::Stronghold(StrongholdPiece {
+                    kind,
+                    entry_door,
+                    bounds: BoundingBox {
+                        min: BlockPos::new(1234, 24, -80),
+                        max: BlockPos::new(1238, 28, -74),
+                    },
+                    orientation: Orientation::South,
+                    gen_depth: 3,
+                }),
+                &fields,
+            ));
+        }
+
+        type MineshaftRow = (
+            MineshaftKind,
+            Option<Orientation>,
+            i32,
+            &'static str,
+            i32,
+            Fields,
+        );
+        let mineshaft: [MineshaftRow; 4] = [
+            (
+                MineshaftKind::Room {
+                    entrances: vec![mineshaft_entrance()],
+                },
+                None,
+                0,
+                "minecraft:msroom",
+                -1,
+                &[],
+            ),
+            (
+                MineshaftKind::Corridor {
+                    has_rails: true,
+                    spider_corridor: false,
+                    num_sections: 3,
+                    spawner_host: None,
+                },
+                Some(Orientation::West),
+                4,
+                "minecraft:mscorridor",
+                1,
+                &[],
+            ),
+            (
+                MineshaftKind::Crossing { two_floored: true },
+                Some(Orientation::East),
+                2,
+                "minecraft:mscrossing",
+                -1,
+                &[("D", Byte(3)), ("tf", Byte(1))],
+            ),
+            (
+                MineshaftKind::Stairs,
+                Some(Orientation::South),
+                7,
+                "minecraft:msstairs",
+                0,
+                &[],
+            ),
+        ];
+        for (kind, direction, gen_depth, id, orientation, extra) in mineshaft {
+            let mut fields = vec![("id", Str(id)), ("O", Int(orientation)), ("MST", Int(1))];
+            fields.extend_from_slice(extra);
+            cases.push(Case {
+                structure: StructureId(1),
+                ..case(
+                    Piece::Mineshaft(MineshaftPiece {
+                        kind,
+                        bounds: mineshaft_bounds(),
+                        direction,
+                        gen_depth,
+                    }),
+                    &fields,
+                )
+            });
+        }
+        cases
+    }
+
+    #[test]
+    fn pieces_round_trip_through_nbt_as_the_reference_writes_them() {
+        for Case {
+            liquid_settings,
+            structure,
+            piece,
+            fields,
+            child_count,
+        } in cases()
+        {
+            let frozen = frozen(liquid_settings);
+            let context = PieceContext {
+                frozen: &frozen,
+                structure,
+            };
             assert_eq!(round_trip(&context, &piece), piece);
             let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-            assert_eq!(tag.get_string("id"), Some(id));
-            assert_eq!(tag.get_int("O"), Some(1));
-            assert_eq!(tag.get_int("GD"), Some(7));
-            assert_eq!(
-                tag.get_int_array("BB").map(<[i32]>::to_vec),
-                Some(vec![-94, 53, 146, -90, 62, 153])
-            );
+            for (key, field) in fields {
+                let written = match field {
+                    Field::Int(value) => tag.get_int(key) == Some(value),
+                    Field::Byte(value) => tag.get_byte(key) == Some(value),
+                    Field::Str(value) => tag.get_string(key) == Some(value),
+                    Field::Ints(value) => tag.get_int_array(key) == Some(value),
+                };
+                assert!(written, "{key} of {piece:?}");
+            }
+            if let Some(count) = child_count {
+                assert_eq!(tag.child_tags.len(), count, "{piece:?}");
+            }
         }
-        let filler = to_nbt_compound(
-            &piece(FortressKind::BridgeEndFiller { seed: -1_234_567 }).nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(filler.get_int("Seed"), Some(-1_234_567));
-        let turn = to_nbt_compound(
-            &piece(FortressKind::SmallCorridorLeftTurn { chest: true }).nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(turn.get_byte("Chest"), Some(1));
-        let throne = to_nbt_compound(&piece(FortressKind::MonsterThrone).nbt(&context)).unwrap();
-        assert_eq!(throne.get_byte("Mob"), Some(0));
+    }
+
+    fn mineshaft_bounds() -> BoundingBox {
+        BoundingBox {
+            min: BlockPos::new(18, 25, -40),
+            max: BlockPos::new(29, 33, -30),
+        }
+    }
+
+    fn mineshaft_entrance() -> BoundingBox {
+        BoundingBox {
+            min: BlockPos::new(20, 26, -40),
+            max: BlockPos::new(22, 28, -39),
+        }
     }
 
     #[test]
@@ -2482,78 +2758,20 @@ mod tests {
     }
 
     #[test]
-    fn mineshaft_pieces_round_trip_with_the_structure_s_type() {
+    fn a_mineshaft_room_carries_its_entrances_and_its_mineshaft_type() {
         let frozen = frozen(LiquidSettings::ApplyWaterlogging);
         let mesa = PieceContext {
             frozen: &frozen,
             structure: StructureId(1),
         };
-        let bounds = BoundingBox {
-            min: BlockPos::new(18, 25, -40),
-            max: BlockPos::new(29, 33, -30),
-        };
-        let entrance = BoundingBox {
-            min: BlockPos::new(20, 26, -40),
-            max: BlockPos::new(22, 28, -39),
-        };
-        let pieces = [
-            (
-                MineshaftPiece {
-                    kind: MineshaftKind::Room {
-                        entrances: vec![entrance],
-                    },
-                    bounds,
-                    direction: None,
-                    gen_depth: 0,
-                },
-                "minecraft:msroom",
-                -1,
-            ),
-            (
-                MineshaftPiece {
-                    kind: MineshaftKind::Corridor {
-                        has_rails: true,
-                        spider_corridor: false,
-                        num_sections: 3,
-                        spawner_host: None,
-                    },
-                    bounds,
-                    direction: Some(Orientation::West),
-                    gen_depth: 4,
-                },
-                "minecraft:mscorridor",
-                1,
-            ),
-            (
-                MineshaftPiece {
-                    kind: MineshaftKind::Crossing { two_floored: true },
-                    bounds,
-                    direction: Some(Orientation::East),
-                    gen_depth: 2,
-                },
-                "minecraft:mscrossing",
-                -1,
-            ),
-            (
-                MineshaftPiece {
-                    kind: MineshaftKind::Stairs,
-                    bounds,
-                    direction: Some(Orientation::South),
-                    gen_depth: 7,
-                },
-                "minecraft:msstairs",
-                0,
-            ),
-        ];
-        for (piece, id, orientation) in pieces {
-            let piece = Piece::Mineshaft(piece);
-            assert_eq!(round_trip(&mesa, &piece), piece);
-            let tag = to_nbt_compound(&piece.nbt(&mesa)).unwrap();
-            assert_eq!(tag.get_string("id"), Some(id));
-            assert_eq!(tag.get_int("O"), Some(orientation));
-            assert_eq!(tag.get_int("MST"), Some(1));
-        }
-        let room = Piece::Mineshaft(pieces_room(bounds, entrance));
+        let room = Piece::Mineshaft(MineshaftPiece {
+            kind: MineshaftKind::Room {
+                entrances: vec![mineshaft_entrance()],
+            },
+            bounds: mineshaft_bounds(),
+            direction: None,
+            gen_depth: 0,
+        });
         let tag = to_nbt_compound(&room.nbt(&mesa)).unwrap();
         let entrances = tag.get_list("Entrances").unwrap();
         assert_eq!(
@@ -2571,19 +2789,6 @@ mod tests {
         };
         assert_eq!(entrances[0].min.y, 31);
 
-        let crossing = to_nbt_compound(
-            &Piece::Mineshaft(MineshaftPiece {
-                kind: MineshaftKind::Crossing { two_floored: false },
-                bounds,
-                direction: Some(Orientation::East),
-                gen_depth: 2,
-            })
-            .nbt(&mesa),
-        )
-        .unwrap();
-        assert_eq!(crossing.get_byte("D"), Some(3));
-        assert_eq!(crossing.get_byte("tf"), Some(0));
-
         let normal = PieceContext {
             frozen: &frozen,
             structure: StructureId(0),
@@ -2598,202 +2803,29 @@ mod tests {
         );
     }
 
-    fn pieces_room(bounds: BoundingBox, entrance: BoundingBox) -> MineshaftPiece {
-        MineshaftPiece {
-            kind: MineshaftKind::Room {
-                entrances: vec![entrance],
-            },
-            bounds,
-            direction: None,
-            gen_depth: 0,
-        }
-    }
-
     #[test]
-    fn an_igloo_piece_writes_its_lowered_template_position_under_the_layout_box() {
+    fn a_piece_the_frozen_set_cannot_resolve_is_refused() {
         let frozen = frozen(LiquidSettings::ApplyWaterlogging);
         let context = PieceContext {
             frozen: &frozen,
             structure: StructureId(0),
         };
-        let piece = Piece::Igloo(IglooPiece {
-            template: IglooTemplate::Middle,
-            position: IVec3::new(-30, 84, 52),
-            rotation: Rotation::Counterclockwise90,
-            bounds: BoundingBox {
-                min: BlockPos::new(-30, 84, 52),
-                max: BlockPos::new(-28, 86, 54),
-            },
-            height: 57,
-        });
-        assert_eq!(round_trip(&context, &piece), piece);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(tag.get_string("id"), Some("minecraft:iglu"));
-        assert_eq!(tag.get_int("O"), Some(2));
-        assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(
-            (tag.get_int("TPX"), tag.get_int("TPY"), tag.get_int("TPZ")),
-            (Some(-30), Some(57), Some(52))
-        );
-        assert_eq!(tag.get_string("Template"), Some("minecraft:igloo/middle"));
-        assert_eq!(tag.get_string("Rot"), Some("COUNTERCLOCKWISE_90"));
-        assert_eq!(tag.child_tags.len(), 9);
-
-        let json = r#"{"id":"minecraft:iglu","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:igloo/roof","Rot":"NONE"}"#;
-        let mut deserializer = serde_json::Deserializer::from_str(json);
-        assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
-    }
-
-    #[test]
-    fn stronghold_pieces_round_trip_with_their_doors_and_constructor_state() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let bounds = BoundingBox {
-            min: BlockPos::new(1234, 24, -80),
-            max: BlockPos::new(1238, 28, -74),
-        };
-        let piece = |kind, entry_door| {
-            Piece::Stronghold(StrongholdPiece {
-                kind,
-                entry_door,
-                bounds,
-                orientation: Orientation::South,
-                gen_depth: 3,
-            })
-        };
-        for (kind, id) in [
-            (StrongholdKind::Start, "minecraft:shstart"),
-            (StrongholdKind::StairsDown, "minecraft:shsd"),
-            (
-                StrongholdKind::Straight {
-                    left: true,
-                    right: false,
-                },
-                "minecraft:shs",
-            ),
-            (StrongholdKind::PrisonHall, "minecraft:shph"),
-            (StrongholdKind::LeftTurn, "minecraft:shlt"),
-            (StrongholdKind::RightTurn, "minecraft:shrt"),
-            (
-                StrongholdKind::RoomCrossing { variant: 2 },
-                "minecraft:shrc",
-            ),
-            (StrongholdKind::StraightStairsDown, "minecraft:shssd"),
-            (
-                StrongholdKind::FiveCrossing {
-                    left_low: true,
-                    left_high: false,
-                    right_low: false,
-                    right_high: true,
-                },
-                "minecraft:sh5c",
-            ),
-            (StrongholdKind::ChestCorridor, "minecraft:shcc"),
-            (StrongholdKind::Library { tall: true }, "minecraft:shli"),
-            (StrongholdKind::PortalRoom, "minecraft:shpr"),
-            (
-                StrongholdKind::FillerCorridor { steps: 3 },
-                "minecraft:shfc",
-            ),
-        ] {
-            let piece = piece(kind, SmallDoor::IronDoor);
-            assert_eq!(round_trip(&context, &piece), piece);
-            let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-            assert_eq!(tag.get_string("id"), Some(id));
-            assert_eq!(tag.get_int("O"), Some(0));
-            assert_eq!(tag.get_int("GD"), Some(3));
-            assert_eq!(tag.get_string("EntryDoor"), Some("IRON_DOOR"));
-        }
-        let start =
-            to_nbt_compound(&piece(StrongholdKind::Start, SmallDoor::Opening).nbt(&context))
-                .unwrap();
-        assert_eq!(start.get_byte("Source"), Some(1));
-        assert_eq!(start.get_string("EntryDoor"), Some("OPENING"));
-        let stairs =
-            to_nbt_compound(&piece(StrongholdKind::StairsDown, SmallDoor::WoodDoor).nbt(&context))
-                .unwrap();
-        assert_eq!(stairs.get_byte("Source"), Some(0));
-        assert_eq!(stairs.get_string("EntryDoor"), Some("WOOD_DOOR"));
-        let crossing = to_nbt_compound(
-            &piece(
-                StrongholdKind::FiveCrossing {
-                    left_low: true,
-                    left_high: false,
-                    right_low: false,
-                    right_high: true,
-                },
-                SmallDoor::Grates,
-            )
-            .nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(crossing.get_byte("leftLow"), Some(1));
-        assert_eq!(crossing.get_byte("rightLow"), Some(0));
-        assert_eq!(crossing.get_string("EntryDoor"), Some("GRATES"));
-        let room = to_nbt_compound(
-            &piece(
-                StrongholdKind::RoomCrossing { variant: 4 },
-                SmallDoor::Opening,
-            )
-            .nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(room.get_int("Type"), Some(4));
-        let filler = to_nbt_compound(
-            &piece(
-                StrongholdKind::FillerCorridor { steps: 3 },
-                SmallDoor::Opening,
-            )
-            .nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(filler.get_int("Steps"), Some(3));
-        let portal =
-            to_nbt_compound(&piece(StrongholdKind::PortalRoom, SmallDoor::Opening).nbt(&context))
-                .unwrap();
-        assert_eq!(portal.get_byte("Mob"), Some(0));
-        let corridor = to_nbt_compound(
-            &piece(StrongholdKind::ChestCorridor, SmallDoor::Opening).nbt(&context),
-        )
-        .unwrap();
-        assert_eq!(corridor.get_byte("Chest"), Some(0));
-    }
-
-    #[test]
-    fn the_structure_liquid_settings_are_written_only_off_the_default() {
-        let frozen = frozen(LiquidSettings::IgnoreWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        let piece = piece(0, Projection::Rigid);
-        let tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
-        assert_eq!(
-            tag.get_string("liquid_settings"),
-            Some("ignore_waterlogging")
-        );
-        assert_eq!(round_trip(&context, &piece), piece);
-    }
-
-    #[test]
-    fn a_piece_naming_an_unloaded_template_or_element_is_refused() {
-        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
-        let context = PieceContext {
-            frozen: &frozen,
-            structure: StructureId(0),
-        };
-        for element in [
-            r#"{"element_type":"minecraft:single_pool_element","location":"minecraft:nowhere","processors":"minecraft:empty","projection":"rigid"}"#,
-            r#"{"element_type":"minecraft:single_pool_element","location":"minecraft:village/plains/houses/house_1","processors":"minecraft:mossify_10_percent","projection":"rigid"}"#,
-        ] {
-            let json = format!(
+        let jigsaw = |element: &str| {
+            format!(
                 r#"{{"id":"minecraft:jigsaw","BB":[0,0,0,1,1,1],"O":-1,"GD":0,"PosX":0,"PosY":0,"PosZ":0,"ground_level_delta":1,"pool_element":{element},"rotation":"NONE","junctions":[]}}"#
-            );
+            )
+        };
+        for json in [
+            jigsaw(
+                r#"{"element_type":"minecraft:single_pool_element","location":"minecraft:nowhere","processors":"minecraft:empty","projection":"rigid"}"#,
+            ),
+            jigsaw(
+                r#"{"element_type":"minecraft:single_pool_element","location":"minecraft:village/plains/houses/house_1","processors":"minecraft:mossify_10_percent","projection":"rigid"}"#,
+            ),
+            r#"{"id":"minecraft:iglu","BB":[0,0,0,1,1,1],"O":2,"GD":0,"TPX":0,"TPY":0,"TPZ":0,"Template":"minecraft:igloo/roof","Rot":"NONE"}"#.to_owned(),
+        ] {
             let mut deserializer = serde_json::Deserializer::from_str(&json);
-            assert!(PieceSeed(context).deserialize(&mut deserializer).is_err());
+            assert!(PieceSeed(context).deserialize(&mut deserializer).is_err(), "{json}");
         }
     }
 }

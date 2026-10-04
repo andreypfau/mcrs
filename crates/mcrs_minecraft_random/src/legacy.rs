@@ -154,7 +154,7 @@ mod test {
     use crate::legacy::LegacyRandom;
 
     #[test]
-    fn next_i32() {
+    fn every_draw_matches_the_java_sequence() {
         let mut random = LegacyRandom::new(123);
         let expected = [
             -1188957731,
@@ -170,6 +170,41 @@ mod test {
         ];
         for e in expected {
             assert_eq!(random.next_i32(), e);
+        }
+
+        let mut random = LegacyRandom::new(123);
+        assert_eq!(random.next_i32_bound(256), 185);
+        assert_eq!(random.next_i32_bound(255), 200);
+        assert_eq!(random.next_i32_bound(254), 74);
+
+        let mut random = LegacyRandom::new(256);
+        let draws: Vec<i32> = (0..4).map(|_| random.next_i32_bound(0x6000_0000)).collect();
+        assert_eq!(draws, [1129860750, 1377133019, 321559793, 615784825]);
+
+        let mut random = LegacyRandom::new(123);
+        let expected = [
+            0.72317415, 0.23724389, 0.99089885, 0.30157375, 0.2532931, 0.57412946, 0.60880035,
+            0.2588815, 0.80586946, 0.6223695,
+        ];
+        for e in expected {
+            assert_eq!(random.next_f32(), e);
+        }
+
+        let mut random = LegacyRandom::new(123);
+        let expected = [
+            0.7231742029971469,
+            0.9908988967772393,
+            0.25329310557439133,
+            0.6088003703785169,
+            0.8058695140834087,
+            0.8754127852514174,
+            0.7160485112997248,
+            0.07191702249367171,
+            0.7962609718390335,
+            0.5787169373422367,
+        ];
+        for e in expected {
+            assert_eq!(random.next_f64(), e);
         }
     }
 
@@ -193,33 +228,6 @@ mod test {
     }
 
     #[test]
-    fn next_i32_bound() {
-        let mut random = LegacyRandom::new(123);
-        assert_eq!(random.next_i32_bound(256), 185);
-        assert_eq!(random.next_i32_bound(255), 200);
-        assert_eq!(random.next_i32_bound(254), 74);
-    }
-
-    #[test]
-    fn next_i32_bound_rejects_the_partial_top_bucket() {
-        let mut random = LegacyRandom::new(256);
-        let draws: Vec<i32> = (0..4).map(|_| random.next_i32_bound(0x6000_0000)).collect();
-        assert_eq!(draws, [1129860750, 1377133019, 321559793, 615784825]);
-    }
-
-    #[test]
-    fn next_f32() {
-        let mut random = LegacyRandom::new(123);
-        let expected = [
-            0.72317415, 0.23724389, 0.99089885, 0.30157375, 0.2532931, 0.57412946, 0.60880035,
-            0.2588815, 0.80586946, 0.6223695,
-        ];
-        for e in expected {
-            assert_eq!(random.next_f32(), e);
-        }
-    }
-
-    #[test]
     fn next_gaussian_banks_the_second_of_the_polar_pair() {
         let mut random = LegacyRandom::new(123);
         let mut reference = LegacyRandom::new(123);
@@ -240,25 +248,5 @@ mod test {
             random.seed, reference.seed,
             "two gaussians must consume exactly one pair of double draws"
         );
-    }
-
-    #[test]
-    fn next_f64() {
-        let mut random = LegacyRandom::new(123);
-        let expected = [
-            0.7231742029971469,
-            0.9908988967772393,
-            0.25329310557439133,
-            0.6088003703785169,
-            0.8058695140834087,
-            0.8754127852514174,
-            0.7160485112997248,
-            0.07191702249367171,
-            0.7962609718390335,
-            0.5787169373422367,
-        ];
-        for e in expected {
-            assert_eq!(random.next_f64(), e);
-        }
     }
 }

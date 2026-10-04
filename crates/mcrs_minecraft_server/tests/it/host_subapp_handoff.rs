@@ -120,7 +120,6 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// entity exists (with a registered channel), the host must send exactly one
 /// `ToDim::Spawn` into the dim's control channel and mark the session as
 /// joining that label.
-#[test]
 fn game_transition_emits_initial_spawn() {
     use mcrs_minecraft_level::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -177,7 +176,6 @@ fn game_transition_emits_initial_spawn() {
     );
 }
 
-#[test]
 fn a_player_saved_in_another_dimension_joins_that_dimension() {
     use mcrs_minecraft_level::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
@@ -241,7 +239,6 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
 
 /// When no live DimSubAppHandle label entity exists yet (dims still loading),
 /// the emitter must NOT push any spawn and must leave the session unplaced.
-#[test]
 fn no_live_dim_no_spawn() {
     let mut app = build_host_app();
 
@@ -275,7 +272,6 @@ fn no_live_dim_no_spawn() {
 
 /// MessageReader cursor semantics: a second pump with no new InboundPlayerSpawn
 /// must NOT spawn a second in-dim entity.
-#[test]
 fn no_duplicate_spawn_on_reread() {
     use mcrs_minecraft_level::entity::player::Player;
     use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
@@ -345,4 +341,12 @@ fn no_duplicate_spawn_on_reread() {
         player_count, 1,
         "cursor semantics: only one Player entity despite multiple pumps after a single spawn"
     );
+}
+
+#[test]
+fn entering_the_game_spawns_the_player_once_in_its_saved_dimension() {
+    game_transition_emits_initial_spawn();
+    a_player_saved_in_another_dimension_joins_that_dimension();
+    no_live_dim_no_spawn();
+    no_duplicate_spawn_on_reread();
 }

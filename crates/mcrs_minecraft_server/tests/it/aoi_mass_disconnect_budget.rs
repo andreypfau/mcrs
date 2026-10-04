@@ -3,16 +3,14 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, Session, SessionPlacement};
 use mcrs_minecraft_level::world::channels::{
     FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft_server::disconnect::{
-    DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, LeavingSessions,
-    OverflowCounter, PendingDisconnectQueue, drain_pending_disconnects,
-    filter_inflight_for_disconnect, process_disconnect,
+    DisconnectProtocolPlugin, Disconnects, PendingDisconnectQueue, drain_pending_disconnects,
+    filter_inflight_for_disconnect,
 };
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -97,37 +95,14 @@ fn spawn_anchors(app: &mut App, count: usize, dim: Entity) -> Vec<Entity> {
     anchors
 }
 
-/// Drives the observer body once per anchor in the same tick. Mirrors
-/// the production `on_player_disconnect` body shape — only the trigger
-/// source differs (we can't construct a real `ServerSideConnection` in
-/// integration tests).
 fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
-    let anchors_vec = anchors.to_vec();
+    let anchors = anchors.to_vec();
     app.world_mut()
-        .run_system_once(
-            move |mut commands: Commands,
-                  mut sessions: LeavingSessions,
-                  dim_channels: ResMut<DimChannelsResource>,
-                  mut budget: ResMut<DisconnectBudget>,
-                  mut pending_queue: ResMut<PendingDisconnectQueue>,
-                  mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
-                  mut overflow_counter: ResMut<OverflowCounter>| {
-                for host_anchor in anchors_vec.iter().copied() {
-                    disconnected_this_tick.host_anchors.push(host_anchor);
-                    if budget.consume() {
-                        process_disconnect(
-                            host_anchor,
-                            &mut sessions,
-                            &dim_channels,
-                            &mut mcrs_minecraft_level::world::sub_app::DimDespawnQueue::default(),
-                            &mut commands,
-                        );
-                    } else if !pending_queue.push_back(host_anchor) {
-                        overflow_counter.0 = overflow_counter.0.saturating_add(1);
-                    }
-                }
-            },
-        )
+        .run_system_once(move |mut disconnects: Disconnects| {
+            for &host_anchor in &anchors {
+                disconnects.disconnect(host_anchor);
+            }
+        })
         .expect("disconnect batch runs");
 }
 

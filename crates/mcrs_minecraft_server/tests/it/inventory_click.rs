@@ -131,7 +131,6 @@ fn handle_clicks(world: &mut World) {
         .clear();
 }
 
-#[test]
 fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -163,7 +162,6 @@ fn left_click_lifts_the_stack_and_puts_it_down_elsewhere() {
     );
 }
 
-#[test]
 fn right_click_takes_half_then_places_one() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -204,7 +202,6 @@ fn right_click_takes_half_then_places_one() {
     );
 }
 
-#[test]
 fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -235,7 +232,6 @@ fn shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand() {
     assert_eq!(stack_at(&world, player, slots::OFFHAND), Some((stack, 7)));
 }
 
-#[test]
 fn throw_turns_the_stack_into_a_dropped_item() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -254,7 +250,6 @@ fn throw_turns_the_stack_into_a_dropped_item() {
     assert_eq!(world.get::<Thrower>(stack), Some(&Thrower(player)));
 }
 
-#[test]
 fn a_click_for_a_container_the_player_no_longer_has_open_moves_nothing() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -294,7 +289,6 @@ fn a_click_for_a_container_the_player_no_longer_has_open_moves_nothing() {
     assert!(packets.is_empty(), "{packets:?}");
 }
 
-#[test]
 fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
     let (mut world, player) = opened();
     let sword = item(&mut world, "iron_sword", 1);
@@ -334,7 +328,6 @@ fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
     );
 }
 
-#[test]
 fn a_helmet_goes_into_the_helmet_slot() {
     let (mut world, player) = opened();
     let helmet = item(&mut world, "iron_helmet", 1);
@@ -355,7 +348,6 @@ fn a_helmet_goes_into_the_helmet_slot() {
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
 }
 
-#[test]
 fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -428,7 +420,6 @@ fn left_drag_splits_the_cursor_evenly_and_syncs_per_slot() {
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
-#[test]
 fn a_click_during_a_drag_resets_it_and_is_swallowed() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -555,7 +546,6 @@ fn a_click_during_a_drag_resets_it_and_is_swallowed() {
     );
 }
 
-#[test]
 fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -635,7 +625,6 @@ fn an_end_right_after_a_header_or_before_a_slot_moves_nothing() {
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
-#[test]
 fn a_drag_split_across_two_ticks_still_applies() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -710,7 +699,6 @@ fn a_drag_split_across_two_ticks_still_applies() {
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
-#[test]
 fn a_slot_packet_outside_the_layout_is_dropped_and_the_rest_of_the_drag_applies() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -796,7 +784,6 @@ fn a_slot_packet_outside_the_layout_is_dropped_and_the_rest_of_the_drag_applies(
     assert!(world.get::<Menu>(menu).unwrap().drag.is_none());
 }
 
-#[test]
 fn a_drag_whose_claims_match_sends_no_packet() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 64);
@@ -875,7 +862,6 @@ fn a_drag_whose_claims_match_sends_no_packet() {
     assert!(packets.is_empty(), "{packets:?}");
 }
 
-#[test]
 fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CloseContainerRequest>>();
@@ -900,7 +886,6 @@ fn closing_the_menu_returns_the_carried_stack_to_the_held_slot_first() {
     );
 }
 
-#[test]
 fn closing_the_menu_forgets_a_pending_drag() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CloseContainerRequest>>();
@@ -940,7 +925,6 @@ fn dropped_items(world: &mut World) -> usize {
     world.query::<&DroppedItem>().iter(world).count()
 }
 
-#[test]
 fn throwing_and_clicking_outside_each_charge_the_drop_throttle() {
     let (mut world, player) = opened();
     let thrown = stone(&mut world, 7);
@@ -971,7 +955,6 @@ fn throwing_and_clicking_outside_each_charge_the_drop_throttle() {
     assert_eq!(dropped_items(&mut world), 2);
 }
 
-#[test]
 fn a_throw_at_the_drop_limit_is_ignored_and_the_slot_resent() {
     let (mut world, player) = opened();
     let stack = stone(&mut world, 7);
@@ -1031,7 +1014,6 @@ fn the_drop_throttle_decays_by_one_a_tick() {
     );
 }
 
-#[test]
 fn a_creative_drop_at_the_drop_limit_spawns_nothing() {
     let (mut world, player) = opened();
     world.init_resource::<Messages<CreativeSlotRequest>>();
@@ -1072,7 +1054,6 @@ fn split(stage: QuickCraftStage) -> u8 {
     })
 }
 
-#[test]
 fn a_drop_during_a_drag_at_the_drop_limit_only_resets_the_drag() {
     let (mut world, player) = opened();
     let carried = stone(&mut world, 64);
@@ -1153,7 +1134,6 @@ fn a_drop_during_a_drag_at_the_drop_limit_only_resets_the_drag() {
     );
 }
 
-#[test]
 fn a_drop_during_a_drag_is_not_charged() {
     let (mut world, player) = opened();
     let carried = stone(&mut world, 64);
@@ -1192,7 +1172,6 @@ fn a_drop_during_a_drag_is_not_charged() {
     assert_eq!(drop_throttle(&world, player), 0);
 }
 
-#[test]
 fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
     let (mut world, player) = opened();
 
@@ -1286,7 +1265,6 @@ fn opened_over(block: &str) -> (World, Entity, Entity) {
     (world, player, container)
 }
 
-#[test]
 fn a_menu_over_a_shulker_box_refuses_a_shulker_box_and_takes_a_bundle() {
     let (mut world, player, container) = opened_over("minecraft:shulker_box");
     let bundle = item(&mut world, "bundle", 1);
@@ -1302,7 +1280,6 @@ fn a_menu_over_a_shulker_box_refuses_a_shulker_box_and_takes_a_bundle() {
     assert_eq!(stack_at(&world, container, 1), None);
 }
 
-#[test]
 fn shift_clicking_a_shulker_box_into_a_menu_over_a_shulker_box_moves_nothing() {
     let (mut world, player, container) = opened_over("minecraft:shulker_box");
     let shulker = item(&mut world, "shulker_box", 1);
@@ -1322,7 +1299,6 @@ fn shift_clicking_a_shulker_box_into_a_menu_over_a_shulker_box_moves_nothing() {
     assert!((0..27).all(|index| stack_at(&world, container, index).is_none()));
 }
 
-#[test]
 fn a_menu_over_a_chest_takes_a_shulker_box() {
     let (mut world, player, container) = opened_over("minecraft:chest");
     let shulker = item(&mut world, "shulker_box", 1);
@@ -1330,4 +1306,44 @@ fn a_menu_over_a_chest_takes_a_shulker_box() {
     click(&mut world, player, ContainerInput::Pickup, 0, 0, Vec::new());
     assert_eq!(stack_at(&world, container, 0), Some((shulker, 1)));
     assert_eq!(stack_at(&world, player, slots::CARRIED), None);
+}
+
+#[test]
+fn a_click_moves_the_stack_the_vanilla_way() {
+    left_click_lifts_the_stack_and_puts_it_down_elsewhere();
+    right_click_takes_half_then_places_one();
+    shift_click_moves_hotbar_to_main_and_swap_reaches_the_offhand();
+    throw_turns_the_stack_into_a_dropped_item();
+    a_click_for_a_container_the_player_no_longer_has_open_moves_nothing();
+    a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected();
+    a_helmet_goes_into_the_helmet_slot();
+}
+
+#[test]
+fn a_drag_splits_the_cursor_and_closing_ends_it() {
+    left_drag_splits_the_cursor_evenly_and_syncs_per_slot();
+    a_click_during_a_drag_resets_it_and_is_swallowed();
+    an_end_right_after_a_header_or_before_a_slot_moves_nothing();
+    a_drag_split_across_two_ticks_still_applies();
+    a_slot_packet_outside_the_layout_is_dropped_and_the_rest_of_the_drag_applies();
+    a_drag_whose_claims_match_sends_no_packet();
+    closing_the_menu_returns_the_carried_stack_to_the_held_slot_first();
+    closing_the_menu_forgets_a_pending_drag();
+}
+
+#[test]
+fn the_drop_throttle_charges_only_drops_and_refuses_past_its_limit() {
+    throwing_and_clicking_outside_each_charge_the_drop_throttle();
+    a_throw_at_the_drop_limit_is_ignored_and_the_slot_resent();
+    a_creative_drop_at_the_drop_limit_spawns_nothing();
+    a_drop_during_a_drag_at_the_drop_limit_only_resets_the_drag();
+    a_drop_during_a_drag_is_not_charged();
+    clicks_that_drop_nothing_do_not_charge_the_drop_throttle();
+}
+
+#[test]
+fn a_menu_over_a_block_takes_what_the_block_tags_allow() {
+    a_menu_over_a_shulker_box_refuses_a_shulker_box_and_takes_a_bundle();
+    shift_clicking_a_shulker_box_into_a_menu_over_a_shulker_box_moves_nothing();
+    a_menu_over_a_chest_takes_a_shulker_box();
 }

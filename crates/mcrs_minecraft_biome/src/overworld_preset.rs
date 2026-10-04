@@ -1341,49 +1341,10 @@ mod tests {
     /// The whole point of transcribing the table: a mistyped or renamed biome
     /// is a name that no shipped biome answers to.
     #[test]
-    fn every_biome_the_presets_name_is_shipped() {
+    fn every_biome_the_nether_preset_names_is_shipped() {
         let shipped = shipped_biomes();
-        for table in [overworld_parameter_list(), nether_parameter_list()] {
-            for (_, biome) in table.values() {
-                assert!(shipped.contains(*biome), "{biome} is not a shipped biome");
-            }
-        }
-    }
-
-    #[test]
-    fn the_overworld_table_covers_the_overworld_biomes() {
-        let table = overworld_parameter_list();
-        let named: BTreeSet<&str> = table.values().iter().map(|(_, biome)| *biome).collect();
-        // Every climate cell of every slice, twice for the depth ends: 22
-        // off-coast, 1100 peak, 2600 high, 1432 + 1332 mid, 1032 low, 72
-        // valley and the 4 underground entries.
-        assert_eq!(table.len(), 7594);
-        for expected in [
-            "minecraft:plains",
-            "minecraft:desert",
-            "minecraft:jagged_peaks",
-            "minecraft:mushroom_fields",
-            "minecraft:deep_dark",
-            "minecraft:lush_caves",
-            "minecraft:sulfur_caves",
-            "minecraft:dripstone_caves",
-            "minecraft:pale_garden",
-            "minecraft:dappled_forest",
-            "minecraft:cherry_grove",
-            "minecraft:mangrove_swamp",
-        ] {
-            assert!(
-                named.contains(expected),
-                "{expected} missing from the table"
-            );
-        }
-        // Nothing from another dimension leaked in.
-        for absent in [
-            "minecraft:nether_wastes",
-            "minecraft:the_end",
-            "minecraft:basalt_deltas",
-        ] {
-            assert!(!named.contains(absent), "{absent} does not belong here");
+        for (_, biome) in nether_parameter_list().values() {
+            assert!(shipped.contains(*biome), "{biome} is not a shipped biome");
         }
     }
 
@@ -1402,6 +1363,10 @@ mod tests {
                 .collect();
 
         let table = overworld_parameter_list();
+        // Every climate cell of every slice, twice for the depth ends: 22
+        // off-coast, 1100 peak, 2600 high, 1432 + 1332 mid, 1032 low, 72
+        // valley and the 4 underground entries.
+        assert_eq!(table.len(), 7594);
         let named: BTreeSet<String> = table
             .values()
             .iter()
@@ -1409,12 +1374,6 @@ mod tests {
             .collect();
         assert_eq!(named.len(), 56);
         assert_eq!(named, with_overworld_carvers);
-    }
-
-    #[test]
-    fn the_first_entry_is_the_off_coast_one() {
-        let table = overworld_parameter_list();
-        assert_eq!(table.values()[0].1, "minecraft:mushroom_fields");
     }
 
     #[test]

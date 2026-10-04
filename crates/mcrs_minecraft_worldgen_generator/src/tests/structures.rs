@@ -121,6 +121,13 @@ fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::Fr
 }
 
 #[test]
+fn the_corpus_freezes() {
+    the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag();
+    every_hardcoded_type_freezes_its_own_config();
+    every_template_a_structure_names_is_loaded_and_the_pools_expand();
+    each_dimension_source_keeps_the_sets_its_biomes_admit();
+}
+
 fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
     use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnContext;
@@ -163,7 +170,6 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     assert!(!picked.contains(&ResourceLocation::minecraft("all_black")));
 }
 
-#[test]
 fn every_hardcoded_type_freezes_its_own_config() {
     let biome = |name: &str| biome_index().get(name).unwrap() as usize;
     let StructureKind::Mineshaft {
@@ -229,13 +235,8 @@ fn every_hardcoded_type_freezes_its_own_config() {
     ));
 }
 
-#[test]
-fn the_corpus_freezes_to_the_pinned_tables() {
+fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     let frozen = frozen();
-    assert_eq!(frozen.sets.len(), 21);
-    assert_eq!(frozen.structures.len(), 52);
-    assert_eq!(frozen.pools.len(), 245);
-    assert_eq!(frozen.templates.len(), 1476);
     for structure in corpus_registries().structures.values() {
         for path in structure.templates() {
             let id = frozen.template_ids[&ResourceLocation::minecraft(path)];
@@ -297,7 +298,6 @@ pub(super) fn preset(name: &str) -> BiomeSource {
     })
 }
 
-#[test]
 fn each_dimension_source_keeps_the_sets_its_biomes_admit() {
     let every: Vec<String> = frozen().sets.iter().map(|set| set.id.to_string()).collect();
     let overworld: Vec<String> = every

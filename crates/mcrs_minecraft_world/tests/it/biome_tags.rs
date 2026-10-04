@@ -7,8 +7,6 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::key;
 
-use crate::common::run_to_playing;
-
 fn members(app: &App, tag: &str) -> Vec<String> {
     let tags = app.world().resource::<DynTagRegistry<key::Biome>>();
     let index = app.world().resource::<DynRegistryIndex<key::Biome>>();
@@ -29,27 +27,22 @@ fn members(app: &App, tag: &str) -> Vec<String> {
     names
 }
 
-#[test]
-fn the_shipped_biome_tags_resolve() {
-    let app = run_to_playing();
-
+pub fn the_shipped_biome_tags_resolve(app: &App) {
     assert_eq!(
-        members(&app, "minecraft:has_structure/village_plains"),
+        members(app, "minecraft:has_structure/village_plains"),
         ["minecraft:meadow", "minecraft:plains"]
     );
 
-    let biased = members(&app, "minecraft:stronghold_biased_to");
+    let biased = members(app, "minecraft:stronghold_biased_to");
     assert_eq!(biased.len(), 38);
     assert!(biased.contains(&"minecraft:plains".to_owned()));
 
-    let nested = members(&app, "minecraft:has_structure/stronghold");
-    assert_eq!(nested, members(&app, "minecraft:is_overworld"));
+    let nested = members(app, "minecraft:has_structure/stronghold");
+    assert_eq!(nested, members(app, "minecraft:is_overworld"));
     assert_eq!(nested.len(), 56);
 }
 
-#[test]
-fn the_biome_index_and_snapshot_agree_on_the_id_space() {
-    let app = run_to_playing();
+pub fn the_biome_index_and_snapshot_agree_on_the_id_space(app: &App) {
     let index = app.world().resource::<DynRegistryIndex<key::Biome>>();
     let snapshot = app.world().resource::<RegistrySnapshot<Biome>>();
 

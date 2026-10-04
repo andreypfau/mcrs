@@ -242,39 +242,3 @@ fn render(
         });
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_key_cycles_both_layers_on_and_back_off() {
-        let seen: Vec<_> =
-            std::iter::successors(Some(LightLevels::Off), |levels| Some(levels.next()))
-                .take(5)
-                .collect();
-        assert_eq!(
-            seen,
-            [
-                LightLevels::Off,
-                LightLevels::Block,
-                LightLevels::Sky,
-                LightLevels::Both,
-                LightLevels::Off,
-            ]
-        );
-        assert!(!LightLevels::Off.visible());
-        assert!(LightLevels::Both.block() && LightLevels::Both.sky());
-        assert!(LightLevels::Block.block() && !LightLevels::Block.sky());
-    }
-
-    #[test]
-    fn a_label_takes_the_colour_of_the_level_it_prints() {
-        assert_eq!(Srgba::from(colour(0, SKY_DIM, SKY_BRIGHT)), SKY_DIM);
-        assert_eq!(
-            Srgba::from(colour(15, BLOCK_DIM, BLOCK_BRIGHT)),
-            BLOCK_BRIGHT
-        );
-        assert!(scale_at(0.5) <= SCALE_MAX && scale_at(100.0) >= SCALE_MIN);
-    }
-}

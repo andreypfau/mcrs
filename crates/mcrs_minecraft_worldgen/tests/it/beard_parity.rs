@@ -108,7 +108,6 @@ fn read_dump() -> (Vec<f32>, Vec<Case>) {
 }
 
 #[test]
-#[ignore = "reference parity check; run with --ignored"]
 fn kernel_matches_the_reference_bit_for_bit() {
     let (dumped, _) = read_dump();
     assert_eq!(dumped.len(), KERNEL_LEN);
@@ -129,54 +128,57 @@ fn kernel_matches_the_reference_bit_for_bit() {
     }
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn sample_and_fill_match_the_reference_bit_for_bit() {
-    let (_, cases) = read_dump();
-    assert!(!cases.is_empty(), "the dump holds no cases");
-    let mut failures = Vec::new();
-    for case in &cases {
-        let grid = case.grid;
-        let mut filled = vec![0.0f32; grid.len()];
-        case.beard.fill(&grid, &mut filled);
+mod exhaustive {
+    use super::*;
 
-        for (label, produce) in [
-            (
-                "sample",
-                &(|x, y, z| case.beard.sample(x, y, z)) as &dyn Fn(i32, i32, i32) -> f32,
-            ),
-            ("fill", &|x, y, z| {
-                let index = grid
-                    .index_of_block(x, y, z)
-                    .expect("a lattice point of the grid");
-                filled[index]
-            }),
-        ] {
-            let mut count = 0usize;
-            let mut first = None;
-            for z in 0..grid.size().z {
-                for x in 0..grid.size().x {
-                    for y in 0..grid.size().y {
-                        let (bx, by, bz) = (grid.block_x(x), grid.block_y(y), grid.block_z(z));
-                        let ours = produce(bx, by, bz);
-                        let reference = case.expected[grid.index_unchecked(x, y, z)];
-                        if ours.to_bits() != reference.to_bits() {
-                            count += 1;
-                            first.get_or_insert((bx, by, bz, ours, reference));
+    #[test]
+    fn sample_and_fill_match_the_reference_bit_for_bit() {
+        let (_, cases) = read_dump();
+        assert!(!cases.is_empty(), "the dump holds no cases");
+        let mut failures = Vec::new();
+        for case in &cases {
+            let grid = case.grid;
+            let mut filled = vec![0.0f32; grid.len()];
+            case.beard.fill(&grid, &mut filled);
+
+            for (label, produce) in [
+                (
+                    "sample",
+                    &(|x, y, z| case.beard.sample(x, y, z)) as &dyn Fn(i32, i32, i32) -> f32,
+                ),
+                ("fill", &|x, y, z| {
+                    let index = grid
+                        .index_of_block(x, y, z)
+                        .expect("a lattice point of the grid");
+                    filled[index]
+                }),
+            ] {
+                let mut count = 0usize;
+                let mut first = None;
+                for z in 0..grid.size().z {
+                    for x in 0..grid.size().x {
+                        for y in 0..grid.size().y {
+                            let (bx, by, bz) = (grid.block_x(x), grid.block_y(y), grid.block_z(z));
+                            let ours = produce(bx, by, bz);
+                            let reference = case.expected[grid.index_unchecked(x, y, z)];
+                            if ours.to_bits() != reference.to_bits() {
+                                count += 1;
+                                first.get_or_insert((bx, by, bz, ours, reference));
+                            }
                         }
                     }
                 }
-            }
-            if let Some((bx, by, bz, ours, reference)) = first {
-                failures.push(format!(
-                    "{} ({label}): {count} of {} points differ; first at ({bx}, {by}, {bz}): ours {ours:e} ({:#010x}), reference {reference:e} ({:#010x})",
-                    case.name,
-                    grid.len(),
-                    ours.to_bits(),
-                    reference.to_bits(),
-                ));
+                if let Some((bx, by, bz, ours, reference)) = first {
+                    failures.push(format!(
+                        "{} ({label}): {count} of {} points differ; first at ({bx}, {by}, {bz}): ours {ours:e} ({:#010x}), reference {reference:e} ({:#010x})",
+                        case.name,
+                        grid.len(),
+                        ours.to_bits(),
+                        reference.to_bits(),
+                    ));
+                }
             }
         }
+        assert!(failures.is_empty(), "\n{}", failures.join("\n"));
     }
-    assert!(failures.is_empty(), "\n{}", failures.join("\n"));
 }

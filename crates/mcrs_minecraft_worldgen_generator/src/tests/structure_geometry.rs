@@ -552,80 +552,83 @@ fn compare_chunk(
     faults
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
-    let dump = dump();
-    let frozen = frozen_shared();
-    let program = program();
-    let mut faults = Vec::new();
-    let mut placed = 0;
-    let mut chunks = 0;
-    for case in &dump.cases {
-        let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
-        let structure = &frozen.structures[id.0 as usize];
-        let label = format!(
-            "{} {} base {} at {:?}",
-            case.structure, case.biome, case.base, case.chunk
-        );
-        let ours = flat_start(frozen, case);
-        let Some(expected) = &case.start else {
-            assert!(
-                ours.is_none(),
-                "{label}: a start the reference does not have"
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn structure_geometry_matches_the_oracle_chunk_by_chunk() {
+        let dump = dump();
+        let frozen = frozen_shared();
+        let program = program();
+        let mut faults = Vec::new();
+        let mut placed = 0;
+        let mut chunks = 0;
+        for case in &dump.cases {
+            let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
+            let structure = &frozen.structures[id.0 as usize];
+            let label = format!(
+                "{} {} base {} at {:?}",
+                case.structure, case.biome, case.base, case.chunk
             );
-            continue;
-        };
-        let Some(start) = ours else {
-            panic!("{label}: no start where the reference has one");
-        };
-        assert_eq!(start.bounds, expected.bounds, "{label}: start box");
-        assert_eq!(
-            start.pieces.len() as u32,
-            expected.pieces,
-            "{label}: pieces"
-        );
-        assert_eq!(structure.step as u8, expected.step, "{label}: step");
-        assert_eq!(structure.step_index, expected.index, "{label}: step index");
-        let (min_y, height, _) = dimension(&case.dimension);
-        let y_sections: Vec<i32> = (min_y >> 4..(min_y + height) >> 4).collect();
-        let liquid = match &structure.kind {
-            StructureKind::Jigsaw { config, .. } => config.liquid_settings,
-            _ => LiquidSettings::default(),
-        };
-        let mut region = region(case, start.bounds);
-        for chunk in &expected.chunks {
-            region.writes.clear();
-            let mut run = program.run(RunScratch::default());
-            let mut rng = WorldgenRandom::new(chunk.stream_seed as u64);
-            place_start(
-                frozen,
-                program,
-                &mut run,
-                &mut region,
-                &start,
-                column_clip(chunk.chunk, &y_sections),
-                &mut rng,
-                liquid,
+            let ours = flat_start(frozen, case);
+            let Some(expected) = &case.start else {
+                assert!(
+                    ours.is_none(),
+                    "{label}: a start the reference does not have"
+                );
+                continue;
+            };
+            let Some(start) = ours else {
+                panic!("{label}: no start where the reference has one");
+            };
+            assert_eq!(start.bounds, expected.bounds, "{label}: start box");
+            assert_eq!(
+                start.pieces.len() as u32,
+                expected.pieces,
+                "{label}: pieces"
             );
-            let (block_entities, spawns, _) = run.finish();
-            faults.extend(compare_chunk(
-                &format!("{label} chunk {:?}", chunk.chunk),
-                chunk,
-                &region.writes,
-                &by_position(&block_entities),
-                &spawns,
-                [rng.next_java_long(), rng.next_java_long()],
-            ));
-            chunks += 1;
+            assert_eq!(structure.step as u8, expected.step, "{label}: step");
+            assert_eq!(structure.step_index, expected.index, "{label}: step index");
+            let (min_y, height, _) = dimension(&case.dimension);
+            let y_sections: Vec<i32> = (min_y >> 4..(min_y + height) >> 4).collect();
+            let liquid = match &structure.kind {
+                StructureKind::Jigsaw { config, .. } => config.liquid_settings,
+                _ => LiquidSettings::default(),
+            };
+            let mut region = region(case, start.bounds);
+            for chunk in &expected.chunks {
+                region.writes.clear();
+                let mut run = program.run(RunScratch::default());
+                let mut rng = WorldgenRandom::new(chunk.stream_seed as u64);
+                place_start(
+                    frozen,
+                    program,
+                    &mut run,
+                    &mut region,
+                    &start,
+                    column_clip(chunk.chunk, &y_sections),
+                    &mut rng,
+                    liquid,
+                );
+                let (block_entities, spawns, _) = run.finish();
+                faults.extend(compare_chunk(
+                    &format!("{label} chunk {:?}", chunk.chunk),
+                    chunk,
+                    &region.writes,
+                    &by_position(&block_entities),
+                    &spawns,
+                    [rng.next_java_long(), rng.next_java_long()],
+                ));
+                chunks += 1;
+            }
+            placed += 1;
         }
-        placed += 1;
+        assert!(
+            faults.is_empty(),
+            "{} chunks differ; the first 20:\n{}",
+            faults.len(),
+            faults[..faults.len().min(20)].join("\n")
+        );
+        assert_eq!((placed, chunks), (75, 1751));
     }
-    assert!(
-        faults.is_empty(),
-        "{} chunks differ; the first 20:\n{}",
-        faults.len(),
-        faults[..faults.len().min(20)].join("\n")
-    );
-    assert_eq!((placed, chunks), (75, 1751));
 }

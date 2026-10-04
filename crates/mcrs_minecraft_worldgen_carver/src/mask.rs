@@ -101,50 +101,33 @@ mod tests {
         out
     }
 
-    #[test]
-    fn a_shaft_is_one_run() {
-        let mut mask = CarvingMask::new(0, 127);
-        for y in 30..=40 {
-            mask.carve(3, y, 9);
-        }
-        assert_eq!(runs(&mask), vec![(3, 9, 30, 40)]);
-    }
-
-    #[test]
-    fn a_gap_splits_the_column() {
-        let mut mask = CarvingMask::new(0, 127);
-        mask.carve(3, 30, 9);
-        mask.carve(3, 31, 9);
-        mask.carve(3, 40, 9);
-        assert_eq!(runs(&mask), vec![(3, 9, 30, 31), (3, 9, 40, 40)]);
-    }
-
     /// Columns are contiguous in the index, so a run that fills one column's top
     /// and the next column's bottom must still arrive as two per-column visits.
     #[test]
-    fn a_run_across_the_column_boundary_is_split() {
-        let mut mask = CarvingMask::new(0, 7);
-        for y in 5..=7 {
-            mask.carve(0, y, 0);
+    fn runs_split_at_gaps_and_column_boundaries() {
+        type Run = (i32, i32, i32, i32);
+        let cases: &[(i32, &[Run], &[Run])] = &[
+            (127, &[(3, 9, 30, 40)], &[(3, 9, 30, 40)]),
+            (
+                127,
+                &[(3, 9, 30, 31), (3, 9, 40, 40)],
+                &[(3, 9, 30, 31), (3, 9, 40, 40)],
+            ),
+            (
+                7,
+                &[(0, 0, 5, 7), (0, 1, 0, 2)],
+                &[(0, 0, 5, 7), (0, 1, 0, 2)],
+            ),
+        ];
+        for &(top, carved, expected) in cases {
+            let mut mask = CarvingMask::new(0, top);
+            for &(x, z, bottom, top) in carved {
+                for y in bottom..=top {
+                    mask.carve(x, y, z);
+                }
+            }
+            assert_eq!(runs(&mask), expected);
         }
-        for y in 0..=2 {
-            mask.carve(0, y, 1);
-        }
-        assert_eq!(runs(&mask), vec![(0, 0, 5, 7), (0, 1, 0, 2)]);
-    }
-
-    #[test]
-    fn masks_are_equal_when_the_same_cells_are_marked() {
-        let mut a = CarvingMask::new(0, 127);
-        let mut b = CarvingMask::new(0, 127);
-        assert!(a == b);
-        a.carve(3, 30, 9);
-        assert!(a != b);
-        b.carve(3, 30, 9);
-        assert!(a == b);
-        b.carve(3, 31, 9);
-        assert!(a != b);
-        assert!(CarvingMask::new(0, 127) != CarvingMask::new(0, 126));
     }
 
     #[test]

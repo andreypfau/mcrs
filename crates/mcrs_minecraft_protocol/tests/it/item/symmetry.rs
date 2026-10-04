@@ -201,33 +201,15 @@ fn check_kind(kind: ItemComponentKind, iterations: usize) {
     }
 }
 
-mod kinds {
-    macro_rules! kind_tests {
-        ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {$(
-            #[allow(non_snake_case)]
-            mod $ty {
-                #[test]
-                fn random_values_round_trip() {
-                    super::super::check_kind(
-                        mcrs_minecraft_protocol::item::ItemComponentKind::$ty,
-                        8,
-                    );
-                }
+mod exhaustive {
+    use mcrs_minecraft_protocol::item::ItemComponentKind;
 
-                mod exhaustive {
-                    #[test]
-                    fn random_values_round_trip() {
-                        super::super::super::check_kind(
-                            mcrs_minecraft_protocol::item::ItemComponentKind::$ty,
-                            super::super::super::ITERATIONS,
-                        );
-                    }
-                }
-            }
-        )*};
+    #[test]
+    fn random_values_of_every_kind_round_trip() {
+        for &kind in ItemComponentKind::ALL.iter() {
+            super::check_kind(kind, super::ITERATIONS);
+        }
     }
-
-    mcrs_minecraft_protocol::item::for_each_data_component!(kind_tests);
 }
 
 #[test]

@@ -597,6 +597,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn models_read_the_resource_pack() {
+        the_asset_system_reads_the_pack_the_corpus_holds();
+        a_generated_item_is_front_lit_with_no_gui_transform();
+        a_block_item_is_side_lit_with_the_gui_rotation_of_block_block();
+        a_multipart_fence_picks_up_its_connected_sides();
+    }
+
     fn the_asset_system_reads_the_pack_the_corpus_holds() {
         let mut app = bevy::app::App::new();
         let root = bevy::asset::io::memory::Dir::default();
@@ -636,7 +643,6 @@ mod tests {
         ]));
     }
 
-    #[test]
     fn a_generated_item_is_front_lit_with_no_gui_transform() {
         let model = resolve_model(Pack::corpus(), "minecraft:item/generated").unwrap();
         assert!(model.generated);
@@ -647,7 +653,6 @@ mod tests {
         assert_eq!(stick.textures["layer0"], "minecraft:item/stick");
     }
 
-    #[test]
     fn a_block_item_is_side_lit_with_the_gui_rotation_of_block_block() {
         let model = resolve_model(Pack::corpus(), "minecraft:block/stone").unwrap();
         assert!(!model.generated);
@@ -689,7 +694,6 @@ mod tests {
         assert_eq!(blank.display, ItemTransform::NONE);
     }
 
-    #[test]
     fn a_multipart_fence_picks_up_its_connected_sides() {
         let states = BlockStateFile::load(Pack::corpus(), "minecraft:oak_fence")
             .expect("the fence blockstate is in the corpus");

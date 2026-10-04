@@ -38,8 +38,6 @@ mod modern_features;
 #[cfg(test)]
 mod multi_noise_biomes;
 #[cfg(test)]
-mod perf;
-#[cfg(test)]
 mod rungs;
 #[cfg(test)]
 mod stored_biomes;
@@ -106,7 +104,7 @@ pub fn for_each_feature(feature: &Feature, f: &mut dyn FnMut(&Feature)) {
 }
 
 /// Both feature registries of the shipped corpus, with every template and
-/// processor list the features name, parsed once per test binary.
+/// processor list the features name, parsed once per process.
 pub fn corpus_features() -> &'static LoadedFeatures {
     static CORPUS: LazyLock<LoadedFeatures> = LazyLock::new(|| {
         let features: BTreeMap<ResourceLocation, Feature> = registry("feature");

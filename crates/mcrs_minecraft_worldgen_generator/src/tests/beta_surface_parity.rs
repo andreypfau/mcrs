@@ -280,193 +280,197 @@ fn column_matches(
 
 // ── Gate test ─────────────────────────────────────────────────────────────────
 
-/// Blocking surface-parity regression gate at seed 12345.
-///
-/// Loads the committed back2beta golden-fixture corpus (pre-cave stage), runs the
-/// Beta generator for each fixture chunk, applies the surface pass, and compares
-/// the surface band (topmost non-air ± SURFACE_BAND_HALF + sea-level fill Y 60-64),
-/// the bedrock band (Y 0-4), and the biome ID per column.
-///
-/// Threshold: at most 1 mismatched column per 1280 (≈99.9%).  On failure the test
-/// emits a band-grouped, cause-classified mismatch report rather than any silent
-/// path change — per the gate-failure protocol, the phase halts for user review.
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn beta_surface_parity_gate() {
-    let corpus = load_corpus();
-    let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
-    let cancel = CancellationToken::new();
-    let biome_table = build_beta_lookup_table();
+// ── Per-column climate oracle test ───────────────────────────────────────────
 
-    let y_sections: Vec<i32> = (0..8).collect(); // Y 0-127 (sections 0-7)
+mod exhaustive {
+    use super::*;
 
-    // Group fixture columns by chunk (cx, cz).
-    let mut chunks: BTreeMap<(i32, i32), Vec<&ColumnFixture>> = BTreeMap::new();
-    for col in &corpus.columns {
-        let cx = col.wx >> 4;
-        let cz = col.wz >> 4;
-        chunks.entry((cx, cz)).or_default().push(col);
-    }
+    /// Blocking surface-parity regression gate at seed 12345.
+    ///
+    /// Loads the committed back2beta golden-fixture corpus (pre-cave stage), runs the
+    /// Beta generator for each fixture chunk, applies the surface pass, and compares
+    /// the surface band (topmost non-air ± SURFACE_BAND_HALF + sea-level fill Y 60-64),
+    /// the bedrock band (Y 0-4), and the biome ID per column.
+    ///
+    /// Threshold: at most 1 mismatched column per 1280 (≈99.9%).  On failure the test
+    /// emits a band-grouped, cause-classified mismatch report rather than any silent
+    /// path change — per the gate-failure protocol, the phase halts for user review.
+    #[test]
+    fn beta_surface_parity_gate() {
+        let corpus = load_corpus();
+        let router = build_beta_router();
+        let (biome_source, snapshot) = build_beta_biome_source();
+        let cancel = CancellationToken::new();
+        let biome_table = build_beta_lookup_table();
 
-    let mut total_columns: u64 = 0;
-    let mut all_mismatches: Vec<ColumnMismatch> = Vec::new();
+        let y_sections: Vec<i32> = (0..8).collect(); // Y 0-127 (sections 0-7)
 
-    for ((cx, cz), fixture_cols) in &chunks {
-        let block_x = cx * 16;
-        let block_z = cz * 16;
+        // Group fixture columns by chunk (cx, cz).
+        let mut chunks: BTreeMap<(i32, i32), Vec<&ColumnFixture>> = BTreeMap::new();
+        for col in &corpus.columns {
+            let cx = col.wx >> 4;
+            let cz = col.wz >> 4;
+            chunks.entry((cx, cz)).or_default().push(col);
+        }
 
-        // Generate the column with the Beta biome source.
-        let mut sections = generate_column(
-            *cx,
-            *cz,
-            &y_sections,
-            &router,
-            Some((&biome_source, &snapshot)),
-            None,
-            &cancel,
-        );
+        let mut total_columns: u64 = 0;
+        let mut all_mismatches: Vec<ColumnMismatch> = Vec::new();
 
-        // Apply the surface pass (also places bedrock).
-        let mut rng = crate::beta_surface_rng(*cx, *cz);
-        let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        apply_beta_surface(
-            &column,
-            block_x,
-            block_z,
-            &router,
-            &biome_source,
-            super::corpus(),
-            &mut rng,
-        );
-        column.write_back(&mut sections);
+        for ((cx, cz), fixture_cols) in &chunks {
+            let block_x = cx * 16;
+            let block_z = cz * 16;
 
-        // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.
-        for fix_col in fixture_cols {
-            total_columns += 1;
+            // Generate the column with the Beta biome source.
+            let mut sections = generate_column(
+                *cx,
+                *cz,
+                &y_sections,
+                &router,
+                Some((&biome_source, &snapshot)),
+                None,
+                &cancel,
+            );
 
-            let local_x = fix_col.wx - block_x;
-            let local_z = fix_col.wz - block_z;
+            // Apply the surface pass (also places bedrock).
+            let mut rng = crate::beta_surface_rng(*cx, *cz);
+            let column = ColumnBlocks::from_sections(&sections, &y_sections);
+            apply_beta_surface(
+                &column,
+                block_x,
+                block_z,
+                &router,
+                &biome_source,
+                crate::tests::corpus(),
+                &mut rng,
+            );
+            column.write_back(&mut sections);
 
-            // Assemble a flat Y-indexed array from the 8 sections.
-            let mut generated: [BlockStateId; 128] = [BlockStateId(0); 128];
-            for (si, sy) in y_sections.iter().enumerate() {
-                if let Some(Some((blocks, _))) = sections.get(si) {
-                    let base_y = sy * 16;
-                    for local_y in 0..16i32 {
-                        let world_y = base_y + local_y;
-                        if world_y < 128 {
-                            generated[world_y as usize] = blocks
-                                .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
-                                .into();
+            // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.
+            for fix_col in fixture_cols {
+                total_columns += 1;
+
+                let local_x = fix_col.wx - block_x;
+                let local_z = fix_col.wz - block_z;
+
+                // Assemble a flat Y-indexed array from the 8 sections.
+                let mut generated: [BlockStateId; 128] = [BlockStateId(0); 128];
+                for (si, sy) in y_sections.iter().enumerate() {
+                    if let Some(Some((blocks, _))) = sections.get(si) {
+                        let base_y = sy * 16;
+                        for local_y in 0..16i32 {
+                            let world_y = base_y + local_y;
+                            if world_y < 128 {
+                                generated[world_y as usize] = blocks
+                                    .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                                    .into();
+                            }
                         }
                     }
                 }
-            }
 
-            match column_matches(&generated, fix_col, &router, &biome_table) {
-                ColumnMatchResult::Match => {}
-                ColumnMatchResult::Mismatch(m) => all_mismatches.push(m),
+                match column_matches(&generated, fix_col, &router, &biome_table) {
+                    ColumnMatchResult::Match => {}
+                    ColumnMatchResult::Mismatch(m) => all_mismatches.push(m),
+                }
             }
         }
-    }
 
-    let mismatched = all_mismatches.len() as u64;
+        let mismatched = all_mismatches.len() as u64;
 
-    // Gate: at most 1 mismatched column per 1280 (≈99.9% parity at seed 12345).
-    if mismatched * 1280 > total_columns {
-        // ── Classification report ────────────────────────────────────────────
-        // Classify by band to distinguish surface/RNG bugs from genuine f32 drift.
-        //
-        //   Bedrock-band mismatches   → RNG-order / surface bug:
-        //     The bedrock band is filled by the same per-chunk RNG stream as the
-        //     surface; mismatches here mean the RNG draw order is wrong.
-        //
-        //   Biome mismatches          → Climate-sampling / biome-algorithm bug:
-        //     Our BiomeSource::Beta uses the same getBiome() thresholds as back2beta;
-        //     mismatches indicate a divergence in climate-noise sampling.
-        //
-        //   Surface-band only         → Likely genuine f32 zero-crossing drift:
-        //     If mismatches are sparse and cluster at the surface boundary they are
-        //     expected f32 accumulation error.  If they are systematic (e.g. whole
-        //     biome regions wrong) they indicate a surface-pass logic bug.
+        // Gate: at most 1 mismatched column per 1280 (≈99.9% parity at seed 12345).
+        if mismatched * 1280 > total_columns {
+            // ── Classification report ────────────────────────────────────────────
+            // Classify by band to distinguish surface/RNG bugs from genuine f32 drift.
+            //
+            //   Bedrock-band mismatches   → RNG-order / surface bug:
+            //     The bedrock band is filled by the same per-chunk RNG stream as the
+            //     surface; mismatches here mean the RNG draw order is wrong.
+            //
+            //   Biome mismatches          → Climate-sampling / biome-algorithm bug:
+            //     Our BiomeSource::Beta uses the same getBiome() thresholds as back2beta;
+            //     mismatches indicate a divergence in climate-noise sampling.
+            //
+            //   Surface-band only         → Likely genuine f32 zero-crossing drift:
+            //     If mismatches are sparse and cluster at the surface boundary they are
+            //     expected f32 accumulation error.  If they are systematic (e.g. whole
+            //     biome regions wrong) they indicate a surface-pass logic bug.
 
-        let bedrock_count = all_mismatches
-            .iter()
-            .filter(|m| {
-                m.block_mismatches
-                    .iter()
-                    .any(|b| b.3 == MismatchBand::Bedrock)
-            })
-            .count();
-        let biome_count = all_mismatches
-            .iter()
-            .filter(|m| m.biome_mismatch.is_some())
-            .count();
-        let surface_only_count = all_mismatches
-            .iter()
-            .filter(|m| {
-                m.biome_mismatch.is_none()
-                    && m.block_mismatches
+            let bedrock_count = all_mismatches
+                .iter()
+                .filter(|m| {
+                    m.block_mismatches
                         .iter()
-                        .all(|b| b.3 == MismatchBand::Surface)
-            })
-            .count();
+                        .any(|b| b.3 == MismatchBand::Bedrock)
+                })
+                .count();
+            let biome_count = all_mismatches
+                .iter()
+                .filter(|m| m.biome_mismatch.is_some())
+                .count();
+            let surface_only_count = all_mismatches
+                .iter()
+                .filter(|m| {
+                    m.biome_mismatch.is_none()
+                        && m.block_mismatches
+                            .iter()
+                            .all(|b| b.3 == MismatchBand::Surface)
+                })
+                .count();
 
-        // Worst offenders: columns with the most mismatched Y positions.
-        let mut sorted = all_mismatches.iter().collect::<Vec<_>>();
-        sorted.sort_by_key(|m| std::cmp::Reverse(m.block_mismatches.len()));
-        let worst: Vec<String> = sorted
-            .iter()
-            .take(10)
-            .map(|m| {
-                let first_block = m
-                    .block_mismatches
-                    .first()
-                    .map(|(y, gid, fid, band)| {
-                        format!("Y={} band={} gen={} fix={}", y, band, gid, fid)
-                    })
-                    .unwrap_or_default();
-                let biome_s = m
-                    .biome_mismatch
-                    .map(|(g, f)| format!(", biome gen={} fix={}", g, f))
-                    .unwrap_or_default();
+            // Worst offenders: columns with the most mismatched Y positions.
+            let mut sorted = all_mismatches.iter().collect::<Vec<_>>();
+            sorted.sort_by_key(|m| std::cmp::Reverse(m.block_mismatches.len()));
+            let worst: Vec<String> = sorted
+                .iter()
+                .take(10)
+                .map(|m| {
+                    let first_block = m
+                        .block_mismatches
+                        .first()
+                        .map(|(y, gid, fid, band)| {
+                            format!("Y={} band={} gen={} fix={}", y, band, gid, fid)
+                        })
+                        .unwrap_or_default();
+                    let biome_s = m
+                        .biome_mismatch
+                        .map(|(g, f)| format!(", biome gen={} fix={}", g, f))
+                        .unwrap_or_default();
+                    format!(
+                        "  ({:+5},{:+5}) {} block mismatches [{}{}]",
+                        m.wx,
+                        m.wz,
+                        m.block_mismatches.len(),
+                        first_block,
+                        biome_s
+                    )
+                })
+                .collect();
+
+            let cause_note = if bedrock_count > 0 {
                 format!(
-                    "  ({:+5},{:+5}) {} block mismatches [{}{}]",
-                    m.wx,
-                    m.wz,
-                    m.block_mismatches.len(),
-                    first_block,
-                    biome_s
-                )
-            })
-            .collect();
-
-        let cause_note = if bedrock_count > 0 {
-            format!(
-                "LIKELY CAUSE: RNG-order or surface-pass bug ({} bedrock-band mismatches — \
+                    "LIKELY CAUSE: RNG-order or surface-pass bug ({} bedrock-band mismatches — \
                  bedrock is placed by the same LegacyRandom stream as the surface; \
                  wrong draw order corrupts both)",
-                bedrock_count
-            )
-        } else if biome_count > 0 {
-            format!(
-                "LIKELY CAUSE: Climate-sampling or biome-algorithm divergence \
+                    bedrock_count
+                )
+            } else if biome_count > 0 {
+                format!(
+                    "LIKELY CAUSE: Climate-sampling or biome-algorithm divergence \
                  ({} biome mismatches)",
-                biome_count
-            )
-        } else {
-            format!(
-                "LIKELY CAUSE: Genuine f32 zero-crossing drift ({} surface-band-only \
+                    biome_count
+                )
+            } else {
+                format!(
+                    "LIKELY CAUSE: Genuine f32 zero-crossing drift ({} surface-band-only \
                  mismatches, no bedrock or biome failures — sparse f32 accumulation error \
                  expected near terrain boundary; consider widening band or f64 path \
                  after user review)",
-                surface_only_count
-            )
-        };
+                    surface_only_count
+                )
+            };
 
-        panic!(
-            "\n\
+            panic!(
+                "\n\
              ╔══════════════════════════════════════════════════════════════╗\n\
              ║          BETA SURFACE PARITY GATE FAILED                    ║\n\
              ╚══════════════════════════════════════════════════════════════╝\n\
@@ -487,70 +491,69 @@ fn beta_surface_parity_gate() {
              \n\
              NOTE: Do NOT relax the threshold or enable f64 fallback without \
              explicit user review.  This gate halts the phase intentionally.\n",
-            total_columns,
+                total_columns,
+                mismatched,
+                mismatched as f64 / total_columns as f64 * 100.0,
+                bedrock_count,
+                surface_only_count,
+                biome_count,
+                cause_note,
+                worst.join("\n"),
+            );
+        }
+
+        // Gate green: at most 1 mismatch per 1280.
+        assert!(
+            mismatched * 1280 <= total_columns,
+            "parity gate: {} mismatches / {} columns exceeds 1-per-1280 threshold",
             mismatched,
-            mismatched as f64 / total_columns as f64 * 100.0,
-            bedrock_count,
-            surface_only_count,
-            biome_count,
-            cause_note,
-            worst.join("\n"),
+            total_columns
         );
     }
 
-    // Gate green: at most 1 mismatch per 1280.
-    assert!(
-        mismatched * 1280 <= total_columns,
-        "parity gate: {} mismatches / {} columns exceeds 1-per-1280 threshold",
-        mismatched,
-        total_columns
-    );
-}
+    /// Per-column climate oracle test: pins geographic climate sampling with the
+    /// quantized 64x64 biome lookup for a small set of columns (seed 12345).
+    ///
+    /// The corpus is geographic: column (wx, wz) holds Java's data for geographic
+    /// world position (wx, wz). Rust samples climate at (wx, wz) directly.
+    ///
+    /// Oracle columns (wx, wz, corpus_biome_id):
+    ///   (+31, -9)  → Desert(7)   — geographic temp ≥ 0.95 threshold
+    ///   (+30, -11) → Desert(7)   — geographic temp ≥ 0.95 threshold
+    ///   (  0,  0)  → Desert(7)   — lx=lz=0, trivially geographic
+    ///   (+16,+16)  → Savanna(4)  — lx=lz=0, trivially geographic
+    #[test]
+    fn beta_climate_matches_back2beta_oracle() {
+        let router = build_beta_router();
 
-// ── Per-column climate oracle test ───────────────────────────────────────────
+        let oracle_cols: &[(i32, i32, u8)] = &[
+            (31, -9, 7),  // Desert
+            (30, -11, 7), // Desert
+            (0, 0, 7),    // Desert
+            (16, 16, 4),  // Savanna
+        ];
 
-/// Per-column climate oracle test: pins geographic climate sampling with the
-/// quantized 64x64 biome lookup for a small set of columns (seed 12345).
-///
-/// The corpus is geographic: column (wx, wz) holds Java's data for geographic
-/// world position (wx, wz). Rust samples climate at (wx, wz) directly.
-///
-/// Oracle columns (wx, wz, corpus_biome_id):
-///   (+31, -9)  → Desert(7)   — geographic temp ≥ 0.95 threshold
-///   (+30, -11) → Desert(7)   — geographic temp ≥ 0.95 threshold
-///   (  0,  0)  → Desert(7)   — lx=lz=0, trivially geographic
-///   (+16,+16)  → Savanna(4)  — lx=lz=0, trivially geographic
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn beta_climate_matches_back2beta_oracle() {
-    let router = build_beta_router();
+        let table = build_beta_lookup_table();
 
-    let oracle_cols: &[(i32, i32, u8)] = &[
-        (31, -9, 7),  // Desert
-        (30, -11, 7), // Desert
-        (0, 0, 7),    // Desert
-        (16, 16, 4),  // Savanna
-    ];
+        let mut failures: Vec<String> = Vec::new();
 
-    let table = build_beta_lookup_table();
+        for &(wx, wz, expected_biome_id) in oracle_cols {
+            let (temp, rain) = router.sample_beta_climate(&mut Workspace::new(), wx, wz);
+            let gen_id =
+                beta_land_biome_to_back2beta_id(beta_biome_from_climate(&table, temp, rain));
 
-    let mut failures: Vec<String> = Vec::new();
-
-    for &(wx, wz, expected_biome_id) in oracle_cols {
-        let (temp, rain) = router.sample_beta_climate(&mut Workspace::new(), wx, wz);
-        let gen_id = beta_land_biome_to_back2beta_id(beta_biome_from_climate(&table, temp, rain));
-
-        if gen_id != expected_biome_id {
-            failures.push(format!(
-                "  ({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6})",
-                wx, wz, expected_biome_id, gen_id, temp, rain
-            ));
+            if gen_id != expected_biome_id {
+                failures.push(format!(
+                    "  ({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6})",
+                    wx, wz, expected_biome_id, gen_id, temp, rain
+                ));
+            }
         }
-    }
 
-    assert!(
-        failures.is_empty(),
-        "\nbeta_climate_matches_back2beta_oracle FAILED;\nfailing columns:\n{}",
-        failures.join("\n")
-    );
+        assert!(
+            failures.is_empty(),
+            "\nbeta_climate_matches_back2beta_oracle FAILED;\nfailing columns:\n{}",
+            failures.join("\n")
+        );
+    }
 }

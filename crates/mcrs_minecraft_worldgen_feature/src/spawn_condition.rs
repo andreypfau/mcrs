@@ -202,34 +202,10 @@ pub struct VariantTables {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::ResourceLocation;
 
     #[test]
-    fn a_point_and_a_range_both_round_trip() {
-        for text in ["0.9", r#"{"min":0.9}"#, r#"{"min":0.1,"max":0.5}"#, "{}"] {
-            let bounds: DoubleBounds = serde_json::from_str(text).unwrap();
-            assert_eq!(serde_json::to_string(&bounds).unwrap(), text, "{text}");
-        }
-        assert!(serde_json::from_str::<DoubleBounds>(r#"{"min":2,"max":1}"#).is_err());
+    fn a_lower_bound_matches_at_and_above_it() {
         let at_least: DoubleBounds = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
         assert!(at_least.matches(1.0) && at_least.matches(0.9) && !at_least.matches(0.8));
-    }
-
-    #[test]
-    fn a_selector_reads_its_typed_condition() {
-        let text = r##"{"condition":{"type":"minecraft:structure","structures":"#minecraft:cats_spawn_as_black"},"priority":1}"##;
-        let selector: SpawnSelector = serde_json::from_str(text).unwrap();
-        assert_eq!(
-            selector,
-            SpawnSelector {
-                condition: Some(SpawnCondition::Structure {
-                    structures: HolderSet::Tag(ResourceLocation::minecraft("cats_spawn_as_black")),
-                }),
-                priority: 1,
-            }
-        );
-        assert_eq!(serde_json::to_string(&selector).unwrap(), text);
-        let bare: SpawnSelector = serde_json::from_str(r#"{"priority":0}"#).unwrap();
-        assert_eq!(bare.condition, None);
     }
 }

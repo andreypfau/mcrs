@@ -1,9 +1,9 @@
 mod biome_tags;
 mod block_definition_corpus;
 mod common;
-mod enchantment_effects;
 mod item_corpus;
 mod player_dat;
+mod playing;
 mod registry_keys;
 mod registry_values;
 mod structure_assets;

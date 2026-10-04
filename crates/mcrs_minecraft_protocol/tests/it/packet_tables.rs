@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use mcrs_minecraft_protocol::packets::table::{Decoded, TABLES, Table, game_serverbound};
 use mcrs_minecraft_protocol::{ConnectionState, PacketSide};
@@ -33,8 +33,23 @@ fn side_key(side: PacketSide) -> &'static str {
 }
 
 #[test]
-fn each_table_equals_the_report_in_names_and_order() {
+fn the_tables_are_the_reports_tables_in_names_and_order() {
     let report = report();
+    let from_report: Vec<(&str, &str)> = report
+        .iter()
+        .flat_map(|(state, sides)| {
+            sides
+                .keys()
+                .map(move |side| (state.as_str(), side.as_str()))
+        })
+        .collect();
+    let mut from_tables: Vec<(&str, &str)> = TABLES
+        .iter()
+        .map(|table| (state_key(table.state), side_key(table.side)))
+        .collect();
+    from_tables.sort();
+    assert_eq!(from_tables, from_report);
+
     for table in TABLES {
         let rows = &report[state_key(table.state)][side_key(table.side)];
         let mut by_id: Vec<(i32, &str)> = rows
@@ -52,25 +67,6 @@ fn each_table_equals_the_report_in_names_and_order() {
         let names: Vec<&str> = by_id.iter().map(|(_, name)| *name).collect();
         assert_eq!(names, table.names, "{}", table.name);
     }
-}
-
-#[test]
-fn the_tables_are_the_reports_tables() {
-    let from_report: BTreeSet<(String, String)> = report()
-        .into_iter()
-        .flat_map(|(state, sides)| sides.into_keys().map(move |side| (state.clone(), side)))
-        .collect();
-    let mut from_tables: Vec<(String, String)> = TABLES
-        .iter()
-        .map(|table| {
-            (
-                state_key(table.state).to_owned(),
-                side_key(table.side).to_owned(),
-            )
-        })
-        .collect();
-    from_tables.sort();
-    assert_eq!(from_tables, from_report.into_iter().collect::<Vec<_>>());
 }
 
 #[derive(Debug)]

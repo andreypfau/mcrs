@@ -98,50 +98,53 @@ pub(super) fn comparable(piece: &NbtCompound) -> NbtCompound {
     canonical(&piece)
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn structure_pieces_serialise_as_the_reference_writes_them() {
-    let dump = read_dump();
-    let frozen = frozen_shared();
-    let mut indices: HashMap<(i64, String), StructureIndex> = HashMap::new();
-    let mut compared = 0;
-    let mut pieces = 0;
-    for case in &dump {
-        let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
-        let label = format!(
-            "seed {} {} {} at {:?}",
-            case.seed, case.dimension, case.structure, case.chunk
-        );
-        let index = indices
-            .entry((case.seed, case.dimension.clone()))
-            .or_insert_with(|| build_index(&dimension(&case.dimension), case.seed));
-        let ours = index.start_of(case.chunk, id);
-        let Some((bounds, expected)) = &case.start else {
-            assert!(
-                ours.is_none(),
-                "{label}: a start the reference does not have"
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn structure_pieces_serialise_as_the_reference_writes_them() {
+        let dump = read_dump();
+        let frozen = frozen_shared();
+        let mut indices: HashMap<(i64, String), StructureIndex> = HashMap::new();
+        let mut compared = 0;
+        let mut pieces = 0;
+        for case in &dump {
+            let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
+            let label = format!(
+                "seed {} {} {} at {:?}",
+                case.seed, case.dimension, case.structure, case.chunk
             );
-            continue;
-        };
-        let Some(start) = ours else {
-            panic!("{label}: no start where the reference has one");
-        };
-        assert_eq!(start.bounds, *bounds, "{label}: start box");
-        assert_eq!(start.pieces.len(), expected.len(), "{label}: piece count");
-        let context = PieceContext {
-            frozen,
-            structure: id,
-        };
-        for (i, (piece, want)) in start.pieces.iter().zip(expected).enumerate() {
-            let got = to_nbt_compound(&piece.nbt(&context)).unwrap();
-            assert_eq!(
-                comparable(&got),
-                comparable(want),
-                "{label} piece #{i}: NBT"
-            );
-            pieces += 1;
+            let index = indices
+                .entry((case.seed, case.dimension.clone()))
+                .or_insert_with(|| build_index(&dimension(&case.dimension), case.seed));
+            let ours = index.start_of(case.chunk, id);
+            let Some((bounds, expected)) = &case.start else {
+                assert!(
+                    ours.is_none(),
+                    "{label}: a start the reference does not have"
+                );
+                continue;
+            };
+            let Some(start) = ours else {
+                panic!("{label}: no start where the reference has one");
+            };
+            assert_eq!(start.bounds, *bounds, "{label}: start box");
+            assert_eq!(start.pieces.len(), expected.len(), "{label}: piece count");
+            let context = PieceContext {
+                frozen,
+                structure: id,
+            };
+            for (i, (piece, want)) in start.pieces.iter().zip(expected).enumerate() {
+                let got = to_nbt_compound(&piece.nbt(&context)).unwrap();
+                assert_eq!(
+                    comparable(&got),
+                    comparable(want),
+                    "{label} piece #{i}: NBT"
+                );
+                pieces += 1;
+            }
+            compared += 1;
         }
-        compared += 1;
+        assert_eq!((compared, pieces), (592, 40849));
     }
-    assert_eq!((compared, pieces), (592, 40849));
 }

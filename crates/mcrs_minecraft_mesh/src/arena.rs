@@ -102,37 +102,7 @@ mod tests {
         a.offset < b.offset + b.size && b.offset < a.offset + a.size
     }
 
-    #[test]
-    fn small_requests_pack_at_the_bottom_of_an_uneven_arena() {
-        let mut arena = Arena::new(1000);
-        let ends: Vec<usize> = (0..8)
-            .map(|_| {
-                let block = arena.alloc(1).unwrap();
-                block.offset + block.size
-            })
-            .collect();
-        assert_eq!(ends, (1..=8).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn a_request_takes_the_class_above_it() {
-        let mut arena = Arena::new(1024);
-        let block = arena.alloc(33).unwrap();
-        assert_eq!(block.size, 64, "33 units round up to a class of 64");
-        assert_eq!(
-            arena.held(),
-            64,
-            "and the arena is charged for the rounding"
-        );
-    }
-
-    #[test]
-    fn no_two_live_blocks_overlap() {
-        let mut arena = Arena::new(4096);
-        let live: Vec<Block> = [700usize, 3, 200, 64, 1, 33, 129, 500]
-            .iter()
-            .map(|units| arena.alloc(*units).unwrap())
-            .collect();
+    fn assert_disjoint(arena: &Arena, live: &[Block]) {
         for (index, block) in live.iter().enumerate() {
             assert!(block.offset + block.size <= arena.capacity());
             for other in &live[index + 1..] {
@@ -142,12 +112,49 @@ mod tests {
     }
 
     #[test]
-    fn a_freed_block_is_handed_out_again() {
+    fn allocation_rounds_up_packs_low_and_never_overlaps() {
+        let mut uneven = Arena::new(1000);
+        let ends: Vec<usize> = (0..8)
+            .map(|_| {
+                let block = uneven.alloc(1).unwrap();
+                block.offset + block.size
+            })
+            .collect();
+        assert_eq!(ends, (1..=8).collect::<Vec<_>>());
+
+        let mut arena = Arena::new(4096);
+        let live: Vec<Block> = [700usize, 3, 200, 64, 1, 33, 129, 500]
+            .iter()
+            .map(|units| arena.alloc(*units).unwrap())
+            .collect();
+        assert_eq!(live[5].size, 64, "33 units round up to a class of 64");
+        assert_eq!(
+            arena.held(),
+            live.iter().map(|block| block.size).sum::<usize>(),
+            "the arena is charged for the rounding"
+        );
+        assert_disjoint(&arena, &live);
+
+        let mut twelve = Arena::new(12);
+        let live: Vec<Block> = (0..12).map(|_| twelve.alloc(1).unwrap()).collect();
+        assert_eq!(twelve.held(), 12);
+        assert!(twelve.alloc(1).is_none());
+        assert_disjoint(&twelve, &live);
+        for block in live {
+            twelve.free(block);
+        }
+        assert_eq!(
+            twelve.alloc(8).unwrap().size,
+            8,
+            "the larger carve is whole again"
+        );
+    }
+
+    #[test]
+    fn freed_room_is_reused_and_coalesces() {
         let mut arena = Arena::new(1024);
         let first = arena.alloc(100).unwrap();
         let second = arena.alloc(100).unwrap();
-        assert!(!overlap(&first, &second));
-
         arena.free(first);
         assert_eq!(
             arena.held(),
@@ -159,67 +166,26 @@ mod tests {
             third.offset, first.offset,
             "the freed block, not a fresh one"
         );
-        assert_eq!(arena.held(), second.size + third.size);
-    }
+        arena.free(second);
+        arena.free(third);
 
-    #[test]
-    fn room_freed_in_small_blocks_serves_a_large_request() {
-        let mut arena = Arena::new(1024);
         let small: Vec<Block> = (0..16).map(|_| arena.alloc(64).unwrap()).collect();
         assert_eq!(arena.held(), 1024, "the arena is full");
         assert!(arena.alloc(1).is_none());
-
         for block in small {
             arena.free(block);
         }
         assert_eq!(arena.held(), 0);
+
+        let empty = arena.alloc(0).unwrap();
+        arena.free(empty);
+        assert_eq!(arena.held(), 0, "an empty request costs nothing");
+
         let whole = arena.alloc(1024).unwrap();
         assert_eq!(
             (whole.offset, whole.size),
             (0, 1024),
             "the arena came back in one piece"
         );
-    }
-
-    #[test]
-    fn an_arena_with_no_room_refuses_rather_than_overlapping() {
-        let mut arena = Arena::new(256);
-        let first = arena.alloc(200).unwrap();
-        assert_eq!(first.size, 256, "200 rounds up to the whole arena");
-        assert!(arena.alloc(1).is_none());
-        arena.free(first);
-        assert!(arena.alloc(1).is_some(), "and the room comes back");
-    }
-
-    #[test]
-    fn an_arena_that_is_not_a_power_of_two_hands_out_all_of_itself() {
-        let mut arena = Arena::new(12);
-        let live: Vec<Block> = (0..12).map(|_| arena.alloc(1).unwrap()).collect();
-        assert_eq!(arena.held(), 12);
-        assert!(arena.alloc(1).is_none());
-        for (index, block) in live.iter().enumerate() {
-            assert!(block.offset < 12);
-            for other in &live[index + 1..] {
-                assert!(!overlap(block, other));
-            }
-        }
-        for block in live {
-            arena.free(block);
-        }
-        assert_eq!(
-            arena.alloc(8).unwrap().size,
-            8,
-            "the larger carve is whole again"
-        );
-    }
-
-    #[test]
-    fn an_empty_request_costs_nothing() {
-        let mut arena = Arena::new(64);
-        let empty = arena.alloc(0).unwrap();
-        assert_eq!(arena.held(), 0);
-        arena.free(empty);
-        assert_eq!(arena.held(), 0);
-        assert_eq!(arena.alloc(64).unwrap().offset, 0, "the arena is untouched");
     }
 }

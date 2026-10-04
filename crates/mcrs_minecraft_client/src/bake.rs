@@ -403,12 +403,19 @@ mod tests {
     }
 
     #[test]
-    fn geometry_and_sprites() {
+    fn a_block_bakes_its_geometry_shade_sprites_and_rotation() {
         let baked = oak_log(&[("axis", "y")]);
         assert_eq!(baked.quads.len(), 6);
         assert_eq!(baked.sprites.len(), 2);
-
-        for dir in Dir::all() {
+        assert!(baked.ambient_occlusion);
+        for (dir, shade) in [
+            (Dir::Down, 0.5),
+            (Dir::Up, 1.0),
+            (Dir::North, 0.8),
+            (Dir::South, 0.8),
+            (Dir::West, 0.6),
+            (Dir::East, 0.6),
+        ] {
             let q = quad(&baked, dir);
             for i in 0..4 {
                 assert_eq!(q.positions[i], corner(dir, i, Vec3::ZERO, Vec3::ONE));
@@ -424,55 +431,24 @@ mod tests {
                 "winding of {dir:?}"
             );
             assert_eq!(q.cull, Some(dir));
+            assert_eq!(q.shade, shade, "face shade of {dir:?}");
         }
+        let sprites = |baked: &BakedBlock| {
+            Dir::all().map(|dir| baked.sprites[quad(baked, dir).sprite].clone())
+        };
+        let (top, bark) = ("minecraft:block/oak_log_top", "minecraft:block/oak_log");
+        assert_eq!(sprites(&baked), [top, top, bark, bark, bark, bark].map(String::from));
 
-        let sprite_of = |dir| baked.sprites[quad(&baked, dir).sprite].as_str();
-        assert_eq!(sprite_of(Dir::Up), "minecraft:block/oak_log_top");
-        assert_eq!(sprite_of(Dir::Down), "minecraft:block/oak_log_top");
-        for dir in [Dir::North, Dir::South, Dir::West, Dir::East] {
-            assert_eq!(sprite_of(dir), "minecraft:block/oak_log");
-        }
-    }
+        let sideways = oak_log(&[("axis", "x")]);
+        assert_eq!(sideways.quads.len(), 6);
+        assert_eq!(
+            sprites(&sideways),
+            [bark, bark, bark, bark, top, top].map(String::from),
+            "a log along X shows its rings on the two X faces"
+        );
 
-    #[test]
-    fn face_shade_follows_the_direction() {
-        let baked = oak_log(&[("axis", "y")]);
-        assert!(baked.ambient_occlusion);
-        for (dir, expected) in [
-            (Dir::Down, 0.5),
-            (Dir::Up, 1.0),
-            (Dir::North, 0.8),
-            (Dir::South, 0.8),
-            (Dir::West, 0.6),
-            (Dir::East, 0.6),
-        ] {
-            assert_eq!(quad(&baked, dir).shade, expected, "face shade of {dir:?}");
-        }
-    }
-
-    #[test]
-    fn object_form_texture_slots_resolve() {
-        let baked = bake(Pack::corpus(), "minecraft:glass", &[]).expect("glass bakes");
-        assert_eq!(baked.sprites, ["minecraft:block/glass"]);
-        assert_eq!(baked.quads.len(), 6);
-    }
-
-    #[test]
-    fn variant_rotation_turns_the_log_on_its_side() {
-        let baked = oak_log(&[("axis", "x")]);
-        assert_eq!(baked.quads.len(), 6);
-        let sprite_of = |dir| baked.sprites[quad(&baked, dir).sprite].as_str();
-        // A log along X shows its rings on the two X faces and bark everywhere else.
-        assert_eq!(sprite_of(Dir::West), "minecraft:block/oak_log_top");
-        assert_eq!(sprite_of(Dir::East), "minecraft:block/oak_log_top");
-        for dir in [Dir::Up, Dir::Down, Dir::North, Dir::South] {
-            assert_eq!(sprite_of(dir), "minecraft:block/oak_log", "{dir:?}");
-        }
-        for dir in Dir::all() {
-            let q = quad(&baked, dir);
-            for i in 0..4 {
-                assert_eq!(q.positions[i], corner(dir, i, Vec3::ZERO, Vec3::ONE));
-            }
-        }
+        let glass = bake(Pack::corpus(), "minecraft:glass", &[]).expect("glass bakes");
+        assert_eq!(glass.sprites, ["minecraft:block/glass"]);
+        assert_eq!(glass.quads.len(), 6);
     }
 }

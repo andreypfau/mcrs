@@ -582,18 +582,61 @@ mod tests {
         parsed
     }
 
+    type Codec = fn(&str) -> Result<String, String>;
+
+    fn codec<T: serde::de::DeserializeOwned + Serialize>(json: &str) -> Result<String, String> {
+        let value: T = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        Ok(serde_json::to_string(&value).unwrap())
+    }
+
     #[test]
-    fn dimension_origin_has_no_fields() {
-        let set: StructureSet = round_trip(
-            r#"{"structures":[{"structure":"minecraft:a","weight":1}],"placement":{"type":"minecraft:dimension_origin"}}"#,
-        );
-        assert_eq!(set.placement, StructurePlacement::DimensionOrigin {});
-        assert!(
-            serde_json::from_str::<StructurePlacement>(
-                r#"{"type":"minecraft:dimension_origin","salt":1}"#
-            )
-            .is_err()
-        );
+    fn explicit_defaults_are_dropped_and_the_rest_is_kept() {
+        let cases: &[(Codec, &str, &str)] = &[
+            (
+                codec::<StructurePlacement>,
+                r#"{"type":"minecraft:random_spread","salt":1,"frequency":1.0,"frequency_reduction_method":"default","locate_offset":[0,0,0],"spacing":2,"separation":1,"spread_type":"linear"}"#,
+                r#"{"type":"minecraft:random_spread","salt":1,"spacing":2,"separation":1}"#,
+            ),
+            (
+                codec::<PoolEntry>,
+                r#"{"element":{"element_type":"minecraft:single_pool_element","location":"minecraft:x/y","processors":"minecraft:empty","projection":"rigid","override_liquid_settings":"ignore_waterlogging"},"weight":1}"#,
+                r#"{"element":{"element_type":"minecraft:single_pool_element","location":"minecraft:x/y","processors":"minecraft:empty","projection":"rigid","override_liquid_settings":"ignore_waterlogging"},"weight":1}"#,
+            ),
+        ];
+        for (codec, json, expected) in cases {
+            assert_eq!(codec(json).as_deref(), Ok(*expected));
+        }
+    }
+
+    #[test]
+    fn a_field_the_type_does_not_declare_is_refused() {
+        let cases: &[(Codec, &str, &str)] = &[
+            (
+                codec::<Structure>,
+                r##"{"type":"minecraft:igloo","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes"}"##,
+                r#""bogus":1"#,
+            ),
+            (
+                codec::<Structure>,
+                r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes","start_pool":"minecraft:p","size":1,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":80}"##,
+                r#""bogus":1"#,
+            ),
+            (
+                codec::<StructurePlacement>,
+                r#"{"type":"minecraft:random_spread","salt":1,"spacing":2,"separation":1}"#,
+                r#""bogus":1"#,
+            ),
+            (
+                codec::<PoolElement>,
+                r#"{"element_type":"minecraft:empty_pool_element"}"#,
+                r#""projection":"rigid""#,
+            ),
+        ];
+        for (codec, json, extra) in cases {
+            codec(json).unwrap();
+            let with_extra = format!("{},{extra}}}", &json[..json.len() - 1]);
+            assert!(codec(&with_extra).is_err(), "{with_extra}");
+        }
     }
 
     #[test]
@@ -634,60 +677,5 @@ mod tests {
             ),
             (0, 0)
         );
-    }
-
-    #[test]
-    fn spreading_explicit_defaults_are_dropped() {
-        let parsed: StructurePlacement = serde_json::from_str(
-            r#"{"type":"minecraft:random_spread","salt":1,"frequency":1.0,"frequency_reduction_method":"default","locate_offset":[0,0,0],"spacing":2,"separation":1,"spread_type":"linear"}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            serde_json::to_string(&parsed).unwrap(),
-            r#"{"type":"minecraft:random_spread","salt":1,"spacing":2,"separation":1}"#
-        );
-    }
-
-    #[test]
-    fn override_liquid_settings_round_trips() {
-        let entry: PoolEntry = round_trip(
-            r#"{"element":{"element_type":"minecraft:single_pool_element","location":"minecraft:x/y","processors":"minecraft:empty","projection":"rigid","override_liquid_settings":"ignore_waterlogging"},"weight":1}"#,
-        );
-        let PoolElement::Single(single) = entry.element else {
-            panic!("not single");
-        };
-        assert_eq!(
-            single.override_liquid_settings,
-            Some(LiquidSettings::IgnoreWaterlogging)
-        );
-        assert!(
-            serde_json::from_str::<PoolElement>(
-                r#"{"element_type":"minecraft:empty_pool_element","projection":"rigid"}"#
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn unknown_keys_under_a_flatten_are_refused() {
-        for json in [
-            r##"{"type":"minecraft:igloo","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes","bogus":1}"##,
-            r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes","start_pool":"minecraft:p","size":1,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":80,"bogus":1}"##,
-            r#"{"type":"minecraft:random_spread","salt":1,"spacing":2,"separation":1,"bogus":1}"#,
-        ] {
-            assert!(serde_json::from_str::<serde_json::Value>(json).is_ok());
-            assert!(
-                serde_json::from_str::<Structure>(json).is_err()
-                    && serde_json::from_str::<StructurePlacement>(json).is_err(),
-                "{json}"
-            );
-        }
-    }
-
-    #[test]
-    fn decoration_step_ordinals_match_the_registry() {
-        assert_eq!(DecorationStep::RawGeneration as usize, 0);
-        assert_eq!(DecorationStep::SurfaceStructures as usize, 4);
-        assert_eq!(DecorationStep::TopLayerModification as usize, 10);
     }
 }

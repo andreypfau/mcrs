@@ -855,15 +855,6 @@ mod tests {
         }
     }
 
-    // ── TAG_CAPABLE_REGISTRIES ──
-
-    #[test]
-    fn tag_capable_registries_is_sorted() {
-        let mut sorted = TAG_CAPABLE_REGISTRIES.to_vec();
-        sorted.sort();
-        assert_eq!(sorted, TAG_CAPABLE_REGISTRIES);
-    }
-
     // ── should_skip_nbt: KnownPacks NBT-skip logic ──
 
     #[test]

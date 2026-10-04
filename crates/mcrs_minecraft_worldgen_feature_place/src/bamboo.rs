@@ -176,32 +176,20 @@ mod tests {
     }
 
     /// Air over the wrong ground still reports success — the reference counts
-    /// the origin, not the stalk — but draws nothing at all.
+    /// the origin, not the stalk — and a blocked origin is the one failure.
+    /// Neither draws anything.
     #[test]
-    fn ground_that_refuses_bamboo_succeeds_and_draws_nothing() {
-        let cfg = config(1.0);
-        let mut volume = ground();
-        volume
-            .blocks
-            .insert((ORIGIN.x, ORIGIN.y - 1, ORIGIN.z), STONE);
-        let mut rng = WorldgenRandom::new(7);
-        let before = rng.clone();
-        assert!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
-        assert_eq!(rng, before);
-        assert!(volume.writes.is_empty());
-    }
-
-    /// A blocked origin is the one failure, and it too is free.
-    #[test]
-    fn a_blocked_origin_fails_and_draws_nothing() {
-        let cfg = config(1.0);
-        let mut volume = ground();
-        volume.blocks.insert((ORIGIN.x, ORIGIN.y, ORIGIN.z), STONE);
-        let mut rng = WorldgenRandom::new(7);
-        let before = rng.clone();
-        assert!(!place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN));
-        assert_eq!(rng, before);
-        assert!(volume.writes.is_empty());
+    fn wrong_ground_and_a_blocked_origin_draw_nothing() {
+        for (stone_at, succeeds) in [(ORIGIN.y - 1, true), (ORIGIN.y, false)] {
+            let cfg = config(1.0);
+            let mut volume = ground();
+            volume.blocks.insert((ORIGIN.x, stone_at, ORIGIN.z), STONE);
+            let mut rng = WorldgenRandom::new(7);
+            let before = rng.clone();
+            assert_eq!(place_bamboo(&cfg, &mut volume, &mut rng, ORIGIN), succeeds);
+            assert_eq!(rng, before);
+            assert!(volume.writes.is_empty());
+        }
     }
 
     /// A ceiling three blocks up leaves the shaft too short for the tip, so the

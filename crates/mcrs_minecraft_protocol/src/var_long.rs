@@ -70,12 +70,13 @@ impl Decode<'_> for VarLong {
 
 #[cfg(test)]
 mod tests {
-    use rand::RngExt;
+    use rand::rngs::StdRng;
+    use rand::{RngExt, SeedableRng};
 
     use super::*;
 
     fn check_encode_decode(count: usize) {
-        let mut rng = rand::rng();
+        let mut rng = StdRng::seed_from_u64(0x7661_726c_6f6e);
         let mut buf = vec![];
 
         for n in (0..count)

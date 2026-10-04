@@ -1,10 +1,8 @@
 use super::*;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_generator::heightmap::*;
-use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus, tag_members};
-use std::collections::HashSet;
+use mcrs_minecraft_worldgen_generator::tests::{block_tags, blocks as corpus};
 use std::sync::OnceLock;
 
 fn predicates() -> &'static HeightmapPredicates {
@@ -20,7 +18,6 @@ fn state_of(block: &str) -> VoxelId {
         .into()
 }
 
-#[test]
 fn air_never_blocks_motion() {
     let blocks = corpus();
     let table = predicates();
@@ -40,76 +37,6 @@ fn air_never_blocks_motion() {
     }
 }
 
-#[test]
-fn a_fluid_bearing_state_is_never_air() {
-    let blocks = corpus();
-    let mut fluid_states = 0usize;
-    for index in 0..blocks.state_count() {
-        let state = blocks.state(BlockStateId(index as u16));
-        if state.fluid.is_some() {
-            fluid_states += 1;
-            assert!(
-                !state.flags.contains(BlockStateFlags::IS_AIR),
-                "state {index} is air and holds a fluid"
-            );
-        }
-    }
-    assert!(fluid_states > 0, "the corpus declares no fluid state");
-}
-
-#[test]
-fn blocks_motion_is_exactly_no_leaves_plus_leaves() {
-    let motion = tag_members("minecraft:blocks_motion_in_heightmap");
-    let no_leaves = tag_members("minecraft:blocks_motion_in_heightmap_no_leaves");
-    let leaves = tag_members("minecraft:leaves");
-
-    assert!(!motion.is_empty() && !leaves.is_empty());
-    let union: HashSet<u32> = no_leaves.union(&leaves).copied().collect();
-    let only_in_motion: Vec<_> = motion.difference(&union).copied().collect();
-    let only_in_union: Vec<_> = union.difference(&motion).copied().collect();
-    assert!(
-        only_in_motion.is_empty() && only_in_union.is_empty(),
-        "blocks_motion != no_leaves u leaves: {} only in motion, {} only in the union",
-        only_in_motion.len(),
-        only_in_union.len()
-    );
-    assert!(motion.len() > no_leaves.len(), "leaves add nothing");
-}
-
-#[test]
-fn the_tag_predicates_are_the_same_for_every_state_of_a_block() {
-    let blocks = corpus();
-    let table = predicates();
-    for block in blocks.blocks() {
-        let base = block.base_state_id.0;
-        let solid = table.get(VoxelId(base)) & HeightmapKinds::SOLID;
-        // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
-        // only comparable among the states that carry none.
-        let dry = |id: VoxelId| blocks.state(id.into()).fluid.is_none();
-        let no_leaves = (0..block.state_count)
-            .map(|offset| VoxelId(base + offset))
-            .find(|&id| dry(id))
-            .map(|id| table.get(id) & HeightmapKinds::NO_LEAVES);
-        for offset in 0..block.state_count {
-            let id = VoxelId(base + offset);
-            let name = block.identifier.as_str();
-            assert_eq!(
-                table.get(id) & HeightmapKinds::SOLID,
-                solid,
-                "{name} state {offset} disagrees with its block"
-            );
-            if dry(id) {
-                assert_eq!(
-                    Some(table.get(id) & HeightmapKinds::NO_LEAVES),
-                    no_leaves,
-                    "{name} state {offset} disagrees with its block"
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn water_and_leaves_land_where_the_lattice_says() {
     let table = predicates();
     let water = table.get(state_of("minecraft:water"));
@@ -269,7 +196,6 @@ fn sample_column() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
     (sections, y_sections)
 }
 
-#[test]
 fn the_fused_pass_matches_the_naive_scan() {
     let table = predicates();
     let (sections, y_sections) = sample_column();
@@ -296,7 +222,6 @@ fn the_fused_pass_matches_the_naive_scan() {
     assert_eq!(built.solid.0.get(5, 0), 0);
 }
 
-#[test]
 fn an_empty_column_reports_its_floor() {
     let table = predicates();
     let y_sections = vec![-4, -3];
@@ -367,7 +292,6 @@ fn read_maps(app: &App, column: Entity) -> ColumnHeightmapSet {
     }
 }
 
-#[test]
 fn a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild() {
     use mcrs_minecraft_core::{BlockPos, SectionPos};
     use mcrs_minecraft_level::block::BlockUpdateFlags;
@@ -536,7 +460,6 @@ fn the_chunk_packet_carries_the_three_client_heightmaps() {
 
 // ─── Packed storage ──────────────────────────────────────────────────────────
 
-#[test]
 fn heightmap_set_get_round_trip() {
     let mut h = ColumnHeights::new(384, -64);
     for z in 0..SectionPos::SIZE {
@@ -553,7 +476,6 @@ fn heightmap_set_get_round_trip() {
     }
 }
 
-#[test]
 fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
     // 9 bits per entry, lowest entry in lowest bits of long 0.
     let mut h = ColumnHeights::new(384, 0);
@@ -569,3 +491,54 @@ fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
     );
 }
 
+#[test]
+fn the_predicate_table_feeds_the_fused_pass_and_its_incremental_upkeep() {
+    air_never_blocks_motion();
+    water_and_leaves_land_where_the_lattice_says();
+    the_fused_pass_matches_the_naive_scan();
+    an_empty_column_reports_its_floor();
+    a_series_of_edits_stays_bit_for_bit_equal_to_a_rebuild();
+}
+
+#[test]
+fn heightmap_storage_packs_and_round_trips() {
+    heightmap_set_get_round_trip();
+    heightmap_packs_entries_lowest_index_in_lowest_bits();
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_tag_predicates_are_the_same_for_every_state_of_a_block() {
+        let blocks = corpus();
+        let table = predicates();
+        for block in blocks.blocks() {
+            let base = block.base_state_id.0;
+            let solid = table.get(VoxelId(base)) & HeightmapKinds::SOLID;
+            // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
+            // only comparable among the states that carry none.
+            let dry = |id: VoxelId| blocks.state(id.into()).fluid.is_none();
+            let no_leaves = (0..block.state_count)
+                .map(|offset| VoxelId(base + offset))
+                .find(|&id| dry(id))
+                .map(|id| table.get(id) & HeightmapKinds::NO_LEAVES);
+            for offset in 0..block.state_count {
+                let id = VoxelId(base + offset);
+                let name = block.identifier.as_str();
+                assert_eq!(
+                    table.get(id) & HeightmapKinds::SOLID,
+                    solid,
+                    "{name} state {offset} disagrees with its block"
+                );
+                if dry(id) {
+                    assert_eq!(
+                        Some(table.get(id) & HeightmapKinds::NO_LEAVES),
+                        no_leaves,
+                        "{name} state {offset} disagrees with its block"
+                    );
+                }
+            }
+        }
+    }
+}

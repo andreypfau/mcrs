@@ -307,13 +307,10 @@ fn brightness_applies_sky_darkening_at_read_time() {
 
 #[test]
 fn a_batch_of_edits_agrees_with_the_reference() {
-    let mut world = TestWorld::new(3, 4, 3);
-
-    // A terrain-like slab of stone with a cave under it, a glass skylight, and
-    // some emitters scattered below.
+    let mut world = TestWorld::new(2, 3, 2);
     let mut terrain = Vec::new();
-    for z in 0..48 {
-        for x in 0..48 {
+    for z in 0..32 {
+        for x in 0..32 {
             terrain.push((BlockPos::new(x, 40, z), STONE));
         }
     }
@@ -321,21 +318,20 @@ fn a_batch_of_edits_agrees_with_the_reference() {
     world.set_many([
         (BlockPos::new(10, 40, 10), GLASS),
         (BlockPos::new(11, 40, 10), GLASS),
-        (BlockPos::new(30, 40, 30), AIR),
+        (BlockPos::new(26, 40, 26), AIR),
         (BlockPos::new(20, 30, 20), TORCH),
-        (BlockPos::new(35, 25, 12), GLOWSTONE),
-        (BlockPos::new(5, 20, 40), TORCH),
-        (BlockPos::new(24, 36, 24), BOTTOM_SLAB),
-        (BlockPos::new(25, 36, 24), TOP_SLAB),
-        (BlockPos::new(40, 38, 8), WATER),
+        (BlockPos::new(27, 25, 12), GLOWSTONE),
+        (BlockPos::new(5, 20, 28), TORCH),
+        (BlockPos::new(16, 36, 16), BOTTOM_SLAB),
+        (BlockPos::new(17, 36, 16), TOP_SLAB),
+        (BlockPos::new(28, 38, 8), WATER),
     ]);
     world.check_against_reference();
 
-    // Now break some of it again.
     world.set_many([
         (BlockPos::new(20, 30, 20), AIR),
         (BlockPos::new(10, 40, 10), STONE),
-        (BlockPos::new(30, 40, 30), STONE),
+        (BlockPos::new(26, 40, 26), STONE),
         (BlockPos::new(12, 40, 12), AIR),
     ]);
     world.check_against_reference();
@@ -506,5 +502,45 @@ fn a_section_the_epoch_recomputed_but_did_not_change_keeps_its_buffer() {
             "unchanged light was recomputed into a fresh buffer"
         ),
         (before, after) => panic!("expected dense light on both sides, got {before:?} / {after:?}"),
+    }
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn a_batch_of_edits_over_a_large_world_agrees_with_the_reference() {
+        let mut world = TestWorld::new(3, 4, 3);
+
+        // A terrain-like slab of stone with a cave under it, a glass skylight, and
+        // some emitters scattered below.
+        let mut terrain = Vec::new();
+        for z in 0..48 {
+            for x in 0..48 {
+                terrain.push((BlockPos::new(x, 40, z), STONE));
+            }
+        }
+        world.set_many(terrain);
+        world.set_many([
+            (BlockPos::new(10, 40, 10), GLASS),
+            (BlockPos::new(11, 40, 10), GLASS),
+            (BlockPos::new(30, 40, 30), AIR),
+            (BlockPos::new(20, 30, 20), TORCH),
+            (BlockPos::new(35, 25, 12), GLOWSTONE),
+            (BlockPos::new(5, 20, 40), TORCH),
+            (BlockPos::new(24, 36, 24), BOTTOM_SLAB),
+            (BlockPos::new(25, 36, 24), TOP_SLAB),
+            (BlockPos::new(40, 38, 8), WATER),
+        ]);
+        world.check_against_reference();
+
+        // Now break some of it again.
+        world.set_many([
+            (BlockPos::new(20, 30, 20), AIR),
+            (BlockPos::new(10, 40, 10), STONE),
+            (BlockPos::new(30, 40, 30), STONE),
+            (BlockPos::new(12, 40, 12), AIR),
+        ]);
+        world.check_against_reference();
     }
 }

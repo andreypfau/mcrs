@@ -59,6 +59,12 @@ mod tests {
     }
 
     #[test]
+    fn decorations_draw_the_damage_bar_and_the_count() {
+        an_undamaged_stack_shows_no_bar();
+        the_bar_is_two_fills_at_the_slot_bottom();
+        counts_are_right_aligned_with_a_shadow();
+    }
+
     fn an_undamaged_stack_shows_no_bar() {
         let mut out = Vec::new();
         let stack = Decorated {
@@ -69,7 +75,6 @@ mod tests {
         assert!(out.is_empty());
     }
 
-    #[test]
     fn the_bar_is_two_fills_at_the_slot_bottom() {
         let mut out = Vec::new();
         let stack = Decorated {
@@ -92,7 +97,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn counts_are_right_aligned_with_a_shadow() {
         let mut out = Vec::new();
         let stack = Decorated {

@@ -46,8 +46,24 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use std::io::Cursor;
 
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestStruct {
+        string_field: String,
+        int_field: i32,
+        bool_field: bool,
+        float_field: f32,
+        string_list: Vec<String>,
+        nested: NestedStruct,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct NestedStruct {
+        value: i64,
+        name: String,
+    }
+
     #[test]
-    fn test_gzip_read_write_compound() {
+    fn test_gzip_round_trips_a_compound_and_a_struct() {
         // Create a test compound
         let mut compound = NbtCompound::new();
         compound.put_byte("byte_value", 123);
@@ -101,26 +117,7 @@ mod tests {
         } else {
             panic!("Failed to retrieve nested compound");
         }
-    }
 
-    #[derive(Serialize, Deserialize, Debug, PartialEq)]
-    struct TestStruct {
-        string_field: String,
-        int_field: i32,
-        bool_field: bool,
-        float_field: f32,
-        string_list: Vec<String>,
-        nested: NestedStruct,
-    }
-
-    #[derive(Serialize, Deserialize, Debug, PartialEq)]
-    struct NestedStruct {
-        value: i64,
-        name: String,
-    }
-
-    #[test]
-    fn test_gzip_serialize_deserialize() {
         let test_struct = TestStruct {
             string_field: "test string".to_string(),
             int_field: 12345,

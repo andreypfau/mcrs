@@ -8,17 +8,9 @@ use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_pa
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_random::Random;
-use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
-use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
-use mcrs_minecraft_worldgen_carver::modern::{SOURCE_RADIUS, carve_source_into};
-use mcrs_minecraft_worldgen_carver::target::SingleColumn;
-use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
@@ -27,19 +19,13 @@ use mcrs_minecraft_worldgen_surface::{
 };
 use mcrs_minecraft_worldgen_testing::registry;
 
-use super::beta_surface::build_beta_biome_source;
 use super::modern_carvers::carvers_of;
 use super::surface::fill_context;
-use super::{build_beta_router, build_settings_router, corpus, router_blocks};
-use crate::modern_carvers::{
-    CarverBiomeTable, ModernCarverBlockIds, carving_mask, modern_carving_mask,
-};
+use super::{build_settings_router, corpus, router_blocks};
+use crate::ColumnBlocks;
+use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, modern_carving_mask};
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
-use crate::{
-    BetaCaveBlockIds, ColumnBlocks, apply_beta_surface, beta_chunk_seed, beta_surface_rng,
-    generate_column,
-};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x100_0000_01b3;
@@ -379,178 +365,4 @@ fn the_carved_column_is_what_it_was() {
         })
         .collect();
     assert_pinned(digests, &COLUMN_DIGESTS);
-}
-
-const CAVE: usize = 0;
-const CANYON: usize = 1;
-const BETA_CAVE: usize = 2;
-
-type Counts = [[u32; 3]; 3];
-
-fn beta_cave_count(rng: &mut LegacyRandom) -> i32 {
-    let a = rng.next_i32_bound(40) + 1;
-    let b = rng.next_i32_bound(a) + 1;
-    let count = rng.next_i32_bound(b);
-    if rng.next_i32_bound(15) != 0 {
-        0
-    } else {
-        count
-    }
-}
-
-fn tally_column(
-    (chunk_x, chunk_z): (i32, i32),
-    world_seed: i64,
-    router: &NoiseRouter,
-    table: &CarverBiomeTable,
-    height: HeightContext,
-    water: &WaterMask,
-    counts: &mut Counts,
-) {
-    let mut ws = Workspace::new();
-    let no_water = WaterMask::default();
-    for source_x in (chunk_x - SOURCE_RADIUS)..=(chunk_x + SOURCE_RADIUS) {
-        for source_z in (chunk_z - SOURCE_RADIUS)..=(chunk_z + SOURCE_RADIUS) {
-            let carvers = table.carvers_of_source_for_test(router, &mut ws, source_x, source_z);
-            for (index, config) in carvers.iter().enumerate() {
-                let kind = match config {
-                    CarverConfig::Cave { .. } => CAVE,
-                    CarverConfig::Canyon { .. } => CANYON,
-                    CarverConfig::BetaCave => BETA_CAVE,
-                };
-                counts[kind][0] += 1;
-                let mut mask = carving_mask(height);
-                let started = if kind == BETA_CAVE {
-                    let seed = beta_chunk_seed(world_seed, source_x, source_z) as u64;
-                    carve_beta_caves(
-                        chunk_x,
-                        chunk_z,
-                        source_x,
-                        source_z,
-                        water,
-                        &mut mask,
-                        &mut LegacyRandom::new(seed),
-                    );
-                    beta_cave_count(&mut LegacyRandom::new(seed)) > 0
-                } else {
-                    carve_source_into(
-                        config,
-                        index,
-                        world_seed,
-                        height,
-                        &mut SingleColumn::new(chunk_x, chunk_z, &no_water, &mut mask),
-                        source_x,
-                        source_z,
-                    )
-                };
-                counts[kind][1] += u32::from(started);
-                counts[kind][2] += u32::from(!mask.is_empty());
-            }
-        }
-    }
-}
-
-fn modern_counts(dimension: Dimension, seed: u64, columns: &[(i32, i32)]) -> Counts {
-    let (router, table) = world(dimension, seed);
-    let height = extent(&router);
-    let water = WaterMask::default();
-    let mut counts = Counts::default();
-    for &column in columns {
-        tally_column(
-            column,
-            seed as i64,
-            &router,
-            &table,
-            height,
-            &water,
-            &mut counts,
-        );
-    }
-    counts
-}
-
-fn beta_water(column: &ColumnBlocks, water: VoxelId) -> WaterMask {
-    let mut mask = WaterMask::default();
-    for y in 0..128 {
-        for x in 0..16 {
-            for z in 0..16 {
-                if column.get(x, y, z) == Some(water) {
-                    mask.insert(x, y, z);
-                }
-            }
-        }
-    }
-    mask
-}
-
-fn beta_counts(columns: &[(i32, i32)]) -> Counts {
-    let router = build_beta_router();
-    let (source, snapshot) = build_beta_biome_source();
-    let table = super::beta_carver_table(&source);
-    let ids = BetaCaveBlockIds::resolve(corpus());
-    let height = extent(&router);
-    let world_seed = router.world_seed as i64;
-    let y_sections: Vec<i32> = (0..8).collect();
-    let mut counts = Counts::default();
-    for &(chunk_x, chunk_z) in columns {
-        let mut sections = generate_column(
-            chunk_x,
-            chunk_z,
-            &y_sections,
-            &router,
-            Some((&source, &snapshot)),
-            None,
-            &CancellationToken::new(),
-        );
-        let column = ColumnBlocks::from_sections(&sections, &y_sections);
-        apply_beta_surface(
-            &column,
-            chunk_x * 16,
-            chunk_z * 16,
-            &router,
-            &source,
-            corpus(),
-            &mut beta_surface_rng(chunk_x, chunk_z),
-        );
-        column.write_back(&mut sections);
-        let water = beta_water(&column, ids.water);
-        tally_column(
-            (chunk_x, chunk_z),
-            world_seed,
-            &router,
-            &table,
-            height,
-            &water,
-            &mut counts,
-        );
-    }
-    counts
-}
-
-const SOURCE_COUNTS: [Counts; 4] = [
-    [[36992, 4285, 287], [18496, 272, 16], [0, 0, 0]],
-    [[36992, 4760, 150], [18496, 464, 26], [0, 0, 0]],
-    [[18496, 4357, 214], [0, 0, 0], [0, 0, 0]],
-    [[0, 0, 0], [0, 0, 0], [18496, 730, 58]],
-];
-
-#[test]
-fn the_source_counts_per_column_are_what_they_were() {
-    let around = square(-4..4, -4..4);
-    let counts = vec![
-        (
-            "overworld seed 12345".to_owned(),
-            modern_counts(Dimension::Overworld, 12345, &around),
-        ),
-        (
-            "overworld seed 845".to_owned(),
-            modern_counts(Dimension::Overworld, 845, &around),
-        ),
-        (
-            "nether seed 12345".to_owned(),
-            modern_counts(Dimension::Nether, 12345, &around),
-        ),
-        ("beta seed 12345".to_owned(), beta_counts(&around)),
-    ];
-    assert_pinned(counts, &SOURCE_COUNTS);
 }

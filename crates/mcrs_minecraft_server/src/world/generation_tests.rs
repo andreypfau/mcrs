@@ -789,37 +789,15 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     );
 }
 
-fn assert_region_agrees_under_a_lost_delta_and_a_shuffle(consumer: Consumer) {
-    let drives = [
-        Drive {
-            in_flight: 1,
-            batch: 1,
-            order: Order::RowMajor,
-            evict: Evict::UnderARun,
-        },
-        Drive {
-            in_flight: machine_parallelism(),
-            batch: 1,
-            order: Order::Shuffled(7),
-            evict: Evict::OnTicks,
-        },
-    ];
-    assert_region_agrees(consumer, 1, &drives);
-}
-
 #[test]
-fn the_parallel_ladder_delivers_the_corpus_region() {
-    assert_region_agrees_under_a_lost_delta_and_a_shuffle(Consumer::Corpus);
-}
-
-#[test]
-fn the_parallel_ladder_delivers_a_village_that_writes_across_columns() {
-    assert_region_agrees_under_a_lost_delta_and_a_shuffle(VILLAGE);
-}
-
-#[test]
-fn the_parallel_ladder_delivers_a_desert_pyramid_clipped_to_its_column() {
-    assert_region_agrees_under_a_lost_delta_and_a_shuffle(DESERT_PYRAMID);
+fn the_parallel_ladder_delivers_ores_that_write_across_columns() {
+    let drive = Drive {
+        in_flight: 2,
+        batch: default_batch(),
+        order: Order::Shuffled(0xD317A),
+        evict: Evict::UnderARun,
+    };
+    assert_region_agrees(Consumer::ModernOre, 1, &[drive]);
 }
 
 mod exhaustive {

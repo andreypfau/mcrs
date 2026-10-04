@@ -358,91 +358,94 @@ fn blind_distance(writes: &[([i32; 3], String)]) -> Vec<([i32; 3], String)> {
         .collect()
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn every_covered_tree_matches_the_reference_block_for_block() {
-    let cases = read_dump();
-    assert_eq!(cases.len(), 180, "the dump lost cases");
-    let blocks = Blocks::new();
-    let corpus: Vec<(String, Feature)> = mcrs_minecraft_worldgen_testing::registry("feature")
-        .into_iter()
-        .map(|(id, feature)| (id.to_string(), feature))
-        .collect();
+mod exhaustive {
+    use super::*;
 
-    let mut covered = std::collections::BTreeSet::new();
-    let mut compared = 0usize;
-    let mut failures: Vec<String> = Vec::new();
-    for case in &cases {
-        let Some(tree) = compiled(&case.feature, &blocks, &corpus) else {
-            continue;
-        };
-        covered.insert(case.feature.clone());
-        compared += 1;
-
-        let origin = case.origin;
-        let mut world = flat_world(&blocks, origin);
-        let mut entities = EntitiesOnly::default();
-        let mut rng = WorldgenRandom::new(case.seed as u64);
-        let result = place_tree(&tree, &mut world, &mut rng, &mut entities, origin);
-
-        let label = format!("{}@{}", case.feature, case.seed);
-        if result != case.result {
-            failures.push(format!(
-                "{label}: returned {result}, reference {}",
-                case.result
-            ));
-            continue;
-        }
-
-        let mut seen = HashSet::new();
-        let got: Vec<([i32; 3], String)> = world
-            .writes
-            .iter()
-            .filter(|(pos, _)| seen.insert(*pos))
-            .map(|(pos, _)| {
-                (
-                    pos.to_array(),
-                    blocks.names[world.get(*pos).0 as usize].clone(),
-                )
-            })
+    #[test]
+    fn every_covered_tree_matches_the_reference_block_for_block() {
+        let cases = read_dump();
+        assert_eq!(cases.len(), 180, "the dump lost cases");
+        let blocks = Blocks::new();
+        let corpus: Vec<(String, Feature)> = mcrs_minecraft_worldgen_testing::registry("feature")
+            .into_iter()
+            .map(|(id, feature)| (id.to_string(), feature))
             .collect();
 
-        let (got, want) = (blind_distance(&got), blind_distance(&case.blocks));
-        if got != want {
-            let index = got.iter().zip(want.iter()).position(|(a, b)| a != b);
+        let mut covered = std::collections::BTreeSet::new();
+        let mut compared = 0usize;
+        let mut failures: Vec<String> = Vec::new();
+        for case in &cases {
+            let Some(tree) = compiled(&case.feature, &blocks, &corpus) else {
+                continue;
+            };
+            covered.insert(case.feature.clone());
+            compared += 1;
+
+            let origin = case.origin;
+            let mut world = flat_world(&blocks, origin);
+            let mut entities = EntitiesOnly::default();
+            let mut rng = WorldgenRandom::new(case.seed as u64);
+            let result = place_tree(&tree, &mut world, &mut rng, &mut entities, origin);
+
+            let label = format!("{}@{}", case.feature, case.seed);
+            if result != case.result {
+                failures.push(format!(
+                    "{label}: returned {result}, reference {}",
+                    case.result
+                ));
+                continue;
+            }
+
+            let mut seen = HashSet::new();
+            let got: Vec<([i32; 3], String)> = world
+                .writes
+                .iter()
+                .filter(|(pos, _)| seen.insert(*pos))
+                .map(|(pos, _)| {
+                    (
+                        pos.to_array(),
+                        blocks.names[world.get(*pos).0 as usize].clone(),
+                    )
+                })
+                .collect();
+
+            let (got, want) = (blind_distance(&got), blind_distance(&case.blocks));
+            if got != want {
+                let index = got.iter().zip(want.iter()).position(|(a, b)| a != b);
+                let after = [rng.next_java_long(), rng.next_java_long()];
+                failures.push(format!(
+                    "{label}: {} writes against the reference's {}, draw count {} — first difference at {index:?}: got {:?} want {:?}",
+                    got.len(),
+                    want.len(),
+                    if after == case.state_after { "equal" } else { "different" },
+                    index.and_then(|i| got.get(i)),
+                    index.and_then(|i| want.get(i)),
+                ));
+                continue;
+            }
+
             let after = [rng.next_java_long(), rng.next_java_long()];
-            failures.push(format!(
-                "{label}: {} writes against the reference's {}, draw count {} — first difference at {index:?}: got {:?} want {:?}",
-                got.len(),
-                want.len(),
-                if after == case.state_after { "equal" } else { "different" },
-                index.and_then(|i| got.get(i)),
-                index.and_then(|i| want.get(i)),
-            ));
-            continue;
+            if after != case.state_after {
+                failures.push(format!(
+                    "{label}: random state after the tree is {after:?}, reference {:?} — the draw count diverged",
+                    case.state_after
+                ));
+            }
         }
 
-        let after = [rng.next_java_long(), rng.next_java_long()];
-        if after != case.state_after {
-            failures.push(format!(
-                "{label}: random state after the tree is {after:?}, reference {:?} — the draw count diverged",
-                case.state_after
-            ));
+        if !failures.is_empty() {
+            panic!(
+                "{} of {compared} compared cases diverge from the reference:\n{}",
+                failures.len(),
+                failures.join("\n")
+            );
         }
-    }
 
-    if !failures.is_empty() {
-        panic!(
-            "{} of {compared} compared cases diverge from the reference:\n{}",
-            failures.len(),
-            failures.join("\n")
+        assert_eq!(
+            (covered.len(), compared),
+            (20, 80),
+            "the covered set shrank; a feature dropped out of the dump or out of the table"
         );
+        println!("reference-verified: {covered:#?} over {compared} cases");
     }
-
-    assert_eq!(
-        (covered.len(), compared),
-        (20, 80),
-        "the covered set shrank; a feature dropped out of the dump or out of the table"
-    );
-    println!("reference-verified: {covered:#?} over {compared} cases");
 }

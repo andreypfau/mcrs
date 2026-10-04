@@ -963,7 +963,6 @@ mod tests {
     /// The whole point of holding the ready columns unordered: the batch is chosen against
     /// where the player is when it goes out, so the nearest column always leads it however the
     /// columns happened to arrive.
-    #[test]
     fn a_batch_goes_out_nearest_first() {
         let mut world = World::new();
         let far = ColumnPos::new(5, 0);
@@ -1002,7 +1001,6 @@ mod tests {
 
     /// A column is sent once and never again, so one that goes out before its light has settled
     /// is permanently black on the client. Readiness, not the send, is where that is decided.
-    #[test]
     fn a_column_waits_for_the_light_of_every_section_it_carries() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
@@ -1064,7 +1062,6 @@ mod tests {
             .count()
     }
 
-    #[test]
     fn a_despawned_view_hands_back_its_loading_tickets() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
@@ -1078,7 +1075,6 @@ mod tests {
         assert_eq!(ticketed_sections(&world, fx.dim, col), 0);
     }
 
-    #[test]
     fn a_player_that_left_for_another_dimension_hands_back_its_loading_tickets() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
@@ -1095,7 +1091,6 @@ mod tests {
 
     /// The loading tickets make this unreachable, so the guard is what stops a broken
     /// invariant from putting half a column on the wire.
-    #[test]
     fn a_column_missing_a_section_goes_back_to_waiting_instead_of_out() {
         let mut world = World::new();
         let col = ColumnPos::new(0, 0);
@@ -1137,7 +1132,6 @@ mod tests {
     /// would let the view ask for more than `spawn_chunks` can hand out, and the ticket queue
     /// would grow every tick without ever draining. What the budget leaves for later is the
     /// part of the view furthest from the player.
-    #[test]
     fn the_view_raises_no_more_columns_than_a_tick_can_spawn_and_the_nearest_first() {
         let mut world = World::new();
         let budget = MAX_SPAWNS_PER_TICK / SECTIONS as usize;
@@ -1175,7 +1169,6 @@ mod tests {
 
     /// Vanilla's view is a Chebyshev square, so the corner columns of the square are owed just
     /// like the ones straight ahead.
-    #[test]
     fn a_view_queues_every_column_of_its_square_in_the_tick_it_is_applied() {
         let mut world = World::new();
         let fx = looking_player(&mut world);
@@ -1196,7 +1189,6 @@ mod tests {
         assert_eq!(chunk_view.state(ColumnPos::new(4, 0)), None);
     }
 
-    #[test]
     fn a_column_the_view_leaves_is_forgotten_by_the_client_and_its_tickets_released() {
         let mut world = World::new();
         let fx = looking_player(&mut world);
@@ -1232,5 +1224,17 @@ mod tests {
             column: leaving,
             held: false,
         }));
+    }
+
+    #[test]
+    fn a_view_raises_lights_sends_and_releases_its_columns() {
+        a_batch_goes_out_nearest_first();
+        a_column_waits_for_the_light_of_every_section_it_carries();
+        a_despawned_view_hands_back_its_loading_tickets();
+        a_player_that_left_for_another_dimension_hands_back_its_loading_tickets();
+        a_column_missing_a_section_goes_back_to_waiting_instead_of_out();
+        the_view_raises_no_more_columns_than_a_tick_can_spawn_and_the_nearest_first();
+        a_view_queues_every_column_of_its_square_in_the_tick_it_is_applied();
+        a_column_the_view_leaves_is_forgotten_by_the_client_and_its_tickets_released();
     }
 }

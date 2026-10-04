@@ -55,9 +55,9 @@ impl SurfaceIds {
 /// cut the same way, and the rules that lay the bedrock floor are never reached.
 /// Sections past the noise range are the End's, which the dimension carries and
 /// the noise does not fill.
-pub fn spans_dimension(y_sections: &[i32], router: &NoiseRouter) -> bool {
-    let bottom = router.noise.min_y >> 4;
-    let top = bottom + (router.noise.height as i32 >> 4);
+pub fn spans_dimension(y_sections: &[i32], min_y: i32, height: i32) -> bool {
+    let bottom = min_y >> 4;
+    let top = bottom + (height >> 4);
     let contiguous = y_sections
         .iter()
         .enumerate()

@@ -44,16 +44,34 @@ fn listed(app: &App, column: Entity, player: Entity) -> bool {
         .contains(&player)
 }
 
+fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<ColumnPos, Entity>) {
+    let view = app.world().get::<ColumnView>(player);
+    for (pos, column) in columns {
+        let listed = listed(app, *column, player);
+        let held = view.is_some_and(|view| view.holds(*pos));
+        assert_eq!(
+            listed, held,
+            "column {pos:?}: listed on the column {listed}, held by {player:?} {held}"
+        );
+    }
+}
+
+/// Every column a player holds lists it and no other column does, through an
+/// arrival, a move and a removal. Removing one player through
+/// `InboundPlayerDespawn`, the message both the disconnect and the
+/// transfer-out paths push, takes it off every shared column and out of the
+/// other player's `TrackedBy`, and leaves the other player where it was.
 #[test]
-fn every_player_holding_a_column_is_listed_on_it() {
+fn a_column_lists_exactly_the_players_that_hold_it() {
     let mut app = make_aoi_app();
     let dim = dimension(&mut app);
-    let first = spawn_player_in_dim(&mut app, dim, origin());
-    let second = spawn_player_in_dim(&mut app, dim, origin());
+    let first_anchor = app.world_mut().spawn_empty().id();
+    let second_anchor = app.world_mut().spawn_empty().id();
+    let first = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), first_anchor);
+    let second = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), second_anchor);
     let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     drive_aoi_tick(&mut app);
-
     for pos in columns_in_view(origin()) {
         let column = columns[&pos];
         assert!(
@@ -65,33 +83,29 @@ fn every_player_holding_a_column_is_listed_on_it() {
             "column {pos:?} missing the second player"
         );
     }
-}
-
-/// Removing one player through `InboundPlayerDespawn` — the message both the
-/// disconnect and the transfer-out paths push — takes it off every shared
-/// column and out of the other player's `TrackedBy`, and leaves the other
-/// player where it was.
-#[test]
-fn taking_one_player_away_leaves_the_others_listed() {
-    let mut app = make_aoi_app();
-    let dim = dimension(&mut app);
-    let first_anchor = app.world_mut().spawn_empty().id();
-    let second_anchor = app.world_mut().spawn_empty().id();
-    let first = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), first_anchor);
-    let second = spawn_player_in_dim_with_host_anchor(&mut app, dim, origin(), second_anchor);
-    let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
-
-    drive_aoi_tick(&mut app);
+    assert_mirror_invariant(&app, first, &columns);
+    assert_mirror_invariant(&app, second, &columns);
     assert!(
         app.world()
             .get::<TrackedBy>(second)
             .is_some_and(|tracked| tracked.0.contains(&first)),
         "precondition: the second player tracks the first"
     );
+
+    app.world_mut()
+        .entity_mut(first)
+        .insert(ColumnView::holding(columns_in_view(DVec3::new(
+            5.0 * 16.0,
+            64.0,
+            0.0,
+        ))));
+    drive_aoi_tick(&mut app);
+    assert_mirror_invariant(&app, first, &columns);
+    assert_mirror_invariant(&app, second, &columns);
+
     app.world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .clear();
-
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
         .write(InboundPlayerDespawn {
@@ -117,17 +131,8 @@ fn taking_one_player_away_leaves_the_others_listed() {
             .is_some_and(|tracked| tracked.0.is_empty()),
         "the first player's TrackedBy is cleared"
     );
-    for pos in columns_in_view(origin()) {
-        let column = columns[&pos];
-        assert!(
-            !listed(&app, column, first),
-            "column {pos:?} still lists the first player"
-        );
-        assert!(
-            listed(&app, column, second),
-            "column {pos:?} lost the second player"
-        );
-    }
+    assert_mirror_invariant(&app, first, &columns);
+    assert_mirror_invariant(&app, second, &columns);
 }
 
 /// A view can hold a column whose entity is not there — its sections were

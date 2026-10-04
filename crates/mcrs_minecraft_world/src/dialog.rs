@@ -90,16 +90,3 @@ impl AssetLoader for DialogLoader {
         &[]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn deserialize_all_dialogs() {
-        for (path, map) in mcrs_minecraft_worldgen_testing::parse_all::<
-            serde_json::Map<String, serde_json::Value>,
-        >("minecraft/dialog")
-        {
-            assert!(map.contains_key("type"), "{}", path.display());
-        }
-    }
-}

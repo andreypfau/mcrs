@@ -428,6 +428,17 @@ fn is_cube_face(quad: &bake::BakedQuad) -> bool {
 mod tests {
 
     #[test]
+    fn block_states_bake_from_the_corpus() {
+        a_fluid_level_reads_back_as_the_height_vanilla_gives_it();
+        ambient_occlusion_reads_its_neighbours_from_the_corpus();
+        a_block_lights_the_mesh_by_what_the_corpus_says_it_emits();
+        a_block_closes_the_sides_its_own_geometry_covers();
+        a_face_hides_behind_a_neighbour_whose_shape_covers_it();
+        a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces();
+        cube_uv_matches_the_vanilla_bake();
+        a_rotated_log_is_not_greedy_meshable();
+    }
+
     fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {
         let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 8, 8, 8, 8, 8, 8, 8];
         for (level, height) in ninths.iter().enumerate() {
@@ -476,7 +487,6 @@ mod tests {
         assert_eq!(tint("stone", &[], Some(0)), Tint::None);
     }
 
-    #[test]
     fn ambient_occlusion_reads_its_neighbours_from_the_corpus() {
         let stone = bake_state("minecraft:stone", &[]);
         assert!(stone.neighbour.full_block && stone.neighbour.light_opaque);
@@ -506,7 +516,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_block_lights_the_mesh_by_what_the_corpus_says_it_emits() {
         assert_eq!(bake_state("minecraft:torch", &[]).emission, 14);
         assert_eq!(bake_state("minecraft:glowstone", &[]).emission, 15);
@@ -553,7 +562,6 @@ mod tests {
             .collect()
     }
 
-    #[test]
     fn a_block_closes_the_sides_its_own_geometry_covers() {
         assert_eq!(
             closed("minecraft:stone", &[]),
@@ -638,7 +646,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn a_face_hides_behind_a_neighbour_whose_shape_covers_it() {
         use mcrs_minecraft_mesh::block::face_hidden;
         let snow = |layers: &str| bake_state("minecraft:snow", &[("layers", layers)]);
@@ -676,7 +683,6 @@ mod tests {
         assert!(!face_hidden(&low, &grass, north));
     }
 
-    #[test]
     fn a_box_lower_than_its_cell_meshes_its_top_and_bottom_as_cube_faces() {
         for layers in 1..=7u8 {
             let snow = bake_state("minecraft:snow", &[("layers", &layers.to_string())]);
@@ -712,7 +718,6 @@ mod tests {
         );
     }
 
-    #[test]
     fn cube_uv_matches_the_vanilla_bake() {
         let baked = bake::bake(Pack::corpus(), "minecraft:stone", &[]).expect("stone bakes");
         let (faces, extras) = split_cube(&baked.quads);
@@ -730,7 +735,6 @@ mod tests {
         }
     }
 
-    #[test]
     fn a_rotated_log_is_not_greedy_meshable() {
         let upright = bake::bake(Pack::corpus(), "minecraft:oak_log", &[("axis", "y")])
             .expect("upright log bakes");

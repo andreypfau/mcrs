@@ -26,7 +26,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Commands, Query, ResMut};
+use bevy_ecs::system::{Commands, Query, ResMut, SystemParam};
 use mcrs_minecraft_network::ServerSideConnection;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
@@ -149,41 +149,51 @@ pub const OVERFLOW_HEARTBEAT_INTERVAL: u32 = 256;
 pub fn on_player_disconnect(
     trigger: On<Remove, ServerSideConnection>,
     connection_refs: Query<&HostAnchorRef>,
-    mut sessions: LeavingSessions,
-    mut disconnect_budget: ResMut<DisconnectBudget>,
-    mut pending_queue: ResMut<PendingDisconnectQueue>,
-    mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
-    mut overflow_counter: ResMut<OverflowCounter>,
-    dim_channels: ResMut<DimChannelsResource>,
-    mut despawn_queue: ResMut<DimDespawnQueue>,
-    mut commands: Commands,
+    mut disconnects: Disconnects,
 ) {
     let connection_entity = trigger.event().entity;
     let Ok(host_anchor_ref) = connection_refs.get(connection_entity) else {
         return;
     };
-    let host_anchor = host_anchor_ref.0;
-    disconnected_this_tick.host_anchors.push(host_anchor);
+    disconnects.disconnect(host_anchor_ref.0);
+}
 
-    if disconnect_budget.consume() {
-        process_disconnect(
-            host_anchor,
-            &mut sessions,
-            &dim_channels,
-            &mut despawn_queue,
-            &mut commands,
-        );
-    } else if !pending_queue.push_back(host_anchor) {
-        let before = overflow_counter.0;
-        overflow_counter.0 = before.saturating_add(1);
-        let after = overflow_counter.0;
-        if before == 0 || after.is_multiple_of(OVERFLOW_HEARTBEAT_INTERVAL) {
-            warn!(
-                target: "disconnect",
-                ?host_anchor,
-                overflow_total = after,
-                "PendingDisconnectQueue hard-cap exceeded; dropping disconnect"
+#[derive(SystemParam)]
+pub struct Disconnects<'w, 's> {
+    sessions: LeavingSessions<'w, 's>,
+    budget: ResMut<'w, DisconnectBudget>,
+    pending_queue: ResMut<'w, PendingDisconnectQueue>,
+    disconnected_this_tick: ResMut<'w, DisconnectedThisTick>,
+    overflow_counter: ResMut<'w, OverflowCounter>,
+    dim_channels: ResMut<'w, DimChannelsResource>,
+    despawn_queue: ResMut<'w, DimDespawnQueue>,
+    commands: Commands<'w, 's>,
+}
+
+impl Disconnects<'_, '_> {
+    pub fn disconnect(&mut self, host_anchor: Entity) {
+        self.disconnected_this_tick.host_anchors.push(host_anchor);
+
+        if self.budget.consume() {
+            process_disconnect(
+                host_anchor,
+                &mut self.sessions,
+                &self.dim_channels,
+                &mut self.despawn_queue,
+                &mut self.commands,
             );
+        } else if !self.pending_queue.push_back(host_anchor) {
+            let before = self.overflow_counter.0;
+            self.overflow_counter.0 = before.saturating_add(1);
+            let after = self.overflow_counter.0;
+            if before == 0 || after.is_multiple_of(OVERFLOW_HEARTBEAT_INTERVAL) {
+                warn!(
+                    target: "disconnect",
+                    ?host_anchor,
+                    overflow_total = after,
+                    "PendingDisconnectQueue hard-cap exceeded; dropping disconnect"
+                );
+            }
         }
     }
 }

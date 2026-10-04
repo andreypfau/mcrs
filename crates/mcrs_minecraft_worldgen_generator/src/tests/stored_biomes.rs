@@ -81,7 +81,7 @@ fn the_stored_read_equals_the_clamped_zoom_at_every_block() {
 }
 
 #[test]
-fn column_cell_clamps_a_height_outside_the_column() {
+fn a_height_outside_the_column_clamps_to_the_edge_layer() {
     assert_eq!(column_cell(-1, 3, -16), (0, 0));
     assert_eq!(column_cell(-1, 3, -1), (0, 15));
     assert_eq!(column_cell(-1, 3, 0), (1, 0));
@@ -90,10 +90,7 @@ fn column_cell_clamps_a_height_outside_the_column() {
     assert_eq!(column_cell(-1, 3, -5000), (0, 0));
     assert_eq!(column_cell(-1, 3, 5000), (2, 15));
     assert_eq!(column_cell(0, 0, 40), (0, 0));
-}
 
-#[test]
-fn a_height_outside_the_column_reads_the_edge_layer() {
     const BOTTOM: u8 = 7;
     const TOP: u8 = 9;
     let mut lowest = Container::homogeneous(1);

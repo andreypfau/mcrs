@@ -199,27 +199,18 @@ mod tests {
     }
 
     /// The block above must be air, or share the plant's fluid and be
-    /// replaceable; stone above refuses the whole placement.
+    /// replaceable: stone above refuses the whole placement, and so does water
+    /// above a dry plant even though water is replaceable.
     #[test]
-    fn a_double_plant_is_refused_under_a_solid_block() {
-        let cfg = config(StateProvider::Simple(TALL));
-        let mut volume = pond(FakeVolume::with([((AT.x, AT.y + 1, AT.z), STONE)]));
-        let mut rng = WorldgenRandom::new(1);
+    fn a_double_plant_is_refused_under_a_solid_block_or_a_foreign_fluid() {
+        for above in [STONE, WATER] {
+            let cfg = config(StateProvider::Simple(TALL));
+            let mut volume = pond(FakeVolume::with([((AT.x, AT.y + 1, AT.z), above)]));
+            let mut rng = WorldgenRandom::new(1);
 
-        assert!(!place_simple_block(&cfg, &mut volume, &mut rng, AT));
-        assert!(volume.writes.is_empty());
-    }
-
-    /// Water above a dry plant is a fluid mismatch, which is a refusal even
-    /// though water is replaceable.
-    #[test]
-    fn a_dry_double_plant_is_refused_under_water() {
-        let cfg = config(StateProvider::Simple(TALL));
-        let mut volume = pond(FakeVolume::with([((AT.x, AT.y + 1, AT.z), WATER)]));
-        let mut rng = WorldgenRandom::new(1);
-
-        assert!(!place_simple_block(&cfg, &mut volume, &mut rng, AT));
-        assert!(volume.writes.is_empty());
+            assert!(!place_simple_block(&cfg, &mut volume, &mut rng, AT));
+            assert!(volume.writes.is_empty());
+        }
     }
 
     /// A provider that hands back nothing places nothing, and the draw it spent

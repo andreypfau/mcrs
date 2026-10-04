@@ -104,7 +104,6 @@ pub(crate) fn set_count(world: &mut World, stack: Entity, count: u8) {
     Transaction(vec![op]).apply(world);
 }
 
-#[test]
 fn dirty_slots_become_set_slot_and_cursor_packets() {
     let (mut world, player, _anchor) = world();
     open_menus(&mut world);
@@ -173,7 +172,6 @@ fn open_chest(world: &mut World, player: Entity) -> Entity {
     world.get::<CurrentMenu>(player).unwrap().0
 }
 
-#[test]
 fn a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes() {
     let (mut world, player, _anchor) = world();
     open_menus(&mut world);
@@ -208,7 +206,6 @@ fn a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes(
     );
 }
 
-#[test]
 fn a_helmet_equipped_before_a_chest_opens_survives_the_close_without_a_full_resend() {
     let (mut world, player, _anchor) = world();
     open_menus(&mut world);
@@ -233,4 +230,11 @@ fn a_helmet_equipped_before_a_chest_opens_survives_the_close_without_a_full_rese
         stack_at(&world, player, slots::ARMOR_HEAD),
         Some((helmet, 1))
     );
+}
+
+#[test]
+fn changed_slots_are_resent_and_nothing_else() {
+    dirty_slots_become_set_slot_and_cursor_packets();
+    a_slot_outside_the_chest_layout_that_changed_is_resent_when_the_chest_closes();
+    a_helmet_equipped_before_a_chest_opens_survives_the_close_without_a_full_resend();
 }

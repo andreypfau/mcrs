@@ -102,75 +102,40 @@ mod tests {
     use super::*;
     use crate::worldgen::chunk_generator::ProtoChunkGenerator;
     use mcrs_minecraft_biome::source::ProtoBiomeSource;
-    use mcrs_minecraft_worldgen_testing::assets_dir;
 
     #[test]
-    fn deserialize_all_world_presets() {
-        mcrs_minecraft_worldgen_testing::parse_all::<ProtoWorldPreset>(
-            "minecraft/worldgen/world_preset",
-        );
-    }
+    fn every_preset_dispatches_its_generator_and_biome_source() {
+        let presets: HashMap<String, ProtoWorldPreset> =
+            mcrs_minecraft_worldgen_testing::parse_all::<ProtoWorldPreset>(
+                "minecraft/worldgen/world_preset",
+            )
+            .into_iter()
+            .map(|(path, proto)| {
+                (
+                    path.file_stem().unwrap().to_string_lossy().into_owned(),
+                    proto,
+                )
+            })
+            .collect();
+        let overworld = |name: &str| &presets[name].dimensions["minecraft:overworld"].generator;
 
-    #[test]
-    fn deserialize_normal_preset() {
-        let bytes = std::fs::read(assets_dir().join("minecraft/worldgen/world_preset/normal.json"))
-            .unwrap();
-        let proto: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
-
-        assert!(proto.dimensions.contains_key("minecraft:overworld"));
-        let overworld = &proto.dimensions["minecraft:overworld"];
-        assert_eq!(overworld.dimension_type.as_str(), "minecraft:overworld");
-        match &overworld.generator {
-            ProtoChunkGenerator::Noise(n) => {
-                assert_eq!(n.settings.as_str(), "minecraft:overworld");
-                match &n.biome_source {
-                    ProtoBiomeSource::MultiNoise(src) => {
-                        assert_eq!(src.preset.as_ref().unwrap().as_str(), "minecraft:overworld");
-                    }
-                    _ => panic!("expected MultiNoise biome source"),
-                }
-            }
-            _ => panic!("expected Noise generator"),
-        }
-    }
-
-    #[test]
-    fn deserialize_flat_preset() {
-        let bytes =
-            std::fs::read(assets_dir().join("minecraft/worldgen/world_preset/flat.json")).unwrap();
-        let proto: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
-
-        assert_eq!(proto.dimensions.len(), 3);
-        let overworld = &proto.dimensions["minecraft:overworld"];
-        match &overworld.generator {
-            ProtoChunkGenerator::Flat(f) => {
-                assert_eq!(f.settings.biome.as_str(), "minecraft:plains");
-                assert_eq!(f.settings.layers.len(), 3);
-                assert_eq!(f.settings.structure_overrides.len(), 2);
-                assert!(!f.settings.features);
-                assert!(!f.settings.lakes);
-            }
-            _ => panic!("expected Flat generator"),
-        }
-    }
-
-    #[test]
-    fn deserialize_single_biome_surface_preset() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/world_preset/single_biome_surface.json"),
-        )
-        .unwrap();
-        let proto: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
-
-        let overworld = &proto.dimensions["minecraft:overworld"];
-        match &overworld.generator {
-            ProtoChunkGenerator::Noise(n) => match &n.biome_source {
-                ProtoBiomeSource::Fixed { biome } => {
-                    assert_eq!(biome.as_str(), "minecraft:plains");
-                }
-                _ => panic!("expected Fixed biome source"),
-            },
-            _ => panic!("expected Noise generator"),
-        }
+        assert!(matches!(
+            overworld("normal"),
+            ProtoChunkGenerator::Noise(n)
+                if matches!(&n.biome_source, ProtoBiomeSource::MultiNoise(src)
+                    if src.preset.as_ref().unwrap().as_str() == "minecraft:overworld")
+        ));
+        assert!(matches!(
+            overworld("single_biome_surface"),
+            ProtoChunkGenerator::Noise(n)
+                if matches!(&n.biome_source, ProtoBiomeSource::Fixed { biome }
+                    if biome.as_str() == "minecraft:plains")
+        ));
+        let ProtoChunkGenerator::Flat(flat) = overworld("flat") else {
+            panic!("expected Flat generator");
+        };
+        assert_eq!(presets["flat"].dimensions.len(), 3);
+        assert_eq!(flat.settings.layers.len(), 3);
+        assert_eq!(flat.settings.structure_overrides.len(), 2);
     }
 }

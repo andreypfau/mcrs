@@ -47,6 +47,22 @@ const NO_LORE: &str =
     r#"{"id": "minecraft:stone", "count": 9, "components": {"!minecraft:lore": {}}}"#;
 
 #[test]
+fn stack_values_spawn_apply_and_refuse() {
+    spawn_then_read_is_the_identity();
+    prototype_values_and_absent_removals_normalise_away();
+    nested_stacks_are_child_entities();
+    apply_value_reconciles_an_existing_subtree();
+    same_item_same_components_compares_subtrees();
+    a_child_kind_on_an_item_without_one_is_refused();
+    a_refused_value_leaves_the_world_untouched();
+    child_kind_tombstones_and_empty_foreign_kinds_survive();
+    a_tombstoned_child_kind_has_no_slots();
+    a_count_outside_the_byte_is_refused();
+    a_crossbow_refuses_a_projectile_past_the_codec_bound();
+    reapplying_a_value_bumps_the_revision_once();
+    a_campfire_table_is_bounded_but_not_allocated();
+}
+
 fn spawn_then_read_is_the_identity() {
     let mut world = world();
     for json in [CHESTPLATE, BOOK, POTION, SHULKER, BUNDLE, NO_LORE] {
@@ -63,7 +79,6 @@ fn spawn_then_read_is_the_identity() {
     }
 }
 
-#[test]
 fn prototype_values_and_absent_removals_normalise_away() {
     let mut world = world();
     let value = parse(
@@ -86,7 +101,6 @@ fn prototype_values_and_absent_removals_normalise_away() {
     );
 }
 
-#[test]
 fn nested_stacks_are_child_entities() {
     let mut world = world();
     let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
@@ -111,7 +125,6 @@ fn nested_stacks_are_child_entities() {
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 6);
 }
 
-#[test]
 fn apply_value_reconciles_an_existing_subtree() {
     let mut world = world();
     let shulker = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
@@ -140,7 +153,6 @@ fn apply_value_reconciles_an_existing_subtree() {
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 3);
 }
 
-#[test]
 fn same_item_same_components_compares_subtrees() {
     let mut world = world();
     let a = spawn_stack(&mut world, &parse(SHULKER), items()).unwrap();
@@ -164,7 +176,6 @@ fn same_item_same_components_compares_subtrees() {
     assert!(same_item_same_components(&world, plain, with_lore, items()));
 }
 
-#[test]
 fn a_child_kind_on_an_item_without_one_is_refused() {
     let mut world = world();
     let value = parse(
@@ -180,7 +191,6 @@ fn a_child_kind_on_an_item_without_one_is_refused() {
     ));
 }
 
-#[test]
 fn a_refused_value_leaves_the_world_untouched() {
     let mut world = world();
     let chest = world.spawn(SlotTable::fixed(1)).id();
@@ -218,7 +228,6 @@ fn a_refused_value_leaves_the_world_untouched() {
     assert_eq!(world.query::<&Held>().iter(&world).count(), 6);
 }
 
-#[test]
 fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
     let mut world = world();
     for json in [
@@ -240,7 +249,6 @@ fn child_kind_tombstones_and_empty_foreign_kinds_survive() {
     assert_eq!(stack_to_value(&world, shulker, items()), parse(SHULKER));
 }
 
-#[test]
 fn a_tombstoned_child_kind_has_no_slots() {
     let mut world = world();
     let emptied =
@@ -261,7 +269,6 @@ fn a_tombstoned_child_kind_has_no_slots() {
     assert_eq!(stack_to_value(&world, full, items()), parse(SHULKER));
 }
 
-#[test]
 fn a_count_outside_the_byte_is_refused() {
     let mut world = world();
     let stone = spawn_stack(
@@ -286,7 +293,6 @@ fn a_count_outside_the_byte_is_refused() {
     assert_eq!(world.query::<&ItemStack>().iter(&world).count(), 1);
 }
 
-#[test]
 fn a_crossbow_refuses_a_projectile_past_the_codec_bound() {
     let mut world = world();
     let crossbow = spawn_stack(
@@ -306,7 +312,6 @@ fn a_crossbow_refuses_a_projectile_past_the_codec_bound() {
     assert_eq!(value.components.added.len(), 1);
 }
 
-#[test]
 fn reapplying_a_value_bumps_the_revision_once() {
     let mut world = world();
     let chest = world.spawn(SlotTable::fixed(1)).id();
@@ -317,7 +322,6 @@ fn reapplying_a_value_bumps_the_revision_once() {
     assert_eq!(crate::common::revision(&world, shulker), revision + 1);
 }
 
-#[test]
 fn a_campfire_table_is_bounded_but_not_allocated() {
     let mut world = world();
     let campfire = spawn_stack(

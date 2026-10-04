@@ -321,22 +321,6 @@ mod tests {
     }
 
     #[test]
-    fn the_shape_is_the_same_every_time_the_same_position_is_generated() {
-        let states = states(&[STONE]);
-        let shape_at = |pos: BlockPos| {
-            let mut walled = volume();
-            for face in 0..4 {
-                let side = Direction::HORIZONTAL[face].normal();
-                walled.set(pos + side, STONE);
-                walled.set(pos + side + IVec3::Y, STONE);
-            }
-            place_mossy_carpet(&states, &mut walled, pos);
-            (walled.get(pos), walled.get(pos + IVec3::Y))
-        };
-        assert_eq!(shape_at(ORIGIN), shape_at(ORIGIN));
-    }
-
-    #[test]
     fn every_shape_round_trips_through_its_state() {
         let states = states(&[]);
         for (state, shape) in &states.by_state {

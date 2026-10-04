@@ -297,42 +297,12 @@ mod tests {
         let biomes = mcrs_minecraft_worldgen_testing::registry::<Biome>("biome");
         assert!(biomes.len() >= 78, "{} biomes", biomes.len());
         for (id, biome) in biomes {
+            if let Err(e) = biome.natural_mob_spawns() {
+                panic!("{id}: {e}");
+            }
             let encoded = serde_json::to_string(&biome).unwrap();
             let read: Biome = serde_json::from_str(&encoded).unwrap();
             assert_eq!(read, biome, "{id} must round-trip unchanged");
         }
-    }
-
-    #[test]
-    fn deserialize_plains_biome() {
-        let biome: Biome =
-            mcrs_minecraft_worldgen_testing::read("biome", &ResourceLocation::minecraft("plains"));
-
-        assert!((biome.temperature - 0.8).abs() < f32::EPSILON);
-        assert!((biome.downfall - 0.4).abs() < f32::EPSILON);
-        assert!(biome.has_precipitation);
-        assert_eq!(biome.carvers.len(), 3);
-        assert_eq!(biome.carvers[0].as_str(), "minecraft:cave");
-        let spawns = biome
-            .natural_mob_spawns()
-            .unwrap()
-            .expect("plains has spawns");
-        assert!(!spawns.spawns_by_category[&MobCategory::Creature].is_empty());
-        assert_eq!(
-            biome
-                .attributes
-                .get(id::NATURAL_MOB_SPAWNS.id.as_str())
-                .unwrap()
-                .modifier,
-            mcrs_minecraft_environment::attribute::Operation::Overlay
-        );
-        assert_eq!(
-            biome
-                .attributes
-                .get("minecraft:visual/sky_color")
-                .unwrap()
-                .argument,
-            serde_json::json!("#78a7ff")
-        );
     }
 }

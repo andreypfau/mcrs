@@ -8,8 +8,6 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::common::run_to_playing;
-
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
     "minecraft:instrument",
@@ -314,18 +312,16 @@ fn sections(text: &str) -> BTreeMap<String, Vec<String>> {
     sections
 }
 
-#[test]
-fn the_synced_values_differ_from_the_game_as_recorded() {
+pub fn the_synced_values_differ_from_the_game_as_recorded(app: &App) {
     let golden = golden();
     let rows = rows();
-    let app = run_to_playing();
 
     let mut untyped_copies = BTreeSet::new();
     let mut others = BTreeSet::new();
     for (registry, game) in &golden.registries {
         let ours = match rows.iter().find(|row| &row.registry == registry) {
             Some(row) => from_files(row),
-            None => match from_app(&app, registry) {
+            None => match from_app(app, registry) {
                 Some(entries) => entries,
                 None => continue,
             },

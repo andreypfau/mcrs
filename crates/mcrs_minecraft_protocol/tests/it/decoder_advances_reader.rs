@@ -24,67 +24,65 @@ fn encoded(value: &impl Encode) -> Vec<u8> {
 }
 
 #[test]
-fn registry_data_with_entries_round_trips() {
-    let packet = ClientboundRegistryData {
-        registry: ResourceLocation::parse_cow("minecraft:dimension_type").expect("registry id"),
-        entries: vec![
-            mcrs_minecraft_protocol::registry::Entry {
-                id: ResourceLocation::parse_cow("minecraft:overworld").expect("entry id"),
-                data: Some(std::borrow::Cow::Owned(compound("height", 384).into())),
-            },
-            mcrs_minecraft_protocol::registry::Entry {
-                id: ResourceLocation::parse_cow("minecraft:the_nether").expect("entry id"),
-                data: Some(std::borrow::Cow::Owned(compound("height", 256).into())),
-            },
-            mcrs_minecraft_protocol::registry::Entry {
-                id: ResourceLocation::parse_cow("minecraft:axe").expect("entry id"),
-                data: Some(std::borrow::Cow::Owned(
-                    mcrs_minecraft_nbt::tag::NbtTag::List(vec![compound("weight", 1).into()]),
-                )),
-            },
-        ],
-    };
+fn every_decoder_stops_after_its_own_bytes() {
+    {
+        let packet = ClientboundRegistryData {
+            registry: ResourceLocation::parse_cow("minecraft:dimension_type").expect("registry id"),
+            entries: vec![
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::parse_cow("minecraft:overworld").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(compound("height", 384).into())),
+                },
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::parse_cow("minecraft:the_nether").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(compound("height", 256).into())),
+                },
+                mcrs_minecraft_protocol::registry::Entry {
+                    id: ResourceLocation::parse_cow("minecraft:axe").expect("entry id"),
+                    data: Some(std::borrow::Cow::Owned(
+                        mcrs_minecraft_nbt::tag::NbtTag::List(vec![compound("weight", 1).into()]),
+                    )),
+                },
+            ],
+        };
 
-    let buf = encoded(&packet);
-    let mut r: &[u8] = &buf;
-    let decoded = ClientboundRegistryData::decode(&mut r).expect("decode registry data");
-    assert!(r.is_empty(), "{} trailing bytes", r.len());
-    assert_eq!(encoded(&decoded), buf);
-    assert_eq!(decoded.entries.len(), 3);
-}
-
-#[test]
-fn direct_holder_leaves_the_reader_past_its_own_bytes() {
-    let holder = Holder::Direct(compound("value", 7));
-    let mut buf = encoded(&holder);
-    VarInt(0x2A).encode(&mut buf).expect("encode tail");
-
-    let mut r: &[u8] = &buf;
-    match Holder::decode(&mut r).expect("decode holder") {
-        Holder::Direct(c) => assert_eq!(c, compound("value", 7)),
-        other => panic!("expected a direct holder, got {other:?}"),
+        let buf = encoded(&packet);
+        let mut r: &[u8] = &buf;
+        let decoded = ClientboundRegistryData::decode(&mut r).expect("decode registry data");
+        assert!(r.is_empty(), "{} trailing bytes", r.len());
+        assert_eq!(encoded(&decoded), buf);
+        assert_eq!(decoded.entries.len(), 3);
     }
-    assert_eq!(VarInt::decode(&mut r).expect("decode tail").0, 0x2A);
-    assert!(r.is_empty());
-}
+    {
+        let holder = Holder::Direct(compound("value", 7));
+        let mut buf = encoded(&holder);
+        VarInt(0x2A).encode(&mut buf).expect("encode tail");
 
-#[test]
-fn text_is_not_the_last_field_of_a_system_chat_packet() {
-    let content = Text::text("hello");
-    let packet = ClientboundSystemChatPacket {
-        content: content.clone(),
-        overlay: true,
-    };
+        let mut r: &[u8] = &buf;
+        match Holder::decode(&mut r).expect("decode holder") {
+            Holder::Direct(c) => assert_eq!(c, compound("value", 7)),
+            other => panic!("expected a direct holder, got {other:?}"),
+        }
+        assert_eq!(VarInt::decode(&mut r).expect("decode tail").0, 0x2A);
+        assert!(r.is_empty());
+    }
+    {
+        let content = Text::text("hello");
+        let packet = ClientboundSystemChatPacket {
+            content: content.clone(),
+            overlay: true,
+        };
 
-    let buf = encoded(&packet);
-    let mut r: &[u8] = &buf;
-    let decoded = ClientboundSystemChatPacket::decode(&mut r).expect("decode system chat");
-    assert!(
-        r.is_empty(),
-        "the text field swallowed the overlay flag ({} bytes left)",
-        r.len()
-    );
-    assert_eq!(decoded.content, content);
-    assert!(decoded.overlay, "overlay flag was not decoded");
-    assert_eq!(encoded(&decoded), buf);
+        let buf = encoded(&packet);
+        let mut r: &[u8] = &buf;
+        let decoded = ClientboundSystemChatPacket::decode(&mut r).expect("decode system chat");
+        assert!(
+            r.is_empty(),
+            "the text field swallowed the overlay flag ({} bytes left)",
+            r.len()
+        );
+        assert_eq!(decoded.content, content);
+        assert!(decoded.overlay, "overlay flag was not decoded");
+        assert_eq!(encoded(&decoded), buf);
+    }
 }

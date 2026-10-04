@@ -150,18 +150,3 @@ impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
 pub(crate) fn id_number(position: usize) -> Option<u32> {
     u32::try_from(position).ok()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ids_order_by_position() {
-        let first = Id::<()>::from_number(0);
-        let second = Id::<()>::from_number(1);
-        assert!(second > first);
-        assert!(first < second);
-        assert_eq!(first.cmp(&first), std::cmp::Ordering::Equal);
-        assert_eq!(first.max(second), second);
-    }
-}

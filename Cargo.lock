@@ -3984,7 +3984,6 @@ dependencies = [
  "mcrs_minecraft_worldgen_generator",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_surface",
- "proptest",
  "rand 0.10.0",
  "rustc-hash 2.1.1",
  "serde",

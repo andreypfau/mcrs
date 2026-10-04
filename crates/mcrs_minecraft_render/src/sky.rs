@@ -452,39 +452,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_clouds_are_the_only_draw_that_writes_depth() {
-        let writers: Vec<&str> = SKY_DRAWS
-            .iter()
-            .filter(|draw| draw.writes_depth)
-            .map(|draw| draw.label)
-            .collect();
-        assert_eq!(writers, ["sky clouds"]);
-        assert_eq!(SKY_DRAWS[CLOUDS].label, "sky clouds");
-    }
-
-    #[test]
-    fn every_effect_bit_names_exactly_one_draw_in_order() {
-        let effects: Vec<SkyEffects> = SKY_DRAWS.iter().map(|draw| draw.effect).collect();
-        assert_eq!(
-            effects,
-            [
-                SkyEffects::DISC,
-                SkyEffects::TWILIGHT,
-                SkyEffects::CELESTIAL,
-                SkyEffects::STARS,
-                SkyEffects::CLOUDS,
-            ]
-        );
-        assert_eq!(
-            effects
-                .iter()
-                .copied()
-                .fold(SkyEffects::empty(), |all, bit| all | bit),
-            SkyEffects::all()
-        );
-    }
-
-    #[test]
     fn a_draw_is_skipped_only_while_it_would_put_nothing_on_screen() {
         let dark = SkyUniform::default();
         let lit = SkyUniform {

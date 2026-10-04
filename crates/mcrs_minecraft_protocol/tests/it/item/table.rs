@@ -18,7 +18,7 @@ struct Kind {
 }
 
 #[test]
-fn the_kind_table_matches_kinds_json() {
+fn the_kind_table_matches_kinds_json_and_the_registry_report() {
     let table: Kinds =
         serde_json::from_str(include_str!("../../fixtures/item/kinds.json")).unwrap();
     assert_eq!(table.kinds.len(), ItemComponentKind::COUNT);
@@ -42,16 +42,13 @@ fn the_kind_table_matches_kinds_json() {
         None
     );
     assert_eq!(ItemComponentKind::from_id("!custom_data"), None);
-}
 
-#[test]
-fn wire_ids_are_the_data_component_type_protocol_ids() {
     let report = StaticRegistryTable::from_json(include_bytes!(
         "../../../../../assets/mcrs/reports/registries.json"
     ))
     .unwrap();
     let types = report.registry("data_component_type").unwrap();
-    assert_eq!(types.len(), 122);
+    assert_eq!(types.len(), ItemComponentKind::COUNT);
     for (protocol_id, id) in types.names().iter().enumerate() {
         let kind =
             ItemComponentKind::from_id(id.as_str()).unwrap_or_else(|| panic!("{id} is not a kind"));

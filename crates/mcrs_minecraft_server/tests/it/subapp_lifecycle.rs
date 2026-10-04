@@ -1,92 +1,59 @@
-// Integration tests for the per-dimension sub-app lifecycle. Each test
-// constructs a host `App` via the shared `common` fixture, enqueues a
-// synthetic spawn request, drains the queue through the production builder,
-// and inspects the resulting sub-app population.
-
-use bevy_app::AppLabel;
+use bevy_app::{App, AppLabel};
+use bevy_app::{
+    First, FixedUpdate, Last, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, Update,
+};
 use bevy_ecs::prelude::*;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
-use mcrs_minecraft_level::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnRequest,
-};
+use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
+use mcrs_minecraft_level::world::dimension::Dimension;
+use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
+use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
-    DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
-    spawn_dim_subapp,
+    DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
 };
+use mcrs_minecraft_server::world_options::LoadedWorldPreset;
 
 use crate::host_app;
 
 #[test]
-fn dim_subapp_removed_on_despawn() {
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    drain_dim_spawn_queue(&mut app);
-    assert_eq!(app.sub_apps().sub_apps.len(), 1);
-
-    // The label-anchor entity in the host world is the same value the
-    // sub-app was interned under.
-    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
-    assert_eq!(handles.len(), 1, "one host-side handle entity per sub-app");
-    let label_entity = handles[0];
-
-    // The sub-app's own `World` carries the `Dimension` entity with the bundle.
-    let sub_app = app
-        .sub_apps_mut()
-        .sub_apps
-        .get_mut(&DimAppLabel(label_entity).intern())
-        .expect("sub-app under DimAppLabel");
-    let mut q = sub_app.world_mut().query::<(Entity, &Dimension)>();
-    let count = q.iter(sub_app.world()).count();
-    assert_eq!(count, 1, "exactly one Dimension entity per sub-app world");
-
-    app.world_mut()
-        .resource_mut::<DimDespawnQueue>()
-        .0
-        .push(label_entity);
-    drain_dim_despawn_queue(&mut app);
-    assert_eq!(
-        app.sub_apps().sub_apps.len(),
-        0,
-        "sub-app should be removed after despawn drain"
-    );
-}
-
-#[test]
-fn dim_worlds_are_isolated() {
+fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
     let mut app = host_app::make_host_app();
     host_app::enqueue_spawn(&mut app, "test:overworld", true);
     host_app::enqueue_spawn(&mut app, "test:nether", false);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(app.sub_apps().sub_apps.len(), 2);
 
-    let host_world_dim_count = app
+    let host_dimensions = app
         .world_mut()
         .query::<&Dimension>()
         .iter(app.world())
         .count();
     assert_eq!(
-        host_world_dim_count, 0,
+        host_dimensions, 0,
         "host world should hold zero Dimension entities"
     );
-}
-
-#[test]
-fn registries_present_in_all_subapps() {
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    host_app::enqueue_spawn(&mut app, "test:nether", false);
-    drain_dim_spawn_queue(&mut app);
 
     let host_registry: RegistryAccess = app.world().resource::<RegistryAccess>().clone();
-    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
-    for label in &labels {
-        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
-        let world = sub_app.world();
+    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
+    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
+    assert_eq!(handles.len(), 2, "one host-side handle entity per sub-app");
+
+    for &label in &handles {
+        let world = app
+            .sub_apps_mut()
+            .sub_apps
+            .get_mut(&DimAppLabel(label).intern())
+            .expect("sub-app under the handle's DimAppLabel")
+            .world_mut();
+        let dimensions = world.query::<&Dimension>().iter(world).count();
+        assert_eq!(
+            dimensions, 1,
+            "exactly one Dimension entity per sub-app world"
+        );
         let access = world
             .get_resource::<RegistryAccess>()
             .expect("RegistryAccess resource present in sub-app");
@@ -98,150 +65,143 @@ fn registries_present_in_all_subapps() {
             world.get_resource::<Blocks>().is_some(),
             "the block definition corpus is present in the sub-app"
         );
+
+        assert_eq!(world.query::<&Session>().iter(world).count(), 0);
+        assert_eq!(
+            world.query::<&ServerSideConnection>().iter(world).count(),
+            0
+        );
+        assert!(!world.contains_resource::<PlayerSessionCounter>());
+        assert!(!world.contains_resource::<LoadedWorldPreset>());
     }
+
+    app.world_mut()
+        .resource_mut::<DimDespawnQueue>()
+        .0
+        .push(handles[0]);
+    drain_dim_despawn_queue(&mut app);
+    assert_eq!(app.sub_apps().sub_apps.len(), 1);
+    assert!(
+        app.sub_apps()
+            .sub_apps
+            .contains_key(&DimAppLabel(handles[1]).intern()),
+        "only the despawned dimension's sub-app is removed"
+    );
 }
 
-#[test]
-fn time_extracted_into_subapp() {
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    drain_dim_spawn_queue(&mut app);
+#[derive(Resource, Default, Debug, PartialEq, Eq)]
+struct ScheduleHits {
+    pre_startup: u32,
+    startup: u32,
+    post_startup: u32,
+    first: u32,
+    pre_update: u32,
+    update: u32,
+    post_update: u32,
+    last: u32,
+}
 
+fn install_counters(sub_app: &mut bevy_app::SubApp) {
+    sub_app.init_resource::<ScheduleHits>();
+    sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
+    sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
+    sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| {
+        h.post_startup += 1
+    });
+    sub_app.add_systems(First, |mut h: ResMut<ScheduleHits>| h.first += 1);
+    sub_app.add_systems(PreUpdate, |mut h: ResMut<ScheduleHits>| h.pre_update += 1);
+    sub_app.add_systems(Update, |mut h: ResMut<ScheduleHits>| h.update += 1);
+    sub_app.add_systems(PostUpdate, |mut h: ResMut<ScheduleHits>| h.post_update += 1);
+    sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
+}
+
+const OVERWORLD: &str = "minecraft:overworld";
+
+fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
+    *app.sub_app_mut(DimAppLabel(dim_label))
+        .world()
+        .resource::<WorldClocks>()
+        .get(OVERWORLD)
+        .expect("the extract carried the overworld clock into the sub-world")
+}
+
+fn main_clock(app: &App) -> ClockState {
+    *app.world()
+        .resource::<WorldClocks>()
+        .get(OVERWORLD)
+        .unwrap()
+}
+
+/// Systems on every non-`Fixed` schedule of a sub-app run on each pump, with
+/// the `Startup` family once: an earlier driver chained only the `Fixed*`
+/// schedules and left `spawn_player`, loot loading and column-view attachment
+/// inert. The main app owns time and the clocks; each pump hands the sub-world
+/// the same values, overwriting any it advanced on its own.
+#[test]
+fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
+    let mut app = host_app::make_host_app();
+    app.add_message::<InboundPlayerSpawn>();
+    app.add_plugins(WorldClockPlugin);
+    let mut clocks = WorldClocks::default();
+    clocks.reconcile_with_registry([
+        mcrs_minecraft_core::ResourceLocation::parse(OVERWORLD).unwrap()
+    ]);
+    app.insert_resource(clocks);
+    host_app::drive_to_playing(&mut app);
+    host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    let dim_label = app
+        .world_mut()
+        .query_filtered::<Entity, With<DimSubAppHandle>>()
+        .single(app.world())
+        .unwrap();
+    install_counters(app.sub_app_mut(DimAppLabel(dim_label)));
+
+    let before = main_clock(&app).total_ticks;
+    for _ in 0..7 {
+        app.world_mut().run_schedule(FixedUpdate);
+    }
     app.update();
+    assert!(main_clock(&app).total_ticks >= before + 7);
+    assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
 
     let host_fixed = *app.world().resource::<Time<Fixed>>();
-    let label = *app
-        .sub_apps()
-        .sub_apps
-        .keys()
-        .next()
-        .expect("one sub-app present");
-    let sub_app = app
-        .sub_apps()
-        .sub_apps
-        .get(&label)
-        .expect("sub-app present");
-    let sub_fixed = *sub_app.world().resource::<Time<Fixed>>();
-    assert_eq!(
-        host_fixed.elapsed(),
-        sub_fixed.elapsed(),
-        "Time<Fixed>::elapsed should be extracted into the sub-app verbatim"
-    );
-    assert_eq!(
-        host_fixed.delta(),
-        sub_fixed.delta(),
-        "Time<Fixed>::delta should be extracted into the sub-app verbatim"
-    );
-}
+    let sub_fixed = *app
+        .sub_app(DimAppLabel(dim_label))
+        .world()
+        .resource::<Time<Fixed>>();
+    assert_eq!(host_fixed.elapsed(), sub_fixed.elapsed());
+    assert_eq!(host_fixed.delta(), sub_fixed.delta());
 
-#[test]
-fn worldgen_chunk_plugin_present_in_each_subapp() {
-    use mcrs_minecraft_server::world::chunk::ColumnScheduler;
+    app.sub_app_mut(DimAppLabel(dim_label))
+        .world_mut()
+        .resource_mut::<WorldClocks>()
+        .get_mut(OVERWORLD)
+        .unwrap()
+        .total_ticks = 999_999;
+    app.update();
+    assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
+    assert_ne!(main_clock(&app).total_ticks, 999_999);
 
-    let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    host_app::enqueue_spawn(&mut app, "test:nether", false);
-    drain_dim_spawn_queue(&mut app);
-
-    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
-
-    for label in &labels {
-        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
-        assert!(
-            sub_app.world().get_resource::<ColumnScheduler>().is_some(),
-            "sub-app {label:?} must have ColumnScheduler — confirms worldgen ChunkPlugin is registered, not just the engine storage stub"
-        );
-    }
-}
-
-/// Regression test: the `DimTick` driver must run more than just `Fixed*`.
-/// An earlier `DimTick` chained only Fixed*
-/// schedules in `DimTick`, so systems registered on `Update`, `PreUpdate`,
-/// `PostUpdate`, `Startup`, or `PostStartup` (`spawn_player`, loot table
-/// loading, column-view attachment, etc.) were silently inert. This test
-/// installs counter systems on each non-Fixed schedule and asserts they
-/// actually execute on each sub-app pump, with `Startup`-family schedules
-/// running exactly once across multiple pumps.
-#[test]
-fn dim_tick_runs_full_main_pipeline() {
-    use bevy_app::{First, Last, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, Update};
-
-    #[derive(Resource, Default, Debug, PartialEq, Eq)]
-    struct ScheduleHits {
-        pre_startup: u32,
-        startup: u32,
-        post_startup: u32,
-        first: u32,
-        pre_update: u32,
-        update: u32,
-        post_update: u32,
-        last: u32,
-    }
-
-    fn install_counters(sub_app: &mut bevy_app::SubApp) {
-        sub_app.init_resource::<ScheduleHits>();
-        sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
-        sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
-        sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| {
-            h.post_startup += 1
-        });
-        sub_app.add_systems(First, |mut h: ResMut<ScheduleHits>| h.first += 1);
-        sub_app.add_systems(PreUpdate, |mut h: ResMut<ScheduleHits>| h.pre_update += 1);
-        sub_app.add_systems(Update, |mut h: ResMut<ScheduleHits>| h.update += 1);
-        sub_app.add_systems(PostUpdate, |mut h: ResMut<ScheduleHits>| h.post_update += 1);
-        sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
-    }
-
-    let mut app = host_app::make_host_app();
-    let registries = gather_dim_registries(app.world());
-    let request = DimSpawnRequest {
-        dimension_id: DimensionId::new("test:overworld"),
-        type_config: DimensionTypeConfig::new(-64, 384),
-        has_sky: true,
-    };
-    let label_entity = spawn_dim_subapp(&mut app, &request, &registries);
-
-    {
-        let sub_app = app
-            .sub_apps_mut()
-            .sub_apps
-            .iter_mut()
-            .find(|(label, _)| format!("{label:?}").contains(&format!("{label_entity:?}")))
-            .map(|(_, s)| s)
-            .expect("sub-app must exist for the spawned label");
-        install_counters(sub_app);
-    }
+    app.world_mut().run_schedule(FixedUpdate);
+    app.update();
+    assert_eq!(sub_app_clock(&mut app, dim_label), main_clock(&app));
 
     const PUMPS: u32 = 3;
-    for _ in 0..PUMPS {
-        app.update();
-    }
-
-    let sub_app = app
-        .sub_apps()
-        .sub_apps
-        .iter()
-        .find(|(label, _)| format!("{label:?}").contains(&format!("{label_entity:?}")))
-        .map(|(_, s)| s)
-        .expect("sub-app must exist");
-    let hits = sub_app
+    let hits = app
+        .sub_app(DimAppLabel(dim_label))
         .world()
-        .get_resource::<ScheduleHits>()
-        .expect("counter resource must be present");
-
-    assert_eq!(hits.pre_startup, 1, "PreStartup must run exactly once");
-    assert_eq!(hits.startup, 1, "Startup must run exactly once");
-    assert_eq!(hits.post_startup, 1, "PostStartup must run exactly once");
-    assert_eq!(hits.first, PUMPS, "First must run on every pump");
-    assert_eq!(hits.pre_update, PUMPS, "PreUpdate must run on every pump");
+        .resource::<ScheduleHits>();
     assert_eq!(
-        hits.update, PUMPS,
-        "Update must run on every pump (covers spawn_player)"
+        *hits,
+        ScheduleHits {
+            pre_startup: 1,
+            startup: 1,
+            post_startup: 1,
+            first: PUMPS,
+            pre_update: PUMPS,
+            update: PUMPS,
+            post_update: PUMPS,
+            last: PUMPS,
+        }
     );
-    assert_eq!(
-        hits.post_update, PUMPS,
-        "PostUpdate must run on every pump (covers despawn_disconnected_clients)"
-    );
-    assert_eq!(hits.last, PUMPS, "Last must run on every pump");
 }

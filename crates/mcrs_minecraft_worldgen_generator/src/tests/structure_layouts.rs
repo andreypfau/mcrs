@@ -157,69 +157,73 @@ fn render(
     }
 }
 
-#[test]
-#[ignore = "reference parity check; run with --ignored"]
-fn structure_layouts_match_the_oracle() {
-    let dump = read_dump();
-    assert_eq!(dump.len(), 5, "the dump lost seeds");
-    let frozen = frozen_shared();
-    let template_names: HashMap<TemplateId, &ResourceLocation> = frozen
-        .template_ids
-        .iter()
-        .map(|(location, id)| (*id, location))
-        .collect();
-    let mut cases = 0;
-    let mut present = 0;
-    let mut pieces = 0;
-    for entry in &dump {
-        let seed = entry.seed;
-        assert_eq!(entry.dimensions.len(), 2);
-        for (dimension_id, structures) in &entry.dimensions {
-            let index = build_index(&dimension(dimension_id), seed);
-            for structure in structures {
-                let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
-                assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
-                for case in &structure.cases {
-                    let ColumnPos { x, z } = case.chunk;
-                    let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
-                    cases += 1;
-                    let ours = index.start_of(case.chunk, id);
-                    assert_eq!(ours.is_some(), case.start.is_some(), "{label}: present");
-                    let (Some(start), Some(expected)) = (&ours, &case.start) else {
-                        continue;
-                    };
-                    present += 1;
-                    assert_eq!(start.bounds, expected.bounds, "{label}: start box");
-                    assert_eq!(
-                        start.pieces.len(),
-                        expected.pieces.len(),
-                        "{label}: piece count"
-                    );
-                    for (i, (piece, want)) in start.pieces.iter().zip(&expected.pieces).enumerate()
-                    {
-                        let Piece::Jigsaw(piece) = piece else {
-                            panic!("{label} piece #{i}: not a jigsaw piece");
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn structure_layouts_match_the_oracle() {
+        let dump = read_dump();
+        assert_eq!(dump.len(), 5, "the dump lost seeds");
+        let frozen = frozen_shared();
+        let template_names: HashMap<TemplateId, &ResourceLocation> = frozen
+            .template_ids
+            .iter()
+            .map(|(location, id)| (*id, location))
+            .collect();
+        let mut cases = 0;
+        let mut present = 0;
+        let mut pieces = 0;
+        for entry in &dump {
+            let seed = entry.seed;
+            assert_eq!(entry.dimensions.len(), 2);
+            for (dimension_id, structures) in &entry.dimensions {
+                let index = build_index(&dimension(dimension_id), seed);
+                for structure in structures {
+                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
+                    for case in &structure.cases {
+                        let ColumnPos { x, z } = case.chunk;
+                        let label = format!("seed {seed} {} at chunk ({x}, {z})", structure.id);
+                        cases += 1;
+                        let ours = index.start_of(case.chunk, id);
+                        assert_eq!(ours.is_some(), case.start.is_some(), "{label}: present");
+                        let (Some(start), Some(expected)) = (&ours, &case.start) else {
+                            continue;
                         };
-                        let label = format!("{label} piece #{i} {}", want.element);
+                        present += 1;
+                        assert_eq!(start.bounds, expected.bounds, "{label}: start box");
                         assert_eq!(
-                            render(frozen, &template_names, piece.element),
-                            want.element,
-                            "{label}: element"
+                            start.pieces.len(),
+                            expected.pieces.len(),
+                            "{label}: piece count"
                         );
-                        assert_eq!(piece.projection, want.projection, "{label}: projection");
-                        assert_eq!(piece.position, want.position, "{label}: position");
-                        assert_eq!(piece.rotation, want.rotation, "{label}: rotation");
-                        assert_eq!(piece.bounds, want.bounds, "{label}: box");
-                        assert_eq!(
-                            piece.ground_level_delta, want.ground_level_delta,
-                            "{label}: ground_level_delta"
-                        );
-                        assert_eq!(piece.junctions, want.junctions, "{label}: junctions");
-                        pieces += 1;
+                        for (i, (piece, want)) in
+                            start.pieces.iter().zip(&expected.pieces).enumerate()
+                        {
+                            let Piece::Jigsaw(piece) = piece else {
+                                panic!("{label} piece #{i}: not a jigsaw piece");
+                            };
+                            let label = format!("{label} piece #{i} {}", want.element);
+                            assert_eq!(
+                                render(frozen, &template_names, piece.element),
+                                want.element,
+                                "{label}: element"
+                            );
+                            assert_eq!(piece.projection, want.projection, "{label}: projection");
+                            assert_eq!(piece.position, want.position, "{label}: position");
+                            assert_eq!(piece.rotation, want.rotation, "{label}: rotation");
+                            assert_eq!(piece.bounds, want.bounds, "{label}: box");
+                            assert_eq!(
+                                piece.ground_level_delta, want.ground_level_delta,
+                                "{label}: ground_level_delta"
+                            );
+                            assert_eq!(piece.junctions, want.junctions, "{label}: junctions");
+                            pieces += 1;
+                        }
                     }
                 }
             }
         }
+        assert_eq!((cases, present, pieces), (5 * 28 * 16, 206, 28011));
     }
-    assert_eq!((cases, present, pieces), (5 * 28 * 16, 206, 28011));
 }

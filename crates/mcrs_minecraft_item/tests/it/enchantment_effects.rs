@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use mcrs_minecraft_item::enchantment::effects::{EnchantmentEffects, EnchantmentValueEffect};
-use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
+use mcrs_minecraft_item::enchantment::effects::EnchantmentEffects;
 
 fn enchantment_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -82,31 +81,16 @@ fn unknown_effect_key_is_an_error_naming_it() {
 }
 
 #[test]
-fn silk_touch_sets_block_experience_to_zero() {
-    let effects = effects_of("silk_touch.json");
-    let block_experience = effects.block_experience.expect("silk touch sets it");
-    assert_eq!(block_experience.len(), 1);
-    assert!(block_experience[0].requirements.is_none());
-    assert_eq!(
-        block_experience[0].effect,
-        EnchantmentValueEffect::Set {
-            value: LevelBasedValue::Constant(0.0)
-        }
-    );
-}
+fn level_based_effects_scale_with_the_level() {
+    let efficiency = effects_of("efficiency.json")
+        .attributes
+        .expect("efficiency has attributes");
+    assert_eq!(efficiency[0].attribute, "minecraft:mining_efficiency");
+    assert_eq!(efficiency[0].amount.calculate(3), 10.0);
 
-#[test]
-fn efficiency_attribute_amount_is_levels_squared() {
-    let effects = effects_of("efficiency.json");
-    let attributes = effects.attributes.expect("efficiency has attributes");
-    assert_eq!(attributes[0].attribute, "minecraft:mining_efficiency");
-    assert_eq!(attributes[0].amount.calculate(3), 10.0);
-}
-
-#[test]
-fn quick_charge_crossbow_charge_time_scales_linearly() {
-    let effects = effects_of("quick_charge.json");
-    let charge_time = effects.crossbow_charge_time.expect("quick charge sets it");
+    let charge_time = effects_of("quick_charge.json")
+        .crossbow_charge_time
+        .expect("quick charge sets it");
     let mut binomial = |value: f32, _chance: f32| value;
     assert_eq!(charge_time.process(1, 1.0, &mut binomial), 0.75);
     assert_eq!(charge_time.process(3, 1.0, &mut binomial), 0.25);

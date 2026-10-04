@@ -4,10 +4,6 @@ use std::sync::OnceLock;
 use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
-use mcrs_minecraft_client::inventory::{
-    ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell,
-};
-use mcrs_minecraft_client::player::Player;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
@@ -27,8 +23,11 @@ use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
 use mcrs_minecraft_registry::{RegistryLookup, StaticRegistryTable};
 use mcrs_minecraft_world::item::test_corpus;
 
+use super::{ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell};
+use crate::player::Player;
+
 const GOLDEN: &str =
-    include_str!("../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_golden.txt");
+    include_str!("../../../mcrs_minecraft_protocol/tests/fixtures/inventory_packets_golden.txt");
 
 fn golden() -> &'static HashMap<&'static str, Vec<u8>> {
     static PACKETS: OnceLock<HashMap<&'static str, Vec<u8>>> = OnceLock::new();
@@ -201,21 +200,20 @@ fn empty_player_content(count: usize) -> Client {
 }
 
 #[test]
-fn registry_report_ids_agree_with_the_item_corpus() {
-    let client = Client::new();
-    let table = client.app.world().resource::<StaticRegistryTable>();
-    for entry in items().iter() {
-        assert_eq!(
-            table.id("item", &entry.identifier),
-            Some(u32::from(entry.id.0)),
-            "{}",
-            entry.identifier
-        );
-    }
-    assert_eq!(table.registry("item").unwrap().len(), items().len());
+fn clientbound_packets_drive_the_player_and_menu_tables() {
+    set_content_fills_the_player_and_the_cursor();
+    set_slot_on_an_occupied_cell_keeps_the_entity();
+    an_empty_slot_despawns_the_stack();
+    a_resync_replaces_the_whole_table();
+    set_player_inventory_uses_the_inventory_index_space();
+    set_cursor_item_lands_in_the_carried_cell();
+    set_held_slot_accepts_only_the_hotbar();
+    a_chest_lays_out_over_the_menu_and_the_player();
+    closing_a_container_despawns_the_menu_and_keeps_the_player();
+    opening_a_second_screen_replaces_the_first();
+    a_menu_maps_its_slot_indices_onto_its_own_cells_and_the_player();
 }
 
-#[test]
 fn set_content_fills_the_player_and_the_cursor() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -244,7 +242,6 @@ fn set_content_fills_the_player_and_the_cursor() {
     assert_eq!(world.get::<Damage>(apple), None);
 }
 
-#[test]
 fn set_slot_on_an_occupied_cell_keeps_the_entity() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -276,7 +273,6 @@ fn set_slot_on_an_occupied_cell_keeps_the_entity() {
     assert_eq!(client.stacks(), 4);
 }
 
-#[test]
 fn an_empty_slot_despawns_the_stack() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -296,7 +292,6 @@ fn an_empty_slot_despawns_the_stack() {
     assert_eq!(client.seqno(player), 6);
 }
 
-#[test]
 fn a_resync_replaces_the_whole_table() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -321,7 +316,6 @@ fn a_resync_replaces_the_whole_table() {
     assert_eq!(client.seqno(player), 5);
 }
 
-#[test]
 fn set_player_inventory_uses_the_inventory_index_space() {
     assert_eq!(inventory_index_to_cell(0), Some(36));
     assert_eq!(inventory_index_to_cell(9), Some(9));
@@ -343,7 +337,6 @@ fn set_player_inventory_uses_the_inventory_index_space() {
     assert_eq!(client.stacks(), 1);
 }
 
-#[test]
 fn set_cursor_item_lands_in_the_carried_cell() {
     let mut client = Client::new();
     let player = client.player;
@@ -356,7 +349,6 @@ fn set_cursor_item_lands_in_the_carried_cell() {
     assert_eq!(client.stacks(), 0);
 }
 
-#[test]
 fn set_held_slot_accepts_only_the_hotbar() {
     let mut client = Client::new();
     let player = client.player;
@@ -377,7 +369,6 @@ fn set_held_slot_accepts_only_the_hotbar() {
     );
 }
 
-#[test]
 fn a_chest_lays_out_over_the_menu_and_the_player() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -427,7 +418,6 @@ fn a_chest_lays_out_over_the_menu_and_the_player() {
     assert_eq!(client.seqno(player), 5);
 }
 
-#[test]
 fn closing_a_container_despawns_the_menu_and_keeps_the_player() {
     let mut client = empty_player_content(4);
     let player = client.player;
@@ -454,7 +444,6 @@ fn closing_a_container_despawns_the_menu_and_keeps_the_player() {
     );
 }
 
-#[test]
 fn opening_a_second_screen_replaces_the_first() {
     let mut client = Client::new();
     let first = client.open_chest();
@@ -469,54 +458,59 @@ fn opening_a_second_screen_replaces_the_first() {
     );
 }
 
-#[test]
-fn a_menu_with_own_slots_first_offsets_the_player_slots() {
-    let mut client = Client::new();
-    let player = client.player;
-    let menu = client.open_menu("anvil", 4);
-    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0.len(), 39);
-    let raw = client.raw("stone", 3);
-    client.receive(&ClientboundContainerSetSlot {
-        container_id: VarInt(4),
-        state_seqno: VarInt(1),
-        slot: 35,
-        item: raw,
-    });
-    assert_eq!(
-        client.stack(player, slots::HOTBAR.start + 5),
-        ("stone".into(), 3)
-    );
-    let raw = client.raw("iron_ingot", 2);
-    client.receive(&ClientboundContainerSetSlot {
-        container_id: VarInt(4),
-        state_seqno: VarInt(2),
-        slot: 2,
-        item: raw,
-    });
-    assert_eq!(client.stack(menu, 2), ("iron_ingot".into(), 2));
+fn a_menu_maps_its_slot_indices_onto_its_own_cells_and_the_player() {
+    enum Lands {
+        Menu(u16),
+        Player(u16),
+    }
+    for (menu_type, layout, sent, lands) in [
+        ("anvil", 39, 35, Lands::Player(slots::HOTBAR.start + 5)),
+        ("anvil", 39, 2, Lands::Menu(2)),
+        ("crafter_3x3", 46, 45, Lands::Menu(9)),
+        ("lectern", 1, 0, Lands::Menu(0)),
+    ] {
+        let mut client = Client::new();
+        let player = client.player;
+        let menu = client.open_menu(menu_type, 4);
+        assert_eq!(
+            client.world().get::<MenuLayout>(menu).unwrap().0.len(),
+            layout,
+            "{menu_type}"
+        );
+        let raw = client.raw("stone", 3);
+        client.receive(&ClientboundContainerSetSlot {
+            container_id: VarInt(4),
+            state_seqno: VarInt(1),
+            slot: sent,
+            item: raw,
+        });
+        let (holder, cell) = match lands {
+            Lands::Menu(cell) => (menu, cell),
+            Lands::Player(cell) => (player, cell),
+        };
+        assert_eq!(
+            client.stack(holder, cell),
+            ("stone".into(), 3),
+            "{menu_type} slot {sent}"
+        );
+    }
 }
 
-#[test]
-fn the_crafter_result_slot_follows_the_player_slots() {
-    let mut client = Client::new();
-    let menu = client.open_menu("crafter_3x3", 5);
-    assert_eq!(client.world().get::<MenuLayout>(menu).unwrap().0.len(), 46);
-    let raw = client.raw("stone", 1);
-    client.receive(&ClientboundContainerSetSlot {
-        container_id: VarInt(5),
-        state_seqno: VarInt(1),
-        slot: 45,
-        item: raw,
-    });
-    assert_eq!(client.stack(menu, 9), ("stone".into(), 1));
-}
+mod exhaustive {
+    use super::*;
 
-#[test]
-fn the_lectern_has_no_player_slots() {
-    let mut client = Client::new();
-    let menu = client.open_menu("lectern", 6);
-    assert_eq!(
-        client.world().get::<MenuLayout>(menu).unwrap().0,
-        vec![Slot::new(menu, 0)]
-    );
+    #[test]
+    fn registry_report_ids_agree_with_the_item_corpus() {
+        let client = Client::new();
+        let table = client.app.world().resource::<StaticRegistryTable>();
+        for entry in items().iter() {
+            assert_eq!(
+                table.id("item", &entry.identifier),
+                Some(u32::from(entry.id.0)),
+                "{}",
+                entry.identifier
+            );
+        }
+        assert_eq!(table.registry("item").unwrap().len(), items().len());
+    }
 }

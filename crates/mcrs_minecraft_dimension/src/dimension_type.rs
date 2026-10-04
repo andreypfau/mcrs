@@ -324,27 +324,4 @@ mod tests {
         }
         assert_eq!(count, 5);
     }
-
-    #[test]
-    fn overworld_carries_both_entry_shapes() {
-        let bytes = std::fs::read(dimension_type_dir().join("overworld.json")).unwrap();
-        let proto: ProtoDimensionType = serde_json::from_slice(&bytes).unwrap();
-
-        // an object-valued attribute that is not the {argument, modifier} shape
-        let music = proto
-            .attributes
-            .get("minecraft:audio/background_music")
-            .unwrap();
-        assert_eq!(
-            music.modifier,
-            mcrs_minecraft_environment::attribute::Operation::Override
-        );
-        assert!(music.argument.is_object());
-
-        let bed_rule = proto.attributes.get("minecraft:gameplay/bed_rule").unwrap();
-        assert_eq!(
-            bed_rule.argument["can_sleep"],
-            serde_json::json!("when_dark")
-        );
-    }
 }

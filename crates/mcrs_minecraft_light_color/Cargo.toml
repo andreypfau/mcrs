@@ -49,14 +49,3 @@ bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 
-[[test]]
-name = "colors"
-required-features = ["bevy"]
-
-[[test]]
-name = "plugin"
-required-features = ["bevy"]
-
-[[test]]
-name = "item_light"
-required-features = ["bevy"]

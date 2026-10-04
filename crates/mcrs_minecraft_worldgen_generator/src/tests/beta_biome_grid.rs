@@ -1,4 +1,3 @@
-use bevy_math::IVec3;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::beta_surface::build_beta_biome_source;
@@ -6,7 +5,7 @@ use super::build_beta_router;
 use crate::beta_biome_grid;
 
 #[test]
-fn every_cell_is_the_biome_its_climate_answers_alone() {
+fn every_cell_is_the_biome_its_climate_answers_and_a_ring_cell_is_the_neighbour_s() {
     let router = build_beta_router();
     let (source, registry) = build_beta_biome_source();
     let mut ws = Workspace::new();
@@ -33,12 +32,7 @@ fn every_cell_is_the_biome_its_climate_answers_alone() {
             }
         }
     }
-}
 
-#[test]
-fn a_ring_cell_is_the_neighbour_column_s_own_cell() {
-    let router = build_beta_router();
-    let (source, registry) = build_beta_biome_source();
     let (chunk_x, chunk_z) = (-11, 6);
 
     let column = beta_biome_grid(&router, &source, &registry, chunk_x * 16, chunk_z * 16);
@@ -71,19 +65,4 @@ fn a_ring_cell_is_the_neighbour_column_s_own_cell() {
             "north ring, column {gx}"
         );
     }
-}
-
-#[test]
-fn the_grid_is_one_row_of_six_by_six() {
-    let router = build_beta_router();
-    let (source, registry) = build_beta_biome_source();
-    let (block_x, block_z) = (-48, 80);
-
-    let grid = beta_biome_grid(&router, &source, &registry, block_x, block_z);
-
-    assert_eq!(grid.volume.size(), IVec3::new(6, 1, 6));
-    assert_eq!(
-        grid.volume.min_block(),
-        IVec3::new(block_x - 4, 0, block_z - 4)
-    );
 }

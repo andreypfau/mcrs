@@ -95,27 +95,13 @@ impl Decode<'_> for VarInt {
 
 #[cfg(test)]
 mod tests {
-    use rand::RngExt;
+    use rand::rngs::StdRng;
+    use rand::{RngExt, SeedableRng};
 
     use super::*;
 
-    fn check_written_size(count: usize) {
-        let mut rng = rand::rng();
-        let mut buf = vec![];
-
-        for n in (0..count)
-            .map(|_| rng.random())
-            .chain([0, i32::MIN, i32::MAX])
-            .map(VarInt)
-        {
-            buf.clear();
-            n.encode(&mut buf).unwrap();
-            assert_eq!(buf.len(), n.written_size());
-        }
-    }
-
-    fn check_round_trip(count: usize) {
-        let mut rng = rand::rng();
+    fn check(count: usize) {
+        let mut rng = StdRng::seed_from_u64(0x7661_7269_6e74);
         let mut buf = vec![];
 
         for n in (0..count)
@@ -123,6 +109,7 @@ mod tests {
             .chain([0, i32::MIN, i32::MAX])
         {
             VarInt(n).encode(&mut buf).unwrap();
+            assert_eq!(buf.len(), VarInt(n).written_size());
 
             let mut slice = buf.as_slice();
             assert!(slice.len() <= VarInt::MAX_SIZE);
@@ -135,26 +122,16 @@ mod tests {
     }
 
     #[test]
-    fn varint_written_size() {
-        check_written_size(1_000);
-    }
-
-    #[test]
-    fn varint_round_trip() {
-        check_round_trip(10_000);
+    fn varint_round_trips_in_its_written_size() {
+        check(10_000);
     }
 
     mod exhaustive {
         use super::*;
 
         #[test]
-        fn varint_written_size() {
-            check_written_size(100_000);
-        }
-
-        #[test]
-        fn varint_round_trip() {
-            check_round_trip(1_000_000);
+        fn varint_round_trips_in_its_written_size() {
+            check(1_000_000);
         }
     }
 }
