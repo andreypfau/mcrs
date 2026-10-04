@@ -3,6 +3,21 @@
 # drag and double-click scenarios against it. Exit code is the verdict.
 set -euo pipefail
 
+verdict() {
+    local found
+    [ -f "$1" ] || { echo "no server log at $1" >&2; return 2; }
+    found=$(grep -F 'inbound packet: ' "$1" | sed 's/^.*inbound packet: /inbound packet: /' | sort || true)
+    [ -z "$found" ] && return 0
+    echo "the server logged packet decode warnings:" >&2
+    printf '%s\n' "$found" >&2
+    return 1
+}
+
+if [ "${1:-}" = verdict ]; then
+    verdict "${2:?usage: run.sh verdict <log file>}"
+    exit $?
+fi
+
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 port=25565
@@ -56,4 +71,5 @@ else
     status=${status:-1}
     [ "$status" -eq 0 ] && status=1
 fi
+verdict "$log" || { [ "$status" -ne 0 ] || status=3; }
 exit "$status"
