@@ -32,6 +32,7 @@ mod host_subapp_handoff;
 mod inventory;
 mod inventory_click;
 mod inventory_sync;
+mod item_sound_ids;
 mod light_engine_e2e;
 mod login_handshake_e2e;
 mod login_profile;

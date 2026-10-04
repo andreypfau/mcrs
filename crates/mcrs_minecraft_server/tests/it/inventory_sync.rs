@@ -23,7 +23,7 @@ use mcrs_minecraft_server::world::item::chest::{
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
 
-use crate::support::standalone_corpus;
+use crate::support::{registry_set, standalone_corpus};
 
 pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = standalone_corpus();
@@ -41,6 +41,7 @@ pub(crate) fn world() -> (World, Entity, Entity) {
     world.insert_resource(blocks.clone());
     world.insert_resource(items.clone());
     world.insert_resource(registry);
+    world.insert_resource(registry_set().clone());
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     let anchor = world.spawn_empty().id();
     let player = world

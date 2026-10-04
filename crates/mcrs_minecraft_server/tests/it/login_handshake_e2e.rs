@@ -72,6 +72,7 @@ fn build_join_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());
+    crate::host_app::insert_registry_set(&mut app);
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(DynTagRegistry::<Item>::default());

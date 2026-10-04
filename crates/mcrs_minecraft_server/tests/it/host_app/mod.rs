@@ -37,8 +37,6 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_world::registries::static_registries;
-use std::sync::LazyLock;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
@@ -86,15 +84,7 @@ pub fn make_host_app() -> App {
 /// Give the host the registry set built from the real report and register it for sharing,
 /// the way the world plugin does at startup.
 pub fn insert_registry_set(app: &mut App) {
-    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let report = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .expect("the registries report is readable");
-        static_registries(&report).unwrap_or_else(|report| panic!("{report}"))
-    });
-    app.insert_resource(SET.clone());
+    app.insert_resource(crate::support::registry_set().clone());
     share::<RegistrySet>(app.world_mut());
 }
 

@@ -1,6 +1,7 @@
 use crate::world::aoi::TrackedBy;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
+use crate::world::item::item_lookups;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
@@ -22,7 +23,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSet
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
-use mcrs_minecraft_registry::ChainLookup;
+use mcrs_minecraft_registry::{ChainLookup, RegistrySet};
 use rustc_hash::FxHashSet;
 
 const DROPPED_ITEM_STACK_INDEX: u8 = 8;
@@ -57,9 +58,11 @@ fn dirty_holders(world: &mut World) -> FxHashSet<Entity> {
 /// tracked dropped item its stack when that changed.
 pub fn sync_stack_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
+    let set = world.resource::<RegistrySet>().clone();
     let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
-    let lookup = ChainLookup(&[&registry, &*blocks.0]);
+    let lookups = item_lookups(&set, &registry, &blocks.0);
+    let lookup = ChainLookup(&lookups);
     let dirty = dirty_holders(world);
     let proto = |world: &World, slot: Slot| -> ProtoStack {
         stack_in(world, slot).map_or(ProtoStack::EMPTY, |stack| {
