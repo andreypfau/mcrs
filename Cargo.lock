@@ -3667,14 +3667,8 @@ name = "mcrs_minecraft_item"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bevy_app",
- "bevy_asset",
  "bevy_ecs",
- "bevy_reflect",
- "bevy_tasks",
  "crc32c",
- "mcrs_minecraft_assets",
- "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",

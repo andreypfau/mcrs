@@ -18,7 +18,7 @@ use crate::enchantment::effects::EnchantmentEffects;
 /// [`ProtoEnchantmentData::resolve`], which parses them into typed `TagKey`s.
 #[cfg(any(test, feature = "bevy"))]
 #[derive(Debug, Clone, Deserialize)]
-pub(crate) struct ProtoEnchantmentData {
+pub struct ProtoEnchantmentData {
     pub description: Text,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,

@@ -4,12 +4,15 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_registry::StaticRegistry;
 
 use self::definitions::load_item_definitions;
 
+pub mod asset;
 pub mod definitions;
+pub mod enchantments;
+pub mod tool;
+
+pub use enchantments::test_enchantments;
 
 /// The whole vanilla corpus, loaded once per process; for tests and tools
 /// that have no app to hand it an asset server from.
@@ -29,8 +32,4 @@ pub fn test_corpus() -> &'static (Blocks, Items) {
         let items = load_item_definitions(&asset_server, &blocks).expect("the item corpus loads");
         (Blocks(Arc::new(blocks)), Items(Arc::new(items)))
     })
-}
-
-pub fn test_enchantments() -> &'static StaticRegistry<EnchantmentData> {
-    mcrs_minecraft_item::enchantment::test_enchantments()
 }

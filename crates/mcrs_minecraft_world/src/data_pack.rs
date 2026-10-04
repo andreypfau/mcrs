@@ -20,13 +20,13 @@ use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::{timeline, world_clock};
+use mcrs_minecraft_item as item;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::StaticRegistry;
 use mcrs_minecraft_registry::TagId;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
 use mcrs_minecraft_worldgen_structure::Structure;
-use {mcrs_minecraft_item as item, mcrs_minecraft_item::trim};
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -180,14 +180,14 @@ pub(crate) fn request_data_pack_assets(
         "json",
         FILES_CHAT_TYPE,
     );
-    request_registry::<trim::TrimPattern>(
+    request_registry::<crate::item::asset::TrimPattern>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_PATTERN,
         "json",
         FILES_TRIM_PATTERN,
     );
-    request_registry::<trim::TrimMaterial>(
+    request_registry::<crate::item::asset::TrimMaterial>(
         &asset_server,
         &mut loaded,
         FOLDER_TRIM_MATERIAL,

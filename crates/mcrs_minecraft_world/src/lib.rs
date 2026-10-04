@@ -112,10 +112,10 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<variant::ChickenVariant>::default());
         app.init_asset::<variant::ZombieNautilusVariant>();
         app.register_asset_loader(JsonLoader::<variant::ZombieNautilusVariant>::default());
-        app.init_asset::<mcrs_minecraft_item::trim::TrimPattern>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimPattern>::default());
-        app.init_asset::<mcrs_minecraft_item::trim::TrimMaterial>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_item::trim::TrimMaterial>::default());
+        app.init_asset::<crate::item::asset::TrimPattern>();
+        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimPattern>::default());
+        app.init_asset::<crate::item::asset::TrimMaterial>();
+        app.register_asset_loader(JsonLoader::<crate::item::asset::TrimMaterial>::default());
         app.init_asset::<damage_type::DamageType>();
         app.register_asset_loader(JsonLoader::<damage_type::DamageType>::default());
         app.init_asset::<painting_variant::PaintingVariant>();
@@ -223,17 +223,17 @@ impl Plugin for MinecraftWorldPlugin {
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    mcrs_minecraft_item::trim::TrimPattern,
+                    crate::item::asset::TrimPattern,
                     "minecraft:trim_pattern",
-                    |v: &mcrs_minecraft_item::trim::TrimPattern| {
+                    |v: &crate::item::asset::TrimPattern| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
                 ),
                 (
-                    mcrs_minecraft_item::trim::TrimMaterial,
+                    crate::item::asset::TrimMaterial,
                     "minecraft:trim_material",
-                    |v: &mcrs_minecraft_item::trim::TrimMaterial| {
+                    |v: &crate::item::asset::TrimMaterial| {
                         mcrs_minecraft_nbt::to_nbt_tag(v)
                     },
                     Some(mcrs_minecraft_assets::PackSource::vanilla_core())
@@ -507,7 +507,7 @@ impl Plugin for MinecraftWorldPlugin {
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
-                mcrs_minecraft_item::enchantment::register_all_enchantments(
+                crate::item::enchantments::register_all_enchantments(
                     &mut enchantments,
                     world.resource::<AssetServer>(),
                 );

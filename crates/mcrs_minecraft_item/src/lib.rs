@@ -21,10 +21,6 @@ pub mod patch;
 pub mod stack;
 pub mod tags;
 #[cfg(feature = "bevy")]
-pub mod tool;
-#[cfg(feature = "bevy")]
-pub mod trim;
-#[cfg(feature = "bevy")]
 pub mod value;
 
 pub use component::*;
