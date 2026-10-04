@@ -1,11 +1,13 @@
 use bevy_app::App;
 use mcrs_minecraft_assets::tag::TagLoader;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::common::workspace_root;
 
@@ -52,6 +54,40 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
         resolved >= shipped,
         "the loader must pick up every shipped block tag: {resolved} < {shipped}"
     );
+}
+
+pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
+    let registry = app
+        .world()
+        .resource::<RegistrySet>()
+        .registry::<EntityType>()
+        .expect("the report carries the entity types");
+    let tags = app
+        .world()
+        .resource::<TagRegistry<EntityType, Id<EntityType>>>();
+    let skeletons = TagKey::<EntityType, _>::from_location(
+        ResourceLocation::parse("minecraft:skeletons").unwrap(),
+    );
+
+    let members: Vec<usize> = tags
+        .get(&skeletons)
+        .expect("the pack ships the skeletons tag")
+        .iter()
+        .map(Id::index)
+        .collect();
+    let mut expected: Vec<usize> = [
+        "minecraft:skeleton",
+        "minecraft:stray",
+        "minecraft:wither_skeleton",
+        "minecraft:skeleton_horse",
+        "minecraft:bogged",
+        "minecraft:parched",
+    ]
+    .into_iter()
+    .map(|name| registry.require(name).unwrap().index())
+    .collect();
+    expected.sort_unstable();
+    assert_eq!(members, expected);
 }
 
 fn count_json(dir: &std::path::Path) -> usize {

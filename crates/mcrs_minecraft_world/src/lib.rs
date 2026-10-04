@@ -142,8 +142,7 @@ impl Plugin for MinecraftWorldPlugin {
         app.register_asset_loader(JsonLoader::<test_types::TestInstance>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
-        app.init_resource::<StaticRegistry<EntityType>>()
-            .init_resource::<StaticRegistry<EnchantmentData>>()
+        app.init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
 
         app.add_systems(
@@ -156,7 +155,7 @@ impl Plugin for MinecraftWorldPlugin {
                     EnchantmentData,
                     mcrs_minecraft_registry::StaticId<EnchantmentData>,
                 >,
-                request_every_tag::<EntityType, mcrs_minecraft_registry::StaticId<EntityType>>,
+                request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
                 request_every_tag::<mcrs_minecraft_registry::key::Biome, u32>,
                 request_every_tag::<mcrs_minecraft_registry::key::Structure, u32>,
             )
@@ -166,7 +165,7 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<mcrs_minecraft_registry::key::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>()
-        .add_tagged_registry::<EntityType, StaticRegistry<EntityType>>()
+        .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_registry::key::Biome, DynRegistryIndex<mcrs_minecraft_registry::key::Biome>>()
         .add_tagged_registry::<mcrs_minecraft_registry::key::Structure, DynRegistryIndex<mcrs_minecraft_registry::key::Structure>>();
@@ -478,24 +477,16 @@ impl Plugin for MinecraftWorldPlugin {
                 count = registries.tables().count(),
                 "built the static registries"
             );
-            let entity_type_names = registries
-                .table("minecraft:entity_type")
-                .cloned()
+            let entity_types = registries
+                .registry::<EntityType>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));
             app.insert_resource(registries);
             app.insert_resource(entity_ids);
+            app.insert_resource(entity_types);
             mcrs_minecraft_registry::shared::share::<mcrs_minecraft_registry::RegistrySet>(
                 app.world_mut(),
             );
             mcrs_minecraft_registry::shared::share::<entity::minecraft::EntityIds>(app.world_mut());
-            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<EntityType>>();
-            entity::minecraft::register_all_entity_types(&mut entity_types, &entity_type_names);
-            tracing::info!(
-                count = entity_types.len(),
-                "registered StaticRegistry<EntityType>"
-            );
-            entity_types.freeze();
-            tracing::info!("frozen StaticRegistry<EntityType>");
         }
         app.world_mut().resource_scope(
             |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {

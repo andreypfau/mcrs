@@ -1,4 +1,4 @@
-use crate::StaticId;
+use crate::{Id, StaticId};
 use fixedbitset::FixedBitSet;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -31,6 +31,18 @@ impl<T: 'static> TagId for StaticId<T> {
     #[inline]
     fn from_raw(raw: u32) -> Self {
         StaticId::new(raw)
+    }
+}
+
+impl<R: 'static> TagId for Id<R> {
+    #[inline]
+    fn raw(self) -> u32 {
+        self.index() as u32
+    }
+
+    #[inline]
+    fn from_raw(raw: u32) -> Self {
+        Id::from_number(raw)
     }
 }
 

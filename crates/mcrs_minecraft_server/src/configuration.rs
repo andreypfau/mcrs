@@ -6,6 +6,7 @@ use crate::login::{GameProfile, SessionsById, disconnect, duplicate_login_reason
 use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
+use crate::world::entity::registry_varint;
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 use bevy_app::{App, Plugin, Update};
@@ -50,6 +51,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::save::read_player_dat;
@@ -401,7 +403,7 @@ fn on_known_packs_response(
     blocks: Res<Blocks>,
     item_tags: Option<Res<DynTagRegistry<VanillaItem>>>,
     enchantment_tags: Option<Res<TagRegistry<EnchantmentData>>>,
-    entity_type_tags: Option<Res<TagRegistry<VanillaEntityType>>>,
+    entity_type_tags: Option<Res<TagRegistry<VanillaEntityType, Id<VanillaEntityType>>>>,
     dynamic_tags: Res<DynamicRegistryTagFiles>,
     tag_files: Res<Assets<TagFile>>,
     mut commands: Commands,
@@ -550,7 +552,7 @@ fn on_known_packs_response(
                     .unwrap_or_else(|_| {
                         ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
                     }),
-                entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
+                entries: bitset.iter().map(registry_varint).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
