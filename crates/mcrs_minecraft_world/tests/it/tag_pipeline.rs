@@ -21,7 +21,8 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
 
     let tags = app.world().resource::<DynTagRegistry<Block>>();
     let blocks = app.world().resource::<Blocks>();
-    let index = |name: &str| blocks.id_of(name).expect("the corpus declares it").number();
+    let index =
+        |name: &str| u32::from(blocks.id_of(name).expect("the corpus declares it").number());
 
     assert!(tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:stone")));
     assert!(!tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:dirt")));

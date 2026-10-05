@@ -8,7 +8,7 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::{BlockStateId, ItemId, NarrowError, Registry, UnknownEntry};
+use mcrs_minecraft_registry::{BlockStateId, ItemId, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -43,11 +43,6 @@ pub enum ItemTableError {
     Unknown(#[from] UnknownEntry),
     #[error(transparent)]
     Duplicate(#[from] DuplicateItem),
-    #[error("item `{identifier}`: {source}")]
-    Narrow {
-        identifier: ResourceLocation<Arc<str>>,
-        source: NarrowError,
-    },
     #[error("the registries report lists item `{identifier}` but no entry defines it")]
     Missing {
         identifier: ResourceLocation<Arc<str>>,
@@ -73,11 +68,7 @@ impl ItemDefinitions {
             std::iter::repeat_with(|| None).take(items.len()).collect();
         for (position, mut entry) in entries.into_iter().enumerate() {
             let id = items.require(entry.identifier.as_str())?;
-            let narrowed: u16 = id.narrow().map_err(|source| ItemTableError::Narrow {
-                identifier: entry.identifier.clone(),
-                source,
-            })?;
-            entry.id = ItemId(narrowed);
+            entry.id = ItemId(id.number());
             entry.identifier = items
                 .key(id)
                 .expect("the id came from this registry")
@@ -116,11 +107,7 @@ impl ItemDefinitions {
     }
 
     pub fn id_of(&self, location: &str) -> Option<ItemId> {
-        self.registry
-            .get(location)?
-            .narrow::<u16>()
-            .ok()
-            .map(ItemId)
+        self.registry.get(location).map(|id| ItemId(id.number()))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ItemEntry> {
@@ -250,23 +237,29 @@ mod tests {
     }
 
     #[test]
-    fn an_item_table_past_sixteen_bits_is_refused() {
-        let names: Vec<String> = (0..=usize::from(u16::MAX) + 1)
+    fn an_item_table_fills_all_sixteen_bits() {
+        let names: Vec<String> = (0..=usize::from(u16::MAX))
             .map(|n| format!("n{n}"))
             .collect();
         let names: Vec<&str> = names.iter().map(String::as_str).collect();
         let last = names[names.len() - 1];
-        let error =
-            ItemDefinitions::from_entries(&registry(&names), vec![entry(last)]).unwrap_err();
-        let ItemTableError::Narrow { identifier, source } = &error else {
-            panic!("{error}");
-        };
-        assert_eq!(identifier.as_str(), format!("minecraft:{last}"));
-        assert_eq!(source.id, u32::from(u16::MAX) + 1);
-        assert_eq!(source.bits, 16);
-        let message = error.to_string();
-        assert!(message.contains("minecraft:item"), "{message}");
-        assert!(message.contains("65536"), "{message}");
+        let mut entries: Vec<_> = names.iter().map(|name| entry(name)).collect();
+        entries.reverse();
+        let table = ItemDefinitions::from_entries(&registry(&names), entries).unwrap();
+        assert!(
+            table
+                .iter()
+                .enumerate()
+                .all(|(position, entry)| usize::from(entry.id.0) == position)
+        );
+        assert_eq!(
+            table.id_of(&format!("minecraft:{last}")),
+            Some(ItemId(u16::MAX))
+        );
+        assert_eq!(
+            table.get(ItemId(u16::MAX)).unwrap().identifier.as_str(),
+            format!("minecraft:{last}")
+        );
     }
 
     #[test]

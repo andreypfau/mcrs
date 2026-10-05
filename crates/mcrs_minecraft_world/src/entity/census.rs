@@ -129,7 +129,7 @@ fn attributes_match_the_registry_entry_for_entry() {
         assert_eq!(ours.identifier.to_string(), theirs.id);
         assert_eq!(
             attributes.number(&theirs.id),
-            Some(index as u32),
+            Some(index as u16),
             "{} is numbered differently in the report",
             theirs.id
         );

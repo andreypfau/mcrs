@@ -189,6 +189,8 @@ pub struct BlockDefinitions {
     registry: Registry<Block>,
 }
 
+const _: () = assert!(size_of::<Id<Block>>() == 2);
+
 impl BlockDefinitions {
     #[inline]
     pub fn state(&self, id: BlockStateId) -> &BlockStateData {
@@ -352,7 +354,7 @@ impl mcrs_minecraft_registry::TagSource for Blocks {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {
-        BlockDefinitions::id_of(self, loc).map(|id| id.number())
+        BlockDefinitions::id_of(self, loc).map(|id| u32::from(id.number()))
     }
 
     fn capacity(&self) -> u32 {
@@ -504,7 +506,7 @@ const UNCLAIMED: BlockStateData = BlockStateData {
 
 struct Builder {
     states: Vec<BlockStateData>,
-    owners: Vec<u32>,
+    owners: Vec<Option<Id<Block>>>,
     shapes: Vec<Box<[Aabb]>>,
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
@@ -514,8 +516,6 @@ struct Builder {
     blocks: Vec<Option<BlockEntry>>,
     permutations: usize,
 }
-
-const NO_OWNER: u32 = u32::MAX;
 
 impl Builder {
     fn new(registry: &Registry<Block>) -> Self {
@@ -613,11 +613,10 @@ impl Builder {
         }
         self.permutations += permutations.len();
 
-        let block_index = id.number();
         let end = base as usize + state_count;
         if self.states.len() < end {
             self.states.resize(end, UNCLAIMED);
-            self.owners.resize(end, NO_OWNER);
+            self.owners.resize(end, None);
         }
 
         // Bedrock knows its air block by identifier and states no component for
@@ -642,17 +641,17 @@ impl Builder {
             }
 
             let state = base as usize + index;
-            if self.owners[state] != NO_OWNER {
+            if let Some(owner) = self.owners[state] {
                 return Err(BlockError::OverlappingState {
                     state: state as u16,
                     owner: self
                         .registry
                         .table()
-                        .name(self.owners[state] as usize)
+                        .name(owner.index())
                         .map_or_else(String::new, |name| name.as_str().to_owned()),
                 });
             }
-            self.owners[state] = block_index;
+            self.owners[state] = Some(id);
             if let Some(component) = resolved.missing() {
                 return Err(BlockError::MissingComponent {
                     state: state as u16,
@@ -820,15 +819,12 @@ impl Builder {
                 }
             })?);
         }
-        if let Some(state) = self.owners.iter().position(|&owner| owner == NO_OWNER) {
-            return Err(LoadError::UnclaimedState(state as u16));
-        }
-        let ids: Vec<Id<Block>> = self.registry.ids().collect();
         let owners = self
             .owners
             .iter()
-            .map(|&owner| ids[owner as usize])
-            .collect();
+            .enumerate()
+            .map(|(state, owner)| owner.ok_or(LoadError::UnclaimedState(state as u16)))
+            .collect::<Result<_, _>>()?;
         Ok(BlockDefinitions {
             states: std::mem::take(&mut self.states),
             shapes: std::mem::take(&mut self.shapes),

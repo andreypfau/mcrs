@@ -136,7 +136,7 @@ impl<T: Asset> RegistrySnapshot<T> {
     /// stable across `AssetServer` instances (e.g. the host world vs. a per-dim
     /// sub-app), where the same biome carries different `AssetId`s.
     pub fn by_location(&self, location: &str) -> Option<u32> {
-        self.table.as_ref()?.number(location)
+        self.table.as_ref()?.number(location).map(u32::from)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u32, &SnapshotEntry<T>)> {

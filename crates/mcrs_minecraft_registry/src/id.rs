@@ -58,7 +58,7 @@ impl From<ItemId> for u16 {
 }
 
 pub struct Id<R> {
-    number: u32,
+    number: u16,
     _marker: PhantomData<fn() -> R>,
 }
 
@@ -96,7 +96,7 @@ impl<R> std::fmt::Debug for Id<R> {
 }
 
 impl<R> Id<R> {
-    pub(crate) fn from_number(number: u32) -> Self {
+    pub(crate) fn from_number(number: u16) -> Self {
         Id {
             number,
             _marker: PhantomData,
@@ -104,10 +104,10 @@ impl<R> Id<R> {
     }
 
     pub fn index(self) -> usize {
-        self.number as usize
+        usize::from(self.number)
     }
 
-    pub fn number(self) -> u32 {
+    pub fn number(self) -> u16 {
         self.number
     }
 }
@@ -115,7 +115,7 @@ impl<R> Id<R> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NarrowError {
     pub registry: ResourceLocation<&'static str>,
-    pub id: u32,
+    pub id: u16,
     pub bits: u32,
 }
 
@@ -132,7 +132,7 @@ impl fmt::Display for NarrowError {
 impl std::error::Error for NarrowError {}
 
 impl<R: RegistryKey> Id<R> {
-    pub fn narrow<N: TryFrom<u32>>(self) -> Result<N, NarrowError> {
+    pub fn narrow<N: TryFrom<u16>>(self) -> Result<N, NarrowError> {
         N::try_from(self.number).map_err(|_| NarrowError {
             registry: R::KEY,
             id: self.number,
@@ -180,13 +180,14 @@ impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
     }
 }
 
-pub(crate) fn id_number(position: usize) -> Option<u32> {
-    u32::try_from(position).ok()
+pub(crate) fn id_number(position: usize) -> Option<u16> {
+    u16::try_from(position).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry::RegistryError;
     use mcrs_minecraft_core::rl;
     use std::sync::Arc;
 
@@ -196,33 +197,16 @@ mod tests {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:wide");
     }
 
+    fn names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {
+        (0..len).map(|n| ResourceLocation::<Arc<str>>::parse(&format!("minecraft:n{n}")).unwrap())
+    }
+
     fn registry_of(len: usize) -> Registry<Wide> {
-        Registry::new(
-            (0..len)
-                .map(|n| ResourceLocation::<Arc<str>>::parse(&format!("minecraft:n{n}")).unwrap()),
-            std::iter::empty(),
-        )
-        .unwrap()
+        Registry::new(names(len), std::iter::empty()).unwrap()
     }
 
     fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
         registry.get(&format!("minecraft:n{n}")).unwrap()
-    }
-
-    fn assert_refused<N: TryFrom<u32> + fmt::Debug>(id: Id<Wide>, bits: u32) {
-        let error = id.narrow::<N>().unwrap_err();
-        assert_eq!(
-            error,
-            NarrowError {
-                registry: Wide::KEY,
-                id: u32::try_from(id.index()).unwrap(),
-                bits
-            }
-        );
-        let message = error.to_string();
-        assert!(message.contains("minecraft:wide"), "{message}");
-        assert!(message.contains(&id.index().to_string()), "{message}");
-        assert!(message.contains(&bits.to_string()), "{message}");
     }
 
     #[test]
@@ -230,14 +214,37 @@ mod tests {
         let registry = registry_of(257);
         assert_eq!(id_at(&registry, 255).narrow::<u8>(), Ok(255));
         assert_eq!(id_at(&registry, 0).narrow::<u8>(), Ok(0));
-        assert_refused::<u8>(id_at(&registry, 256), 8);
+        let error = id_at(&registry, 256).narrow::<u8>().unwrap_err();
+        assert_eq!(
+            error,
+            NarrowError {
+                registry: Wide::KEY,
+                id: 256,
+                bits: 8
+            }
+        );
+        let message = error.to_string();
+        assert!(message.contains("minecraft:wide"), "{message}");
+        assert!(message.contains("256"), "{message}");
+        assert!(message.contains("8 bits"), "{message}");
     }
 
     #[test]
-    fn an_id_narrows_to_sixteen_bits_up_to_65535() {
-        let registry = registry_of(65537);
-        assert_eq!(id_at(&registry, 65535).narrow::<u16>(), Ok(65535));
-        assert_eq!(id_at(&registry, 256).narrow::<u16>(), Ok(256));
-        assert_refused::<u16>(id_at(&registry, 65536), 16);
+    fn a_registry_numbers_ids_up_to_65535_and_refuses_more_entries() {
+        let registry = registry_of(65536);
+        assert_eq!(id_at(&registry, 65535).number(), u16::MAX);
+        assert_eq!(registry.ids().count(), 65536);
+
+        let error = Registry::<Wide>::new(names(65537), std::iter::empty()).unwrap_err();
+        assert_eq!(
+            error,
+            RegistryError::TooManyEntries {
+                registry: Wide::KEY.into(),
+                len: 65537
+            }
+        );
+        let message = error.to_string();
+        assert!(message.contains("minecraft:wide"), "{message}");
+        assert!(message.contains("65537"), "{message}");
     }
 }
