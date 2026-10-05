@@ -1,27 +1,27 @@
 use crate::game_mode::OptGameMode;
 use crate::{Bounded, GameMode, GlobalPos, RegistryId, VarInt};
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys::{self as keys, dimension::OVERWORLD};
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
-pub struct PlayerSpawnInfo<'a> {
+pub struct PlayerSpawnInfo {
     pub dimension_type_id: RegistryId,
-    pub dimension: ResourceLocation<Cow<'a, str>>,
+    pub dimension: ResourceKey<keys::Dimension>,
     pub game_mode: GameMode,
     pub prev_game_mode: OptGameMode,
     pub is_debug: bool,
     pub is_flat: bool,
-    pub last_depth_location: Option<GlobalPos<'a>>,
+    pub last_depth_location: Option<GlobalPos>,
     pub portal_cooldown: VarInt,
     pub sea_level: VarInt,
 }
 
-impl Default for PlayerSpawnInfo<'_> {
+impl Default for PlayerSpawnInfo {
     fn default() -> Self {
         Self {
             dimension_type_id: RegistryId(0),
-            dimension: ResourceLocation::from(rl!("minecraft:overworld")),
+            dimension: OVERWORLD.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode::default(),
             is_debug: false,

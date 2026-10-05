@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{Cursor, Write};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
@@ -96,6 +96,18 @@ impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
 impl Decode<'_> for ResourceLocation<Arc<str>> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(ResourceLocation::parse(<&str>::decode(r)?)?)
+    }
+}
+
+impl<T, S: AsRef<str>> Encode for ResourceKey<T, S> {
+    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
+        self.location().encode(w)
+    }
+}
+
+impl<T> Decode<'_> for ResourceKey<T, Arc<str>> {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(ResourceKey::from_location(ResourceLocation::decode(r)?))
     }
 }
 

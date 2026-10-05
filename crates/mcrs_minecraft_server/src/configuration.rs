@@ -584,12 +584,6 @@ pub fn emit_initial_player_spawn(
         return;
     }
 
-    let dimensions: Vec<ResourceKey<keys::Dimension>> = dimension_list
-        .iter()
-        .flat_map(|list| list.iter())
-        .map(|(key, _)| key.clone())
-        .collect();
-
     for (&HostAnchorRef(host_anchor), state, info) in &connections {
         if *state != ConnectionState::Game {
             continue;
@@ -632,6 +626,9 @@ pub fn emit_initial_player_spawn(
                 .map(|info| info.view_distance)
                 .unwrap_or(VIEW_DISTANCE_FALLBACK),
         };
+        let dimensions = dimension_list
+            .as_ref()
+            .map_or_else(|| Arc::from([]), |list| Arc::clone(list.keys()));
         placement.set(Place::Joining(dim_label));
         send_control_or_teardown(
             &chan.control_sender,
@@ -640,7 +637,7 @@ pub fn emit_initial_player_spawn(
                 host_anchor,
                 session: session.0,
                 snapshot,
-                dimensions: dimensions.clone(),
+                dimensions,
             }),
             &mut despawn_queue,
         );

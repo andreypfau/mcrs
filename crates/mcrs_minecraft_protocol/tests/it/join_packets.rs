@@ -4,7 +4,8 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use mcrs_minecraft_core::{BlockPos, ResourceLocation, VERSION};
+use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_mode::OptGameMode;
 use mcrs_minecraft_protocol::handshake::Intent;
@@ -70,8 +71,8 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     assert_eq!(encoded(&expected), bytes, "{name}");
 }
 
-fn overworld() -> ResourceLocation<Cow<'static, str>> {
-    ResourceLocation::from(mcrs_minecraft_core::rl!("minecraft:overworld"))
+fn overworld() -> ResourceKey<keys::Dimension> {
+    keys::dimension::OVERWORLD.into()
 }
 
 #[test]
@@ -110,14 +111,14 @@ fn respawn_equals_the_reference_bytes() {
     let expected = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo {
             dimension_type_id: id(&fixture, "dimension_type", "minecraft:the_nether"),
-            dimension: ResourceLocation::from(mcrs_minecraft_core::rl!("minecraft:the_nether")),
+            dimension: keys::dimension::THE_NETHER.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),
             is_debug: false,
             is_flat: true,
             last_depth_location: Some(GlobalPos {
-                dimension_name: overworld(),
-                position: BlockPos::new(1, 64, -3),
+                dimension: overworld(),
+                pos: BlockPos::new(1, 64, -3),
             }),
             portal_cooldown: VarInt(0),
             sea_level: VarInt(32),

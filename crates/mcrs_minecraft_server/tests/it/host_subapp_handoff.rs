@@ -396,7 +396,7 @@ fn no_duplicate_spawn_on_reread() {
                     rotation: Vec2::ZERO,
                     view_distance: 12,
                 },
-                dimensions: Vec::new(),
+                dimensions: Vec::new().into(),
             }))
             .expect("control channel not full");
     }
@@ -419,6 +419,52 @@ fn no_duplicate_spawn_on_reread() {
         player_count, 1,
         "cursor semantics: only one Player entity despite multiple pumps after a single spawn"
     );
+}
+
+#[test]
+fn joining_players_share_the_baked_dimension_list() {
+    use mcrs_minecraft_level::world::channels::{
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
+    use mcrs_minecraft_server::world::channel_types::FromDim;
+    use std::sync::Arc;
+
+    let mut app = build_host_app();
+    let list = support::dimension_list_with_extra();
+    let baked = Arc::clone(list.keys());
+    app.insert_resource(list);
+
+    let dim_label = app
+        .world_mut()
+        .spawn((
+            DimSubAppHandle,
+            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+        ))
+        .id();
+    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+    app.world_mut()
+        .resource_mut::<DimChannelsResource>()
+        .insert(dim_label, srv_tx, ctl_tx, from_rx);
+
+    for _ in 0..2 {
+        let (connection, _) = spawn_accepted_connection(&mut app);
+        transition_to_game(&mut app, connection);
+    }
+    app.update();
+
+    let lists: Vec<_> = ctl_rx
+        .try_iter()
+        .filter_map(|message| match message {
+            ToDim::Spawn(spawn) => Some(spawn.dimensions),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(lists.len(), 2);
+    for sent in &lists {
+        assert!(Arc::ptr_eq(sent, &baked));
+    }
 }
 
 #[test]

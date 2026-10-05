@@ -11,7 +11,8 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::Brand;
@@ -189,8 +190,8 @@ pub struct ReceivedTags(pub Vec<ReceivedRegistryTags>);
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
     pub player_id: i32,
-    pub dimensions: Vec<String>,
-    pub dimension: String,
+    pub dimensions: Vec<ResourceKey<keys::Dimension>>,
+    pub dimension: ResourceKey<keys::Dimension>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -584,8 +585,8 @@ fn handle_game_packet(
     } else if let Some(login) = event.decode::<ClientboundLogin>() {
         commands.entity(event.entity).insert(JoinedGame {
             player_id: login.player_id,
-            dimensions: login.dimensions.iter().map(|d| d.to_string()).collect(),
-            dimension: login.player_spawn_info.dimension.to_string(),
+            dimensions: login.dimensions,
+            dimension: login.player_spawn_info.dimension,
         });
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
         if !position.flags.is_empty() {

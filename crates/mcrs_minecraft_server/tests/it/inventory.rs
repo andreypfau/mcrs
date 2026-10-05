@@ -168,7 +168,7 @@ impl Server {
                 rotation: bevy_math::Vec2::ZERO,
                 view_distance: 2,
             },
-            dimensions: Vec::new(),
+            dimensions: Vec::new().into(),
         }));
         self.ticks(2)
     }

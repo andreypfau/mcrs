@@ -73,7 +73,7 @@ pub(crate) fn bake_dimensions(
     }
     info!(preset = %name, dimensions = list.len(), "dimension list");
     commands.insert_resource(sources);
-    commands.insert_resource(DimensionList(list.into()));
+    commands.insert_resource(DimensionList::new(list));
 }
 
 /// Only the noise settings the baked dimensions name are loaded: the rest of the
@@ -103,13 +103,30 @@ pub(crate) fn request_dimension_noise_settings(
 
 /// Every dimension the world spawns, in spawn order. Written once at `Startup`.
 #[derive(Resource, Clone)]
-pub struct DimensionList(Arc<[(ResourceKey<keys::Dimension>, DimensionEntry)]>);
+pub struct DimensionList {
+    entries: Arc<[(ResourceKey<keys::Dimension>, DimensionEntry)]>,
+    keys: Arc<[ResourceKey<keys::Dimension>]>,
+}
+
+impl DimensionList {
+    pub fn new(entries: Vec<(ResourceKey<keys::Dimension>, DimensionEntry)>) -> Self {
+        let keys = entries.iter().map(|(key, _)| key.clone()).collect();
+        DimensionList {
+            entries: entries.into(),
+            keys,
+        }
+    }
+
+    pub fn keys(&self) -> &Arc<[ResourceKey<keys::Dimension>]> {
+        &self.keys
+    }
+}
 
 impl Deref for DimensionList {
     type Target = [(ResourceKey<keys::Dimension>, DimensionEntry)];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.entries
     }
 }
 

@@ -201,7 +201,7 @@ fn control_full_enqueues_dim_teardown() {
                 host_anchor: dim,
                 session: PlayerSession(i as u64 + 1),
                 snapshot: snapshot.clone(),
-                dimensions: Vec::new(),
+                dimensions: Vec::new().into(),
             }))
             .expect("fill control channel");
     }

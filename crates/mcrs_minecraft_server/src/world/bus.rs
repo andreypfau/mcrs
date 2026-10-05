@@ -21,6 +21,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
 use smallvec::SmallVec;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Message, Clone, Debug)]
@@ -53,7 +54,7 @@ pub struct InboundPlayerSpawn {
     /// `DimensionList` so the per-dim spawn consumer can fill
     /// `ClientboundLogin.dimensions` without reading the list resource
     /// (which is host-only and absent from any DimWorld).
-    pub dimensions: Vec<ResourceKey<keys::Dimension>>,
+    pub dimensions: Arc<[ResourceKey<keys::Dimension>]>,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -141,7 +142,7 @@ pub enum PacketPayload {
     SetPassengers(ClientboundSetPassengers),
     PlayerLeftView(ClientboundRemoveEntities),
     EntityPosSync(ClientboundEntityPositionSync),
-    PlayerLogin(ClientboundLogin<'static>),
+    PlayerLogin(ClientboundLogin),
     /// The `ClientboundEntityEvent` that tells a client its own operator level.
     OpLevelEntityEvent(ClientboundEntityEvent),
     /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
