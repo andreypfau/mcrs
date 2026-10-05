@@ -4094,7 +4094,9 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_carver",
  "mcrs_minecraft_worldgen_density",
@@ -4106,6 +4108,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

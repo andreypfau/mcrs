@@ -5,7 +5,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
 use mcrs_minecraft_block as block;
@@ -15,11 +14,8 @@ use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_registry::NameTable;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::TagId;
-use mcrs_minecraft_worldgen::bevy::StructureAsset;
-use std::sync::Arc;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -282,35 +278,6 @@ pub(crate) fn resolve_infiniburn_tags(
     if resolved > 0 {
         tracing::info!(resolved_tags = resolved, "resolved infiniburn tags");
     }
-}
-
-fn loaded_table<'a>(
-    set: &'a RegistrySet,
-    registry: &str,
-    listed: &[ResourceLocation<Arc<str>>],
-) -> &'a Arc<NameTable> {
-    let table = set
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
-    mcrs_minecraft_assets::snapshot::assert_listing_matches(table, listed);
-    table
-}
-
-pub(crate) fn index_structures(
-    structures: Res<Assets<StructureAsset>>,
-    asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
-    mut commands: Commands,
-) {
-    let entries: Vec<_> = structures
-        .iter()
-        .filter_map(|(id, _)| {
-            rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/structure")
-        })
-        .collect();
-    let table = loaded_table(&set, "minecraft:worldgen/structure", &entries);
-    tracing::info!(count = entries.len(), "indexed structures");
-    commands.insert_resource(DynRegistryIndex::<mcrs_minecraft_keys::Structure>::from_table(table));
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were

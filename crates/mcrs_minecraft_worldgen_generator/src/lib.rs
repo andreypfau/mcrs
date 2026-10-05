@@ -1106,6 +1106,7 @@ pub mod feature_program;
 pub mod features;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod routers;
 pub mod stages;
 pub mod staging;
 pub(crate) mod stored_biomes;

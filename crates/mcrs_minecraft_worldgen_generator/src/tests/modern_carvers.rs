@@ -154,29 +154,38 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     assert!(carved_columns > 0, "three chunks carved nothing at all");
 }
 
-/// The two maps the freeze system reduces the loaded assets to, built the same
-/// way from the same files.
-fn asset_maps() -> (
-    std::collections::HashMap<String, Vec<String>>,
-    std::collections::HashMap<String, CarverConfig>,
+/// The carvers every biome runs, built the way the freeze system builds them
+/// from the same files.
+fn carvers_by_biome() -> (
+    &'static mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>,
+    mcrs_minecraft_registry::Entries<mcrs_minecraft_keys::Biome, Arc<[CarverConfig]>>,
 ) {
-    let mut carvers_by_biome = std::collections::HashMap::new();
-    for (id, biome) in
-        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome::Biome>("biome")
-    {
-        let names = biome
-            .carvers
-            .iter()
-            .map(|c| c.as_str().to_owned())
+    let biomes = mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome::Biome>("biome");
+    let configs: std::collections::BTreeMap<_, _> =
+        mcrs_minecraft_worldgen_testing::registry::<CarverConfig>("carver")
+            .into_iter()
             .collect();
-        carvers_by_biome.insert(id.as_str().to_owned(), names);
-    }
-
-    let config_by_location = mcrs_minecraft_worldgen_testing::registry::<CarverConfig>("carver")
-        .into_iter()
-        .map(|(id, config)| (id.as_str().to_owned(), config))
+    let registry = super::corpus_biomes();
+    let lists = registry
+        .ids()
+        .map(|id| {
+            let name = mcrs_minecraft_core::ResourceLocation::parse(
+                registry
+                    .key(id)
+                    .expect("an id of the registry has a name")
+                    .as_str(),
+            )
+            .expect("a corpus biome id");
+            biomes[&name]
+                .carvers
+                .iter()
+                .map(|carver| configs[carver].clone())
+                .collect()
+        })
         .collect();
-    (carvers_by_biome, config_by_location)
+    let entries =
+        mcrs_minecraft_registry::Entries::new(registry, lists).expect("one list for every biome");
+    (registry, entries)
 }
 
 #[test]
@@ -184,24 +193,14 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     use crate::modern_carvers::resolve_carver_biomes;
     use mcrs_minecraft_biome::climate::{Parameter, ParameterPoint};
 
-    let (carvers_by_biome, config_by_location) = asset_maps();
+    let (biomes, carvers) = carvers_by_biome();
 
-    let overworld = resolve_carver_biomes(
-        Some("minecraft:overworld"),
-        None,
-        &carvers_by_biome,
-        &config_by_location,
-    )
-    .expect("the overworld preset resolves");
+    let overworld = resolve_carver_biomes(Some("minecraft:overworld"), None, biomes, &carvers)
+        .expect("the overworld preset resolves");
     assert_eq!(overworld.entry_count(), 7594);
 
-    let nether = resolve_carver_biomes(
-        Some("minecraft:nether"),
-        None,
-        &carvers_by_biome,
-        &config_by_location,
-    )
-    .expect("the nether preset resolves");
+    let nether = resolve_carver_biomes(Some("minecraft:nether"), None, biomes, &carvers)
+        .expect("the nether preset resolves");
     assert_eq!(nether.entry_count(), 5);
     let wastes = nether.carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -225,23 +224,15 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             },
             "minecraft:plains".to_owned(),
         )]),
-        &carvers_by_biome,
-        &config_by_location,
+        biomes,
+        &carvers,
     )
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
 
     // A preset nothing knows about, and a source with neither form.
-    assert!(
-        resolve_carver_biomes(
-            Some("minecraft:end"),
-            None,
-            &carvers_by_biome,
-            &config_by_location
-        )
-        .is_none()
-    );
-    assert!(resolve_carver_biomes(None, None, &carvers_by_biome, &config_by_location).is_none());
+    assert!(resolve_carver_biomes(Some("minecraft:end"), None, biomes, &carvers).is_none());
+    assert!(resolve_carver_biomes(None, None, biomes, &carvers).is_none());
 
     // A biome with no carvers resolves to an empty list rather than to the
     // wrong one.
@@ -259,8 +250,8 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
             },
             "minecraft:the_end".to_owned(),
         )]),
-        &carvers_by_biome,
-        &config_by_location,
+        biomes,
+        &carvers,
     )
     .unwrap();
     assert!(

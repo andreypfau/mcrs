@@ -2,12 +2,11 @@ use crate::world::generate::routers::DimensionBiomeSources;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
 use crate::world_options::WorldSeed;
 use bevy_app::{App, Plugin};
-use bevy_asset::{AssetServer, Assets};
+use bevy_asset::Assets;
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::DynTagRegistry;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
@@ -15,10 +14,8 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_worldgen::bevy::{
-    BlockStateProviderAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset,
-    TemplatePoolAsset,
-};
+use mcrs_minecraft_worldgen::bevy::TemplateAsset;
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
@@ -49,42 +46,21 @@ impl Plugin for FeaturePlugin {
     }
 }
 
-pub(crate) fn registry_of<A: bevy_asset::Asset, T: Clone>(
-    assets: &Assets<A>,
-    asset_server: &AssetServer,
-    folder: &str,
-    value: impl Fn(&A) -> &T,
-) -> BTreeMap<ResourceLocation, T> {
-    assets
-        .iter()
-        .filter_map(|(asset_id, asset)| {
-            let path = asset_server.get_path(asset_id)?;
-            let id = rl_from_asset_path(path.path(), folder)?;
-            Some((id, value(asset).clone()))
-        })
-        .collect()
-}
-
 /// Resolve every dimension's biomes into the ordered feature steps, and those
 /// into the program its columns run.
 ///
-/// Every half is a loaded asset: which features a biome carries comes from the
-/// biome JSON, what each one is from the two feature registries, and what it
-/// writes from the block definitions and tags, so a datapack that changes any
-/// of them is picked up here. A name that resolves to nothing stops the server
-/// naming the asset.
+/// Every half is a loaded value: which features a biome carries comes from the
+/// biome JSON, what each one is from the feature tables, and what it writes
+/// from the block definitions and tags, so a datapack that changes any of them
+/// is picked up here. A name that resolves to nothing stops the server naming
+/// the entry.
 #[allow(clippy::too_many_arguments)]
 fn build_dimension_features(
     mut commands: Commands,
     sources: Option<Res<DimensionBiomeSources>>,
-    features: Res<Assets<FeatureAsset>>,
-    placed_features: Res<Assets<PlacedFeatureAsset>>,
-    pools: Res<Assets<TemplatePoolAsset>>,
+    tables: Res<WorldgenTables>,
     templates: Res<Assets<TemplateAsset>>,
-    processor_lists: Res<Assets<ProcessorListAsset>>,
-    block_state_providers: Res<Assets<BlockStateProviderAsset>>,
     structures: Option<Res<DimensionStructures>>,
-    asset_server: Res<AssetServer>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     block_tags: Option<Res<DynTagRegistry<Block>>>,
@@ -93,43 +69,44 @@ fn build_dimension_features(
 ) {
     let Some(sources) = sources else { return };
 
-    // A template is `structure/<id>.nbt`, which `registry_of` cannot name, so
-    // the ids come off the handles the feature, placed-feature and pool assets
-    // declared: a pool can inline a template feature.
+    let features = named(&registries, &tables.features, |asset| asset);
+    let placed_features = named(&registries, &tables.placed_features, |asset| asset);
+    let pools = named(&registries, &tables.template_pools, |asset| asset);
+
+    // A template is `structure/<id>.nbt`, which is no registry, so the ids come
+    // off the handles the feature, placed-feature and pool values declared: a
+    // pool can inline a template feature.
     // chisle: every pool template is cloned for the few an inline template
     // feature might name; upgrade = walk the pool elements for template
     // feature nodes and take only theirs.
     let template_values = features
-        .iter()
-        .map(|(_, asset)| &asset.deps)
-        .chain(placed_features.iter().map(|(_, asset)| &asset.deps))
-        .chain(pools.iter().map(|(_, asset)| &asset.deps))
+        .values()
+        .map(|asset| &asset.deps)
+        .chain(placed_features.values().map(|asset| &asset.deps))
+        .chain(pools.values().map(|asset| &asset.deps))
         .flat_map(|deps| deps.templates.iter())
         .filter_map(|(id, handle)| Some((id.clone(), templates.get(handle)?.template.clone())))
         .collect();
     let loaded = LoadedFeatures {
-        features: registry_of(&features, &asset_server, "worldgen/feature", |asset| {
-            &asset.feature
-        }),
-        placed_features: registry_of(
-            &placed_features,
-            &asset_server,
-            "worldgen/placed_feature",
-            |asset| &asset.placed_feature,
-        ),
+        features: features
+            .iter()
+            .map(|(id, asset)| (id.clone(), asset.feature.clone()))
+            .collect(),
+        placed_features: placed_features
+            .iter()
+            .map(|(id, asset)| (id.clone(), asset.placed_feature.clone()))
+            .collect(),
         templates: template_values,
-        processor_lists: registry_of(
-            &processor_lists,
-            &asset_server,
-            "worldgen/processor_list",
-            |asset| &asset.list,
-        ),
-        block_state_providers: registry_of(
-            &block_state_providers,
-            &asset_server,
-            "worldgen/block_state_provider",
-            |asset| &asset.provider,
-        ),
+        processor_lists: named(&registries, &tables.processor_lists, |list| list)
+            .into_iter()
+            .map(|(id, list)| (id, list.clone()))
+            .collect(),
+        block_state_providers: named(&registries, &tables.block_state_providers, |provider| {
+            provider
+        })
+        .into_iter()
+        .map(|(id, provider)| (id, provider.clone()))
+        .collect(),
     };
 
     let biome_registry = registries

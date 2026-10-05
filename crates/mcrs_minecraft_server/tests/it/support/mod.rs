@@ -12,6 +12,7 @@ use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::{share_registries, static_registries};
+use mcrs_minecraft_worldgen::tables::WorldgenTables;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
 /// resolves the block it fills terrain with against it, so a stub would only
@@ -33,6 +34,7 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(test_enchantment_registry());
     app.insert_resource(test_enchantments());
+    app.insert_resource(WorldgenTables::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(DynTagRegistry::<Item>::default());
     share_registries(app.world_mut());

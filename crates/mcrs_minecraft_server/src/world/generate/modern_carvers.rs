@@ -1,13 +1,13 @@
+use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables, lookup};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_generator::modern_carvers::CARVER_REGISTRY;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
     CarverBiomeTable, resolve_beta_carver_biomes, resolve_carver_biomes, whole_climate_space,
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Every dimension's carver table, keyed the way its biome source is: a table
@@ -24,42 +24,53 @@ impl bevy_app::Plugin for ModernCarverPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_systems(
             bevy_state::prelude::OnEnter(mcrs_minecraft_assets::AppState::WorldgenFreeze),
-            bevy_ecs::prelude::IntoScheduleConfigs::before(
-                build_modern_carver_biomes,
-                mcrs_minecraft_world::transition_to_playing,
-            ),
+            build_modern_carver_biomes
+                .before(mcrs_minecraft_world::transition_to_playing)
+                .after(build_worldgen_tables),
         );
     }
 }
 
+/// The carvers every biome runs, in the order its file lists them. A carver a
+/// biome names that did not load is reported and the biome runs without it.
+fn carvers_by_biome(
+    biomes: &Registry<keys::Biome>,
+    values: &Entries<keys::Biome, mcrs_minecraft_biome::Biome>,
+    carvers: &Registry<keys::Carver>,
+    table: &Entries<keys::Carver, Option<CarverConfig>>,
+) -> Entries<keys::Biome, Arc<[CarverConfig]>> {
+    let lists = biomes
+        .ids()
+        .map(|id| {
+            values[id]
+                .carvers
+                .iter()
+                .filter_map(|name| match lookup(carvers, table, name.as_str()) {
+                    Ok(config) => Some(config.clone()),
+                    Err(error) => {
+                        let biome = biomes.key(id).expect("an id of the registry has a name");
+                        tracing::error!(%biome, %error, "a carver of this biome is unavailable");
+                        None
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    Entries::new(biomes, lists).expect("one list for every biome")
+}
+
 /// Resolve every dimension's biome source climate table into carver lists.
 ///
-/// Both halves are loaded assets: which carvers a biome runs comes from the
-/// biome JSON, and what each carver is comes from the carver JSON, so a
+/// Both halves are loaded values: which carvers a biome runs comes from the
+/// biome JSON, and what each carver is comes from the carver table, so a
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
     registries: bevy_ecs::prelude::Res<RegistrySet>,
-    carvers: bevy_ecs::prelude::Res<
-        bevy_asset::Assets<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>,
-    >,
-    asset_server: bevy_ecs::prelude::Res<bevy_asset::AssetServer>,
+    worldgen: bevy_ecs::prelude::Res<WorldgenTables>,
 ) {
-    use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
-
     let Some(sources) = sources else { return };
-
-    let mut config_by_location: HashMap<String, CarverConfig> = HashMap::new();
-    for (asset_id, asset) in carvers.iter() {
-        let Some(path) = asset_server.get_path(asset_id) else {
-            continue;
-        };
-        let Some(location) = rl_from_asset_path(path.path(), CARVER_REGISTRY) else {
-            continue;
-        };
-        config_by_location.insert(location.as_str().to_owned(), asset.config.clone());
-    }
 
     let biomes = registries
         .registry::<keys::Biome>()
@@ -67,6 +78,10 @@ fn build_modern_carver_biomes(
     let values = registries
         .entries::<keys::Biome, mcrs_minecraft_biome::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
+    let carver_names = registries
+        .registry::<keys::Carver>()
+        .expect("the data pack declares minecraft:worldgen/carver");
+    let carvers = carvers_by_biome(&biomes, &values, &carver_names, &worldgen.carvers);
     let name_of = |id| {
         biomes
             .key(id)
@@ -74,24 +89,12 @@ fn build_modern_carver_biomes(
             .as_str()
             .to_owned()
     };
-    let mut carvers_by_biome: HashMap<String, Vec<String>> = HashMap::new();
-    for id in biomes.ids() {
-        carvers_by_biome.insert(
-            name_of(id),
-            values[id]
-                .carvers
-                .iter()
-                .map(|carver| carver.as_str().to_owned())
-                .collect(),
-        );
-    }
 
     let mut tables = DimensionCarverBiomes::default();
     for (dimension, source) in &sources.0 {
         if let BiomeSource::Beta { .. } = source.as_ref() {
-            let table =
-                resolve_beta_carver_biomes(source, &biomes, &carvers_by_biome, &config_by_location)
-                    .expect("a Beta source resolves to a Beta table");
+            let table = resolve_beta_carver_biomes(source, &biomes, &carvers)
+                .expect("a Beta source resolves to a Beta table");
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
             continue;
@@ -128,8 +131,8 @@ fn build_modern_carver_biomes(
                 .and_then(|multi| multi.preset.as_ref())
                 .map(|preset| preset.as_str()),
             explicit,
-            &carvers_by_biome,
-            &config_by_location,
+            &biomes,
+            &carvers,
         ) {
             Some(table) => {
                 // Beta's caves abort on water and leave Beta's substance, which
