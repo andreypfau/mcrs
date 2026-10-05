@@ -34,9 +34,8 @@ impl<R: 'static> DenseId for Id<R> {
     }
 }
 
-/// After `TagLoader::freeze()` each tag's membership set is stored as a
-/// `BitSet` — membership tests become a single array index + bitmask
-/// instead of a `HashSet` hash probe.
+/// A membership set stored as a bitset: a test is a single array index and
+/// bitmask instead of a `HashSet` hash probe.
 pub struct BitSet<I> {
     bits: FixedBitSet,
     _marker: PhantomData<fn() -> I>,

@@ -13,7 +13,6 @@ pub mod set;
 #[cfg(feature = "bevy")]
 pub mod shared;
 pub mod static_report;
-pub mod tag_source;
 pub mod tags;
 
 pub use bitset::{BitSet, DenseId, RawBitSet};
@@ -28,5 +27,4 @@ pub use names::NameTable;
 pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
-pub use tag_source::TagSource;
 pub use tags::{TagId, TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};

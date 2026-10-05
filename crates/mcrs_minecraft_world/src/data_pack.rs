@@ -5,11 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::{TagLoader, TagLoadersSettled};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::RegistrySet;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -206,32 +202,13 @@ pub(crate) async fn walk_files(
     files
 }
 
-#[allow(clippy::needless_pass_by_value)]
-pub(crate) fn request_every_tag<T: RegistryKey + 'static, I: DenseId>(
-    mut loader: ResMut<TagLoader<T, I>>,
-    asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
-) {
-    let files = list_tag_files(&set, T::KEY.path());
-    let count = files.len();
-    for (location, _) in files {
-        loader.request(&TagKey::<T, _>::from_location(location), &asset_server);
-    }
-    tracing::info!(
-        count,
-        registry = T::KEY.path(),
-        "requested every shipped tag"
-    );
-}
-
-pub(crate) fn check_tags_ready(
-    tags_settled: Res<TagLoadersSettled>,
+pub(crate) fn check_registry_assets_ready(
     registry_assets: Res<LoadedRegistryAssets>,
     asset_server: Res<AssetServer>,
     mut next: ResMut<NextState<AppState>>,
 ) {
-    if tags_settled.get() && registry_assets.all_handles_settled(&asset_server) {
-        tracing::info!("all tag files and registry assets settled — entering WorldgenFreeze");
+    if registry_assets.all_handles_settled(&asset_server) {
+        tracing::info!("all registry assets settled — entering WorldgenFreeze");
         next.set(AppState::WorldgenFreeze);
     }
 }

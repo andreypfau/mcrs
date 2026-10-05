@@ -25,14 +25,13 @@ pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, request_data_pack_assets, request_every_tag, start_loading_data_pack,
+    check_registry_assets_ready, request_data_pack_assets, start_loading_data_pack,
 };
-use bevy_app::{App, Plugin, PostStartup, Update};
+use bevy_app::{App, Plugin, PostStartup, Startup, Update};
 use bevy_asset::{AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
 use mcrs_minecraft_environment::timeline::Timeline;
@@ -80,36 +79,8 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
 
-        app.add_systems(
-            OnEnter(AppState::LoadingDataPack),
-            (
-                request_every_tag::<mcrs_minecraft_keys::Block, u16>,
-                request_every_tag::<mcrs_minecraft_keys::Fluid, u16>,
-                request_every_tag::<mcrs_minecraft_keys::Item, u16>,
-                request_every_tag::<Enchantment, mcrs_minecraft_registry::Id<Enchantment>>,
-                request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
-                request_every_tag::<
-                    mcrs_minecraft_keys::Biome,
-                    mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Biome>,
-                >,
-                request_every_tag::<
-                    mcrs_minecraft_keys::Structure,
-                    mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Structure>,
-                >,
-                request_every_tag::<mcrs_minecraft_keys::Timeline, u16>,
-            )
-                .in_set(TagPhase::Request),
-        );
-        app.add_tagged_registry::<mcrs_minecraft_keys::Block, mcrs_minecraft_block::definition::Blocks>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Fluid, mcrs_minecraft_block::definition::Fluids>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Item, mcrs_minecraft_item::Items>()
-        .add_tagged_registry::<Enchantment, mcrs_minecraft_registry::Registry<Enchantment>>()
-        .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Timeline, DynRegistryIndex<mcrs_minecraft_keys::Timeline>>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Biome, mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Structure, mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Structure>>();
-
-        app.init_resource::<DimensionEnvironments>();
+        app.init_resource::<DimensionEnvironments>()
+            .add_systems(Startup, build_dimension_environments);
 
         app.init_resource::<mcrs_minecraft_assets::RegistryAccess>();
 
@@ -119,9 +90,7 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
             .add_systems(
                 Update,
-                check_tags_ready
-                    .after(TagPhase::Settled)
-                    .run_if(in_state(AppState::LoadingDataPack)),
+                check_registry_assets_ready.run_if(in_state(AppState::LoadingDataPack)),
             )
             // Ordering contract: every system in this schedule that calls
             // `RegistryAccess::register` — including systems injected by the
@@ -136,13 +105,7 @@ impl Plugin for MinecraftWorldPlugin {
             // long as no `register` call is added outside `OnEnter(WorldgenFreeze)`.
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
-                (
-                    build_worldgen_tables,
-                    build_dimension_environments
-                        .after(TagPhase::Freeze)
-                        .before(transition_to_playing),
-                    transition_to_playing.after(TagPhase::Freeze),
-                ),
+                (build_worldgen_tables, transition_to_playing),
             );
     }
 
@@ -260,9 +223,6 @@ impl Plugin for MinecraftWorldPlugin {
                 "loaded block definitions"
             );
             let definitions = std::sync::Arc::new(definitions);
-            app.insert_resource(mcrs_minecraft_block::definition::Fluids(
-                definitions.clone(),
-            ));
             let items = crate::item::definitions::load_item_definitions(
                 &asset_server,
                 &registries,

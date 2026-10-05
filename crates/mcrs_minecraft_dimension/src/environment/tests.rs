@@ -5,10 +5,9 @@ use std::sync::LazyLock;
 use serde_json::json;
 
 use super::*;
-use bevy_asset::Assets;
-use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile};
-use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_registry::Tags;
+use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
 
 use crate::dimension_type::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
@@ -468,35 +467,48 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     let alpha = overriding(0.25);
     let zulu = overriding(0.75);
 
-    let mut tag_files = Assets::<TagFile>::default();
-    let nested = tag_files.add(TagFile {
-        replace: false,
-        values: vec![TagEntry::Element(rl("test:alpha"))],
-    });
-    let listing = TagFile {
-        replace: false,
-        values: vec![TagEntry::Element(rl("test:zulu")), TagEntry::Tag(nested)],
+    let registry = Registry::<keys::Timeline>::new([rl("test:alpha"), rl("test:zulu")]).unwrap();
+    let source = |path, bytes| TagSource {
+        pack: "test",
+        path,
+        bytes,
     };
-
-    let index = DynRegistryIndex::<keys::Timeline>::from_table(&std::sync::Arc::new(
-        mcrs_minecraft_registry::NameTable::new(
-            rl("minecraft:timeline"),
-            [rl("test:alpha"), rl("test:zulu")],
-        )
-        .unwrap(),
-    ));
-    let order = resolve_tag_file_ordered(&listing, &tag_files, &index);
+    let files = [
+        (
+            rl("test:listing"),
+            vec![source(
+                "test/tags/timeline/listing.json",
+                br##"{"values":["test:zulu","#test:nested"]}"##,
+            )],
+        ),
+        (
+            rl("test:nested"),
+            vec![source(
+                "test/tags/timeline/nested.json",
+                br#"{"values":["test:alpha"]}"#,
+            )],
+        ),
+    ];
+    let (table, problems) = build_tags(registry.table(), TagRules::World, &files, None);
+    assert!(problems.is_empty(), "{problems:?}");
+    let tags = Tags::<keys::Timeline>::new(Arc::new(table));
+    let listing = tags
+        .get(&TagKey::<keys::Timeline, _>::from_location(rl(
+            "test:listing",
+        )))
+        .unwrap();
+    let order: Vec<_> = tags.members(listing).collect();
     assert_eq!(
         order,
         vec![
-            index.get("test:zulu").unwrap(),
-            index.get("test:alpha").unwrap()
+            registry.get("test:zulu").unwrap(),
+            registry.get("test:alpha").unwrap()
         ]
     );
 
     let ordered: Vec<&Timeline> = order
         .iter()
-        .map(|id| match index.location(*id).unwrap().as_str() {
+        .map(|id| match registry.key(*id).unwrap().as_str() {
             "test:alpha" => &alpha,
             "test:zulu" => &zulu,
             other => panic!("unexpected member {other}"),

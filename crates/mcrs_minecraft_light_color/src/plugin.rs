@@ -1,15 +1,11 @@
-use bevy_app::{App, Plugin};
+use bevy_app::{App, Plugin, Startup};
 use bevy_asset::AssetServer;
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
-use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::{DynTagRegistry, TagPhase};
+use bevy_ecs::prelude::{Commands, Res};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_keys::Fluid;
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::colors::{LightColors, LightType};
 use crate::item::ItemLights;
@@ -18,10 +14,7 @@ pub struct LightColorPlugin;
 
 impl Plugin for LightColorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(AppState::WorldgenFreeze),
-            (insert_light_colors, insert_item_lights).after(TagPhase::Freeze),
-        );
+        app.add_systems(Startup, (insert_light_colors, insert_item_lights));
     }
 }
 
@@ -29,8 +22,11 @@ fn insert_light_colors(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
-    tags: Res<DynTagRegistry<Block>>,
+    registries: Res<RegistrySet>,
 ) {
+    let tags = registries
+        .tags::<Block>()
+        .expect("the loaded registries hold the block tags");
     let colors = LightColors::load(&asset_server, &blocks, &tags).unwrap_or_else(|e| panic!("{e}"));
     let coloured_states = (0..blocks.state_count())
         .filter(|&id| colors.light_type(VoxelId(id as u16)) != LightType::DEFAULT)
@@ -48,10 +44,9 @@ fn insert_item_lights(
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
     items: Res<Items>,
-    item_tags: Res<DynTagRegistry<Item>>,
-    fluid_tags: Res<DynTagRegistry<Fluid>>,
+    registries: Res<RegistrySet>,
 ) {
-    let lights = ItemLights::load(&asset_server, &blocks, &items, &item_tags, &fluid_tags)
+    let lights = ItemLights::load(&asset_server, &blocks, &items, &registries)
         .unwrap_or_else(|e| panic!("{e}"));
     tracing::info!(items = lights.mapped_count(), "loaded item lights");
     commands.insert_resource(lights);

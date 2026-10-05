@@ -8,10 +8,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_assets::tag::file::TagOrElementLocation;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::direction::Direction;
 use mcrs_minecraft_core::value_provider::IntProvider;
+use mcrs_minecraft_registry::tags::TagEntry;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -508,7 +508,7 @@ pub struct PlacementFilter {
 pub struct PlacementCondition {
     #[serde(default = "every_face")]
     pub allowed_faces: Vec<Direction>,
-    pub block_filter: Vec<TagOrElementLocation>,
+    pub block_filter: Vec<TagEntry>,
 }
 
 fn every_face() -> Vec<Direction> {

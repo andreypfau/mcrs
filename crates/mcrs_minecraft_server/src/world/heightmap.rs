@@ -1,8 +1,5 @@
-use bevy_app::{App, Last, Plugin};
+use bevy_app::{App, Last, Plugin, Startup};
 use bevy_ecs::prelude::*;
-use bevy_state::prelude::OnEnter;
-use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::TagPhase;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
@@ -14,7 +11,6 @@ use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSections, SectionLookup};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::transition_to_playing;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, MotionHeightmap, NoLeavesHeightmap, SolidHeightmap,
     SurfaceHeightmap, apply_write, heightmap_predicates,
@@ -25,12 +21,7 @@ pub struct HeightmapPredicatesPlugin;
 
 impl Plugin for HeightmapPredicatesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(AppState::WorldgenFreeze),
-            insert_heightmap_predicates
-                .after(TagPhase::Freeze)
-                .before(transition_to_playing),
-        );
+        app.add_systems(Startup, insert_heightmap_predicates);
     }
 }
 

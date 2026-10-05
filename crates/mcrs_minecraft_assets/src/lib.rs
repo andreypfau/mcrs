@@ -10,7 +10,4 @@ pub use access::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotEras
 pub use plugin::MinecraftCorePlugin;
 pub use snapshot::{RegistrySnapshot, SnapshotEntry};
 pub use state::AppState;
-pub use tag::{
-    DynTagLoader, DynTagRegistry, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagLoader,
-    TagPhase, TagRef, TagRegistry, TagRegistryAppExt,
-};
+pub use tag::{TagEntry, TagFile, TagFileLoader, TagFileSettings};

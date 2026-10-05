@@ -1,5 +1,4 @@
 use bevy_app::App;
-use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -12,13 +11,6 @@ use mcrs_minecraft_world::registries::test_registries;
 use crate::common::workspace_root;
 
 pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
-    assert!(
-        app.world()
-            .get_resource::<TagLoader<Block, u16>>()
-            .is_none(),
-        "the loader must be consumed by the freeze"
-    );
-
     let tags = app
         .world()
         .resource::<RegistrySet>()

@@ -63,11 +63,10 @@ mod load {
     use bevy_asset::AssetServer;
     use bevy_asset::io::AssetSourceId;
     use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-    use mcrs_minecraft_assets::tag::DynTagRegistry;
     use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
     use mcrs_minecraft_core::tag_key::TagKey;
     use mcrs_minecraft_keys::Block;
-    use mcrs_minecraft_registry::BlockStateId;
+    use mcrs_minecraft_registry::{BlockStateId, Tags};
 
     use super::{LightColors, LightType};
     use crate::asset::{BlockStateRef, LightColorFile, StateTarget};
@@ -119,7 +118,7 @@ mod load {
         pub fn load(
             asset_server: &AssetServer,
             blocks: &BlockDefinitions,
-            tags: &DynTagRegistry<Block>,
+            tags: &Tags<Block>,
         ) -> Result<Self, LightColorError> {
             let source = asset_server
                 .get_source(AssetSourceId::Default)
@@ -132,7 +131,7 @@ mod load {
         pub fn from_files(
             files: impl IntoIterator<Item = (String, Vec<u8>)>,
             blocks: &BlockDefinitions,
-            tags: &DynTagRegistry<Block>,
+            tags: &Tags<Block>,
         ) -> Result<Self, LightColorError> {
             let files: Vec<_> = files.into_iter().collect();
             if files.len() > u8::MAX as usize {
@@ -189,7 +188,7 @@ mod load {
     fn members<'a>(
         entry: &BlockStateRef,
         blocks: &'a BlockDefinitions,
-        tags: &DynTagRegistry<Block>,
+        tags: &Tags<Block>,
         path: &str,
     ) -> Result<Vec<&'a BlockEntry>, LightColorError> {
         match &entry.target {
@@ -202,7 +201,11 @@ mod load {
                 }),
             StateTarget::Tag(id) => tags
                 .get(&TagKey::<Block, _>::from_location(id.clone()))
-                .map(|set| set.iter().map(|i| &blocks.blocks()[i as usize]).collect())
+                .map(|tag| {
+                    tags.members(tag)
+                        .map(|member| &blocks.blocks()[member.index()])
+                        .collect()
+                })
                 .ok_or_else(|| LightColorError::UnknownTag {
                     path: path.to_owned(),
                     entry: entry.to_string(),

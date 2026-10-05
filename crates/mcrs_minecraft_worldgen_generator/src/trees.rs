@@ -301,10 +301,10 @@ fn placement_rule(resolver: &Resolver<'_>, filter: &PlacementFilter) -> Compiled
     };
     let mut supports = empty_mask(resolver.blocks);
     for entry in &condition.block_filter {
-        let query = if entry.is_tag {
-            StateQuery::BlockTag(&entry.loc)
+        let query = if entry.tag {
+            StateQuery::BlockTag(&entry.id)
         } else {
-            StateQuery::Block(&entry.loc)
+            StateQuery::Block(&entry.id)
         };
         supports.union_with(resolver.mask(query)?.as_ref());
     }
