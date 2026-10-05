@@ -42,7 +42,7 @@ pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> 
 
 pub fn sound_holder_samples() -> Vec<Holder<SoundEvent>> {
     vec![
-        Holder::reference(ResourceLocation::minecraft("entity.item.break")),
+        Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK),
         Holder::Direct(SoundEvent {
             sound_id: ResourceLocation::new("mcrs", "custom"),
             range: None,

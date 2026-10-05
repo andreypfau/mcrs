@@ -530,6 +530,10 @@ fn a_parse_without_a_scope_fails_on_another_thread() {
 
 #[test]
 fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
+    test_registries().scope(an_instrument_or_painting_the_game_refuses_fails_to_parse_in_scope);
+}
+
+fn an_instrument_or_painting_the_game_refuses_fails_to_parse_in_scope() {
     let instrument = |extra: &str| {
         format!(
             r#"{{

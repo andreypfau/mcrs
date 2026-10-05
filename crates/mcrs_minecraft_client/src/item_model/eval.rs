@@ -1,6 +1,6 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
@@ -9,6 +9,8 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
+use mcrs_minecraft_keys::TrimMaterial;
+use mcrs_minecraft_registry::Registry;
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
@@ -195,7 +197,14 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
         }
         match switch {
             SelectSwitch::TrimMaterial { cases } => match &self.stack.get::<Trim>()?.material {
-                Holder::Reference(key) => find(cases, key),
+                Holder::Reference(id) => {
+                    let name =
+                        Registry::<TrimMaterial>::in_scope("a trim material select", |registry| {
+                            registry.key(*id).cloned()
+                        })
+                        .ok()??;
+                    find(cases, &ResourceKey::from_location(name))
+                }
                 Holder::Direct(_) => None,
             },
             SelectSwitch::DisplayContext { cases } => find(cases, &DisplayContext::Gui),

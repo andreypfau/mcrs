@@ -547,12 +547,12 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
     use mcrs_minecraft_protocol::item::{
         Holder, ResolvableFloat, ResolvableInt, SoundEvent, TypedEntityData,
     };
-    let sound: Holder<SoundEvent> = serde_json::from_str(r#""entity.item.break""#).unwrap();
-    assert_eq!(
-        sound,
-        Holder::reference(ResourceLocation::minecraft("entity.item.break"))
-    );
     in_samples(|| {
+        let sound: Holder<SoundEvent> = serde_json::from_str(r#""entity.item.break""#).unwrap();
+        assert_eq!(
+            sound,
+            Holder::Reference(mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK)
+        );
         let logs: HolderSet<Block> = serde_json::from_str("\"#logs\"").unwrap();
         assert_eq!(logs, tag_set("logs"));
     });

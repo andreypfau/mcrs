@@ -268,11 +268,7 @@ impl SkyStatic {
 
 #[cfg(test)]
 pub(crate) static TEST_CLOCKS: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
-    std::sync::LazyLock::new(|| {
-        mcrs_minecraft_worldgen_testing::shipped_registry_set::<mcrs_minecraft_keys::WorldClock>(
-            "world_clock",
-        )
-    });
+    std::sync::LazyLock::new(|| mcrs_minecraft_worldgen_testing::dimension_type_set().clone());
 
 #[cfg(test)]
 mod tests {
@@ -313,7 +309,7 @@ mod tests {
                 .join(name),
         )
         .unwrap();
-        serde_json::from_slice(&bytes).unwrap()
+        CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
     }
 
     fn clock_registry() -> mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::WorldClock> {

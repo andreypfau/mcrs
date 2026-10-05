@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::Item;
-use mcrs_minecraft_protocol::item::component::common::{list_set, one_set, tag_set};
+use mcrs_minecraft_protocol::item::component::common::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
@@ -60,6 +60,10 @@ fn item(path: &str) -> SlotDisplay {
 
 fn planks() -> HolderSet<Item> {
     in_samples(|| tag_set("planks"))
+}
+
+fn coast() -> Holder<TrimPattern> {
+    in_samples(|| Holder::Reference(entry("coast")))
 }
 
 fn one(path: &str) -> HolderSet<Item> {
@@ -148,7 +152,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 result: SlotDisplay::SmithingTrim {
                     base: Box::new(item("iron_chestplate")),
                     material: Box::new(item("stone")),
-                    pattern: Holder::reference(ResourceLocation::minecraft("coast")),
+                    pattern: coast(),
                 },
                 crafting_station: SlotDisplay::Empty,
             },

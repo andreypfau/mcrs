@@ -4,7 +4,7 @@ use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::Holder;
+use crate::component::common::{Holder, entry};
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -44,7 +44,7 @@ pub struct Trim {
 pub struct ProvidesTrimMaterial(pub Holder<TrimMaterial>);
 
 fn amethyst() -> Holder<TrimMaterial> {
-    Holder::reference(ResourceLocation::minecraft("amethyst"))
+    Holder::Reference(entry("amethyst"))
 }
 
 fn pal() -> Holder<TrimMaterial> {
@@ -75,7 +75,7 @@ impl Sample for Trim {
         vec![
             Trim {
                 material: amethyst(),
-                pattern: Holder::reference(ResourceLocation::minecraft("coast")),
+                pattern: Holder::Reference(entry("coast")),
             },
             Trim {
                 material: pal(),

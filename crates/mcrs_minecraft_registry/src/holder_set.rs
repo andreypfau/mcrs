@@ -14,9 +14,10 @@ thread_local! {
     static WALKING: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Runs `run` with holder sets reading as empty without consulting any
-/// registry, for a caller that needs only a value's extent or its fields that
-/// name no set, and drops every set it reads.
+/// Runs `run` with holder sets reading as empty and holder references as the
+/// first entry, without consulting any registry, for a caller that needs only
+/// a value's extent or its fields that name no registry entry, and drops every
+/// set and reference it reads.
 pub fn skip_sets<T>(run: impl FnOnce() -> T) -> T {
     struct Restore(bool);
 

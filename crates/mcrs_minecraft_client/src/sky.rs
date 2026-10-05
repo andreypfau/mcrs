@@ -706,7 +706,7 @@ mod sky_regression {
     }
 
     fn overworld() -> SkyEnvironment {
-        let dimension: Dimension = read_unscoped("dimension_type/overworld.json");
+        let dimension: Dimension = read("dimension_type/overworld.json");
         let mut timelines = Vec::new();
         tagged_timelines("in_overworld", &mut timelines);
         let attributes = EnvironmentAttributes::build(

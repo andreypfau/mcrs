@@ -7,7 +7,9 @@ use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::{HolderSet, Id, RegistryLookup, skip_sets, skipping_sets};
+use mcrs_minecraft_registry::{
+    DenseId, HolderSet, Id, Registry, RegistryLookup, skip_sets, skipping_sets,
+};
 use uuid::Uuid;
 
 use crate::item::component::Holder;
@@ -249,15 +251,25 @@ impl<'a, R: RegistryKey> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
+fn local_registry<R: RegistryKey>(ctx: &dyn RegistryLookup) -> anyhow::Result<Registry<R>> {
+    ctx.registries()
+        .and_then(|set| set.registry::<R>())
+        .with_context(|| format!("registry {} is not loaded", R::KEY))
+}
+
 impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
-            Holder::Reference(key) => {
+            Holder::Reference(id) => {
                 let registry = V::Registry::KEY.path();
-                let id = ctx
-                    .id(registry, key.location())
-                    .with_context(|| format!("{key} is not in registry {registry}"))?;
-                encode_holder_id(Some(id), w)
+                let local = local_registry::<V::Registry>(ctx)?;
+                let name = local
+                    .key(*id)
+                    .with_context(|| format!("{id:?} is not in registry {registry}"))?;
+                let wire = ctx
+                    .id(registry, name)
+                    .with_context(|| format!("{name} is not in registry {registry}"))?;
+                encode_holder_id(Some(wire), w)
             }
             Holder::Direct(value) => {
                 encode_holder_id(None, &mut w)?;
@@ -270,15 +282,22 @@ impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V> {
 impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for Holder<V> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let registry = V::Registry::KEY.path();
-        let Some(id) = decode_holder_id(r)
+        let Some(wire) = decode_holder_id(r)
             .with_context(|| format!("registry {registry} has no id that wide"))?
         else {
             return V::decode_ctx(ctx, r).map(Holder::Direct);
         };
         let name = ctx
-            .name(registry, id)
-            .with_context(|| format!("registry {registry} has no id {id}"))?;
-        Ok(Holder::Reference(ResourceKey::from_location(name.clone())))
+            .name(registry, wire)
+            .with_context(|| format!("registry {registry} has no id {wire}"))?;
+        if skipping_sets() {
+            // The walk discards its value and has no registry to resolve the name against.
+            return Ok(Holder::Reference(Id::from_raw(0)));
+        }
+        let id = local_registry::<V::Registry>(ctx)?
+            .get(name.as_str())
+            .with_context(|| format!("{name} is not in registry {registry}"))?;
+        Ok(Holder::Reference(id))
     }
 }
 
@@ -468,21 +487,28 @@ pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> 
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_keys::Item;
-    use mcrs_minecraft_registry::{LookupIndex, NoRegistries};
+    use mcrs_minecraft_keys::{self as keys, Item};
+    use mcrs_minecraft_registry::{LookupIndex, NoRegistries, Registry, RegistrySet};
 
     use super::*;
     use crate::item::component::SoundEvent;
 
-    struct Indexed(LookupIndex);
+    struct Indexed {
+        index: LookupIndex,
+        local: RegistrySet,
+    }
 
     impl RegistryLookup for Indexed {
         fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
-            self.0.id(registry, name)
+            self.index.id(registry, name)
         }
 
         fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
-            self.0.name(registry, id)
+            self.index.name(registry, id)
+        }
+
+        fn registries(&self) -> Option<&RegistrySet> {
+            Some(&self.local)
         }
     }
 
@@ -491,7 +517,17 @@ mod tests {
         for (id, name) in (0u16..).zip(names) {
             index.insert(registry, id, Some(ResourceLocation::minecraft(name)));
         }
-        Indexed(index)
+        Indexed {
+            index,
+            local: RegistrySet::new(),
+        }
+    }
+
+    fn with_local<R: RegistryKey>(mut lookup: Indexed, names: &[&str]) -> Indexed {
+        let registry =
+            Registry::<R>::new(names.iter().map(|name| ResourceLocation::minecraft(name))).unwrap();
+        lookup.local = lookup.local.with(registry).unwrap();
+        lookup
     }
 
     #[test]
@@ -506,13 +542,35 @@ mod tests {
     }
 
     #[test]
-    fn a_holder_reference_is_looked_up_by_the_bare_registry_path() {
-        let lookup = lookup("sound_event", &["a", "b"]);
-        let holder = Holder::<SoundEvent>::reference(ResourceLocation::minecraft("b"));
+    fn a_holder_reference_crosses_the_wire_by_name_between_two_numberings() {
+        let lookup = with_local::<keys::SoundEvent>(
+            lookup("sound_event", &["a", "b", "c"]),
+            &["c", "a", "b"],
+        );
+        let local = lookup.local.registry::<keys::SoundEvent>().unwrap();
+        let holder = Holder::<SoundEvent>::Reference(local.get("minecraft:b").unwrap());
+        assert_eq!(local.get("minecraft:b").unwrap().number(), 2);
+
         let mut bytes = Vec::new();
         holder.encode_ctx(&lookup, &mut bytes).unwrap();
+        assert_eq!(decode_holder_id(&mut &bytes[..]).unwrap(), Some(1));
         let decoded = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap();
         assert_eq!(decoded, holder);
+    }
+
+    #[test]
+    fn a_wire_number_the_local_registry_cannot_name_does_not_decode() {
+        let lookup =
+            with_local::<keys::SoundEvent>(lookup("sound_event", &["a", "b", "c"]), &["a", "b"]);
+        let mut bytes = Vec::new();
+        encode_holder_id(Some(2), &mut bytes).unwrap();
+        let error = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("minecraft:c is not in registry sound_event"),
+            "{error}"
+        );
     }
 
     #[test]

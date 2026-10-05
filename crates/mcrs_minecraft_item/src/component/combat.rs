@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
-use mcrs_minecraft_keys::DamageType;
+use mcrs_minecraft_keys::{DamageType, sound_event};
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 
@@ -222,7 +222,7 @@ pub struct KineticCondition {
 }
 
 fn item_break() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft("entity.item.break"))
+    Holder::Reference(sound_event::ENTITY_ITEM_BREAK)
 }
 
 impl Sample for BlocksAttacks {
@@ -353,9 +353,7 @@ impl Sample for KineticWeapon {
                 forward_movement: 0.5,
                 damage_multiplier: 2.0,
                 sound: Some(item_break()),
-                hit_sound: Some(Holder::reference(ResourceLocation::minecraft(
-                    "item.armor.equip_generic",
-                ))),
+                hit_sound: Some(Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_GENERIC)),
             },
         ]
     }

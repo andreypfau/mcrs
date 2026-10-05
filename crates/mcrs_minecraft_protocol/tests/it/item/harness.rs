@@ -3,6 +3,7 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
@@ -12,7 +13,7 @@ use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent,
 };
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet, StaticRegistry};
 
 pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
     sample_registries().scope(run)
@@ -45,6 +46,11 @@ impl TestLookup {
         for (registry, names) in SAMPLE_NAMES {
             lookup.registry(registry, names);
         }
+        let sounds: Vec<(&str, u16)> = (0u16..)
+            .zip(keys::SoundEvent::NAMES)
+            .map(|(number, name)| (name.strip_prefix("minecraft:").unwrap_or(name), number))
+            .collect();
+        lookup.registry_with_ids("sound_event", &sounds);
         lookup
     }
 
