@@ -1,7 +1,7 @@
-// chisle: a built-in is built as a typed value, encoded to JSON and parsed
-// back by the loader, and its references are `ResourceLocation<Arc<str>>`, one
-// allocation each. A loader that takes typed values and a `Holder` that is
-// `Reference(Id<T>)` lift both.
+// chisle: every folder but the biomes is built as a typed value, encoded to
+// JSON and parsed back by the loader, and its references are
+// `ResourceLocation<Arc<str>>`, one allocation each. A loader that takes typed
+// values and a `Holder` that is `Reference(Id<T>)` lift both.
 mod beta;
 mod biome;
 mod density;
@@ -14,6 +14,7 @@ mod terrain;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
+use mcrs_minecraft_registry::{Built, RegistrySet};
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
@@ -29,8 +30,14 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
     noises
 }
 
-pub fn biomes() -> BTreeMap<ResourceLocation, Biome> {
-    biome::all().map(|(id, build)| (id, build())).collect()
+pub fn built_biomes() -> Built {
+    biome::built()
+}
+
+pub fn biomes(
+    set: &RegistrySet,
+) -> Result<BTreeMap<ResourceLocation, Biome>, Vec<(usize, String)>> {
+    Ok(biome::names().into_iter().zip(biome::build(set)?).collect())
 }
 
 pub fn density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
@@ -76,7 +83,6 @@ fn encode<T: Serialize>(
 /// A folder with no built-ins is empty.
 pub fn assets(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
     match folder {
-        "biome" => encode(biomes()),
         "density_function" => encode(density_functions()),
         "noise_settings" => encode(noise_settings()),
         "noise" => encode(noises()),
@@ -98,7 +104,6 @@ pub fn paths(directory: &str) -> Vec<String> {
         return Vec::new();
     };
     let ids: Vec<ResourceLocation> = match folder {
-        "biome" => biome::all().map(|(id, _)| id).collect(),
         "template_pool" => template_pool::keys().collect(),
         _ => assets(folder).into_keys().collect(),
     };
@@ -129,7 +134,6 @@ pub fn asset(path: &str) -> Option<Vec<u8>> {
     let (folder, name) = rest.strip_suffix(".json")?.split_once('/')?;
     let id = ResourceLocation::new(namespace, name);
     match folder {
-        "biome" => biome::build(&id).map(|biome| json(&biome)),
         "template_pool" => template_pool::build(&id).map(|pool| json(&pool)),
         _ => assets(folder).remove(&id),
     }

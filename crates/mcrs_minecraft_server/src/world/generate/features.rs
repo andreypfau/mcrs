@@ -13,10 +13,11 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{EntrySet, Registry, RegistrySet};
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
+use mcrs_minecraft_worldgen_feature::proto::{FeatureStepList, Holder};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
@@ -44,6 +45,36 @@ impl Plugin for FeaturePlugin {
                 .before(crate::world::enqueue_dim_spawns_from_preset),
         );
     }
+}
+
+/// A biome's decoration steps in the form the feature compiler reads. A tag
+/// has no contents until tags do, so a biome that lists one stops the server.
+fn decoration_steps(
+    biome: &ResourceLocation,
+    steps: &[EntrySet<keys::PlacedFeature>],
+    placed: &Registry<keys::PlacedFeature>,
+) -> Vec<FeatureStepList> {
+    steps
+        .iter()
+        .map(|step| {
+            if let EntrySet::Tag(tag) = step {
+                panic!("the biome {biome} lists the placed feature tag #{tag} as a decoration step, which is unsupported until tags have contents");
+            }
+            FeatureStepList::List(
+                step.entries()
+                    .iter()
+                    .map(|&id| {
+                        Holder::Reference(
+                            placed
+                                .key(id)
+                                .expect("an id of the registry has a name")
+                                .clone(),
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 /// Resolve every dimension's biomes into the ordered feature steps, and those
@@ -109,6 +140,9 @@ fn build_dimension_features(
         .collect(),
     };
 
+    let placed_names = registries
+        .registry::<keys::PlacedFeature>()
+        .expect("the data pack loader declares minecraft:worldgen/placed_feature");
     let biome_registry = registries
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
@@ -142,16 +176,17 @@ fn build_dimension_features(
     let mut programs = DimensionFeaturePrograms::default();
     for (dimension, source) in &sources.0 {
         let biome_order = possible_biomes(source, &biome_registry);
-        let mut entries = Vec::with_capacity(biome_order.len());
+        let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {
-                Some(biome) => entries.push(&biome.features[..]),
+                Some(biome) => steps.push(decoration_steps(id, &biome.features, &placed_names)),
                 // Dropping the biome would shorten the sort's input, and the
                 // sort's positions are the seeds, so a missing definition is a
                 // different world rather than one biome's worth less.
                 None => panic!("{dimension}: the biome {id} has no loaded definition"),
             }
         }
+        let entries: Vec<&[FeatureStepList]> = steps.iter().map(Vec::as_slice).collect();
 
         let built = build_feature_steps(&entries, &loaded).unwrap_or_else(|error| {
             panic!("{dimension}: the feature steps do not resolve: {error}")

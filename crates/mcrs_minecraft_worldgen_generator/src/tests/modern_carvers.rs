@@ -29,12 +29,7 @@ fn y_sections() -> Vec<i32> {
 pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     let id = mcrs_minecraft_core::ResourceLocation::parse(biome).expect("a biome id");
     let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
-    let names: Vec<String> = biome
-        .carvers
-        .iter()
-        .map(|c| c.as_str().to_owned())
-        .collect();
-    names
+    mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
         .iter()
         .map(|name| {
             let id = mcrs_minecraft_core::ResourceLocation::parse(name).expect("a carver id");
@@ -176,10 +171,13 @@ fn carvers_by_biome() -> (
                     .as_str(),
             )
             .expect("a corpus biome id");
-            biomes[&name]
-                .carvers
+            mcrs_minecraft_worldgen_testing::names_of(&biomes[&name].carvers)
                 .iter()
-                .map(|carver| configs[carver].clone())
+                .map(|carver| {
+                    configs[&mcrs_minecraft_core::ResourceLocation::parse(carver)
+                        .expect("a carver id")]
+                        .clone()
+                })
                 .collect()
         })
         .collect();

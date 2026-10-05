@@ -24,6 +24,12 @@ impl<R> EntrySet<R> {
     }
 }
 
+impl<R> Default for EntrySet<R> {
+    fn default() -> Self {
+        EntrySet::List(Vec::new())
+    }
+}
+
 impl<R> Clone for EntrySet<R> {
     fn clone(&self) -> Self {
         match self {

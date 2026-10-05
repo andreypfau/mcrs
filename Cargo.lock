@@ -3482,7 +3482,6 @@ dependencies = [
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
- "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_structure",
  "mcrs_minecraft_worldgen_testing",
  "serde",
@@ -4028,10 +4027,12 @@ dependencies = [
 name = "mcrs_minecraft_update"
 version = "0.4.5"
 dependencies = [
+ "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_feature",
  "serde",
@@ -4126,6 +4127,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_noise",
  "mcrs_minecraft_worldgen_structure",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
  "sha2",
@@ -4323,6 +4325,7 @@ version = "0.4.5"
 dependencies = [
  "bytes",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_builtin",
  "serde",

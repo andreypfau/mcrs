@@ -4,18 +4,16 @@ pub mod overworld_preset;
 pub mod source;
 pub mod zoom;
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, StaticResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
     AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
 use mcrs_minecraft_keys::{Carver, PlacedFeature};
-use mcrs_minecraft_worldgen_feature::FeatureStepList;
+use mcrs_minecraft_registry::{EntrySet, Id, RegistrySet};
 use mcrs_minecraft_worldgen_structure::DecorationStep;
 
 pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
@@ -27,8 +25,11 @@ pub enum TemperatureModifier {
     Frozen,
 }
 
+pub type CarverSet = EntrySet<Carver>;
+pub type FeatureSteps = Vec<EntrySet<PlacedFeature>>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Biome {
+pub struct Biome<C = CarverSet, F = FeatureSteps> {
     pub temperature: f32,
     pub downfall: f32,
     pub has_precipitation: bool,
@@ -37,13 +38,17 @@ pub struct Biome {
     pub effects: BiomeEffects,
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
-    #[serde(default, with = "mcrs_minecraft_core::codec::compact_list")]
-    pub carvers: Vec<ResourceLocation<Arc<str>>>,
     #[serde(default)]
-    pub features: Vec<FeatureStepList>,
+    pub carvers: C,
+    #[serde(default)]
+    pub features: F,
 }
 
-impl Biome {
+/// A biome described in code, before any registry has ids: carvers and
+/// placed features are still keys.
+pub type BiomeDraft = Biome<Vec<StaticResourceLocation>, Vec<Vec<PlacedFeatureKey>>>;
+
+impl<C, F> Biome<C, F> {
     pub fn natural_mob_spawns(&self) -> Option<&MobSpawnSettings> {
         match self
             .attributes
@@ -136,7 +141,69 @@ impl BiomeGeneration {
     }
 }
 
-impl Biome {
+fn ids<R: RegistryKey>(
+    set: &RegistrySet,
+    names: &[StaticResourceLocation],
+    failures: &mut Vec<String>,
+) -> Vec<Id<R>> {
+    let Some(registry) = set.registry::<R>() else {
+        if !names.is_empty() {
+            failures.push(format!("the registry {} is not loaded", R::KEY));
+        }
+        return Vec::new();
+    };
+    names
+        .iter()
+        .filter_map(|name| {
+            let id = registry.get(name.as_str());
+            if id.is_none() {
+                failures.push(format!("{name} is not an entry of {}", R::KEY));
+            }
+            id
+        })
+        .collect()
+}
+
+impl BiomeDraft {
+    pub fn generation(mut self, generation: BiomeGeneration) -> Self {
+        self.carvers = generation.carvers;
+        self.features = generation.features;
+        self
+    }
+
+    /// Every key that names no entry of its registry is reported, so a
+    /// biome that cannot be built says everything wrong with it at once.
+    pub fn resolve(self, set: &RegistrySet) -> Result<Biome, Vec<String>> {
+        let mut failures = Vec::new();
+        let carvers = match ids::<Carver>(set, &self.carvers, &mut failures)[..] {
+            [only] => EntrySet::One(only),
+            ref listed => EntrySet::List(listed.to_vec()),
+        };
+        let features = self
+            .features
+            .iter()
+            .map(|step| {
+                let names: Vec<_> = step.iter().map(|key| *key.location()).collect();
+                EntrySet::List(ids::<PlacedFeature>(set, &names, &mut failures))
+            })
+            .collect();
+        if !failures.is_empty() {
+            return Err(failures);
+        }
+        Ok(Biome {
+            temperature: self.temperature,
+            downfall: self.downfall,
+            has_precipitation: self.has_precipitation,
+            temperature_modifier: self.temperature_modifier,
+            effects: self.effects,
+            attributes: self.attributes,
+            carvers,
+            features,
+        })
+    }
+}
+
+impl<C: Default, F: Default> Biome<C, F> {
     pub const NORMAL_WATER_COLOR: i32 = 4159204;
 
     pub fn new(has_precipitation: bool, temperature: f32, downfall: f32) -> Self {
@@ -147,23 +214,14 @@ impl Biome {
             temperature_modifier: None,
             effects: BiomeEffects::default(),
             attributes: Default::default(),
-            carvers: Vec::new(),
-            features: Vec::new(),
+            carvers: C::default(),
+            features: F::default(),
         }
         .water(Self::NORMAL_WATER_COLOR)
     }
 
     pub fn spawns(self, mobs: MobSpawnSettings) -> Self {
         self.modified(id::NATURAL_MOB_SPAWNS, Operation::Overlay, mobs)
-    }
-
-    pub fn generation(mut self, generation: BiomeGeneration) -> Self {
-        self.carvers = generation.carvers.into_iter().map(Into::into).collect();
-        let steps = generation.features.into_iter();
-        self.features = steps
-            .map(|step| HolderSet::List(step.into_iter().map(Into::into).collect()))
-            .collect();
-        self
     }
 
     pub fn with<T: Serialize>(self, attribute: Attribute<T>, value: T) -> Self {
@@ -229,9 +287,11 @@ mod tests {
         let biomes = mcrs_minecraft_worldgen_testing::registry::<Biome>("biome");
         assert!(biomes.len() >= 78, "{} biomes", biomes.len());
         for (id, biome) in biomes {
-            let encoded = serde_json::to_string(&biome).unwrap();
-            let read: Biome = serde_json::from_str(&encoded).unwrap();
-            assert_eq!(read, biome, "{id} must round-trip unchanged");
+            mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+                let encoded = serde_json::to_string(&biome).unwrap();
+                let read: Biome = serde_json::from_str(&encoded).unwrap();
+                assert_eq!(read, biome, "{id} must round-trip unchanged");
+            });
         }
     }
 }

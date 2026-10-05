@@ -2,8 +2,8 @@ use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Entries, Registry, RegistrySet};
-use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables, lookup};
+use mcrs_minecraft_registry::{Entries, EntrySet, Registry, RegistrySet};
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
     CarverBiomeTable, resolve_beta_carver_biomes, resolve_carver_biomes, whole_climate_space,
@@ -42,14 +42,18 @@ fn carvers_by_biome(
     let lists = biomes
         .ids()
         .map(|id| {
-            values[id]
-                .carvers
+            let biome = || biomes.key(id).expect("an id of the registry has a name");
+            let set = &values[id].carvers;
+            if let EntrySet::Tag(tag) = set {
+                tracing::error!(biome = %biome(), %tag, "a carver tag is unsupported until tags have contents");
+            }
+            set.entries()
                 .iter()
-                .filter_map(|name| match lookup(carvers, table, name.as_str()) {
-                    Ok(config) => Some(config.clone()),
-                    Err(error) => {
-                        let biome = biomes.key(id).expect("an id of the registry has a name");
-                        tracing::error!(%biome, %error, "a carver of this biome is unavailable");
+                .filter_map(|&carver| match &table[carver] {
+                    Some(config) => Some(config.clone()),
+                    None => {
+                        let carver = carvers.key(carver).expect("an id of the registry has a name");
+                        tracing::error!(biome = %biome(), %carver, "a carver of this biome is unavailable");
                         None
                     }
                 })
