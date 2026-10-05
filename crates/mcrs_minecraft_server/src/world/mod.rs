@@ -5,8 +5,11 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_registry::RegistrySet;
 use tracing::{debug, error, info, warn};
 
 pub mod aoi;
@@ -139,9 +142,7 @@ impl Plugin for WorldPlugin {
 pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
     dim_defs: Res<bevy_asset::Assets<mcrs_minecraft_world::dimension::DimensionDefinition>>,
-    dimension_types: Res<
-        bevy_asset::Assets<mcrs_minecraft_dimension::dimension_type::DimensionType>,
-    >,
+    registries: Res<RegistrySet>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
 ) {
@@ -178,23 +179,34 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         "Enqueueing dimension spawn requests from loaded world preset"
     );
 
+    let (Some(types), Some(dimension_types)) = (
+        registries.registry::<keys::DimensionType>(),
+        registries.entries::<keys::DimensionType, DimensionType>(),
+    ) else {
+        error!("the registry set holds no dimension types to spawn dimensions from");
+        return;
+    };
+
     for (dimension_key, dim_def_handle) in &world_preset.dimensions {
-        let resolved = dim_defs
-            .get(dim_def_handle)
-            .and_then(|def| dimension_types.get(&def.dimension_type))
-            .map(|dim_type| {
-                (
-                    DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
-                    dim_type.has_skylight,
-                )
-            })
-            .unwrap_or_else(|| {
-                warn!(
-                    dimension_key = %dimension_key,
-                    "Dimension type not found, using default config + has_sky=true"
-                );
-                (DimensionTypeConfig::new(-64, 384), true)
-            });
+        let Some(definition) = dim_defs.get(dim_def_handle) else {
+            error!(dimension = %dimension_key, "the dimension definition is not loaded");
+            continue;
+        };
+        let Some(dim_type) = types
+            .get(definition.dimension_type.as_str())
+            .map(|id| &dimension_types[id])
+        else {
+            error!(
+                dimension = %dimension_key,
+                dimension_type = %definition.dimension_type,
+                "the dimension names a dimension type the registry does not hold"
+            );
+            continue;
+        };
+        let resolved = (
+            DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
+            dim_type.has_skylight,
+        );
 
         debug!(
             dimension_key = %dimension_key,

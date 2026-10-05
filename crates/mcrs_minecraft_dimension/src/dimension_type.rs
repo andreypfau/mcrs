@@ -1,53 +1,11 @@
-use std::sync::Arc;
-
-use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_assets::asset::read_all;
-use mcrs_minecraft_assets::tag::tag_ref::TagRef;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
-use mcrs_minecraft_keys::{self as keys, Block};
-
-// ── Proto (deserialization-only) ──
-
-/// Raw dimension type as deserialized from JSON.
-///
-/// `infiniburn` is a raw string like `"#minecraft:infiniburn_overworld"`.
-/// Resolved into [`DimensionType`] by the loader.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
-pub(crate) struct ProtoDimensionType {
-    pub has_skylight: bool,
-    pub has_ceiling: bool,
-    pub has_ender_dragon_fight: bool,
-    #[serde(deserialize_with = "coordinate_scale")]
-    pub coordinate_scale: f64,
-    pub min_y: Bounded<MIN_Y, MAX_Y>,
-    pub height: Bounded<16, Y_SIZE>,
-    pub logical_height: Bounded<0, Y_SIZE>,
-    pub infiniburn: String,
-    pub ambient_light: f32,
-    pub monster_spawn_block_light_limit: Bounded<0, 15>,
-    pub monster_spawn_light_level: BoundedIntProvider<0, 15>,
-    #[serde(default)]
-    pub skybox: Skybox,
-    #[serde(default)]
-    pub cardinal_light: CardinalLight,
-    #[serde(default)]
-    pub has_fixed_time: Option<bool>,
-    #[serde(default)]
-    pub attributes: EnvironmentAttributeMap,
-    #[serde(default)]
-    pub timelines: Option<String>,
-    #[serde(default)]
-    pub default_clock: Option<String>,
-}
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{EntrySet, Id};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
 const MAX_Y: i32 = (Y_SIZE >> 1) - 1;
@@ -65,16 +23,67 @@ fn coordinate_scale<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
     Ok(scale)
 }
 
-impl<'de> Deserialize<'de> for ProtoDimensionType {
+macro_rules! bounded_int {
+    ($name:ident -> $ty:ty, $min:expr, $max:expr) => {
+        fn $name<'de, D: Deserializer<'de>>(d: D) -> Result<$ty, D::Error> {
+            Bounded::<{ $min }, { $max }>::deserialize(d).map(|bounded| bounded.0 as $ty)
+        }
+    };
+}
+
+bounded_int!(min_y -> i32, MIN_Y, MAX_Y);
+bounded_int!(height -> u32, 16, Y_SIZE);
+bounded_int!(logical_height -> u32, 0, Y_SIZE);
+bounded_int!(monster_spawn_block_light_limit -> u32, 0, 15);
+
+fn monster_spawn_light_level<'de, D: Deserializer<'de>>(d: D) -> Result<IntProvider, D::Error> {
+    BoundedIntProvider::<0, 15>::deserialize(d).map(|provider| provider.0)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
+pub struct DimensionType {
+    pub has_skylight: bool,
+    pub has_ceiling: bool,
+    pub has_ender_dragon_fight: bool,
+    #[serde(deserialize_with = "coordinate_scale")]
+    pub coordinate_scale: f64,
+    #[serde(deserialize_with = "min_y")]
+    pub min_y: i32,
+    #[serde(deserialize_with = "height")]
+    pub height: u32,
+    #[serde(deserialize_with = "logical_height")]
+    pub logical_height: u32,
+    pub infiniburn: EntrySet<keys::Block>,
+    pub ambient_light: f32,
+    #[serde(deserialize_with = "monster_spawn_block_light_limit")]
+    pub monster_spawn_block_light_limit: u32,
+    #[serde(deserialize_with = "monster_spawn_light_level")]
+    pub monster_spawn_light_level: IntProvider,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub skybox: Skybox,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub cardinal_light: CardinalLight,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_fixed_time: Option<bool>,
+    #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
+    pub attributes: EnvironmentAttributeMap,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub timelines: EntrySet<keys::Timeline>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_clock: Option<Id<keys::WorldClock>>,
+}
+
+impl<'de> Deserialize<'de> for DimensionType {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let proto = ProtoDimensionType::deserialize(d)?;
-        let (min_y, height) = (proto.min_y.0, proto.height.0);
+        let dimension_type = DimensionType::deserialize(d)?;
+        let (min_y, height) = (dimension_type.min_y, dimension_type.height as i32);
         let refused = if min_y + height > MAX_Y + 1 {
             Some(format!(
                 "min_y + height cannot be higher than: {}",
                 MAX_Y + 1
             ))
-        } else if proto.logical_height.0 > height {
+        } else if dimension_type.logical_height > dimension_type.height {
             Some("logical_height cannot be higher than height".to_owned())
         } else if height % 16 != 0 {
             Some("height has to be multiple of 16".to_owned())
@@ -85,134 +94,18 @@ impl<'de> Deserialize<'de> for ProtoDimensionType {
         };
         match refused {
             Some(reason) => Err(D::Error::custom(reason)),
-            None => Ok(proto),
+            None => Ok(dimension_type),
         }
     }
 }
 
-/// Error when converting a [`ProtoDimensionType`] to [`DimensionType`].
-#[derive(Debug, thiserror::Error)]
-pub enum DimensionTypeResolveError {
-    #[error("tag field `{0}` does not start with '#'")]
-    MissingHashPrefix(String),
-    #[error("invalid resource location in infiniburn: {0}")]
-    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
-}
-
-impl ProtoDimensionType {
-    /// Parse the raw `infiniburn` string and load the corresponding block tag
-    /// file as a sub-asset.
-    pub fn resolve(
-        self,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<DimensionType, DimensionTypeResolveError> {
-        let tag_str = self
-            .infiniburn
-            .strip_prefix('#')
-            .ok_or_else(|| DimensionTypeResolveError::MissingHashPrefix(self.infiniburn.clone()))?;
-
-        let infiniburn = TagRef::<Block>::load(tag_str, load_context)?;
-
-        let timelines = self
-            .timelines
-            .as_deref()
-            .map(|raw| {
-                let tag_str = raw
-                    .strip_prefix('#')
-                    .ok_or_else(|| DimensionTypeResolveError::MissingHashPrefix(raw.to_owned()))?;
-                TagRef::<keys::Timeline>::load(tag_str, load_context)
-                    .map_err(DimensionTypeResolveError::from)
-            })
-            .transpose()?;
-
-        Ok(self.with_tags(infiniburn, timelines))
-    }
-
-    pub(crate) fn with_tags(
-        self,
-        infiniburn: TagRef<Block>,
-        timelines: Option<TagRef<keys::Timeline>>,
-    ) -> DimensionType {
-        DimensionType {
-            has_skylight: self.has_skylight,
-            has_ceiling: self.has_ceiling,
-            has_ender_dragon_fight: self.has_ender_dragon_fight,
-            coordinate_scale: self.coordinate_scale,
-            min_y: self.min_y.0,
-            height: self.height.0 as u32,
-            logical_height: self.logical_height.0 as u32,
-            infiniburn,
-            ambient_light: self.ambient_light,
-            monster_spawn_block_light_limit: self.monster_spawn_block_light_limit.0 as u32,
-            monster_spawn_light_level: self.monster_spawn_light_level.0,
-            skybox: self.skybox,
-            cardinal_light: self.cardinal_light,
-            has_fixed_time: self.has_fixed_time,
-            attributes: self.attributes,
-            timelines,
-            default_clock: self.default_clock,
-        }
-    }
-}
-
-// ── Runtime DimensionType ──
-
-/// Runtime dimension type with a typed `infiniburn` block tag reference.
-///
-/// The `infiniburn` field is a [`TagRef<Block>`] — a typed tag key paired with
-/// its loaded tag file handle. The tag file is loaded as a sub-asset by
-/// `DimensionTypeLoader`, so Bevy's dependency graph ensures it (and any
-/// nested tags) are fully loaded before `is_loaded_with_dependencies` returns
-/// `true`.
-#[derive(Debug, Clone, TypePath)]
-pub struct DimensionType {
-    pub has_skylight: bool,
-    pub has_ceiling: bool,
-    pub has_ender_dragon_fight: bool,
-    pub coordinate_scale: f64,
-    pub min_y: i32,
-    pub height: u32,
-    pub logical_height: u32,
-    pub infiniburn: TagRef<Block>,
-    pub ambient_light: f32,
-    pub monster_spawn_block_light_limit: u32,
-    pub monster_spawn_light_level: IntProvider,
-    pub skybox: Skybox,
-    pub cardinal_light: CardinalLight,
-    pub has_fixed_time: Option<bool>,
-    pub attributes: EnvironmentAttributeMap,
-    pub timelines: Option<TagRef<keys::Timeline>>,
-    pub default_clock: Option<String>,
-}
-
-impl DimensionType {
-    pub fn load(
-        ctx: &mut LoadContext<'_>,
-        loc: &ResourceLocation<Arc<str>>,
-    ) -> Handle<DimensionType> {
-        ctx.load(format!(
-            "{}/dimension_type/{}.json",
-            loc.namespace(),
-            loc.path()
-        ))
-    }
-}
-
-impl Asset for DimensionType {}
-
-impl VisitAssetDependencies for DimensionType {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        visit(self.infiniburn.handle().id().untyped());
-        if let Some(timelines) = &self.timelines {
-            visit(timelines.handle().id().untyped());
-        }
+impl Serialize for DimensionType {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        DimensionType::serialize(self, s)
     }
 }
 
 /// DimensionType data subset for NETWORK_CODEC.
-///
-/// The `infiniburn` field is serialized as a string like
-/// `"#minecraft:infiniburn_overworld"` (the tag key prefixed with `#`).
 #[derive(Debug, Clone, Serialize)]
 pub struct NetworkDimensionType {
     pub has_skylight: bool,
@@ -222,7 +115,7 @@ pub struct NetworkDimensionType {
     pub min_y: i32,
     pub height: u32,
     pub logical_height: u32,
-    pub infiniburn: String,
+    pub infiniburn: EntrySet<keys::Block>,
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntProvider,
@@ -234,10 +127,10 @@ pub struct NetworkDimensionType {
     pub has_fixed_time: Option<bool>,
     #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
+    #[serde(skip_serializing_if = "is_default")]
+    pub timelines: EntrySet<keys::Timeline>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timelines: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_clock: Option<String>,
+    pub default_clock: Option<Id<keys::WorldClock>>,
 }
 
 impl From<&DimensionType> for NetworkDimensionType {
@@ -250,7 +143,7 @@ impl From<&DimensionType> for NetworkDimensionType {
             min_y: dt.min_y,
             height: dt.height,
             logical_height: dt.logical_height,
-            infiniburn: format!("#{}", dt.infiniburn.key().as_str()),
+            infiniburn: dt.infiniburn.clone(),
             ambient_light: dt.ambient_light,
             monster_spawn_block_light_limit: dt.monster_spawn_block_light_limit,
             monster_spawn_light_level: dt.monster_spawn_light_level.clone(),
@@ -258,53 +151,11 @@ impl From<&DimensionType> for NetworkDimensionType {
             cardinal_light: dt.cardinal_light.clone(),
             has_fixed_time: dt.has_fixed_time,
             attributes: dt.attributes.filter_syncable(),
-            timelines: dt
-                .timelines
-                .as_ref()
-                .map(|tag| format!("#{}", tag.key().as_str())),
-            default_clock: dt.default_clock.clone(),
+            timelines: dt.timelines.clone(),
+            default_clock: dt.default_clock,
         }
     }
 }
-
-// ── Loader ──
-
-/// Bevy `AssetLoader` for dimension type JSON files.
-#[derive(Default, TypePath)]
-pub struct DimensionTypeLoader;
-
-#[derive(Debug, thiserror::Error)]
-pub enum DimensionTypeLoaderError {
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error("JSON parse error: {0}")]
-    Json(#[from] serde_json::Error),
-    #[error("resolve error: {0}")]
-    Resolve(#[from] DimensionTypeResolveError),
-}
-
-impl AssetLoader for DimensionTypeLoader {
-    type Asset = DimensionType;
-    type Settings = ();
-    type Error = DimensionTypeLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<DimensionType, DimensionTypeLoaderError> {
-        let bytes = read_all(reader).await?;
-        let proto: ProtoDimensionType = serde_json::from_slice(&bytes)?;
-        Ok(proto.resolve(load_context)?)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &[] // no extension claim — always use typed load::<DimensionType>()
-    }
-}
-
-// ── Supporting enums ──
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Skybox {
@@ -329,7 +180,7 @@ pub enum CardinalLight {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::{assets_dir, packs, reencode};
+    use mcrs_minecraft_worldgen_testing::{assets_dir, dimension_type_set, packs, reencode};
     use serde_json::Value;
     use std::path::PathBuf;
 
@@ -341,36 +192,31 @@ mod tests {
             .collect()
     }
 
-    fn resolved(name: &str) -> DimensionType {
-        use mcrs_minecraft_assets::tag::tag_ref::TagRef;
-        use mcrs_minecraft_core::tag_key::TagKey;
-
+    fn read(name: &str) -> DimensionType {
         let path = dimension_type_dirs()
             .into_iter()
             .map(|dir| dir.join(name))
             .find(|path| path.is_file())
             .unwrap();
-        let proto: ProtoDimensionType =
-            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-        fn tag<T: mcrs_minecraft_core::registry_key::RegistryKey>(raw: &str) -> TagRef<T> {
-            TagRef::new(
-                TagKey::from_location(
-                    ResourceLocation::parse(raw.trim_start_matches('#')).unwrap(),
-                ),
-                Handle::default(),
-            )
-        }
-        let infiniburn = tag(&proto.infiniburn);
-        let timelines = proto.timelines.as_deref().map(tag);
-        proto.with_tags(infiniburn, timelines)
+        dimension_type_set()
+            .scope(|| serde_json::from_slice(&std::fs::read(path).unwrap()))
+            .unwrap()
     }
 
     #[test]
     fn the_network_dimension_type_is_the_games() {
-        let overworld =
-            serde_json::to_value(NetworkDimensionType::from(&resolved("overworld.json"))).unwrap();
+        let sent = |name: &str| {
+            dimension_type_set()
+                .scope(|| serde_json::to_value(NetworkDimensionType::from(&read(name))))
+                .unwrap()
+        };
+
+        let overworld = sent("overworld.json");
         assert!(overworld.get("skybox").is_none(), "{overworld}");
         assert!(overworld.get("cardinal_light").is_none(), "{overworld}");
+        assert_eq!(overworld["infiniburn"], "#minecraft:infiniburn_overworld");
+        assert_eq!(overworld["timelines"], "#minecraft:in_overworld");
+        assert_eq!(overworld["default_clock"], "minecraft:overworld");
         let attributes = overworld["attributes"].as_object().unwrap();
         assert!(!attributes.is_empty());
         for id in attributes.keys() {
@@ -384,10 +230,10 @@ mod tests {
             "{overworld}"
         );
 
-        let nether =
-            serde_json::to_value(NetworkDimensionType::from(&resolved("the_nether.json"))).unwrap();
+        let nether = sent("the_nether.json");
         assert_eq!(nether["skybox"], "none");
         assert_eq!(nether["cardinal_light"], "nether");
+        assert!(nether.get("default_clock").is_none(), "{nether}");
     }
 
     #[test]
@@ -402,20 +248,26 @@ mod tests {
             }
             let bytes = std::fs::read(&path).unwrap();
             let raw: Value = serde_json::from_slice(&bytes).unwrap();
-            let proto: ProtoDimensionType = serde_json::from_slice(&bytes)
+            let parsed: DimensionType = dimension_type_set()
+                .scope(|| serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
 
             assert!(
-                !proto.attributes.is_empty(),
+                !parsed.attributes.is_empty(),
                 "{} has attributes",
                 path.display()
             );
             assert_eq!(
-                reencode(&proto.attributes),
+                reencode(&parsed.attributes),
                 raw["attributes"],
                 "{} attributes must round-trip unchanged",
                 path.display()
             );
+            let written: Value = serde_json::from_str(
+                &dimension_type_set().scope(|| serde_json::to_string(&parsed).unwrap()),
+            )
+            .unwrap();
+            assert_eq!(written, raw, "{} must round-trip unchanged", path.display());
             count += 1;
         }
         assert_eq!(count, 5);

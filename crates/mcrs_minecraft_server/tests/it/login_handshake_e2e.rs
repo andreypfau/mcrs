@@ -154,7 +154,7 @@ fn e2e_join_releases_joining_world() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:overworld"),
+            dimension_id: DimensionId::new("minecraft:overworld"),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

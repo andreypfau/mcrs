@@ -9,8 +9,9 @@ use bevy::render::render_resource::{
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
@@ -196,25 +197,35 @@ fn build_sky_environment(
     mut commands: Commands,
     dimension: Res<PlayerDimension>,
     environments: Res<DimensionEnvironments>,
-    dimension_types: Res<Assets<DimensionType>>,
-    asset_server: Res<AssetServer>,
+    registries: Res<RegistrySet>,
     clocks: Res<WorldClocks>,
     weather: Res<Weather>,
 ) {
-    let found = environments
-        .get(&dimension.0)
-        .map(|attributes| (dimension.0.as_str(), attributes));
+    let (Some(types), Some(dimension_types), Some(world_clocks)) = (
+        registries.registry::<keys::DimensionType>(),
+        registries.entries::<keys::DimensionType, DimensionType>(),
+        registries.registry::<keys::WorldClock>(),
+    ) else {
+        error!("the registry set holds no dimension types to draw a sky from");
+        return;
+    };
+    let found = types.get(&dimension.0).map(|id| (id, dimension.0.as_str()));
     let fallback = || {
         warn!(
             dimension = dimension.0,
-            "no environment for this dimension; drawing the overworld"
+            "no dimension type for this dimension; drawing the overworld"
         );
-        environments
-            .get(OVERWORLD)
-            .map(|attributes| (OVERWORLD, attributes))
+        types.get(OVERWORLD).map(|id| (id, OVERWORLD))
     };
-    let Some((id, attributes)) = found.or_else(fallback) else {
-        error!(dimension = dimension.0, "no environment to draw a sky from");
+    let Some((type_id, id)) = found.or_else(fallback) else {
+        error!(
+            dimension = dimension.0,
+            "no dimension type to draw a sky from"
+        );
+        return;
+    };
+    let Some(attributes) = environments.get(type_id) else {
+        error!(dimension = id, "no environment to draw a sky from");
         return;
     };
     let attributes = attributes.clone();
@@ -225,16 +236,10 @@ fn build_sky_environment(
     let biomes = SpatialAttributeInterpolator::default();
     let statics = layout.constants(&attributes, &context(Vec3::ZERO, &ticks, &biomes, *weather));
 
-    let clock = dimension_types
-        .iter()
-        .find(|(asset_id, _)| {
-            asset_server
-                .get_path(*asset_id)
-                .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
-                .is_some_and(|found| found.as_str() == id)
-        })
-        .and_then(|(_, dimension_type)| dimension_type.default_clock.as_deref())
-        .and_then(|clock| ResourceLocation::<Arc<str>>::parse(clock).ok());
+    let clock = dimension_types[type_id]
+        .default_clock
+        .and_then(|clock| world_clocks.key(clock))
+        .cloned();
 
     info!(
         dimension = id,

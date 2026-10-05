@@ -78,7 +78,7 @@ fn messages_buffered_before_dim_boots() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:readiness"),
+            dimension_id: DimensionId::new("minecraft:the_end"),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

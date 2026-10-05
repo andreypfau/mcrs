@@ -22,8 +22,8 @@ use crate::host_app;
 #[test]
 fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
     let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "test:overworld", true);
-    host_app::enqueue_spawn(&mut app, "test:nether", false);
+    host_app::enqueue_spawn(&mut app, "minecraft:overworld", true);
+    host_app::enqueue_spawn(&mut app, "minecraft:the_nether", false);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(app.sub_apps().sub_apps.len(), 2);
 
@@ -148,7 +148,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     ]);
     app.insert_resource(clocks);
     host_app::drive_to_playing(&mut app);
-    host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", true)]);
     let dim_label = app
         .world_mut()
         .query_filtered::<Entity, With<DimSubAppHandle>>()

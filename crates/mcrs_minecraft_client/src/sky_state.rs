@@ -293,8 +293,8 @@ mod tests {
     const NOON: i64 = 6000;
 
     /// The dimension fields an environment needs, read straight from the asset.
-    /// `ProtoDimensionType` is private to `mcrs_minecraft_world`, and widening its API for
-    /// a test would be the wrong trade.
+    /// A `DimensionType` only reads inside a registry scope holding the blocks and
+    /// timelines it names, which these tests have no use for.
     #[derive(serde::Deserialize)]
     struct Dimension {
         has_skylight: bool,

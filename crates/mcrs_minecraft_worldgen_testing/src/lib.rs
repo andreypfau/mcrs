@@ -233,6 +233,53 @@ pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
 }
 
+/// What a dimension type names: every registry of the report, with the block
+/// tags the corpus ships, and the timelines and world clocks the corpus ships,
+/// with the timeline tags.
+pub fn dimension_type_set() -> &'static RegistrySet {
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        let report = corpus_set();
+        let blocks = report
+            .registry::<keys::Block>()
+            .expect("the report holds the block registry");
+        let block_names: Vec<_> = blocks
+            .ids()
+            .map(|id| blocks.key(id).expect("a block id has a name").clone())
+            .collect();
+        let blocks = Registry::<keys::Block>::new(block_names, shipped_tags("block"))
+            .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
+        let timelines =
+            Registry::<keys::Timeline>::new(shipped_ids("timeline"), shipped_tags("timeline"))
+                .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
+        let clocks = Registry::<keys::WorldClock>::new(shipped_ids("world_clock"), [])
+            .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
+        let tables = report
+            .tables()
+            .filter(|table| table.registry().as_str() != keys::Block::KEY.as_str())
+            .cloned()
+            .chain([
+                Arc::clone(blocks.table()),
+                Arc::clone(timelines.table()),
+                Arc::clone(clocks.table()),
+            ]);
+        RegistrySet::from_tables(tables)
+            .unwrap_or_else(|e| panic!("the dimension type registries do not join the set: {e}"))
+    });
+    &SET
+}
+
+fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
+    let base = assets_dir().join("minecraft").join(folder);
+    json_files(&base)
+        .iter()
+        .map(|path| id_of(&base, path))
+        .collect()
+}
+
+fn shipped_tags(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
+    shipped_ids(&format!("tags/{folder}"))
+}
+
 /// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping
 /// the ones that do not would let a test read "the whole corpus compiles" off a
 /// corpus quietly missing the entries that broke.

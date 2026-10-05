@@ -11,7 +11,7 @@ use mcrs_minecraft_keys::{Block, Item};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
-use mcrs_minecraft_world::registries::{share_registries, static_registries};
+use mcrs_minecraft_world::registries::{share_registries, static_registries, test_registries};
 use mcrs_minecraft_worldgen::tables::WorldgenTables;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
@@ -27,9 +27,11 @@ pub fn insert_corpus(app: &mut App) {
     app.insert_resource(items.clone());
 }
 
+/// The host holds the loaded set, dimension types included, because a
+/// dimension is spawned with the type its name selects.
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
-    app.insert_resource(registry_set().clone());
+    app.insert_resource(test_registries().clone());
     app.insert_resource(entity_ids().clone());
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(test_enchantment_registry());

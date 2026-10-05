@@ -79,7 +79,6 @@ use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
@@ -91,8 +90,8 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedRegistries;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
@@ -161,7 +160,15 @@ pub fn spawn_dim_subapp(
     app: &mut App,
     request: &DimSpawnRequest,
     registries: &DimRegistryBundle,
-) -> Entity {
+) -> Result<Entity, UnknownDimensionType> {
+    let dim_type_index = app
+        .world()
+        .get_resource::<RegistrySet>()
+        .and_then(|set| set.registry::<keys::DimensionType>())
+        .and_then(|types| types.get(request.dimension_id.as_str()))
+        .map(Id::number)
+        .ok_or_else(|| UnknownDimensionType(request.dimension_id.as_str().to_owned()))?;
+
     let label_entity = app
         .world_mut()
         .spawn((
@@ -578,25 +585,6 @@ pub fn spawn_dim_subapp(
         }
     });
 
-    // Resolve this dimension's index in the dimension_type registry that is
-    // sent to the client during configuration. The client uses this index to
-    // pick the DimensionType (and thus the chunk-section count) for its
-    // ClientLevel, so the play-login emitter must send the matching value.
-    // Vanilla dimensions use a dimension key equal to their type ident.
-    let type_ident = request.dimension_id.as_str();
-    let dim_type_index = sub_app
-        .world()
-        .resource::<RegistryAccess>()
-        .iter()
-        .find(|r| r.registry_key() == "minecraft:dimension_type")
-        .and_then(|reg| {
-            (0..=u16::MAX)
-                .zip(reg.iter_entries())
-                .find(|(_, e)| e.location.as_str() == type_ident)
-                .map(|(i, _)| i)
-        })
-        .unwrap_or(0);
-
     let dim_entity = sub_app
         .world_mut()
         .spawn((
@@ -624,7 +612,7 @@ pub fn spawn_dim_subapp(
     sub_app.cleanup();
 
     app.insert_sub_app(DimAppLabel(label_entity), sub_app);
-    label_entity
+    Ok(label_entity)
 }
 
 /// Drains both `ToDim` channel receivers into the dim's local message buses.
@@ -701,8 +689,14 @@ pub(crate) fn flush_from_dim_outbox(
 #[derive(bevy_ecs::component::Component)]
 pub struct DimSubAppHandle;
 
+/// A dimension is typed by the dimension type of its own name, so a dimension
+/// no type shares a name with cannot be spawned.
+#[derive(Debug, thiserror::Error)]
+#[error("{0} names no dimension type of the loaded registry")]
+pub struct UnknownDimensionType(pub String);
+
 /// The dimension-type registry index for a dimension's type, resolved
-/// host-side from `RegistryAccess` when the sub-app is spawned and stored on
+/// host-side from the dimension type registry when the sub-app is spawned and stored on
 /// the sub-world's `Dimension` entity. The play-login emitter copies it into
 /// `PlayerSpawnInfo.dimension_type_id` so a real client builds its
 /// `ClientLevel` with the correct height (section count).
@@ -726,7 +720,9 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
     }
     let bundle = gather_dim_registries(app.world());
     for request in requests {
-        spawn_dim_subapp(app, &request, &bundle);
+        if let Err(error) = spawn_dim_subapp(app, &request, &bundle) {
+            error!(%error, "a dimension was not spawned");
+        }
     }
 }
 

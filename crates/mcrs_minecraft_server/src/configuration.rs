@@ -1,7 +1,6 @@
 use crate::WorldSave;
 use crate::client_info::ClientInfo;
 use crate::dim::send_control_or_teardown;
-use crate::disconnect::despawn_from_dims;
 use crate::login::{GameProfile, SessionsById, disconnect, duplicate_login_reason};
 use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
@@ -9,9 +8,8 @@ use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 use bevy_app::{App, Plugin, Update};
-use bevy_asset::{AssetEvent, AssetId, AssetServer, Assets, Handle};
+use bevy_asset::{AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::component::Component;
-use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
@@ -42,7 +40,6 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 use mcrs_minecraft_protocol::packets::configuration::{
     ClientboundCustomPayload, ClientboundFinishConfiguration, ClientboundRegistryData,
 };
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
@@ -230,10 +227,7 @@ impl Plugin for ConfigurationStatePlugin {
             OnEnter(AppState::LoadingDataPack),
             (start_loading_world_preset, request_dynamic_registry_tags),
         );
-        app.add_systems(
-            Update,
-            (process_loaded_world_preset, sync_dimension_type_changes),
-        );
+        app.add_systems(Update, process_loaded_world_preset);
         app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
@@ -241,51 +235,6 @@ impl Plugin for ConfigurationStatePlugin {
         // Runs in Update, before bridge_player_attach, so the spawn is sent
         // into the control channel before the same tick's dim drain.
         app.add_systems(Update, emit_initial_player_spawn);
-    }
-}
-
-/// Kicks connected players back into Configuration when a dimension type asset
-/// is hot-reloaded, so they re-receive the registry data on reconnect.
-fn sync_dimension_type_changes(
-    mut dim_type_events: MessageReader<AssetEvent<DimensionType>>,
-    mut players: Query<(
-        &mut ServerSideConnection,
-        &ConnectionState,
-        Option<&HostAnchorRef>,
-    )>,
-    mut sessions: Query<(&Session, &mut SessionPlacement)>,
-    dim_channels: Res<DimChannelsResource>,
-    mut despawn_queue: ResMut<DimDespawnQueue>,
-) {
-    if !dim_type_events
-        .read()
-        .any(|event| matches!(event, AssetEvent::Modified { .. }))
-    {
-        return;
-    }
-
-    for (mut con, state, host_anchor) in players.iter_mut() {
-        if *state != ConnectionState::Game {
-            continue;
-        }
-        info!("Sending reconfiguration to connected player");
-        con.write_packet(&ClientboundStartConfiguration);
-        let Some(host_anchor) = host_anchor.map(|anchor| anchor.0) else {
-            continue;
-        };
-        let Ok((session, mut placement)) = sessions.get_mut(host_anchor) else {
-            continue;
-        };
-        // The client drops its level on reconfiguration, so the player leaves its
-        // dimension now and `emit_initial_player_spawn` joins it again once play resumes.
-        despawn_from_dims(
-            host_anchor,
-            session.0,
-            placement.place(),
-            &dim_channels,
-            &mut despawn_queue,
-        );
-        placement.set(Place::Unplaced);
     }
 }
 
@@ -361,7 +310,7 @@ fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
-    dimension_types: Res<Assets<DimensionType>>,
+    set: Res<RegistrySet>,
     block_tags: Option<Res<DynTagRegistry<Block>>>,
     item_tags: Option<Res<DynTagRegistry<Item>>>,
     enchantment_tags: Option<Res<TagRegistry<Enchantment, Id<Enchantment>>>>,
@@ -424,9 +373,11 @@ fn on_known_packs_response(
     // synthetic registry built from referenced attribute keys in the
     // dimension types. The vanilla protocol still expects it to be sent.
     {
-        let attr_keys: BTreeSet<&str> = dimension_types
+        let attr_keys: BTreeSet<&str> = set
+            .column::<DimensionType>("minecraft:dimension_type")
+            .unwrap_or_default()
             .iter()
-            .flat_map(|(_, dim_type)| dim_type.attributes.0.keys().map(|key| key.as_str()))
+            .flat_map(|dim_type| dim_type.attributes.0.keys().map(|key| key.as_str()))
             .collect();
         if !attr_keys.is_empty() {
             let entries: Vec<Entry> = attr_keys
