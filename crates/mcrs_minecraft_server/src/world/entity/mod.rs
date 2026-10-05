@@ -32,12 +32,7 @@ pub use mcrs_minecraft_level::entity::mob::EntityUuid;
 pub(crate) fn report_registries() -> &'static mcrs_minecraft_registry::RegistrySet {
     static REGISTRIES: std::sync::LazyLock<mcrs_minecraft_registry::RegistrySet> =
         std::sync::LazyLock::new(|| {
-            let report = std::fs::read(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../assets/mcrs/reports/registries.json"
-            ))
-            .expect("the registries report is readable");
-            mcrs_minecraft_world::registries::static_registries(&report)
+            mcrs_minecraft_world::registries::static_registries()
                 .unwrap_or_else(|report| panic!("{report}"))
         });
     &REGISTRIES

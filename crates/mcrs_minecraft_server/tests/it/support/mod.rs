@@ -44,14 +44,8 @@ pub fn insert_registries(app: &mut App) {
 }
 
 fn registries() -> &'static RegistrySet {
-    static REGISTRIES: LazyLock<RegistrySet> = LazyLock::new(|| {
-        let report = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/mcrs/reports/registries.json"
-        ))
-        .expect("the registries report is readable");
-        static_registries(&report).unwrap_or_else(|report| panic!("{report}"))
-    });
+    static REGISTRIES: LazyLock<RegistrySet> =
+        LazyLock::new(|| static_registries().unwrap_or_else(|report| panic!("{report}")));
     &REGISTRIES
 }
 

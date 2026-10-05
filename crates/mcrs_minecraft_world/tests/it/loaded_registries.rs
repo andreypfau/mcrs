@@ -16,6 +16,7 @@ use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
@@ -34,10 +35,47 @@ use std::sync::LazyLock;
 
 use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
 
-static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
-    let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
-    build_static_registries(&bytes).unwrap()
-});
+static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
+
+#[test]
+fn the_generated_static_set_equals_the_report() {
+    let report =
+        from_report(&std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap())
+            .unwrap();
+    let built = build_static_registries().unwrap();
+
+    assert_eq!(built.tables().count(), report.tables().count());
+    for stored in report.tables() {
+        let registry = stored.registry().as_str();
+        let table = built
+            .table(registry)
+            .unwrap_or_else(|| panic!("{registry} is missing from the generated set"));
+        assert_eq!(table.names(), stored.names(), "{registry}");
+        for (id, name) in stored.names().iter().enumerate() {
+            assert_eq!(
+                table.number(name.as_str()),
+                u16::try_from(id).ok(),
+                "{name}"
+            );
+        }
+    }
+
+    let again = build_static_registries().unwrap();
+    for table in built.tables() {
+        let twin = again.table(table.registry().as_str()).unwrap();
+        assert_eq!(twin.names(), table.names(), "{}", table.registry());
+    }
+
+    let with_empty = RegistrySet::from_names(&[
+        ("minecraft:none", &[]),
+        ("minecraft:some", &["minecraft:a", "minecraft:b"]),
+    ])
+    .unwrap();
+    let none = with_empty.table("minecraft:none").unwrap();
+    assert!(none.is_empty());
+    assert_eq!(none.len(), 0);
+    assert_eq!(with_empty.table("minecraft:some").unwrap().len(), 2);
+}
 
 static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
