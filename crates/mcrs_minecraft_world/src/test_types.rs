@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
-use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
+use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
@@ -39,10 +39,6 @@ pub enum TestEnvironment {
     Timelines { timelines: Vec<Holder<Timeline>> },
     #[serde(rename = "minecraft:weather")]
     Weather { weather: Weather },
-}
-
-impl RegistryKey for TestEnvironment {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_environment");
 }
 
 impl RegistryValue for TestEnvironment {
@@ -240,8 +236,4 @@ pub enum TestInstance {
     BlockBased(BlockBasedTest),
     #[serde(rename = "minecraft:function")]
     Function(FunctionTest),
-}
-
-impl RegistryKey for TestInstance {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_instance");
 }

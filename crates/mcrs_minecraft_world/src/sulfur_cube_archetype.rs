@@ -1,7 +1,6 @@
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::value_provider::{DispatchedFloatProvider, FloatProvider};
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_item::{AttributeOperation, SoundEvent};
 use mcrs_minecraft_keys::{Attribute, Item};
 use mcrs_minecraft_registry::{EntrySet, Holder, Id};
@@ -21,10 +20,6 @@ pub struct SulfurCubeArchetype {
     pub contact_damage: Option<ContactDamage>,
     pub knockback_modifiers: KnockbackModifiers,
     pub sound_settings: SoundSettings,
-}
-
-impl RegistryKey for SulfurCubeArchetype {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:sulfur_cube_archetype");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

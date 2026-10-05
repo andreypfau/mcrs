@@ -38,7 +38,7 @@ use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock};
+use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_registry::DynRegistryIndex;
@@ -107,7 +107,7 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<mcrs_minecraft_keys::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<Enchantment, mcrs_minecraft_registry::Registry<Enchantment>>()
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
-        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
+        .add_tagged_registry::<mcrs_minecraft_keys::Timeline, DynRegistryIndex<mcrs_minecraft_keys::Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Biome, DynRegistryIndex<mcrs_minecraft_keys::Biome>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Structure, DynRegistryIndex<mcrs_minecraft_keys::Structure>>();
 
@@ -251,7 +251,7 @@ impl Plugin for MinecraftWorldPlugin {
             );
             {
                 let clocks = registries
-                    .registry::<WorldClock>()
+                    .registry::<mcrs_minecraft_keys::WorldClock>()
                     .expect("the data pack loader parses minecraft:world_clock");
                 let timelines = registries
                     .column::<Timeline>("minecraft:timeline")
@@ -263,7 +263,9 @@ impl Plugin for MinecraftWorldPlugin {
                     ClockTimeMarkers::derive(timelines, &clocks)
                         .expect("the load refused a time marker defined twice for one clock"),
                 );
-                app.insert_resource(DynRegistryIndex::<Timeline>::from_table(timeline_table));
+                app.insert_resource(
+                    DynRegistryIndex::<mcrs_minecraft_keys::Timeline>::from_table(timeline_table),
+                );
             }
             app.insert_resource(registries);
             app.insert_resource(entity_ids);

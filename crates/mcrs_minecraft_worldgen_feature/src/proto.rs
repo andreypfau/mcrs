@@ -13,14 +13,15 @@ use super::rule_test::RuleTest;
 use super::tree::{BlockSet, BlockStateProvider, TreeConfig, UnitFloat, non_empty};
 use mcrs_minecraft_core::Axis;
 use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::value_provider::{
     BoundedIntProvider, FloatProvider, IntProvider, Weighted,
 };
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_density::proto::{BlockState, Either};
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
@@ -32,8 +33,8 @@ pub enum Holder<T> {
     Inline(Box<T>),
 }
 
-impl<T> From<mcrs_minecraft_core::ResourceKey<T, &'static str>> for Holder<T> {
-    fn from(key: mcrs_minecraft_core::ResourceKey<T, &'static str>) -> Self {
+impl<V: RegistryValue> From<ResourceKey<V::Registry, &'static str>> for Holder<V> {
+    fn from(key: ResourceKey<V::Registry, &'static str>) -> Self {
         Holder::Reference((*key.location()).into())
     }
 }
@@ -192,8 +193,8 @@ pub struct PlacedFeature {
     pub placement: Vec<PlacementModifier>,
 }
 
-impl RegistryKey for PlacedFeature {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/placed_feature");
+impl RegistryValue for PlacedFeature {
+    type Registry = keys::PlacedFeature;
 }
 
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
@@ -579,8 +580,8 @@ pub enum Feature {
     },
 }
 
-impl RegistryKey for Feature {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/feature");
+impl RegistryValue for Feature {
+    type Registry = keys::Feature;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -690,8 +691,8 @@ pub struct GeodeCrackSettings {
 #[serde(transparent)]
 pub struct StructureProcessorList(pub Either<WrappedProcessors, Vec<StructureProcessor>>);
 
-impl RegistryKey for StructureProcessorList {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/processor_list");
+impl RegistryValue for StructureProcessorList {
+    type Registry = keys::ProcessorList;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -1,7 +1,5 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::{EntrySet, Id};
 use serde::{Deserialize, Serialize};
@@ -25,8 +23,4 @@ pub enum EnchantmentProvider {
         enchantment: Id<Enchantment>,
         level: IntProvider,
     },
-}
-
-impl RegistryKey for EnchantmentProvider {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:enchantment_provider");
 }

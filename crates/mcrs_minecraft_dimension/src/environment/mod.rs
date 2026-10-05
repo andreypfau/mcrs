@@ -16,6 +16,7 @@ use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{DynRegistryIndex, Registry, RegistrySet};
 
 use crate::dimension_type::{DimensionType, Skybox};
@@ -25,7 +26,7 @@ use mcrs_minecraft_environment::attribute::{
     EnvironmentAttributeMap, ModifierError, Operation, apply,
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
-use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
+use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
@@ -175,7 +176,7 @@ impl EnvironmentAttributes {
     pub fn build(
         dimension: &DimensionEnvironment,
         timelines: &[&Timeline],
-        world_clocks: &Registry<WorldClock>,
+        world_clocks: &Registry<keys::WorldClock>,
     ) -> Result<Self, EnvironmentError> {
         let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
             .values()
@@ -300,14 +301,14 @@ impl DimensionEnvironments {
 pub fn build_dimension_environments(
     registries: Res<RegistrySet>,
     dimension_types: Res<Assets<DimensionType>>,
-    timeline_index: Res<DynRegistryIndex<Timeline>>,
+    timeline_index: Res<DynRegistryIndex<keys::Timeline>>,
     tag_files: Res<Assets<TagFile>>,
     asset_server: Res<AssetServer>,
     mut environments: ResMut<DimensionEnvironments>,
 ) {
     let (Some(timelines), Some(world_clocks)) = (
-        registries.column::<Timeline>(Timeline::KEY.as_str()),
-        registries.registry::<WorldClock>(),
+        registries.column::<Timeline>(keys::Timeline::KEY.as_str()),
+        registries.registry::<keys::WorldClock>(),
     ) else {
         tracing::error!(
             "the registry set holds no timelines and clocks to build environments from"

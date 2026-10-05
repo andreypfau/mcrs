@@ -13,8 +13,6 @@ pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
 
 use crate::node::distance::DistanceMetric;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder};
 use mcrs_minecraft_worldgen_noise::sample_grid::Axis;
 use serde::{Deserialize, Serialize};
@@ -266,10 +264,6 @@ pub enum ProtoDensityFunction {
     FindTopSurface(FindTopSurfaceArguments),
     #[serde(rename = "minecraft:old_blended_noise")]
     OldBlendedNoise(BlendedNoiseArguments),
-}
-
-impl RegistryKey for ProtoDensityFunction {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/density_function");
 }
 
 fn zero_holder() -> DensityFunctionHolder {

@@ -7,16 +7,16 @@ use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_dimension::environment::DimensionEnvironments;
-use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let tags = app.world().resource::<DynTagRegistry<Timeline>>();
-    let index = app.world().resource::<DynRegistryIndex<Timeline>>();
-    let key = TagKey::<Timeline, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let tags = app.world().resource::<DynTagRegistry<keys::Timeline>>();
+    let index = app.world().resource::<DynRegistryIndex<keys::Timeline>>();
+    let key = TagKey::<keys::Timeline, _>::from_location(ResourceLocation::parse(tag).unwrap());
     let mut names: Vec<String> = tags
         .get(&key)
         .expect("the tag is resolved")

@@ -1,5 +1,3 @@
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_item::Template;
 use serde::{Deserialize, Serialize};
 
@@ -10,10 +8,6 @@ pub type Style = mcrs_minecraft_text::Style<Template>;
 pub struct ChatType {
     pub chat: ChatDecoration,
     pub narration: ChatDecoration,
-}
-
-impl RegistryKey for ChatType {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:chat_type");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
