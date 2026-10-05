@@ -1,3 +1,4 @@
+use crate::WorldSave;
 use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::{Commands, ResMut};
@@ -5,14 +6,17 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Entries, Id, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
+use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::registries::refuse;
+use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 use mcrs_minecraft_worldgen::tables::asset_path;
 use std::env;
+use std::ops::Deref;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -29,19 +33,37 @@ pub fn configured_preset(
     report.require(&registry, key.as_ref().map_or(name, ResourceKey::as_str))
 }
 
-pub(crate) fn choose_world_preset(mut commands: Commands, set: Res<RegistrySet>) {
+pub(crate) fn bake_dimensions(
+    mut commands: Commands,
+    set: Res<RegistrySet>,
+    save: Option<Res<WorldSave>>,
+    mut seed: ResMut<WorldSeed>,
+) {
     let name = get_world_preset_name();
     let mut report = LoadReport::new();
-    let Some(id) = configured_preset(&name, &set, &mut report) else {
+    let Some(preset) = configured_preset(&name, &set, &mut report) else {
         refuse(&report)
     };
-    let presets = set
-        .entries::<keys::WorldPreset, WorldPreset>()
-        .expect("the data pack loader parses minecraft:worldgen/world_preset");
-    let loaded = LoadedWorldPreset { id, presets };
+
+    let mut base = Dimensions::new();
+    if let Some(save) = save {
+        let settings = read_world_gen_settings(&save.0, &set).unwrap_or_else(|err| panic!("{err}"));
+        seed.0 = settings.seed as u64;
+        base = settings.dimensions;
+    }
+    if base.is_empty() {
+        base = set
+            .entries::<keys::WorldPreset, WorldPreset>()
+            .expect("the data pack loader parses minecraft:worldgen/world_preset")[preset]
+            .dimensions
+            .clone();
+    }
+    let Some(list) = bake(&base, &set, &mut report) else {
+        refuse(&report)
+    };
 
     let mut sources = DimensionBiomeSources::default();
-    for (dimension, entry) in &loaded.preset().dimensions {
+    for (dimension, entry) in &list {
         if let ChunkGenerator::Noise(generator) = &entry.generator {
             sources.0.insert(
                 dimension.location().clone(),
@@ -49,19 +71,15 @@ pub(crate) fn choose_world_preset(mut commands: Commands, set: Res<RegistrySet>)
             );
         }
     }
-    info!(
-        preset = %name,
-        dimensions = loaded.preset().dimensions.len(),
-        "world preset"
-    );
+    info!(preset = %name, dimensions = list.len(), "dimension list");
     commands.insert_resource(sources);
-    commands.insert_resource(loaded);
+    commands.insert_resource(DimensionList(list.into()));
 }
 
-/// Only the noise settings the chosen preset names are loaded: the rest of the
+/// Only the noise settings the baked dimensions name are loaded: the rest of the
 /// registry is names, and a dimension nobody spawns costs no asset.
-pub(crate) fn request_preset_noise_settings(
-    preset: Res<LoadedWorldPreset>,
+pub(crate) fn request_dimension_noise_settings(
+    dimensions: Res<DimensionList>,
     set: Res<RegistrySet>,
     asset_server: Res<AssetServer>,
     mut loaded: ResMut<LoadedRegistryAssets>,
@@ -69,12 +87,12 @@ pub(crate) fn request_preset_noise_settings(
     let settings = set
         .registry::<keys::NoiseSettings>()
         .expect("the data pack declares minecraft:worldgen/noise_settings");
-    for entry in preset.preset().dimensions.values() {
+    for (_, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
             continue;
         };
         let Some(name) = settings.key(generator.settings) else {
-            error!(id = ?generator.settings, "the preset names noise settings the registry does not number");
+            error!(id = ?generator.settings, "the dimension names noise settings the registry does not number");
             continue;
         };
         let handle = asset_server
@@ -83,15 +101,15 @@ pub(crate) fn request_preset_noise_settings(
     }
 }
 
+/// Every dimension the world spawns, in spawn order. Written once at `Startup`.
 #[derive(Resource, Clone)]
-pub struct LoadedWorldPreset {
-    pub id: Id<keys::WorldPreset>,
-    presets: Entries<keys::WorldPreset, WorldPreset>,
-}
+pub struct DimensionList(Arc<[(ResourceKey<keys::Dimension>, DimensionEntry)]>);
 
-impl LoadedWorldPreset {
-    pub fn preset(&self) -> &WorldPreset {
-        &self.presets[self.id]
+impl Deref for DimensionList {
+    type Target = [(ResourceKey<keys::Dimension>, DimensionEntry)];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

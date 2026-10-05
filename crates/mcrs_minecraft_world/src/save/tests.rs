@@ -1,11 +1,16 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::*;
+use crate::dimension::Dimensions;
+use crate::registries::test_registries;
+use crate::worldgen::world_preset::WorldPreset;
 
 const OBSERVED_UUID_INTS: [i32; 4] = [-1495452199, -11581732, -1243709312, 65080886];
 const OBSERVED_UUID_FILE_NAME: &str = "a6dd35d9-ff4f-46dc-b5de-808003e10e36";
@@ -349,15 +354,21 @@ fn singleplayer_uuid_ints_name_the_player_file_when_a_player_has_opened_the_worl
     assert!(level.singleplayer_uuid.is_none());
 }
 
+fn normal_dimensions() -> Dimensions {
+    let set = test_registries();
+    let id = set
+        .registry::<keys::WorldPreset>()
+        .and_then(|registry| registry.get("minecraft:normal"))
+        .expect("the normal preset is loaded");
+    set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
+        .dimensions
+        .clone()
+}
+
 fn world_gen_settings_payload() -> NbtCompound {
-    let mut generator = NbtCompound::new();
-    generator.put_string("type", "minecraft:noise".to_string());
-    generator.put_string("settings", "minecraft:overworld".to_string());
-    let mut overworld = NbtCompound::new();
-    overworld.put_string("type", "minecraft:overworld".to_string());
-    overworld.put_component("generator", generator);
-    let mut dimensions = NbtCompound::new();
-    dimensions.put_component("minecraft:overworld", overworld);
+    let dimensions = test_registries()
+        .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&normal_dimensions()))
+        .unwrap();
 
     let mut payload = NbtCompound::new();
     payload.put_bool("bonus_chest", false);
@@ -379,6 +390,7 @@ fn every_file_kind_tagged(data_version: Option<NbtTag>) -> [Result<(), SaveError
         parse_world_gen_settings(
             &saved_data_tagged(tag(), world_gen_settings_payload()),
             path(),
+            test_registries(),
         )
         .map(drop),
         parse_weather(&saved_data_tagged(tag(), weather_payload()), path()).map(drop),
@@ -451,7 +463,36 @@ fn a_missing_file_is_distinguishable_from_a_corrupt_one() {
 #[test]
 fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
     let payload = world_gen_settings_payload();
-    let settings =
-        parse_world_gen_settings(&saved_data(VERSION.world_version, payload), path()).unwrap();
-    assert_eq!(settings, WorldGenSettings { seed: 2 });
+    let settings = parse_world_gen_settings(
+        &saved_data(VERSION.world_version, payload),
+        path(),
+        test_registries(),
+    )
+    .unwrap();
+    assert_eq!(
+        settings,
+        WorldGenSettings {
+            seed: 2,
+            dimensions: normal_dimensions(),
+        }
+    );
+}
+
+#[test]
+fn world_gen_settings_keep_their_dimensions() {
+    let set = test_registries();
+    let world = std::env::temp_dir().join(format!("mcrs_save_gen_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&world);
+    let mut dimensions = normal_dimensions();
+    let extra = ResourceKey::<keys::Dimension>::from_location(clock("test:extra"));
+    let overworld = dimensions["minecraft:overworld"].clone();
+    dimensions.insert(extra, overworld);
+    let settings = WorldGenSettings {
+        seed: -7,
+        dimensions,
+    };
+
+    write_world_gen_settings(&world, &settings, set).unwrap();
+    assert_eq!(read_world_gen_settings(&world, set).unwrap(), settings);
+    let _ = std::fs::remove_dir_all(world);
 }

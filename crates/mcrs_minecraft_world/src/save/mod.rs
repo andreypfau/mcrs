@@ -4,9 +4,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use serde::Deserialize;
+use mcrs_minecraft_registry::RegistrySet;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::dimension::Dimensions;
 
 use mcrs_minecraft_environment::world_clock::ClockState;
 
@@ -77,9 +80,11 @@ pub struct LevelDat {
     pub spawn: RespawnData,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorldGenSettings {
     pub seed: i64,
+    #[serde(default)]
+    pub dimensions: Dimensions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -118,9 +123,39 @@ pub fn read_world_clocks(world: &Path) -> Result<WorldClockStates, SaveError> {
     parse_world_clocks(&read_bytes(&path)?, &path)
 }
 
-pub fn read_world_gen_settings(world: &Path) -> Result<WorldGenSettings, SaveError> {
+pub fn read_world_gen_settings(
+    world: &Path,
+    set: &RegistrySet,
+) -> Result<WorldGenSettings, SaveError> {
     let path = saved_data_path(world, "world_gen_settings");
-    parse_world_gen_settings(&read_bytes(&path)?, &path)
+    parse_world_gen_settings(&read_bytes(&path)?, &path, set)
+}
+
+// chisle: only the seed and the dimensions are written; bonus_chest and generate_structures are dropped, and the first writer that preserves a vanilla file needs them.
+pub fn write_world_gen_settings(
+    world: &Path,
+    settings: &WorldGenSettings,
+    set: &RegistrySet,
+) -> Result<(), SaveError> {
+    let path = saved_data_path(world, "world_gen_settings");
+    let io = |source| SaveError::Io {
+        path: path.clone(),
+        source,
+    };
+    let file = SavedDataFile {
+        data: settings,
+        data_version: VERSION.world_version,
+    };
+    let bytes = set
+        .scope(|| mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&file))
+        .map_err(|source| SaveError::Nbt {
+            path: path.clone(),
+            source,
+        })?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(io)?;
+    }
+    fs::write(&path, bytes).map_err(io)
 }
 
 pub fn read_weather(world: &Path) -> Result<WeatherData, SaveError> {
@@ -225,7 +260,7 @@ struct RawRespawnData {
     pitch: f32,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct SavedDataFile<T> {
     data: T,
     #[serde(rename = "DataVersion")]
@@ -276,8 +311,12 @@ fn parse_world_clocks(bytes: &[u8], path: &Path) -> Result<WorldClockStates, Sav
     Ok(file.data)
 }
 
-fn parse_world_gen_settings(bytes: &[u8], path: &Path) -> Result<WorldGenSettings, SaveError> {
-    let file: SavedDataFile<WorldGenSettings> = decode(bytes, path)?;
+fn parse_world_gen_settings(
+    bytes: &[u8],
+    path: &Path,
+    set: &RegistrySet,
+) -> Result<WorldGenSettings, SaveError> {
+    let file: SavedDataFile<WorldGenSettings> = set.scope(|| decode(bytes, path))?;
     check_data_version(file.data_version, path)?;
     Ok(file.data)
 }

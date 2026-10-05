@@ -69,6 +69,10 @@ impl LoadReport {
         }
     }
 
+    pub fn missing<R: RegistryKey>(&mut self, name: &str, message: impl fmt::Display) {
+        self.record(&R::KEY.into(), Some(name), None, message.to_string());
+    }
+
     pub fn registry<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Registry<R>> {
         let registry = set.registry::<R>();
         if registry.is_none() {
