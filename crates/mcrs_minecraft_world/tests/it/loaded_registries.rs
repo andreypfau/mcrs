@@ -1604,6 +1604,32 @@ fn trade_values_the_game_refuses_fail_to_parse() {
     }
 }
 
+#[test]
+fn every_built_in_biome_reads_through_the_layered_file_source() {
+    let mut app = App::new();
+    app.register_asset_source(
+        AssetSourceId::Default,
+        layered_file_source(
+            &AssetPlugin::default().file_path,
+            mcrs_minecraft_worldgen_builtin::asset,
+        ),
+    );
+    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
+    let source = app
+        .world()
+        .resource::<AssetServer>()
+        .get_source(AssetSourceId::Default)
+        .expect("default AssetSource missing")
+        .reader();
+
+    let paths = mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome");
+    assert!(!paths.is_empty());
+    for path in paths {
+        bevy_tasks::block_on(read_whole(source, Path::new(&path)))
+            .unwrap_or_else(|error| panic!("{path}: {error}"));
+    }
+}
+
 fn timeline_file(clock: &str, markers: &str) -> String {
     format!(r#"{{"clock":"{clock}","period_ticks":24000,"time_markers":{markers}}}"#)
 }
@@ -1612,7 +1638,10 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
-        layered_file_source(&AssetPlugin::default().file_path),
+        layered_file_source(
+            &AssetPlugin::default().file_path,
+            mcrs_minecraft_worldgen_builtin::asset,
+        ),
     );
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();

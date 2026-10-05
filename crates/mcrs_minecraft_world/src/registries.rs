@@ -305,7 +305,10 @@ pub fn test_registries() -> &'static RegistrySet {
         let mut app = App::new();
         app.register_asset_source(
             AssetSourceId::Default,
-            layered_file_source(&AssetPlugin::default().file_path),
+            layered_file_source(
+                &AssetPlugin::default().file_path,
+                mcrs_minecraft_worldgen_builtin::asset,
+            ),
         );
         app.add_plugins((
             TaskPoolPlugin::default(),

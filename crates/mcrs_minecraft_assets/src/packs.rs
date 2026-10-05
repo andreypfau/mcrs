@@ -63,10 +63,63 @@ fn refused(path: &Path, first: &Path, second: &Path) -> AssetReaderError {
     )))
 }
 
-pub fn layered_file_source(root: &str) -> AssetSourceBuilder {
+pub type BuiltinAsset = fn(&str) -> Option<Vec<u8>>;
+
+/// The packs layered over `inner`, answering from `builtin` for a path no layer
+/// holds. A file always wins, so a datapack overrides a built-in by shipping
+/// the same path.
+pub fn layered_reader(
+    inner: Box<dyn ErasedAssetReader>,
+    builtin: BuiltinAsset,
+) -> Box<dyn ErasedAssetReader> {
+    Box::new(BuiltinFallback {
+        layers: PackLayers::new(inner),
+        builtin,
+    })
+}
+
+pub fn layered_file_source(root: &str, builtin: BuiltinAsset) -> AssetSourceBuilder {
     let mut files = AssetSource::get_default_reader(root.to_owned());
     AssetSourceBuilder::platform_default(root, None)
-        .with_reader(move || Box::new(PackLayers::new(files())))
+        .with_reader(move || layered_reader(files(), builtin))
+}
+
+struct BuiltinFallback {
+    layers: PackLayers,
+    builtin: BuiltinAsset,
+}
+
+impl AssetReader for BuiltinFallback {
+    async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        match AssetReader::read(&self.layers, path).await {
+            Err(AssetReaderError::NotFound(missing)) => path
+                .to_str()
+                .and_then(self.builtin)
+                .map(|bytes| Box::new(VecReader::new(bytes)) as Box<dyn Reader>)
+                .ok_or(AssetReaderError::NotFound(missing)),
+            read => read,
+        }
+    }
+
+    async fn read_meta<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
+        AssetReader::read_meta(&self.layers, path).await
+    }
+
+    // chisle: a directory listing shows files only. The registry loader adds
+    // the built-in paths itself; merging the listings here lifts that.
+    async fn read_directory<'a>(
+        &'a self,
+        path: &'a Path,
+    ) -> Result<Box<PathStream>, AssetReaderError> {
+        AssetReader::read_directory(&self.layers, path).await
+    }
+
+    async fn is_directory<'a>(&'a self, path: &'a Path) -> Result<bool, AssetReaderError> {
+        AssetReader::is_directory(&self.layers, path).await
+    }
 }
 
 impl AssetReader for PackLayers {
@@ -131,9 +184,26 @@ mod tests {
         PackLayers::new(Box::new(MemoryAssetReader { root }))
     }
 
-    fn read(layers: &PackLayers, path: &str) -> Result<String, AssetReaderError> {
+    fn read(layers: &dyn ErasedAssetReader, path: &str) -> Result<String, AssetReaderError> {
         let bytes = bevy_tasks::block_on(read_whole(layers, Path::new(path)))?;
         Ok(String::from_utf8(bytes).unwrap())
+    }
+
+    #[test]
+    fn a_built_in_answers_only_for_a_path_no_layer_holds() {
+        let root = Dir::default();
+        root.insert_asset_text(Path::new("minecraft/in_root.json"), "root");
+        root.insert_asset_text(Path::new("mcrs/datapacks/a/minecraft/in_pack.json"), "pack");
+        let reader = layered_reader(Box::new(MemoryAssetReader { root }), |path| {
+            Some(format!("built-in {path}").into_bytes())
+        });
+
+        assert_eq!(read(&*reader, "minecraft/in_root.json").unwrap(), "root");
+        assert_eq!(read(&*reader, "minecraft/in_pack.json").unwrap(), "pack");
+        assert_eq!(
+            read(&*reader, "minecraft/absent.json").unwrap(),
+            "built-in minecraft/absent.json"
+        );
     }
 
     #[test]
