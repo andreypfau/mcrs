@@ -1,4 +1,4 @@
-use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
+use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys::sound_event;
@@ -31,7 +31,7 @@ fn misnumbered_sounds() -> RegistryAccess {
         "intentionally_empty",
     ];
     let mut access = RegistryAccess::default();
-    access.register(RegistrySnapshotErased::from_entries(
+    access.register(SyncedRegistry::from_entries(
         "minecraft:sound_event",
         names
             .iter()

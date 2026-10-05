@@ -18,7 +18,7 @@ use bevy_ecs::world::World;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
-use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
+use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, SyncedRegistry};
 use mcrs_minecraft_biome::parameter_list::{
     MultiNoiseBiomeSourceParameterList, check_parameter_list_biomes,
 };
@@ -27,7 +27,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
-use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
+use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Items, JukeboxSong, PaintingVariantValue, TrimMaterial,
@@ -316,9 +316,7 @@ pub fn register_loaded<T: 'static, N: Serialize>(
             })
             .collect()
     });
-    access.register(RegistrySnapshotErased::from_registry_entries(
-        registry, entries,
-    ));
+    access.register(SyncedRegistry::from_registry_entries(registry, entries));
 }
 
 pub fn test_registries() -> &'static RegistrySet {
@@ -353,6 +351,50 @@ pub fn test_registries() -> &'static RegistrySet {
     &SET
 }
 
+pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
+    world.insert_resource(
+        registries
+            .registry::<keys::Biome>()
+            .expect("the data pack loader parses minecraft:worldgen/biome"),
+    );
+    world.insert_resource(
+        registries
+            .registry::<keys::Structure>()
+            .expect("the data pack declares minecraft:worldgen/structure"),
+    );
+    world.insert_resource(
+        registries
+            .registry::<Enchantment>()
+            .expect("the data pack loader parses minecraft:enchantment"),
+    );
+    world.insert_resource(
+        registries
+            .entries::<Enchantment, EnchantmentData>()
+            .expect("the data pack loader parses minecraft:enchantment"),
+    );
+    let clocks = registries
+        .registry::<keys::WorldClock>()
+        .expect("the data pack loader parses minecraft:world_clock");
+    let timelines = registries
+        .column::<Timeline>(keys::Timeline::KEY.as_str())
+        .expect("the data pack loader parses minecraft:timeline");
+    world.insert_resource(
+        ClockTimeMarkers::derive(timelines, &clocks)
+            .expect("the load refused a time marker defined twice for one clock"),
+    );
+    world.insert_resource(
+        registries
+            .registry::<keys::Timeline>()
+            .expect("the data pack loader parses minecraft:timeline"),
+    );
+    world.insert_resource(
+        registries
+            .registry::<keys::EntityType>()
+            .expect("the registries report holds minecraft:entity_type"),
+    );
+    world.insert_resource(registries.clone());
+}
+
 pub fn share_registries(world: &mut World) {
     share::<RegistrySet>(world);
     share::<RegistryAccess>(world);
@@ -360,6 +402,11 @@ pub fn share_registries(world: &mut World) {
     share::<Items>(world);
     share::<Registry<Enchantment>>(world);
     share::<Entries<Enchantment, EnchantmentData>>(world);
+    share::<Registry<keys::Biome>>(world);
+    share::<Registry<keys::Structure>>(world);
+    share::<Registry<keys::Timeline>>(world);
+    share::<Registry<keys::EntityType>>(world);
+    share::<ClockTimeMarkers>(world);
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
 }
 
@@ -395,6 +442,53 @@ mod tests {
         let text = report.to_string();
         assert_eq!(text.lines().count(), 1, "{text}");
         assert!(text.contains("minecraft:x"), "{text}");
+    }
+
+    #[derive(serde::Deserialize, Serialize)]
+    struct Probe {
+        asset_id: String,
+    }
+
+    impl RegistryKey for Probe {
+        const KEY: mcrs_minecraft_core::ResourceLocation<&'static str> =
+            mcrs_minecraft_core::rl!("minecraft:test_variant");
+    }
+
+    #[test]
+    fn only_an_entry_from_the_vanilla_pack_claims_the_vanilla_source() {
+        let file = |path: &str| PackFile {
+            path: path.to_owned(),
+            bytes: Some(br#"{"asset_id":"x"}"#.to_vec()),
+        };
+        let packs = [
+            Pack {
+                name: VANILLA_PACK.to_owned(),
+                files: vec![file("minecraft/test_variant/a.json")],
+                built: Vec::new(),
+            },
+            Pack {
+                name: "extra".to_owned(),
+                files: vec![file("minecraft/test_variant/b.json")],
+                built: Vec::new(),
+            },
+        ];
+        let mut registries =
+            WorldRegistries::new([mcrs_minecraft_core::ResourceLocation::from(Probe::KEY)]);
+        registries.parse::<Probe>(Probe::KEY);
+        let set = registries.load(&RegistrySet::new(), &packs).unwrap();
+
+        let mut access = RegistryAccess::default();
+        register_loaded::<Probe, _>(&mut access, &set, Probe::KEY.as_str(), |probe| {
+            probe.asset_id.clone()
+        });
+        let claimed: Vec<_> = access
+            .iter()
+            .next()
+            .unwrap()
+            .iter_entries()
+            .map(|entry| (entry.location.as_str(), entry.pack_source.is_some()))
+            .collect();
+        assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
     }
 
     fn refused_without(registry: &str) -> LoadReport {

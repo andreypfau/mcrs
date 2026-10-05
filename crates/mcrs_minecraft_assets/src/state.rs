@@ -12,7 +12,7 @@ use bevy_state::prelude::States;
 /// - **LoadingDataPack**: Bevy asset loaders are running; worldgen JSON assets
 ///   are being loaded (biomes, density functions, noise settings, etc.).
 /// - **WorldgenFreeze**: All worldgen assets are ready.  Tags are resolved,
-///   `RegistrySnapshot` is assigned stable network IDs, `NoiseRouter` is
+///   the registries are registered for the network, `NoiseRouter` is
 ///   compiled.  No further data-pack changes until next reconfiguration.
 /// - **Playing**: Normal server operation.
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]

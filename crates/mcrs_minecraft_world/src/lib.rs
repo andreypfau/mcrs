@@ -34,13 +34,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
-use mcrs_minecraft_item::enchantment::data::EnchantmentData;
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
 #[derive(Resource, Default)]
@@ -95,8 +89,7 @@ impl Plugin for MinecraftWorldPlugin {
                 check_registry_assets_ready.run_if(in_state(AppState::LoadingDataPack)),
             )
             // Ordering contract: every system in this schedule that calls
-            // `RegistryAccess::register` — including systems injected by the
-            // `snapshot_registry!` macro elsewhere in the codebase — must
+            // `RegistryAccess::register` must
             // complete before `transition_to_playing` fires. `transition_to_playing`
             // triggers the `WorldgenFreeze → Playing` state transition, and
             // `spawn_dim_subapp` runs at `OnEnter(AppState::Playing)`, where it
@@ -154,9 +147,6 @@ impl Plugin for MinecraftWorldPlugin {
             );
             resolvers::run_resolvers(app.world_mut(), &registries)
                 .unwrap_or_else(|report| registries::refuse(&report));
-            let entity_types = registries
-                .registry::<EntityType>()
-                .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));
             let block_registry = registries
                 .registry::<mcrs_minecraft_keys::Block>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
@@ -166,45 +156,7 @@ impl Plugin for MinecraftWorldPlugin {
                     .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
                 &registries,
             );
-            app.insert_resource(
-                registries
-                    .registry::<mcrs_minecraft_keys::Biome>()
-                    .expect("the data pack loader parses minecraft:worldgen/biome"),
-            );
-            app.insert_resource(
-                registries
-                    .registry::<mcrs_minecraft_keys::Structure>()
-                    .expect("the data pack declares minecraft:worldgen/structure"),
-            );
-            app.insert_resource(
-                registries
-                    .registry::<Enchantment>()
-                    .expect("the data pack loader parses minecraft:enchantment"),
-            );
-            app.insert_resource(
-                registries
-                    .entries::<Enchantment, EnchantmentData>()
-                    .expect("the data pack loader parses minecraft:enchantment"),
-            );
-            {
-                let clocks = registries
-                    .registry::<mcrs_minecraft_keys::WorldClock>()
-                    .expect("the data pack loader parses minecraft:world_clock");
-                let timelines = registries
-                    .column::<Timeline>(keys::Timeline::KEY.as_str())
-                    .expect("the data pack loader parses minecraft:timeline");
-                app.insert_resource(
-                    ClockTimeMarkers::derive(timelines, &clocks)
-                        .expect("the load refused a time marker defined twice for one clock"),
-                );
-                app.insert_resource(
-                    registries
-                        .registry::<mcrs_minecraft_keys::Timeline>()
-                        .expect("the data pack loader parses minecraft:timeline"),
-                );
-            }
-            app.insert_resource(registries.clone());
-            app.insert_resource(entity_types);
+            registries::insert_registry_resources(app.world_mut(), &registries);
             (block_registry, registries)
         };
         mcrs_minecraft_worldgen::bevy::register_worldgen_loaders(app, &registries);

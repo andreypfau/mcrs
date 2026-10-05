@@ -16,7 +16,7 @@ use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_minecraft_assets::RegistrySnapshotErased;
+use mcrs_minecraft_assets::SyncedRegistry;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::codec::Bounded;
@@ -81,8 +81,9 @@ impl Server {
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.add_message::<InboundPlayerSpawn>();
         app.insert_resource(WorldSave(save.clone()));
-        app.world_mut().resource_mut::<RegistryAccess>().register(
-            RegistrySnapshotErased::from_entries(
+        app.world_mut()
+            .resource_mut::<RegistryAccess>()
+            .register(SyncedRegistry::from_entries(
                 "minecraft:item",
                 items
                     .0
@@ -90,8 +91,7 @@ impl Server {
                     .map(|entry| (entry.identifier.clone(), None))
                     .collect(),
                 None,
-            ),
-        );
+            ));
         host_app::drive_to_playing(&mut app);
         host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
         let dim = app

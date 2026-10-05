@@ -7,6 +7,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
 
@@ -158,9 +159,15 @@ pub struct DuplicateTimeMarker {
 /// Markers have no registry of their own: this table is derived once from the
 /// `timeline` column and never touched again.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct ClockTimeMarkers(BTreeMap<Id<keys::WorldClock>, MarkersOfClock>);
+pub struct ClockTimeMarkers(Arc<BTreeMap<Id<keys::WorldClock>, MarkersOfClock>>);
 
 type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
+
+impl SharedResource for ClockTimeMarkers {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 impl ClockTimeMarkers {
     pub fn get(&self, clock: Id<keys::WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
@@ -192,7 +199,7 @@ impl ClockTimeMarkers {
         timelines: &[Timeline],
         clocks: &Registry<keys::WorldClock>,
     ) -> Result<Self, Vec<(usize, DuplicateTimeMarker)>> {
-        let mut table = ClockTimeMarkers::default();
+        let mut table: BTreeMap<Id<keys::WorldClock>, MarkersOfClock> = BTreeMap::new();
         let mut duplicates = Vec::new();
         for (index, timeline) in timelines.iter().enumerate() {
             let Some(clock) = clocks.name(timeline.clock) else {
@@ -204,7 +211,7 @@ impl ClockTimeMarkers {
                     period_ticks: timeline.period_ticks,
                     show_in_commands: marker.show_in_commands,
                 };
-                let of_clock = table.0.entry(timeline.clock).or_default();
+                let of_clock = table.entry(timeline.clock).or_default();
                 if of_clock.contains_key(id) {
                     duplicates.push((
                         index,
@@ -219,7 +226,7 @@ impl ClockTimeMarkers {
             }
         }
         if duplicates.is_empty() {
-            Ok(table)
+            Ok(Self(Arc::new(table)))
         } else {
             Err(duplicates)
         }
