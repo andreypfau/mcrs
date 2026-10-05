@@ -1,9 +1,8 @@
 use super::villager::VillagerProfession;
 use bytes::Buf;
-use mcrs_minecraft_entity::VillagerType;
 use mcrs_minecraft_entity::attribute;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{RegistrySet, StaticRegistry};
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -102,13 +101,12 @@ fn every_template_entity_kind_is_a_registered_entity_type() {
 #[test]
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
-    let types: Vec<String> = VillagerType::ALL.iter().map(serde_name).collect();
-    assert_eq!(types, census.ids["minecraft:villager_type"]);
+    assert_eq!(
+        mcrs_minecraft_keys::VillagerType::NAMES,
+        census.ids["minecraft:villager_type"]
+    );
     let professions: Vec<String> = VillagerProfession::ALL.iter().map(serde_name).collect();
     assert_eq!(professions, census.ids["minecraft:villager_profession"]);
-    for (index, kind) in VillagerType::ALL.iter().enumerate() {
-        assert_eq!(kind.protocol_id() as usize, index);
-    }
     for (index, profession) in VillagerProfession::ALL.iter().enumerate() {
         assert_eq!(profession.protocol_id() as usize, index);
     }

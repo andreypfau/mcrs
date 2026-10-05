@@ -179,6 +179,15 @@ macro_rules! data_components {
             let _ = position;
         };
 
+        const _: () = assert!(
+            mcrs_minecraft_registry::static_rows::rows_match(
+                &[$((concat!("minecraft:", $name), $id)),*],
+                mcrs_minecraft_keys::data_component_type::NAMES,
+                true,
+            ),
+            "the data component table must equal the generated data_component_type names row by row",
+        );
+
         impl ItemComponentKind {
             pub const COUNT: usize = [$($id),*].len();
             pub const ALL: [ItemComponentKind; Self::COUNT] = [$(Self::$ty),*];
