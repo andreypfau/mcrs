@@ -23,7 +23,7 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";

@@ -11,8 +11,8 @@ use mcrs_minecraft_assets::{DynTagRegistry, RegistrySnapshot};
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::key::Block as VanillaBlock;
-use mcrs_minecraft_registry::key::Fluid;
+use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_worldgen::bevy::{
     BlockStateProviderAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset,
     TemplatePoolAsset,
@@ -86,7 +86,7 @@ fn build_dimension_features(
     asset_server: Res<AssetServer>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
-    block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
+    block_tags: Option<Res<DynTagRegistry<Block>>>,
     fluid_tags: Option<Res<DynTagRegistry<Fluid>>>,
     biome_registry: Res<RegistrySnapshot<Biome>>,
 ) {

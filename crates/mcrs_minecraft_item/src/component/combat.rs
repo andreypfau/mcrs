@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_entity::DamageType;
+use mcrs_minecraft_keys::DamageType;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{Holder, key};

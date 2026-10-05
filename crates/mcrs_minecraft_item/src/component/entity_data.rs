@@ -1,9 +1,9 @@
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::EntityType;
+use mcrs_minecraft_keys::BlockEntityType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::key::BlockEntityType;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::TypedEntityData;

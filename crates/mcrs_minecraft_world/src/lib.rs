@@ -92,24 +92,24 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             (
-                request_every_tag::<mcrs_minecraft_registry::key::Block, u16>,
-                request_every_tag::<mcrs_minecraft_registry::key::Fluid, u16>,
+                request_every_tag::<mcrs_minecraft_keys::Block, u16>,
+                request_every_tag::<mcrs_minecraft_keys::Fluid, u16>,
                 request_every_tag::<mcrs_minecraft_item::Item, u16>,
                 request_every_tag::<EnchantmentData, mcrs_minecraft_registry::Id<EnchantmentData>>,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
-                request_every_tag::<mcrs_minecraft_registry::key::Biome, u16>,
-                request_every_tag::<mcrs_minecraft_registry::key::Structure, u16>,
+                request_every_tag::<mcrs_minecraft_keys::Biome, u16>,
+                request_every_tag::<mcrs_minecraft_keys::Structure, u16>,
             )
                 .in_set(TagPhase::Request),
         );
-        app.add_tagged_registry::<mcrs_minecraft_registry::key::Block, mcrs_minecraft_block::definition::Blocks>()
-        .add_tagged_registry::<mcrs_minecraft_registry::key::Fluid, mcrs_minecraft_block::definition::Fluids>()
+        app.add_tagged_registry::<mcrs_minecraft_keys::Block, mcrs_minecraft_block::definition::Blocks>()
+        .add_tagged_registry::<mcrs_minecraft_keys::Fluid, mcrs_minecraft_block::definition::Fluids>()
         .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
         .add_tagged_registry::<EnchantmentData, mcrs_minecraft_registry::Registry<EnchantmentData>>()
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
-        .add_tagged_registry::<mcrs_minecraft_registry::key::Biome, DynRegistryIndex<mcrs_minecraft_registry::key::Biome>>()
-        .add_tagged_registry::<mcrs_minecraft_registry::key::Structure, DynRegistryIndex<mcrs_minecraft_registry::key::Structure>>();
+        .add_tagged_registry::<mcrs_minecraft_keys::Biome, DynRegistryIndex<mcrs_minecraft_keys::Biome>>()
+        .add_tagged_registry::<mcrs_minecraft_keys::Structure, DynRegistryIndex<mcrs_minecraft_keys::Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -228,7 +228,7 @@ impl Plugin for MinecraftWorldPlugin {
                 .registry::<EntityType>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));
             let block_registry = registries
-                .registry::<mcrs_minecraft_registry::key::Block>()
+                .registry::<mcrs_minecraft_keys::Block>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
             let item_registry = registries
                 .registry::<mcrs_minecraft_item::Item>()

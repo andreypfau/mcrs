@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_entity::MobEffect;
+use mcrs_minecraft_keys::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

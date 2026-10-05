@@ -10,8 +10,8 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -519,11 +519,8 @@ pub struct ModernCarverBlockIds {
 }
 
 impl ModernCarverBlockIds {
-    pub fn resolve(
-        blocks: &BlockDefinitions,
-        block_tags: Option<&DynTagRegistry<VanillaBlock>>,
-    ) -> Self {
-        let key: TagKey<VanillaBlock, Arc<str>> =
+    pub fn resolve(blocks: &BlockDefinitions, block_tags: Option<&DynTagRegistry<Block>>) -> Self {
+        let key: TagKey<Block, Arc<str>> =
             TagKey::from_location(ResourceLocation::new_static("minecraft:uncarvable").to_arc());
         let uncarvable = block_tags
             .and_then(|tags| tags.get(&key))

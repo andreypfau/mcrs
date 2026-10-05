@@ -5,8 +5,8 @@ use std::io::Write;
 use anyhow::Context;
 use mcrs_minecraft_core::codec::{self, PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_registry::key::Block;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

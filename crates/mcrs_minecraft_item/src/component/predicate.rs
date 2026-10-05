@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_keys::{Block, MobEffect, Potion};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -18,10 +18,9 @@ use crate::component::scalar::record_codec;
 use crate::component::trim::{TrimMaterial, TrimPattern};
 use crate::enchantment::EnchantmentData;
 use crate::harness::Sample;
-use crate::key::Potion;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentMap;
-use mcrs_minecraft_entity::{Attribute, MobEffect, VillagerType};
+use mcrs_minecraft_entity::{Attribute, VillagerType};
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;

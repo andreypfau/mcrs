@@ -6,7 +6,7 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, CORPUS_DIRECTORY, load_block_definitions,
 };
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use serde::de::DeserializeOwned;
 

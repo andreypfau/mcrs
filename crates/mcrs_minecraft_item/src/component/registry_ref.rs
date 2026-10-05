@@ -3,9 +3,9 @@ use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
-use mcrs_minecraft_entity::{DamageType, EntityType, MobEffect};
+use mcrs_minecraft_entity::EntityType;
+use mcrs_minecraft_keys::{Block, BlockTransformer, DamageType, MobEffect};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
-use mcrs_minecraft_registry::key::{Block, BlockTransformer};
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

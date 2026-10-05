@@ -39,7 +39,7 @@ pub struct AttributeEntry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContactDamage {
-    pub damage_type: Id<mcrs_minecraft_entity::DamageType>,
+    pub damage_type: Id<mcrs_minecraft_keys::DamageType>,
     #[serde(deserialize_with = "non_negative_float_provider")]
     pub amount: FloatProvider,
     pub attribute_to_source: bool,

@@ -5,10 +5,11 @@ use mcrs_minecraft_core::codec::{
 };
 use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_item::{Template, Text};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
-use mcrs_minecraft_registry::{EntrySet, key};
+use mcrs_minecraft_registry::EntrySet;
 use mcrs_minecraft_text::ClickEvent;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::ser::Error as _;
@@ -590,7 +591,7 @@ impl Specific for ServerLinks {}
 // written inline in the list, which is refused here until a holder set that holds inline entries
 // exists.
 dialog_type!(DialogList {
-    pub dialogs: EntrySet<key::Dialog>,
+    pub dialogs: EntrySet<keys::Dialog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_action: Option<ActionButton>,
     #[serde(default, skip_serializing_if = "is_default")]

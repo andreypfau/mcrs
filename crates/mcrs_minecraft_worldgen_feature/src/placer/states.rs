@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{Id, TagId};
 
 use super::StateMask;

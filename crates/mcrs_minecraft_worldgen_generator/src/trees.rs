@@ -11,9 +11,9 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::Id;
-use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,

@@ -4,7 +4,6 @@ pub mod entries;
 pub mod entry_set;
 pub mod holder;
 pub mod id;
-pub mod key;
 pub mod load;
 pub mod lookup;
 pub mod names;

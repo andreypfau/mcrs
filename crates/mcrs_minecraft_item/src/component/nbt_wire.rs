@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{is_default, long_value};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
-use mcrs_minecraft_registry::key::Block;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
-use crate::key::{LootTable, MapDecorationType, Recipe};
+use mcrs_minecraft_keys::{LootTable, MapDecorationType, Recipe};
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]

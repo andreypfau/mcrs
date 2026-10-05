@@ -3,15 +3,13 @@ use std::fmt;
 use mcrs_minecraft_core::codec::{Bounded, default_true, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_entity::MobEffect;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::enchantment::predicate::LootCondition;
-use mcrs_minecraft_item::key::{
-    ContextFloatProvider, ContextIntProvider, MapDecorationType, Potion,
-};
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch, Item};
-use mcrs_minecraft_registry::key::Structure;
+use mcrs_minecraft_keys::{
+    ContextFloatProvider, ContextIntProvider, MapDecorationType, MobEffect, Potion, Structure,
+};
 use mcrs_minecraft_registry::{EntrySet, Id};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;

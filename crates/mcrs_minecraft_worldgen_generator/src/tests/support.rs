@@ -126,11 +126,11 @@ use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::key;
-use mcrs_minecraft_registry::key::Block;
-use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub fn text_ordered_table(
@@ -214,8 +214,8 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 }
 
 /// Every biome id of the corpus, numbered the way the snapshot numbers them.
-pub fn biome_index() -> &'static DynRegistryIndex<key::Biome> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Biome>> = std::sync::OnceLock::new();
+pub fn biome_index() -> &'static DynRegistryIndex<keys::Biome> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<keys::Biome>> = std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::from_table(&text_ordered_table(
             "minecraft:worldgen/biome",
@@ -247,13 +247,13 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> &'static DynTagRegistry<key::Biome> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Biome>> = std::sync::OnceLock::new();
+pub fn biome_tags() -> &'static DynTagRegistry<keys::Biome> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<keys::Biome>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(biome_index()))
 }
 
-pub fn structure_index() -> &'static DynRegistryIndex<key::Structure> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<key::Structure>> =
+pub fn structure_index() -> &'static DynRegistryIndex<keys::Structure> {
+    static INDEX: std::sync::OnceLock<DynRegistryIndex<keys::Structure>> =
         std::sync::OnceLock::new();
     INDEX.get_or_init(|| {
         DynRegistryIndex::from_table(&text_ordered_table(
@@ -263,7 +263,7 @@ pub fn structure_index() -> &'static DynRegistryIndex<key::Structure> {
     })
 }
 
-pub fn structure_tags() -> &'static DynTagRegistry<key::Structure> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<key::Structure>> = std::sync::OnceLock::new();
+pub fn structure_tags() -> &'static DynTagRegistry<keys::Structure> {
+    static TAGS: std::sync::OnceLock<DynTagRegistry<keys::Structure>> = std::sync::OnceLock::new();
     TAGS.get_or_init(|| every_tag(structure_index()))
 }
