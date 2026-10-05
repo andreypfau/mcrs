@@ -5,10 +5,10 @@ use mcrs_minecraft_core::BlockPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
@@ -26,7 +26,7 @@ use super::{
 };
 
 /// The one biome of these tables, so that every ore is carried and the `biome`
-/// placement filter passes wherever the palette says 0. A snapshot numbers its
+/// placement filter passes wherever the palette says 0. A registry numbers its
 /// entries in name order, so this one has to sort before the three below.
 const BIOME: &str = "minecraft:badlands";
 
@@ -67,7 +67,7 @@ pub(super) fn ore_tables() -> (FeatureTables, Vec<String>) {
 /// The one biome the tables carry, at id 0, and the three the surface stage
 /// resolves by name off whatever registry the dimension holds — without them
 /// `SurfaceIds::resolve` panics before a column is ever filled.
-pub(super) fn one_biome_registry() -> RegistrySnapshot<Biome> {
+pub(super) fn one_biome_registry() -> Registry<keys::Biome> {
     biome_registry(&[
         BIOME,
         "minecraft:eroded_badlands",
@@ -80,7 +80,7 @@ pub(super) fn ore_program(tables: &FeatureTables) -> FeatureProgram {
     let program = build_program(tables, corpus_features(), &one_biome_registry(), 0);
     assert!(
         program.slot_of(0).is_some(),
-        "{BIOME} is not the entry a snapshot numbers 0, so the palette these \
+        "{BIOME} is not the entry the registry numbers 0, so the palette these \
          tests fill with carries no features at all"
     );
     program

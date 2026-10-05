@@ -282,18 +282,18 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let router = super::build_beta_router();
-    let (source, _) = super::beta_surface::build_beta_biome_source();
-    let BiomeSource::Beta { land_biome_ids, .. } = &source else {
+    let (source, registry) = super::beta_surface::build_beta_biome_source();
+    let BiomeSource::Beta { land_biomes, .. } = &source else {
         unreachable!("the helper builds a Beta source");
     };
     let cave: serde_json::Value =
         serde_json::from_slice(&std::fs::read(worldgen_dir().join("carver/cave.json")).unwrap())
             .unwrap();
     // A marker per land biome: a cave whose probability is the biome's index.
-    let table = CarverBiomeTable::beta(&source, |biome| {
-        let index = land_biome_ids
+    let table = CarverBiomeTable::beta(&source, &registry, |biome| {
+        let index = land_biomes
             .iter()
-            .position(|id| id.as_str() == biome)
+            .position(|id| registry.key(*id).unwrap().as_str() == biome)
             .unwrap();
         let mut config = cave.clone();
         config["probability"] = serde_json::json!(index as f32 / 16.0);
@@ -312,8 +312,8 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
             );
             let mut climate = [0.0f32; 2];
             router.fill_roots(&mut ws, &volume, &[TEMPERATURE, VEGETATION], &mut climate);
-            let biome = source.beta_biome_location(climate[0], climate[1]);
-            let index = land_biome_ids.iter().position(|id| id == biome).unwrap();
+            let biome = source.beta_biome(climate[0], climate[1]);
+            let index = land_biomes.iter().position(|id| *id == biome).unwrap();
             let carvers = table.carvers_of_source_for_test(&router, &mut ws, source_x, source_z);
             assert_eq!(
                 carvers[0].probability(),

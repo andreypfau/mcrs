@@ -6,13 +6,15 @@ use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::DynTagRegistry;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
-use mcrs_minecraft_assets::{DynTagRegistry, RegistrySnapshot};
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen::bevy::{
     BlockStateProviderAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, TemplateAsset,
     TemplatePoolAsset,
@@ -75,7 +77,6 @@ pub(crate) fn registry_of<A: bevy_asset::Asset, T: Clone>(
 fn build_dimension_features(
     mut commands: Commands,
     sources: Option<Res<DimensionBiomeSources>>,
-    biomes: Res<Assets<Biome>>,
     features: Res<Assets<FeatureAsset>>,
     placed_features: Res<Assets<PlacedFeatureAsset>>,
     pools: Res<Assets<TemplatePoolAsset>>,
@@ -88,7 +89,7 @@ fn build_dimension_features(
     blocks: Res<Blocks>,
     block_tags: Option<Res<DynTagRegistry<Block>>>,
     fluid_tags: Option<Res<DynTagRegistry<Fluid>>>,
-    biome_registry: Res<RegistrySnapshot<Biome>>,
+    registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
 
@@ -131,11 +132,19 @@ fn build_dimension_features(
         ),
     };
 
-    let by_id: BTreeMap<ResourceLocation, &Biome> = biomes
-        .iter()
-        .filter_map(|(asset_id, biome)| {
-            let path = asset_server.get_path(asset_id)?;
-            Some((rl_from_asset_path(path.path(), "worldgen/biome")?, biome))
+    let biome_registry = registries
+        .registry::<keys::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
+    let biomes = registries
+        .entries::<keys::Biome, Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
+    let by_id: BTreeMap<ResourceLocation, &Biome> = biome_registry
+        .ids()
+        .map(|id| {
+            let name = biome_registry
+                .key(id)
+                .expect("an id of the registry has a name");
+            (name.clone(), &biomes[id])
         })
         .collect();
 
@@ -155,9 +164,7 @@ fn build_dimension_features(
 
     let mut programs = DimensionFeaturePrograms::default();
     for (dimension, source) in &sources.0 {
-        let biome_order = possible_biomes(source, |handle| {
-            rl_from_asset_path(asset_server.get_path(handle.id())?.path(), "worldgen/biome")
-        });
+        let biome_order = possible_biomes(source, &biome_registry);
         let mut entries = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {

@@ -3,11 +3,11 @@
 
 use std::sync::Arc;
 
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
 use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
@@ -69,7 +69,7 @@ fn test_entry(feature: Feature, placement: Vec<PlacementModifier>) -> Arc<Compil
     })
 }
 
-fn program_of(tables: &FeatureTables, registry: &RegistrySnapshot<Biome>) -> FeatureProgram {
+fn program_of(tables: &FeatureTables, registry: &Registry<keys::Biome>) -> FeatureProgram {
     build_program(tables, &Default::default(), registry, 0)
 }
 
@@ -279,8 +279,9 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
     };
     let program = program_of(&tables, &registry);
     let other = registry
-        .by_location(OTHER)
-        .expect("the second biome is in the registry");
+        .get(OTHER)
+        .expect("the second biome is in the registry")
+        .number();
 
     assert!(
         program.carries(other, 0, 0),

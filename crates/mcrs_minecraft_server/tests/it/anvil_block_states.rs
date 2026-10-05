@@ -1,12 +1,13 @@
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
-use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_generator::saved::{
-    CorpusBlockStates, SnapshotBiomes, column_sections,
+    CorpusBlockStates, RegistryBiomes, column_sections,
 };
 
 fn corpus() -> &'static BlockDefinitions {
@@ -108,7 +109,7 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     parse_chunk(
         &bytes,
         &CorpusBlockStates(corpus()),
-        &SnapshotBiomes(&RegistrySnapshot::default()),
+        &RegistryBiomes(&Registry::<keys::Biome>::new([], []).expect("an empty registry")),
     )
 }
 

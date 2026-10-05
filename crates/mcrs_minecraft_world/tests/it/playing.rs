@@ -9,7 +9,7 @@ fn the_data_pack_reaches_playing_with_every_registry_in_place() {
     let app = run_to_playing();
 
     biome_tags::the_shipped_biome_tags_resolve(&app);
-    biome_tags::the_biome_index_and_snapshot_agree_on_the_id_space(&app);
+    biome_tags::the_biome_registry_and_the_synced_registry_agree_on_the_id_space(&app);
     registry_values::the_synced_values_differ_from_the_game_as_recorded(&app);
     registry_values::the_app_projects_exactly_the_registries_the_game_synchronizes(&app);
     structure_assets::the_structure_registries_land_before_playing(&app);

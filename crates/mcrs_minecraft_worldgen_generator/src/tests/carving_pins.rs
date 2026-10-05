@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterList;
 use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, Registry};
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -197,8 +196,8 @@ fn material_router(
     .expect("the material rule compiles")
 }
 
-fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<String, u16>) {
-    let mut names: Vec<String> = Vec::new();
+fn biome_registry(dimension: Dimension) -> (Registry<keys::Biome>, HashMap<String, u16>) {
+    let mut names: Vec<&str> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [
         "minecraft:eroded_badlands",
@@ -206,32 +205,20 @@ fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<Str
         "minecraft:deep_frozen_ocean",
     ];
     for name in preset.chain(surface) {
-        if !names.iter().any(|seen| seen == name) {
-            names.push(name.to_owned());
+        if !names.contains(&name) {
+            names.push(name);
         }
     }
-    let mut assets = bevy_asset::Assets::<Biome>::default();
-    let pairs: Vec<_> = names
-        .iter()
-        .map(|name| {
-            let handle = assets.add(super::beta_biome_palette::make_beta_biome());
-            (
-                ResourceLocation::parse(name).expect("a biome name"),
-                handle.id(),
-            )
-        })
-        .collect();
-    let snapshot = super::biome_snapshot(pairs, &assets);
+    names.sort_unstable();
+    let registry = super::biome_registry(&names);
     let ids = names
         .iter()
         .map(|name| {
-            (
-                name.clone(),
-                snapshot.by_location(name).expect("registered"),
-            )
+            let id = registry.get(name).expect("registered");
+            ((*name).to_owned(), id.number())
         })
         .collect();
-    (snapshot, ids)
+    (registry, ids)
 }
 
 fn carving_context(dimension: Dimension, seed: u64) -> FillContext {

@@ -3476,8 +3476,6 @@ dependencies = [
 name = "mcrs_minecraft_biome"
 version = "0.4.5"
 dependencies = [
- "bevy_asset",
- "bevy_reflect",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_environment",
@@ -3537,7 +3535,6 @@ dependencies = [
  "flate2",
  "getrandom 0.4.1",
  "mcrs_minecraft_assets",
- "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",

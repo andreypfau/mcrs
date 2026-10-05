@@ -1,7 +1,44 @@
+use std::fmt;
+
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{NarrowError, Registry, UnknownEntry};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
+
+/// Why a biome source has no climate table: a biome the registry does not hold,
+/// an id the palette's byte cannot store, or a source that names no biomes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BiomeTableError {
+    Unknown(UnknownEntry),
+    Narrow(NarrowError),
+    NoTable(String),
+}
+
+impl fmt::Display for BiomeTableError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BiomeTableError::Unknown(error) => error.fmt(f),
+            BiomeTableError::Narrow(error) => error.fmt(f),
+            BiomeTableError::NoTable(reason) => f.write_str(reason),
+        }
+    }
+}
+
+impl std::error::Error for BiomeTableError {}
+
+impl From<UnknownEntry> for BiomeTableError {
+    fn from(error: UnknownEntry) -> Self {
+        BiomeTableError::Unknown(error)
+    }
+}
+
+impl From<NarrowError> for BiomeTableError {
+    fn from(error: NarrowError) -> Self {
+        BiomeTableError::Narrow(error)
+    }
+}
 
 /// Biome ids over the column's quart cells, widened by one cell in every
 /// direction: the zoom picks between eight quart corners and reaches outside
@@ -19,8 +56,8 @@ impl BiomeGrid {
     }
 }
 
-/// A biome source's climate table with each entry already reduced to the
-/// network id the palette stores.
+/// A biome source's climate table with each entry already reduced to the id
+/// the palette stores.
 ///
 /// Resolving at build time rather than per cell means a cell's lookup ends at
 /// the id itself, with no name to hash on the way — and the table is the same
@@ -30,44 +67,65 @@ pub struct MultiNoiseBiomeTable {
 }
 
 impl MultiNoiseBiomeTable {
-    /// `id_of` answers what network id a biome carries, and `None` where it has
-    /// none the palette can store. It is called once per distinct biome of the
-    /// source, not once per cell.
-    ///
-    /// A table is built only when every biome resolved: a substituted id would
-    /// alias a different biome everywhere, in the grid the surface stage folds
-    /// over as much as in the palette the client is sent.
+    /// A table is built only when every biome resolved and fits the palette's
+    /// byte: a substituted or truncated id would alias a different biome
+    /// everywhere, in the grid the surface stage folds over as much as in the
+    /// palette the client is sent.
     pub fn resolve(
         source: &MultiNoiseBiomeSource,
-        id_of: impl Fn(&str) -> Option<u8>,
-    ) -> Option<MultiNoiseBiomeTable> {
+        biomes: &Registry<keys::Biome>,
+    ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
         let values: Vec<(ParameterPoint, u8)> = match (&source.preset, &source.biomes) {
             (Some(preset), _) => {
                 let named = match preset.as_str() {
                     "minecraft:overworld" => overworld_parameter_list(),
                     "minecraft:nether" => nether_parameter_list(),
-                    _ => return None,
+                    other => {
+                        return Err(BiomeTableError::NoTable(format!(
+                            "no climate table for the multi-noise preset {other}"
+                        )));
+                    }
                 };
-                return Some(MultiNoiseBiomeTable {
-                    table: named.try_map_values(|biome| id_of(biome))?,
+                let mut failure = None;
+                let table = named.try_map_values(|name| {
+                    match biomes
+                        .require(name)
+                        .map_err(BiomeTableError::from)
+                        .and_then(|id| id.narrow::<u8>().map_err(BiomeTableError::from))
+                    {
+                        Ok(id) => Some(id),
+                        Err(error) => {
+                            failure.get_or_insert(error);
+                            None
+                        }
+                    }
                 });
+                return table
+                    .map(|table| MultiNoiseBiomeTable { table })
+                    .ok_or_else(|| failure.expect("a table is refused for a reason"));
             }
             (None, Some(entries)) => entries
                 .iter()
                 .map(|entry| {
-                    Some((
+                    Ok((
                         ParameterPoint::from(&entry.parameters),
-                        id_of(entry.location.as_str())?,
+                        entry.biome.narrow::<u8>()?,
                     ))
                 })
-                .collect::<Option<_>>()?,
-            (None, None) => return None,
+                .collect::<Result<_, NarrowError>>()?,
+            (None, None) => {
+                return Err(BiomeTableError::NoTable(
+                    "a multi-noise source names neither biomes nor a preset".to_owned(),
+                ));
+            }
         };
 
         if values.is_empty() {
-            return None;
+            return Err(BiomeTableError::NoTable(
+                "a multi-noise source lists no biomes".to_owned(),
+            ));
         }
-        Some(MultiNoiseBiomeTable {
+        Ok(MultiNoiseBiomeTable {
             table: ParameterList::new(values),
         })
     }

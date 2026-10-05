@@ -10,6 +10,8 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -114,12 +116,21 @@ fn main() {
         names[id as usize] = name.strip_prefix("minecraft:").unwrap_or(name).to_owned();
     }
     let (router, material) = material_router(seed, &ids);
+    let mut numbered: Vec<(&u16, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
+    numbered.sort();
+    let biomes = Registry::<keys::Biome>::new(
+        numbered
+            .into_iter()
+            .map(|(_, name)| ResourceLocation::parse(name).unwrap()),
+        [],
+    )
+    .unwrap();
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
             preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
             biomes: None,
         },
-        |biome| u8::try_from(ids[biome]).ok(),
+        &biomes,
     )
     .unwrap();
     let carvers = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();

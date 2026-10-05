@@ -5,6 +5,8 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::dimension::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -45,6 +47,7 @@ pub(crate) fn process_loaded_world_preset(
     active: Option<Res<ActiveWorldPreset>>,
     presets: Res<Assets<WorldPreset>>,
     dim_defs: Res<Assets<DimensionDefinition>>,
+    registries: Res<RegistrySet>,
     mut loaded_preset: ResMut<LoadedWorldPreset>,
     mut commands: Commands,
 ) {
@@ -68,7 +71,10 @@ pub(crate) fn process_loaded_world_preset(
     loaded_preset.dimensions = dimensions;
     loaded_preset.is_loaded = true;
 
-    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs));
+    let biomes = registries
+        .registry::<keys::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
+    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs, &biomes));
 
     debug!(
         preset = %loaded_preset.preset_name,
@@ -80,6 +86,7 @@ pub(crate) fn process_loaded_world_preset(
 fn dimension_biome_sources(
     preset: &LoadedWorldPreset,
     dim_defs: &Assets<DimensionDefinition>,
+    biomes: &Registry<keys::Biome>,
 ) -> DimensionBiomeSources {
     let mut sources = DimensionBiomeSources::default();
     for (dimension, handle) in &preset.dimensions {
@@ -90,9 +97,14 @@ fn dimension_biome_sources(
         let ChunkGenerator::Noise(generator) = &definition.generator else {
             continue;
         };
-        sources
-            .0
-            .insert(dimension.clone(), Arc::new(generator.biome_source.clone()));
+        let source = generator
+            .biome_source
+            .clone()
+            .resolve(biomes)
+            .unwrap_or_else(|error| {
+                panic!("{dimension}: the biome source does not resolve: {error}")
+            });
+        sources.0.insert(dimension.clone(), Arc::new(source));
     }
     sources
 }

@@ -7,11 +7,12 @@ use crate::{
     ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
     multi_noise_grid, multi_noise_palettes, spans_dimension,
 };
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -139,6 +140,26 @@ pub(super) fn biome_ids() -> HashMap<String, u16> {
     ids
 }
 
+/// A registry numbering the biomes as `ids` does.
+fn registry_of(ids: &HashMap<String, u16>) -> Registry<keys::Biome> {
+    let mut named: Vec<(u16, &str)> = ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
+    named.sort();
+    let names: Vec<&str> = named.into_iter().map(|(_, name)| name).collect();
+    super::ordered_biome_registry(&names)
+}
+
+/// The overworld preset's climate table over the biomes `ids` numbers.
+fn table_over(ids: &HashMap<String, u16>) -> MultiNoiseBiomeTable {
+    MultiNoiseBiomeTable::resolve(
+        &MultiNoiseBiomeSource {
+            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+            biomes: None,
+        },
+        &registry_of(ids),
+    )
+    .expect("the overworld preset resolves")
+}
+
 pub fn overworld_material_router(
     seed: u64,
     ids: &HashMap<String, u16>,
@@ -193,14 +214,7 @@ pub(super) fn surfaced_column(
     y_sections: &[i32],
     bypass_shortcuts: bool,
 ) -> ColumnBlocks {
-    let table = MultiNoiseBiomeTable::resolve(
-        &MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
-            biomes: None,
-        },
-        |biome| u8::try_from(ids[biome]).ok(),
-    )
-    .expect("the overworld preset resolves");
+    let table = table_over(ids);
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut filled = fill_column_dense_any(
@@ -351,14 +365,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             }
         }
 
-        let table = MultiNoiseBiomeTable::resolve(
-            &MultiNoiseBiomeSource {
-                preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
-                biomes: None,
-            },
-            |biome| u8::try_from(ids[biome]).ok(),
-        )
-        .expect("the overworld preset resolves");
+        let table = table_over(&ids);
         let mut column = ColumnBlocks::new(&y_sections);
         let mut filled = fill_column_dense_any(
             &mut column,
@@ -501,14 +508,7 @@ fn grid_biomes(
     section_z: i32,
     y_sections: &[i32],
 ) -> usize {
-    let table = MultiNoiseBiomeTable::resolve(
-        &MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
-            biomes: None,
-        },
-        |biome| u8::try_from(ids[biome]).ok(),
-    )
-    .expect("the overworld preset resolves");
+    let table = table_over(ids);
     let grid = multi_noise_grid(router, &table, section_x * 16, section_z * 16, y_sections)
         .expect("the multi-noise fill widens a grid");
     let mut present = [false; 256];
@@ -519,40 +519,23 @@ fn grid_biomes(
 }
 
 /// The preset's biomes as a registry, and the ids it gave them.
-pub fn overworld_biome_registry() -> (
-    mcrs_minecraft_assets::RegistrySnapshot<Biome>,
-    HashMap<String, u16>,
-) {
-    let mut assets = bevy_asset::Assets::<Biome>::default();
-    let mut names: Vec<String> = Vec::new();
+pub fn overworld_biome_registry() -> (Registry<keys::Biome>, HashMap<String, u16>) {
+    let mut names: Vec<&str> = Vec::new();
     for (_, biome) in overworld_parameter_list().values() {
-        if !names.iter().any(|seen| seen == biome) {
-            names.push((*biome).to_owned());
+        if !names.contains(biome) {
+            names.push(biome);
         }
     }
-    let handles: Vec<_> = names
-        .iter()
-        .map(|_| assets.add(super::beta_biome_palette::make_beta_biome()))
-        .collect();
-    let pairs: Vec<_> = names
-        .iter()
-        .zip(&handles)
-        .map(|(name, handle)| {
-            (
-                ResourceLocation::parse(name).expect("a preset biome name"),
-                handle.id(),
-            )
-        })
-        .collect();
-    let snapshot = super::biome_snapshot(pairs, &assets);
+    names.sort_unstable();
+    let registry = super::biome_registry(&names);
     let ids = names
         .iter()
         .map(|name| {
-            let id = snapshot.by_location(name).expect("the registry holds it");
-            (name.clone(), id)
+            let id = registry.get(name).expect("the registry holds it");
+            ((*name).to_owned(), id.number())
         })
         .collect();
-    (snapshot, ids)
+    (registry, ids)
 }
 
 /// The per-dimension inputs a column stage reads, resolved the way
@@ -560,20 +543,17 @@ pub fn overworld_biome_registry() -> (
 pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,
-    registry: mcrs_minecraft_assets::RegistrySnapshot<mcrs_minecraft_biome::Biome>,
+    registry: Registry<keys::Biome>,
     source: mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::stages::FillContext {
-    use crate::multi_noise_biomes::MultiNoiseBiomeTable;
     use mcrs_minecraft_biome::source::BiomeSource;
 
     use super::blocks;
-    let registry = std::sync::Arc::new(registry);
     let surface = std::sync::Arc::new(SurfaceIds::resolve(&blocks().0, &registry));
     let multi_noise = match &source {
-        BiomeSource::MultiNoise(multi) => MultiNoiseBiomeTable::resolve(multi, |location| {
-            registry.by_location(location).map(|id| id as u8)
-        })
-        .map(std::sync::Arc::new),
+        BiomeSource::MultiNoise(multi) => Some(std::sync::Arc::new(
+            MultiNoiseBiomeTable::resolve(multi, &registry).expect("the source resolves a table"),
+        )),
         _ => None,
     };
     crate::stages::FillContext {
@@ -608,14 +588,12 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     let generate = |biome: &str| -> (Vec<VoxelId>, Vec<u8>) {
         let (registry, ids) = overworld_biome_registry();
         let (router, material) = overworld_material_router(2, &ids);
+        let fixed = registry.require(biome).expect("a biome name");
         let ctx = fill_context(
             router,
             material,
             registry,
-            BiomeSource::Fixed {
-                biome: bevy_asset::Handle::default(),
-                biome_id: ResourceLocation::parse(biome).expect("a biome name"),
-            },
+            BiomeSource::Fixed { biome: fixed },
         );
 
         let y_sections = ctx.y_sections.clone();
@@ -649,8 +627,10 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     let badlands_id = {
         let (registry, _) = overworld_biome_registry();
         registry
-            .by_location("minecraft:badlands")
-            .expect("the overworld preset names badlands") as u8
+            .get("minecraft:badlands")
+            .expect("the overworld preset names badlands")
+            .narrow::<u8>()
+            .expect("a biome id the palette can store")
     };
 
     let (badlands_blocks, badlands_biomes) = generate("minecraft:badlands");

@@ -791,6 +791,61 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
     );
 }
 
+/// The biome bytes a column stores are the ids the loader numbered its biomes
+/// with, the numbering the registry packet is projected from, so a palette a
+/// client receives names the biome the source chose.
+#[test]
+fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
+    use mcrs_minecraft_biome::source::ProtoBiomeSource;
+    use mcrs_minecraft_keys as keys;
+    use mcrs_minecraft_world::registries::test_registries;
+    use mcrs_minecraft_worldgen_generator::stages::fill_column;
+
+    let registry = test_registries()
+        .registry::<keys::Biome>()
+        .expect("the loader parses the biomes");
+    let ids: std::collections::HashMap<String, u16> = registry
+        .ids()
+        .map(|id| {
+            let name = registry.key(id).expect("an id of the registry has a name");
+            (name.to_string(), id.number())
+        })
+        .collect();
+    let (router, material) = overworld_material_router(2, &ids);
+    let source = serde_json::from_str::<ProtoBiomeSource>(
+        r#"{"type":"minecraft:fixed","biome":"minecraft:desert"}"#,
+    )
+    .expect("a fixed biome source parses")
+    .resolve(&registry)
+    .expect("the loader holds desert");
+    let ctx = surface_fill_context(router, material, registry.clone(), source);
+
+    let mut column = ColumnBlocks::new(&ctx.y_sections);
+    let snapshot = fill_column(
+        &ctx,
+        ColumnPos::new(3, -7),
+        &mut column,
+        &CancellationToken::new(),
+    )
+    .expect("the fill was not cancelled");
+
+    let desert = registry
+        .get("minecraft:desert")
+        .expect("the loader holds desert")
+        .narrow::<u8>()
+        .expect("a biome id the palette can store");
+    let mut cells = 0;
+    for (_, biomes) in snapshot.sections.iter().flatten() {
+        for (x, y, z) in
+            (0..16).flat_map(|x| (0..16).flat_map(move |y| (0..16).map(move |z| (x, y, z))))
+        {
+            assert_eq!(biomes.get_cell(x, y, z), desert);
+            cells += 1;
+        }
+    }
+    assert!(cells > 0, "the column stored no biome cell");
+}
+
 #[test]
 fn the_parallel_ladder_delivers_ores_that_write_across_columns() {
     let drive = Drive {

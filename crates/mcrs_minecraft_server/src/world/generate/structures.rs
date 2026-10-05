@@ -5,14 +5,11 @@ use bevy_asset::{AssetServer, Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
-use mcrs_minecraft_assets::{AppState, DynTagRegistry};
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_assets::{AppState, DynTagRegistry, TagRegistry};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::DynRegistryIndex;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry, RegistrySet};
 use mcrs_minecraft_world::variant::{
     CatVariant, ChickenVariant, ZombieNautilusVariant, named_selectors,
 };
@@ -35,16 +32,15 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
-    biomes: &DynRegistryIndex<keys::Biome>,
+    biomes: &Registry<keys::Biome>,
     sources: &DimensionBiomeSources,
-    named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
 ) -> DimensionStructures {
     let mut tables = DimensionStructures::default();
     for (dimension, source) in &sources.0 {
-        let mut mask = FixedBitSet::with_capacity(biomes.len() as usize);
-        for id in possible_biomes(source, &named) {
-            if let Some(index) = biomes.get(id.as_str()) {
-                mask.insert(index as usize);
+        let mut mask = FixedBitSet::with_capacity(biomes.len());
+        for name in possible_biomes(source, biomes) {
+            if let Some(id) = biomes.get(name.as_str()) {
+                mask.insert(id.index());
             }
         }
         let live = live_sets(&frozen, &mask);
@@ -86,13 +82,15 @@ pub(crate) fn build_dimension_structures(
     templates: Res<Assets<TemplateAsset>>,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
-    biomes: Res<DynRegistryIndex<keys::Biome>>,
-    biome_tags: Res<DynTagRegistry<keys::Biome>>,
+    biome_tags: Res<TagRegistry<keys::Biome, Id<keys::Biome>>>,
     structure_index: Res<DynRegistryIndex<keys::Structure>>,
     structure_tags: Res<DynTagRegistry<keys::Structure>>,
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
+    let biomes = registries
+        .registry::<keys::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
 
     let sets = registry_of(&sets, &asset_server, "worldgen/structure_set", |asset| {
         &asset.set
@@ -173,10 +171,5 @@ pub(crate) fn build_dimension_structures(
         templates = frozen.templates.len(),
         "froze the structure registries"
     );
-    commands.insert_resource(dimension_tables(
-        Arc::new(frozen),
-        &biomes,
-        &sources,
-        |handle| rl_from_asset_path(asset_server.get_path(handle.id())?.path(), "worldgen/biome"),
-    ));
+    commands.insert_resource(dimension_tables(Arc::new(frozen), &biomes, &sources));
 }

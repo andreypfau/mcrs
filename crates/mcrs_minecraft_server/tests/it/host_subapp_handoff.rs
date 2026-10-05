@@ -11,8 +11,6 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_keys::{Block, Enchantment, Item};
 use mcrs_minecraft_level::session::PlayerSession;
@@ -364,7 +362,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Entries<Enchantment, EnchantmentData>>(),
         type_name::<DynTagRegistry<Block>>(),
         type_name::<DynTagRegistry<Item>>(),
-        type_name::<RegistrySnapshot<Biome>>(),
     ];
 
     let mut app = crate::host_app::make_host_app();

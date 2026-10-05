@@ -4,9 +4,7 @@ use std::sync::LazyLock;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::{Block, Item};
@@ -37,7 +35,6 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(test_enchantments());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(DynTagRegistry::<Item>::default());
-    app.insert_resource(RegistrySnapshot::<Biome>::default());
     share_registries(app.world_mut());
 }
 

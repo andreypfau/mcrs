@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
-use super::Biome;
 use super::climate::{ClimateParameters, ParameterPoint};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Id, Registry, UnknownEntry};
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -92,64 +92,28 @@ pub enum BiomeSource {
     MultiNoise(MultiNoiseBiomeSource),
     TheEnd,
     Fixed {
-        biome: Handle<Biome>,
-        // Parallel to the handle for the same reason the Beta arrays carry ids:
-        // generation runs in a per-dimension sub-app whose AssetServer assigns
-        // different AssetIds than the host that built the biome snapshot.
-        biome_id: ResourceLocation<Arc<str>>,
+        biome: Id<keys::Biome>,
     },
     Checkerboard {
-        biomes: Vec<Handle<Biome>>,
+        biomes: Vec<Id<keys::Biome>>,
         scale: u32,
     },
     Beta {
-        // Array indexed by BetaLandBiome discriminant (0..=10, 11 buckets).
-        // JSON biomes list order must match BetaLandBiome discriminant values.
-        land_biomes: [Handle<Biome>; 11],
-        // Resource locations parallel to the handle arrays. Biome palette fill
-        // resolves network IDs by location, not AssetId: chunk generation runs in
-        // a per-dim sub-app whose AssetServer assigns different AssetIds than the
-        // host that built the biome RegistrySnapshot, so AssetId lookups collide.
-        land_biome_ids: [ResourceLocation<Arc<str>>; 11],
+        // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
+        // order must match those discriminant values.
+        land_biomes: [Id<keys::Biome>; 11],
         lookup: Box<[[BetaLandBiome; 64]; 64]>,
     },
 }
 
 impl BiomeSource {
-    pub fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        match self {
-            BiomeSource::MultiNoise(src) => {
-                if let Some(biomes) = &src.biomes {
-                    for entry in biomes {
-                        visit(entry.biome.id().untyped());
-                    }
-                }
-            }
-            BiomeSource::Fixed { biome, .. } => visit(biome.id().untyped()),
-            BiomeSource::Checkerboard { biomes, .. } => {
-                for b in biomes {
-                    visit(b.id().untyped());
-                }
-            }
-            BiomeSource::Beta { land_biomes, .. } => {
-                for b in land_biomes {
-                    visit(b.id().untyped());
-                }
-            }
-            BiomeSource::TheEnd => {}
-        }
-    }
-
-    /// Resolve the biome's resource location from Beta climate. Stable across
-    /// AssetServers; use with [`RegistrySnapshot::by_location`] to get a network ID.
-    pub fn beta_biome_location(&self, temp: f32, rain: f32) -> &ResourceLocation<Arc<str>> {
+    pub fn beta_biome(&self, temp: f32, rain: f32) -> Id<keys::Biome> {
         match self {
             BiomeSource::Beta {
-                land_biome_ids,
+                land_biomes,
                 lookup,
-                ..
-            } => &land_biome_ids[beta_biome_from_climate(lookup, temp, rain) as usize],
-            _ => panic!("beta_biome_location called on non-Beta BiomeSource"),
+            } => land_biomes[beta_biome_from_climate(lookup, temp, rain) as usize],
+            _ => panic!("beta_biome called on non-Beta BiomeSource"),
         }
     }
 }
@@ -163,18 +127,14 @@ pub struct MultiNoiseBiomeSource {
 #[derive(Debug, Clone)]
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
-    pub biome: Handle<Biome>,
-    /// Parallel to the handle: chunk generation runs in a per-dim sub-app whose
-    /// AssetServer assigns different AssetIds than the host that built the biome
-    /// snapshot, so the network id is resolved by location and never by handle.
-    pub location: ResourceLocation<Arc<str>>,
+    pub biome: Id<keys::Biome>,
 }
 
 // ===========================================================================
 // Proto types (serde layer)
 // ===========================================================================
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
 pub enum ProtoBiomeSource {
     #[serde(rename = "minecraft:multi_noise")]
@@ -199,7 +159,7 @@ fn default_scale() -> u32 {
     2
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProtoMultiNoiseBiomeSource {
     pub preset: Option<ResourceLocation<Arc<str>>>,
     #[serde(default, deserialize_with = "distinguishable_entries")]
@@ -227,7 +187,7 @@ fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     Ok(entries)
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProtoMultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
     pub biome: ResourceLocation<Arc<str>>,
@@ -238,55 +198,62 @@ pub struct ProtoMultiNoiseBiomeEntry {
 // ===========================================================================
 
 impl ProtoBiomeSource {
-    pub fn resolve(self, ctx: &mut LoadContext) -> BiomeSource {
-        match self {
-            ProtoBiomeSource::MultiNoise(src) => BiomeSource::MultiNoise(src.resolve(ctx)),
+    pub fn resolve(self, biomes: &Registry<keys::Biome>) -> Result<BiomeSource, UnknownEntry> {
+        Ok(match self {
+            ProtoBiomeSource::MultiNoise(src) => BiomeSource::MultiNoise(src.resolve(biomes)?),
             ProtoBiomeSource::TheEnd {} => BiomeSource::TheEnd,
             ProtoBiomeSource::Fixed { biome } => BiomeSource::Fixed {
-                biome: Biome::load(ctx, &biome),
-                biome_id: biome,
+                biome: biomes.require(biome.as_str())?,
             },
-            ProtoBiomeSource::Checkerboard { biomes, scale } => BiomeSource::Checkerboard {
-                biomes: biomes
-                    .into_iter()
-                    .map(|loc| Biome::load(ctx, &loc))
-                    .collect(),
+            ProtoBiomeSource::Checkerboard {
+                biomes: names,
+                scale,
+            } => BiomeSource::Checkerboard {
+                biomes: resolve_all(&names, biomes)?,
                 scale,
             },
-            ProtoBiomeSource::Beta { biomes } => {
-                let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = biomes
-                    .clone()
+            ProtoBiomeSource::Beta { biomes: names } => BiomeSource::Beta {
+                land_biomes: resolve_all(&names, biomes)?
                     .try_into()
-                    .expect("mcrs:beta biome_source requires exactly 11 land biomes");
-                let land_handles: Vec<Handle<Biome>> =
-                    biomes.into_iter().map(|l| Biome::load(ctx, &l)).collect();
-                BiomeSource::Beta {
-                    land_biomes: land_handles
-                        .try_into()
-                        .expect("mcrs:beta biome_source requires exactly 11 land biomes"),
-                    land_biome_ids,
-                    lookup: Box::new(build_beta_lookup_table()),
-                }
-            }
-        }
+                    .expect("mcrs:beta biome_source requires exactly 11 land biomes"),
+                lookup: Box::new(build_beta_lookup_table()),
+            },
+        })
     }
 }
 
+fn resolve_all(
+    names: &[ResourceLocation<Arc<str>>],
+    biomes: &Registry<keys::Biome>,
+) -> Result<Vec<Id<keys::Biome>>, UnknownEntry> {
+    names
+        .iter()
+        .map(|name| biomes.require(name.as_str()))
+        .collect()
+}
+
 impl ProtoMultiNoiseBiomeSource {
-    fn resolve(self, ctx: &mut LoadContext) -> MultiNoiseBiomeSource {
-        MultiNoiseBiomeSource {
+    fn resolve(
+        self,
+        biomes: &Registry<keys::Biome>,
+    ) -> Result<MultiNoiseBiomeSource, UnknownEntry> {
+        Ok(MultiNoiseBiomeSource {
             preset: self.preset,
-            biomes: self.biomes.map(|entries| {
-                entries
-                    .into_iter()
-                    .map(|e| MultiNoiseBiomeEntry {
-                        parameters: e.parameters,
-                        biome: Biome::load(ctx, &e.biome),
-                        location: e.biome,
-                    })
-                    .collect()
-            }),
-        }
+            biomes: self
+                .biomes
+                .map(|entries| {
+                    entries
+                        .into_iter()
+                        .map(|entry| {
+                            Ok(MultiNoiseBiomeEntry {
+                                parameters: entry.parameters,
+                                biome: biomes.require(entry.biome.as_str())?,
+                            })
+                        })
+                        .collect::<Result<_, UnknownEntry>>()
+                })
+                .transpose()?,
+        })
     }
 }
 

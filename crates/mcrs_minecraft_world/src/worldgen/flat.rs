@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
 use crate::ResourceLocation;
-use mcrs_minecraft_biome::Biome;
 
 // ===========================================================================
 // Runtime types
@@ -15,25 +13,13 @@ pub struct FlatChunkGenerator {
     pub settings: FlatLevelGeneratorSettings,
 }
 
-impl FlatChunkGenerator {
-    pub(crate) fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        self.settings.visit_dependencies(visit);
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct FlatLevelGeneratorSettings {
-    pub biome: Handle<Biome>,
+    pub biome: ResourceLocation<Arc<str>>,
     pub features: bool,
     pub lakes: bool,
     pub layers: Vec<FlatLayerInfo>,
     pub structure_overrides: Vec<ResourceLocation<Arc<str>>>,
-}
-
-impl FlatLevelGeneratorSettings {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        visit(self.biome.id().untyped());
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -79,17 +65,17 @@ pub(crate) struct ProtoFlatLayerInfo {
 // ===========================================================================
 
 impl ProtoFlatChunkGenerator {
-    pub(crate) fn resolve(self, ctx: &mut LoadContext) -> FlatChunkGenerator {
+    pub(crate) fn resolve(self) -> FlatChunkGenerator {
         FlatChunkGenerator {
-            settings: self.settings.resolve(ctx),
+            settings: self.settings.resolve(),
         }
     }
 }
 
 impl ProtoFlatLevelGeneratorSettings {
-    fn resolve(self, ctx: &mut LoadContext) -> FlatLevelGeneratorSettings {
+    fn resolve(self) -> FlatLevelGeneratorSettings {
         FlatLevelGeneratorSettings {
-            biome: Biome::load(ctx, &self.biome),
+            biome: self.biome,
             features: self.features,
             lakes: self.lakes,
             layers: self

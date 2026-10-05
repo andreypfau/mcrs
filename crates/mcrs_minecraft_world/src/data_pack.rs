@@ -8,7 +8,6 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
-use mcrs_minecraft_biome as biome;
 use mcrs_minecraft_block as block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
@@ -122,13 +121,6 @@ pub(crate) fn request_data_pack_assets(
     set: Res<RegistrySet>,
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
-    request_registry::<biome::Biome>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:worldgen/biome",
-        "json",
-    );
     request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
         &asset_server,
         &set,
@@ -302,25 +294,6 @@ fn loaded_table<'a>(
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
     mcrs_minecraft_assets::snapshot::assert_listing_matches(table, listed);
     table
-}
-
-pub(crate) fn index_biomes(
-    biomes: Res<Assets<biome::Biome>>,
-    asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
-    mut commands: Commands,
-) {
-    let entries: Vec<_> = biomes
-        .iter()
-        .filter_map(|(id, _)| {
-            rl_from_asset_path(asset_server.get_path(id)?.path(), "worldgen/biome")
-        })
-        .collect();
-    let table = loaded_table(&set, "minecraft:worldgen/biome", &entries);
-    tracing::info!(count = entries.len(), "indexed biomes");
-    commands.insert_resource(DynRegistryIndex::<mcrs_minecraft_keys::Biome>::from_table(
-        table,
-    ));
 }
 
 pub(crate) fn index_structures(

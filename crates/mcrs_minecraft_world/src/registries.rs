@@ -18,10 +18,8 @@ use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_assets::{
-    PackSource, RegistryAccess, RegistryEntry, RegistrySnapshot, RegistrySnapshotErased,
-};
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
+use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
@@ -112,6 +110,7 @@ world_registry_table! {
     keys::WorldClock => WorldClock, synced as Clone::clone;
     keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    keys::Biome => Biome, synced as |biome| NetworkBiome::from(biome);
     keys::EnchantmentProvider => EnchantmentProvider;
     keys::VillagerTrade => VillagerTrade;
     keys::TradeSet => TradeSet;
@@ -208,7 +207,7 @@ async fn read_pack(
             if vanilla {
                 let directory = format!("{namespace}/{}", registry.path());
                 for path in mcrs_minecraft_worldgen_builtin::paths(&directory) {
-                    found.entry(path).or_default();
+                    *found.entry(path).or_default() |= reads_bytes;
                 }
             }
         }
@@ -344,7 +343,6 @@ pub fn share_registries(world: &mut World) {
     share::<Entries<Enchantment, EnchantmentData>>(world);
     share::<DynTagRegistry<Block>>(world);
     share::<DynTagRegistry<Item>>(world);
-    share::<RegistrySnapshot<Biome>>(world);
 }
 
 pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {

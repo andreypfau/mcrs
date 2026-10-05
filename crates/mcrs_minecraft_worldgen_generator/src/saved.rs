@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
@@ -38,15 +38,13 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
     }
 }
 
-/// Resolves a saved biome name against the registry snapshot the dimension runs
-/// with. Biomes carry no properties, so only the name selects the entry.
-pub struct SnapshotBiomes<'a>(pub &'a RegistrySnapshot<Biome>);
+/// Resolves a saved biome name against the registry the dimension runs with.
+/// Biomes carry no properties, so only the name selects the entry.
+pub struct RegistryBiomes<'a>(pub &'a Registry<keys::Biome>);
 
-impl PaletteLookup<u8> for SnapshotBiomes<'_> {
+impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
-        self.0
-            .by_location(name)
-            .and_then(|id| u8::try_from(id).ok())
+        self.0.get(name).and_then(|id| id.narrow::<u8>().ok())
     }
 }
 
@@ -97,11 +95,11 @@ impl SavedColumns {
         &self,
         pos: ColumnPos,
         blocks: &BlockDefinitions,
-        biomes: &RegistrySnapshot<Biome>,
+        biomes: &Registry<keys::Biome>,
     ) -> Option<Chunk> {
         let region = self.region(RegionPos::from(pos))?;
         let chunk =
-            match region.read_chunk(pos, &CorpusBlockStates(blocks), &SnapshotBiomes(biomes)) {
+            match region.read_chunk(pos, &CorpusBlockStates(blocks), &RegistryBiomes(biomes)) {
                 Ok(chunk) => chunk?,
                 Err(err) => {
                     error!(%err, ?pos, "reading a saved column");

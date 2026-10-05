@@ -1,52 +1,35 @@
 use mcrs_minecraft_core::LocalPos;
-use std::sync::Arc;
 
-use bevy_asset::Assets;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 
-use super::beta_biome_palette::make_beta_biome;
 use super::build_beta_router;
 use crate::ColumnBlocks;
 use crate::task::CancellationToken;
 use crate::{apply_beta_surface, generate_column};
 
-pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
-    let mut assets = Assets::<Biome>::default();
-    let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
-        .map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
-            (rl, land_ids[i])
-        })
-        // The surface stage resolves these three by name off whatever registry
-        // the dimension carries, and panics when one is missing. They sit past
-        // the source's own eleven, so no palette id moves.
-        .chain(
-            [
-                "minecraft:eroded_badlands",
-                "minecraft:frozen_ocean",
-                "minecraft:deep_frozen_ocean",
-            ]
-            .iter()
-            .map(|name| (ResourceLocation::parse(name).unwrap(), land_ids[0])),
-        )
+pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
+    let land: Vec<String> = (0..11)
+        .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();
-    let snapshot = super::biome_snapshot(all_pairs, &assets);
-    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
-    });
+    // The surface stage resolves these three by name off whatever registry
+    // the dimension carries, and panics when one is missing.
+    let surface = [
+        "minecraft:eroded_badlands",
+        "minecraft:frozen_ocean",
+        "minecraft:deep_frozen_ocean",
+    ];
+    let names: Vec<&str> = land.iter().map(String::as_str).chain(surface).collect();
+    let registry = super::biome_registry(&names);
+    let land_biomes = std::array::from_fn(|i| registry.get(&land[i]).expect("a land biome"));
     let biome_source = BiomeSource::Beta {
-        land_biomes: land_handles.try_into().expect("11 land handles"),
-        land_biome_ids,
+        land_biomes,
         lookup: Box::new(build_beta_lookup_table()),
     };
-    (biome_source, snapshot)
+    (biome_source, registry)
 }
 
 /// Oracle test: bedrock band (Y 0-4) for chunk (37,-42) at seed 12345 must match the
@@ -72,7 +55,7 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>
 #[test]
 fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
+    let (biome_source, _) = build_beta_biome_source();
 
     let chunk_x = 0i32;
     let chunk_z = 0i32;
@@ -86,7 +69,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         chunk_z,
         &y_sections,
         &router,
-        Some((&biome_source, &snapshot)),
+        Some(&biome_source),
         None,
         &cancel,
     );
@@ -294,7 +277,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     ];
 
     let router = build_beta_router();
-    let (biome_source, snapshot) = build_beta_biome_source();
+    let (biome_source, _) = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let y_sections: Vec<i32> = (0..8).collect();
 
@@ -331,7 +314,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 cz,
                 &y_sections,
                 &router,
-                Some((&biome_source, &snapshot)),
+                Some(&biome_source),
                 None,
                 &cancel,
             )

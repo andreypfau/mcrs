@@ -24,7 +24,6 @@ use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_world::worldgen::beta_biome::BetaBiomeSourcePlugin;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
@@ -44,7 +43,6 @@ pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(BetaBiomeSourcePlugin);
         let scheduler = ColumnScheduler::default();
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()

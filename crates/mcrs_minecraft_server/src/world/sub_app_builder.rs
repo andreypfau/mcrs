@@ -79,11 +79,10 @@ use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
@@ -91,6 +90,7 @@ use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceS
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedRegistries;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
@@ -407,12 +407,11 @@ pub fn spawn_dim_subapp(
         match registries.noise_routers.0.get(dimension) {
             Some(dimension_router) => {
                 let router = &dimension_router.router;
-                let biome_registry = std::sync::Arc::new(
-                    sub_app
-                        .world()
-                        .resource::<RegistrySnapshot<Biome>>()
-                        .clone(),
-                );
+                let biome_registry = sub_app
+                    .world()
+                    .resource::<RegistrySet>()
+                    .registry::<keys::Biome>()
+                    .expect("the data pack loader parses minecraft:worldgen/biome");
                 let blocks = sub_app.world().resource::<Blocks>().0.clone();
                 let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
                 let features = registries

@@ -104,8 +104,10 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
+const PARSED_WORLDGEN: [&str; 1] = ["minecraft:worldgen/biome"];
+
 #[test]
-fn the_parsed_registries_are_the_reports_world_registries_outside_worldgen() {
+fn the_parsed_registries_are_the_reports_world_registries_outside_unparsed_worldgen() {
     let world = &*WORLD;
     let parsed: BTreeSet<String> = world
         .declared()
@@ -118,7 +120,8 @@ fn the_parsed_registries_are_the_reports_world_registries_outside_worldgen() {
         .filter(|(registry, flags)| {
             flags.elements
                 && !flags.stable
-                && !registry.starts_with("minecraft:worldgen/")
+                && (!registry.starts_with("minecraft:worldgen/")
+                    || PARSED_WORLDGEN.contains(&registry.as_str()))
                 && !matches!(
                     registry.as_str(),
                     "minecraft:dimension" | "minecraft:dimension_type" | "minecraft:trial_spawner"
@@ -303,8 +306,20 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
                 .pack_of(registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
             let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
-            let text = std::fs::read_to_string(&file)
-                .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+            let text = std::fs::read_to_string(&file).unwrap_or_else(|error| {
+                let built_in = (pack == VANILLA_PACK)
+                    .then(|| {
+                        mcrs_minecraft_worldgen_builtin::asset(&format!(
+                            "{}/{}/{}.json",
+                            name.namespace(),
+                            registry.path(),
+                            name.path()
+                        ))
+                    })
+                    .flatten()
+                    .and_then(|bytes| String::from_utf8(bytes).ok());
+                built_in.unwrap_or_else(|| panic!("{}: {error}", file.display()))
+            });
             let encoded = world
                 .encode(set, registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
@@ -494,6 +509,20 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
             assert!(text.contains(part), "{part} missing for {json}:\n{text}");
         }
     }
+}
+
+#[test]
+fn an_empty_biome_file_names_its_first_missing_field() {
+    let text = refused_by_the_loader("worldgen/biome", "empty", "{}");
+    for part in [
+        "minecraft:worldgen/biome",
+        "minecraft:empty",
+        "minecraft/worldgen/biome/empty.json",
+        "missing field `temperature`",
+    ] {
+        assert!(text.contains(part), "{part} missing from:\n{text}");
+    }
+    assert!(!text.contains("downfall"), "{text}");
 }
 
 const VARIANT_REGISTRIES: [&str; 13] = [

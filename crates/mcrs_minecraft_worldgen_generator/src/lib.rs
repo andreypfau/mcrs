@@ -3,17 +3,17 @@ use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use crate::task::CancellationToken;
 use bevy_math::IVec3;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::beta_surface::beta_surface_blocks;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
@@ -645,26 +645,23 @@ pub fn base_column(
 /// with the game's zoom, and a fixed source is one value per section.
 fn column_biome_palettes(
     noise_router: &NoiseRouter,
-    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    biome_source: Option<&BiomeSource>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> (Vec<BiomePalette>, bool) {
-    match biome_context {
-        Some((BiomeSource::MultiNoise(_), _)) => match multi_noise {
+    match biome_source {
+        Some(BiomeSource::MultiNoise(_)) => match multi_noise {
             Some(table) => (
                 multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
                 true,
             ),
             None => (vec![BiomePalette::default(); y_sections.len()], false),
         },
-        Some((BiomeSource::Fixed { biome_id, .. }, registry)) => (
-            fixed_biome_palettes(biome_id.as_str(), registry, y_sections),
-            true,
-        ),
-        Some((source @ BiomeSource::Beta { .. }, registry)) => {
-            let grid = beta_biome_grid(noise_router, source, registry, block_x, block_z);
+        Some(BiomeSource::Fixed { biome }) => (fixed_biome_palettes(*biome, y_sections), true),
+        Some(source @ BiomeSource::Beta { .. }) => {
+            let grid = beta_biome_grid(noise_router, source, block_x, block_z);
             (upscale_column(&grid, noise_router, y_sections), false)
         }
         _ => (vec![BiomePalette::default(); y_sections.len()], false),
@@ -747,31 +744,25 @@ pub fn multi_noise_grid(
 
 /// The containers of a `minecraft:fixed` source, which answers the same biome
 /// at every block however it is asked.
-fn fixed_biome_palettes(
-    biome_id: &str,
-    registry: &RegistrySnapshot<Biome>,
-    y_sections: &[i32],
-) -> Vec<BiomePalette> {
-    let network_id = match registry
-        .by_location(biome_id)
-        .and_then(|id| u8::try_from(id).ok())
-    {
-        Some(id) => id,
-        None => {
-            // Answering nothing would skip the material stage entirely and hand
-            // back a column of bare stone, so this degrades the way the Beta
-            // palette degrades on the same failure rather than silently
-            // dropping every rule the column owes.
-            tracing::error!(
-                biome = biome_id,
-                "fixed biome is not in the registry snapshot"
-            );
-            debug_assert!(false, "unresolved fixed biome location");
+fn fixed_biome_palettes(biome: Id<keys::Biome>, y_sections: &[i32]) -> Vec<BiomePalette> {
+    let stored = stored_biome(biome, "fixed biome");
+    vec![BiomePalette::homogeneous(stored); y_sections.len()]
+}
+
+/// The byte the palette stores a biome id in.
+///
+/// Answering nothing would skip the material stage entirely and hand back a
+/// column of bare stone, so an id that does not fit degrades to the first biome
+/// rather than silently dropping every rule the column owes.
+fn stored_biome(biome: Id<keys::Biome>, what: &str) -> u8 {
+    match biome.narrow::<u8>() {
+        Ok(stored) => stored,
+        Err(error) => {
+            tracing::error!(%error, what, "a biome id does not fit the palette");
+            debug_assert!(false, "a biome id does not fit the palette");
             0
         }
-    };
-
-    vec![BiomePalette::homogeneous(network_id); y_sections.len()]
+    }
 }
 
 /// The quart grid of a Beta column: one row, its own sixteen cells and the ring
@@ -780,7 +771,6 @@ fn fixed_biome_palettes(
 pub fn beta_biome_grid(
     noise_router: &NoiseRouter,
     biome_source: &BiomeSource,
-    biome_registry: &RegistrySnapshot<Biome>,
     block_x: i32,
     block_z: i32,
 ) -> BiomeGrid {
@@ -799,18 +789,10 @@ pub fn beta_biome_grid(
     );
     let ids = (0..points)
         .map(|at| {
-            let location = biome_source.beta_biome_location(values[at], values[points + at]);
-            match biome_registry
-                .by_location(location.as_str())
-                .and_then(|id| u8::try_from(id).ok())
-            {
-                Some(id) => id,
-                None => {
-                    tracing::error!(biome = %location.as_str(), "beta biome not present in registry snapshot");
-                    debug_assert!(false, "unresolved beta biome location");
-                    0
-                }
-            }
+            stored_biome(
+                biome_source.beta_biome(values[at], values[points + at]),
+                "beta biome",
+            )
         })
         .collect();
     BiomeGrid { volume, ids }
@@ -848,7 +830,7 @@ pub fn generate_column(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &NoiseRouter,
-    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    biome_source: Option<&BiomeSource>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
@@ -859,7 +841,7 @@ pub fn generate_column(
         section_z,
         y_sections,
         noise_router,
-        biome_context,
+        biome_source,
         multi_noise,
         None,
         cancel,
@@ -882,7 +864,7 @@ pub fn fill_column_dense_any<'a>(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &'a NoiseRouter,
-    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    biome_source: Option<&BiomeSource>,
     multi_noise: Option<&MultiNoiseBiomeTable>,
     beard: Option<&Beard>,
     cancel: &CancellationToken,
@@ -891,7 +873,7 @@ pub fn fill_column_dense_any<'a>(
     let block_z = section_z * 16;
     let (biomes, material_surface) = column_biome_palettes(
         noise_router,
-        biome_context,
+        biome_source,
         multi_noise,
         block_x,
         block_z,
