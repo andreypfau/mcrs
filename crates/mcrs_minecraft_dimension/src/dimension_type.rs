@@ -5,7 +5,7 @@ use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{EntrySet, Id};
+use mcrs_minecraft_registry::{HolderSet, Id};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
 const MAX_Y: i32 = (Y_SIZE >> 1) - 1;
@@ -54,7 +54,7 @@ pub struct DimensionType {
     pub height: u32,
     #[serde(deserialize_with = "logical_height")]
     pub logical_height: u32,
-    pub infiniburn: EntrySet<keys::Block>,
+    pub infiniburn: HolderSet<keys::Block>,
     pub ambient_light: f32,
     #[serde(deserialize_with = "monster_spawn_block_light_limit")]
     pub monster_spawn_block_light_limit: u32,
@@ -69,7 +69,7 @@ pub struct DimensionType {
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, skip_serializing_if = "is_default")]
-    pub timelines: EntrySet<keys::Timeline>,
+    pub timelines: HolderSet<keys::Timeline>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_clock: Option<Id<keys::WorldClock>>,
 }
@@ -115,7 +115,7 @@ pub struct NetworkDimensionType {
     pub min_y: i32,
     pub height: u32,
     pub logical_height: u32,
-    pub infiniburn: EntrySet<keys::Block>,
+    pub infiniburn: HolderSet<keys::Block>,
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntProvider,
@@ -128,7 +128,7 @@ pub struct NetworkDimensionType {
     #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(skip_serializing_if = "is_default")]
-    pub timelines: EntrySet<keys::Timeline>,
+    pub timelines: HolderSet<keys::Timeline>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_clock: Option<Id<keys::WorldClock>>,
 }

@@ -3,7 +3,7 @@ use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Entries, EntrySet, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
@@ -38,19 +38,17 @@ fn carvers_by_biome(
     biomes: &Registry<keys::Biome>,
     values: &Entries<keys::Biome, mcrs_minecraft_biome::Biome>,
     carvers: &Registry<keys::Carver>,
+    carver_tags: &Tags<keys::Carver>,
     table: &Entries<keys::Carver, Option<CarverConfig>>,
 ) -> Entries<keys::Biome, Arc<[CarverConfig]>> {
     let lists = biomes
         .ids()
         .map(|id| {
             let biome = || biomes.key(id).expect("an id of the registry has a name");
-            let set = &values[id].carvers;
-            if let EntrySet::Tag(tag) = set {
-                tracing::error!(biome = %biome(), %tag, "a carver tag is unsupported until tags have contents");
-            }
-            set.entries()
-                .iter()
-                .filter_map(|&carver| match &table[carver] {
+            values[id]
+                .carvers
+                .ids(carver_tags)
+                .filter_map(|carver| match &table[carver] {
                     Some(config) => Some(config.clone()),
                     None => {
                         let carver = carvers.key(carver).expect("an id of the registry has a name");
@@ -86,7 +84,16 @@ fn build_modern_carver_biomes(
     let carver_names = registries
         .registry::<keys::Carver>()
         .expect("the data pack declares minecraft:worldgen/carver");
-    let carvers = carvers_by_biome(&biomes, &values, &carver_names, &worldgen.carvers);
+    let carver_tags = registries
+        .tags::<keys::Carver>()
+        .expect("the data pack loader builds the carver tags");
+    let carvers = carvers_by_biome(
+        &biomes,
+        &values,
+        &carver_names,
+        &carver_tags,
+        &worldgen.carvers,
+    );
     let parameter_lists = parameter_lists_of(&registries);
     let name_of = |id| {
         biomes

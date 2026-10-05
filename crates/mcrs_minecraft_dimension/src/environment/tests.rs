@@ -5,7 +5,10 @@ use std::sync::LazyLock;
 use serde_json::json;
 
 use super::*;
-use mcrs_minecraft_assets::tag::file::TagEntry;
+use bevy_asset::Assets;
+use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile};
+use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
+use mcrs_minecraft_registry::DynRegistryIndex;
 
 use crate::dimension_type::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;

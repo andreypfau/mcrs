@@ -26,7 +26,7 @@ pub struct FlatLevelGeneratorSettings {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FlatLayerInfo {
-    // chisle: block and structure set names are not checked against their registries; upgrade = Id<keys::Block> and EntrySet<keys::StructureSet>.
+    // chisle: block and structure set names are not checked against their registries; upgrade = Id<keys::Block> and HolderSet<keys::StructureSet>.
     pub block: ResourceLocation<Arc<str>>,
     pub height: u32,
 }

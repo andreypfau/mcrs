@@ -5,15 +5,11 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::file::{TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::{TagLoader, TagLoadersSettled};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::DenseId;
-use mcrs_minecraft_registry::EntrySet;
 use mcrs_minecraft_registry::RegistrySet;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -159,33 +155,6 @@ pub(crate) fn request_data_pack_assets(
         "json",
     );
     request_templates(&asset_server, &mut loaded);
-    keep_ordered_timeline_tags(&asset_server, &set, &mut loaded);
-}
-
-/// A dimension's timelines stack in the order their tag file lists them, which
-/// the frozen tag bitsets do not keep, so the tag files stay loaded for
-/// `build_dimension_environments` to read in order.
-fn keep_ordered_timeline_tags(
-    asset_server: &AssetServer,
-    set: &RegistrySet,
-    loaded: &mut LoadedRegistryAssets,
-) {
-    let Some(dimension_types) = set.column::<DimensionType>(keys::DimensionType::KEY.as_str())
-    else {
-        return;
-    };
-    for dimension_type in dimension_types {
-        if let EntrySet::Tag(tag) = &dimension_type.timelines {
-            let key = TagKey::<keys::Timeline, _>::from_location(tag.clone());
-            let handle = asset_server
-                .load_builder()
-                .with_settings(|settings: &mut TagFileSettings| {
-                    settings.registry_segment = keys::Timeline::KEY.path().to_string();
-                })
-                .load::<TagFile>(key.asset_path());
-            loaded.handles.push(handle.untyped());
-        }
-    }
 }
 
 /// `(tag location, asset path)`, in asset path order.

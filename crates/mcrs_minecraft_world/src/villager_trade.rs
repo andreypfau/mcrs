@@ -9,7 +9,7 @@ use mcrs_minecraft_keys::{
     self as keys, ContextFloatProvider, ContextIntProvider, Enchantment, Item, MapDecorationType,
     MobEffect, Potion, Structure,
 };
-use mcrs_minecraft_registry::{EntrySet, Id};
+use mcrs_minecraft_registry::{HolderSet, Id};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -19,7 +19,7 @@ const AIR_INDEX: usize = 0;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeSet {
-    pub trades: EntrySet<keys::VillagerTrade>,
+    pub trades: HolderSet<keys::VillagerTrade>,
     pub amount: ContextInt,
     #[serde(default, skip_serializing_if = "is_default")]
     pub allow_duplicates: bool,
@@ -45,7 +45,7 @@ pub struct VillagerTrade {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub given_item_modifier: Option<ItemModifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub double_trade_price_enchantments: Option<EntrySet<Enchantment>>,
+    pub double_trade_price_enchantments: Option<HolderSet<Enchantment>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -365,7 +365,7 @@ pub enum LootFunction {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         condition: Option<LootCondition>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        options: Option<EntrySet<Enchantment>>,
+        options: Option<HolderSet<Enchantment>>,
         #[serde(default = "default_true", skip_serializing_if = "is_true")]
         only_compatible: bool,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -377,7 +377,7 @@ pub enum LootFunction {
         condition: Option<LootCondition>,
         levels: ContextInt,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        options: Option<EntrySet<Enchantment>>,
+        options: Option<HolderSet<Enchantment>>,
         #[serde(default, skip_serializing_if = "is_default")]
         include_additional_cost_component: bool,
     },
@@ -385,7 +385,7 @@ pub enum LootFunction {
     ExplorationMap {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         condition: Option<LootCondition>,
-        destination: EntrySet<Structure>,
+        destination: HolderSet<Structure>,
         // Absent selects minecraft:woodland_mansion.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         decoration: Option<Id<MapDecorationType>>,
@@ -429,7 +429,7 @@ pub enum LootFunction {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         condition: Option<LootCondition>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        options: Option<EntrySet<Potion>>,
+        options: Option<HolderSet<Potion>>,
     },
     #[serde(rename = "minecraft:set_stew_effect")]
     SetStewEffect {
