@@ -523,3 +523,135 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         }
     }
 }
+
+const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
+const NETHER: (&str, &str) = ("minecraft:the_nether", "minecraft:the_nether");
+
+fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<keys::Dimension>)> {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<(Entity, &ResourceKey<keys::Dimension>), With<DimSubAppHandle>>();
+    query
+        .iter(app.world())
+        .map(|(label, key)| (label, key.clone()))
+        .collect()
+}
+
+#[test]
+fn a_shared_registry_is_not_changed_on_the_second_tick() {
+    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_registry::shared::SharedRegistries;
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::drive_to_playing(&mut app);
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+
+    let labels = dimension_labels(&mut app);
+    assert_eq!(labels.len(), 2);
+    let overworld = labels
+        .iter()
+        .find(|(_, key)| *key == ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD))
+        .expect("the overworld is live")
+        .0;
+
+    let host_anchor = app.world_mut().spawn_empty().id();
+    app.world()
+        .resource::<DimChannelsResource>()
+        .get(overworld)
+        .expect("channel registered by spawn_dim_subapp")
+        .control_sender
+        .try_send(ToDim::Spawn(InboundPlayerSpawn {
+            host_anchor,
+            session: PlayerSession(0),
+            snapshot: PlayerTransferSnapshot {
+                uuid: Uuid::new_v4(),
+                username: "second_tick".into(),
+                position: DVec3::new(0.0, 64.0, 0.0),
+                rotation: Vec2::ZERO,
+                view_distance: 12,
+            },
+            dimensions: Vec::new().into(),
+        }))
+        .expect("control channel not full");
+
+    app.update();
+    {
+        use mcrs_minecraft_level::entity::player::Player;
+        let world = app.sub_app_mut(DimAppLabel(overworld)).world_mut();
+        assert_eq!(
+            world
+                .query_filtered::<Entity, With<Player>>()
+                .iter(world)
+                .count(),
+            1
+        );
+    }
+    let since: Vec<_> = labels
+        .iter()
+        .map(|(label, _)| {
+            let world = app.sub_app_mut(DimAppLabel(*label)).world_mut();
+            (*label, world.increment_change_tick())
+        })
+        .collect();
+    app.update();
+
+    let shared = app.world().resource::<SharedRegistries>();
+    for (label, since) in since {
+        let seen = shared.changed_since(app.sub_app(DimAppLabel(label)).world(), since);
+        assert!(!seen.is_empty());
+        for (name, changed) in seen {
+            assert_eq!(changed, Some(false), "{name}");
+        }
+    }
+}
+
+#[test]
+fn an_id_names_the_same_entry_in_every_dimension() {
+    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
+    use mcrs_minecraft_registry::RegistrySet;
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
+
+    let labels = dimension_labels(&mut app);
+    assert_eq!(labels.len(), 2);
+    let sets: Vec<RegistrySet> = labels
+        .iter()
+        .map(|(label, _)| {
+            app.sub_app(DimAppLabel(*label))
+                .world()
+                .resource::<RegistrySet>()
+                .clone()
+        })
+        .collect();
+    let enchantments: Vec<Registry<Enchantment>> = labels
+        .iter()
+        .map(|(label, _)| {
+            app.sub_app(DimAppLabel(*label))
+                .world()
+                .resource::<Registry<Enchantment>>()
+                .clone()
+        })
+        .collect();
+
+    let (first, rest) = sets.split_first().unwrap();
+    assert!(first.tables().count() > 0);
+    for other in rest {
+        assert_eq!(first.tables().count(), other.tables().count());
+        for table in first.tables() {
+            let registry = table.registry().as_str();
+            let counterpart = other
+                .table(registry)
+                .unwrap_or_else(|| panic!("{registry} is missing from a dimension"));
+            assert_eq!(table.names(), counterpart.names(), "{registry}");
+        }
+    }
+
+    let (first, rest) = enchantments.split_first().unwrap();
+    for other in rest {
+        assert_eq!(first.len(), other.len());
+        for id in first.ids() {
+            assert_eq!(first.key(id), other.key(id));
+        }
+    }
+}
