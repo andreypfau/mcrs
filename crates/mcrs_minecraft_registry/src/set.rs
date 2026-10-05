@@ -59,6 +59,23 @@ impl RegistrySet {
         Ok(Self::of(by_name, Arc::default()))
     }
 
+    pub fn from_names(registries: &[(&str, &[&str])]) -> Result<Self, RegistryError> {
+        let invalid = |registry: &str, name: &str| RegistryError::InvalidName {
+            registry: registry.to_owned(),
+            name: name.to_owned(),
+        };
+        let mut tables = Vec::with_capacity(registries.len());
+        for &(registry, names) in registries {
+            let location = registry.parse().map_err(|_| invalid(registry, registry))?;
+            let names = names
+                .iter()
+                .map(|name| name.parse().map_err(|_| invalid(registry, name)))
+                .collect::<Result<Vec<_>, _>>()?;
+            tables.push(Arc::new(NameTable::new(location, names)?));
+        }
+        Self::from_tables(tables)
+    }
+
     fn of(tables: Tables, values: Arc<Values>) -> Self {
         let paths = tables
             .iter()
@@ -596,5 +613,43 @@ mod tests {
             assert_eq!(index_of("minecraft:plains"), 0);
         });
         assert!(no_scope_here());
+    }
+
+    #[test]
+    fn names_build_tables_numbered_in_list_order_and_bad_lists_are_refused() {
+        let set = RegistrySet::from_names(&[("minecraft:item", &PLAINS_LAST)]).unwrap();
+        let table = set.table("minecraft:item").unwrap();
+        assert_eq!(table.number("minecraft:plains"), Some(2));
+        assert_eq!(table.name(0).unwrap().as_str(), "minecraft:desert");
+
+        let cases: [(&str, &[(&str, &[&str])], &str); 4] = [
+            (
+                "a malformed name",
+                &[("minecraft:item", &["Not A Name"])],
+                "Not A Name",
+            ),
+            (
+                "a malformed registry",
+                &[("Not A Registry", &[])],
+                "Not A Registry",
+            ),
+            (
+                "an entry twice",
+                &[("minecraft:item", &["minecraft:a", "minecraft:a"])],
+                "minecraft:a",
+            ),
+            (
+                "a registry twice",
+                &[("minecraft:item", &[]), ("minecraft:item", &[])],
+                "minecraft:item",
+            ),
+        ];
+        for (label, list, detail) in cases {
+            let message = RegistrySet::from_names(list)
+                .err()
+                .expect(label)
+                .to_string();
+            assert!(message.contains(detail), "{label}: {message}");
+        }
     }
 }

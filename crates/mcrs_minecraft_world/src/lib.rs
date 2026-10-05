@@ -121,16 +121,7 @@ impl Plugin for MinecraftWorldPlugin {
         }
         let (block_registry, registries) = {
             let asset_server = app.world().resource::<AssetServer>().clone();
-            let source = asset_server
-                .get_source(bevy_asset::io::AssetSourceId::Default)
-                .expect("default AssetSource missing");
-            let path = std::path::Path::new("mcrs/reports/registries.json");
-            let bytes = bevy_tasks::block_on(mcrs_minecraft_assets::asset::read_whole(
-                source.reader(),
-                path,
-            ))
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let statics = registries::static_registries(&bytes)
+            let statics = registries::static_registries()
                 .unwrap_or_else(|report| registries::refuse(&report));
             tracing::info!(
                 count = statics.tables().count(),
@@ -149,7 +140,7 @@ impl Plugin for MinecraftWorldPlugin {
                 .unwrap_or_else(|report| registries::refuse(&report));
             let block_registry = registries
                 .registry::<mcrs_minecraft_keys::Block>()
-                .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
+                .expect("the static registries hold minecraft:block");
             registries::register_world_registries(
                 &mut app
                     .world_mut()

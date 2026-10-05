@@ -34,9 +34,8 @@ use mcrs_minecraft_item::{
     TrimPattern,
 };
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{Block, Enchantment, Item};
+use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::shared::share;
-use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
 };
@@ -337,15 +336,7 @@ pub fn test_registries() -> &'static RegistrySet {
             },
         ));
         let asset_server = app.world().resource::<AssetServer>().clone();
-        let source = asset_server
-            .get_source(AssetSourceId::Default)
-            .expect("default AssetSource missing");
-        let bytes = bevy_tasks::block_on(read_whole(
-            source.reader(),
-            Path::new("mcrs/reports/registries.json"),
-        ))
-        .expect("the registries report reads");
-        let statics = static_registries(&bytes).unwrap_or_else(|report| refuse(&report));
+        let statics = static_registries().unwrap_or_else(|report| refuse(&report));
         load_registries(&asset_server, statics).unwrap_or_else(|report| refuse(&report))
     });
     &SET
@@ -410,17 +401,8 @@ pub fn share_registries(world: &mut World) {
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
 }
 
-pub fn static_registries(report: &[u8]) -> Result<RegistrySet, LoadReport> {
-    let set = from_report(report).map_err(LoadReport::invalid)?;
-    let mut missing = LoadReport::new();
-    missing.registry::<keys::SoundEvent>(&set);
-    missing.registry::<Block>(&set);
-    missing.registry::<Item>(&set);
-    if missing.is_empty() {
-        Ok(set)
-    } else {
-        Err(missing)
-    }
+pub fn static_registries() -> Result<RegistrySet, LoadReport> {
+    RegistrySet::from_names(keys::STATIC_REGISTRIES).map_err(LoadReport::invalid)
 }
 
 pub fn refuse(report: &LoadReport) -> ! {
@@ -431,18 +413,6 @@ pub fn refuse(report: &LoadReport) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_malformed_report_is_refused_with_a_report() {
-        let json = br#"{"minecraft:x":{"protocol_id":0,"entries":{"a:a":{"protocol_id":0},"a:b":{"protocol_id":0}}}}"#;
-        let report = static_registries(json)
-            .err()
-            .expect("a shared id is refused");
-        assert!(!report.is_empty());
-        let text = report.to_string();
-        assert_eq!(text.lines().count(), 1, "{text}");
-        assert!(text.contains("minecraft:x"), "{text}");
-    }
 
     #[derive(serde::Deserialize, Serialize)]
     struct Probe {
@@ -491,26 +461,9 @@ mod tests {
         assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
     }
 
-    fn refused_without(registry: &str) -> LoadReport {
-        let mut report: serde_json::Value = serde_json::from_slice(include_bytes!(
-            "../../../assets/mcrs/reports/registries.json"
-        ))
-        .unwrap();
-        report
-            .as_object_mut()
-            .unwrap()
-            .remove(registry)
-            .unwrap_or_else(|| panic!("the report carries {registry}"));
-        let bytes = serde_json::to_vec(&report).unwrap();
-
-        static_registries(&bytes)
-            .err()
-            .unwrap_or_else(|| panic!("a report without {registry} is refused"))
-    }
-
     #[test]
     fn generated_names_follow_the_report_order() {
-        let set = from_report(include_bytes!(
+        let set = mcrs_minecraft_registry::static_report::from_report(include_bytes!(
             "../../../assets/mcrs/reports/registries.json"
         ))
         .unwrap();
@@ -568,13 +521,5 @@ mod tests {
             keys::attribute::NAMES[keys::attribute::MAX_HEALTH.index()],
             "minecraft:max_health"
         );
-    }
-
-    #[test]
-    fn a_report_without_a_required_static_registry_is_refused() {
-        for registry in ["minecraft:sound_event", "minecraft:block", "minecraft:item"] {
-            let refused = refused_without(registry);
-            assert!(refused.to_string().contains(registry), "{refused}");
-        }
     }
 }

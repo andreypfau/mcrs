@@ -145,6 +145,10 @@ and `minecraft:advancement`. A constant is the entry path in upper case with
 Any other digit-leading name, a namespace without a rule and two names that make
 one constant stop the generator with the name.
 
+`STATIC_REGISTRIES` at the crate root lists every registry of `registries.json`
+with its `NAMES`. The server builds its static registries from it, so
+`registries.json` is read only by this tool and by tests.
+
 A registry with tags in `names.json` also gets a `<module>_tags` module of
 `TagKey` constants named the same way, so `block_tags::LOGS` and
 `item_tags::LOGS` are two constants of two registries.

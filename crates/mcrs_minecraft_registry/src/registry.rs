@@ -26,6 +26,10 @@ pub enum RegistryError {
     DuplicateRegistry {
         registry: ResourceLocation<Arc<str>>,
     },
+    InvalidName {
+        registry: String,
+        name: String,
+    },
 }
 
 impl fmt::Display for RegistryError {
@@ -52,6 +56,9 @@ impl fmt::Display for RegistryError {
             }
             RegistryError::DuplicateRegistry { registry } => {
                 write!(f, "a registry set already holds the registry {registry}")
+            }
+            RegistryError::InvalidName { registry, name } => {
+                write!(f, "{name} is not a resource location, in {registry}")
             }
         }
     }

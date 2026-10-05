@@ -1,7 +1,6 @@
 use super::villager::VillagerProfession;
 use bytes::Buf;
 use mcrs_minecraft_entity::attribute;
-use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{RegistrySet, StaticRegistry};
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
@@ -65,11 +64,7 @@ fn loaded_names(registry: &str) -> Vec<String> {
 }
 
 fn report_set() -> RegistrySet {
-    let report = std::fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports/registries.json"),
-    )
-    .unwrap();
-    from_report(&report).unwrap()
+    RegistrySet::from_names(mcrs_minecraft_keys::STATIC_REGISTRIES).unwrap()
 }
 
 #[test]

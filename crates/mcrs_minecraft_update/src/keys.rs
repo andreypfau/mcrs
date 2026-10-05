@@ -32,6 +32,7 @@ pub fn generate(
     let mut files = Files::new();
     let mut markers = String::new();
     let mut modules = Vec::new();
+    let mut static_names = Vec::new();
     let mut claimed: BTreeMap<String, &str> = ["registry", "lib"]
         .into_iter()
         .map(|name| (name.to_owned(), "src"))
@@ -61,6 +62,9 @@ pub fn generate(
         }
 
         marker_text(&mut markers, registry, &marker, &module, statics);
+        if let Some(report) = statics {
+            static_names.push((registry.clone(), module.clone(), report.entries.is_empty()));
+        }
         let text = match (statics, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
                 Some(static_module(registry, &marker, report)?)
@@ -88,7 +92,7 @@ pub fn generate(
     files.insert("src/registry.rs".to_owned(), registry_file(&markers));
     modules.push("registry".to_owned());
     modules.sort();
-    files.insert("src/lib.rs".to_owned(), lib_file(&modules));
+    files.insert("src/lib.rs".to_owned(), lib_file(&modules, &static_names));
     Ok(files)
 }
 
@@ -306,12 +310,22 @@ fn registry_file(markers: &str) -> String {
     )
 }
 
-fn lib_file(modules: &[String]) -> String {
+fn lib_file(modules: &[String], statics: &[(String, String, bool)]) -> String {
     let mut out = format!("{HEADER}\n");
     for module in modules {
         out.push_str(&format!("#[rustfmt::skip]\npub mod {module};\n"));
     }
     out.push_str("\npub use registry::*;\n");
+    out.push_str("\n#[rustfmt::skip]\npub const STATIC_REGISTRIES: &[(&str, &[&str])] = &[\n");
+    for (registry, module, empty) in statics {
+        let names = if *empty {
+            "&[]".to_owned()
+        } else {
+            format!("{module}::NAMES")
+        };
+        out.push_str(&format!("    (\"{registry}\", {names}),\n"));
+    }
+    out.push_str("];\n");
     out
 }
 
@@ -427,7 +441,12 @@ mod tests {
              #[rustfmt::skip]\n\
              pub mod registry;\n\
              \n\
-             pub use registry::*;\n"
+             pub use registry::*;\n\
+             \n\
+             #[rustfmt::skip]\n\
+             pub const STATIC_REGISTRIES: &[(&str, &[&str])] = &[\n\
+             \x20   (\"minecraft:block\", block::NAMES),\n\
+             ];\n"
         );
         assert_eq!(
             files["src/registry.rs"],
@@ -573,6 +592,15 @@ mod tests {
         for (statics, data, expected) in cases {
             assert_refused(generated(statics, data), expected);
         }
+    }
+
+    #[test]
+    fn a_static_registry_without_entries_is_listed_and_has_no_module() {
+        let files = generated(&[("minecraft:none", &[]), ("minecraft:block", BLOCK)], &[]).unwrap();
+
+        assert!(files["src/lib.rs"].contains("    (\"minecraft:none\", &[]),\n"));
+        assert!(files["src/lib.rs"].contains("    (\"minecraft:block\", block::NAMES),\n"));
+        assert!(!files.contains_key("src/none.rs"));
     }
 
     #[test]
