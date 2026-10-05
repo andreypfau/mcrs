@@ -17,8 +17,6 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
@@ -33,10 +31,6 @@ use mcrs_minecraft_worldgen_feature::tree::{PositiveFloat, UnitFloat, non_empty}
 pub struct StructureSet {
     pub structures: Vec<StructureSelectionEntry>,
     pub placement: StructurePlacement,
-}
-
-impl RegistryKey for StructureSet {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/structure_set");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

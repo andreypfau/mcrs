@@ -12,8 +12,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{self as keys, Block};
 
 // ── Proto (deserialization-only) ──
 
@@ -121,7 +120,7 @@ impl ProtoDimensionType {
                 let tag_str = raw
                     .strip_prefix('#')
                     .ok_or_else(|| DimensionTypeResolveError::MissingHashPrefix(raw.to_owned()))?;
-                TagRef::<Timeline>::load(tag_str, load_context)
+                TagRef::<keys::Timeline>::load(tag_str, load_context)
                     .map_err(DimensionTypeResolveError::from)
             })
             .transpose()?;
@@ -132,7 +131,7 @@ impl ProtoDimensionType {
     pub(crate) fn with_tags(
         self,
         infiniburn: TagRef<Block>,
-        timelines: Option<TagRef<Timeline>>,
+        timelines: Option<TagRef<keys::Timeline>>,
     ) -> DimensionType {
         DimensionType {
             has_skylight: self.has_skylight,
@@ -182,7 +181,7 @@ pub struct DimensionType {
     pub cardinal_light: CardinalLight,
     pub has_fixed_time: Option<bool>,
     pub attributes: EnvironmentAttributeMap,
-    pub timelines: Option<TagRef<Timeline>>,
+    pub timelines: Option<TagRef<keys::Timeline>>,
     pub default_clock: Option<String>,
 }
 

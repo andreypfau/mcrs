@@ -77,9 +77,9 @@ world_registry_table! {
     keys::PaintingVariant => PaintingVariantValue [non_empty], synced as Clone::clone;
     keys::TrimMaterial => TrimMaterial, synced as Clone::clone;
     keys::TrimPattern => TrimPattern, synced as Clone::clone;
-    ChatType => ChatType, synced as Clone::clone;
-    TestEnvironment => TestEnvironment, synced as Clone::clone;
-    TestInstance => TestInstance, synced as Clone::clone;
+    keys::ChatType => ChatType, synced as Clone::clone;
+    keys::TestEnvironment => TestEnvironment, synced as Clone::clone;
+    keys::TestInstance => TestInstance, synced as Clone::clone;
     keys::Dialog => Dialog, synced as Clone::clone;
     keys::DamageType => DamageType, synced as Clone::clone;
     keys::BlockTransformer => BlockTransformer, synced as Clone::clone;
@@ -109,12 +109,12 @@ world_registry_table! {
         synced as |v| variant::NetworkFrogVariant::from(v);
     keys::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
         synced as |v| variant::NetworkZombieNautilusVariant::from(v);
-    WorldClock => WorldClock, synced as Clone::clone;
-    Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
-    SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
-    EnchantmentProvider => EnchantmentProvider;
-    VillagerTrade => VillagerTrade;
-    TradeSet => TradeSet;
+    keys::WorldClock => WorldClock, synced as Clone::clone;
+    keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
+    keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    keys::EnchantmentProvider => EnchantmentProvider;
+    keys::VillagerTrade => VillagerTrade;
+    keys::TradeSet => TradeSet;
 }
 
 pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
@@ -122,8 +122,8 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
     parse_world_registries(&mut world, &mut undeclared);
-    if world.parses(Timeline::KEY.as_str()) {
-        world.validate::<Timeline>(Timeline::KEY, check_time_markers);
+    if world.parses(keys::Timeline::KEY.as_str()) {
+        world.validate::<Timeline>(keys::Timeline::KEY, check_time_markers);
     }
     if undeclared.is_empty() {
         Ok(world)

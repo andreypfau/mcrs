@@ -6,9 +6,9 @@ use std::sync::Arc;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
@@ -16,24 +16,12 @@ use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-struct WorldClockKey;
-
-impl RegistryKey for WorldClockKey {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:world_clock");
-}
-
-struct TimelineKey;
-
-impl RegistryKey for TimelineKey {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:timeline");
-}
-
 // Does not run the period check of the library's `Timeline`, which is private to
 // it: the row proves registry references, not timeline validation.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRow {
-    clock: Id<WorldClockKey>,
+    clock: Id<keys::WorldClock>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     period_ticks: Option<u32>,
     #[serde(default)]
@@ -45,8 +33,8 @@ struct TimelineRow {
 #[derive(Debug, PartialEq)]
 enum TimelineSet {
     Tag(ResourceLocation<Arc<str>>),
-    One(Id<TimelineKey>),
-    List(Vec<Id<TimelineKey>>),
+    One(Id<keys::Timeline>),
+    List(Vec<Id<keys::Timeline>>),
 }
 
 impl<'de> Deserialize<'de> for TimelineSet {
@@ -66,14 +54,14 @@ impl<'de> Deserialize<'de> for TimelineSet {
                         .map(TimelineSet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
-                let known = Registry::<TimelineKey>::in_scope("TimelineSet", |registry| {
+                let known = Registry::<keys::Timeline>::in_scope("TimelineSet", |registry| {
                     registry.has_tag(tag.as_str())
                 })
                 .map_err(E::custom)?;
                 if !known {
                     return Err(E::custom(format_args!(
                         "Missing tag: '{tag}' in '{}'",
-                        TimelineKey::KEY
+                        keys::Timeline::KEY
                     )));
                 }
                 Ok(TimelineSet::Tag(tag))
@@ -92,7 +80,7 @@ impl<'de> Deserialize<'de> for TimelineSet {
 struct DimensionProbe {
     timelines: TimelineSet,
     #[serde(default)]
-    default_clock: Option<Id<WorldClockKey>>,
+    default_clock: Option<Id<keys::WorldClock>>,
 }
 
 fn corpus(dir: &str) -> PathBuf {
@@ -130,15 +118,16 @@ fn read_all<T: DeserializeOwned>(dir: &str) -> Vec<T> {
 }
 
 struct Slice {
-    clocks: Registry<WorldClockKey>,
-    timelines: Registry<TimelineKey>,
+    clocks: Registry<keys::WorldClock>,
+    timelines: Registry<keys::Timeline>,
     set: RegistrySet,
 }
 
 fn slice() -> Slice {
-    let clocks = Registry::<WorldClockKey>::new(names("world_clock"), std::iter::empty()).unwrap();
+    let clocks =
+        Registry::<keys::WorldClock>::new(names("world_clock"), std::iter::empty()).unwrap();
     let timelines =
-        Registry::<TimelineKey>::new(names("timeline"), names("tags/timeline")).unwrap();
+        Registry::<keys::Timeline>::new(names("timeline"), names("tags/timeline")).unwrap();
     let set = RegistrySet::new()
         .with(clocks.clone())
         .unwrap()
@@ -271,7 +260,7 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
 fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     #[derive(Deserialize)]
     struct Holder {
-        clock: Id<WorldClockKey>,
+        clock: Id<keys::WorldClock>,
     }
 
     #[derive(Deserialize)]
@@ -287,7 +276,7 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     enum Either {
         #[allow(dead_code)]
         Number(u32),
-        Clock(Id<WorldClockKey>),
+        Clock(Id<keys::WorldClock>),
     }
 
     let Slice { clocks, set, .. } = slice();

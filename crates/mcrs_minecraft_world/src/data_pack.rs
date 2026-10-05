@@ -14,7 +14,6 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::NameTable;
@@ -344,9 +343,9 @@ pub(crate) fn index_structures(
 /// Resolve the timeline tag every dimension type names. The tag files were
 /// loaded as sub-assets by `DimensionTypeLoader`, so they are available here.
 pub(crate) fn resolve_timeline_tags(
-    mut tags: ResMut<DynTagLoader<Timeline>>,
+    mut tags: ResMut<DynTagLoader<mcrs_minecraft_keys::Timeline>>,
     tag_files: Res<Assets<TagFile>>,
-    index: Res<DynRegistryIndex<Timeline>>,
+    index: Res<DynRegistryIndex<mcrs_minecraft_keys::Timeline>>,
     dim_types: Res<Assets<DimensionType>>,
 ) {
     for (_id, dim_type) in dim_types.iter() {

@@ -8,7 +8,6 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
@@ -21,10 +20,6 @@ use crate::timeline::Timeline;
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorldClock {}
-
-impl RegistryKey for WorldClock {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:world_clock");
-}
 
 impl RegistryValue for WorldClock {
     type Registry = keys::WorldClock;
@@ -197,7 +192,7 @@ impl ClockTimeMarkers {
     /// repeat is returned with the index of the timeline that repeated it.
     pub fn derive(
         timelines: &[Timeline],
-        clocks: &Registry<WorldClock>,
+        clocks: &Registry<keys::WorldClock>,
     ) -> Result<Self, Vec<(usize, DuplicateTimeMarker)>> {
         let mut table = ClockTimeMarkers::default();
         let mut duplicates = Vec::new();
@@ -234,7 +229,7 @@ impl ClockTimeMarkers {
 }
 
 pub fn check_time_markers(timelines: &[Timeline], set: &RegistrySet) -> Vec<(usize, String)> {
-    let Some(clocks) = set.registry::<WorldClock>() else {
+    let Some(clocks) = set.registry::<keys::WorldClock>() else {
         return Vec::new();
     };
     match ClockTimeMarkers::derive(timelines, &clocks) {
@@ -271,7 +266,7 @@ impl Plugin for WorldClockPlugin {
 }
 
 pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
-    let Some(table) = set.table(WorldClock::KEY.as_str()) else {
+    let Some(table) = set.table(keys::WorldClock::KEY.as_str()) else {
         tracing::error!("the registry set holds no world_clock registry to seed the clocks from");
         return;
     };
@@ -300,7 +295,7 @@ pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
 
 #[cfg(test)]
 pub(crate) static TEST_CLOCKS: std::sync::LazyLock<RegistrySet> = std::sync::LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+    mcrs_minecraft_worldgen_testing::shipped_registry_set::<keys::WorldClock>("world_clock")
 });
 
 #[cfg(test)]
@@ -501,7 +496,10 @@ mod tests {
     fn markers_of(
         timelines: &[Timeline],
     ) -> Result<ClockTimeMarkers, Vec<(usize, DuplicateTimeMarker)>> {
-        ClockTimeMarkers::derive(timelines, &TEST_CLOCKS.registry::<WorldClock>().unwrap())
+        ClockTimeMarkers::derive(
+            timelines,
+            &TEST_CLOCKS.registry::<keys::WorldClock>().unwrap(),
+        )
     }
 
     #[test]

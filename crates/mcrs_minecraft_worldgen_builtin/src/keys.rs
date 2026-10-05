@@ -1,10 +1,9 @@
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_keys::{Carver, ParticleType, SoundEvent};
-use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
+use mcrs_minecraft_keys::{Carver, ParticleType, ProcessorList, SoundEvent};
 
 pub use mcrs_minecraft_biome::PlacedFeatureKey as PlacedKey;
 pub use mcrs_minecraft_core::StaticResourceLocation as Id;
-pub type ProcessorsKey = ResourceKey<StructureProcessorList, &'static str>;
+pub type ProcessorsKey = ResourceKey<ProcessorList, &'static str>;
 pub type SoundKey = ResourceKey<SoundEvent, &'static str>;
 pub type CarverKey = ResourceKey<Carver, &'static str>;
 pub type ParticleKey = ResourceKey<ParticleType, &'static str>;

@@ -9,7 +9,7 @@ use mcrs_minecraft_assets::tag::file::TagEntry;
 
 use crate::dimension_type::ProtoDimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
-use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
 const NOON: i64 = 6000;
 const MIDNIGHT: i64 = 18000;
@@ -29,10 +29,10 @@ fn dimension_type(name: &str) -> ProtoDimensionType {
 }
 
 static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
+    mcrs_minecraft_worldgen_testing::shipped_registry_set::<keys::WorldClock>("world_clock")
 });
 
-fn clock_registry() -> Registry<WorldClock> {
+fn clock_registry() -> Registry<keys::WorldClock> {
     CLOCKS.registry().unwrap()
 }
 
@@ -440,7 +440,7 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         values: vec![TagEntry::Element(rl("test:zulu")), TagEntry::Tag(nested)],
     };
 
-    let index = DynRegistryIndex::<Timeline>::from_table(&std::sync::Arc::new(
+    let index = DynRegistryIndex::<keys::Timeline>::from_table(&std::sync::Arc::new(
         mcrs_minecraft_registry::NameTable::new(
             rl("minecraft:timeline"),
             [rl("test:alpha"), rl("test:zulu")],

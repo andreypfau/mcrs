@@ -1,14 +1,13 @@
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, is_default, is_true};
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
 use mcrs_minecraft_item::enchantment::predicate::LootCondition;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_keys::{
-    ContextFloatProvider, ContextIntProvider, Enchantment, Item, MapDecorationType, MobEffect,
-    Potion, Structure,
+    self as keys, ContextFloatProvider, ContextIntProvider, Enchantment, Item, MapDecorationType,
+    MobEffect, Potion, Structure,
 };
 use mcrs_minecraft_registry::{EntrySet, Id};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -20,16 +19,12 @@ const AIR_INDEX: usize = 0;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeSet {
-    pub trades: EntrySet<VillagerTrade>,
+    pub trades: EntrySet<keys::VillagerTrade>,
     pub amount: ContextInt,
     #[serde(default, skip_serializing_if = "is_default")]
     pub allow_duplicates: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub random_sequence: Option<ResourceLocation>,
-}
-
-impl RegistryKey for TradeSet {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:trade_set");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,10 +46,6 @@ pub struct VillagerTrade {
     pub given_item_modifier: Option<ItemModifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub double_trade_price_enchantments: Option<EntrySet<Enchantment>>,
-}
-
-impl RegistryKey for VillagerTrade {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:villager_trade");
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -5,7 +5,6 @@ mod item_corpus;
 mod loaded_registries;
 mod player_dat;
 mod playing;
-mod registry_keys;
 mod registry_values;
 mod structure_assets;
 mod tag_pipeline;
