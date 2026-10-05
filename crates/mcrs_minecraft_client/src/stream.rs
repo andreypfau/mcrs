@@ -2,7 +2,7 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use crate::columns::{
-    BIOME_REGISTRY, BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
+    BlockSource, ClientTerrainSet, ColumnChange, ColumnStore, Extent, SECTION_SIZE,
 };
 use bevy::ecs::system::SystemParam;
 use bevy::platform::collections::{HashMap, HashSet};
@@ -10,9 +10,9 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_keys as keys;
 #[cfg(feature = "dev")]
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
-use mcrs_minecraft_network::client::ReceivedRegistries;
 use mcrs_minecraft_registry::RegistrySet;
 
 use crate::atlas::SpriteArray;
@@ -1365,13 +1365,12 @@ fn bake_catalog(
     assets: Res<AssetServer>,
     definitions: Res<Blocks>,
     loaded: Res<RegistrySet>,
-    registries: Query<&ReceivedRegistries>,
     mut commands: Commands,
 ) {
     let catalog = &mut *catalog;
     let pack = catalog.poll_pack(&assets);
     if catalog.biomes.is_empty() {
-        catalog.biomes = biome_names(&registries);
+        catalog.biomes = local_biome_names(&loaded);
     }
     if let Some(task) = catalog.baking.as_mut()
         && let Some(baked) = check_ready(task)
@@ -1533,16 +1532,16 @@ fn admit_meshing(
     }
 }
 
-fn biome_names(registries: &Query<&ReceivedRegistries>) -> Vec<String> {
+/// In local id order: the tint table is indexed by the local biome id a decoded column holds.
+fn local_biome_names(registries: &RegistrySet) -> Vec<String> {
     registries
-        .iter()
-        .flat_map(|received| received.0.iter())
-        .find(|registry| registry.registry == BIOME_REGISTRY)
-        .map(|registry| {
-            registry
-                .entries
+        .registry::<keys::Biome>()
+        .map(|biomes| {
+            biomes
+                .table()
+                .names()
                 .iter()
-                .map(|entry| entry.id.clone())
+                .map(ToString::to_string)
                 .collect()
         })
         .unwrap_or_default()
@@ -1553,6 +1552,41 @@ mod tests {
     use super::*;
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_mesh::StreamSpan;
+    use mcrs_minecraft_world::registries::test_registries;
+
+    fn tints_for(names: &[String]) -> Vec<crate::blocks::BiomeTint> {
+        let mut catalog = blocks::empty();
+        blocks::extend(
+            Pack::corpus(),
+            &mut catalog,
+            blocks::corpus(),
+            &[],
+            test_registries(),
+            names,
+        );
+        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
+        catalog.tints
+    }
+
+    #[test]
+    fn the_tint_table_is_indexed_by_local_biome_id() {
+        let names = local_biome_names(test_registries());
+        let tints = tints_for(&names);
+        let biomes = test_registries().registry::<keys::Biome>().unwrap();
+        assert_eq!(tints.len(), biomes.len());
+        for name in [
+            "minecraft:plains",
+            "minecraft:swamp",
+            "minecraft:beta_desert",
+        ] {
+            let id = biomes.get(name).unwrap();
+            assert_eq!(
+                tints[id.index()],
+                tints_for(&[name.to_owned()])[0],
+                "{name}"
+            );
+        }
+    }
 
     fn loader() -> Loader {
         Loader::new(&Budget {
