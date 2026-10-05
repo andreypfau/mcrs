@@ -1,13 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
+use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::Timeline;
@@ -81,28 +81,32 @@ impl ClockState {
     }
 }
 
-/// Every clock of the `world_clock` registry, keyed by id.
+/// Every clock of the `world_clock` registry, keyed by id and walked in id order.
 ///
 /// A resource rather than an entity per clock: this crosses into every
 /// dimension sub-world once per tick, and entities do not cross worlds.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct WorldClocks(HashMap<ResourceLocation<Arc<str>>, ClockState>);
+pub struct WorldClocks(BTreeMap<Id<keys::WorldClock>, ClockState>);
 
 impl WorldClocks {
-    pub fn get(&self, clock: &str) -> Option<&ClockState> {
-        self.0.get(clock)
+    pub fn get(&self, clock: Id<keys::WorldClock>) -> Option<&ClockState> {
+        self.0.get(&clock)
     }
 
-    pub fn get_mut(&mut self, clock: &str) -> Option<&mut ClockState> {
-        self.0.get_mut(clock)
+    pub fn get_mut(&mut self, clock: Id<keys::WorldClock>) -> Option<&mut ClockState> {
+        self.0.get_mut(&clock)
     }
 
-    pub fn insert(&mut self, clock: ResourceLocation<Arc<str>>, state: ClockState) {
+    pub fn insert(&mut self, clock: Id<keys::WorldClock>, state: ClockState) {
         self.0.insert(clock, state);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &ClockState)> {
-        self.0.iter()
+    pub fn iter(&self) -> impl Iterator<Item = (Id<keys::WorldClock>, &ClockState)> {
+        self.0.iter().map(|(id, state)| (*id, state))
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Id<keys::WorldClock>, &mut ClockState)> {
+        self.0.iter_mut().map(|(id, state)| (*id, state))
     }
 
     pub fn len(&self) -> usize {
@@ -116,19 +120,15 @@ impl WorldClocks {
     /// Leave exactly one clock per registry entry: keep the supplied state for
     /// an entry that has one, default the rest, drop what the registry no
     /// longer knows.
-    pub fn reconcile_with_registry(
-        &mut self,
-        registered: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
-    ) {
-        let registered: Vec<_> = registered.into_iter().collect();
+    pub fn reconcile_with_registry(&mut self, registry: &Registry<keys::WorldClock>) {
         self.0.retain(|id, _| {
-            let known = registered.contains(id);
+            let known = registry.name(*id).is_some();
             if !known {
-                tracing::warn!(clock = %id, "discarding clock state with no world_clock registry entry");
+                tracing::warn!(clock = ?id, "discarding clock state with no world_clock registry entry");
             }
             known
         });
-        for id in registered {
+        for id in registry.ids() {
             self.0.entry(id).or_default();
         }
     }
@@ -158,24 +158,24 @@ pub struct DuplicateTimeMarker {
 /// Markers have no registry of their own: this table is derived once from the
 /// `timeline` column and never touched again.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct ClockTimeMarkers(HashMap<ResourceLocation<Arc<str>>, MarkersOfClock>);
+pub struct ClockTimeMarkers(BTreeMap<Id<keys::WorldClock>, MarkersOfClock>);
 
 type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
 
 impl ClockTimeMarkers {
-    pub fn get(&self, clock: &str, marker: &str) -> Option<&ClockTimeMarker> {
-        self.0.get(clock)?.get(marker)
+    pub fn get(&self, clock: Id<keys::WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
+        self.0.get(&clock)?.get(marker)
     }
 
     pub fn of_clock(
         &self,
-        clock: &str,
+        clock: Id<keys::WorldClock>,
     ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &ClockTimeMarker)> {
-        self.0.get(clock).into_iter().flat_map(BTreeMap::iter)
+        self.0.get(&clock).into_iter().flat_map(BTreeMap::iter)
     }
 
-    pub fn clocks(&self) -> impl Iterator<Item = &ResourceLocation<Arc<str>>> {
-        self.0.keys()
+    pub fn clocks(&self) -> impl Iterator<Item = Id<keys::WorldClock>> {
+        self.0.keys().copied()
     }
 
     pub fn len(&self) -> usize {
@@ -204,7 +204,7 @@ impl ClockTimeMarkers {
                     period_ticks: timeline.period_ticks,
                     show_in_commands: marker.show_in_commands,
                 };
-                let of_clock = table.0.entry(clock.clone()).or_default();
+                let of_clock = table.0.entry(timeline.clock).or_default();
                 if of_clock.contains_key(id) {
                     duplicates.push((
                         index,
@@ -264,11 +264,11 @@ impl Plugin for WorldClockPlugin {
 }
 
 pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
-    let Some(table) = set.table(keys::WorldClock::KEY.as_str()) else {
+    let Some(registry) = set.registry::<keys::WorldClock>() else {
         tracing::error!("the registry set holds no world_clock registry to seed the clocks from");
         return;
     };
-    clocks.reconcile_with_registry(table.names().iter().cloned());
+    clocks.reconcile_with_registry(&registry);
     tracing::info!(clocks = clocks.len(), "seeded world clocks");
 }
 
@@ -303,13 +303,19 @@ mod tests {
 
     const OVERWORLD: &str = "minecraft:overworld";
 
-    fn rl(id: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::read(id).unwrap()
+    const THE_END: &str = "minecraft:the_end";
+
+    fn id(name: &str) -> Id<keys::WorldClock> {
+        TEST_CLOCKS
+            .registry::<keys::WorldClock>()
+            .unwrap()
+            .require_by_name(name)
+            .unwrap()
     }
 
-    fn clocks(ids: &[&str]) -> WorldClocks {
+    fn all_clocks() -> WorldClocks {
         let mut clocks = WorldClocks::default();
-        clocks.reconcile_with_registry(ids.iter().map(|id| rl(id)));
+        clocks.reconcile_with_registry(&TEST_CLOCKS.registry().unwrap());
         clocks
     }
 
@@ -328,7 +334,7 @@ mod tests {
         app
     }
 
-    fn total_ticks(app: &App, clock: &str) -> i64 {
+    fn total_ticks(app: &App, clock: Id<keys::WorldClock>) -> i64 {
         app.world()
             .resource::<WorldClocks>()
             .get(clock)
@@ -338,22 +344,63 @@ mod tests {
 
     #[test]
     fn reconcile_gives_one_clock_per_registry_entry() {
+        let registry = TEST_CLOCKS.registry::<keys::WorldClock>().unwrap();
+        let removed = Registry::<keys::WorldClock>::new(
+            ["minecraft:overworld", THE_END, "datapack:removed"]
+                .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
+        )
+        .unwrap()
+        .require_by_name("datapack:removed")
+        .unwrap();
         let mut clocks = WorldClocks::default();
         clocks.insert(
-            rl(OVERWORLD),
+            id(OVERWORLD),
             ClockState {
                 total_ticks: 500,
                 ..ClockState::default()
             },
         );
-        clocks.insert(rl("datapack:removed"), ClockState::default());
+        clocks.insert(removed, ClockState::default());
 
-        clocks.reconcile_with_registry([rl(OVERWORLD), rl("minecraft:the_end")]);
+        clocks.reconcile_with_registry(&registry);
 
-        assert_eq!(clocks.len(), 2);
-        assert_eq!(clocks.get(OVERWORLD).unwrap().total_ticks, 500);
-        assert_eq!(clocks.get("minecraft:the_end").unwrap().total_ticks, 0);
-        assert!(clocks.get("datapack:removed").is_none());
+        assert_eq!(clocks.len(), registry.len());
+        assert_eq!(clocks.get(id(OVERWORLD)).unwrap().total_ticks, 500);
+        assert_eq!(clocks.get(id(THE_END)).unwrap().total_ticks, 0);
+        assert!(clocks.get(removed).is_none());
+    }
+
+    #[test]
+    fn clocks_are_read_and_advanced_by_id() {
+        let registry = TEST_CLOCKS.registry::<keys::WorldClock>().unwrap();
+        let (overworld, end) = (id(OVERWORLD), id(THE_END));
+
+        let mut app = App::new();
+        app.insert_resource(TEST_CLOCKS.clone())
+            .insert_resource(AdvanceTime(true))
+            .init_resource::<WorldClocks>()
+            .add_systems(Startup, seed_world_clocks)
+            .add_systems(FixedUpdate, advance_world_clocks);
+        app.world_mut().run_schedule(Startup);
+
+        let seeded: Vec<_> = app
+            .world()
+            .resource::<WorldClocks>()
+            .iter()
+            .map(|(id, _)| id)
+            .collect();
+        assert_eq!(seeded, registry.ids().collect::<Vec<_>>());
+
+        app.world_mut()
+            .resource_mut::<WorldClocks>()
+            .get_mut(end)
+            .unwrap()
+            .paused = true;
+        for _ in 0..10 {
+            tick_app(&mut app);
+        }
+        assert_eq!(total_ticks(&app, overworld), 10);
+        assert_eq!(total_ticks(&app, end), 0);
     }
 
     #[test]
@@ -413,10 +460,10 @@ mod tests {
 
     #[test]
     fn pausing_a_clock_stops_only_that_clock() {
-        let mut app = app_with(clocks(&[OVERWORLD, "minecraft:the_end"]), true);
+        let mut app = app_with(all_clocks(), true);
         app.world_mut()
             .resource_mut::<WorldClocks>()
-            .get_mut(OVERWORLD)
+            .get_mut(id(OVERWORLD))
             .unwrap()
             .paused = true;
 
@@ -424,23 +471,23 @@ mod tests {
             tick_app(&mut app);
         }
 
-        assert_eq!(total_ticks(&app, OVERWORLD), 0);
-        assert_eq!(total_ticks(&app, "minecraft:the_end"), 10);
+        assert_eq!(total_ticks(&app, id(OVERWORLD)), 0);
+        assert_eq!(total_ticks(&app, id(THE_END)), 10);
     }
 
     #[test]
     fn disabling_advance_time_stops_every_clock_without_pausing_any() {
-        let mut app = app_with(clocks(&[OVERWORLD, "minecraft:the_end"]), false);
+        let mut app = app_with(all_clocks(), false);
         for _ in 0..10 {
             tick_app(&mut app);
         }
 
-        assert_eq!(total_ticks(&app, OVERWORLD), 0);
-        assert_eq!(total_ticks(&app, "minecraft:the_end"), 0);
+        assert_eq!(total_ticks(&app, id(OVERWORLD)), 0);
+        assert_eq!(total_ticks(&app, id(THE_END)), 0);
         assert!(
             !app.world()
                 .resource::<WorldClocks>()
-                .get(OVERWORLD)
+                .get(id(OVERWORLD))
                 .unwrap()
                 .paused
         );
@@ -449,7 +496,7 @@ mod tests {
         for _ in 0..10 {
             tick_app(&mut app);
         }
-        assert_eq!(total_ticks(&app, OVERWORLD), 10);
+        assert_eq!(total_ticks(&app, id(OVERWORLD)), 10);
     }
 
     #[test]
@@ -511,7 +558,7 @@ mod tests {
         .unwrap();
 
         let names: Vec<&str> = markers
-            .of_clock(OVERWORLD)
+            .of_clock(id(OVERWORLD))
             .map(|(id, _)| id.as_str())
             .collect();
         assert_eq!(
@@ -526,25 +573,28 @@ mod tests {
             ]
         );
 
-        let day = markers.get(OVERWORLD, "minecraft:day").unwrap();
+        let day = markers.get(id(OVERWORLD), "minecraft:day").unwrap();
         assert_eq!(day.ticks, 1000);
         assert_eq!(day.period_ticks, Some(24_000));
         assert!(day.show_in_commands);
         assert!(
             !markers
-                .get(OVERWORLD, "minecraft:roll_village_siege")
+                .get(id(OVERWORLD), "minecraft:roll_village_siege")
                 .unwrap()
                 .show_in_commands
         );
 
         // Two markers may share a tick; two markers may not share an id.
         assert_eq!(
-            markers.get(OVERWORLD, "minecraft:midnight").unwrap().ticks,
+            markers
+                .get(id(OVERWORLD), "minecraft:midnight")
+                .unwrap()
+                .ticks,
             18_000
         );
         assert_eq!(
             markers
-                .get(OVERWORLD, "minecraft:roll_village_siege")
+                .get(id(OVERWORLD), "minecraft:roll_village_siege")
                 .unwrap()
                 .ticks,
             18_000
@@ -554,9 +604,9 @@ mod tests {
     #[test]
     fn a_clock_with_no_markers_answers_none_rather_than_panicking() {
         let markers = markers_of(&[shipped_timeline(DAY_TIMELINE)]).unwrap();
-        assert!(markers.get("minecraft:the_end", "minecraft:day").is_none());
-        assert_eq!(markers.of_clock("minecraft:the_end").count(), 0);
-        assert!(markers.get(OVERWORLD, "datapack:nothing").is_none());
+        assert!(markers.get(id(THE_END), "minecraft:day").is_none());
+        assert_eq!(markers.of_clock(id(THE_END)).count(), 0);
+        assert!(markers.get(id(OVERWORLD), "datapack:nothing").is_none());
     }
 
     #[test]
@@ -601,10 +651,10 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(
-            markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks,
+            markers.get(id(OVERWORLD), "minecraft:noon").unwrap().ticks,
             6_000
         );
-        let end = markers.get("minecraft:the_end", "minecraft:noon").unwrap();
+        let end = markers.get(id(THE_END), "minecraft:noon").unwrap();
         assert_eq!((end.ticks, end.period_ticks), (7_000, None));
     }
 }

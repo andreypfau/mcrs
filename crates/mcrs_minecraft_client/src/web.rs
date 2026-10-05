@@ -156,12 +156,9 @@ const TERRAIN_LIMITS: TerrainLimits = TerrainLimits {
 };
 
 fn freeze_clocks(mut clocks: ResMut<WorldClocks>, frozen: Res<FrozenTicks>) {
-    let ids: Vec<String> = clocks.iter().map(|(id, _)| id.to_string()).collect();
-    for id in &ids {
-        if let Some(state) = clocks.get_mut(id) {
-            state.total_ticks = frozen.0;
-            state.partial_tick = 0.0;
-        }
+    for (_, state) in clocks.iter_mut() {
+        state.total_ticks = frozen.0;
+        state.partial_tick = 0.0;
     }
 }
 

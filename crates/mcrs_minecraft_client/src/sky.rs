@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use bevy::asset::{AssetPath, RenderAssetUsages};
 use bevy::image::{ImageLoaderSettings, ImageSampler};
 use bevy::prelude::*;
@@ -9,10 +7,9 @@ use bevy::render::render_resource::{
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::client::JoinedGame;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
@@ -110,7 +107,7 @@ pub struct SkyEnvironment {
     attributes: EnvironmentAttributes,
     layout: SkyLayout,
     statics: SkyStatic,
-    clock: Option<ResourceLocation<Arc<str>>>,
+    clock: Option<Id<keys::WorldClock>>,
 }
 
 impl SkyEnvironment {
@@ -121,8 +118,7 @@ impl SkyEnvironment {
     pub fn drift(&self, clocks: &WorldClocks) -> f32 {
         cloud_drift(
             self.clock
-                .as_ref()
-                .and_then(|clock| clocks.get(clock.as_str()))
+                .and_then(|clock| clocks.get(clock))
                 .map_or(0.0, |state| {
                     state.total_ticks as f64 + f64::from(state.partial_tick)
                 }),
@@ -234,10 +230,7 @@ fn build_sky_environment(
     let biomes = SpatialAttributeInterpolator::default();
     let statics = layout.constants(&attributes, &context(Vec3::ZERO, &ticks, &biomes, *weather));
 
-    let clock = dimension_types[type_id]
-        .default_clock
-        .and_then(|clock| world_clocks.name(clock))
-        .cloned();
+    let clock = dimension_types[type_id].default_clock;
 
     info!(
         dimension = %joined.dimension,
@@ -245,7 +238,7 @@ fn build_sky_environment(
         skybox = ?statics.key.skybox,
         effects = ?statics.key.effects,
         draws = statics.key.draws(),
-        clock = ?clock.as_ref().map(|clock| clock.to_string()),
+        clock = ?clock.and_then(|clock| world_clocks.name(clock)).map(ToString::to_string),
         "built the sky environment"
     );
     commands.insert_resource(SkyEnvironment {
@@ -904,5 +897,28 @@ mod sky_regression {
             cloud_drift(a_lot),
             cloud_drift(a_lot + span / CLOUD_BLOCKS_PER_TICK)
         );
+    }
+
+    #[test]
+    fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
+        let overworld_clock = CLOCKS
+            .registry::<keys::WorldClock>()
+            .unwrap()
+            .require(&keys::world_clock::OVERWORLD)
+            .unwrap();
+        let mut clocks = WorldClocks::default();
+        clocks.insert(
+            overworld_clock,
+            ClockState {
+                total_ticks: 6000,
+                ..default()
+            },
+        );
+
+        let mut environment = overworld();
+        assert_eq!(environment.drift(&clocks), 0.0);
+
+        environment.clock = Some(overworld_clock);
+        assert_eq!(environment.drift(&clocks), cloud_drift(6000.0));
     }
 }

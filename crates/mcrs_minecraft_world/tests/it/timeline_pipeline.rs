@@ -6,9 +6,18 @@ use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionTy
 use mcrs_minecraft_dimension::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
+
+fn overworld_clock(app: &App) -> Id<keys::WorldClock> {
+    app.world()
+        .resource::<RegistrySet>()
+        .registry::<keys::WorldClock>()
+        .expect("the world clock registry is loaded")
+        .require_by_name(OVERWORLD_CLOCK)
+        .expect("the overworld clock is registered")
+}
 
 fn members(app: &App, tag: &str) -> Vec<String> {
     let set = app.world().resource::<RegistrySet>();
@@ -78,14 +87,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     }
 
     let overworld = environment("minecraft:overworld").unwrap();
-    assert_eq!(
-        overworld
-            .clocks()
-            .iter()
-            .map(|c| c.as_str())
-            .collect::<Vec<_>>(),
-        [OVERWORLD_CLOCK]
-    );
+    assert_eq!(overworld.clocks(), [overworld_clock(app)]);
 
     let sky_light = mcrs_minecraft_dimension::environment::EnvironmentAttributes::index(
         "minecraft:gameplay/sky_light_level",
@@ -101,16 +103,17 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
 
 pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
     let markers = app.world().resource::<ClockTimeMarkers>();
+    let overworld = overworld_clock(app);
 
     assert!(
         app.world()
             .resource::<WorldClocks>()
-            .get(OVERWORLD_CLOCK)
+            .get(overworld)
             .is_some(),
         "the clocks must be seeded before the markers are folded"
     );
 
-    let noon = markers.get(OVERWORLD_CLOCK, "minecraft:noon").unwrap();
+    let noon = markers.get(overworld, "minecraft:noon").unwrap();
     assert_eq!((noon.ticks, noon.period_ticks), (6000, Some(24000)));
     assert!(noon.show_in_commands);
 }
