@@ -6,6 +6,7 @@ use crate::stored_biomes::column_cell;
 use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
@@ -117,6 +118,7 @@ impl FillContext {
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
         biome: Option<(Arc<BiomeSource>, Registry<keys::Biome>)>,
+        parameter_lists: &ParameterLists,
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
@@ -128,7 +130,7 @@ impl FillContext {
             let BiomeSource::MultiNoise(multi) = source.as_ref() else {
                 return None;
             };
-            match MultiNoiseBiomeTable::resolve(multi, registry) {
+            match MultiNoiseBiomeTable::resolve(multi, registry, parameter_lists) {
                 Ok(table) => Some(Arc::new(table)),
                 Err(error) => {
                     error!(%error, "the multi-noise biome source has no climate table");

@@ -74,7 +74,15 @@ pub(crate) fn process_loaded_world_preset(
     let biomes = registries
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
-    commands.insert_resource(dimension_biome_sources(&loaded_preset, &dim_defs, &biomes));
+    let parameter_lists = registries
+        .registry::<keys::MultiNoiseBiomeSourceParameterList>()
+        .expect("the data pack loader parses minecraft:worldgen/multi_noise_biome_source_parameter_list");
+    commands.insert_resource(dimension_biome_sources(
+        &loaded_preset,
+        &dim_defs,
+        &biomes,
+        &parameter_lists,
+    ));
 
     debug!(
         preset = %loaded_preset.preset_name,
@@ -87,6 +95,7 @@ fn dimension_biome_sources(
     preset: &LoadedWorldPreset,
     dim_defs: &Assets<DimensionDefinition>,
     biomes: &Registry<keys::Biome>,
+    parameter_lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
 ) -> DimensionBiomeSources {
     let mut sources = DimensionBiomeSources::default();
     for (dimension, handle) in &preset.dimensions {
@@ -100,7 +109,7 @@ fn dimension_biome_sources(
         let source = generator
             .biome_source
             .clone()
-            .resolve(biomes)
+            .resolve(biomes, parameter_lists)
             .unwrap_or_else(|error| {
                 panic!("{dimension}: the biome source does not resolve: {error}")
             });

@@ -12,10 +12,11 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
+use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -32,6 +33,25 @@ mod support;
 
 use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
 use support::{corpus, router_blocks};
+
+fn parameter_lists() -> (
+    Registry<keys::MultiNoiseBiomeSourceParameterList>,
+    Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
+) {
+    let names = Registry::new(
+        Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()),
+        [],
+    )
+    .unwrap();
+    let lists = Entries::new(
+        &names,
+        Preset::ALL
+            .map(|preset| MultiNoiseBiomeSourceParameterList { preset })
+            .to_vec(),
+    )
+    .unwrap();
+    (names, lists)
+}
 
 const NETHER: [&str; 5] = [
     "nether_wastes",
@@ -339,12 +359,13 @@ fn natural(
     side: i32,
     offset: i32,
 ) {
+    let (list_names, lists) = parameter_lists();
     let multi = MultiNoiseBiomeSource {
-        preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+        preset: Some(list_names.require("minecraft:overworld").unwrap()),
         biomes: None,
     };
-    let table =
-        MultiNoiseBiomeTable::resolve(&multi, registry).expect("the overworld preset resolves");
+    let table = MultiNoiseBiomeTable::resolve(&multi, registry, &lists)
+        .expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
 
     let mut column = ColumnBlocks::new(y_sections);

@@ -1,4 +1,4 @@
-use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
@@ -35,6 +35,7 @@ pub struct FeatureTables {
 pub fn possible_biomes(
     source: &BiomeSource,
     biomes: &Registry<keys::Biome>,
+    lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
     let named = |id: &mcrs_minecraft_registry::Id<keys::Biome>| {
         biomes
@@ -45,10 +46,9 @@ pub fn possible_biomes(
     let listed: Vec<ResourceLocation> = match source {
         BiomeSource::MultiNoise(multi) => match (&multi.biomes, &multi.preset) {
             (Some(entries), _) => entries.iter().map(|entry| named(&entry.biome)).collect(),
-            (None, Some(preset)) => match preset.as_str() {
-                "minecraft:overworld" => preset_biomes(overworld_parameter_list()),
-                "minecraft:nether" => preset_biomes(nether_parameter_list()),
-                other => panic!("no biome list for the multi-noise preset {other}"),
+            (None, Some(list)) => match lists.get(*list) {
+                Some(list) => preset_biomes(list.preset.parameter_list()),
+                None => panic!("no parameter list is numbered {}", list.index()),
             },
             (None, None) => panic!("a multi-noise source names neither biomes nor a preset"),
         },
@@ -113,7 +113,7 @@ mod tests {
 
     fn order(source: &BiomeSource) -> Vec<String> {
         let biomes = Registry::<keys::Biome>::new([], []).unwrap();
-        possible_biomes(source, &biomes)
+        possible_biomes(source, &biomes, &crate::tests::parameter_lists().1)
             .iter()
             .map(|id| id.as_str().to_owned())
             .collect()
@@ -121,7 +121,7 @@ mod tests {
 
     fn preset(name: &str) -> BiomeSource {
         BiomeSource::MultiNoise(mcrs_minecraft_biome::source::MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse(name).unwrap()),
+            preset: Some(crate::tests::parameter_list_id(name)),
             biomes: None,
         })
     }

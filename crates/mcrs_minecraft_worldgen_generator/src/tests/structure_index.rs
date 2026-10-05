@@ -23,7 +23,7 @@ fn overworld() -> StructureIndex {
     let frozen = frozen_shared();
     let source = preset("minecraft:overworld");
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(&source, corpus_biomes()) {
+    for name in possible_biomes(&source, corpus_biomes(), &crate::tests::parameter_lists().1) {
         mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
@@ -33,7 +33,9 @@ fn overworld() -> StructureIndex {
     let BiomeSource::MultiNoise(multi) = source else {
         unreachable!()
     };
-    let biomes = MultiNoiseBiomeTable::resolve(&multi, corpus_biomes()).unwrap();
+    let biomes =
+        MultiNoiseBiomeTable::resolve(&multi, corpus_biomes(), &crate::tests::parameter_lists().1)
+            .unwrap();
     StructureIndex::new(
         Arc::new(tables),
         SEED as i64,

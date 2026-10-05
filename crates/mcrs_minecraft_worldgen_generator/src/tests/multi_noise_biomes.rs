@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use mcrs_minecraft_biome::climate::ClimateParameters;
+use mcrs_minecraft_biome::climate::{ClimateParameters, TargetPoint};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
@@ -37,16 +37,53 @@ fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<keys::Biome> {
 pub(super) fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
     let ids = preset_ids();
     let source = MultiNoiseBiomeSource {
-        preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+        preset: Some(super::parameter_list_id("minecraft:overworld")),
         biomes: None,
     };
-    let table = MultiNoiseBiomeTable::resolve(&source, &registry_numbered_as(&ids))
-        .expect("the overworld preset resolves");
+    let table = MultiNoiseBiomeTable::resolve(
+        &source,
+        &registry_numbered_as(&ids),
+        &super::parameter_lists().1,
+    )
+    .expect("the overworld preset resolves");
     (table, ids)
 }
 
 fn y_sections() -> Vec<i32> {
     (-4..20).collect()
+}
+
+#[test]
+fn the_overworld_parameter_list_builds_the_overworld_table() {
+    const STEPS: [f32; 5] = [-1.0, -0.5, 0.0, 0.5, 1.0];
+    const DEPTHS: [f32; 5] = [-0.5, 0.0, 0.2, 0.55, 1.0];
+    let (table, _) = overworld_table();
+    assert_eq!(table.len(), overworld_parameter_list().len());
+
+    let mut digest = 0xcbf2_9ce4_8422_2325_u64;
+    for temperature in STEPS {
+        for humidity in STEPS {
+            for continentalness in STEPS {
+                for erosion in STEPS {
+                    for depth in DEPTHS {
+                        for weirdness in STEPS {
+                            let target = TargetPoint::new(
+                                temperature,
+                                humidity,
+                                continentalness,
+                                erosion,
+                                depth,
+                                weirdness,
+                            );
+                            digest ^= u64::from(table.biome_at(target));
+                            digest = digest.wrapping_mul(0x0000_0100_0000_01b3);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(digest, 5_811_771_714_322_547_878);
 }
 
 fn a_column_carries_its_cave_biome_under_its_surface_biome(
@@ -112,8 +149,8 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
         preset: None,
         biomes: Some(vec![entry(flat(-1.0), plains), entry(flat(1.0), desert)]),
     };
-    let table =
-        MultiNoiseBiomeTable::resolve(&source, &registry).expect("an explicit list resolves");
+    let table = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
+        .expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
@@ -142,7 +179,7 @@ fn entry(
 #[test]
 fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
     let source = MultiNoiseBiomeSource {
-        preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:overworld").unwrap()),
+        preset: Some(super::parameter_list_id("minecraft:overworld")),
         biomes: None,
     };
     let mut names: Vec<String> = (0..256).map(|id| format!("a:filler_{id:03}")).collect();
@@ -150,7 +187,7 @@ fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let registry = super::biome_registry(&names);
 
-    let error = MultiNoiseBiomeTable::resolve(&source, &registry)
+    let error = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
         .err()
         .expect("every preset biome sorts past the 256 fillers");
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
@@ -184,7 +221,7 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
             last,
         )]),
     };
-    let error = MultiNoiseBiomeTable::resolve(&source, &registry)
+    let error = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
         .err()
         .expect("an id of 256 does not fit a byte");
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
@@ -195,14 +232,28 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
 }
 
 #[test]
-fn an_unknown_preset_is_not_resolved() {
+fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
+    let (names, lists) = super::parameter_lists();
+    let beyond = Registry::<keys::MultiNoiseBiomeSourceParameterList>::new(
+        names
+            .ids()
+            .map(|id| {
+                names
+                    .key(id)
+                    .expect("an id of the registry has a name")
+                    .clone()
+            })
+            .chain([ResourceLocation::parse("test:beyond_the_loaded_lists").unwrap()]),
+        [],
+    )
+    .expect("a registry of distinct names");
     let source = MultiNoiseBiomeSource {
-        preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:the_end").unwrap()),
+        preset: Some(beyond.require("test:beyond_the_loaded_lists").unwrap()),
         biomes: None,
     };
     let registry = super::biome_registry(&["minecraft:plains"]);
     assert!(matches!(
-        MultiNoiseBiomeTable::resolve(&source, &registry),
+        MultiNoiseBiomeTable::resolve(&source, &registry, lists),
         Err(BiomeTableError::NoTable(_))
     ));
 }

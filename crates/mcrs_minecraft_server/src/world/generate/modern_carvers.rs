@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::climate::ParameterPoint;
+use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, EntrySet, Registry, RegistrySet};
@@ -86,6 +87,7 @@ fn build_modern_carver_biomes(
         .registry::<keys::Carver>()
         .expect("the data pack declares minecraft:worldgen/carver");
     let carvers = carvers_by_biome(&biomes, &values, &carver_names, &worldgen.carvers);
+    let parameter_lists = parameter_lists_of(&registries);
     let name_of = |id| {
         biomes
             .key(id)
@@ -131,9 +133,7 @@ fn build_modern_carver_biomes(
         };
 
         match resolve_carver_biomes(
-            preset
-                .and_then(|multi| multi.preset.as_ref())
-                .map(|preset| preset.as_str()),
+            preset.and_then(|multi| multi.preset_in(&parameter_lists)),
             explicit,
             &biomes,
             &carvers,

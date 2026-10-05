@@ -3,7 +3,7 @@ use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
-use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
@@ -286,18 +286,14 @@ impl CarverBiomeTable {
     /// `lookup` answers what carvers a biome runs. It is called once per
     /// distinct biome in the preset, not once per entry.
     pub fn resolve(
-        preset: &str,
+        preset: Preset,
         lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
-    ) -> Option<CarverBiomeTable> {
-        let named = match preset {
-            "minecraft:overworld" => overworld_parameter_list(),
-            "minecraft:nether" => nether_parameter_list(),
-            _ => return None,
-        };
-        Some(
-            Self::with_biomes(SourceBiomes::Climate(Self::map_values(named, lookup)))
-                .with_region(REGION_WIDTH, REGION_CAPACITY),
-        )
+    ) -> CarverBiomeTable {
+        Self::with_biomes(SourceBiomes::Climate(Self::map_values(
+            preset.parameter_list(),
+            lookup,
+        )))
+        .with_region(REGION_WIDTH, REGION_CAPACITY)
     }
 
     /// A source that lists its biomes rather than naming a preset.
@@ -832,14 +828,14 @@ pub fn whole_climate_space() -> ParameterPoint {
 }
 
 pub fn resolve_carver_biomes(
-    preset: Option<&str>,
+    preset: Option<Preset>,
     explicit: Option<Vec<(ParameterPoint, String)>>,
     biomes: &Registry<keys::Biome>,
     carvers: &Entries<keys::Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
     let lookup = biome_carvers(biomes, carvers);
     match preset {
-        Some(preset) => CarverBiomeTable::resolve(preset, lookup),
+        Some(preset) => Some(CarverBiomeTable::resolve(preset, lookup)),
         None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
     }
 }

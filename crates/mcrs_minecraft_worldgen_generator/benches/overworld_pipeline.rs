@@ -7,11 +7,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
+use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -36,6 +37,25 @@ use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
 use support::{corpus, router_blocks};
 
 const ABSENT_BIOME: u16 = 250;
+
+fn parameter_lists() -> (
+    Registry<keys::MultiNoiseBiomeSourceParameterList>,
+    Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
+) {
+    let names = Registry::new(
+        Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()),
+        [],
+    )
+    .unwrap();
+    let lists = Entries::new(
+        &names,
+        Preset::ALL
+            .map(|preset| MultiNoiseBiomeSourceParameterList { preset })
+            .to_vec(),
+    )
+    .unwrap();
+    (names, lists)
+}
 
 fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
@@ -120,15 +140,17 @@ fn main() {
         [],
     )
     .unwrap();
+    let (list_names, lists) = parameter_lists();
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+            preset: Some(list_names.require("minecraft:overworld").unwrap()),
             biomes: None,
         },
         &biomes,
+        &lists,
     )
     .unwrap();
-    let carvers = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
+    let carvers = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
     let carver_ids = ModernCarverBlockIds::resolve(corpus(), None);
     let biome = |name: &str| ids.get(name).copied().unwrap_or(ABSENT_BIOME);
     let surface_ids = SurfaceIds {
