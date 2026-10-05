@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
+use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
@@ -28,7 +28,7 @@ use crate::support::{registry_set, standalone_corpus};
 pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = standalone_corpus();
     let mut registry = RegistryAccess::default();
-    registry.register(RegistrySnapshotErased::from_entries(
+    registry.register(SyncedRegistry::from_entries(
         "minecraft:item",
         items
             .0

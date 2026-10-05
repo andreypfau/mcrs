@@ -8,8 +8,10 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
-use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
-use mcrs_minecraft_world::registries::{share_registries, static_registries, test_registries};
+use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_world::registries::{
+    insert_registry_resources, share_registries, static_registries, test_registries,
+};
 use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen::tables::WorldgenTables;
 
@@ -30,10 +32,8 @@ pub fn insert_corpus(app: &mut App) {
 /// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
-    app.insert_resource(test_registries().clone());
+    insert_registry_resources(app.world_mut(), test_registries());
     app.insert_resource(RegistryAccess::default());
-    app.insert_resource(test_enchantment_registry());
-    app.insert_resource(test_enchantments());
     app.insert_resource(WorldgenTables::default());
     share_registries(app.world_mut());
     app.add_plugins((

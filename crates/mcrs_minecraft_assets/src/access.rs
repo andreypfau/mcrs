@@ -1,12 +1,8 @@
-use crate::packs::VANILLA_PACK;
-use crate::snapshot::RegistrySnapshot;
-use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::LookupIndex;
 use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedResource;
 use std::sync::{Arc, OnceLock};
 
@@ -35,12 +31,12 @@ pub struct RegistryEntry {
     pub pack_source: Option<PackSource>,
 }
 
-pub struct RegistrySnapshotErased {
+pub struct SyncedRegistry {
     key: String,
     entries: Vec<RegistryEntry>,
 }
 
-impl RegistrySnapshotErased {
+impl SyncedRegistry {
     pub fn from_entries(
         key: &str,
         entries: Vec<(ResourceLocation<Arc<str>>, Option<NbtTag>)>,
@@ -66,32 +62,6 @@ impl RegistrySnapshotErased {
         }
     }
 
-    pub fn from_dynamic<T: Asset>(
-        key: &str,
-        snapshot: &RegistrySnapshot<T>,
-        set: &RegistrySet,
-        pack_source: Option<PackSource>,
-    ) -> Self {
-        let entries = snapshot
-            .entries()
-            .iter()
-            .enumerate()
-            .map(|(id, e)| RegistryEntry {
-                location: e.location.clone(),
-                data: Some(e.nbt.clone()),
-                pack_source: pack_source
-                    .clone()
-                    .filter(|_| set.pack_of(key, id) == Some(VANILLA_PACK)),
-            })
-            .collect();
-        Self {
-            key: key.to_string(),
-            entries,
-        }
-    }
-}
-
-impl RegistrySnapshotErased {
     pub fn registry_key(&self) -> &str {
         &self.key
     }
@@ -125,11 +95,11 @@ pub struct RegistryAccess(Arc<RegistryAccessInner>);
 
 #[derive(Default)]
 pub struct RegistryAccessInner {
-    registries: Vec<RegistrySnapshotErased>,
+    registries: Vec<SyncedRegistry>,
     lookup: OnceLock<LookupIndex>,
 }
 
-fn build_lookup_index(registries: &[RegistrySnapshotErased]) -> LookupIndex {
+fn build_lookup_index(registries: &[SyncedRegistry]) -> LookupIndex {
     let mut index = LookupIndex::default();
     for registry in registries {
         let key = registry.registry_key();
@@ -158,7 +128,7 @@ impl SharedResource for RegistryAccess {
 }
 
 impl RegistryAccess {
-    /// Register a registry snapshot.
+    /// Register a registry for the network.
     ///
     /// # Panics
     ///
@@ -166,17 +136,17 @@ impl RegistryAccess {
     /// call. The inner `Arc::get_mut` check enforces the freeze-before-clone
     /// invariant: once any clone has been handed to a per-dim sub-app the
     /// refcount is > 1 and mutation is forbidden.
-    pub fn register(&mut self, snapshot: RegistrySnapshotErased) {
+    pub fn register(&mut self, registry: SyncedRegistry) {
         let inner = Arc::get_mut(&mut self.0).expect(
             "RegistryAccess: registry mutation attempted after the registry was cloned; \
              mutation must complete before WorldgenFreeze — \
              after the registry was cloned all clones share the same Arc and further \
              mutation would create divergent state",
         );
-        inner.registries.push(snapshot);
+        inner.registries.push(registry);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &RegistrySnapshotErased> {
+    pub fn iter(&self) -> impl Iterator<Item = &SyncedRegistry> {
         self.0.registries.iter()
     }
 
@@ -213,7 +183,7 @@ mod tests {
     #[test]
     fn lookup_resolves_names_and_ids_by_position() {
         let mut access = RegistryAccess::default();
-        access.register(RegistrySnapshotErased::from_entries(
+        access.register(SyncedRegistry::from_entries(
             "minecraft:item",
             vec![
                 (make_location("stone"), None),
@@ -227,59 +197,6 @@ mod tests {
         assert_eq!(access.id("block", &make_location("dirt")), None);
     }
 
-    #[derive(bevy_asset::Asset, bevy_reflect::TypePath)]
-    struct Variant;
-
-    #[test]
-    fn an_entry_from_a_non_vanilla_pack_claims_no_vanilla_pack() {
-        use bevy_asset::Assets;
-        use mcrs_minecraft_registry::{Pack, PackFile, WorldRegistries};
-
-        let registry = ResourceLocation::read("minecraft:test_variant").unwrap();
-        let file = |path: &str| PackFile {
-            path: path.to_owned(),
-            bytes: None,
-        };
-        let packs = [
-            Pack {
-                name: "vanilla".to_owned(),
-                files: vec![file("minecraft/test_variant/a.json")],
-                built: Vec::new(),
-            },
-            Pack {
-                name: "extra".to_owned(),
-                files: vec![file("minecraft/test_variant/b.json")],
-                built: Vec::new(),
-            },
-        ];
-        let set = WorldRegistries::new([registry.clone()])
-            .load(&RegistrySet::new(), &packs)
-            .unwrap();
-        let table = set.table(registry.as_str()).unwrap();
-
-        let mut assets = Assets::<Variant>::default();
-        let pairs: Vec<_> = table
-            .names()
-            .iter()
-            .map(|name| (name.clone(), assets.add(Variant).id()))
-            .collect();
-        let snapshot = RegistrySnapshot::build(table, pairs, &assets, |_| {
-            Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-        });
-
-        let erased = RegistrySnapshotErased::from_dynamic(
-            registry.as_str(),
-            &snapshot,
-            &set,
-            Some(PackSource::vanilla_core()),
-        );
-        let claimed: Vec<_> = erased
-            .iter_entries()
-            .map(|entry| (entry.location.as_str(), entry.pack_source.is_some()))
-            .collect();
-        assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
-    }
-
     /// Verify that calling `register` after a clone exists panics with the
     /// documented message. This exercises the `Arc::get_mut().expect(...)` path
     /// that enforces the freeze-before-clone invariant.
@@ -290,7 +207,7 @@ mod tests {
         let _clone = original.clone();
         // The clone holds an Arc reference; Arc::get_mut inside register now
         // returns None and the expect panics with the documented message.
-        original.register(RegistrySnapshotErased::from_entries(
+        original.register(SyncedRegistry::from_entries(
             "minecraft:biome",
             vec![(make_location("plains"), None)],
             None,

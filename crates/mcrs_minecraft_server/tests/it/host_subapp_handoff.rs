@@ -526,6 +526,66 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     }
 }
 
+fn is_registry_type(name: &str) -> bool {
+    let head = name.split('<').next().unwrap_or(name);
+    let leaf = head.rsplit("::").next().unwrap_or(head);
+    matches!(
+        leaf,
+        "Registry"
+            | "Entries"
+            | "RegistrySet"
+            | "RegistryAccess"
+            | "Blocks"
+            | "Items"
+            | "WorldgenTables"
+            | "ClockTimeMarkers"
+            | "Resolved"
+    )
+}
+
+#[test]
+fn every_registry_resource_of_the_host_is_shared() {
+    use mcrs_minecraft_registry::shared::SharedRegistries;
+
+    let mut app = crate::host_app::make_host_app();
+    crate::host_app::materialise_sub_apps(
+        &mut app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
+        ],
+    );
+
+    let candidates: Vec<String> = app
+        .world()
+        .iter_resources()
+        .map(|(info, _)| info.name().to_string())
+        .filter(|name| is_registry_type(name))
+        .collect();
+    assert!(
+        candidates.iter().any(|name| name.contains("RegistrySet")),
+        "the host holds no registry resource to check: {candidates:?}"
+    );
+
+    let shared = app.world().resource::<SharedRegistries>();
+    let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
+    assert_eq!(dimensions.len(), 2);
+    for dimension in dimensions {
+        let seen = shared.shared_in(app.world(), dimension.world());
+        let unshared: Vec<&String> = candidates
+            .iter()
+            .filter(|candidate| !seen.iter().any(|(name, _)| name == candidate))
+            .collect();
+        assert!(
+            unshared.is_empty(),
+            "host resources of a registry type that are not shared: {unshared:#?}"
+        );
+        for (name, state) in seen {
+            assert_eq!(state, Some(true), "{name}");
+        }
+    }
+}
+
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
 const NETHER: (&str, &str) = ("minecraft:the_nether", "minecraft:the_nether");
 
