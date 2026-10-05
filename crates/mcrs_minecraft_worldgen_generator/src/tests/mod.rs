@@ -39,6 +39,8 @@ mod multi_noise_biomes;
 #[cfg(test)]
 mod rungs;
 #[cfg(test)]
+mod saved_regions;
+#[cfg(test)]
 mod stored_biomes;
 #[cfg(test)]
 mod structure_geometry;

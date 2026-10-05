@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{
-    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+    DimensionBundle, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_server::world::aoi::TrackedBy;
@@ -26,7 +26,7 @@ use harness::{
 fn dimension(app: &mut App) -> Entity {
     app.world_mut()
         .spawn(DimensionBundle::new(
-            DimensionId::new("minecraft:overworld"),
+            mcrs_minecraft_keys::dimension::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id()

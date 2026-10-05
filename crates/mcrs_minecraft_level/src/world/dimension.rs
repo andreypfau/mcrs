@@ -12,7 +12,8 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, IntoScheduleConfigs,
     Query, Ref, With,
 };
-use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_core::{ResourceKey, SectionPos};
+use mcrs_minecraft_keys as keys;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;
@@ -33,7 +34,7 @@ impl Plugin for DimensionPlugin {
 #[derive(Bundle)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
-    pub dimension_id: DimensionId,
+    pub key: ResourceKey<keys::Dimension>,
     pub type_config: DimensionTypeConfig,
     pub chunk_index: SectionIndex,
     pub tickets: SectionTickets,
@@ -43,12 +44,12 @@ pub struct DimensionBundle {
 }
 
 impl DimensionBundle {
-    pub fn new(dimension_id: DimensionId, type_config: DimensionTypeConfig) -> Self {
+    pub fn new(key: ResourceKey<keys::Dimension>, type_config: DimensionTypeConfig) -> Self {
         let min_section_y = type_config.min_y >> SectionPos::BITS;
         let max_section_y = min_section_y + type_config.section_count as i32 - 1;
         Self {
             dimension: Dimension,
-            dimension_id,
+            key,
             type_config,
             chunk_index: SectionIndex::default(),
             tickets: SectionTickets::default(),
@@ -84,16 +85,6 @@ pub struct OldInDimension(Entity);
 impl ContainsEntity for OldInDimension {
     fn entity(&self) -> Entity {
         self.0
-    }
-}
-
-/// Unique identifier for a dimension, in the game's own namespace.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Component, Deref, DerefMut)]
-pub struct DimensionId(pub String);
-
-impl DimensionId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
     }
 }
 

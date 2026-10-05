@@ -19,7 +19,8 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
-use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -87,7 +88,9 @@ pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new(id),
+            dimension: ResourceKey::from_location(
+                ResourceLocation::read(id).expect("a test dimension id is a valid identifier"),
+            ),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: sky,
         });

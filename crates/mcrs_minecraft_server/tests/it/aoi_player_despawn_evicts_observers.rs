@@ -17,7 +17,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::world::dimension::{
-    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+    DimensionBundle, DimensionTypeConfig, InDimension,
 };
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::VarInt;
@@ -74,7 +74,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     let dim = sub_app
         .world_mut()
         .spawn(DimensionBundle::new(
-            DimensionId::new("minecraft:overworld"),
+            mcrs_minecraft_keys::dimension::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id();

@@ -1,14 +1,17 @@
 use bevy_app::AppLabel;
 use bevy_ecs::prelude::{Entity, Resource};
 
-use crate::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys as keys;
+
+use crate::world::dimension::DimensionTypeConfig;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
 pub struct DimAppLabel(pub Entity);
 
 #[derive(Debug, Clone)]
 pub struct DimSpawnRequest {
-    pub dimension_id: DimensionId,
+    pub dimension: ResourceKey<keys::Dimension>,
     pub type_config: DimensionTypeConfig,
     pub has_sky: bool,
 }

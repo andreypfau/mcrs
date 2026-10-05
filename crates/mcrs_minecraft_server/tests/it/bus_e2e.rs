@@ -68,12 +68,12 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 }
 
 fn enqueue_overworld(app: &mut App) {
-    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("minecraft:overworld"),
+            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

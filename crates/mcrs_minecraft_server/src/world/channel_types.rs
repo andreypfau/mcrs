@@ -1,3 +1,5 @@
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{MoveId, PlayerSession};
 use mcrs_minecraft_level::world::channels::DimChannels;
 
@@ -43,12 +45,11 @@ pub enum FromDim {
     /// fields are stamped at the outbound boundary before the packet reaches
     /// `bridge_outbound`.
     Clientbound(OutboundPlayerPacket),
-    /// Confirmed-move initiation: source dim requests transfer to another dim by name.
-    /// The host resolves the name, inserts into InFlightMoves, and sends SpawnEntity.
+    /// Confirmed-move initiation: source dim requests transfer to another dim by key.
+    /// The host resolves the key, inserts into InFlightMoves, and sends SpawnEntity.
     MoveEntity {
         move_id: MoveId,
-        /// Destination dimension by name (resolved host-side).
-        target: String,
+        target: ResourceKey<keys::Dimension>,
         cause: ArrivalCause,
         payload: MovePayload,
         player: Option<PlayerSession>,

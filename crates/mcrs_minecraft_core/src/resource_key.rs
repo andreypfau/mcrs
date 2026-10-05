@@ -16,6 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// Both variants hash and compare identically (by underlying string), and the
 /// `Borrow<str>` impl enables zero-alloc lookups in `HashMap<ResourceKey<T>, …>`.
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::component::Component))]
 pub struct ResourceKey<T, S = Arc<str>> {
     location: ResourceLocation<S>,
     _marker: PhantomData<fn() -> T>,
