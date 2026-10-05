@@ -116,6 +116,32 @@ pub enum BlockPredicate {
     BelowHeightmap { heightmap: HeightmapName },
 }
 
+const BLOCK_PREDICATE_TYPE_ROWS: &[&str] = &[
+    "minecraft:matching_blocks",
+    "minecraft:matching_block_tag",
+    "minecraft:matching_fluids",
+    "minecraft:matching_biomes",
+    "minecraft:has_sturdy_face",
+    "minecraft:solid",
+    "minecraft:replaceable",
+    "minecraft:would_survive",
+    "minecraft:inside_world_bounds",
+    "minecraft:any_of",
+    "minecraft:all_of",
+    "minecraft:not",
+    "minecraft:true",
+    "minecraft:unobstructed",
+    "minecraft:height_range",
+    "minecraft:volume_match",
+    "minecraft:below_heightmap",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    BLOCK_PREDICATE_TYPE_ROWS,
+    &[],
+    keys::block_predicate_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct VolumeMatch {
@@ -172,5 +198,20 @@ mod tests {
                 assert!(!error.contains("unknown variant"), "{name}: {error}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn block_predicate_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<BlockPredicate>(
+            BLOCK_PREDICATE_TYPE_ROWS,
+            &[],
+            keys::block_predicate_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

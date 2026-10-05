@@ -41,6 +41,22 @@ pub enum TestEnvironment {
     Weather { weather: Weather },
 }
 
+const TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS: &[&str] = &[
+    "minecraft:all_of",
+    "minecraft:clock_time",
+    "minecraft:difficulty",
+    "minecraft:function",
+    "minecraft:game_rules",
+    "minecraft:timeline_attributes",
+    "minecraft:weather",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
+    &[],
+    keys::test_environment_definition_type::NAMES
+));
+
 impl RegistryValue for TestEnvironment {
     type Registry = keys::TestEnvironment;
 }
@@ -252,4 +268,37 @@ pub enum TestInstance {
     BlockBased(BlockBasedTest),
     #[serde(rename = "minecraft:function")]
     Function(FunctionTest),
+}
+
+const TEST_INSTANCE_TYPE_ROWS: &[&str] = &["minecraft:block_based", "minecraft:function"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    TEST_INSTANCE_TYPE_ROWS,
+    &[],
+    keys::test_instance_type::NAMES
+));
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn test_environment_definition_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<TestEnvironment>(
+            TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
+            &[],
+            keys::test_environment_definition_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn test_instance_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<TestInstance>(
+            TEST_INSTANCE_TYPE_ROWS,
+            &[],
+            keys::test_instance_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
 }

@@ -126,6 +126,33 @@ pub enum PlacementModifier<P = BlockPredicate> {
     },
 }
 
+const PLACEMENT_MODIFIER_TYPE_ROWS: &[&str] = &[
+    "minecraft:block_predicate_filter",
+    "minecraft:rarity_filter",
+    "minecraft:random_chance",
+    "minecraft:surface_relative_threshold_filter",
+    "minecraft:surface_water_depth_filter",
+    "minecraft:biome",
+    "minecraft:count",
+    "minecraft:noise_based_count",
+    "minecraft:noise_threshold_count",
+    "minecraft:count_on_every_layer",
+    "minecraft:cuboid",
+    "minecraft:environment_scan",
+    "minecraft:heightmap",
+    "minecraft:height_range",
+    "minecraft:in_square",
+    "minecraft:offset",
+    "minecraft:randomly_selected",
+    "minecraft:fixed_placement",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    PLACEMENT_MODIFIER_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::placement_modifier_type::NAMES
+));
+
 impl<P> PlacementModifier<P> {
     /// The same chain over another predicate type.
     pub fn try_map<Q, E>(
@@ -221,5 +248,20 @@ impl<P> PlacementModifier<P> {
                 positions: positions.clone(),
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn placement_modifier_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PlacementModifier>(
+            PLACEMENT_MODIFIER_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::placement_modifier_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

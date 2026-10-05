@@ -111,6 +111,19 @@ pub enum BiomeSource {
     },
 }
 
+const BIOME_SOURCE_ROWS: &[&str] = &[
+    "minecraft:multi_noise",
+    "minecraft:the_end",
+    "minecraft:fixed",
+    "minecraft:checkerboard",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    BIOME_SOURCE_ROWS,
+    &[],
+    keys::biome_source::NAMES
+));
+
 fn default_scale() -> u32 {
     2
 }
@@ -306,5 +319,20 @@ mod tests {
         // temp=0.3, rain=0.8 → rain*temp=0.24 >= 0.2, rain*temp <= 0.5 (no swampland), temp < 0.5 → Taiga
         // Without multiplication: rain=0.8 > 0.5 and temp=0.3 < 0.7 → Swampland (wrong)
         assert_eq!(beta_get_biome(0.3, 0.8), BetaLandBiome::Taiga);
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn biome_source_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<BiomeSource>(
+            BIOME_SOURCE_ROWS,
+            &[],
+            keys::biome_source::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

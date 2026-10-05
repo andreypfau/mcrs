@@ -17,9 +17,32 @@ pub enum ChunkGenerator {
     Debug,
 }
 
+const CHUNK_GENERATOR_ROWS: &[&str] = &["minecraft:noise", "minecraft:flat", "minecraft:debug"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    CHUNK_GENERATOR_ROWS,
+    &[],
+    keys::chunk_generator::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NoiseChunkGenerator {
     pub biome_source: BiomeSource,
     pub settings: Id<keys::NoiseSettings>,
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn chunk_generator_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<ChunkGenerator>(
+            CHUNK_GENERATOR_ROWS,
+            &[],
+            keys::chunk_generator::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
 }

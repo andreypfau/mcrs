@@ -67,6 +67,18 @@ pub enum StructurePlacement {
     DimensionOrigin {},
 }
 
+const STRUCTURE_PLACEMENT_ROWS: &[&str] = &[
+    "minecraft:random_spread",
+    "minecraft:concentric_rings",
+    "minecraft:dimension_origin",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    STRUCTURE_PLACEMENT_ROWS,
+    &[],
+    keys::structure_placement::NAMES
+));
+
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Spreading {
@@ -203,6 +215,31 @@ pub enum Structure {
         settings: StructureSettings,
     },
 }
+
+const STRUCTURE_TYPE_ROWS: &[&str] = &[
+    "minecraft:buried_treasure",
+    "minecraft:desert_pyramid",
+    "minecraft:end_city",
+    "minecraft:fortress",
+    "minecraft:igloo",
+    "minecraft:jigsaw",
+    "minecraft:jungle_temple",
+    "minecraft:mineshaft",
+    "minecraft:nether_fossil",
+    "minecraft:ocean_monument",
+    "minecraft:ocean_ruin",
+    "minecraft:ruined_portal",
+    "minecraft:shipwreck",
+    "minecraft:stronghold",
+    "minecraft:swamp_hut",
+    "minecraft:woodland_mansion",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    STRUCTURE_TYPE_ROWS,
+    &[],
+    keys::structure_type::NAMES
+));
 
 impl Structure {
     pub fn settings(&self) -> &StructureSettings {
@@ -491,6 +528,18 @@ pub enum PoolAlias {
     },
 }
 
+const POOL_ALIAS_BINDING_ROWS: &[&str] = &[
+    "minecraft:direct",
+    "minecraft:random",
+    "minecraft:random_group",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    POOL_ALIAS_BINDING_ROWS,
+    &[],
+    keys::pool_alias_binding::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplatePool {
@@ -525,6 +574,20 @@ pub enum PoolElement {
     #[serde(rename = "minecraft:empty_pool_element")]
     Empty {},
 }
+
+const STRUCTURE_POOL_ELEMENT_ROWS: &[&str] = &[
+    "minecraft:single_pool_element",
+    "minecraft:legacy_single_pool_element",
+    "minecraft:list_pool_element",
+    "minecraft:feature_pool_element",
+    "minecraft:empty_pool_element",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    STRUCTURE_POOL_ELEMENT_ROWS,
+    &[],
+    keys::structure_pool_element::NAMES
+));
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -676,6 +739,51 @@ mod tests {
                 jigsaw.dimension_padding.top()
             ),
             (0, 0)
+        );
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn pool_alias_binding_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolAlias>(
+            POOL_ALIAS_BINDING_ROWS,
+            &[],
+            keys::pool_alias_binding::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn structure_placement_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<StructurePlacement>(
+            STRUCTURE_PLACEMENT_ROWS,
+            &[],
+            keys::structure_placement::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn structure_pool_element_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolElement>(
+            STRUCTURE_POOL_ELEMENT_ROWS,
+            &[],
+            keys::structure_pool_element::NAMES,
+            |name| serde_json::json!({ "element_type": name }),
+        );
+    }
+
+    #[test]
+    fn structure_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<Structure>(
+            STRUCTURE_TYPE_ROWS,
+            &[],
+            keys::structure_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
         );
     }
 }

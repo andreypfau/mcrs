@@ -19,7 +19,9 @@ mcrs_minecraft_nbt.workspace = true
 derive_more = { workspace = true, features = ["from", "deref"] }
 
 [dev-dependencies]
+mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 
 [features]
 default = []

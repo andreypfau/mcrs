@@ -114,6 +114,14 @@ pub enum DialogBody {
     PlainMessage(PlainMessage),
 }
 
+const DIALOG_BODY_TYPE_ROWS: &[&str] = &["minecraft:item", "minecraft:plain_message"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    DIALOG_BODY_TYPE_ROWS,
+    &[],
+    keys::dialog_body_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InputKey(String);
 
@@ -313,6 +321,19 @@ pub enum Input {
     #[serde(rename = "minecraft:text")]
     Text(TextInput),
 }
+
+const INPUT_CONTROL_TYPE_ROWS: &[&str] = &[
+    "minecraft:boolean",
+    "minecraft:number_range",
+    "minecraft:single_option",
+    "minecraft:text",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    INPUT_CONTROL_TYPE_ROWS,
+    &[],
+    keys::input_control_type::NAMES
+));
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandTemplate(String);
@@ -615,4 +636,53 @@ pub enum Dialog {
     ServerLinks(ServerLinks),
     #[serde(rename = "minecraft:dialog_list")]
     DialogList(DialogList),
+}
+
+const DIALOG_TYPE_ROWS: &[&str] = &[
+    "minecraft:notice",
+    "minecraft:confirmation",
+    "minecraft:multi_action",
+    "minecraft:server_links",
+    "minecraft:dialog_list",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    DIALOG_TYPE_ROWS,
+    &[],
+    keys::dialog_type::NAMES
+));
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn dialog_body_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<DialogBody>(
+            DIALOG_BODY_TYPE_ROWS,
+            &[],
+            keys::dialog_body_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn input_control_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<Input>(
+            INPUT_CONTROL_TYPE_ROWS,
+            &[],
+            keys::input_control_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn dialog_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<Dialog>(
+            DIALOG_TYPE_ROWS,
+            &[],
+            keys::dialog_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
 }

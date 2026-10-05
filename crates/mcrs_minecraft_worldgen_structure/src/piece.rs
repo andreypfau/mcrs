@@ -1203,6 +1203,74 @@ enum PieceTag {
     },
 }
 
+const STRUCTURE_PIECE_ROWS: &[&str] = &[
+    "minecraft:jigsaw",
+    "minecraft:tedp",
+    "minecraft:tejp",
+    "minecraft:tesh",
+    "minecraft:btp",
+    "minecraft:shipwreck",
+    "minecraft:nebcr",
+    "minecraft:nebef",
+    "minecraft:nebs",
+    "minecraft:neccs",
+    "minecraft:nectb",
+    "minecraft:nece",
+    "minecraft:nescsc",
+    "minecraft:nesclt",
+    "minecraft:nesc",
+    "minecraft:nescrt",
+    "minecraft:necsr",
+    "minecraft:nemt",
+    "minecraft:nerc",
+    "minecraft:nesr",
+    "minecraft:orp",
+    "minecraft:rupo",
+    "minecraft:omb",
+    "minecraft:msroom",
+    "minecraft:mscorridor",
+    "minecraft:mscrossing",
+    "minecraft:msstairs",
+    "minecraft:iglu",
+    "minecraft:nefos",
+    "minecraft:ecp",
+    "minecraft:shstart",
+    "minecraft:shsd",
+    "minecraft:shs",
+    "minecraft:shph",
+    "minecraft:shlt",
+    "minecraft:shrt",
+    "minecraft:shrc",
+    "minecraft:shssd",
+    "minecraft:sh5c",
+    "minecraft:shcc",
+    "minecraft:shli",
+    "minecraft:shpr",
+    "minecraft:shfc",
+    "minecraft:wmp",
+];
+
+const STRUCTURE_PIECE_UNSUPPORTED: &[&str] = &[
+    "minecraft:nestart",
+    "minecraft:omcr",
+    "minecraft:omdxr",
+    "minecraft:omdxyr",
+    "minecraft:omdyr",
+    "minecraft:omdyzr",
+    "minecraft:omdzr",
+    "minecraft:omentry",
+    "minecraft:ompenthouse",
+    "minecraft:omsimple",
+    "minecraft:omsimplet",
+    "minecraft:omwr",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    STRUCTURE_PIECE_ROWS,
+    STRUCTURE_PIECE_UNSUPPORTED,
+    mcrs_minecraft_keys::structure_piece::NAMES
+));
+
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
 mod biome_type {
     use super::*;
@@ -2831,5 +2899,20 @@ mod tests {
             let mut deserializer = serde_json::Deserializer::from_str(&json);
             assert!(PieceSeed(context).deserialize(&mut deserializer).is_err(), "{json}");
         }
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn structure_piece_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PieceTag>(
+            STRUCTURE_PIECE_ROWS,
+            STRUCTURE_PIECE_UNSUPPORTED,
+            mcrs_minecraft_keys::structure_piece::NAMES,
+            |name| serde_json::json!({ "id": name }),
+        );
     }
 }

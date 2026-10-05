@@ -58,6 +58,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
 tracing-subscriber = "0.3"

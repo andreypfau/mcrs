@@ -22,6 +22,7 @@ serde.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 serde_json.workspace = true
 

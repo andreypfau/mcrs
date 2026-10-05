@@ -1138,3 +1138,107 @@ mod tests {
         assert_eq!(provider.bounds(), (3, 16));
     }
 }
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+    use mcrs_minecraft_keys as keys;
+    use mcrs_minecraft_registry::static_rows::{assert_dispatch, names_cover};
+    use serde::de::DeserializeOwned;
+
+    const CONSTANT: &str = "minecraft:constant";
+
+    const INT_PROVIDER_TYPE_ROWS: &[&str] = &[
+        "minecraft:constant",
+        "minecraft:uniform",
+        "minecraft:biased_to_bottom",
+        "minecraft:very_biased_to_bottom",
+        "minecraft:clamped",
+        "minecraft:weighted_list",
+        "minecraft:clamped_normal",
+        "minecraft:trapezoid",
+    ];
+
+    const INT_PROVIDER_TYPE_UNSUPPORTED: &[&str] = &[];
+
+    const _: () = assert!(names_cover(
+        INT_PROVIDER_TYPE_ROWS,
+        INT_PROVIDER_TYPE_UNSUPPORTED,
+        keys::int_provider_type::NAMES
+    ));
+
+    const FLOAT_PROVIDER_TYPE_ROWS: &[&str] = &[
+        "minecraft:constant",
+        "minecraft:uniform",
+        "minecraft:clamped_normal",
+        "minecraft:trapezoid",
+    ];
+
+    const FLOAT_PROVIDER_TYPE_UNSUPPORTED: &[&str] = &[];
+
+    const _: () = assert!(names_cover(
+        FLOAT_PROVIDER_TYPE_ROWS,
+        FLOAT_PROVIDER_TYPE_UNSUPPORTED,
+        keys::float_provider_type::NAMES
+    ));
+
+    const HEIGHT_PROVIDER_TYPE_ROWS: &[&str] = &[
+        "minecraft:constant",
+        "minecraft:uniform",
+        "minecraft:very_biased_to_bottom",
+        "minecraft:trapezoid",
+    ];
+
+    const HEIGHT_PROVIDER_TYPE_UNSUPPORTED: &[&str] =
+        &["minecraft:biased_to_bottom", "minecraft:weighted_list"];
+
+    const _: () = assert!(names_cover(
+        HEIGHT_PROVIDER_TYPE_ROWS,
+        HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
+        keys::height_provider_type::NAMES
+    ));
+
+    fn assert_providers<V: DeserializeOwned, D: DeserializeOwned>(
+        rows: &[&str],
+        unsupported: &[&str],
+        names: &[&str],
+    ) {
+        let probe = |name: &str| serde_json::json!({ "type": name });
+        let dispatched: Vec<&str> = rows.iter().copied().filter(|n| *n != CONSTANT).collect();
+        let outside: Vec<&str> = unsupported.iter().copied().chain([CONSTANT]).collect();
+        assert_dispatch::<D>(&dispatched, &outside, names, probe);
+        let other: Vec<&str> = dispatched
+            .iter()
+            .copied()
+            .chain(unsupported.iter().copied())
+            .collect();
+        assert_dispatch::<ExplicitConstant<V>>(&[CONSTANT], &other, names, probe);
+    }
+
+    #[test]
+    fn int_provider_type_rows_select_their_variants() {
+        assert_providers::<i32, DispatchedIntProvider>(
+            INT_PROVIDER_TYPE_ROWS,
+            INT_PROVIDER_TYPE_UNSUPPORTED,
+            keys::int_provider_type::NAMES,
+        );
+    }
+
+    #[test]
+    fn float_provider_type_rows_select_their_variants() {
+        assert_providers::<f32, DispatchedFloatProvider>(
+            FLOAT_PROVIDER_TYPE_ROWS,
+            FLOAT_PROVIDER_TYPE_UNSUPPORTED,
+            keys::float_provider_type::NAMES,
+        );
+    }
+
+    #[test]
+    fn height_provider_type_rows_select_their_variants() {
+        assert_providers::<VerticalAnchor, DispatchedHeightProvider>(
+            HEIGHT_PROVIDER_TYPE_ROWS,
+            HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
+            keys::height_provider_type::NAMES,
+        );
+    }
+}

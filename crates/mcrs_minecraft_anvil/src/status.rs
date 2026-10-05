@@ -1,3 +1,5 @@
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::static_rows::rows_match;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -25,6 +27,45 @@ pub enum ChunkStatus {
     #[serde(rename = "minecraft:full")]
     Full,
 }
+
+const _: () = assert!(rows_match(
+    &[
+        (keys::chunk_status::EMPTY.name(), ChunkStatus::Empty as u16),
+        (
+            keys::chunk_status::STRUCTURE_STARTS.name(),
+            ChunkStatus::StructureStarts as u16
+        ),
+        (
+            keys::chunk_status::STRUCTURE_REFERENCES.name(),
+            ChunkStatus::StructureReferences as u16
+        ),
+        (
+            keys::chunk_status::NOISE_BIOMES.name(),
+            ChunkStatus::NoiseBiomes as u16
+        ),
+        (
+            keys::chunk_status::BIOMES.name(),
+            ChunkStatus::Biomes as u16
+        ),
+        (
+            keys::chunk_status::TERRAIN.name(),
+            ChunkStatus::Terrain as u16
+        ),
+        (
+            keys::chunk_status::FEATURES.name(),
+            ChunkStatus::Features as u16
+        ),
+        (
+            keys::chunk_status::INITIALIZE_LIGHT.name(),
+            ChunkStatus::InitializeLight as u16
+        ),
+        (keys::chunk_status::LIGHT.name(), ChunkStatus::Light as u16),
+        (keys::chunk_status::SPAWN.name(), ChunkStatus::Spawn as u16),
+        (keys::chunk_status::FULL.name(), ChunkStatus::Full as u16),
+    ],
+    keys::chunk_status::NAMES,
+    true
+));
 
 #[cfg(test)]
 mod tests {

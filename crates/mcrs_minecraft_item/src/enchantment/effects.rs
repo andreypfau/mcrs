@@ -62,6 +62,22 @@ pub enum EnchantmentValueEffect {
     },
 }
 
+const ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS: &[&str] = &[
+    "minecraft:set",
+    "minecraft:add",
+    "minecraft:multiply",
+    "minecraft:remove_binomial",
+    "minecraft:all_of",
+];
+
+const ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED: &[&str] = &["minecraft:exponential"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
+    ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
+    keys::enchantment_value_effect_type::NAMES
+));
+
 impl EnchantmentValueEffect {
     /// Java's `EnchantmentValueEffect.process`. `binomial` draws the removals
     /// `RemoveBinomial` needs; every other variant ignores it.
@@ -386,6 +402,61 @@ pub enum EnchantmentEntityEffect {
     },
 }
 
+const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS: &[&str] = &[
+    "minecraft:all_of",
+    "minecraft:attribute",
+    "minecraft:apply_mob_effect",
+    "minecraft:change_item_damage",
+    "minecraft:damage_entity",
+    "minecraft:explode",
+    "minecraft:ignite",
+    "minecraft:apply_impulse",
+    "minecraft:apply_exhaustion",
+    "minecraft:play_sound",
+    "minecraft:replace_disk",
+    "minecraft:spawn_particles",
+    "minecraft:summon_entity",
+];
+
+const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
+    "minecraft:replace_block",
+    "minecraft:run_function",
+    "minecraft:set_block_properties",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
+    ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
+    keys::enchantment_location_based_effect_type::NAMES
+));
+
+const ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS: &[&str] = &[
+    "minecraft:all_of",
+    "minecraft:apply_mob_effect",
+    "minecraft:change_item_damage",
+    "minecraft:damage_entity",
+    "minecraft:explode",
+    "minecraft:ignite",
+    "minecraft:apply_impulse",
+    "minecraft:apply_exhaustion",
+    "minecraft:play_sound",
+    "minecraft:replace_disk",
+    "minecraft:spawn_particles",
+    "minecraft:summon_entity",
+];
+
+const ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
+    "minecraft:replace_block",
+    "minecraft:run_function",
+    "minecraft:set_block_properties",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
+    ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
+    keys::enchantment_entity_effect_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ChargingSounds {
@@ -432,5 +503,46 @@ dispatched_map! {
         "minecraft:prevent_equipment_drop" => prevent_equipment_drop: Unit,
         "minecraft:prevent_armor_change" => prevent_armor_change: Unit,
         "minecraft:trident_spin_attack_strength" => trident_spin_attack_strength: EnchantmentValueEffect,
+    }
+}
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    EnchantmentEffects::KEYS,
+    &[],
+    keys::enchantment_effect_component_type::NAMES
+));
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn enchantment_value_effect_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentValueEffect>(
+            ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
+            ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
+            keys::enchantment_value_effect_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn enchantment_entity_effect_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
+            ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
+            ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
+            keys::enchantment_entity_effect_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn enchantment_location_based_effect_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
+            ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
+            ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
+            keys::enchantment_location_based_effect_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }
