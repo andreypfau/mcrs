@@ -2,6 +2,7 @@ pub mod click;
 pub mod drag;
 pub mod menu;
 pub mod plan;
+pub mod shulker_boxes;
 pub mod slot;
 pub mod transaction;
 pub mod value;
@@ -17,5 +18,6 @@ pub use menu::{
     player_menu_layout,
 };
 pub use plan::{Click, Planner, SLOT_CLICKED_OUTSIDE};
+pub use shulker_boxes::ShulkerBoxes;
 pub use slot::{MenuSnapshot, Slot, Source, StackKey, StackView, stack_in};
 pub use transaction::{Op, Transaction, TransactionError};

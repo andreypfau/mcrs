@@ -1,12 +1,12 @@
+use crate::shulker_boxes::ShulkerBoxes;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
-    stack_to_value, tags,
+    stack_to_value,
 };
-use mcrs_minecraft_keys::{Enchantment, EntityType, Item};
+use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, ItemId, Registry, RegistrySet};
@@ -74,8 +74,9 @@ impl StackView {
             offhand: equippable.is_some_and(|equippable| equippable.slot == EquipmentSlot::OffHand),
             binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
             fits_inside_container_items: !world
-                .get_resource::<DynTagRegistry<Item>>()
-                .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, item.item.0)),
+                .get_resource::<ShulkerBoxes>()
+                .zip(items.0.item_index(item.item))
+                .is_some_and(|(boxes, id)| boxes.has_item(id)),
             wearable: equippable.is_none_or(|equippable| admits_player(world, equippable)),
         })
     }

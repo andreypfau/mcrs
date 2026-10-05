@@ -2,19 +2,15 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
-use mcrs_minecraft_inventory::{Op, Slot, Transaction, TransactionError};
-use mcrs_minecraft_item::tags::SHULKER_BOXES;
+use mcrs_minecraft_inventory::{Op, ShulkerBoxes, Slot, Transaction, TransactionError};
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value};
-use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
-use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_world::item::test_corpus;
+use mcrs_minecraft_world::registries::test_registries;
 
 pub fn items() -> &'static Items {
     &test_corpus().1
@@ -26,18 +22,8 @@ pub fn world() -> World {
     world
 }
 
-pub fn item_tags() -> DynTagRegistry<Item> {
-    let path = std::path::Path::new(&std::env::var("BEVY_ASSET_ROOT").unwrap())
-        .join("assets/minecraft/tags/item/shulker_boxes.json");
-    let file: SerializedTagFile = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    let ids = file
-        .values
-        .iter()
-        .map(|entry| TagSource::id_of(items(), entry.id.loc.as_str()).unwrap())
-        .collect();
-    let mut loader = DynTagLoader::<Item>::default();
-    loader.insert(SHULKER_BOXES.to_arc().location().clone(), ids);
-    loader.freeze(items())
+pub fn item_tags() -> ShulkerBoxes {
+    ShulkerBoxes::new(test_registries()).expect("the loaded registries hold the shulker box tags")
 }
 
 pub fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {

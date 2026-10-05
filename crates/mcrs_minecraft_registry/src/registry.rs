@@ -142,6 +142,10 @@ impl<R: RegistryKey> Registry<R> {
         self.table.number(name).map(Id::from_number)
     }
 
+    pub fn id(&self, number: u16) -> Option<Id<R>> {
+        (usize::from(number) < self.len()).then(|| Id::from_number(number))
+    }
+
     pub fn require(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
         self.get(name).ok_or_else(|| UnknownEntry {
             registry: R::KEY.into(),

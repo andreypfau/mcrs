@@ -6,18 +6,16 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
-    Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE, handle_container_clicks, tick_drop_throttles,
+    Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE, ShulkerBoxes, handle_container_clicks,
+    tick_drop_throttles,
 };
 use mcrs_minecraft_item::{DroppedItem, SlotTable, Thrower, slots, stack_to_slot};
 use mcrs_minecraft_keys::Block;
@@ -31,7 +29,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::item::{Tool, ToolRule};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup, TagSource};
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
 use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};
@@ -1262,40 +1260,14 @@ fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
     assert_eq!(dropped_items(&mut world), 0);
 }
 
-fn tag_from_assets<T: RegistryKey>(
-    source: &impl TagSource<Id = u16>,
-    key: TagKey<T>,
-) -> DynTagRegistry<T> {
-    let location = key.location();
-    let path = std::path::Path::new(&std::env::var("BEVY_ASSET_ROOT").unwrap()).join(format!(
-        "assets/{}/tags/{}/{}.json",
-        location.namespace(),
-        T::KEY.path(),
-        location.path()
-    ));
-    let file: SerializedTagFile = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    let ids = file
-        .values
-        .iter()
-        .map(|entry| source.id_of(entry.id.loc.as_str()).unwrap())
-        .collect();
-    let mut loader = DynTagLoader::<T>::default();
-    loader.insert(key.to_arc().location().clone(), ids);
-    loader.freeze(source)
-}
-
 /// Opens a 27-slot container standing at a position holding `block`.
 fn opened_over(block: &str) -> (World, Entity, Entity) {
     let (mut world, player) = opened();
-    let (blocks, items) = standalone_corpus();
-    world.insert_resource(tag_from_assets(
-        blocks,
-        mcrs_minecraft_block::tags::SHULKER_BOXES,
-    ));
-    world.insert_resource(tag_from_assets(
-        items,
-        mcrs_minecraft_item::tags::SHULKER_BOXES,
-    ));
+    let (blocks, _) = standalone_corpus();
+    world.insert_resource(
+        ShulkerBoxes::new(test_registries())
+            .expect("the loaded registries hold the shulker box tags"),
+    );
     let mut palette = ChunkBlocks::default();
     palette
         .make_mut()

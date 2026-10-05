@@ -94,7 +94,6 @@ impl Dimension {
     pub fn install(&self, app: &mut App) {
         app.insert_resource(self.ctx.clone());
         app.insert_resource(blocks().clone());
-        app.insert_resource(block_tags().clone());
         app.insert_resource(
             self.ctx
                 .predicates

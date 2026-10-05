@@ -79,11 +79,11 @@ use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::DimensionEnvironment;
+use mcrs_minecraft_inventory::ShulkerBoxes;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
@@ -426,7 +426,11 @@ pub fn spawn_dim_subapp(
                 .expect("the data pack loader parses minecraft:worldgen/biome");
             let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
-            let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
+            let block_tags = sub_app
+                .world()
+                .resource::<RegistrySet>()
+                .tags::<Block>()
+                .expect("the data pack loader builds the block tags");
             let features = registries
                 .features
                 .0
@@ -489,6 +493,10 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin::default());
     sub_app.add_plugins(BlockUpdateWirePlugin);
+    sub_app.insert_resource(
+        ShulkerBoxes::new(sub_app.world().resource::<RegistrySet>())
+            .expect("the data pack loader builds the shulker box tags"),
+    );
     sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
