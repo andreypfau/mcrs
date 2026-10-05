@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, UnknownEntry};
 
@@ -65,10 +65,10 @@ impl ItemDefinitions {
         let mut placed: Vec<Option<(usize, ItemEntry)>> =
             std::iter::repeat_with(|| None).take(items.len()).collect();
         for (position, mut entry) in entries.into_iter().enumerate() {
-            let id = items.require(entry.identifier.as_str())?;
+            let id = items.require(&ResourceKey::from_location(entry.identifier.clone()))?;
             entry.id = id;
             entry.identifier = items
-                .key(id)
+                .name(id)
                 .expect("the id came from this registry")
                 .clone();
             if let Some((first, _)) = &placed[id.index()] {
@@ -88,7 +88,7 @@ impl ItemDefinitions {
                 slot.map(|(_, entry)| entry)
                     .ok_or_else(|| ItemTableError::Missing {
                         identifier: items
-                            .key(id)
+                            .name(id)
                             .expect("the id came from this registry")
                             .clone(),
                     })
@@ -105,7 +105,7 @@ impl ItemDefinitions {
     }
 
     pub fn id_of(&self, location: &str) -> Option<Id<Item>> {
-        self.registry.get(location)
+        self.registry.by_name(location)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ItemEntry> {

@@ -429,7 +429,7 @@ impl FeatureProgram {
         let climate: Vec<BiomeClimate> = biomes
             .ids()
             .map(|id| {
-                let name = biomes.key(id).expect("an id of the registry has a name");
+                let name = biomes.name(id).expect("an id of the registry has a name");
                 tables
                     .climate
                     .get(name.as_str())
@@ -472,7 +472,7 @@ impl FeatureProgram {
 
         let mut biome_slot = [None; 256];
         for (slot, id) in tables.biome_order.iter().enumerate() {
-            if let Some(id) = biomes.get(id.as_str())
+            if let Some(id) = biomes.by_name(id.as_str())
                 && let Ok(byte) = id.narrow::<u8>()
             {
                 biome_slot[usize::from(byte)] = Some(slot as u16);

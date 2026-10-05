@@ -1579,7 +1579,7 @@ mod tests {
             "minecraft:swamp",
             "minecraft:beta_desert",
         ] {
-            let id = biomes.get(name).unwrap();
+            let id = biomes.by_name(name).unwrap();
             assert_eq!(
                 tints[id.index()],
                 tints_for(&[name.to_owned()])[0],

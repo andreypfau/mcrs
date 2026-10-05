@@ -744,7 +744,7 @@ mod tests {
         let witch_id = set
             .registry::<mcrs_minecraft_keys::EntityType>()
             .unwrap()
-            .get("minecraft:witch")
+            .by_name("minecraft:witch")
             .unwrap();
         assert_eq!(*kind, RegistryId::from(witch_id));
         assert_eq!(*pos, DVec3::new(8.5, 65.0, 8.5));

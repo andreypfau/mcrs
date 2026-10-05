@@ -98,9 +98,18 @@ mod tests {
     fn a_column_is_indexed_by_id() {
         let registry = registry(&NAMES);
         let column = Entries::new(&registry, vec!["first", "second", "third"]).unwrap();
-        assert_eq!(column[registry.get("minecraft:plains").unwrap()], "first");
-        assert_eq!(column[registry.get("minecraft:desert").unwrap()], "second");
-        assert_eq!(column[registry.get("minecraft:forest").unwrap()], "third");
+        assert_eq!(
+            column[registry.by_name("minecraft:plains").unwrap()],
+            "first"
+        );
+        assert_eq!(
+            column[registry.by_name("minecraft:desert").unwrap()],
+            "second"
+        );
+        assert_eq!(
+            column[registry.by_name("minecraft:forest").unwrap()],
+            "third"
+        );
         for id in registry.ids() {
             assert!(column.get(id).is_some());
         }
@@ -131,10 +140,13 @@ mod tests {
         let smaller = registry(&["minecraft:plains"]);
         let column = Entries::new(&smaller, vec![7]).unwrap();
         assert_eq!(
-            column.get(smaller.get("minecraft:plains").unwrap()),
+            column.get(smaller.by_name("minecraft:plains").unwrap()),
             Some(&7)
         );
-        assert_eq!(column.get(larger.get("minecraft:desert").unwrap()), None);
+        assert_eq!(
+            column.get(larger.by_name("minecraft:desert").unwrap()),
+            None
+        );
     }
 
     #[test]
@@ -143,6 +155,6 @@ mod tests {
         let larger = registry(&NAMES);
         let smaller = registry(&["minecraft:plains"]);
         let column = Entries::new(&smaller, vec![7]).unwrap();
-        let _ = column[larger.get("minecraft:forest").unwrap()];
+        let _ = column[larger.by_name("minecraft:forest").unwrap()];
     }
 }

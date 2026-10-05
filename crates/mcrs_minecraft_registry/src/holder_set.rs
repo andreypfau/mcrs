@@ -261,7 +261,7 @@ mod tests {
     }
 
     fn id(text: &str) -> Id<Marker> {
-        markers().get(text).unwrap()
+        markers().by_name(text).unwrap()
     }
 
     fn tag(tags: &Tags<Marker>, text: &str) -> TagId<Marker> {

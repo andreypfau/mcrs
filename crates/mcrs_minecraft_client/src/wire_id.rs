@@ -109,7 +109,7 @@ fn insert<R: RegistryKey>(
     let table: Table<R> = sent
         .entries
         .iter()
-        .map(|entry| registry.get(&entry.id))
+        .map(|entry| registry.by_name(&entry.id))
         .collect();
     tables.insert(TypeId::of::<R>(), Box::new(table));
 }
@@ -204,9 +204,9 @@ mod tests {
         let biomes = local.registry::<keys::Biome>().unwrap();
         let wire = WireId::<keys::Biome>::received;
 
-        assert!(biomes.get("minecraft:b").is_some());
-        assert_eq!(ids.get(wire(0)), biomes.get("minecraft:b"));
-        assert_eq!(ids.get(wire(1)), biomes.get("minecraft:a"));
+        assert!(biomes.by_name("minecraft:b").is_some());
+        assert_eq!(ids.get(wire(0)), biomes.by_name("minecraft:b"));
+        assert_eq!(ids.get(wire(1)), biomes.by_name("minecraft:a"));
         assert_eq!(ids.get(wire(2)), None, "a name the local set lacks");
         assert_eq!(ids.get(wire(3)), None, "past the list the server sent");
         assert_eq!(ids.sent_len::<keys::Biome>(), Some(3));

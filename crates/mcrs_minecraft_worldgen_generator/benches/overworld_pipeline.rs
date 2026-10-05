@@ -146,7 +146,7 @@ fn main() {
     let (list_names, lists) = parameter_lists();
     let table = MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
-            preset: Some(list_names.require("minecraft:overworld").unwrap()),
+            preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
             biomes: None,
         },
         &biomes,
@@ -155,7 +155,11 @@ fn main() {
     .unwrap();
     let carvers = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
     let carver_ids = ModernCarverBlockIds::resolve(corpus(), None);
-    let biome = |name: &str| biomes.require(name).expect("the preset holds the biome");
+    let biome = |name: &str| {
+        biomes
+            .require_by_name(name)
+            .expect("the preset holds the biome")
+    };
     let surface_ids = SurfaceIds {
         eroded_badlands: biome("minecraft:eroded_badlands"),
         frozen_ocean: biome("minecraft:frozen_ocean"),

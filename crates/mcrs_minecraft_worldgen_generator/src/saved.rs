@@ -44,7 +44,7 @@ pub struct RegistryBiomes<'a>(pub &'a Registry<keys::Biome>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
-        self.0.get(name).and_then(|id| id.narrow::<u8>().ok())
+        self.0.by_name(name).and_then(|id| id.narrow::<u8>().ok())
     }
 }
 

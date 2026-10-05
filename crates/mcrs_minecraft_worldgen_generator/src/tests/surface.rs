@@ -528,7 +528,7 @@ pub fn overworld_biome_registry() -> (Registry<keys::Biome>, HashMap<String, u16
     let ids = names
         .iter()
         .map(|name| {
-            let id = registry.get(name).expect("the registry holds it");
+            let id = registry.by_name(name).expect("the registry holds it");
             ((*name).to_owned(), id.number())
         })
         .collect();
@@ -586,7 +586,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     let generate = |biome: &str| -> (Vec<VoxelId>, Vec<u8>) {
         let (registry, ids) = overworld_biome_registry();
         let (router, material) = overworld_material_router(2, &ids);
-        let fixed = registry.require(biome).expect("a biome name");
+        let fixed = registry.require_by_name(biome).expect("a biome name");
         let ctx = fill_context(
             router,
             material,
@@ -625,7 +625,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
     let badlands_id = {
         let (registry, _) = overworld_biome_registry();
         registry
-            .get("minecraft:badlands")
+            .by_name("minecraft:badlands")
             .expect("the overworld preset names badlands")
             .narrow::<u8>()
             .expect("a biome id the palette can store")

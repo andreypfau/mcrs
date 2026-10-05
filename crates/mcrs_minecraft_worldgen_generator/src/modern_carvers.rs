@@ -338,7 +338,7 @@ impl CarverBiomeTable {
             land: land_biomes
                 .iter()
                 .map(|id| {
-                    let name = biomes.key(*id).unwrap_or_else(|| {
+                    let name = biomes.name(*id).unwrap_or_else(|| {
                         panic!("the biome registry holds no entry numbered {}", id.index())
                     });
                     lookup(name.as_str())
@@ -849,7 +849,7 @@ fn biome_carvers<'a>(
     biomes: &'a Registry<keys::Biome>,
     carvers: &'a Entries<keys::Biome, Arc<[CarverConfig]>>,
 ) -> impl Fn(&str) -> Arc<[CarverConfig]> + 'a {
-    move |name: &str| match biomes.get(name) {
+    move |name: &str| match biomes.by_name(name) {
         Some(id) => carvers[id].clone(),
         None => {
             // The table still resolves and reports success, so a biome absent

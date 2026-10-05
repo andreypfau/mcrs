@@ -206,7 +206,7 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
         .map(|name| ResourceLocation::parse(name).unwrap_or_else(|e| panic!("{name}: {e}")))
         .collect();
     for id in all.ids() {
-        let name = all.key(id).expect("an id of the registry has a name");
+        let name = all.name(id).expect("an id of the registry has a name");
         if !names.contains(name) {
             names.push(name.clone());
         }
@@ -246,7 +246,7 @@ pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
     ids.iter()
         .map(|&id| {
             registry
-                .key(id)
+                .name(id)
                 .unwrap_or_else(|| panic!("{id:?} is not in the corpus {}", R::KEY))
                 .as_str()
                 .to_owned()
@@ -338,7 +338,7 @@ pub fn dimension_type_set() -> &'static RegistrySet {
             .expect("the report holds the block registry");
         let block_names: Vec<_> = blocks
             .ids()
-            .map(|id| blocks.key(id).expect("a block id has a name").clone())
+            .map(|id| blocks.name(id).expect("a block id has a name").clone())
             .collect();
         let blocks = Registry::<keys::Block>::new(block_names)
             .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));

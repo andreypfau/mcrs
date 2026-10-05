@@ -480,7 +480,7 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
         .expect("the local light tag is loaded");
     let members: Vec<&str> = tags
         .members(tag)
-        .map(|id| items.key(id).unwrap().as_str())
+        .map(|id| items.name(id).unwrap().as_str())
         .collect();
     assert_eq!(
         members,
@@ -1977,9 +1977,9 @@ fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
         .world()
         .resource::<mcrs_minecraft_worldgen::tables::WorldgenTables>();
 
-    assert!(carvers.get("minecraft:beta_cave").is_some());
+    assert!(carvers.by_name("minecraft:beta_cave").is_some());
     for id in carvers.ids() {
-        let name = carvers.key(id).unwrap();
+        let name = carvers.name(id).unwrap();
         assert!(
             tables.carvers.get(id).is_some_and(Option::is_some),
             "{name} has no value in the carver table"
@@ -2020,12 +2020,12 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
     let stone = set
         .registry::<Block>()
         .unwrap()
-        .get("minecraft:stone")
+        .by_name("minecraft:stone")
         .unwrap();
     let overworld_clock = set
         .registry::<WorldClock>()
         .unwrap()
-        .get("minecraft:overworld")
+        .get(&keys::world_clock::OVERWORLD)
         .unwrap();
 
     let infiniburn: [(&str, HolderSet<Block>); 3] = [
@@ -2111,7 +2111,7 @@ fn every_preset_parses_in_registry_context() {
     let (names, presets) = the_loaded_presets();
     let preset = |name: &str| {
         &presets[names
-            .get(name)
+            .by_name(name)
             .unwrap_or_else(|| panic!("no preset {name}"))]
     };
     let overworld = |name: &str| &preset(name).dimensions["minecraft:overworld"].generator;
@@ -2148,7 +2148,7 @@ fn every_preset_parses_in_registry_context() {
             biome: set
                 .registry::<keys::Biome>()
                 .unwrap()
-                .get("minecraft:plains")
+                .get(&keys::biome::PLAINS)
                 .unwrap()
         }
     );
@@ -2166,7 +2166,7 @@ fn every_preset_parses_in_registry_context() {
     );
 
     for id in names.ids() {
-        let name = names.key(id).unwrap();
+        let name = names.name(id).unwrap();
         let written = set
             .scope(|| serde_json::to_string(&presets[id]))
             .unwrap_or_else(|e| panic!("{name} does not encode: {e}"));
@@ -2184,7 +2184,7 @@ fn every_preset_parses_in_registry_context() {
 fn a_preset_reads_its_dimensions_as_a_map_by_key() {
     let set = test_registries();
     let (names, presets) = the_loaded_presets();
-    let preset = |name: &str| &presets[names.get(name).unwrap()];
+    let preset = |name: &str| &presets[names.by_name(name).unwrap()];
 
     let beta = preset("minecraft:beta");
     assert_eq!(
@@ -2197,7 +2197,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
     let beta_type = set
         .registry::<keys::DimensionType>()
         .unwrap()
-        .get("minecraft:beta")
+        .by_name("minecraft:beta")
         .expect("the beta pack ships the beta dimension type");
     assert_eq!(
         beta.dimensions["minecraft:overworld"].dimension_type,
@@ -2300,13 +2300,13 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
     let set = test_registries();
     let items = set.registry::<keys::Item>().unwrap();
     let blocks = set.registry::<keys::Block>().unwrap();
-    assert_eq!(items.get("minecraft:stone"), Some(keys::item::STONE));
-    assert_eq!(blocks.get("minecraft:stone"), Some(keys::block::STONE));
+    assert_eq!(items.by_name("minecraft:stone"), Some(keys::item::STONE));
+    assert_eq!(blocks.by_name("minecraft:stone"), Some(keys::block::STONE));
 
     let mut differing = 0;
     for item in items.ids() {
-        let name = items.key(item).unwrap().as_str();
-        let Some(block) = blocks.get(name) else {
+        let name = items.name(item).unwrap().as_str();
+        let Some(block) = blocks.by_name(name) else {
             continue;
         };
         assert_eq!(Id::<keys::Item>::from_name(name).unwrap(), item, "{name}");

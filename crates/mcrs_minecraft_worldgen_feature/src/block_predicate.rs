@@ -147,7 +147,6 @@ mod tests {
         assert!(serde_json::from_str::<BlockPredicate>(text).is_err());
 
         let set = corpus_set();
-        let blocks = set.registry::<keys::Block>().unwrap();
         let tags = set.tags::<keys::Block>().unwrap();
         let BlockPredicate::MatchingBlocks {
             blocks: matching, ..
@@ -155,8 +154,8 @@ mod tests {
         else {
             panic!("a matching_blocks predicate parses to its own variant");
         };
-        assert!(matching.contains(blocks.require("minecraft:stone").unwrap(), &tags));
-        assert!(!matching.contains(blocks.require("minecraft:dirt").unwrap(), &tags));
+        assert!(matching.contains(keys::block::STONE, &tags));
+        assert!(!matching.contains(keys::block::DIRT, &tags));
     }
 
     #[test]

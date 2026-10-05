@@ -43,7 +43,7 @@ fn normal() -> Dimensions {
     let set = test_registries();
     let id = set
         .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get("minecraft:normal"))
+        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
     set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
         .dimensions
@@ -54,7 +54,7 @@ fn debug_dimension(set: &RegistrySet, dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
         dimension_type: set
             .registry::<keys::DimensionType>()
-            .and_then(|registry| registry.get(dimension_type))
+            .and_then(|registry| registry.by_name(dimension_type))
             .expect("the dimension type is loaded"),
         generator: ChunkGenerator::Debug,
     }

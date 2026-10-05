@@ -44,14 +44,14 @@ fn carvers_by_biome(
     let lists = biomes
         .ids()
         .map(|id| {
-            let biome = || biomes.key(id).expect("an id of the registry has a name");
+            let biome = || biomes.name(id).expect("an id of the registry has a name");
             values[id]
                 .carvers
                 .ids(carver_tags)
                 .filter_map(|carver| match &table[carver] {
                     Some(config) => Some(config.clone()),
                     None => {
-                        let carver = carvers.key(carver).expect("an id of the registry has a name");
+                        let carver = carvers.name(carver).expect("an id of the registry has a name");
                         tracing::error!(biome = %biome(), %carver, "a carver of this biome is unavailable");
                         None
                     }
@@ -97,7 +97,7 @@ fn build_modern_carver_biomes(
     let parameter_lists = parameter_lists_of(&registries);
     let name_of = |id| {
         biomes
-            .key(id)
+            .name(id)
             .expect("an id of the registry has a name")
             .as_str()
             .to_owned()

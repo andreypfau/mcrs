@@ -52,7 +52,7 @@ impl TryFrom<FlatSettingsFields> for FlatLevelGeneratorSettings {
             Some(biome) => biome,
             None => {
                 Registry::<keys::Biome>::in_scope("the flat generator's default biome", |biomes| {
-                    biomes.require("minecraft:plains")
+                    biomes.require(&keys::biome::PLAINS)
                 })
                 .map_err(|e| e.to_string())?
                 .map_err(|e| e.to_string())?

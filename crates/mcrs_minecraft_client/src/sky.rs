@@ -236,12 +236,12 @@ fn build_sky_environment(
 
     let clock = dimension_types[type_id]
         .default_clock
-        .and_then(|clock| world_clocks.key(clock))
+        .and_then(|clock| world_clocks.name(clock))
         .cloned();
 
     info!(
         dimension = %joined.dimension,
-        dimension_type = ?types.key(type_id).map(ToString::to_string),
+        dimension_type = ?types.name(type_id).map(ToString::to_string),
         skybox = ?statics.key.skybox,
         effects = ?statics.key.effects,
         draws = statics.key.draws(),

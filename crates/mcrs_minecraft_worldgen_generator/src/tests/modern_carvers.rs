@@ -167,7 +167,7 @@ fn carvers_by_biome() -> (
         .map(|id| {
             let name = mcrs_minecraft_core::ResourceLocation::parse(
                 registry
-                    .key(id)
+                    .name(id)
                     .expect("an id of the registry has a name")
                     .as_str(),
             )
@@ -282,7 +282,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     let table = CarverBiomeTable::beta(&source, &registry, |biome| {
         let index = land_biomes
             .iter()
-            .position(|id| registry.key(*id).unwrap().as_str() == biome)
+            .position(|id| registry.name(*id).unwrap().as_str() == biome)
             .unwrap();
         let mut config = cave.clone();
         config["probability"] = serde_json::json!(index as f32 / 16.0);

@@ -33,7 +33,7 @@ fn preset(name: &str) -> Dimensions {
     let set = test_registries();
     let id = set
         .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get(name))
+        .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the preset {name} is loaded"));
     set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
         .dimensions
@@ -119,7 +119,7 @@ fn join(app: &mut App, label: Entity) -> ClientboundLogin {
 fn type_number(name: &str) -> u16 {
     test_registries()
         .registry::<keys::DimensionType>()
-        .and_then(|registry| registry.get(name))
+        .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
         .number()
 }
@@ -170,7 +170,7 @@ fn every_shipped_preset_dimension_spawns_with_its_entry_type() {
     assert!(presets.len() > 1, "the shipped presets are loaded");
 
     for preset_id in presets.ids() {
-        let name = presets.key(preset_id).unwrap().as_str();
+        let name = presets.name(preset_id).unwrap().as_str();
         let dimensions = preset(name);
         let mut app = host_spawning(&dimensions);
         for (key, entry) in baked(&dimensions) {

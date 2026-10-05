@@ -83,7 +83,7 @@ pub(crate) fn build_dimension_routers(
             }
         };
         let settings_name = noise_settings
-            .key(generator.settings)
+            .name(generator.settings)
             .expect("an id of the registry has a name");
         if let Some(tables) = structures.as_ref().and_then(|s| s.0.get(dimension)) {
             refuse_misplaced_beardifier(dimension, settings_name, settings, &assets, tables);

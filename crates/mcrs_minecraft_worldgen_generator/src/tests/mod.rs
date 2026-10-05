@@ -174,7 +174,7 @@ pub fn registries_over(biomes: &Registry<keys::Biome>) -> mcrs_minecraft_registr
         .ids()
         .map(|id| {
             biomes
-                .key(id)
+                .name(id)
                 .expect("an id of the registry has a name")
                 .as_str()
         })
@@ -206,7 +206,7 @@ pub fn try_build_program(
         .registry::<keys::Biome>()
         .expect("the corpus holds the biome registry");
     for id in numbered.ids() {
-        let name = numbered.key(id).expect("an id of the registry has a name");
+        let name = numbered.name(id).expect("an id of the registry has a name");
         tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
     FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
@@ -276,7 +276,7 @@ pub fn parameter_list_id(
 ) -> mcrs_minecraft_registry::Id<keys::MultiNoiseBiomeSourceParameterList> {
     parameter_lists()
         .0
-        .require(name)
+        .require_by_name(name)
         .unwrap_or_else(|e| panic!("{e}"))
 }
 
@@ -428,7 +428,7 @@ pub fn beta_populate_program(registry: &Registry<keys::Biome>, seed: i64) -> Fea
         .ids()
         .map(|id| {
             registry
-                .key(id)
+                .name(id)
                 .expect("an id of the registry has a name")
                 .clone()
         })

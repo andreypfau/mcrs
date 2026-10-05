@@ -17,7 +17,7 @@ fn members(app: &App, tag: &str) -> Vec<String> {
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {
             biomes
-                .key(id)
+                .name(id)
                 .expect("a member id maps back")
                 .as_str()
                 .to_owned()
@@ -55,7 +55,7 @@ pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &Ap
     assert!(!biomes.is_empty());
     for (id, entry) in biomes.ids().zip(synced.iter_entries()) {
         assert_eq!(
-            biomes.key(id).map(|name| name.as_str()),
+            biomes.name(id).map(|name| name.as_str()),
             Some(entry.location.as_str())
         );
     }

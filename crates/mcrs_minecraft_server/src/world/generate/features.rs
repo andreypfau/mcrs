@@ -59,7 +59,7 @@ fn decoration_steps(
                 .map(|id| {
                     Holder::Reference(
                         placed
-                            .key(id)
+                            .name(id)
                             .expect("an id of the registry has a name")
                             .clone(),
                     )
@@ -133,7 +133,7 @@ fn build_dimension_features(
             .ids()
             .map(|id| {
                 let name = provider_registry
-                    .key(id)
+                    .name(id)
                     .expect("an id of the registry has a name");
                 (name.clone(), providers[id].clone())
             })
@@ -156,7 +156,7 @@ fn build_dimension_features(
         .ids()
         .map(|id| {
             let name = biome_registry
-                .key(id)
+                .name(id)
                 .expect("an id of the registry has a name");
             (name.clone(), &biomes[id])
         })

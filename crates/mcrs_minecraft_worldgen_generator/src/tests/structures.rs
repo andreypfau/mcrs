@@ -150,7 +150,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     );
     let in_hut = SpawnContext {
         structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
-        biome: corpus_biomes().get("minecraft:swamp").unwrap().number(),
+        biome: corpus_biomes().by_name("minecraft:swamp").unwrap().number(),
         moon_brightness: 1.0,
     };
     let mut rng = WorldgenRandom::new(1);
@@ -173,7 +173,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
 }
 
 fn every_hardcoded_type_freezes_its_own_config() {
-    let biome = |name: &str| corpus_biomes().get(name).unwrap().index();
+    let biome = |name: &str| corpus_biomes().by_name(name).unwrap().index();
     let StructureKind::Mineshaft {
         mineshaft_type,
         blocking,
@@ -285,7 +285,7 @@ fn live_set_names(source: &BiomeSource) -> Vec<String> {
     let frozen = frozen();
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
     for name in possible_biomes(source, corpus_biomes(), &crate::tests::parameter_lists().1) {
-        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
+        mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     live_sets(frozen, &mask)
         .into_iter()

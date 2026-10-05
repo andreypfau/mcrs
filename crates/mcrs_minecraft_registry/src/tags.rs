@@ -700,7 +700,7 @@ mod tests {
         let id = tags.get(&TagKey::<TestRegistry, Arc<str>>::from_location(name(tag)))?;
         Some(
             tags.members(id)
-                .map(|member| registry.key(member).unwrap().to_string())
+                .map(|member| registry.name(member).unwrap().to_string())
                 .collect(),
         )
     }
@@ -744,7 +744,7 @@ mod tests {
             registry
                 .ids()
                 .filter(|&member| tags.contains(id, member))
-                .map(|member| registry.key(member).unwrap().to_string())
+                .map(|member| registry.name(member).unwrap().to_string())
                 .collect()
         };
         assert_eq!(

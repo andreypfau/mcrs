@@ -229,7 +229,7 @@ impl Condition {
             && let Some(unknown) = predicate
                 .enchantments()
                 .iter()
-                .find(|required| registry.get(required.enchantments.as_str()).is_none())
+                .find(|required| registry.by_name(required.enchantments.as_str()).is_none())
         {
             warn!(
                 enchantment = %unknown.enchantments,

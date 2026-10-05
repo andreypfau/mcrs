@@ -39,7 +39,7 @@ pub fn possible_biomes(
 ) -> Vec<ResourceLocation> {
     let named = |id: &mcrs_minecraft_registry::Id<keys::Biome>| {
         biomes
-            .key(*id)
+            .name(*id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
             .clone()
     };

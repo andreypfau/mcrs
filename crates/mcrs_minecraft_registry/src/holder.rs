@@ -184,7 +184,7 @@ mod tests {
                 id,
                 set.registry::<SoundRegistry>()
                     .unwrap()
-                    .get("minecraft:b")
+                    .by_name("minecraft:b")
                     .unwrap()
             );
             assert_eq!(id.number(), 1);

@@ -38,7 +38,7 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
     let biome_source = BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| {
             registry
-                .get(&format!("minecraft:land_biome_{i}"))
+                .by_name(&format!("minecraft:land_biome_{i}"))
                 .expect("a land biome")
         }),
         lookup: Box::new(build_beta_lookup_table()),

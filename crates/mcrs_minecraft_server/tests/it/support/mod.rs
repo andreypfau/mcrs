@@ -54,7 +54,7 @@ fn registries() -> &'static (RegistrySet, EntityIds) {
 pub fn dimension_type(name: &str) -> Id<keys::DimensionType> {
     test_registries()
         .registry::<keys::DimensionType>()
-        .and_then(|registry| registry.get(name))
+        .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
 }
 
@@ -78,7 +78,7 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
     let set = test_registries();
     let preset = set
         .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get("minecraft:normal"))
+        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
     let mut dimensions = set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[preset]
         .dimensions
@@ -88,7 +88,7 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
         DimensionEntry {
             dimension_type: set
                 .registry::<keys::DimensionType>()
-                .and_then(|registry| registry.get("minecraft:overworld"))
+                .and_then(|registry| registry.get(&keys::dimension_type::OVERWORLD))
                 .expect("the dimension type is loaded"),
             generator: ChunkGenerator::Debug,
         },

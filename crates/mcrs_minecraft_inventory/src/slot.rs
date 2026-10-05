@@ -6,7 +6,7 @@ use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
-use mcrs_minecraft_keys::{Enchantment, EntityType, Item};
+use mcrs_minecraft_keys::{Enchantment, EntityType, Item, entity_type};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
@@ -100,7 +100,7 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
     let values = world.resource::<Entries<Enchantment, EnchantmentData>>();
     enchantments.0.iter().any(|(id, _)| {
         registry
-            .get(id.as_str())
+            .get(id)
             .and_then(|id| values.get(id))
             .and_then(|data| data.effects.as_ref())
             .is_some_and(|effects| effects.prevent_armor_change.is_some())
@@ -114,15 +114,10 @@ fn admits_player(world: &World, equippable: &Equippable) -> bool {
     let Some(registries) = world.get_resource::<RegistrySet>() else {
         return false;
     };
-    let (Some(entities), Some(tags)) = (
-        registries.registry::<EntityType>(),
-        registries.tags::<EntityType>(),
-    ) else {
+    let Some(tags) = registries.tags::<EntityType>() else {
         return false;
     };
-    entities
-        .get("minecraft:player")
-        .is_some_and(|player| allowed.contains(player, &tags))
+    allowed.contains(entity_type::PLAYER, &tags)
 }
 
 /// A stack the planners move that sits in no slot: a dropped item.

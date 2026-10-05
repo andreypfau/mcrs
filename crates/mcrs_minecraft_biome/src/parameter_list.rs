@@ -89,7 +89,7 @@ pub fn check_parameter_list_biomes(
     for (index, list) in lists.iter().enumerate() {
         let mut reported: Vec<&str> = Vec::new();
         for (_, biome) in list.preset.parameter_list().values() {
-            if biomes.get(biome).is_none() && !reported.contains(biome) {
+            if biomes.by_name(biome).is_none() && !reported.contains(biome) {
                 reported.push(biome);
                 failures.push((
                     index,

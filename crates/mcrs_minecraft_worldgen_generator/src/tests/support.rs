@@ -165,7 +165,7 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
             .ids()
             .map(|id| {
                 let name = corpus_biomes()
-                    .key(id)
+                    .name(id)
                     .expect("an id of the registry has a name");
                 let biome = &biomes[&ResourceLocation::parse(name.as_str()).expect("a corpus id")];
                 BiomeClimate {

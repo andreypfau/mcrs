@@ -195,7 +195,7 @@ impl ClockTimeMarkers {
         let mut table = ClockTimeMarkers::default();
         let mut duplicates = Vec::new();
         for (index, timeline) in timelines.iter().enumerate() {
-            let Some(clock) = clocks.key(timeline.clock) else {
+            let Some(clock) = clocks.name(timeline.clock) else {
                 continue;
             };
             for (id, marker) in &timeline.time_markers {

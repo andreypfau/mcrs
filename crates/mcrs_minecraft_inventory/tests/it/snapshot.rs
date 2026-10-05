@@ -8,7 +8,7 @@ use mcrs_minecraft_inventory::{
     player_menu_layout,
 };
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_keys::EntityType;
+use mcrs_minecraft_keys::entity_type;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
@@ -59,11 +59,7 @@ fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     let mut world = world();
     let registries = test_registries();
     world.insert_resource(registries.clone());
-    let zombie = registries
-        .registry::<EntityType>()
-        .unwrap()
-        .require("minecraft:zombie")
-        .unwrap();
+    let zombie = entity_type::ZOMBIE;
     let player = holder(&mut world, slots::COUNT);
     let zombie_only = crate::common::spawn(&mut world, "iron_helmet", 1);
     world

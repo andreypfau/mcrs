@@ -81,7 +81,7 @@ pub(super) fn extend_tints(
         let biome = registry
             .as_ref()
             .zip(loaded.as_ref())
-            .and_then(|(registry, loaded)| loaded.get(registry.get(name)?))
+            .and_then(|(registry, loaded)| loaded.get(registry.by_name(name)?))
             .ok_or_else(|| format!("{name}: not in the loaded biome registry"));
         let tint = biome.and_then(|biome| {
             let (temperature, downfall, effects) =

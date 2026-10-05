@@ -4,7 +4,7 @@ use bevy_asset::AssetServer;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
@@ -29,8 +29,7 @@ pub fn configured_preset(
     report: &mut LoadReport,
 ) -> Option<Id<keys::WorldPreset>> {
     let registry = report.registry::<keys::WorldPreset>(set)?;
-    let key = ResourceLocation::read(name).map(ResourceKey::<keys::WorldPreset>::from_location);
-    report.require(&registry, key.as_ref().map_or(name, ResourceKey::as_str))
+    report.require_by_name(&registry, name)
 }
 
 pub(crate) fn bake_dimensions(
@@ -91,7 +90,7 @@ pub(crate) fn request_dimension_noise_settings(
         let ChunkGenerator::Noise(generator) = &entry.generator else {
             continue;
         };
-        let Some(name) = settings.key(generator.settings) else {
+        let Some(name) = settings.name(generator.settings) else {
             error!(id = ?generator.settings, "the dimension names noise settings the registry does not number");
             continue;
         };
@@ -189,7 +188,7 @@ mod tests {
         ] {
             assert_eq!(
                 configured_preset(name, set, &mut report),
-                presets.get(expected),
+                presets.by_name(expected),
                 "{name}"
             );
         }

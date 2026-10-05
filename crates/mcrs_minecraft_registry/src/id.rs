@@ -1,6 +1,7 @@
 use crate::registry::{Registry, UnknownEntry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::{self, Visitor};
 use serde::ser::Error as _;
@@ -156,7 +157,7 @@ impl<R: StaticRegistry> Id<R> {
 
 impl<R: RegistryKey> Serialize for Id<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.key(*self) {
+        Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.name(*self) {
             Some(name) => serializer.serialize_str(name.as_str()),
             None => Err(S::Error::custom(format_args!(
                 "registry {} holds no entry numbered {}",
@@ -180,12 +181,12 @@ impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Id<R>, E> {
-                let name = ResourceLocation::read(text).map_err(E::custom)?;
-                Registry::<R>::in_scope(type_name::<Id<R>>(), |registry| {
-                    registry.require(name.as_str())
-                })
-                .map_err(E::custom)?
-                .map_err(E::custom)
+                let key = ResourceKey::<R>::from_location(
+                    ResourceLocation::read(text).map_err(E::custom)?,
+                );
+                Registry::<R>::in_scope(type_name::<Id<R>>(), |registry| registry.require(&key))
+                    .map_err(E::custom)?
+                    .map_err(E::custom)
             }
         }
 
@@ -249,7 +250,7 @@ mod tests {
     }
 
     fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
-        registry.get(&format!("minecraft:n{n}")).unwrap()
+        registry.by_name(&format!("minecraft:n{n}")).unwrap()
     }
 
     #[test]

@@ -24,7 +24,7 @@ fn overworld() -> StructureIndex {
     let source = preset("minecraft:overworld");
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
     for name in possible_biomes(&source, corpus_biomes(), &crate::tests::parameter_lists().1) {
-        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
+        mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
@@ -150,7 +150,7 @@ mod exhaustive {
     fn every_column_a_village_crosses_finds_its_start() {
         let frozen = frozen_shared();
         let villages = set("minecraft:villages");
-        let plains = corpus_biomes().get("minecraft:plains").unwrap();
+        let plains = corpus_biomes().by_name("minecraft:plains").unwrap();
         let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
         mask.insert(plains.index());
         let tables = DimensionStructureTables {

@@ -200,7 +200,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 Holder::Reference(id) => {
                     let name =
                         Registry::<TrimMaterial>::in_scope("a trim material select", |registry| {
-                            registry.key(*id).cloned()
+                            registry.name(*id).cloned()
                         })
                         .ok()??;
                     find(cases, &ResourceKey::from_location(name))

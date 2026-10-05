@@ -112,7 +112,7 @@ fn a_thrown_stack_becomes_an_item_entity_in_front_of_the_player() {
     let report_id = registry_set()
         .registry::<EntityType>()
         .unwrap()
-        .get("minecraft:item")
+        .by_name("minecraft:item")
         .unwrap()
         .index();
     assert_eq!(entity.get::<EntityKind>().unwrap().0.index(), report_id);

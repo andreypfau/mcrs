@@ -24,7 +24,7 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) 
     ];
     let names: Vec<&str> = land.iter().map(String::as_str).chain(surface).collect();
     let registry = super::biome_registry(&names);
-    let land_biomes = std::array::from_fn(|i| registry.get(&land[i]).expect("a land biome"));
+    let land_biomes = std::array::from_fn(|i| registry.by_name(&land[i]).expect("a land biome"));
     let biome_source = BiomeSource::Beta {
         land_biomes,
         lookup: Box::new(build_beta_lookup_table()),
