@@ -958,11 +958,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level;
     let default_fluid = noise_router.default_fluid_state;
     let stone = noise_router.default_block_state;
-    let bedrock = VoxelId::from(blocks.default_state("minecraft:bedrock"));
-    let sandstone = VoxelId::from(blocks.default_state("minecraft:sandstone"));
-    let gravel = VoxelId::from(blocks.default_state("minecraft:gravel"));
-    let ice = VoxelId::from(blocks.default_state("minecraft:ice"));
-    let sand = VoxelId::from(blocks.default_state("minecraft:sand"));
+    let bedrock = VoxelId::from(blocks.default_state_of(keys::block::BEDROCK));
+    let sandstone = VoxelId::from(blocks.default_state_of(keys::block::SANDSTONE));
+    let gravel = VoxelId::from(blocks.default_state_of(keys::block::GRAVEL));
+    let ice = VoxelId::from(blocks.default_state_of(keys::block::ICE));
+    let sand = VoxelId::from(blocks.default_state_of(keys::block::SAND));
 
     const D0: f64 = 0.03125;
 

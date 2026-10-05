@@ -4,6 +4,7 @@ use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
@@ -27,21 +28,21 @@ pub struct SurfaceIds {
 
 impl SurfaceIds {
     pub fn resolve(blocks: &BlockDefinitions, biomes: &Registry<keys::Biome>) -> Self {
-        let biome = |name: &str| {
+        let biome = |key: ResourceKey<keys::Biome, &'static str>| {
             biomes
-                .require(name)
+                .require(key.as_str())
                 .unwrap_or_else(|error| {
                     panic!("the surface stage names a biome the registry does not hold: {error}")
                 })
                 .number()
         };
         Self {
-            eroded_badlands: biome("minecraft:eroded_badlands"),
-            frozen_ocean: biome("minecraft:frozen_ocean"),
-            deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
-            snow_block: blocks.default_state("minecraft:snow_block").into(),
-            packed_ice: blocks.default_state("minecraft:packed_ice").into(),
-            dirt: blocks.default_state("minecraft:dirt").into(),
+            eroded_badlands: biome(keys::biome::ERODED_BADLANDS),
+            frozen_ocean: biome(keys::biome::FROZEN_OCEAN),
+            deep_frozen_ocean: biome(keys::biome::DEEP_FROZEN_OCEAN),
+            snow_block: blocks.default_state_of(keys::block::SNOW_BLOCK).into(),
+            packed_ice: blocks.default_state_of(keys::block::PACKED_ICE).into(),
+            dirt: blocks.default_state_of(keys::block::DIRT).into(),
         }
     }
 }

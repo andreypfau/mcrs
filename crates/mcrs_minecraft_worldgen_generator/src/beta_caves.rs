@@ -1,6 +1,8 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -22,14 +24,14 @@ pub struct BetaCaveBlockIds {
 
 impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
-        let state = |name: &str| -> VoxelId { blocks.default_state(name).into() };
+        let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).into() };
         BetaCaveBlockIds {
-            air: state("minecraft:air"),
-            lava: state("minecraft:lava"),
-            stone: state("minecraft:stone"),
-            dirt: state("minecraft:dirt"),
-            grass: state("minecraft:grass_block"),
-            water: state("minecraft:water"),
+            air: state(keys::block::AIR),
+            lava: state(keys::block::LAVA),
+            stone: state(keys::block::STONE),
+            dirt: state(keys::block::DIRT),
+            grass: state(keys::block::GRASS_BLOCK),
+            water: state(keys::block::WATER),
         }
     }
 }
@@ -127,7 +129,7 @@ mod tests {
     #[test]
     fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {
         let ids = BetaCaveBlockIds::resolve(corpus());
-        let sand: VoxelId = corpus().default_state("minecraft:sand").into();
+        let sand: VoxelId = corpus().default_state_of(keys::block::SAND).into();
         let sections: Vec<i32> = (0..8).collect();
         let column = ColumnBlocks::new(&sections);
         let mut mask = CarvingMask::new(1, 120);

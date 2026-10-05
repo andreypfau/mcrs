@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use mcrs_minecraft_keys::Block as BlockKey;
+use mcrs_minecraft_registry::Id;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -88,4 +90,18 @@ fn a_component_is_not_stated_both_for_the_block_and_in_a_permutation() {
         }
     }
     crate::common::assert_no_mismatches("components stated twice", mismatches);
+}
+
+#[test]
+fn default_state_by_id_equals_by_name_for_every_block() {
+    let blocks = crate::common::corpus();
+    let mismatches: Vec<String> = (0..blocks.blocks().len())
+        .map(|number| Id::<BlockKey>::from_static(number as u16))
+        .filter(|id| blocks.default_state_of(*id) != blocks.default_state(id.name()))
+        .map(|id| id.name().to_owned())
+        .collect();
+    crate::common::assert_no_mismatches(
+        "blocks whose id and name reach different default states",
+        mismatches,
+    );
 }

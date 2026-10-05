@@ -252,6 +252,11 @@ impl BlockDefinitions {
             .default_state_id
     }
 
+    #[inline]
+    pub fn default_state_of(&self, block: Id<Block>) -> BlockStateId {
+        self[block].default_state_id
+    }
+
     /// The block a state belongs to. Every state in the table has one:
     /// `Builder::finish` refuses a table with a state no block claimed.
     #[inline]

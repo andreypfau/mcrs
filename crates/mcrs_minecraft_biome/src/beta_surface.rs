@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::BlockStateId;
 
 use crate::source::BetaLandBiome;
@@ -15,12 +16,12 @@ pub fn beta_surface_blocks(
 ) -> (BlockStateId, BlockStateId) {
     match biome {
         BetaLandBiome::Desert | BetaLandBiome::IceDesert => {
-            let sand = blocks.default_state("minecraft:sand");
+            let sand = blocks.default_state_of(keys::block::SAND);
             (sand, sand)
         }
         _ => {
-            let grass = blocks.default_state("minecraft:grass_block");
-            let dirt = blocks.default_state("minecraft:dirt");
+            let grass = blocks.default_state_of(keys::block::GRASS_BLOCK);
+            let dirt = blocks.default_state_of(keys::block::DIRT);
             (grass, dirt)
         }
     }
