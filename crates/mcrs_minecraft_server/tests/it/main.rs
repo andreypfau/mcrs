@@ -14,6 +14,7 @@ mod arrival_end_platform;
 mod block_entities;
 mod block_experience;
 mod block_loot_addressing;
+mod block_loot_conditions;
 mod bridge_dispatch;
 mod bridge_inbound;
 mod bridge_outbound;

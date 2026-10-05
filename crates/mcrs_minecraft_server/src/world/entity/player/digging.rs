@@ -415,7 +415,11 @@ fn handle_player_will_destroy_block(
             if let Some(loot) = state.loot {
                 match loot_tables.tables.get(&loot) {
                     Some(table) => {
-                        let ctx = BlockBreakContext { tool_enchantments };
+                        let ctx = BlockBreakContext {
+                            blocks: &blocks,
+                            state: event.block_state,
+                            tool_enchantments,
+                        };
                         for drop in table.evaluate(&ctx) {
                             drops.write(BlockDrop {
                                 dim: dim.entity(),

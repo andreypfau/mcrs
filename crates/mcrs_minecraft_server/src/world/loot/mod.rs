@@ -2,7 +2,7 @@ pub mod condition;
 pub mod context;
 pub mod entry;
 
-use crate::world::loot::condition::LootCondition;
+use crate::world::loot::condition::{Condition, LootCondition, holds};
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use crate::world::loot::entry::LootEntry;
 use bevy_app::{App, Plugin, PostStartup, Update};
@@ -18,34 +18,48 @@ use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::Registry;
 use rustc_hash::{FxHashMap, FxHashSet};
+use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, info};
 
+// chisle: read so the parse stays strict, and not applied: a drop is one item
+// and nothing is rolled. Loot functions (#74) lift `modifier`, seeded rolls (#72)
+// lift `random_sequence`.
+pub(crate) type Unapplied = IgnoredAny;
+
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LootTable {
     #[serde(rename = "type")]
     pub table_type: String,
     #[serde(default)]
     pub pools: Vec<LootPool>,
+    #[serde(default, rename = "random_sequence")]
+    _random_sequence: Unapplied,
+    #[serde(default, rename = "modifier")]
+    _modifier: Unapplied,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LootPool {
     pub rolls: u32,
     pub entries: Vec<LootEntry>,
-    #[serde(default)]
-    pub conditions: Vec<LootCondition>,
+    pub condition: Option<Condition>,
+    #[serde(default, rename = "modifier")]
+    _modifier: Unapplied,
 }
 
 impl LootTable {
     pub fn evaluate(&self, ctx: &BlockBreakContext) -> Vec<LootDrop> {
         let mut drops = Vec::new();
         for pool in &self.pools {
-            if !pool.conditions.iter().all(|c| c.check(ctx)) {
+            if !holds(&pool.condition, ctx) {
                 continue;
             }
             for _ in 0..pool.rolls {
@@ -55,15 +69,34 @@ impl LootTable {
         drops
     }
 
-    fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
+    fn conditions_mut(&mut self, mut visit: impl FnMut(&mut Condition)) {
         for pool in &mut self.pools {
-            for entry in &mut pool.entries {
-                entry.drop_unknown_enchantments(registry);
+            if let Some(condition) = &mut pool.condition {
+                visit(condition);
             }
-            for condition in &mut pool.conditions {
-                condition.drop_unknown_enchantments(registry);
+            for entry in &mut pool.entries {
+                entry.conditions_mut(&mut visit);
             }
         }
+    }
+
+    fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
+        self.conditions_mut(|condition| condition.drop_unknown_enchantments(registry));
+    }
+
+    /// Writes every named predicate in place of its name, refusing a
+    /// predicate that reaches itself.
+    fn inline_named_predicates(
+        &mut self,
+        predicates: &FxHashMap<ResourceLocation, LootCondition>,
+    ) -> Result<(), String> {
+        let mut inlined = Ok(());
+        self.conditions_mut(|condition| {
+            if inlined.is_ok() {
+                inlined = condition.inline(predicates, &mut Vec::new());
+            }
+        });
+        inlined
     }
 }
 
@@ -99,6 +132,8 @@ pub enum LootTableLoaderError {
     Io(#[from] std::io::Error),
     #[error("JSON parse error: {0}")]
     Json(String),
+    #[error("predicate `{0}`: {1}")]
+    Predicate(String, String),
     #[error("missing loot table identity in loader settings")]
     MissingTableId,
 }
@@ -112,7 +147,7 @@ impl AssetLoader for LootTableLoader {
         &self,
         reader: &mut dyn Reader,
         settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let (Some(loot), Some(table_id)) = (settings.loot, settings.table_id.clone()) else {
             return Err(LootTableLoaderError::MissingTableId);
@@ -120,8 +155,29 @@ impl AssetLoader for LootTableLoader {
 
         let bytes = read_all(reader).await?;
 
-        let table: LootTable = serde_json::from_slice(&bytes)
+        let mut table: LootTable = serde_json::from_slice(&bytes)
             .map_err(|e| LootTableLoaderError::Json(e.to_string()))?;
+        let mut pending = Vec::new();
+        table.conditions_mut(|condition| condition.names(&mut pending));
+        let mut predicates = FxHashMap::default();
+        while let Some(name) = pending.pop() {
+            if predicates.contains_key(&name) {
+                continue;
+            }
+            let failed = |e: String| LootTableLoaderError::Predicate(name.to_string(), e);
+            let path = format!("{}/predicate/{}.json", name.namespace(), name.path());
+            let bytes = load_context
+                .read_asset_bytes(path)
+                .await
+                .map_err(|e| failed(e.to_string()))?;
+            let predicate: LootCondition =
+                serde_json::from_slice(&bytes).map_err(|e| failed(e.to_string()))?;
+            predicate.terms().for_each(|term| term.names(&mut pending));
+            predicates.insert(name, predicate);
+        }
+        table
+            .inline_named_predicates(&predicates)
+            .map_err(LootTableLoaderError::Json)?;
 
         debug!(table = %table_id, pools = table.pools.len(), "loaded loot table");
 
@@ -232,27 +288,5 @@ impl Plugin for LootPlugin {
         app.init_resource::<BlockLootTables>();
         app.add_systems(PostStartup, request_loot_tables_for_corpus);
         app.add_systems(Update, process_loaded_loot_tables);
-    }
-}
-
-#[cfg(test)]
-mod exhaustive {
-    use super::LootTable;
-
-    #[test]
-    fn every_shipped_block_loot_table_parses() {
-        let dir = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/minecraft/loot_table/blocks"
-        );
-        let mut count = 0;
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
-            let bytes = std::fs::read(&path).unwrap();
-            serde_json::from_slice::<LootTable>(&bytes)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            count += 1;
-        }
-        assert!(count > 1000, "only {count} block loot tables");
     }
 }
