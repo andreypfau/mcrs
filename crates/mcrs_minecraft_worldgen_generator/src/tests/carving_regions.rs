@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use mcrs_minecraft_biome::climate::ParameterPoint;
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
@@ -23,10 +24,8 @@ use crate::modern_carvers::{
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
 
-fn table(preset: &str, width: i32, capacity: usize) -> CarverBiomeTable {
-    CarverBiomeTable::resolve(preset, carvers_of)
-        .expect("a known preset")
-        .with_region(width, capacity)
+fn table(preset: Preset, width: i32, capacity: usize) -> CarverBiomeTable {
+    CarverBiomeTable::resolve(preset, carvers_of).with_region(width, capacity)
 }
 
 fn per_column(
@@ -57,7 +56,7 @@ fn square(x: i32, z: i32, width: i32) -> Vec<(i32, i32)> {
 
 fn assert_regions_match_columns(
     router: &NoiseRouter,
-    preset: &str,
+    preset: Preset,
     width: i32,
     columns: &[(i32, i32)],
 ) -> usize {
@@ -72,8 +71,9 @@ fn assert_regions_match_columns(
         let expected = per_column(router, &mut ws, &alone, seed, height, (x, z));
         assert!(
             *slot == expected,
-            "column ({x}, {z}) of a width {width} region, {preset} seed {seed}, differs from the \
-             column carved on its own"
+            "column ({x}, {z}) of a width {width} region, {} seed {seed}, differs from the \
+             column carved on its own",
+            preset.name()
         );
         carved += usize::from(!expected.is_empty());
     }
@@ -86,9 +86,9 @@ fn a_region_slot_equals_the_column_carved_alone() {
     let ocean = build_settings_router("overworld", 845);
     let nether = build_settings_router("nether", 12345);
     let carved = [
-        assert_regions_match_columns(&overworld, "minecraft:overworld", 4, &square(8, -8, 4)),
-        assert_regions_match_columns(&ocean, "minecraft:overworld", 4, &square(-4, -4, 4)),
-        assert_regions_match_columns(&nether, "minecraft:nether", 4, &square(-4, 0, 4)),
+        assert_regions_match_columns(&overworld, Preset::Overworld, 4, &square(8, -8, 4)),
+        assert_regions_match_columns(&ocean, Preset::Overworld, 4, &square(-4, -4, 4)),
+        assert_regions_match_columns(&nether, Preset::Nether, 4, &square(-4, 0, 4)),
     ];
     assert!(
         carved.iter().all(|&carved| carved > 0),
@@ -107,8 +107,8 @@ fn a_region_slot_equals_the_column_carved_alone() {
 fn a_column_below_zero_belongs_to_the_region_below_zero(router: &NoiseRouter) {
     let seed = router.world_seed;
     let height = extent(router);
-    let regional = table("minecraft:overworld", 3, 4);
-    let alone = table("minecraft:overworld", 1, 0);
+    let regional = table(Preset::Overworld, 3, 4);
+    let alone = table(Preset::Overworld, 1, 0);
     let mut ws = Workspace::new();
 
     let mut carved = 0;
@@ -174,7 +174,7 @@ fn a_source_past_a_columns_reach_does_not_carve_it_through_a_shared_region(route
 fn a_region_is_built_once_for_all_its_columns(router: &NoiseRouter) {
     let seed = router.world_seed;
     let height = extent(router);
-    let shared = table("minecraft:overworld", 4, 4);
+    let shared = table(Preset::Overworld, 4, 4);
     let columns = square(0, 0, 4);
 
     let slots: Vec<_> = std::thread::scope(|scope| {
@@ -215,7 +215,7 @@ fn a_region_is_built_once_for_all_its_columns(router: &NoiseRouter) {
     assert_eq!(shared.region_entries_for_test(), Some(1));
     let (_, first) = &slots[0];
     assert!(slots.iter().all(|(_, slot)| slot.same_region_as(first)));
-    let alone = table("minecraft:overworld", 1, 0);
+    let alone = table(Preset::Overworld, 1, 0);
     let mut ws = Workspace::new();
     for (column, slot) in &slots {
         let expected = per_column(router, &mut ws, &alone, seed, height, *column);
@@ -226,7 +226,7 @@ fn a_region_is_built_once_for_all_its_columns(router: &NoiseRouter) {
 fn the_region_cache_holds_at_most_its_capacity(router: &NoiseRouter) {
     let seed = router.world_seed;
     let height = extent(router);
-    let kept = table("minecraft:overworld", 2, 3);
+    let kept = table(Preset::Overworld, 2, 3);
     let mut ws = Workspace::new();
     let mut ask = |region: i32| {
         modern_carving_mask(region * 2, 0, seed as i64, router, &mut ws, &kept, height);
@@ -272,8 +272,8 @@ fn the_region_cache_holds_at_most_its_capacity(router: &NoiseRouter) {
 }
 
 fn two_seeds_do_not_share_a_region(first: &NoiseRouter, second: &NoiseRouter) {
-    let shared = table("minecraft:overworld", 2, 4);
-    let alone = table("minecraft:overworld", 1, 0);
+    let shared = table(Preset::Overworld, 2, 4);
+    let alone = table(Preset::Overworld, 1, 0);
     let mut ws = Workspace::new();
     for router in [first, second] {
         let seed = router.world_seed;
@@ -313,8 +313,8 @@ fn two_heights_do_not_share_a_region(router: &NoiseRouter) {
         depth: 256,
         sea_level: 63,
     };
-    let shared = table("minecraft:overworld", 2, 4);
-    let alone = table("minecraft:overworld", 1, 0);
+    let shared = table(Preset::Overworld, 2, 4);
+    let alone = table(Preset::Overworld, 1, 0);
     let mut ws = Workspace::new();
 
     for height in [tall, short, tall] {
@@ -333,7 +333,7 @@ fn two_heights_do_not_share_a_region(router: &NoiseRouter) {
 fn a_region_of_one_column_is_not_kept(router: &NoiseRouter) {
     let seed = router.world_seed;
     let height = extent(router);
-    let single = table("minecraft:overworld", 1, 16);
+    let single = table(Preset::Overworld, 1, 16);
     let mut ws = Workspace::new();
     for (x, z) in square(-2, -2, 4) {
         let slot = modern_carving_mask(x, z, seed as i64, router, &mut ws, &single, height);
@@ -354,7 +354,7 @@ fn overworld_context(seed: u64) -> FillContext {
     let (registry, ids) = overworld_biome_registry();
     let (router, material) = overworld_material_router(seed, &ids);
     let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-        preset: Some(ResourceLocation::parse("minecraft:overworld").expect("a preset")),
+        preset: Some(super::parameter_list_id(Preset::Overworld.name())),
         biomes: None,
     });
     let mut context = fill_context(router, material, registry, source);
@@ -437,7 +437,7 @@ fn assert_blocks_independent_of_region_order_and_cache(seed: u64, surfaced: bool
         context.material = None;
     }
     let with = |context: &mut FillContext, width, capacity| {
-        context.program.carvers = Some(Arc::new(table("minecraft:overworld", width, capacity)));
+        context.program.carvers = Some(Arc::new(table(Preset::Overworld, width, capacity)));
     };
 
     with(&mut context, 1, 0);
@@ -549,7 +549,7 @@ fn assert_blocks_independent_of_width(
 ) {
     let columns = square(origin, origin, side);
     let mut context = overworld_context(seed);
-    context.program.carvers = Some(Arc::new(table("minecraft:overworld", 1, 0)));
+    context.program.carvers = Some(Arc::new(table(Preset::Overworld, 1, 0)));
 
     let (buffers, expected): (HashMap<_, _>, HashMap<_, _>) = columns
         .iter()
@@ -575,14 +575,14 @@ fn assert_blocks_independent_of_width(
 
         let regions_touched = (side / width + 2) as usize;
         context.program.carvers = Some(Arc::new(table(
-            "minecraft:overworld",
+            Preset::Overworld,
             width,
             regions_touched * regions_touched,
         )));
 
         let router = context.router.as_ref();
         let regional = context.program.carvers.as_ref().expect("a carver table");
-        let alone = table("minecraft:overworld", 1, 0);
+        let alone = table(Preset::Overworld, 1, 0);
         let height = extent(router);
         let mut ws = Workspace::new();
         for column in wet
@@ -634,7 +634,7 @@ mod exhaustive {
                 for origin in [-width, -1, 0] {
                     carved += assert_regions_match_columns(
                         &router,
-                        "minecraft:overworld",
+                        Preset::Overworld,
                         width,
                         &square(origin, 3 - origin, width),
                     );
@@ -645,7 +645,7 @@ mod exhaustive {
         for width in [3, 4] {
             carved += assert_regions_match_columns(
                 &nether,
-                "minecraft:nether",
+                Preset::Nether,
                 width,
                 &square(-width, -1, width),
             );

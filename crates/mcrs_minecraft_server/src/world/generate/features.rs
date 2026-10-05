@@ -7,6 +7,7 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::DynTagRegistry;
+use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
@@ -173,9 +174,10 @@ fn build_dimension_features(
         })
         .collect();
 
+    let parameter_lists = parameter_lists_of(&registries);
     let mut programs = DimensionFeaturePrograms::default();
     for (dimension, source) in &sources.0 {
-        let biome_order = possible_biomes(source, &biome_registry);
+        let biome_order = possible_biomes(source, &biome_registry, &parameter_lists);
         let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {

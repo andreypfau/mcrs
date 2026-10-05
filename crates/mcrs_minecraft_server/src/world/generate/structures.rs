@@ -5,6 +5,7 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::{AppState, TagRegistry};
+use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
@@ -31,12 +32,13 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
     biomes: &Registry<keys::Biome>,
+    lists: &ParameterLists,
     sources: &DimensionBiomeSources,
 ) -> DimensionStructures {
     let mut tables = DimensionStructures::default();
     for (dimension, source) in &sources.0 {
         let mut mask = FixedBitSet::with_capacity(biomes.len());
-        for name in possible_biomes(source, biomes) {
+        for name in possible_biomes(source, biomes, lists) {
             if let Some(id) = biomes.get(name.as_str()) {
                 mask.insert(id.index());
             }
@@ -166,5 +168,10 @@ pub(crate) fn build_dimension_structures(
         templates = frozen.templates.len(),
         "froze the structure registries"
     );
-    commands.insert_resource(dimension_tables(Arc::new(frozen), &biomes, &sources));
+    commands.insert_resource(dimension_tables(
+        Arc::new(frozen),
+        &biomes,
+        &parameter_lists_of(&registries),
+        &sources,
+    ));
 }

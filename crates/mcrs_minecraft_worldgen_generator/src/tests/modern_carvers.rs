@@ -12,6 +12,7 @@ use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
 };
 use crate::{ColumnBlocks, column_fluid_field};
+use mcrs_minecraft_biome::parameter_list::Preset;
 
 fn overworld_height() -> HeightContext {
     HeightContext {
@@ -68,7 +69,7 @@ fn ids() -> ModernCarverBlockIds {
 #[test]
 fn the_tiled_sources_match_point_sampling() {
     let router = build_settings_router("overworld", 12345);
-    let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
+    let table = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
     let mut ws = Workspace::new();
     for (chunk_x, chunk_z) in [(0, 0), (-13, 7)] {
         for source_x in (chunk_x - 8)..=(chunk_x + 8) {
@@ -88,7 +89,7 @@ fn the_tiled_sources_match_point_sampling() {
 #[test]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
-    let table = CarverBiomeTable::resolve("minecraft:overworld", carvers_of).unwrap();
+    let table = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
     let block_ids = ids();
     let sections = y_sections();
     let mut ws = Workspace::new();
@@ -193,11 +194,11 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
 
     let (biomes, carvers) = carvers_by_biome();
 
-    let overworld = resolve_carver_biomes(Some("minecraft:overworld"), None, biomes, &carvers)
+    let overworld = resolve_carver_biomes(Some(Preset::Overworld), None, biomes, &carvers)
         .expect("the overworld preset resolves");
     assert_eq!(overworld.entry_count(), 7594);
 
-    let nether = resolve_carver_biomes(Some("minecraft:nether"), None, biomes, &carvers)
+    let nether = resolve_carver_biomes(Some(Preset::Nether), None, biomes, &carvers)
         .expect("the nether preset resolves");
     assert_eq!(nether.entry_count(), 5);
     let wastes = nether.carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
@@ -228,8 +229,7 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
 
-    // A preset nothing knows about, and a source with neither form.
-    assert!(resolve_carver_biomes(Some("minecraft:end"), None, biomes, &carvers).is_none());
+    // A source with neither form.
     assert!(resolve_carver_biomes(None, None, biomes, &carvers).is_none());
 
     // A biome with no carvers resolves to an empty list rather than to the

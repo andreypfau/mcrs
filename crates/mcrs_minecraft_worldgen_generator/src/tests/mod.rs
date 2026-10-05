@@ -229,6 +229,36 @@ pub fn biome_registry(names: &[&str]) -> Registry<keys::Biome> {
     ordered_biome_registry(&names)
 }
 
+pub fn parameter_lists() -> &'static (
+    Registry<keys::MultiNoiseBiomeSourceParameterList>,
+    mcrs_minecraft_biome::parameter_list::ParameterLists,
+) {
+    static LISTS: std::sync::OnceLock<(
+        Registry<keys::MultiNoiseBiomeSourceParameterList>,
+        mcrs_minecraft_biome::parameter_list::ParameterLists,
+    )> = std::sync::OnceLock::new();
+    LISTS.get_or_init(|| {
+        let shipped: BTreeMap<
+            ResourceLocation,
+            mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
+        > = registry("multi_noise_biome_source_parameter_list");
+        let names =
+            Registry::new(shipped.keys().cloned(), []).expect("a registry of distinct names");
+        let lists = mcrs_minecraft_registry::Entries::new(&names, shipped.into_values().collect())
+            .expect("one list for every name");
+        (names, lists)
+    })
+}
+
+pub fn parameter_list_id(
+    name: &str,
+) -> mcrs_minecraft_registry::Id<keys::MultiNoiseBiomeSourceParameterList> {
+    parameter_lists()
+        .0
+        .require(name)
+        .unwrap_or_else(|e| panic!("{e}"))
+}
+
 /// A biome registry numbering `names` in the order given.
 pub fn ordered_biome_registry(names: &[&str]) -> Registry<keys::Biome> {
     Registry::new(

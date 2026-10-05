@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_biome::climate::ParameterList;
 use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
@@ -60,10 +61,10 @@ impl Dimension {
         }
     }
 
-    fn preset(self) -> &'static str {
+    fn preset(self) -> Preset {
         match self {
-            Dimension::Overworld => "minecraft:overworld",
-            Dimension::Nether => "minecraft:nether",
+            Dimension::Overworld => Preset::Overworld,
+            Dimension::Nether => Preset::Nether,
         }
     }
 
@@ -78,7 +79,7 @@ impl Dimension {
 fn world(dimension: Dimension, seed: u64) -> (NoiseRouter, CarverBiomeTable) {
     (
         build_settings_router(dimension.settings(), seed),
-        CarverBiomeTable::resolve(dimension.preset(), carvers_of).expect("a known preset"),
+        CarverBiomeTable::resolve(dimension.preset(), carvers_of),
     )
 }
 
@@ -225,7 +226,7 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let (registry, ids) = biome_registry(dimension);
     let (router, material) = material_router(dimension, seed, &ids);
     let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-        preset: Some(ResourceLocation::parse(dimension.preset()).expect("a preset")),
+        preset: Some(super::parameter_list_id(dimension.preset().name())),
         biomes: None,
     });
     let mut context = fill_context(router, material, registry, source);

@@ -19,6 +19,9 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
+use mcrs_minecraft_biome::parameter_list::{
+    MultiNoiseBiomeSourceParameterList, check_parameter_list_biomes,
+};
 use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
@@ -111,6 +114,7 @@ world_registry_table! {
     keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
     keys::Biome => Biome, synced as |biome| NetworkBiome::from(biome);
+    keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
     keys::EnchantmentProvider => EnchantmentProvider;
     keys::VillagerTrade => VillagerTrade;
     keys::TradeSet => TradeSet;
@@ -123,6 +127,12 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     parse_world_registries(&mut world, &mut undeclared);
     if world.parses(keys::Timeline::KEY.as_str()) {
         world.validate::<Timeline>(keys::Timeline::KEY, check_time_markers);
+    }
+    if world.parses(keys::MultiNoiseBiomeSourceParameterList::KEY.as_str()) {
+        world.validate::<MultiNoiseBiomeSourceParameterList>(
+            keys::MultiNoiseBiomeSourceParameterList::KEY,
+            check_parameter_list_biomes,
+        );
     }
     if undeclared.is_empty() {
         Ok(world)

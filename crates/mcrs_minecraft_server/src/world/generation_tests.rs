@@ -10,7 +10,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_tasks::TaskPoolBuilder;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_level::palette::ChunkBlocks;
@@ -745,7 +744,9 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         material,
         registry,
         BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+            preset: Some(mcrs_minecraft_worldgen_generator::tests::parameter_list_id(
+                "minecraft:overworld",
+            )),
             biomes: None,
         }),
     );
@@ -816,7 +817,12 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
         r#"{"type":"minecraft:fixed","biome":"minecraft:desert"}"#,
     )
     .expect("a fixed biome source parses")
-    .resolve(&registry)
+    .resolve(
+        &registry,
+        &test_registries()
+            .registry::<keys::MultiNoiseBiomeSourceParameterList>()
+            .expect("the loader parses the parameter lists"),
+    )
     .expect("the loader holds desert");
     let ctx = surface_fill_context(router, material, registry.clone(), source);
 

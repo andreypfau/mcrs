@@ -3,6 +3,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 
 use super::climate::{ClimateParameters, ParameterPoint};
+use super::parameter_list::{ParameterLists, Preset};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, Registry, UnknownEntry};
@@ -120,7 +121,7 @@ impl BiomeSource {
 
 #[derive(Debug, Clone)]
 pub struct MultiNoiseBiomeSource {
-    pub preset: Option<ResourceLocation<Arc<str>>>,
+    pub preset: Option<Id<keys::MultiNoiseBiomeSourceParameterList>>,
     pub biomes: Option<Vec<MultiNoiseBiomeEntry>>,
 }
 
@@ -128,6 +129,12 @@ pub struct MultiNoiseBiomeSource {
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
     pub biome: Id<keys::Biome>,
+}
+
+impl MultiNoiseBiomeSource {
+    pub fn preset_in(&self, lists: &ParameterLists) -> Option<Preset> {
+        lists.get(self.preset?).map(|list| list.preset)
+    }
 }
 
 // ===========================================================================
@@ -198,9 +205,15 @@ pub struct ProtoMultiNoiseBiomeEntry {
 // ===========================================================================
 
 impl ProtoBiomeSource {
-    pub fn resolve(self, biomes: &Registry<keys::Biome>) -> Result<BiomeSource, UnknownEntry> {
+    pub fn resolve(
+        self,
+        biomes: &Registry<keys::Biome>,
+        lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
+    ) -> Result<BiomeSource, UnknownEntry> {
         Ok(match self {
-            ProtoBiomeSource::MultiNoise(src) => BiomeSource::MultiNoise(src.resolve(biomes)?),
+            ProtoBiomeSource::MultiNoise(src) => {
+                BiomeSource::MultiNoise(src.resolve(biomes, lists)?)
+            }
             ProtoBiomeSource::TheEnd {} => BiomeSource::TheEnd,
             ProtoBiomeSource::Fixed { biome } => BiomeSource::Fixed {
                 biome: biomes.require(biome.as_str())?,
@@ -236,9 +249,13 @@ impl ProtoMultiNoiseBiomeSource {
     fn resolve(
         self,
         biomes: &Registry<keys::Biome>,
+        lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
     ) -> Result<MultiNoiseBiomeSource, UnknownEntry> {
         Ok(MultiNoiseBiomeSource {
-            preset: self.preset,
+            preset: self
+                .preset
+                .map(|preset| lists.require(preset.as_str()))
+                .transpose()?,
             biomes: self
                 .biomes
                 .map(|entries| {

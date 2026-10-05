@@ -1,7 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
-use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
+use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{NarrowError, Registry, UnknownEntry};
@@ -74,18 +74,17 @@ impl MultiNoiseBiomeTable {
     pub fn resolve(
         source: &MultiNoiseBiomeSource,
         biomes: &Registry<keys::Biome>,
+        lists: &ParameterLists,
     ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
         let values: Vec<(ParameterPoint, u8)> = match (&source.preset, &source.biomes) {
-            (Some(preset), _) => {
-                let named = match preset.as_str() {
-                    "minecraft:overworld" => overworld_parameter_list(),
-                    "minecraft:nether" => nether_parameter_list(),
-                    other => {
-                        return Err(BiomeTableError::NoTable(format!(
-                            "no climate table for the multi-noise preset {other}"
-                        )));
-                    }
+            (Some(list), _) => {
+                let Some(list) = lists.get(*list) else {
+                    return Err(BiomeTableError::NoTable(format!(
+                        "no parameter list is numbered {}",
+                        list.index()
+                    )));
                 };
+                let named = list.preset.parameter_list();
                 let mut failure = None;
                 let table = named.try_map_values(|name| {
                     match biomes

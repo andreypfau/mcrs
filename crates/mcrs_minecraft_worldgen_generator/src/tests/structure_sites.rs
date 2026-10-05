@@ -180,7 +180,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = &dimension.source;
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(source, corpus_biomes()) {
+    for name in possible_biomes(source, corpus_biomes(), &crate::tests::parameter_lists().1) {
         mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
@@ -189,7 +189,12 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     };
     let biomes = match source {
         BiomeSource::MultiNoise(multi) => BiomeLookup::MultiNoise(Arc::new(
-            MultiNoiseBiomeTable::resolve(multi, corpus_biomes()).unwrap(),
+            MultiNoiseBiomeTable::resolve(
+                multi,
+                corpus_biomes(),
+                &crate::tests::parameter_lists().1,
+            )
+            .unwrap(),
         )),
         BiomeSource::TheEnd => BiomeLookup::TheEnd(
             EndBiomes::resolve(|name| corpus_biomes().get(name).map(Id::number)).unwrap(),

@@ -152,10 +152,11 @@ fn registry_of(ids: &HashMap<String, u16>) -> Registry<keys::Biome> {
 fn table_over(ids: &HashMap<String, u16>) -> MultiNoiseBiomeTable {
     MultiNoiseBiomeTable::resolve(
         &MultiNoiseBiomeSource {
-            preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
+            preset: Some(crate::tests::parameter_list_id("minecraft:overworld")),
             biomes: None,
         },
         &registry_of(ids),
+        &crate::tests::parameter_lists().1,
     )
     .expect("the overworld preset resolves")
 }
@@ -552,7 +553,8 @@ pub fn fill_context(
     let surface = std::sync::Arc::new(SurfaceIds::resolve(&blocks().0, &registry));
     let multi_noise = match &source {
         BiomeSource::MultiNoise(multi) => Some(std::sync::Arc::new(
-            MultiNoiseBiomeTable::resolve(multi, &registry).expect("the source resolves a table"),
+            MultiNoiseBiomeTable::resolve(multi, &registry, &crate::tests::parameter_lists().1)
+                .expect("the source resolves a table"),
         )),
         _ => None,
     };

@@ -81,6 +81,7 @@ use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
@@ -412,6 +413,7 @@ pub fn spawn_dim_subapp(
                     .resource::<RegistrySet>()
                     .registry::<keys::Biome>()
                     .expect("the data pack loader parses minecraft:worldgen/biome");
+                let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
                 let blocks = sub_app.world().resource::<Blocks>().0.clone();
                 let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
                 let features = registries
@@ -438,6 +440,7 @@ pub fn spawn_dim_subapp(
                         .0
                         .get(dimension)
                         .map(|source| (std::sync::Arc::clone(source), biome_registry)),
+                    &parameter_lists,
                     registries.heightmap_predicates.clone(),
                     registries.world_save.as_ref().and_then(|save| {
                         SavedColumns::open(&save.0, request.dimension_id.as_str())
