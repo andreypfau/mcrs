@@ -130,7 +130,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry, TagId};
+use mcrs_minecraft_registry::{Id, Registry, TagId};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub fn text_ordered_table(
@@ -254,18 +254,19 @@ pub fn biome_tags() -> &'static TagRegistry<keys::Biome, Id<keys::Biome>> {
     TAGS.get_or_init(|| every_tag(corpus_biomes()))
 }
 
-pub fn structure_index() -> &'static DynRegistryIndex<keys::Structure> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<keys::Structure>> =
-        std::sync::OnceLock::new();
-    INDEX.get_or_init(|| {
-        DynRegistryIndex::from_table(&text_ordered_table(
-            "minecraft:worldgen/structure",
-            registry::<serde::de::IgnoredAny>("structure").into_keys(),
-        ))
+pub fn structure_registry() -> &'static Registry<keys::Structure> {
+    static REGISTRY: std::sync::OnceLock<Registry<keys::Structure>> = std::sync::OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        let mut names: Vec<_> = registry::<serde::de::IgnoredAny>("structure")
+            .into_keys()
+            .collect();
+        names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+        Registry::new(names, []).expect("a registry of distinct names")
     })
 }
 
-pub fn structure_tags() -> &'static DynTagRegistry<keys::Structure> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<keys::Structure>> = std::sync::OnceLock::new();
-    TAGS.get_or_init(|| every_tag(structure_index()))
+pub fn structure_tags() -> &'static TagRegistry<keys::Structure, Id<keys::Structure>> {
+    static TAGS: std::sync::OnceLock<TagRegistry<keys::Structure, Id<keys::Structure>>> =
+        std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(structure_registry()))
 }

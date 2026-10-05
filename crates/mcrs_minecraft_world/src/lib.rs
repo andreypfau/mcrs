@@ -25,8 +25,8 @@ pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, index_structures, request_data_pack_assets, request_every_tag,
-    resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
+    check_tags_ready, request_data_pack_assets, request_every_tag, resolve_infiniburn_tags,
+    resolve_timeline_tags, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
@@ -41,6 +41,7 @@ use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -98,7 +99,10 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_keys::Biome,
                     mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Biome>,
                 >,
-                request_every_tag::<mcrs_minecraft_keys::Structure, u16>,
+                request_every_tag::<
+                    mcrs_minecraft_keys::Structure,
+                    mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Structure>,
+                >,
             )
                 .in_set(TagPhase::Request),
         );
@@ -109,7 +113,7 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Timeline, DynRegistryIndex<mcrs_minecraft_keys::Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Biome, mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Structure, DynRegistryIndex<mcrs_minecraft_keys::Structure>>();
+        .add_tagged_registry::<mcrs_minecraft_keys::Structure, mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
 
@@ -165,7 +169,7 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    index_structures.before(TagPhase::Resolve),
+                    build_worldgen_tables,
                     (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
                     build_dimension_environments
                         .after(TagPhase::Freeze)
@@ -235,6 +239,11 @@ impl Plugin for MinecraftWorldPlugin {
                 registries
                     .registry::<mcrs_minecraft_keys::Biome>()
                     .expect("the data pack loader parses minecraft:worldgen/biome"),
+            );
+            app.insert_resource(
+                registries
+                    .registry::<mcrs_minecraft_keys::Structure>()
+                    .expect("the data pack declares minecraft:worldgen/structure"),
             );
             app.insert_resource(
                 registries

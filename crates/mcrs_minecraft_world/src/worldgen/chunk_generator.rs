@@ -36,6 +36,7 @@ pub struct NoiseChunkGenerator {
     // server resolves them where it builds a dimension's generator.
     pub biome_source: ProtoBiomeSource,
     pub settings: Handle<NoiseGeneratorSettingsAsset>,
+    pub settings_name: ResourceLocation<Arc<str>>,
 }
 
 // ===========================================================================
@@ -83,6 +84,7 @@ impl ProtoNoiseChunkGenerator {
         NoiseChunkGenerator {
             biome_source: self.biome_source,
             settings: ctx.load(settings_path),
+            settings_name: self.settings,
         }
     }
 }

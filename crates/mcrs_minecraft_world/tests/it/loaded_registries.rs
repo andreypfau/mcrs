@@ -1794,3 +1794,24 @@ fn trial_spawners_have_names_and_no_values() {
     assert!(!named.is_empty());
     assert_eq!(named, shipped);
 }
+
+#[test]
+fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
+    let app = crate::common::run_to_playing();
+    let set = app.world().resource::<RegistrySet>();
+    let carvers = set
+        .registry::<mcrs_minecraft_keys::Carver>()
+        .expect("the carver registry is declared");
+    let tables = app
+        .world()
+        .resource::<mcrs_minecraft_worldgen::tables::WorldgenTables>();
+
+    assert!(carvers.get("minecraft:beta_cave").is_some());
+    for id in carvers.ids() {
+        let name = carvers.key(id).unwrap();
+        assert!(
+            tables.carvers.get(id).is_some_and(Option::is_some),
+            "{name} has no value in the carver table"
+        );
+    }
+}

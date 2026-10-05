@@ -2,27 +2,22 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use bevy_asset::Handle;
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::dimension::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
-use mcrs_minecraft_worldgen::bevy::{
-    NoiseGeneratorSettingsAsset, WorldgenAssets, build_dimension_router,
-    dimension_beardifier_placement,
-};
+use mcrs_minecraft_worldgen::bevy::WorldgenAssets;
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, lookup};
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
+use mcrs_minecraft_worldgen_generator::routers::{build_router, refuse_misplaced_beardifier};
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
 use crate::world::generate::structures::DimensionStructures;
 use crate::world_options::{LoadedWorldPreset, WorldSeed};
-use mcrs_minecraft_worldgen_generator::block_state::try_resolve_state;
-use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///
@@ -61,19 +56,18 @@ pub(crate) fn build_dimension_routers(
     preset: Res<LoadedWorldPreset>,
     seed: Res<WorldSeed>,
     definitions: Res<Assets<DimensionDefinition>>,
-    settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
+    tables: Res<WorldgenTables>,
     assets: WorldgenAssets,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
     structures: Option<Res<DimensionStructures>>,
 ) {
-    // The material rules take their biome ids from the registry, because it is
-    // what `MultiNoiseBiomeTable` fills the column's biome grid with.
     let biomes = registries
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
-    let block = |state: &_| try_resolve_state(&blocks, state).map(Into::into);
-    let biome = |id: &ResourceLocation| biomes.get(id.as_str()).map(Id::number);
+    let noise_settings = registries
+        .registry::<keys::NoiseSettings>()
+        .expect("the data pack declares minecraft:worldgen/noise_settings");
 
     let mut routers = DimensionRouters::default();
     for (dimension, handle) in &preset.dimensions {
@@ -86,14 +80,27 @@ pub(crate) fn build_dimension_routers(
         let ChunkGenerator::Noise(generator) = &definition.generator else {
             continue;
         };
-        let Some(asset) = settings.get(&generator.settings) else {
-            error!(%dimension, "the noise settings named by this dimension did not load");
-            continue;
+        let settings = match lookup(
+            &noise_settings,
+            &tables.noise_settings,
+            generator.settings_name.as_str(),
+        ) {
+            Ok(settings) => settings,
+            Err(error) => {
+                error!(%dimension, %error, "the noise settings of this dimension are unavailable");
+                continue;
+            }
         };
         if let Some(tables) = structures.as_ref().and_then(|s| s.0.get(dimension)) {
-            refuse_misplaced_beardifier(dimension, &generator.settings, asset, &assets, tables);
+            refuse_misplaced_beardifier(
+                dimension,
+                &generator.settings_name,
+                settings,
+                &assets,
+                tables,
+            );
         }
-        match build_dimension_router(asset, &assets, seed.0, &block, &biome) {
+        match build_router(settings, &assets, seed.0, &blocks, &biomes) {
             Ok((router, material)) => {
                 info!(%dimension, seed = seed.0, "compiled the dimension noise router");
                 routers.0.insert(
@@ -111,35 +118,4 @@ pub(crate) fn build_dimension_routers(
         }
     }
     commands.insert_resource(routers);
-}
-
-/// The fill adds the beard to `final_density` once the graph is evaluated,
-/// which is the graph's own value only while the beardifier is the outermost
-/// addend, so any other shape would silently lose the term.
-fn refuse_misplaced_beardifier(
-    dimension: &ResourceLocation,
-    settings: &Handle<NoiseGeneratorSettingsAsset>,
-    asset: &NoiseGeneratorSettingsAsset,
-    assets: &WorldgenAssets<'_>,
-    tables: &DimensionStructureTables,
-) {
-    if tables.live.is_empty() {
-        return;
-    }
-    let settings = settings
-        .path()
-        .map_or_else(|| "the noise settings".to_string(), ToString::to_string);
-    match (
-        dimension_beardifier_placement(asset, assets),
-        tables.adapted().next(),
-    ) {
-        (BeardifierPlacement::RootAddend, _) | (BeardifierPlacement::Absent, None) => {}
-        (BeardifierPlacement::Misplaced, _) => panic!(
-            "{dimension}: {settings} uses minecraft:beardifier other than as an operand of the add at the root of final_density"
-        ),
-        (BeardifierPlacement::Absent, Some(structure)) => panic!(
-            "{dimension}: the final_density of {settings} is not add(_, minecraft:beardifier), so {} cannot adapt the terrain",
-            structure.id
-        ),
-    }
 }

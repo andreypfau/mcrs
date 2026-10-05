@@ -65,11 +65,11 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
             "minecraft:worldgen/biome",
             names_in_registry::<keys::Biome>(app),
         ),
-        ("minecraft:timeline", names_in_index::<keys::Timeline>(app)),
         (
             "minecraft:worldgen/structure",
-            names_in_index::<keys::Structure>(app),
+            names_in_registry::<keys::Structure>(app),
         ),
+        ("minecraft:timeline", names_in_index::<keys::Timeline>(app)),
     ];
     for (registry, numbered) in indexes {
         assert_eq!(

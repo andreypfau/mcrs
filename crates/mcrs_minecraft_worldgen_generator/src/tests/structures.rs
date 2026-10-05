@@ -4,13 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::{DynTagRegistry, TagRegistry};
+use mcrs_minecraft_assets::TagRegistry;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_registry::{DynRegistryIndex, Registry};
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
@@ -21,7 +21,7 @@ use mcrs_minecraft_worldgen_structure::{
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
-use super::{biome_tags, corpus, corpus_biomes, structure_index, structure_tags};
+use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
@@ -105,7 +105,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             resolve: &|state| resolve_palette_state(corpus(), state),
             biomes: corpus_biomes(),
             biome_tags: biome_tags(),
-            structure_index: structure_index(),
+            structure_registry: structure_registry(),
             structure_tags: structure_tags(),
             variants: &variant_inputs(),
         })
@@ -361,11 +361,8 @@ fn try_freeze_with(
     let pools = parse::<TemplatePool>(pools);
     let biomes = Registry::<keys::Biome>::new([], []).expect("an empty registry");
     let tags = TagRegistry::default();
-    let structure_index = DynRegistryIndex::from_table(&super::text_ordered_table(
-        "minecraft:worldgen/structure",
-        std::iter::empty(),
-    ));
-    let structure_tags = DynTagRegistry::default();
+    let structure_registry = Registry::<keys::Structure>::new([], []).expect("an empty registry");
+    let structure_tags = TagRegistry::<keys::Structure, Id<keys::Structure>>::default();
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {
         sets: &sets,
@@ -375,7 +372,7 @@ fn try_freeze_with(
         resolve,
         biomes: &biomes,
         biome_tags: &tags,
-        structure_index: &structure_index,
+        structure_registry: &structure_registry,
         structure_tags: &structure_tags,
         variants: &VariantInputs::default(),
     })

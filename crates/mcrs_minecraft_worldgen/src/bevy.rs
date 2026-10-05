@@ -305,7 +305,7 @@ registries! {
     }
 }
 
-#[derive(Asset, TypePath, Debug)]
+#[derive(Asset, TypePath, Debug, Clone)]
 pub struct NoiseGeneratorSettingsAsset {
     pub settings: NoiseGeneratorSettings,
     #[dependency]

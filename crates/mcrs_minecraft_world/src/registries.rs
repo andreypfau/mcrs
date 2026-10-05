@@ -341,6 +341,7 @@ pub fn share_registries(world: &mut World) {
     share::<Items>(world);
     share::<Registry<Enchantment>>(world);
     share::<Entries<Enchantment, EnchantmentData>>(world);
+    share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
     share::<DynTagRegistry<Block>>(world);
     share::<DynTagRegistry<Item>>(world);
 }

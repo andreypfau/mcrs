@@ -1,28 +1,26 @@
-use crate::world::generate::features::registry_of;
 use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_app::{App, Plugin};
-use bevy_asset::{AssetServer, Assets, Handle};
+use bevy_asset::{Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::{AppState, DynTagRegistry, TagRegistry};
+use mcrs_minecraft_assets::{AppState, TagRegistry};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use mcrs_minecraft_world::variant::{
     CatVariant, ChickenVariant, ZombieNautilusVariant, named_selectors,
 };
-use mcrs_minecraft_worldgen::bevy::{
-    StructureAsset, StructureSetAsset, TemplateAsset, TemplatePoolAsset,
-};
+use mcrs_minecraft_worldgen::bevy::TemplateAsset;
+use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;
 use mcrs_minecraft_worldgen_generator::structures::{
     StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state,
 };
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, FrozenStructures};
-use mcrs_minecraft_worldgen_structure::{Structure, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet, TemplatePool};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -76,31 +74,28 @@ impl Plugin for StructurePlugin {
 pub(crate) fn build_dimension_structures(
     mut commands: Commands,
     sources: Option<Res<DimensionBiomeSources>>,
-    sets: Res<Assets<StructureSetAsset>>,
-    structures: Res<Assets<StructureAsset>>,
-    pools: Res<Assets<TemplatePoolAsset>>,
+    tables: Res<WorldgenTables>,
     templates: Res<Assets<TemplateAsset>>,
-    asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
     biome_tags: Res<TagRegistry<keys::Biome, Id<keys::Biome>>>,
-    structure_index: Res<DynRegistryIndex<keys::Structure>>,
-    structure_tags: Res<DynTagRegistry<keys::Structure>>,
+    structure_tags: Res<TagRegistry<keys::Structure, Id<keys::Structure>>>,
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
     let biomes = registries
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
+    let structure_registry = registries
+        .registry::<keys::Structure>()
+        .expect("the data pack declares minecraft:worldgen/structure");
 
-    let sets = registry_of(&sets, &asset_server, "worldgen/structure_set", |asset| {
-        &asset.set
-    });
-    let structure_assets = registry_of(&structures, &asset_server, "worldgen/structure", |asset| {
-        asset
-    });
-    let pool_assets = registry_of(&pools, &asset_server, "worldgen/template_pool", |asset| {
-        asset
-    });
+    let sets: BTreeMap<ResourceLocation, StructureSet> =
+        named(&registries, &tables.structure_sets, |set| set)
+            .into_iter()
+            .map(|(id, set)| (id, set.clone()))
+            .collect();
+    let structure_assets = named(&registries, &tables.structures, |asset| asset);
+    let pool_assets = named(&registries, &tables.template_pools, |asset| asset);
     let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pool_assets
         .values()
         .map(|asset| &asset.deps)
@@ -153,7 +148,7 @@ pub(crate) fn build_dimension_structures(
         resolve: &resolve,
         biomes: &biomes,
         biome_tags: &biome_tags,
-        structure_index: &structure_index,
+        structure_registry: &structure_registry,
         structure_tags: &structure_tags,
         variants: &VariantInputs {
             cats: Some(&cats),

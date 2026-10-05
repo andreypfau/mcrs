@@ -1,14 +1,14 @@
 use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::{DynTagRegistry, TagRegistry};
+use mcrs_minecraft_assets::TagRegistry;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry};
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::spawn_condition::{
@@ -95,8 +95,8 @@ pub struct StructureInputs<'a> {
     pub biomes: &'a Registry<keys::Biome>,
     pub biome_tags: &'a TagRegistry<keys::Biome, Id<keys::Biome>>,
     /// The structure ids the tags are resolved against, and those tags.
-    pub structure_index: &'a DynRegistryIndex<keys::Structure>,
-    pub structure_tags: &'a DynTagRegistry<keys::Structure>,
+    pub structure_registry: &'a Registry<keys::Structure>,
+    pub structure_tags: &'a TagRegistry<keys::Structure, Id<keys::Structure>>,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -148,12 +148,12 @@ fn structure_id_set(
                 .structure_tags
                 .get(&key)
                 .ok_or_else(|| format!("names the structure tag #{tag}, which is not loaded"))?;
-            for index in members.iter() {
-                let id = inputs
-                    .structure_index
-                    .location(index)
-                    .expect("a tag member is an indexed structure");
-                insert(id.as_str())?;
+            for id in members.iter() {
+                let name = inputs
+                    .structure_registry
+                    .key(id)
+                    .expect("a tag member is a structure of the registry");
+                insert(name.as_str())?;
             }
         }
         HolderSet::One(_) | HolderSet::List(_) => {

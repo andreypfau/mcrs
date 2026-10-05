@@ -350,6 +350,7 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_registry::shared::SharedRegistries;
     use mcrs_minecraft_world::entity::minecraft::EntityIds;
+    use mcrs_minecraft_worldgen::tables::WorldgenTables;
     use std::any::type_name;
 
     let expected = [
@@ -360,6 +361,7 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Items>(),
         type_name::<Registry<Enchantment>>(),
         type_name::<Entries<Enchantment, EnchantmentData>>(),
+        type_name::<WorldgenTables>(),
         type_name::<DynTagRegistry<Block>>(),
         type_name::<DynTagRegistry<Item>>(),
     ];

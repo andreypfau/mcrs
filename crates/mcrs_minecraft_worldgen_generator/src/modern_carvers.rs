@@ -13,7 +13,7 @@ use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -817,8 +817,6 @@ pub fn carve_unsurfaced(column: &ColumnBlocks, carving: &mut TerrainCarving<'_, 
     });
 }
 
-/// The resolution itself, with the asset lookups already reduced to two maps:
-/// which carvers each biome runs, and what each carver is.
 /// A climate point spanning every parameter, for a source with one biome.
 pub fn whole_climate_space() -> ParameterPoint {
     let full = mcrs_minecraft_biome::climate::Parameter::span(-2.0, 2.0);
@@ -836,10 +834,10 @@ pub fn whole_climate_space() -> ParameterPoint {
 pub fn resolve_carver_biomes(
     preset: Option<&str>,
     explicit: Option<Vec<(ParameterPoint, String)>>,
-    carvers_by_biome: &HashMap<String, Vec<String>>,
-    config_by_location: &HashMap<String, CarverConfig>,
+    biomes: &Registry<keys::Biome>,
+    carvers: &Entries<keys::Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
-    let lookup = biome_carvers(carvers_by_biome, config_by_location);
+    let lookup = biome_carvers(biomes, carvers);
     match preset {
         Some(preset) => CarverBiomeTable::resolve(preset, lookup),
         None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
@@ -850,50 +848,29 @@ pub fn resolve_carver_biomes(
 pub fn resolve_beta_carver_biomes(
     source: &BiomeSource,
     biomes: &Registry<keys::Biome>,
-    carvers_by_biome: &HashMap<String, Vec<String>>,
-    config_by_location: &HashMap<String, CarverConfig>,
+    carvers: &Entries<keys::Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
-    CarverBiomeTable::beta(
-        source,
-        biomes,
-        biome_carvers(carvers_by_biome, config_by_location),
-    )
+    CarverBiomeTable::beta(source, biomes, biome_carvers(biomes, carvers))
 }
 
-/// The carvers a biome runs, by the biome's name.
 fn biome_carvers<'a>(
-    carvers_by_biome: &'a HashMap<String, Vec<String>>,
-    config_by_location: &'a HashMap<String, CarverConfig>,
+    biomes: &'a Registry<keys::Biome>,
+    carvers: &'a Entries<keys::Biome, Arc<[CarverConfig]>>,
 ) -> impl Fn(&str) -> Arc<[CarverConfig]> + 'a {
-    move |biome: &str| -> Arc<[CarverConfig]> {
-        if !carvers_by_biome.contains_key(biome) {
+    move |name: &str| match biomes.get(name) {
+        Some(id) => carvers[id].clone(),
+        None => {
             // The table still resolves and reports success, so a biome absent
-            // from the loaded assets carves nothing at all with no other
-            // symptom — which for a single-biome source is the whole world.
-            tracing::error!(biome, "biome has no loaded definition; it carves nothing");
+            // from the registry carves nothing at all with no other symptom,
+            // which for a single-biome source is the whole world.
+            tracing::error!(
+                biome = name,
+                "biome has no loaded definition; it carves nothing"
+            );
+            Arc::from([])
         }
-        carvers_by_biome
-            .get(biome)
-            .map(|names| {
-                names
-                    .iter()
-                    .filter_map(|name| match config_by_location.get(name) {
-                        Some(config) => Some(config.clone()),
-                        None => {
-                            // A biome naming a carver nobody loaded carves nothing
-                            // at all, and does it without a symptom to notice.
-                            tracing::error!(biome, carver = name, "carver not loaded");
-                            None
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| Arc::from(Vec::new()))
     }
 }
-
-/// The folder a carver asset loads from, under its namespace.
-pub const CARVER_REGISTRY: &str = "worldgen/carver";
 
 #[cfg(test)]
 mod source_tiles {
