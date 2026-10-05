@@ -59,6 +59,7 @@ pub mod registry;
 pub mod resource_pack;
 pub mod section;
 pub mod setting;
+pub mod tags;
 mod teleport_flags;
 /// Text components with the item stack template as the hover item.
 pub mod text {

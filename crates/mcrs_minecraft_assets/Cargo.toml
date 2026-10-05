@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_assets"
-description = "Data pack loading: JSON and tag loaders, registry snapshots and the load state"
+description = "Data pack loading: JSON loaders, registry snapshots and the load state"
 version.workspace = true
 edition.workspace = true
 

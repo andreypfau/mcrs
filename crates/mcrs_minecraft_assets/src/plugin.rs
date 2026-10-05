@@ -1,15 +1,10 @@
-use crate::{AppState, TagFile, TagFileLoader};
+use crate::AppState;
 use bevy_app::{App, MainScheduleOrder, Plugin, PreUpdate};
-use bevy_asset::AssetApp;
 use bevy_ecs::prelude::World;
 use bevy_ecs::schedule::ScheduleLabel;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::{NextState, StateTransition};
 
-/// Foundation plugin — registers the `AppState` state machine, the `TagFile`
-/// asset type, and the `TagFileLoader`.
-///
-/// All other `mc_*` plugins depend on this one.
 fn run_pending_transition(world: &mut World) {
     if matches!(
         *world.resource::<NextState<AppState>>(),
@@ -35,7 +30,5 @@ impl Plugin for MinecraftCorePlugin {
             .labels
             .retain(|label| *label != transition);
         app.add_systems(PreUpdate, run_pending_transition);
-        app.init_asset::<TagFile>();
-        app.register_asset_loader(TagFileLoader);
     }
 }

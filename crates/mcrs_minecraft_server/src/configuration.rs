@@ -8,30 +8,32 @@ use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
-use bevy_asset::{AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
-use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
-use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_keys::{self as keys, Block, Enchantment, EntityType, Item};
+use mcrs_minecraft_keys::{
+    self as keys, BannerPattern, Block, CatVariant, DamageType, Dialog, Enchantment, EntityType,
+    Instrument, Item, JukeboxSong, PaintingVariant, Timeline, TrimMaterial, TrimPattern,
+    WolfVariant,
+};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::identity;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
+use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
-    ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
+    ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags,
 };
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
@@ -42,151 +44,23 @@ use mcrs_minecraft_protocol::packets::configuration::{
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
-use mcrs_minecraft_protocol::{RegistryId, WritePacket};
+use mcrs_minecraft_protocol::tags::tags_payload;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noise_settings};
 
-/// Allowlist of registries that emit tag groups in `ClientboundUpdateTags`.
-///
-/// The vanilla 1.21.11 client expects exactly these 7 entries. Any other
-/// registry — even if it has tag data — is omitted from the packet.
-const TAG_CAPABLE_REGISTRIES: &[&str] = &[
-    "minecraft:block",
-    "minecraft:enchantment",
-    "minecraft:entity_type",
-    "minecraft:fluid",
-    "minecraft:game_event",
-    "minecraft:item",
-    "minecraft:worldgen/biome",
+/// Registries the client expects in `ClientboundUpdateTags` whose tags the server does not send.
+const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
+    rl!("minecraft:fluid"),
+    rl!("minecraft:game_event"),
+    rl!("minecraft:worldgen/biome"),
 ];
-
-/// Registries whose full tag set the client needs declared so item and
-/// enchantment data components and dimension_type references can resolve their
-/// tag pointers, paired with the `tags/<dir>` the files live under.
-const DYNAMIC_TAG_REGISTRIES: &[(&str, &str)] = &[
-    ("minecraft:damage_type", "damage_type"),
-    ("minecraft:dialog", "dialog"),
-    ("minecraft:timeline", "timeline"),
-    ("minecraft:banner_pattern", "banner_pattern"),
-    ("minecraft:instrument", "instrument"),
-    ("minecraft:painting_variant", "painting_variant"),
-    ("minecraft:cat_variant", "cat_variant"),
-    ("minecraft:wolf_variant", "wolf_variant"),
-    ("minecraft:trim_material", "trim_material"),
-    ("minecraft:trim_pattern", "trim_pattern"),
-    ("minecraft:jukebox_song", "jukebox_song"),
-];
-
-/// The tag files of [`DYNAMIC_TAG_REGISTRIES`], kept as handles so the corpus
-/// is read once by the asset system rather than re-parsed per connection.
-#[derive(Resource, Default)]
-pub struct DynamicRegistryTagFiles {
-    per_registry: Vec<(
-        &'static str,
-        Vec<(ResourceLocation<Arc<str>>, Handle<TagFile>)>,
-    )>,
-}
-
-fn request_dynamic_registry_tags(
-    asset_server: Res<AssetServer>,
-    set: Res<RegistrySet>,
-    mut registry_assets: ResMut<LoadedRegistryAssets>,
-    mut tag_files: ResMut<DynamicRegistryTagFiles>,
-) {
-    tag_files.per_registry.clear();
-    let mut total = 0usize;
-    for &(registry_key, tag_dir) in DYNAMIC_TAG_REGISTRIES {
-        let handles: Vec<_> = mcrs_minecraft_world::data_pack::list_tag_files(&set, tag_dir)
-            .into_iter()
-            .map(|(location, asset_path)| {
-                let handle = asset_server
-                    .load_builder()
-                    .with_settings(move |s: &mut TagFileSettings| {
-                        s.registry_segment = tag_dir.to_string();
-                    })
-                    .load::<TagFile>(asset_path);
-                registry_assets.push(handle.clone().untyped());
-                (location, handle)
-            })
-            .collect();
-        total += handles.len();
-        tag_files.per_registry.push((registry_key, handles));
-    }
-
-    if total == 0 {
-        error!(
-            "no tag file was found for any dynamic registry; the client will receive no tags.              Check that the asset root holds `<namespace>/tags/`"
-        );
-    } else {
-        info!(count = total, "requested dynamic registry tag files");
-    }
-}
-
-/// Resolve one registry's tag files into the `TagGroup` list
-/// `ClientboundUpdateTags` carries, flattening `#`-references through the
-/// nested tag file handles the loader already resolved.
-fn dynamic_tag_groups(
-    entries: &[(ResourceLocation<Arc<str>>, Handle<TagFile>)],
-    tag_files: &Assets<TagFile>,
-    index_of: &dyn Fn(&str) -> Option<u16>,
-) -> Vec<TagGroup<'static>> {
-    let mut groups = Vec::with_capacity(entries.len());
-    for (location, handle) in entries {
-        let Some(tag_file) = tag_files.get(handle) else {
-            error!(tag = %location, "tag file never loaded");
-            continue;
-        };
-        let mut ids = Vec::new();
-        let mut visited = HashSet::new();
-        flatten_tag_file(tag_file, tag_files, index_of, &mut visited, &mut ids);
-        ids.sort_unstable();
-        ids.dedup();
-        let Ok(name) = ResourceLocation::parse_cow(Cow::Owned(location.as_str().to_string()))
-        else {
-            continue;
-        };
-        groups.push(TagGroup {
-            name,
-            entries: ids.into_iter().map(RegistryId).collect(),
-        });
-    }
-    groups.sort_by(|a, b| a.name.path().cmp(b.name.path()));
-    groups
-}
-
-fn flatten_tag_file(
-    tag_file: &TagFile,
-    all_files: &Assets<TagFile>,
-    index_of: &dyn Fn(&str) -> Option<u16>,
-    visited: &mut HashSet<AssetId<TagFile>>,
-    out: &mut Vec<u16>,
-) {
-    for entry in &tag_file.values {
-        match entry {
-            TagEntry::Element(loc) | TagEntry::OptionalElement(loc) => {
-                if let Some(index) = index_of(loc.as_str()) {
-                    out.push(index);
-                }
-            }
-            TagEntry::Tag(handle) | TagEntry::OptionalTag(handle) => {
-                if !visited.insert(handle.id()) {
-                    continue;
-                }
-                if let Some(nested) = all_files.get(handle) {
-                    flatten_tag_file(nested, all_files, index_of, visited, out);
-                }
-            }
-        }
-    }
-}
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -216,15 +90,10 @@ pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DynamicRegistryTagFiles>();
-
         app.add_systems(bevy_app::Startup, bake_dimensions);
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
-            (
-                request_dimension_noise_settings,
-                request_dynamic_registry_tags,
-            ),
+            request_dimension_noise_settings,
         );
         app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
@@ -285,35 +154,43 @@ fn on_configuration_enter(
     }
 }
 
-fn tag_group(
-    name: &ResourceLocation<Arc<str>>,
-    entries: impl Iterator<Item = RegistryId>,
-) -> TagGroup<'static> {
-    TagGroup {
-        name: ResourceLocation::parse_cow(Cow::Owned(name.as_str().to_string())).unwrap_or_else(
-            |_| ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap(),
-        ),
-        entries: entries.collect(),
-    }
+fn tags_of<R: RegistryKey>(set: &RegistrySet) -> Option<RegistryTags<'static>> {
+    let payload = tags_payload(&set.tags::<R>()?);
+    (!payload.tags.is_empty()).then_some(payload)
 }
 
-fn loaded_tag_groups<R: RegistryKey>(set: &RegistrySet) -> Vec<TagGroup<'static>> {
-    let Some(tags) = set.tags::<R>() else {
-        return Vec::new();
-    };
-    tags.tag_ids()
-        .map(|tag| {
-            let mut members: Vec<_> = tags.members(tag).map(RegistryId::from).collect();
-            members.sort_unstable_by_key(|member| member.0);
-            tag_group(tags.name(tag), members.into_iter())
-        })
-        .collect()
+pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
+    let registries = [
+        tags_of::<Block>(set),
+        tags_of::<Item>(set),
+        tags_of::<Enchantment>(set),
+        tags_of::<EntityType>(set),
+        tags_of::<DamageType>(set),
+        tags_of::<Dialog>(set),
+        tags_of::<Timeline>(set),
+        tags_of::<BannerPattern>(set),
+        tags_of::<Instrument>(set),
+        tags_of::<PaintingVariant>(set),
+        tags_of::<CatVariant>(set),
+        tags_of::<WolfVariant>(set),
+        tags_of::<TrimMaterial>(set),
+        tags_of::<TrimPattern>(set),
+        tags_of::<JukeboxSong>(set),
+    ]
+    .into_iter()
+    .flatten()
+    .chain(EMPTY_TAG_REGISTRIES.map(|registry| RegistryTags {
+        registry: registry.into(),
+        tags: Vec::new(),
+    }))
+    .collect();
+    ClientboundUpdateTags { registries }
 }
 
 /// Step 2 of the Configuration handshake: triggered by
 /// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
 /// 30 synced registries (alphabetical order), the `environment_attribute`
-/// special case, `ClientboundUpdateTags` for the 7 tag-capable registries,
+/// special case, `ClientboundUpdateTags` from the set's tags,
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
 /// reconfiguration.
@@ -322,8 +199,6 @@ fn on_known_packs_response(
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
     set: Res<RegistrySet>,
-    dynamic_tags: Res<DynamicRegistryTagFiles>,
-    tag_files: Res<Assets<TagFile>>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con)) = query.get_mut(event.entity) else {
@@ -401,77 +276,13 @@ fn on_known_packs_response(
         }
     }
 
-    // UpdateTags: explicit allowlist of tag-capable registries. The remaining
-    // tag-capable registries are sent as empty groups so the vanilla client
-    // does not warn about missing registries.
-    let mut tag_registries = Vec::new();
-
-    for (registry, tags) in [
-        (rl!("minecraft:block"), loaded_tag_groups::<Block>(&set)),
-        (rl!("minecraft:item"), loaded_tag_groups::<Item>(&set)),
-        (
-            rl!("minecraft:enchantment"),
-            loaded_tag_groups::<Enchantment>(&set),
-        ),
-        (
-            rl!("minecraft:entity_type"),
-            loaded_tag_groups::<EntityType>(&set),
-        ),
-    ] {
-        if !tags.is_empty() {
-            tag_registries.push(RegistryTags {
-                registry: registry.into(),
-                tags,
-            });
-        }
-    }
-
-    // Dynamic registries that need their full tag set declared (so item /
-    // enchantment data components and dimension_type references can resolve
-    // tag pointers). For registries the client knows about, every referenced
-    // tag must be declared even when the resolved entry list is empty.
-    for (registry_key, entries) in &dynamic_tags.per_registry {
-        let registry_key = *registry_key;
-        let index_of = |name: &str| -> Option<u16> {
-            let registry = access.iter().find(|r| r.registry_key() == registry_key)?;
-            (0..=u16::MAX)
-                .zip(registry.iter_entries())
-                .find(|(_, e)| e.location.as_str() == name)
-                .map(|(i, _)| i)
-        };
-        let groups = dynamic_tag_groups(entries, &tag_files, &index_of);
-        if !groups.is_empty() {
-            tag_registries.push(RegistryTags {
-                registry: ResourceLocation::parse_cow(Cow::Owned(registry_key.to_string()))
-                    .unwrap(),
-                tags: groups,
-            });
-        }
-    }
-
-    for &reg_key in TAG_CAPABLE_REGISTRIES {
-        if reg_key == "minecraft:block"
-            || reg_key == "minecraft:item"
-            || reg_key == "minecraft:enchantment"
-            || reg_key == "minecraft:entity_type"
-        {
-            continue;
-        }
-        tag_registries.push(RegistryTags {
-            registry: ResourceLocation::parse_cow(Cow::Owned(reg_key.to_string())).unwrap(),
-            tags: vec![],
-        });
-    }
-
+    let update_tags = update_tags(&set);
     debug!(
         registry_count = registries.len(),
-        tag_registry_count = tag_registries.len(),
+        tag_registry_count = update_tags.registries.len(),
         "Sending Configuration data"
     );
-
-    con.write_packet(&ClientboundUpdateTags {
-        registries: tag_registries,
-    });
+    con.write_packet(&update_tags);
 
     con.write_packet(&ClientboundFinishConfiguration);
 
@@ -638,91 +449,6 @@ pub fn emit_initial_player_spawn(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // ── dynamic registry tags ──
-
-    /// `minecraft:always_hurts_ender_dragons` is nothing but
-    /// `#minecraft:is_explosion`, so a correctly flattened group carries that
-    /// tag's four members and the empty result the old working-directory read
-    /// produced is distinguishable from a real one.
-    #[test]
-    fn dynamic_registry_tags_flatten_nested_references() {
-        use bevy_asset::AssetApp;
-
-        let mut app = App::new();
-        app.add_plugins(bevy_app::TaskPoolPlugin::default());
-        app.add_plugins(bevy_asset::AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..Default::default()
-        });
-        app.init_asset::<TagFile>();
-        app.register_asset_loader(mcrs_minecraft_assets::tag::file::TagFileLoader);
-        app.insert_resource(mcrs_minecraft_world::registries::test_registries().clone());
-        app.init_resource::<LoadedRegistryAssets>();
-        app.init_resource::<DynamicRegistryTagFiles>();
-        app.add_systems(bevy_app::Startup, request_dynamic_registry_tags);
-        app.update();
-
-        for _ in 0..10_000 {
-            let world = app.world();
-            if world
-                .resource::<LoadedRegistryAssets>()
-                .all_handles_settled(world.resource::<AssetServer>())
-            {
-                break;
-            }
-            app.update();
-        }
-
-        let world = app.world();
-        let entries = &world
-            .resource::<DynamicRegistryTagFiles>()
-            .per_registry
-            .iter()
-            .find(|(key, _)| *key == "minecraft:damage_type")
-            .expect("damage_type is a dynamic tag registry")
-            .1;
-        assert!(
-            !entries.is_empty(),
-            "no damage_type tag file was discovered through the asset system"
-        );
-
-        let explosion_types = [
-            "minecraft:fireworks",
-            "minecraft:explosion",
-            "minecraft:player_explosion",
-            "minecraft:bad_respawn_point",
-        ];
-        let index_of = |name: &str| {
-            (0..=u16::MAX)
-                .zip(explosion_types)
-                .find(|(_, known)| *known == name)
-                .map(|(index, _)| index)
-        };
-
-        let groups = dynamic_tag_groups(entries, world.resource::<Assets<TagFile>>(), &index_of);
-        assert!(!groups.is_empty(), "damage_type resolved to no tag groups");
-
-        let flattened = groups
-            .iter()
-            .find(|group| group.name.as_str() == "minecraft:always_hurts_ender_dragons")
-            .expect("always_hurts_ender_dragons is a shipped damage_type tag");
-        assert_eq!(
-            flattened.entries.iter().map(|id| id.0).collect::<Vec<_>>(),
-            vec![0, 1, 2, 3],
-            "the nested #minecraft:is_explosion reference was not flattened"
-        );
-    }
-
-    #[test]
-    fn dynamic_tag_registries_are_not_tag_capable_registries() {
-        for (registry_key, _) in DYNAMIC_TAG_REGISTRIES {
-            assert!(
-                !TAG_CAPABLE_REGISTRIES.contains(registry_key),
-                "{registry_key} is declared twice"
-            );
-        }
-    }
 
     // ── should_skip_nbt: KnownPacks NBT-skip logic ──
 
