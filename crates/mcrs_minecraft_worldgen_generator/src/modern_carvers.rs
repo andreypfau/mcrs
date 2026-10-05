@@ -1,19 +1,17 @@
 use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::block_tags::UNCARVABLE;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{Entries, Registry};
+use mcrs_minecraft_registry::{Entries, Registry, Tags};
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -522,14 +520,12 @@ pub struct ModernCarverBlockIds {
 }
 
 impl ModernCarverBlockIds {
-    pub fn resolve(blocks: &BlockDefinitions, block_tags: Option<&DynTagRegistry<Block>>) -> Self {
-        let key: TagKey<Block, Arc<str>> =
-            TagKey::from_location(ResourceLocation::new_static("minecraft:uncarvable").to_arc());
-        let uncarvable = block_tags
-            .and_then(|tags| tags.get(&key))
+    pub fn resolve(blocks: &BlockDefinitions, tags: Option<&Tags<Block>>) -> Self {
+        let uncarvable = tags
+            .and_then(|tags| Some((tags, tags.get(&UNCARVABLE)?)))
             .into_iter()
-            .flat_map(|members| members.iter())
-            .filter_map(|index| blocks.blocks().get(index as usize))
+            .flat_map(|(tags, tag)| tags.members(tag))
+            .filter_map(|id| blocks.blocks().get(id.index()))
             .flat_map(|entry| {
                 (0..entry.state_count)
                     .map(move |offset| VoxelId::from(entry.base_state_id.0 + offset))

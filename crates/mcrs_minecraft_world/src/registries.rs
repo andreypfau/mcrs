@@ -19,7 +19,6 @@ use bevy_ecs::world::World;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, RegistrySnapshotErased};
 use mcrs_minecraft_biome::parameter_list::{
     MultiNoiseBiomeSourceParameterList, check_parameter_list_biomes,
@@ -364,8 +363,6 @@ pub fn share_registries(world: &mut World) {
     share::<Registry<Enchantment>>(world);
     share::<Entries<Enchantment, EnchantmentData>>(world);
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
-    share::<DynTagRegistry<Block>>(world);
-    share::<DynTagRegistry<Item>>(world);
 }
 
 pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {

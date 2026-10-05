@@ -1,15 +1,14 @@
 use crate::ColumnBlocks;
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_block::tags::{
-    BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
-};
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::block_tags::{
+    BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
+};
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, Tags};
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -66,19 +65,25 @@ impl HeightmapPredicates {
     }
 }
 
-pub fn heightmap_predicates(blocks: &Blocks, tags: &DynTagRegistry<Block>) -> HeightmapPredicates {
+pub fn heightmap_predicates(blocks: &Blocks, tags: &Tags<Block>) -> HeightmapPredicates {
+    let motion = tags
+        .get(&BLOCKS_MOTION_IN_HEIGHTMAP)
+        .expect("the loaded block tags hold #minecraft:blocks_motion_in_heightmap");
+    let motion_no_leaves = tags
+        .get(&BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES)
+        .expect("the loaded block tags hold #minecraft:blocks_motion_in_heightmap_no_leaves");
     let mut table = Vec::with_capacity(blocks.state_count());
     for id in (0..=u16::MAX).take(blocks.state_count()).map(BlockStateId) {
         let state = blocks.state(id);
-        let block = blocks.block_index(id).number();
+        let block = blocks.block_index(id);
         let mut kinds = HeightmapKinds::empty();
         if !state.flags.contains(BlockStateFlags::IS_AIR) {
             kinds |= HeightmapKinds::SURFACE;
         }
-        if tags.contains(&BLOCKS_MOTION_IN_HEIGHTMAP, block) {
+        if tags.contains(motion, block) {
             kinds |= HeightmapKinds::SOLID | HeightmapKinds::MOTION;
         }
-        if tags.contains(&BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES, block) {
+        if tags.contains(motion_no_leaves, block) {
             kinds |= HeightmapKinds::NO_LEAVES;
         }
         if state.fluid.is_some() {

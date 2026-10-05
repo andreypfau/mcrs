@@ -9,15 +9,13 @@ use bevy_ecs::message::{Message, Messages};
 use bevy_ecs::relationship::RelationshipTarget;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_inventory::{
     CurrentMenu, Menu, MenuContainer, MenuLayout, MenuSlots, MenuViewer, MenusOf, RemoteSlots,
-    ShulkerBoxSlots, container_menu_layout,
+    ShulkerBoxSlots, ShulkerBoxes, container_menu_layout,
 };
 use mcrs_minecraft_item::SlotTable;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
@@ -93,9 +91,7 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
     };
     let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)));
     let block = world.resource::<Blocks>().block_index(state);
-    world
-        .resource::<DynTagRegistry<Block>>()
-        .contains(&mcrs_minecraft_block::tags::SHULKER_BOXES, block.number())
+    world.resource::<ShulkerBoxes>().has_block(block)
 }
 
 pub fn open_containers(world: &mut World) {

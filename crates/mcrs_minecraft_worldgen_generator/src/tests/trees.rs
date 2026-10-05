@@ -181,12 +181,13 @@ pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let key: mcrs_minecraft_core::tag_key::TagKey<mcrs_minecraft_keys::Block, std::sync::Arc<str>> =
         mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::parse(tag).unwrap());
-    for index in block_tags()
-        .get(&key)
-        .unwrap_or_else(|| panic!("{tag} is not loaded"))
-        .iter()
-    {
-        let entry = &blocks().0.blocks()[index as usize];
+    let tags = block_tags();
+    for id in tags.members(
+        tags.get(&key)
+            .unwrap_or_else(|| panic!("{tag} is not loaded")),
+    ) {
+        let index = id.index();
+        let entry = &blocks().0.blocks()[index];
         for offset in 0..entry.state_count {
             mask.insert((entry.base_state_id.0 + offset) as usize);
         }

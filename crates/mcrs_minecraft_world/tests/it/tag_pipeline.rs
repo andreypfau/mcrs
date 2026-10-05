@@ -1,13 +1,12 @@
 use bevy_app::App;
 use mcrs_minecraft_assets::tag::TagLoader;
-use mcrs_minecraft_assets::tag::registry::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_keys::block_tags;
 use mcrs_minecraft_keys::{Biome, Block, EntityType, Timeline};
-use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::workspace_root;
@@ -20,35 +19,48 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
         "the loader must be consumed by the freeze"
     );
 
-    let tags = app.world().resource::<DynTagRegistry<Block>>();
+    let tags = app
+        .world()
+        .resource::<RegistrySet>()
+        .tags::<Block>()
+        .expect("the load builds the block tags");
     let blocks = app.world().resource::<Blocks>();
-    let index = |name: &str| blocks.id_of(name).expect("the corpus declares it").number();
+    let contains = |tag: &TagKey<Block, &'static str>, name: &str| {
+        let id = blocks.id_of(name).expect("the corpus declares it");
+        tags.contains(tags.get(tag).expect("the pack ships the tag"), id)
+    };
 
-    assert!(tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:stone")));
-    assert!(!tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:dirt")));
+    assert!(contains(&block_tags::MINEABLE_PICKAXE, "minecraft:stone"));
+    assert!(!contains(&block_tags::MINEABLE_PICKAXE, "minecraft:dirt"));
 
     // `#minecraft:planks` is reached only through nested `#tag` entries of
     // `#minecraft:mineable/axe`.
-    assert!(tags.contains(&block_tags::MINEABLE_AXE, index("minecraft:oak_planks")));
+    assert!(contains(&block_tags::MINEABLE_AXE, "minecraft:oak_planks"));
 
     // A block no static registry ever named still lands in its tags.
-    assert!(tags.contains(
+    assert!(contains(
         &block_tags::MINEABLE_PICKAXE,
-        index("minecraft:polished_tuff_stairs")
+        "minecraft:polished_tuff_stairs"
     ));
-    assert!(tags.contains(
+    assert!(contains(
         &block_tags::MINEABLE_AXE,
-        index("minecraft:mangrove_trapdoor")
+        "minecraft:mangrove_trapdoor"
     ));
-    assert!(tags.contains(&block_tags::WOOL, index("minecraft:magenta_wool")));
+    assert!(contains(&block_tags::WOOL, "minecraft:magenta_wool"));
 
     // And a tag no Rust constant names is there, because the pack ships it.
-    let stairs =
-        TagKey::<Block, _>::from_location(ResourceLocation::parse("minecraft:stairs").unwrap());
-    assert!(tags.contains(&stairs, index("minecraft:polished_tuff_stairs")));
-    assert!(!tags.contains(&stairs, index("minecraft:stone")));
+    let stairs = tags
+        .get(&TagKey::<Block, _>::from_location(
+            ResourceLocation::parse("minecraft:stairs").unwrap(),
+        ))
+        .expect("the pack ships the stairs tag");
+    assert!(tags.contains(
+        stairs,
+        blocks.id_of("minecraft:polished_tuff_stairs").unwrap()
+    ));
+    assert!(!tags.contains(stairs, blocks.id_of("minecraft:stone").unwrap()));
 
-    let resolved = tags.iter().count();
+    let resolved = tags.table().len();
     println!("block tags resolved: {resolved}");
     let shipped = count_json(&workspace_root().join("assets/minecraft/tags/block"));
     assert!(
@@ -65,17 +77,21 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
         .expect("the report carries the entity types");
     let tags = app
         .world()
-        .resource::<TagRegistry<EntityType, Id<EntityType>>>();
+        .resource::<RegistrySet>()
+        .tags::<EntityType>()
+        .expect("the load builds the entity type tags");
     let skeletons = TagKey::<EntityType, _>::from_location(
         ResourceLocation::parse("minecraft:skeletons").unwrap(),
     );
 
-    let members: Vec<usize> = tags
-        .get(&skeletons)
-        .expect("the pack ships the skeletons tag")
-        .iter()
-        .map(Id::index)
+    let mut members: Vec<usize> = tags
+        .members(
+            tags.get(&skeletons)
+                .expect("the pack ships the skeletons tag"),
+        )
+        .map(|id| id.index())
         .collect();
+    members.sort_unstable();
     let mut expected: Vec<usize> = [
         "minecraft:skeleton",
         "minecraft:stray",

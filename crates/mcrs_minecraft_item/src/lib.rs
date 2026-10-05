@@ -17,7 +17,6 @@ pub mod item_stack;
 pub mod kind;
 pub mod patch;
 pub mod stack;
-pub mod tags;
 #[cfg(feature = "bevy")]
 pub mod value;
 

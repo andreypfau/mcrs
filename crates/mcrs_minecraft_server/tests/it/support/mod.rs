@@ -4,11 +4,9 @@ use std::sync::LazyLock;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{Block, Item};
 use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
@@ -38,8 +36,6 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(test_enchantment_registry());
     app.insert_resource(test_enchantments());
     app.insert_resource(WorldgenTables::default());
-    app.insert_resource(DynTagRegistry::<Block>::default());
-    app.insert_resource(DynTagRegistry::<Item>::default());
     share_registries(app.world_mut());
 }
 

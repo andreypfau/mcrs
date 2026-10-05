@@ -13,7 +13,7 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::{self as keys, Block, Enchantment, Item};
+use mcrs_minecraft_keys::{self as keys, Enchantment};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -29,7 +29,6 @@ use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft_server::world::session::HostAnchorRef;
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 
 use crate::support;
@@ -494,8 +493,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Registry<Enchantment>>(),
         type_name::<Entries<Enchantment, EnchantmentData>>(),
         type_name::<WorldgenTables>(),
-        type_name::<DynTagRegistry<Block>>(),
-        type_name::<DynTagRegistry<Item>>(),
     ];
 
     let mut app = crate::host_app::make_host_app();

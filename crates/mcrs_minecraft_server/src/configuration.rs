@@ -18,9 +18,8 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_keys::{self as keys, Block, Enchantment, EntityType, Item};
@@ -44,7 +43,6 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{RegistryId, WritePacket};
-use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::save::read_player_dat;
@@ -299,6 +297,19 @@ fn tag_group(
     }
 }
 
+fn loaded_tag_groups<R: RegistryKey>(set: &RegistrySet) -> Vec<TagGroup<'static>> {
+    let Some(tags) = set.tags::<R>() else {
+        return Vec::new();
+    };
+    tags.tag_ids()
+        .map(|tag| {
+            let mut members: Vec<_> = tags.members(tag).map(RegistryId::from).collect();
+            members.sort_unstable_by_key(|member| member.0);
+            tag_group(tags.name(tag), members.into_iter())
+        })
+        .collect()
+}
+
 /// Step 2 of the Configuration handshake: triggered by
 /// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
 /// 30 synced registries (alphabetical order), the `environment_attribute`
@@ -311,10 +322,6 @@ fn on_known_packs_response(
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
     set: Res<RegistrySet>,
-    block_tags: Option<Res<DynTagRegistry<Block>>>,
-    item_tags: Option<Res<DynTagRegistry<Item>>>,
-    enchantment_tags: Option<Res<TagRegistry<Enchantment, Id<Enchantment>>>>,
-    entity_type_tags: Option<Res<TagRegistry<EntityType, Id<EntityType>>>>,
     dynamic_tags: Res<DynamicRegistryTagFiles>,
     tag_files: Res<Assets<TagFile>>,
     mut commands: Commands,
@@ -394,49 +401,29 @@ fn on_known_packs_response(
         }
     }
 
-    // UpdateTags: explicit allowlist of tag-capable registries. Static tags
-    // (block, item, enchantment) come from TagRegistry<T>; the remaining
-    // four tag-capable registries (entity_type, fluid, game_event,
-    // worldgen/biome) have no DynTagRegistry resource registered, so empty
-    // groups are sent so the vanilla client does not warn about missing
-    // registries.
+    // UpdateTags: explicit allowlist of tag-capable registries. The remaining
+    // tag-capable registries are sent as empty groups so the vanilla client
+    // does not warn about missing registries.
     let mut tag_registries = Vec::new();
 
-    if let Some(block_tags) = block_tags.as_deref().filter(|t| !t.is_empty()) {
-        tag_registries.push(RegistryTags {
-            registry: rl!("minecraft:block").into(),
-            tags: block_tags
-                .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId)))
-                .collect(),
-        });
-    }
-    if let Some(item_tags) = item_tags.as_deref().filter(|t| !t.is_empty()) {
-        tag_registries.push(RegistryTags {
-            registry: rl!("minecraft:item").into(),
-            tags: item_tags
-                .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId)))
-                .collect(),
-        });
-    }
-    if let Some(enchantment_tags) = enchantment_tags.as_deref().filter(|t| !t.is_empty()) {
-        tag_registries.push(RegistryTags {
-            registry: rl!("minecraft:enchantment").into(),
-            tags: enchantment_tags
-                .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId::from)))
-                .collect(),
-        });
-    }
-    if let Some(entity_type_tags) = entity_type_tags.as_deref().filter(|t| !t.is_empty()) {
-        tag_registries.push(RegistryTags {
-            registry: rl!("minecraft:entity_type").into(),
-            tags: entity_type_tags
-                .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId::from)))
-                .collect(),
-        });
+    for (registry, tags) in [
+        (rl!("minecraft:block"), loaded_tag_groups::<Block>(&set)),
+        (rl!("minecraft:item"), loaded_tag_groups::<Item>(&set)),
+        (
+            rl!("minecraft:enchantment"),
+            loaded_tag_groups::<Enchantment>(&set),
+        ),
+        (
+            rl!("minecraft:entity_type"),
+            loaded_tag_groups::<EntityType>(&set),
+        ),
+    ] {
+        if !tags.is_empty() {
+            tag_registries.push(RegistryTags {
+                registry: registry.into(),
+                tags,
+            });
+        }
     }
 
     // Dynamic registries that need their full tag set declared (so item /

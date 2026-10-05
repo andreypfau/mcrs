@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::Item;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::{BlockStateId, ItemId, Registry, UnknownEntry};
+use mcrs_minecraft_registry::{BlockStateId, Id, ItemId, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -104,6 +104,10 @@ impl ItemDefinitions {
 
     pub fn get(&self, id: ItemId) -> Option<&ItemEntry> {
         self.entries.get(usize::from(id.0))
+    }
+
+    pub fn item_index(&self, id: ItemId) -> Option<Id<Item>> {
+        self.registry.id(id.0)
     }
 
     pub fn id_of(&self, location: &str) -> Option<ItemId> {

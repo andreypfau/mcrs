@@ -148,6 +148,10 @@ impl<R> Tags<R> {
         &self.table
     }
 
+    pub fn tag_ids(&self) -> impl ExactSizeIterator<Item = TagId<R>> + use<R> {
+        (0..self.table.names.len() as u16).map(TagId::from_number)
+    }
+
     pub fn members(
         &self,
         tag: TagId<R>,
