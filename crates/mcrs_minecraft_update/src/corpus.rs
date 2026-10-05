@@ -18,7 +18,7 @@ pub struct Report {
     pub deleted: Vec<String>,
 }
 
-fn check(label: &str, path: &str) -> Result<(), String> {
+pub(crate) fn check(label: &str, path: &str) -> Result<(), String> {
     if path.contains('\\') {
         return Err(format!("{label}: the path holds a backslash"));
     }
