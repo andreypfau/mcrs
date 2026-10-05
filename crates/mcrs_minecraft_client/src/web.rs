@@ -6,7 +6,7 @@ use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::packs::PackLayers;
+use mcrs_minecraft_assets::packs::layered_reader;
 use mcrs_minecraft_dimension::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 use mcrs_minecraft_network::browser::target_from_query;
@@ -48,9 +48,10 @@ pub fn register_asset_source(app: &mut App) {
     app.register_asset_source(
         AssetSourceId::Default,
         AssetSourceBuilder::new(move || {
-            Box::new(PackLayers::new(Box::new(MemoryAssetReader {
-                root: root.clone(),
-            })))
+            layered_reader(
+                Box::new(MemoryAssetReader { root: root.clone() }),
+                mcrs_minecraft_worldgen_builtin::asset,
+            )
         }),
     );
 }

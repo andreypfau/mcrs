@@ -1,9 +1,6 @@
 use crate::beard::{BeardifierPlacement, beardifier_placement};
 use bevy_app::{App, Plugin};
-use bevy_asset::io::{
-    AssetReader, AssetReaderError, AssetSource, AssetSourceBuilder, ErasedAssetReader, PathStream,
-    Reader, VecReader,
-};
+use bevy_asset::io::Reader;
 use bevy_asset::{
     Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, UntypedAssetId,
     VisitAssetDependencies,
@@ -12,7 +9,6 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
-use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
@@ -36,7 +32,6 @@ use mcrs_minecraft_worldgen_surface::{
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
-use std::path::Path;
 use thiserror::Error;
 
 /// Registers the worldgen asset types and their loaders, and nothing else.
@@ -75,50 +70,6 @@ impl Plugin for WorldgenAssetsPlugin {
             .register_asset_loader(JsonLoader::<ProcessorListAsset>::default())
             .register_asset_loader(JsonLoader::<BlockStateProviderAsset>::default())
             .register_asset_loader(TemplateLoader);
-    }
-}
-
-/// The file source rooted at `root`, answering for a built-in worldgen entry
-/// when the pack ships no file for it. A file always wins, so a datapack
-/// overrides a built-in by shipping the same path.
-pub fn asset_source(root: &str) -> AssetSourceBuilder {
-    let mut files = AssetSource::get_default_reader(root.to_string());
-    AssetSourceBuilder::platform_default(root, None)
-        .with_reader(move || Box::new(BuiltinFallback(Box::new(PackLayers::new(files())))))
-}
-
-struct BuiltinFallback(Box<dyn ErasedAssetReader>);
-
-impl AssetReader for BuiltinFallback {
-    async fn read<'a>(&'a self, path: &'a Path) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
-        match self.0.read(path).await {
-            Err(AssetReaderError::NotFound(missing)) => path
-                .to_str()
-                .and_then(mcrs_minecraft_worldgen_builtin::asset)
-                .map(|bytes| Box::new(VecReader::new(bytes)) as Box<dyn Reader>)
-                .ok_or(AssetReaderError::NotFound(missing)),
-            read => read,
-        }
-    }
-
-    async fn read_meta<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> Result<Box<dyn Reader + 'a>, AssetReaderError> {
-        self.0.read_meta(path).await
-    }
-
-    // chisle: a directory listing shows files only. The registry loader adds
-    // the built-in paths itself; merging the listings here lifts that.
-    async fn read_directory<'a>(
-        &'a self,
-        path: &'a Path,
-    ) -> Result<Box<PathStream>, AssetReaderError> {
-        self.0.read_directory(path).await
-    }
-
-    async fn is_directory<'a>(&'a self, path: &'a Path) -> Result<bool, AssetReaderError> {
-        self.0.is_directory(path).await
     }
 }
 
@@ -894,7 +845,10 @@ mod tests {
         app.add_plugins(bevy_app::TaskPoolPlugin::default());
         app.register_asset_source(
             bevy_asset::io::AssetSourceId::Default,
-            super::asset_source("assets"),
+            mcrs_minecraft_assets::packs::layered_file_source(
+                "assets",
+                mcrs_minecraft_worldgen_builtin::asset,
+            ),
         );
         app.add_plugins(AssetPlugin {
             watch_for_changes_override: Some(false),

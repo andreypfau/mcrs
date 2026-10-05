@@ -82,7 +82,10 @@ pub fn run_to_playing() -> App {
     bevy_asset::AssetApp::register_asset_source(
         &mut app,
         bevy_asset::io::AssetSourceId::Default,
-        mcrs_minecraft_worldgen::bevy::asset_source("assets"),
+        mcrs_minecraft_assets::packs::layered_file_source(
+            "assets",
+            mcrs_minecraft_worldgen_builtin::asset,
+        ),
     );
     app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),

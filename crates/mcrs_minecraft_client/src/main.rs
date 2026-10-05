@@ -110,7 +110,10 @@ fn main() -> AppExit {
     task_pool_options.async_compute.percent = 1.0;
     task_pool_options.io.max_threads = config::IO_THREADS;
     let mut app = App::new();
-    app.register_asset_source(AssetSourceId::Default, layered_file_source(&assets));
+    app.register_asset_source(
+        AssetSourceId::Default,
+        layered_file_source(&assets, mcrs_minecraft_worldgen_builtin::asset),
+    );
     vanilla::register(&mut app);
     app.add_plugins(
         DefaultPlugins

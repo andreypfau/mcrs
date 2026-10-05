@@ -119,10 +119,11 @@ impl Plugin for MinecraftServerPlugin {
         bevy_asset::AssetApp::register_asset_source(
             app,
             bevy_asset::io::AssetSourceId::Default,
-            mcrs_minecraft_worldgen::bevy::asset_source(
+            mcrs_minecraft_assets::packs::layered_file_source(
                 self.asset_path
                     .as_deref()
                     .unwrap_or(&bevy_asset::AssetPlugin::default().file_path),
+                mcrs_minecraft_worldgen_builtin::asset,
             ),
         );
         app.add_plugins(VoxelServerPlugin {

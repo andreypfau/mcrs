@@ -377,7 +377,10 @@ pub fn spawn_dim_subapp(
         .get_resource_or_init::<bevy_asset::io::AssetSourceBuilders>()
         .insert(
             bevy_asset::io::AssetSourceId::Default,
-            mcrs_minecraft_worldgen::bevy::asset_source(&asset_root),
+            mcrs_minecraft_assets::packs::layered_file_source(
+                &asset_root,
+                mcrs_minecraft_worldgen_builtin::asset,
+            ),
         );
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
