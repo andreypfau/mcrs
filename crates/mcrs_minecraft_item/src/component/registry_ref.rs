@@ -25,21 +25,15 @@ macro_rules! registry_key_component {
         #[serde(transparent)]
         pub struct $ty(pub mcrs_minecraft_core::ResourceKey<$registry>);
 
-        impl $ty {
-            pub fn minecraft(path: &str) -> Self {
-                $ty(mcrs_minecraft_core::ResourceKey::from_location(
-                    mcrs_minecraft_core::ResourceLocation::minecraft(path),
-                ))
-            }
-        }
-
         impl $crate::harness::Sample for $ty {
             fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
                 vec![("", mcrs_minecraft_nbt::STRING_ID)]
             }
 
             fn samples() -> Vec<Self> {
-                vec![$($ty::minecraft($sample)),+]
+                vec![$($ty(mcrs_minecraft_core::ResourceKey::from_location(
+                    mcrs_minecraft_core::ResourceLocation::minecraft($sample).unwrap(),
+                ))),+]
             }
         }
     )*};

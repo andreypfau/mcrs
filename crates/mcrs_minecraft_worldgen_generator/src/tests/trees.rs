@@ -8,7 +8,7 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
@@ -68,7 +68,7 @@ pub(super) fn biome_registry() -> Registry<keys::Biome> {
 /// over the real biomes is tested elsewhere, and a band over counts does not
 /// depend on the order, only on it being fixed.
 pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
-    let id = ResourceLocation::parse(placed_id).unwrap();
+    let id = ResourceLocation::read(placed_id).unwrap();
     let entry = corpus_features()
         .placed_features
         .get(&id)
@@ -88,7 +88,7 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
 fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft("overworld"),
+        &rl!("minecraft:overworld").to_arc(),
     );
     let set = super::registries_over(registry);
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> =
@@ -182,7 +182,7 @@ pub(super) fn dimension_with(
 pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
     let key: mcrs_minecraft_core::tag_key::TagKey<mcrs_minecraft_keys::Block, std::sync::Arc<str>> =
-        mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::parse(tag).unwrap());
+        mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::read(tag).unwrap());
     let tags = block_tags();
     for id in tags.members(
         tags.get(&key)
@@ -334,7 +334,7 @@ fn bee_tables() -> FeatureTables {
         .expect("the placement parses");
     let feature = tables.features.steps[0][0].placed.feature.clone();
     tables.features.steps[0][0] = Arc::new(CompiledPlacedFeature {
-        id: Some(ResourceLocation::parse("minecraft:fancy_oak_bees").unwrap()),
+        id: Some(ResourceLocation::read("minecraft:fancy_oak_bees").unwrap()),
         placed: PlacedFeature { feature, placement },
     });
     tables

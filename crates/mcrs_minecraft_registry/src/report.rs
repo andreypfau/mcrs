@@ -175,7 +175,7 @@ mod tests {
         Registry::new(
             names
                 .iter()
-                .map(|text| ResourceLocation::<Arc<str>>::parse(text).unwrap()),
+                .map(|text| ResourceLocation::<Arc<str>>::read(text).unwrap()),
         )
         .unwrap()
     }

@@ -155,7 +155,7 @@ fn golden_values_decode_to_the_expected_fields() {
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
                 block: ResourceKey::from_location(
-                    mcrs_minecraft_core::ResourceLocation::minecraft("furnace")
+                    mcrs_minecraft_core::rl!("minecraft:furnace").to_arc()
                 ),
                 properties: BTreeMap::from([
                     ("facing".to_string(), "north".to_string()),
@@ -169,7 +169,7 @@ fn golden_values_decode_to_the_expected_fields() {
         ParticleOptions::Block(BlockParticle {
             block_state: BlockStateValue {
                 block: ResourceKey::from_location(
-                    mcrs_minecraft_core::ResourceLocation::minecraft("furnace")
+                    mcrs_minecraft_core::rl!("minecraft:furnace").to_arc()
                 ),
                 properties: BTreeMap::new(),
             },
@@ -199,9 +199,9 @@ fn golden_values_decode_to_the_expected_fields() {
         check("item_stack"),
         ParticleOptions::Item(ItemParticle {
             item: Template::new(
-                ResourceKey::from_location(mcrs_minecraft_core::ResourceLocation::minecraft(
-                    "diamond_sword"
-                )),
+                ResourceKey::from_location(
+                    mcrs_minecraft_core::rl!("minecraft:diamond_sword").to_arc()
+                ),
                 3,
                 serde_json::from_str::<ComponentPatch>(r#"{"max_stack_size":16}"#).unwrap(),
             )

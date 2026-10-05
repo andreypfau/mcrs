@@ -179,7 +179,7 @@ mod exhaustive {
             for (dimension_id, structures) in &entry.dimensions {
                 let index = build_index(&dimension(dimension_id), seed);
                 for structure in structures {
-                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    let id = frozen.structure_ids[&ResourceLocation::read(&structure.id).unwrap()];
                     assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
                     for case in &structure.cases {
                         let ColumnPos { x, z } = case.chunk;

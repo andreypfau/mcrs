@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
@@ -64,7 +64,7 @@ impl Gen {
     ) {
         let (name, id) = *ITEMS.choose(&mut self.rng).unwrap();
         (
-            ResourceKey::from_location(ResourceLocation::minecraft(name)),
+            ResourceKey::from_location(ResourceLocation::minecraft(name).unwrap()),
             Id::from_static(id),
         )
     }
@@ -263,7 +263,7 @@ fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt_in_scope() {
 fn inline_holders_are_a_zero_prefix_and_a_bare_prefix_fails() {
     let lookup = TestLookup::new();
     let direct = Holder::Direct(BannerPattern {
-        asset_id: ResourceLocation::minecraft("globe"),
+        asset_id: rl!("minecraft:globe").to_arc(),
         translation_key: "block.minecraft.banner.globe".into(),
     });
     let mut wire = Vec::new();

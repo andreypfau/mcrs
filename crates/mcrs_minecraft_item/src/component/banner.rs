@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
@@ -44,7 +44,7 @@ impl Sample for BannerPatterns {
                 },
                 BannerLayer {
                     pattern: Holder::Direct(BannerPattern {
-                        asset_id: ResourceLocation::new("mcrs", "x"),
+                        asset_id: rl!("mcrs:x").to_arc(),
                         translation_key: "block.mcrs.banner.x".into(),
                     }),
                     color: DyeColor::LightBlue,

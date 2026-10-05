@@ -27,18 +27,18 @@ fn encoded(value: &impl Encode) -> Vec<u8> {
 fn every_decoder_stops_after_its_own_bytes() {
     {
         let packet = ClientboundRegistryData {
-            registry: ResourceLocation::parse_cow("minecraft:dimension_type").expect("registry id"),
+            registry: ResourceLocation::read_cow("minecraft:dimension_type").expect("registry id"),
             entries: vec![
                 mcrs_minecraft_protocol::registry::Entry {
-                    id: ResourceLocation::parse_cow("minecraft:overworld").expect("entry id"),
+                    id: ResourceLocation::read_cow("minecraft:overworld").expect("entry id"),
                     data: Some(std::borrow::Cow::Owned(compound("height", 384).into())),
                 },
                 mcrs_minecraft_protocol::registry::Entry {
-                    id: ResourceLocation::parse_cow("minecraft:the_nether").expect("entry id"),
+                    id: ResourceLocation::read_cow("minecraft:the_nether").expect("entry id"),
                     data: Some(std::borrow::Cow::Owned(compound("height", 256).into())),
                 },
                 mcrs_minecraft_protocol::registry::Entry {
-                    id: ResourceLocation::parse_cow("minecraft:axe").expect("entry id"),
+                    id: ResourceLocation::read_cow("minecraft:axe").expect("entry id"),
                     data: Some(std::borrow::Cow::Owned(
                         mcrs_minecraft_nbt::tag::NbtTag::List(vec![compound("weight", 1).into()]),
                     )),

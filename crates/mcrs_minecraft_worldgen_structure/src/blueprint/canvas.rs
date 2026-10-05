@@ -299,7 +299,7 @@ impl Canvas {
 
     /// Replaces one block by another wherever it stands, keeping its properties.
     pub fn rename(&mut self, from: &str, to: &str) {
-        let to = ResourceLocation::parse(to).expect("a block id");
+        let to = ResourceLocation::read(to).expect("a block id");
         for cell in self.world.values_mut() {
             if let Cell::Exact(state) | Cell::Settled(state) = cell
                 && state.id.as_str() == from

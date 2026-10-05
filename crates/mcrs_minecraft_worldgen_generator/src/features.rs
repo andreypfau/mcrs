@@ -54,7 +54,7 @@ pub fn possible_biomes(
         },
         BiomeSource::TheEnd => END_BIOMES
             .iter()
-            .filter_map(|id| ResourceLocation::parse(id).ok())
+            .filter_map(|id| ResourceLocation::read(id).ok())
             .collect(),
         BiomeSource::Fixed { biome } => vec![named(biome)],
         BiomeSource::Checkerboard { biomes, .. } => biomes.iter().map(named).collect(),
@@ -73,7 +73,7 @@ fn preset_biomes(
 ) -> Vec<ResourceLocation> {
     list.values()
         .iter()
-        .filter_map(|(_, biome)| ResourceLocation::parse(biome).ok())
+        .filter_map(|(_, biome)| ResourceLocation::read(biome).ok())
         .collect()
 }
 

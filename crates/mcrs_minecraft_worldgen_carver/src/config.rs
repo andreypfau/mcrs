@@ -74,7 +74,7 @@ impl CarverConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_worldgen_testing::{read, round_trips};
 
     #[test]
@@ -87,7 +87,7 @@ mod tests {
         let CarverConfig::Cave {
             start_vertical_radius_multiplier,
             ..
-        } = read("carver", &ResourceLocation::minecraft("cave"))
+        } = read("carver", &rl!("minecraft:cave").to_arc())
         else {
             panic!("cave.json is a cave carver");
         };

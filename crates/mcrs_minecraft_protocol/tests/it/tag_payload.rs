@@ -17,7 +17,7 @@ impl RegistryKey for TestRegistry {
 type Name = ResourceLocation<Arc<str>>;
 
 fn name(text: &str) -> Name {
-    ResourceLocation::parse(text).unwrap()
+    ResourceLocation::read(text).unwrap()
 }
 
 fn registry(count: usize) -> Registry<TestRegistry> {
@@ -102,7 +102,7 @@ fn an_unknown_number_in_a_payload_is_dropped() {
     let payload = RegistryTags {
         registry: rl!("minecraft:test_registry").into(),
         tags: vec![TagGroup {
-            name: ResourceLocation::parse_cow(Cow::Borrowed("minecraft:t")).unwrap(),
+            name: ResourceLocation::read_cow(Cow::Borrowed("minecraft:t")).unwrap(),
             entries: [2, 99, 0, 3].map(RegistryId).to_vec(),
         }],
     };

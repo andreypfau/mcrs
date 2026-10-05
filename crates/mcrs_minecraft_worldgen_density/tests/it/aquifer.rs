@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, point_barrier};
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -19,7 +19,7 @@ const BLOCKS: RouterBlocks = RouterBlocks {
 
 fn overworld(seed: u64, edit: impl FnOnce(&mut serde_json::Value)) -> NoiseRouter {
     let mut raw: serde_json::Value =
-        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
+        corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc());
     edit(&mut raw);
     let settings: NoiseGeneratorSettings = serde_json::from_value(raw).unwrap();
     build_router(

@@ -12,7 +12,7 @@ fn members(app: &App, tag: &str) -> Vec<String> {
         .tags::<keys::Biome>()
         .expect("the load builds the biome tags");
     let biomes = app.world().resource::<Registry<keys::Biome>>();
-    let key = TagKey::<keys::Biome, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let key = TagKey::<keys::Biome, _>::from_location(ResourceLocation::read(tag).unwrap());
     let mut names: Vec<String> = tags
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {

@@ -3,7 +3,7 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
@@ -212,21 +212,15 @@ fn flat_records_match_vanilla() {
 fn text_bearing_records_match_vanilla() {
     use mcrs_minecraft_protocol::item::{WritableBookContent, WrittenBookContent};
 
-    check(
-        "item_model",
-        ItemModel(ResourceLocation::minecraft("stone")),
-    );
-    check(
-        "tooltip_style",
-        TooltipStyle(ResourceLocation::new("custom", "style")),
-    );
+    check("item_model", ItemModel(rl!("minecraft:stone").to_arc()));
+    check("tooltip_style", TooltipStyle(rl!("custom:style").to_arc()));
     check(
         "note_block_sound",
-        NoteBlockSound(ResourceLocation::minecraft("block.bell.use")),
+        NoteBlockSound(rl!("minecraft:block.bell.use").to_arc()),
     );
     assert_eq!(
         parse::<NoteBlockSound>(r#""block.bell.use""#),
-        NoteBlockSound(ResourceLocation::minecraft("block.bell.use"))
+        NoteBlockSound(rl!("minecraft:block.bell.use").to_arc())
     );
 
     check("writable_empty", sample::<WritableBookContent>(0));
@@ -494,8 +488,8 @@ fn nbt_wire_records_match_vanilla() {
 
 #[test]
 fn fuel_matches_vanilla() {
-    let int = |path: &str| ResolvableInt::reference(ResourceLocation::minecraft(path));
-    let float = |path: &str| ResolvableFloat::reference(ResourceLocation::minecraft(path));
+    let int = |path: &str| ResolvableInt::reference(ResourceLocation::minecraft(path).unwrap());
+    let float = |path: &str| ResolvableFloat::reference(ResourceLocation::minecraft(path).unwrap());
     check("compostable_const", sample::<Compostable>(0));
     check(
         "compostable_ref",

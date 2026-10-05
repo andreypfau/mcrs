@@ -12,7 +12,7 @@ pub trait Sample: Sized {
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::IntArray;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
@@ -71,9 +71,9 @@ impl Sample for Profile {
                     ],
                 }),
                 skin: SkinPatch {
-                    texture: Some(ResourceLocation::minecraft("skin")),
-                    cape: Some(ResourceLocation::minecraft("cape")),
-                    elytra: Some(ResourceLocation::minecraft("elytra")),
+                    texture: Some(rl!("minecraft:skin").to_arc()),
+                    cape: Some(rl!("minecraft:cape").to_arc()),
+                    elytra: Some(rl!("minecraft:elytra").to_arc()),
                     model: Some(PlayerModelType::Slim),
                 },
             },
@@ -110,7 +110,7 @@ fn registry_with_tags<R: RegistryKey>(
     names: &[&str],
     tags: &[(&str, &[&str])],
 ) -> RegistrySet {
-    let name = |path: &str| -> Name { ResourceLocation::minecraft(path) };
+    let name = |path: &str| -> Name { ResourceLocation::minecraft(path).unwrap() };
     let registry = Registry::<R>::new(names.iter().map(|path| name(path)))
         .unwrap_or_else(|error| panic!("the sample {} registry: {error}", R::KEY));
     let files: Vec<(Name, String)> = tags
@@ -206,7 +206,7 @@ fn build_sample_registries() -> RegistrySet {
     let sounds = Registry::<keys::SoundEvent>::new(
         keys::SoundEvent::NAMES
             .iter()
-            .map(|name| ResourceLocation::parse(name).expect("a generated name parses")),
+            .map(|name| ResourceLocation::read(name).expect("a generated name parses")),
     )
     .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"));
     build_listed_registries(RegistrySet::new())

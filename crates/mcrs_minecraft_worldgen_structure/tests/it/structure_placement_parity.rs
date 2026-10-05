@@ -92,7 +92,7 @@ impl Placements {
     }
 
     fn spread(&self, id: &str) -> (SpreadPlacement, Option<SpreadPlacement>) {
-        let set = &self.sets[&ResourceLocation::parse(id).unwrap()];
+        let set = &self.sets[&ResourceLocation::read(id).unwrap()];
         let placement = SpreadPlacement::of(&set.placement)
             .unwrap_or_else(|| panic!("{id} is not a random-spread set"));
         let excluded = match &set.placement {

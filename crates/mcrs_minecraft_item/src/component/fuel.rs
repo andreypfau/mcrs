@@ -47,7 +47,7 @@ macro_rules! fuel {
             fn samples() -> Vec<Self> {
                 vec![
                     $ty { $($field: $field_ty::Constant($constant),)+ },
-                    $ty { $($field: $field_ty::reference(ResourceLocation::minecraft(stringify!($field))),)+ },
+                    $ty { $($field: $field_ty::reference(ResourceLocation::minecraft(stringify!($field)).unwrap()),)+ },
                 ]
             }
         }

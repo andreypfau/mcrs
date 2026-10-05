@@ -120,7 +120,7 @@ pub fn bake_all(pack: &Pack, sprites: &mut SpriteRegistry) -> Result<ItemModels,
         let root = baker
             .node(&item.model, Mat4::IDENTITY)
             .map_err(|error| format!("items/{id}: {error}"))?;
-        let location = ResourceLocation::parse(&id).map_err(|error| format!("{id}: {error}"))?;
+        let location = ResourceLocation::read(&id).map_err(|error| format!("{id}: {error}"))?;
         by_id.insert(location, Arc::new(root));
     }
     Ok(ItemModels {

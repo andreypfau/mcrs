@@ -59,7 +59,7 @@ pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, Stri
         from_report(&bytes).map_err(|error| format!("{}: {error}", registries.display()))?;
     let stored = crate::names::read(names)?;
     let parse = |text: &str| {
-        ResourceLocation::parse(text)
+        ResourceLocation::read(text)
             .map_err(|error| format!("{}: {text}: {error}", names.display()))
     };
     let mut tables: Vec<_> = statics.tables().cloned().collect();
@@ -127,7 +127,7 @@ fn biome_name(path: &str) -> Option<ResourceLocation> {
     let name = path
         .strip_prefix("worldgen/biome/")?
         .strip_suffix(".json")?;
-    Some(ResourceLocation::minecraft(name))
+    ResourceLocation::minecraft(name).ok()
 }
 
 fn same_biome(names: &RegistrySet, built: &Biome, shipped: &[u8]) -> bool {
@@ -264,6 +264,7 @@ pub fn replace(dir: &Path, files: &[(String, Vec<u8>)], version: &[u8]) -> Resul
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_core::rl;
     use std::fs;
     use std::path::Path;
 
@@ -447,7 +448,7 @@ mod tests {
         let states = ["minecraft:stone", top];
         let palette = order
             .map(|index| PaletteState {
-                id: mcrs_minecraft_core::ResourceLocation::parse(states[index]).unwrap(),
+                id: mcrs_minecraft_core::ResourceLocation::read(states[index]).unwrap(),
                 properties: None,
             })
             .to_vec();
@@ -527,7 +528,7 @@ mod tests {
     ) -> Files {
         let mut plains = mcrs_minecraft_worldgen_builtin::biomes(names)
             .unwrap()
-            .remove(&ResourceLocation::minecraft("plains"))
+            .remove(&rl!("minecraft:plains").to_arc())
             .unwrap();
         change(&mut plains);
         let text = names.scope(|| serde_json::to_vec_pretty(&plains).unwrap());

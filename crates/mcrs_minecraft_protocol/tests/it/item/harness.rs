@@ -87,7 +87,7 @@ impl TestLookup {
         let mut by_id = Vec::new();
         let mut by_name = HashMap::new();
         for (path, id) in entries {
-            let location = ResourceLocation::minecraft(path);
+            let location = ResourceLocation::minecraft(path).unwrap();
             let index = usize::from(*id);
             if by_id.len() <= index {
                 by_id.resize(index + 1, None);
@@ -108,7 +108,7 @@ impl TestLookup {
     ) {
         self.block_states.push(TestBlockState {
             id,
-            block: ResourceLocation::minecraft(block),
+            block: ResourceLocation::minecraft(block).unwrap(),
             properties: properties
                 .iter()
                 .map(|(name, value)| (name.to_string(), value.to_string()))

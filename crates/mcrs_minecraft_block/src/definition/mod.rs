@@ -869,6 +869,7 @@ fn to_engine_aabb(value: &ModelBox) -> Aabb {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::rl;
 
     const COMPONENTS: &str = r##"{
         "minecraft:light_emission": 0,
@@ -907,7 +908,7 @@ mod tests {
         Registry::new(
             names
                 .iter()
-                .map(|name| ResourceLocation::parse(name).unwrap()),
+                .map(|name| ResourceLocation::read(name).unwrap()),
         )
         .unwrap()
     }
@@ -1138,8 +1139,8 @@ mod tests {
         )
         .replace(r#""default_state_id": 0"#, r#""default_state_id": 1"#);
         let definitions = build(&[source, file("minecraft:stone", 4, "", "")]).unwrap();
-        let furnace = ResourceLocation::minecraft("furnace");
-        let stone = ResourceLocation::minecraft("stone");
+        let furnace = rl!("minecraft:furnace").to_arc();
+        let stone = rl!("minecraft:stone").to_arc();
         let lookup: &dyn RegistryLookup = &definitions;
 
         assert_eq!(lookup.block_state_id(&furnace, &[]), Some(1));
@@ -1154,7 +1155,7 @@ mod tests {
         );
         assert_eq!(lookup.block_state_id(&stone, &[("lit", "true")]), Some(4));
         assert_eq!(
-            lookup.block_state_id(&ResourceLocation::minecraft("nope"), &[]),
+            lookup.block_state_id(&rl!("minecraft:nope").to_arc(), &[]),
             None
         );
 

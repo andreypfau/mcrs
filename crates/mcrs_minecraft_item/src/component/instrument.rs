@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
@@ -82,7 +82,7 @@ impl Sample for Instrument {
             })),
             Instrument(Holder::Direct(InstrumentValue {
                 sound_event: Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "toot"),
+                    sound_id: rl!("mcrs:toot").to_arc(),
                     range: Some(16.0),
                 }),
                 use_duration: 0.0,

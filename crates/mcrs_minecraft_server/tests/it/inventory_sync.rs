@@ -67,7 +67,7 @@ pub(crate) fn drain(world: &mut World) -> Vec<OutboundPlayerPacket> {
 
 pub(crate) fn value(item: &str, count: u8) -> ItemStackValue {
     ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft(item)),
+        item: ResourceKey::from_location(ResourceLocation::minecraft(item).unwrap()),
         count: Bounded(i32::from(count)),
         components: ComponentPatch::EMPTY,
     }

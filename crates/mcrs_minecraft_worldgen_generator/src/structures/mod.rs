@@ -190,9 +190,8 @@ fn biome_tag_mask(
     owner: &dyn std::fmt::Display,
     tag: &str,
 ) -> Result<BiomeMask, String> {
-    let key = TagKey::<keys::Biome, _>::from_location(
-        ResourceLocation::parse(tag).expect("a literal id"),
-    );
+    let key =
+        TagKey::<keys::Biome, _>::from_location(ResourceLocation::read(tag).expect("a literal id"));
     let tag = inputs
         .biome_tags
         .get(&key)
@@ -336,7 +335,7 @@ fn freeze_structure_templates(
     paths: &[&str],
 ) -> Result<(), String> {
     for path in paths {
-        let location = ResourceLocation::minecraft(path);
+        let location = ResourceLocation::minecraft(path).expect("a hardcoded template name");
         if frozen.template_ids.contains_key(&location) {
             continue;
         }
@@ -416,7 +415,10 @@ fn freeze_structures(
         let templates = |names: &[&str]| {
             names
                 .iter()
-                .map(|name| frozen.template_ids[&ResourceLocation::minecraft(name)])
+                .map(|name| {
+                    frozen.template_ids
+                        [&ResourceLocation::minecraft(name).expect("a hardcoded template name")]
+                })
                 .collect::<Vec<TemplateId>>()
         };
         let kind = match structure {

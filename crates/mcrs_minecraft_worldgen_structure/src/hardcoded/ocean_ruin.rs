@@ -187,7 +187,7 @@ fn templates(family: &str, large: bool) -> Vec<&'static str> {
 }
 
 fn template_id(ctx: &Context<'_>, name: &str) -> TemplateId {
-    ctx.frozen.template_ids[&ResourceLocation::minecraft(name)]
+    ctx.frozen.template_ids[&ResourceLocation::minecraft(name).expect("a hardcoded template name")]
 }
 
 #[allow(clippy::too_many_arguments)]

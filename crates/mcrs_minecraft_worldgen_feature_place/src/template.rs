@@ -1,10 +1,10 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -391,11 +391,13 @@ pub enum ChainKind {
     Feature,
 }
 
+fn minecraft(name: &str) -> Result<ResourceLocation, FeatureCompileError> {
+    ResourceLocation::minecraft(name)
+        .map_err(|error| FeatureCompileError::UnknownBlockState(error.to_string()))
+}
+
 fn block_mask(blocks: &dyn BlockResolver, name: &str) -> Result<StateMask, FeatureCompileError> {
-    states_of(
-        blocks,
-        StateQuery::Block(&ResourceLocation::minecraft(name)),
-    )
+    states_of(blocks, StateQuery::Block(&minecraft(name)?))
 }
 
 pub fn compile_chain(
@@ -434,8 +436,8 @@ pub fn compile_chain(
             processors.push(CompiledProcessor::BlockIgnore(states_of(
                 blocks,
                 StateQuery::Names(&[
-                    ResourceLocation::minecraft("air"),
-                    ResourceLocation::minecraft("structure_block"),
+                    rl!("minecraft:air").to_arc(),
+                    rl!("minecraft:structure_block").to_arc(),
                 ]),
             )?));
         }
@@ -501,20 +503,16 @@ fn compile_processor(
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
-            let tag = |name: &str| {
-                states_of(
-                    blocks,
-                    StateQuery::BlockTag(&ResourceLocation::minecraft(name)),
-                )
-            };
+            let tag = |name: &str| states_of(blocks, StateQuery::BlockTag(&minecraft(name)?));
             CompiledProcessor::BlockAge(BlockAgeTables {
                 mossiness: *mossiness as f32,
                 full_stone: states_of(
                     blocks,
-                    StateQuery::Names(
-                        &["stone_bricks", "stone", "chiseled_stone_bricks"]
-                            .map(ResourceLocation::minecraft),
-                    ),
+                    StateQuery::Names(&[
+                        rl!("minecraft:stone_bricks").to_arc(),
+                        rl!("minecraft:stone").to_arc(),
+                        rl!("minecraft:chiseled_stone_bricks").to_arc(),
+                    ]),
                 )?,
                 stairs: tag("stairs")?,
                 slabs: tag("slabs")?,
@@ -538,7 +536,7 @@ fn compile_processor(
 }
 
 fn default_state(blocks: &dyn BlockResolver, name: &str) -> Result<VoxelId, FeatureCompileError> {
-    state_of(blocks, &BlockState::minecraft(name))
+    state_of(blocks, &BlockState::bare(minecraft(name)?))
 }
 
 fn compile_processor_rule(
@@ -1288,9 +1286,9 @@ mod tests {
             front: Direction::North,
             top: Direction::Up,
             joint: mcrs_minecraft_worldgen_feature::template::Joint::Rollable,
-            name: ResourceLocation::minecraft("empty"),
-            pool: ResourceLocation::minecraft("empty"),
-            target: ResourceLocation::minecraft("empty"),
+            name: rl!("minecraft:empty").to_arc(),
+            pool: rl!("minecraft:empty").to_arc(),
+            target: rl!("minecraft:empty").to_arc(),
             placement_priority: 0,
             selection_priority: 0,
             final_state: None,

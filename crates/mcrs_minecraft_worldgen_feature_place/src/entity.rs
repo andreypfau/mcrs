@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
@@ -489,7 +489,7 @@ pub fn cat(
         .cats
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| ResourceLocation::minecraft("black"));
+        .unwrap_or_else(|| rl!("minecraft:black").to_arc());
     let sound_variant = pick_sound(&tables.cat_sounds, rng);
     placed(
         bottom_centre(at),
@@ -513,7 +513,7 @@ fn chicken_jockey(
         .chickens
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| ResourceLocation::minecraft("temperate"));
+        .unwrap_or_else(|| rl!("minecraft:temperate").to_arc());
     let sound_variant = pick_sound(&tables.chicken_sounds, rng);
     let left_handed = mob(rng);
     placed(
@@ -539,7 +539,7 @@ fn zombie_nautilus(
         .zombie_nautiluses
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| ResourceLocation::minecraft("temperate"));
+        .unwrap_or_else(|| rl!("minecraft:temperate").to_arc());
     // `NautilusAi.initMemories`: the attack cooldown, `UniformInt.of(2400, 3600)`.
     rng.next_i32_bound(1201);
     let left_handed = mob(rng);
@@ -659,7 +659,7 @@ mod tests {
     fn ids(names: &[&str]) -> Vec<ResourceLocation> {
         names
             .iter()
-            .map(|n| ResourceLocation::minecraft(n))
+            .map(|n| ResourceLocation::minecraft(n).unwrap())
             .collect()
     }
 
@@ -671,9 +671,9 @@ mod tests {
     fn tag_of<R: RegistryKey>(tag: &str) -> Option<mcrs_minecraft_registry::TagId<R>> {
         corpus_set()
             .tags::<R>()?
-            .get(&TagKey::<R, _>::from_location(ResourceLocation::minecraft(
-                tag,
-            )))
+            .get(&TagKey::<R, _>::from_location(
+                ResourceLocation::minecraft(tag).unwrap(),
+            ))
     }
 
     fn tagged<R: RegistryKey>(
@@ -696,7 +696,10 @@ mod tests {
                     let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
                     let variant: Variant = corpus_set()
                         .scope(|| serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap());
-                    (ResourceLocation::minecraft(&name), variant.spawn_conditions)
+                    (
+                        ResourceLocation::minecraft(&name).unwrap(),
+                        variant.spawn_conditions,
+                    )
                 })
                 .collect();
         assert_eq!(cats.len(), 11);
@@ -719,11 +722,11 @@ mod tests {
         let chickens = VariantTable::freeze(
             [
                 (
-                    ResourceLocation::minecraft("cold"),
+                    rl!("minecraft:cold").to_arc(),
                     std::slice::from_ref(&in_tag("spawns_cold_variant_farm_animals")),
                 ),
                 (
-                    ResourceLocation::minecraft("temperate"),
+                    rl!("minecraft:temperate").to_arc(),
                     std::slice::from_ref(&plain),
                 ),
             ],
@@ -734,11 +737,11 @@ mod tests {
         let zombie_nautiluses = VariantTable::freeze(
             [
                 (
-                    ResourceLocation::minecraft("temperate"),
+                    rl!("minecraft:temperate").to_arc(),
                     std::slice::from_ref(&plain),
                 ),
                 (
-                    ResourceLocation::minecraft("warm"),
+                    rl!("minecraft:warm").to_arc(),
                     std::slice::from_ref(&in_tag("spawns_coral_variant_zombie_nautilus")),
                 ),
             ],
@@ -827,7 +830,7 @@ mod tests {
         else {
             panic!()
         };
-        assert_eq!(variant, ResourceLocation::minecraft("all_black"));
+        assert_eq!(variant, rl!("minecraft:all_black").to_arc());
         assert!(tables.cat_sounds.contains(&sound_variant));
 
         let mut seen = std::collections::BTreeSet::new();
@@ -1039,7 +1042,7 @@ mod tests {
                 match &entity.kind {
                     GeneratedKind::ZombieNautilus { variant, .. } => {
                         mounted += 1;
-                        assert_eq!(variant, &ResourceLocation::minecraft("warm"));
+                        assert_eq!(variant, &rl!("minecraft:warm").to_arc());
                         let [rider] = entity.passengers.as_slice() else {
                             panic!()
                         };
@@ -1084,7 +1087,7 @@ mod tests {
                 {
                     jockeys += 1;
                     assert!(jockey);
-                    assert_eq!(variant, &ResourceLocation::minecraft("cold"));
+                    assert_eq!(variant, &rl!("minecraft:cold").to_arc());
                     let GeneratedKind::Drowned { baby, .. } = entity.passengers[0].kind else {
                         panic!()
                     };

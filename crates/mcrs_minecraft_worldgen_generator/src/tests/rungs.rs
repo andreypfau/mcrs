@@ -53,9 +53,9 @@ fn tables() -> FeatureTables {
 
     let entry = |id: &str, placement: &str| {
         Arc::new(CompiledPlacedFeature {
-            id: Some(ResourceLocation::parse(id).unwrap()),
+            id: Some(ResourceLocation::read(id).unwrap()),
             placed: PlacedFeature {
-                feature: Holder::Reference(ResourceLocation::parse(id).unwrap()),
+                feature: Holder::Reference(ResourceLocation::read(id).unwrap()),
                 placement: serde_json::from_str::<Vec<PlacementModifier>>(placement)
                     .expect("the placement parses"),
             },
@@ -93,8 +93,8 @@ fn tables() -> FeatureTables {
             token,
             per_biome: vec![carried],
         },
-        biome_order: vec![ResourceLocation::parse(BIOME).unwrap()],
-        climate: BTreeMap::from([(ResourceLocation::parse(BIOME).unwrap(), TEMPERATE)]),
+        biome_order: vec![ResourceLocation::read(BIOME).unwrap()],
+        climate: BTreeMap::from([(ResourceLocation::read(BIOME).unwrap(), TEMPERATE)]),
     }
 }
 

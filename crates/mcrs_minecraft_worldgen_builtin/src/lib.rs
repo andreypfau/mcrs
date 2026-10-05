@@ -115,7 +115,7 @@ pub fn paths(directory: &str) -> Vec<String> {
 
 fn template(path: &str) -> Option<Vec<u8>> {
     let (namespace, name) = path.strip_suffix(".nbt")?.split_once("/structure/")?;
-    let template = structure::build(&ResourceLocation::new(namespace, name))?;
+    let template = structure::build(&ResourceLocation::new(namespace, name).ok()?)?;
     Some(to_gzip_bytes_vec(&template).expect("a built-in template encodes as NBT"))
 }
 
@@ -132,7 +132,7 @@ pub fn asset(path: &str) -> Option<Vec<u8>> {
     }
     let (namespace, rest) = path.split_once("/worldgen/")?;
     let (folder, name) = rest.strip_suffix(".json")?.split_once('/')?;
-    let id = ResourceLocation::new(namespace, name);
+    let id = ResourceLocation::new(namespace, name).ok()?;
     match folder {
         "template_pool" => template_pool::build(&id).map(|pool| json(&pool)),
         _ => assets(folder).remove(&id),

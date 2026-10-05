@@ -141,7 +141,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         -64,
         384,
     );
-    let wanted = frozen.structure_ids[&ResourceLocation::parse(structure).unwrap()];
+    let wanted = frozen.structure_ids[&ResourceLocation::read(structure).unwrap()];
     let (pos, _) = index
         .locate(IVec3::ZERO, &[wanted])
         .unwrap_or_else(|| panic!("no {structure} within the search radius"));

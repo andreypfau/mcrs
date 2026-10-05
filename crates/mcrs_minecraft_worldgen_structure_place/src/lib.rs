@@ -74,7 +74,7 @@ pub fn state(
     state_of(
         blocks,
         &BlockState {
-            name: ResourceLocation::parse(block).expect("a literal id"),
+            name: ResourceLocation::read(block).expect("a literal id"),
             properties: (!properties.is_empty()).then(|| {
                 properties
                     .iter()
@@ -91,7 +91,7 @@ pub fn block_mask(
 ) -> Result<StateMask, FeatureCompileError> {
     let ids: Vec<ResourceLocation> = names
         .iter()
-        .map(|name| ResourceLocation::parse(name).expect("a literal id"))
+        .map(|name| ResourceLocation::read(name).expect("a literal id"))
         .collect();
     states_of(blocks, StateQuery::Names(&ids))
 }

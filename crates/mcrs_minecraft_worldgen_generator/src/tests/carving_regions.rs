@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::rl;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -5,7 +6,6 @@ use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::{FloatProvider, HeightContext};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -135,7 +135,7 @@ fn a_column_below_zero_belongs_to_the_region_below_zero(router: &NoiseRouter) {
 
 fn long_canyon_table(width: i32, capacity: usize) -> CarverBiomeTable {
     let mut canyon: CarverConfig =
-        mcrs_minecraft_worldgen_testing::read("carver", &ResourceLocation::minecraft("canyon"));
+        mcrs_minecraft_worldgen_testing::read("carver", &rl!("minecraft:canyon").to_arc());
     let CarverConfig::Canyon {
         probability, shape, ..
     } = &mut canyon

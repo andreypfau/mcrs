@@ -110,7 +110,7 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
         .with_extension("")
         .to_string_lossy()
         .replace('\\', "/");
-    ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
+    ResourceLocation::read(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
 fn base_set() -> &'static RegistrySet {
@@ -203,7 +203,7 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
         .expect("the corpus set holds the biome registry");
     let mut names: Vec<ResourceLocation<Arc<str>>> = leading
         .iter()
-        .map(|name| ResourceLocation::parse(name).unwrap_or_else(|e| panic!("{name}: {e}")))
+        .map(|name| ResourceLocation::read(name).unwrap_or_else(|e| panic!("{name}: {e}")))
         .collect();
     for id in all.ids() {
         let name = all.name(id).expect("an id of the registry has a name");
@@ -319,6 +319,7 @@ pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
             .expect("a corpus file is under its folder")
             .with_extension("");
         ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|e| panic!("{folder} holds a file that is no identifier: {e}"))
     });
     let registry =
         Registry::<R>::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"));

@@ -247,7 +247,7 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
                     .expect("an id of the registry has a name")
                     .clone()
             })
-            .chain([ResourceLocation::parse("test:beyond_the_loaded_lists").unwrap()]),
+            .chain([ResourceLocation::read("test:beyond_the_loaded_lists").unwrap()]),
     )
     .expect("a registry of distinct names");
     let source = MultiNoiseBiomeSource {

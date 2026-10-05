@@ -5,7 +5,7 @@ use bevy::input::ButtonInput;
 use bevy::prelude::*;
 use bytes::Bytes;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
@@ -124,7 +124,7 @@ impl Client {
         let id = registries()
             .id(
                 "item",
-                &mcrs_minecraft_core::ResourceLocation::minecraft(path),
+                &mcrs_minecraft_core::ResourceLocation::minecraft(path).unwrap(),
             )
             .unwrap();
         let slot = ProtoStack::new(
@@ -184,7 +184,7 @@ impl Client {
         let id = registries()
             .id(
                 "menu",
-                &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type),
+                &mcrs_minecraft_core::ResourceLocation::minecraft(menu_type).unwrap(),
             )
             .unwrap();
         self.receive(&ClientboundOpenScreen {
@@ -505,11 +505,11 @@ fn a_menu_maps_its_slot_indices_onto_its_own_cells_and_the_player() {
 
 #[test]
 fn a_registry_the_server_sent_is_numbered_by_the_server() {
-    let enchantment = |path: &str| ResourceLocation::minecraft(path);
+    let enchantment = |path: &str| ResourceLocation::minecraft(path).unwrap();
     let local = RegistrySet::from_tables(
         registries().tables().cloned().chain([Arc::new(
             NameTable::new(
-                ResourceLocation::minecraft("enchantment").into(),
+                rl!("minecraft:enchantment").to_arc().into(),
                 ["sharpness", "protection"].map(|path| enchantment(path).into()),
             )
             .unwrap(),
@@ -531,7 +531,7 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
         1,
     )]));
     let sword = registries()
-        .id("item", &ResourceLocation::minecraft("diamond_sword"))
+        .id("item", &rl!("minecraft:diamond_sword").to_arc())
         .unwrap();
     let raw = RawStack::from_stack(
         &ProtoStack::new(mcrs_minecraft_registry::Id::from_static(sword), 1, patch),

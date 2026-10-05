@@ -53,7 +53,7 @@ pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
 pub fn build_settings_router(settings_name: &str, seed: u64) -> NoiseRouter {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft(settings_name),
+        &ResourceLocation::minecraft(settings_name).unwrap(),
     );
     build_router(
         &settings,
@@ -127,7 +127,7 @@ pub fn text_ordered_table(
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
     std::sync::Arc::new(
         mcrs_minecraft_registry::NameTable::new(
-            ResourceLocation::parse(registry).expect("a registry key"),
+            ResourceLocation::read(registry).expect("a registry key"),
             names,
         )
         .expect("a table of distinct names"),
@@ -167,7 +167,7 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
                 let name = corpus_biomes()
                     .name(id)
                     .expect("an id of the registry has a name");
-                let biome = &biomes[&ResourceLocation::parse(name.as_str()).expect("a corpus id")];
+                let biome = &biomes[&ResourceLocation::read(name.as_str()).expect("a corpus id")];
                 BiomeClimate {
                     base_temperature: biome.temperature,
                     frozen: biome.temperature_modifier == Some(TemperatureModifier::Frozen),

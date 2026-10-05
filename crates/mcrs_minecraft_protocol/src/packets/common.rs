@@ -308,7 +308,7 @@ mod tests {
     use std::borrow::Cow;
 
     fn key(path: &str) -> ResourceLocation<Cow<'_, str>> {
-        ResourceLocation::parse_cow(path).unwrap()
+        ResourceLocation::read_cow(path).unwrap()
     }
 
     fn count(n: usize) -> Vec<u8> {

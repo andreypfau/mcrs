@@ -24,7 +24,7 @@ pub enum IglooTemplate {
 
 impl IglooTemplate {
     pub fn location(self) -> ResourceLocation {
-        ResourceLocation::minecraft(TEMPLATES[self as usize])
+        ResourceLocation::minecraft(TEMPLATES[self as usize]).expect("a hardcoded template name")
     }
 
     pub fn from_location(location: &ResourceLocation) -> Option<Self> {

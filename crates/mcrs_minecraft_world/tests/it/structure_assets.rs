@@ -38,7 +38,8 @@ pub fn the_structure_registries_land_before_playing(app: &App) {
         .expect("a pool naming a template that does not ship still lands");
     let missing = mcrs_minecraft_core::ResourceLocation::minecraft(
         "ancient_city/walls/intact_horizontal_wall_stairs_5",
-    );
+    )
+    .unwrap();
     assert!(!pool.deps.templates.contains_key(&missing));
     assert!(
         world

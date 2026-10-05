@@ -3,7 +3,7 @@
 
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::rl;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
@@ -32,7 +32,7 @@ const BLOCKS: RouterBlocks = RouterBlocks {
 };
 
 fn settings() -> NoiseGeneratorSettings {
-    corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"))
+    corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc())
 }
 
 fn router(seed: u64) -> NoiseRouter {

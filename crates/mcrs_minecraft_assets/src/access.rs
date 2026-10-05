@@ -207,7 +207,7 @@ mod tests {
     use super::*;
 
     fn make_location(name: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::new("minecraft", name)
+        ResourceLocation::new("minecraft", name).unwrap()
     }
 
     #[test]
@@ -235,7 +235,7 @@ mod tests {
         use bevy_asset::Assets;
         use mcrs_minecraft_registry::{Pack, PackFile, WorldRegistries};
 
-        let registry = ResourceLocation::parse("minecraft:test_variant").unwrap();
+        let registry = ResourceLocation::read("minecraft:test_variant").unwrap();
         let file = |path: &str| PackFile {
             path: path.to_owned(),
             bytes: None,

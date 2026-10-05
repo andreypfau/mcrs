@@ -177,7 +177,7 @@ fn locate_structure(fill: Option<&FillContext>, origin: IVec3, id: &str) -> Text
     let Some(index) = fill.and_then(|fill| fill.structures.as_deref()) else {
         return not_found();
     };
-    let Some(structure) = ResourceLocation::parse(id)
+    let Some(structure) = ResourceLocation::read(id)
         .ok()
         .and_then(|location| index.tables().frozen.structure_ids.get(&location).copied())
     else {

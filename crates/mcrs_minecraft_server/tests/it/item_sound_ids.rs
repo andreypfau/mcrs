@@ -1,6 +1,6 @@
 use mcrs_minecraft_assets::{RegistryAccess, RegistrySnapshotErased};
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys::sound_event;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Consumable, Holder, ItemStackValue, ItemUseAnimation, ProtoStack, RawStack,
@@ -11,7 +11,7 @@ use mcrs_minecraft_server::world::item::item_lookups;
 use crate::support::{registry_set, standalone_corpus};
 
 fn drink() -> ResourceLocation {
-    ResourceLocation::minecraft("entity.generic.drink")
+    rl!("minecraft:entity.generic.drink").to_arc()
 }
 
 fn misnumbered_sounds() -> RegistryAccess {
@@ -35,7 +35,7 @@ fn misnumbered_sounds() -> RegistryAccess {
         "minecraft:sound_event",
         names
             .iter()
-            .map(|name| (ResourceLocation::minecraft(*name).into(), None))
+            .map(|name| (ResourceLocation::minecraft(*name).unwrap().into(), None))
             .collect(),
         None,
     ));
@@ -52,7 +52,7 @@ fn drinkable() -> ItemStackValue {
         on_consume_effects: Vec::new(),
     });
     ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft("potion")),
+        item: ResourceKey::from_location(rl!("minecraft:potion").to_arc()),
         count: Bounded(1),
         components,
     }

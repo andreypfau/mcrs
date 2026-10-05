@@ -43,7 +43,7 @@ pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     // And a tag no Rust constant names is there, because the pack ships it.
     let stairs = tags
         .get(&TagKey::<Block, _>::from_location(
-            ResourceLocation::parse("minecraft:stairs").unwrap(),
+            ResourceLocation::read("minecraft:stairs").unwrap(),
         ))
         .expect("the pack ships the stairs tag");
     assert!(tags.contains(
@@ -73,7 +73,7 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
         .tags::<EntityType>()
         .expect("the load builds the entity type tags");
     let skeletons = TagKey::<EntityType, _>::from_location(
-        ResourceLocation::parse("minecraft:skeletons").unwrap(),
+        ResourceLocation::read("minecraft:skeletons").unwrap(),
     );
 
     let mut members: Vec<usize> = tags
@@ -105,7 +105,7 @@ fn loaded_members<R: RegistryKey>(tag: &str) -> Vec<String> {
     let tags = set
         .tags::<R>()
         .unwrap_or_else(|| panic!("the load builds the tags of {}", R::KEY));
-    let key = TagKey::<R, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let key = TagKey::<R, _>::from_location(ResourceLocation::read(tag).unwrap());
     let id = tags
         .get(&key)
         .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::KEY));

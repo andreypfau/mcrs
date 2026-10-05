@@ -18,7 +18,7 @@ fn members(app: &App, tag: &str) -> Vec<String> {
     let tags = set
         .tags::<keys::Timeline>()
         .expect("the load builds the timeline tags");
-    let key = TagKey::<keys::Timeline, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let key = TagKey::<keys::Timeline, _>::from_location(ResourceLocation::read(tag).unwrap());
     let mut names: Vec<String> = tags
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {

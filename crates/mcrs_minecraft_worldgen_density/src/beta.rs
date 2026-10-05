@@ -165,7 +165,7 @@ mod tests {
         walk(
             &mcrs_minecraft_worldgen_testing::read(
                 "density_function",
-                &ResourceLocation::minecraft(name),
+                &ResourceLocation::minecraft(name).unwrap(),
             ),
             &mut out,
         );

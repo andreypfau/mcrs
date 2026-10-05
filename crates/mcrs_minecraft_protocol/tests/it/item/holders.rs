@@ -2,8 +2,8 @@ use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
@@ -126,7 +126,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         "jukebox_playable_direct_sound",
         JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
             sound_event: Holder::Direct(SoundEvent {
-                sound_id: ResourceLocation::new("mcrs", "song"),
+                sound_id: rl!("mcrs:song").to_arc(),
                 range: None,
             }),
             description: Text::translate("song.mcrs", Vec::new()),
@@ -139,7 +139,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         PaintingVariant(HolderWireOnly(Holder::Direct(PaintingVariantValue {
             width: Bounded(2),
             height: Bounded(1),
-            asset_id: ResourceLocation::new("mcrs", "art"),
+            asset_id: rl!("mcrs:art").to_arc(),
             title: Some(Text::text("T")),
             author: None,
         }))),
@@ -149,7 +149,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         PaintingVariant(HolderWireOnly(Holder::Direct(PaintingVariantValue {
             width: Bounded(16),
             height: Bounded(16),
-            asset_id: ResourceLocation::new("mcrs", "big"),
+            asset_id: rl!("mcrs:big").to_arc(),
             title: None,
             author: Some(Text::translate("author.mcrs", Vec::new())),
         }))),

@@ -114,7 +114,8 @@ fn add(pieces: &mut Vec<EndCityPiece>, piece: EndCityPiece) -> EndCityPiece {
 
 impl City<'_> {
     fn template(&self, name: &str) -> TemplateId {
-        let location = ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{name}"));
+        let location = ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{name}"))
+            .expect("a hardcoded template name");
         self.frozen.template_ids[&location]
     }
 

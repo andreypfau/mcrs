@@ -475,7 +475,7 @@ fn the_local_light_tag_reaches_the_loaded_item_tags() {
     let tags = set.tags::<keys::Item>().unwrap();
     let tag = tags
         .get(&TagKey::<keys::Item, _>::from_location(
-            ResourceLocation::parse("mcrs:water_sensitive_light").unwrap(),
+            ResourceLocation::read("mcrs:water_sensitive_light").unwrap(),
         ))
         .expect("the local light tag is loaded");
     let members: Vec<&str> = tags
@@ -2009,7 +2009,7 @@ fn tag_in<R: RegistryKey>(set: &RegistrySet, name: &str) -> TagId<R> {
     set.tags::<R>()
         .unwrap_or_else(|| panic!("{} has loaded tags", R::KEY))
         .get(&TagKey::<R, _>::from_location(
-            ResourceLocation::parse(name).unwrap(),
+            ResourceLocation::read(name).unwrap(),
         ))
         .unwrap_or_else(|| panic!("{name} is a loaded tag"))
 }

@@ -1,8 +1,8 @@
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentKind,
@@ -114,7 +114,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
 fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
     let lookup = TestLookup::new();
     let bundle = lookup
-        .id("item", &ResourceLocation::minecraft("bundle"))
+        .id("item", &rl!("minecraft:bundle").to_arc())
         .unwrap() as u8;
     let bundle_contents = ItemComponentKind::BundleContents.wire_id() as u8;
     let wrapped = |levels: u32| {

@@ -11,7 +11,7 @@ fn stack(slot: u8, path: &str, count: i32, components: ComponentPatch) -> ItemSt
     ItemStackWithSlot {
         slot,
         stack: ItemStackValue {
-            item: ResourceKey::from_location(ResourceLocation::minecraft(path)),
+            item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
             count: Bounded(count),
             components,
         },

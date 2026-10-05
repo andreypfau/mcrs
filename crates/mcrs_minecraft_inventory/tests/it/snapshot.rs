@@ -17,7 +17,7 @@ use mcrs_minecraft_world::registries::test_registries;
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);
     chestplate.components.set(Enchantments(vec![(
-        ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
+        ResourceKey::from_location(ResourceLocation::read(enchantment).unwrap()),
         1,
     )]));
     spawn_stack(world, &chestplate, items()).unwrap()

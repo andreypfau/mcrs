@@ -125,7 +125,7 @@ pub(super) fn parse_state(text: &str) -> PaletteState {
         None => (text, None),
     };
     PaletteState {
-        id: ResourceLocation::parse(name).unwrap(),
+        id: ResourceLocation::read(name).unwrap(),
         properties,
     }
 }
@@ -137,7 +137,7 @@ pub(super) fn resolve(state: &PaletteState) -> VoxelId {
 }
 
 pub(super) fn freeze(id: &str) -> (Template, FrozenTemplate, TemplateManifest) {
-    let id = ResourceLocation::parse(id).unwrap();
+    let id = ResourceLocation::read(id).unwrap();
     let bytes = mcrs_minecraft_worldgen_testing::template(&id)
         .unwrap_or_else(|| panic!("{id}: no such template"));
     let template: Template =

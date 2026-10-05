@@ -131,7 +131,7 @@ impl PlacedJigsaw<'_> {
 }
 
 static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
-    let empty = ResourceLocation::parse("minecraft:empty").unwrap();
+    let empty = ResourceLocation::read("minecraft:empty").unwrap();
     JigsawBlock {
         pos: [0; 3],
         front: Direction::Down,

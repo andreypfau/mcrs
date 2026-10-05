@@ -141,10 +141,11 @@ impl std::ops::Deref for Items {
 mod tests {
     use super::*;
     use crate::ComponentMap;
+    use mcrs_minecraft_core::rl;
 
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
-            identifier: ResourceLocation::minecraft(name),
+            identifier: ResourceLocation::minecraft(name).unwrap(),
             id: Id::from_static(u16::MAX),
             prototype: ComponentMap::default(),
             block_placer: None,
@@ -154,7 +155,12 @@ mod tests {
     }
 
     fn registry(names: &[&str]) -> Registry<Item> {
-        Registry::new(names.iter().map(|name| ResourceLocation::minecraft(name))).unwrap()
+        Registry::new(
+            names
+                .iter()
+                .map(|name| ResourceLocation::minecraft(name).unwrap()),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -191,7 +197,7 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(ItemTableError::Duplicate(DuplicateItem {
-                identifier: ResourceLocation::minecraft("stone"),
+                identifier: rl!("minecraft:stone").to_arc(),
                 first: 0,
                 second: 1,
             }))
@@ -214,7 +220,7 @@ mod tests {
         assert_eq!(
             error,
             ItemTableError::Missing {
-                identifier: ResourceLocation::minecraft("apple")
+                identifier: rl!("minecraft:apple").to_arc()
             }
         );
     }

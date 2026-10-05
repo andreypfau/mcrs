@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol::item::component::common::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
@@ -51,7 +51,7 @@ fn golden() -> (TestLookup, BTreeMap<String, Vec<u8>>) {
 }
 
 fn key(path: &str) -> ResourceKey<Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
+    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
 fn item(path: &str) -> SlotDisplay {
@@ -171,7 +171,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                     base: Box::new(item("iron_chestplate")),
                     material: Box::new(item("netherite_ingot")),
                     pattern: Holder::Direct(TrimPattern {
-                        asset_id: ResourceLocation::new("mcrs", "wave"),
+                        asset_id: rl!("mcrs:wave").to_arc(),
                         description: Text::text("Wave"),
                         decal: true,
                     }),
@@ -250,11 +250,11 @@ fn update_recipes_matches_vanilla() {
     let packet = ClientboundUpdateRecipes {
         item_sets: vec![
             (
-                ResourceLocation::minecraft("smithing_base"),
+                rl!("minecraft:smithing_base").to_arc(),
                 raw(&smithing_base, &lookup),
             ),
             (
-                ResourceLocation::minecraft("furnace_input"),
+                rl!("minecraft:furnace_input").to_arc(),
                 raw(&Vec::new(), &lookup),
             ),
         ],
@@ -342,7 +342,7 @@ fn shaped_display_rejects_mismatched_dimensions() {
 #[test]
 fn ingredient_rejects_what_vanilla_refuses_to_construct() {
     let lookup = TestLookup::new();
-    let air = ResourceLocation::minecraft("air");
+    let air = rl!("minecraft:air").to_arc();
     let air_id = lookup.id("item", &air).unwrap() as u8;
     let empty_stonecutter = [1, SlotDisplayType::Empty as u8];
     let error = Raw::<SelectableRecipe>::decode(&mut &empty_stonecutter[..]).unwrap_err();

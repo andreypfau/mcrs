@@ -74,7 +74,7 @@ impl Sample for Bees {
 
 fn typed<R>(path: &str, tag: NbtCompound) -> TypedEntityData<R> {
     TypedEntityData {
-        id: ResourceKey::from_location(ResourceLocation::minecraft(path)),
+        id: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
         tag,
     }
 }

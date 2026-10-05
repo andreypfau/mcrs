@@ -59,7 +59,7 @@ impl OceanRuinBlocks {
             ),
         };
         let bare =
-            |name: &str| BlockState::bare(ResourceLocation::parse(name).expect("a literal id"));
+            |name: &str| BlockState::bare(ResourceLocation::read(name).expect("a literal id"));
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {
@@ -75,15 +75,13 @@ impl OceanRuinBlocks {
                         delegate: Box::new(StructureProcessor::Rule {
                             rules: vec![ProcessorRule {
                                 input_predicate: RuleTest::BlockMatch {
-                                    block: ResourceLocation::parse(candidate)
-                                        .expect("a literal id"),
+                                    block: ResourceLocation::read(candidate).expect("a literal id"),
                                 },
                                 location_predicate: RuleTest::AlwaysTrue,
                                 position_predicate: None,
                                 output_state: bare(replacement),
                                 block_entity_modifier: Some(RuleBlockEntityModifier::AppendLoot {
-                                    loot_table: ResourceLocation::parse(loot)
-                                        .expect("a literal id"),
+                                    loot_table: ResourceLocation::read(loot).expect("a literal id"),
                                 }),
                             }],
                         }),

@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
     ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template, Unbreakable,
@@ -103,7 +103,7 @@ fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
 }
 
 fn diamond_sword() -> ResourceKey<mcrs_minecraft_keys::Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft("diamond_sword"))
+    ResourceKey::from_location(rl!("minecraft:diamond_sword").to_arc())
 }
 
 /// Vanilla emits its hash maps in hash-iteration order, so the entries are

@@ -15,12 +15,12 @@ use crate::item::harness::hex;
 use crate::item::particle::{golden, lookup, to_hex};
 
 fn id(text: &str) -> ResourceLocation {
-    ResourceLocation::parse(text).unwrap()
+    ResourceLocation::read(text).unwrap()
 }
 
 fn item(path: &str, count: i32, components: &str) -> Template {
     Template::new(
-        ResourceKey::from_location(ResourceLocation::minecraft(path)),
+        ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
         count,
         serde_json::from_str::<ComponentPatch>(components).unwrap(),
     )

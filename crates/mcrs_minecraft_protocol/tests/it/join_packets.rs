@@ -186,7 +186,7 @@ fn the_host_bound_counts_utf16_units() {
 }
 
 fn mod_name() -> ResourceLocation<Cow<'static, str>> {
-    ResourceLocation::parse_cow("github.com:andreypfau/mcrs").unwrap()
+    ResourceLocation::read_cow("github.com:andreypfau/mcrs").unwrap()
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn a_brand_equals_the_reference_bytes() {
 #[test]
 fn a_mod_list_equals_the_reference_bytes() {
     let fixture = fixture();
-    let commit = ResourceLocation::parse_cow("mcrs:commit").unwrap();
+    let commit = ResourceLocation::read_cow("mcrs:commit").unwrap();
     check(
         &fixture,
         "mod_list",
@@ -237,7 +237,7 @@ fn an_unknown_channel_keeps_its_raw_bytes() {
     let mut frame = Vec::new();
     "example:data".encode(&mut frame).unwrap();
     frame.extend_from_slice(&body);
-    let channel = || ResourceLocation::parse_cow("example:data").unwrap();
+    let channel = || ResourceLocation::read_cow("example:data").unwrap();
 
     let mut r = &frame[..];
     let payload = serverbound::Payload::decode(&mut r).unwrap();
@@ -267,7 +267,7 @@ fn an_unknown_channel_keeps_its_raw_bytes() {
 #[test]
 fn a_raw_payload_cannot_take_the_channel_of_a_typed_one() {
     let raw = |channel: &'static str| serverbound::CustomPayload {
-        channel: ResourceLocation::parse_cow(channel).unwrap(),
+        channel: ResourceLocation::read_cow(channel).unwrap(),
         data: Bounded(RawBytes(&[])),
     };
     for channel in ["minecraft:brand", "minecraft:mod_list"] {

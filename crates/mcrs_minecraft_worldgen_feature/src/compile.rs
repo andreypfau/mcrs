@@ -443,7 +443,7 @@ mod tests {
     use crate::tree::UnitFloat;
 
     fn id(name: &str) -> ResourceLocation {
-        ResourceLocation::parse(name).unwrap()
+        ResourceLocation::read(name).unwrap()
     }
 
     fn bamboo() -> Feature {

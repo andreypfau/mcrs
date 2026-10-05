@@ -1,6 +1,6 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
@@ -27,7 +27,7 @@ pub struct EntityStack<'w, 'l, L> {
 impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
     fn item(&self) -> &ResourceLocation {
         static AIR: std::sync::LazyLock<ResourceLocation> =
-            std::sync::LazyLock::new(|| ResourceLocation::minecraft("air"));
+            std::sync::LazyLock::new(|| rl!("minecraft:air").to_arc());
         self.entity
             .get::<ItemStack>()
             .and_then(|stack| self.items.get(stack.item))

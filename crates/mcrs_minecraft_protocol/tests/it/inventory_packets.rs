@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -47,10 +47,9 @@ fn fixture() -> Fixture {
             };
             let id: u16 = id.parse().unwrap();
             fixture.ids.insert((registry.into(), name.into()), id);
-            fixture.names.insert(
-                (registry.into(), id),
-                ResourceLocation::parse(name).unwrap(),
-            );
+            fixture
+                .names
+                .insert((registry.into(), id), ResourceLocation::read(name).unwrap());
         } else if let Some((name, hex)) = line.split_once(' ') {
             fixture.packets.insert(name.into(), crate::common::hex(hex));
         }
@@ -61,7 +60,7 @@ fn fixture() -> Fixture {
 fn item(fixture: &Fixture, path: &str) -> Id<mcrs_minecraft_keys::Item> {
     Id::from_static(
         fixture
-            .id("item", &ResourceLocation::minecraft(path))
+            .id("item", &ResourceLocation::minecraft(path).unwrap())
             .unwrap(),
     )
 }
@@ -150,7 +149,7 @@ fn container_packets_are_the_games_bytes() {
         ClientboundOpenScreen {
             container_id: VarInt(1),
             menu_type: RegistryId(
-                f.id("menu", &ResourceLocation::minecraft("generic_9x3"))
+                f.id("menu", &rl!("minecraft:generic_9x3").to_arc())
                     .unwrap(),
             ),
             title: Text::text("Chest"),
@@ -304,7 +303,7 @@ fn container_packets_are_the_games_bytes() {
 }
 
 fn key(path: &str) -> ResourceKey<mcrs_minecraft_keys::Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
+    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
 fn offers(f: &Fixture) -> Vec<MerchantOffer> {

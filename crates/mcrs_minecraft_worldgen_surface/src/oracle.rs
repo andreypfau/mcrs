@@ -279,6 +279,7 @@ mod tests {
     use super::*;
     use crate::compile::tests::{biome_tags, build, material_corpus, resolve_block};
     use crate::eval::MaterialScratch;
+    use mcrs_minecraft_core::rl;
 
     /// Every condition kind the overworld tree reaches. Each has to be seen
     /// holding and not holding, or the run proves nothing about it.
@@ -327,8 +328,7 @@ mod tests {
             depth: router.noise.height as i32,
             sea_level: router.sea_level,
         };
-        let oracle =
-            MaterialOracle::new(&inputs, &ResourceLocation::minecraft("overworld"), height);
+        let oracle = MaterialOracle::new(&inputs, &rl!("minecraft:overworld").to_arc(), height);
 
         let min_y = router.noise.min_y;
         let top = 96;

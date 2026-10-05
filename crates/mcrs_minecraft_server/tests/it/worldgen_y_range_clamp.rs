@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
     builtin::noise_settings()
-        .remove(&ResourceLocation::minecraft(name))
+        .remove(&ResourceLocation::minecraft(name).unwrap())
         .unwrap_or_else(|| panic!("noise_settings/{name} must be built in"))
 }
 

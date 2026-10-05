@@ -6,7 +6,7 @@ use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, ResourceLocation, SectionPos};
+use mcrs_minecraft_core::{BlockPos, SectionPos, rl};
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{MenuContainer, Op, Slot};
 use mcrs_minecraft_item::{DroppedItem, ItemStack, SlotTable, slots};
@@ -195,7 +195,7 @@ fn a_block_drop_scatters_inside_the_broken_block() {
     world.write_message(BlockDrop {
         dim,
         pos: BlockPos::new(3, 1, 3),
-        item: ResourceLocation::minecraft("stone"),
+        item: rl!("minecraft:stone").to_arc(),
         count: 2,
     });
     world

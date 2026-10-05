@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +49,7 @@ fn amethyst() -> Holder<TrimMaterial> {
 
 fn pal() -> Holder<TrimMaterial> {
     Holder::Direct(TrimMaterial {
-        palette_id: ResourceLocation::new("mcrs", "pal"),
+        palette_id: rl!("mcrs:pal").to_arc(),
         description: Text::text("Pal"),
     })
 }
@@ -80,7 +80,7 @@ impl Sample for Trim {
             Trim {
                 material: pal(),
                 pattern: Holder::Direct(TrimPattern {
-                    asset_id: ResourceLocation::new("mcrs", "pat"),
+                    asset_id: rl!("mcrs:pat").to_arc(),
                     description: Text::translate("trim.mcrs.pat", Vec::new()),
                     decal: true,
                 }),
@@ -88,7 +88,7 @@ impl Sample for Trim {
             Trim {
                 material: amethyst(),
                 pattern: Holder::Direct(TrimPattern {
-                    asset_id: ResourceLocation::new("mcrs", "pat"),
+                    asset_id: rl!("mcrs:pat").to_arc(),
                     description: Text::text("Pat"),
                     decal: false,
                 }),

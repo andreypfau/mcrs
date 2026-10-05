@@ -133,7 +133,8 @@ impl Pool {
         match piece {
             Piece::Template(template) => {
                 let mut push = |name: std::fmt::Arguments| {
-                    let location = ResourceLocation::minecraft(&format!("{}{name}", self.dir));
+                    let location = ResourceLocation::minecraft(&format!("{}{name}", self.dir))
+                        .expect("a hardcoded name");
                     let processors = template.processors.or(self.processors);
                     let element =
                         SingleElement::new(location, processors.map(Into::into), projection);
@@ -207,7 +208,7 @@ fn entries_pool(
         weight: Bounded::new(weight).expect("a pool weight is within 1..=150"),
     };
     TemplatePool {
-        fallback: ResourceLocation::minecraft(fallback),
+        fallback: ResourceLocation::minecraft(fallback).expect("a hardcoded name"),
         elements: entries.into_iter().map(entry).collect(),
     }
 }
@@ -218,13 +219,18 @@ fn listed() -> impl Iterator<Item = &'static Pool> {
 
 pub fn keys() -> impl Iterator<Item = ResourceLocation> {
     listed()
-        .map(|pool| ResourceLocation::minecraft(pool.name))
+        .map(|pool| ResourceLocation::minecraft(pool.name).expect("a hardcoded name"))
         .chain(abandoned_camp::keys())
 }
 
 pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {
     listed()
-        .map(|pool| (ResourceLocation::minecraft(pool.name), pool.build()))
+        .map(|pool| {
+            (
+                ResourceLocation::minecraft(pool.name).expect("a hardcoded name"),
+                pool.build(),
+            )
+        })
         .chain(abandoned_camp::all())
 }
 

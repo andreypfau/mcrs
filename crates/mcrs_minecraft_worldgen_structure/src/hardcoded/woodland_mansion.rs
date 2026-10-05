@@ -554,7 +554,8 @@ impl Placer<'_> {
         let id = ResourceLocation::minecraft(&format!(
             "{}{name}",
             WoodlandMansionPiece::TEMPLATE_PREFIX
-        ));
+        ))
+        .expect("a hardcoded template name");
         *self
             .frozen
             .template_ids

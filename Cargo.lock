@@ -3598,6 +3598,7 @@ dependencies = [
  "bevy_math",
  "derive_more",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "serde",
  "serde_json",

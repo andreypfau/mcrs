@@ -31,7 +31,7 @@ use support::{build_settings_router, corpus};
 
 fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
     let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)
-        .map(|i| ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap())
+        .map(|i| ResourceLocation::read(&format!("minecraft:land_biome_{i}")).unwrap())
         .collect();
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
     let registry = Registry::<keys::Biome>::new(names).expect("distinct land biomes");

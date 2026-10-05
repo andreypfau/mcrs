@@ -274,7 +274,7 @@ impl SiteWorld for FlatSiteWorld<'_> {
 
 fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
     let (min_y, height, sea_level) = dimension(&case.dimension);
-    let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
+    let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
     let states = &program().world;
     let mut world = FlatSiteWorld {
         min_y,
@@ -570,7 +570,7 @@ mod exhaustive {
         let mut placed = 0;
         let mut chunks = 0;
         for case in &dump.cases {
-            let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
+            let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
             let structure = &frozen.structures[id.0 as usize];
             let label = format!(
                 "{} {} base {} at {:?}",

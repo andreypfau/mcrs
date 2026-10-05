@@ -222,7 +222,7 @@ mod tests {
     type Listed = HolderSet<Marker, true>;
 
     fn name(text: &str) -> Name {
-        ResourceLocation::parse(text).unwrap()
+        ResourceLocation::read(text).unwrap()
     }
 
     fn markers() -> Registry<Marker> {

@@ -275,7 +275,7 @@ mod tests {
     }
 
     fn shipped(name: &str) -> CarverConfig {
-        read("carver", &ResourceLocation::minecraft(name))
+        read("carver", &ResourceLocation::minecraft(name).unwrap())
     }
 
     fn compare_region_with_columns(

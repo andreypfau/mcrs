@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::RegistryKey;
+use mcrs_minecraft_core::{RegistryKey, rl};
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -63,7 +63,10 @@ fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSele
                 .scope(|| serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let name = path.file_stem().expect("a file").to_string_lossy();
-            (ResourceLocation::minecraft(&name), variant.spawn_conditions)
+            (
+                ResourceLocation::minecraft(&name).unwrap(),
+                variant.spawn_conditions,
+            )
         })
         .collect()
 }
@@ -118,7 +121,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
 
 fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::FrozenStructure {
     let frozen = frozen();
-    let id = ResourceLocation::parse(id).unwrap();
+    let id = ResourceLocation::read(id).unwrap();
     &frozen.structures[usize::from(frozen.structure_ids[&id].0)]
 }
 
@@ -137,19 +140,16 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     let frozen = frozen();
     let variants = &frozen.variants;
     assert_eq!(variants.cats.ids.len(), 11);
-    assert_eq!(
-        variants.cats.ids[0],
-        ResourceLocation::minecraft("all_black")
-    );
+    assert_eq!(variants.cats.ids[0], rl!("minecraft:all_black").to_arc());
     assert_eq!(
         variants.cat_sounds,
         vec![
-            ResourceLocation::minecraft("classic"),
-            ResourceLocation::minecraft("royal"),
+            rl!("minecraft:classic").to_arc(),
+            rl!("minecraft:royal").to_arc(),
         ]
     );
     let in_hut = SpawnContext {
-        structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
+        structure: Some(frozen.structure_ids[&rl!("minecraft:swamp_hut").to_arc()].0),
         biome: corpus_biomes().by_name("minecraft:swamp").unwrap().number(),
         moon_brightness: 1.0,
     };
@@ -157,11 +157,11 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     for _ in 0..20 {
         assert_eq!(
             variants.cats.pick(&in_hut, &mut rng),
-            Some(&ResourceLocation::minecraft("all_black"))
+            Some(&rl!("minecraft:all_black").to_arc())
         );
     }
     let elsewhere = SpawnContext {
-        structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("igloo")].0),
+        structure: Some(frozen.structure_ids[&rl!("minecraft:igloo").to_arc()].0),
         moon_brightness: 0.0,
         ..in_hut
     };
@@ -169,7 +169,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
         .map(|_| variants.cats.pick(&elsewhere, &mut rng).unwrap().clone())
         .collect();
     assert_eq!(picked.len(), 10);
-    assert!(!picked.contains(&ResourceLocation::minecraft("all_black")));
+    assert!(!picked.contains(&rl!("minecraft:all_black").to_arc()));
 }
 
 fn every_hardcoded_type_freezes_its_own_config() {
@@ -241,12 +241,12 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     let frozen = frozen();
     for structure in corpus_registries().structures.values() {
         for path in structure.templates() {
-            let id = frozen.template_ids[&ResourceLocation::minecraft(path)];
+            let id = frozen.template_ids[&ResourceLocation::minecraft(path).unwrap()];
             assert_ne!(frozen.templates[id.0 as usize].size, [0; 3], "{path}");
         }
     }
     let missing =
-        ResourceLocation::parse("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5")
+        ResourceLocation::read("minecraft:ancient_city/walls/intact_horizontal_wall_stairs_5")
             .unwrap();
     let substitute = &frozen.templates[frozen.template_ids[&missing].0 as usize];
     assert_eq!(substitute.size, [0; 3]);
@@ -263,13 +263,13 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     assert_eq!(structure("minecraft:village_plains").step_index, 40);
     assert_eq!(structure("minecraft:ancient_city").step_index, 0);
 
-    let empty = frozen.pool_ids[&ResourceLocation::minecraft("empty")];
+    let empty = frozen.pool_ids[&rl!("minecraft:empty").to_arc()];
     let empty_pool = &frozen.pools[usize::from(empty.0)];
     assert_eq!(empty_pool.fallback, empty);
     assert!(empty_pool.expanded.is_empty());
     assert_eq!(empty_pool.max_size, 0);
     let houses = &frozen.pools
-        [usize::from(frozen.pool_ids[&ResourceLocation::minecraft("village/plains/houses")].0)];
+        [usize::from(frozen.pool_ids[&rl!("minecraft:village/plains/houses").to_arc()].0)];
     assert!(
         houses.expanded.len()
             > houses
@@ -334,7 +334,7 @@ fn parse<T: serde::de::DeserializeOwned>(
         .iter()
         .map(|(id, json)| {
             (
-                ResourceLocation::parse(id).unwrap(),
+                ResourceLocation::read(id).unwrap(),
                 corpus_set()
                     .scope(|| serde_json::from_str(json))
                     .unwrap_or_else(|e| panic!("{id}: {e}")),
@@ -531,7 +531,7 @@ fn template_with_a_jigsaw_to(pool: &str) -> Template {
             state: 0,
         }],
         palette: Some(vec![PaletteState {
-            id: ResourceLocation::minecraft("jigsaw"),
+            id: rl!("minecraft:jigsaw").to_arc(),
             properties: Some([("orientation".to_owned(), "north_up".to_owned())].into()),
         }]),
         palettes: None,

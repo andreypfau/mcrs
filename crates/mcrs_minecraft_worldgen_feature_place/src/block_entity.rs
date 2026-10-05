@@ -879,7 +879,7 @@ pub const BLOCK_ENTITY_TYPES: [&str; 49] = [
 mod tests {
     use super::*;
     use mcrs_minecraft_core::codec::Bounded;
-    use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+    use mcrs_minecraft_core::{ResourceKey, rl};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
@@ -895,7 +895,7 @@ mod tests {
             items: vec![ItemStackWithSlot {
                 slot: 4,
                 stack: ItemStackValue {
-                    item: ResourceKey::from_location(ResourceLocation::minecraft("bread")),
+                    item: ResourceKey::from_location(rl!("minecraft:bread").to_arc()),
                     count: Bounded(2),
                     components: ComponentPatch::EMPTY,
                 },

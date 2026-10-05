@@ -497,7 +497,7 @@ impl FeatureProgram {
             })
             .collect();
 
-        let moss_id = ResourceLocation::parse("minecraft:pale_moss_patch").expect("a literal id");
+        let moss_id = ResourceLocation::read("minecraft:pale_moss_patch").expect("a literal id");
         let moss_patch = corpus
             .features
             .get(&moss_id)
@@ -2185,7 +2185,7 @@ const DELTA_CANNOT_REPLACE: &[&str] = &[
 ];
 
 fn location(id: &str) -> ResourceLocation {
-    ResourceLocation::parse(id).expect("a literal id")
+    ResourceLocation::read(id).expect("a literal id")
 }
 
 pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {

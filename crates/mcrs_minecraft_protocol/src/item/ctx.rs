@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{
     DenseId, HolderSet, Id, Registry, RegistryLookup, skip_sets, skipping_sets,
@@ -374,8 +374,7 @@ impl<'a, R: RegistryKey, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
     }
 }
 
-static UNRESOLVED: LazyLock<ResourceLocation> =
-    LazyLock::new(|| ResourceLocation::new("mcrs", "unresolved"));
+static UNRESOLVED: LazyLock<ResourceLocation> = LazyLock::new(|| rl!("mcrs:unresolved").to_arc());
 
 /// Resolves every id and every name, so a stack can be walked for its length
 /// without the registries. Sound only while no wire layout in the dispatch
@@ -515,7 +514,11 @@ mod tests {
     fn lookup(registry: &str, names: &[&str]) -> Indexed {
         let mut index = LookupIndex::default();
         for (id, name) in (0u16..).zip(names) {
-            index.insert(registry, id, Some(ResourceLocation::minecraft(name)));
+            index.insert(
+                registry,
+                id,
+                Some(ResourceLocation::minecraft(name).unwrap()),
+            );
         }
         Indexed {
             index,
@@ -524,8 +527,12 @@ mod tests {
     }
 
     fn with_local<R: RegistryKey>(mut lookup: Indexed, names: &[&str]) -> Indexed {
-        let registry =
-            Registry::<R>::new(names.iter().map(|name| ResourceLocation::minecraft(name))).unwrap();
+        let registry = Registry::<R>::new(
+            names
+                .iter()
+                .map(|name| ResourceLocation::minecraft(name).unwrap()),
+        )
+        .unwrap();
         lookup.local = lookup.local.with(registry).unwrap();
         lookup
     }
@@ -533,7 +540,7 @@ mod tests {
     #[test]
     fn a_reference_is_looked_up_by_the_bare_registry_path() {
         let lookup = lookup("item", &["air", "stone"]);
-        let key = ResourceKey::<Item>::from_location(ResourceLocation::minecraft("stone"));
+        let key = ResourceKey::<Item>::from_location(rl!("minecraft:stone").to_arc());
         let mut bytes = Vec::new();
         key.encode_ctx(&lookup, &mut bytes).unwrap();
 
