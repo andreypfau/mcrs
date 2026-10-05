@@ -1,5 +1,6 @@
-use crate::keys::{PlacedKey, placed};
+use mcrs_minecraft_biome::PlacedFeatureKey;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys::placed_feature;
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
 use mcrs_minecraft_worldgen_structure::{PoolElement, SingleElement, TemplatePool};
 
@@ -24,28 +25,28 @@ const BIOME_VARIANTS: [&str; 18] = [
     "pale_garden",
 ];
 
-const TREES: [(&str, PlacedKey); 21] = [
-    ("acacia", placed!("acacia_checked")),
-    ("birch", placed!("birch_checked")),
-    ("fancy_oak", placed!("fancy_oak_checked")),
-    ("oak", placed!("oak_checked")),
-    ("spruce", placed!("spruce_checked")),
-    ("thick_spruce", placed!("mega_spruce_checked")),
-    ("yellow_poplar", placed!("yellow_poplar")),
-    ("orange_poplar", placed!("orange_poplar")),
-    ("red_poplar", placed!("red_poplar")),
-    ("super_birch_bees", placed!("super_birch_bees_0002")),
-    ("spruce_on_snow", placed!("spruce_on_snow")),
-    ("fancy_oak_bees", placed!("fancy_oak_bees_002")),
-    ("birch_bees", placed!("birch_bees_002")),
-    ("pale_oak", placed!("pale_oak_checked")),
-    ("bamboo", placed!("bamboo_in_structure")),
-    ("jungle", placed!("jungle_tree")),
-    ("pine", placed!("pine_checked")),
-    ("mega_pine", placed!("mega_pine_checked")),
-    ("mega_jungle", placed!("mega_jungle_tree_checked")),
-    ("cherry", placed!("cherry_checked")),
-    ("cherry_bees", placed!("cherry_bees_005")),
+const TREES: [(&str, PlacedFeatureKey); 21] = [
+    ("acacia", placed_feature::ACACIA_CHECKED),
+    ("birch", placed_feature::BIRCH_CHECKED),
+    ("fancy_oak", placed_feature::FANCY_OAK_CHECKED),
+    ("oak", placed_feature::OAK_CHECKED),
+    ("spruce", placed_feature::SPRUCE_CHECKED),
+    ("thick_spruce", placed_feature::MEGA_SPRUCE_CHECKED),
+    ("yellow_poplar", placed_feature::YELLOW_POPLAR),
+    ("orange_poplar", placed_feature::ORANGE_POPLAR),
+    ("red_poplar", placed_feature::RED_POPLAR),
+    ("super_birch_bees", placed_feature::SUPER_BIRCH_BEES_0002),
+    ("spruce_on_snow", placed_feature::SPRUCE_ON_SNOW),
+    ("fancy_oak_bees", placed_feature::FANCY_OAK_BEES_002),
+    ("birch_bees", placed_feature::BIRCH_BEES_002),
+    ("pale_oak", placed_feature::PALE_OAK_CHECKED),
+    ("bamboo", placed_feature::BAMBOO_IN_STRUCTURE),
+    ("jungle", placed_feature::JUNGLE_TREE),
+    ("pine", placed_feature::PINE_CHECKED),
+    ("mega_pine", placed_feature::MEGA_PINE_CHECKED),
+    ("mega_jungle", placed_feature::MEGA_JUNGLE_TREE_CHECKED),
+    ("cherry", placed_feature::CHERRY_CHECKED),
+    ("cherry_bees", placed_feature::CHERRY_BEES_005),
 ];
 
 const DEFAULT_CAMP_TYPES: [&str; 3] = ["chest", "barrel", "special"];
@@ -62,7 +63,7 @@ fn legacy(location: String) -> PoolElement {
     PoolElement::LegacySingle(SingleElement::new(location, None, Rigid))
 }
 
-fn tree(feature: PlacedKey) -> TemplatePool {
+fn tree(feature: PlacedFeatureKey) -> TemplatePool {
     pool([PoolElement::Feature {
         feature: feature.into(),
         projection: Rigid,

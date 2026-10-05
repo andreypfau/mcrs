@@ -1,20 +1,21 @@
 use super::defaults::*;
 use super::mob::*;
 use super::*;
-use crate::keys::{ParticleKey, PlacedKey, particle};
+use mcrs_minecraft_biome::PlacedFeatureKey;
+use mcrs_minecraft_keys::{ParticleType, particle_type};
 use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 
 #[derive(Serialize)]
 struct AmbientSounds {
     #[serde(rename = "loop")]
-    looped: SoundKey,
+    looped: &'static str,
     mood: AmbientMood,
     additions: AmbientAdditions,
 }
 
 #[derive(Serialize)]
 struct AmbientMood {
-    sound: SoundKey,
+    sound: &'static str,
     tick_delay: i32,
     block_search_extent: i32,
     offset: f64,
@@ -22,7 +23,7 @@ struct AmbientMood {
 
 #[derive(Serialize)]
 struct AmbientAdditions {
-    sound: SoundKey,
+    sound: &'static str,
     tick_chance: f64,
 }
 
@@ -35,44 +36,50 @@ struct AmbientParticle {
 #[derive(Serialize)]
 struct Particle {
     #[serde(rename = "type")]
-    kind: ParticleKey,
+    kind: &'static str,
 }
 
-fn ambient_sounds(looped: SoundKey, mood: SoundKey, additions: SoundKey) -> AmbientSounds {
+fn ambient_sounds(
+    looped: Id<SoundEvent>,
+    mood: Id<SoundEvent>,
+    additions: Id<SoundEvent>,
+) -> AmbientSounds {
     AmbientSounds {
-        looped,
+        looped: looped.name(),
         mood: AmbientMood {
-            sound: mood,
+            sound: mood.name(),
             tick_delay: 6000,
             block_search_extent: 8,
             offset: 2.0,
         },
         additions: AmbientAdditions {
-            sound: additions,
+            sound: additions.name(),
             tick_chance: 0.0111,
         },
     }
 }
 
-fn ambient_particle(particle: ParticleKey, probability: f32) -> AmbientParticle {
+fn ambient_particle(particle: Id<ParticleType>, probability: f32) -> AmbientParticle {
     AmbientParticle {
-        particle: Particle { kind: particle },
+        particle: Particle {
+            kind: particle.name(),
+        },
         probability,
     }
 }
 
 macro_rules! nether_biome {
-    ($sounds:ident, $fog_color:expr, $mobs:expr, $generation:expr) => {
+    ($music:ident, $looped:ident, $mood:ident, $additions:ident, $fog_color:expr, $mobs:expr, $generation:expr) => {
         base_biome($mobs, $generation)
             .with(FOG_COLOR, HexRgb::of($fog_color))
-            .music(sound::$sounds::MUSIC)
+            .music(sound_event::$music)
             .modified(
                 AMBIENT_SOUNDS,
                 Operation::Override,
                 ambient_sounds(
-                    sound::$sounds::LOOP,
-                    sound::$sounds::MOOD,
-                    sound::$sounds::ADDITIONS,
+                    sound_event::$looped,
+                    sound_event::$mood,
+                    sound_event::$additions,
                 ),
             )
     };
@@ -84,25 +91,29 @@ fn base_biome(mobs: Mobs, generation: Generation) -> Biome {
         .generation(generation)
 }
 
-fn nether_generation(soul_fire: bool, patches: &[PlacedKey], ores: &[PlacedKey]) -> Generation {
+fn nether_generation(
+    soul_fire: bool,
+    patches: &[PlacedFeatureKey],
+    ores: &[PlacedFeatureKey],
+) -> Generation {
     let mut g = Generation::default();
     g.carver(carver::NETHER_CAVE)
-        .feature(VegetalDecoration, placed!("spring_lava"))
+        .feature(VegetalDecoration, placed_feature::SPRING_LAVA)
         .features(
             UndergroundDecoration,
-            &[placed!("spring_open"), placed!("patch_fire")],
+            &[placed_feature::SPRING_OPEN, placed_feature::PATCH_FIRE],
         );
     if soul_fire {
-        g.feature(UndergroundDecoration, placed!("patch_soul_fire"));
+        g.feature(UndergroundDecoration, placed_feature::PATCH_SOUL_FIRE);
     }
     g.features(
         UndergroundDecoration,
-        &[placed!("glowstone_extra"), placed!("glowstone")],
+        &[placed_feature::GLOWSTONE_EXTRA, placed_feature::GLOWSTONE],
     )
     .features(UndergroundDecoration, patches)
     .features(
         UndergroundDecoration,
-        &[placed!("ore_magma"), placed!("spring_closed")],
+        &[placed_feature::ORE_MAGMA, placed_feature::SPRING_CLOSED],
     )
     .features(UndergroundDecoration, ores);
     nether_default_ores(&mut g);
@@ -120,13 +131,21 @@ pub fn nether_wastes() -> Biome {
     let mut g = nether_generation(
         true,
         &[
-            placed!("brown_mushroom_nether"),
-            placed!("red_mushroom_nether"),
+            placed_feature::BROWN_MUSHROOM_NETHER,
+            placed_feature::RED_MUSHROOM_NETHER,
         ],
         &[],
     );
     default_mushrooms(&mut g);
-    nether_biome!(nether_wastes, -13432824, m, g)
+    nether_biome!(
+        MUSIC_NETHER_NETHER_WASTES,
+        AMBIENT_NETHER_WASTES_LOOP,
+        AMBIENT_NETHER_WASTES_MOOD,
+        AMBIENT_NETHER_WASTES_ADDITIONS,
+        -13432824,
+        m,
+        g
+    )
 }
 
 pub fn soul_sand_valley() -> Biome {
@@ -140,14 +159,23 @@ pub fn soul_sand_valley() -> Biome {
     }
     let mut g = nether_generation(
         true,
-        &[placed!("patch_crimson_roots")],
-        &[placed!("ore_soul_sand")],
+        &[placed_feature::PATCH_CRIMSON_ROOTS],
+        &[placed_feature::ORE_SOUL_SAND],
     );
-    g.feature(LocalModifications, placed!("basalt_pillar"));
-    nether_biome!(soul_sand_valley, -14989499, m, g).modified(
+    g.feature(LocalModifications, placed_feature::BASALT_PILLAR);
+    nether_biome!(
+        MUSIC_NETHER_SOUL_SAND_VALLEY,
+        AMBIENT_SOUL_SAND_VALLEY_LOOP,
+        AMBIENT_SOUL_SAND_VALLEY_MOOD,
+        AMBIENT_SOUL_SAND_VALLEY_ADDITIONS,
+        -14989499,
+        m,
+        g
+    )
+    .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle::ASH, 0.00625)],
+        [ambient_particle(particle_type::ASH, 0.00625)],
     )
 }
 
@@ -161,34 +189,43 @@ pub fn basalt_deltas() -> Biome {
         .features(
             SurfaceStructures,
             &[
-                placed!("delta"),
-                placed!("small_basalt_columns"),
-                placed!("large_basalt_columns"),
+                placed_feature::DELTA,
+                placed_feature::SMALL_BASALT_COLUMNS,
+                placed_feature::LARGE_BASALT_COLUMNS,
             ],
         )
         .features(
             UndergroundDecoration,
             &[
-                placed!("basalt_blobs"),
-                placed!("blackstone_blobs"),
-                placed!("spring_delta"),
-                placed!("patch_fire"),
-                placed!("patch_soul_fire"),
-                placed!("glowstone_extra"),
-                placed!("glowstone"),
-                placed!("brown_mushroom_nether"),
-                placed!("red_mushroom_nether"),
-                placed!("ore_magma"),
-                placed!("spring_closed_double"),
-                placed!("ore_gold_deltas"),
-                placed!("ore_quartz_deltas"),
+                placed_feature::BASALT_BLOBS,
+                placed_feature::BLACKSTONE_BLOBS,
+                placed_feature::SPRING_DELTA,
+                placed_feature::PATCH_FIRE,
+                placed_feature::PATCH_SOUL_FIRE,
+                placed_feature::GLOWSTONE_EXTRA,
+                placed_feature::GLOWSTONE,
+                placed_feature::BROWN_MUSHROOM_NETHER,
+                placed_feature::RED_MUSHROOM_NETHER,
+                placed_feature::ORE_MAGMA,
+                placed_feature::SPRING_CLOSED_DOUBLE,
+                placed_feature::ORE_GOLD_DELTAS,
+                placed_feature::ORE_QUARTZ_DELTAS,
             ],
         );
     ancient_debris(&mut g);
-    nether_biome!(basalt_deltas, -9937040, m, g).modified(
+    nether_biome!(
+        MUSIC_NETHER_BASALT_DELTAS,
+        AMBIENT_BASALT_DELTAS_LOOP,
+        AMBIENT_BASALT_DELTAS_MOOD,
+        AMBIENT_BASALT_DELTAS_ADDITIONS,
+        -9937040,
+        m,
+        g
+    )
+    .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle::WHITE_ASH, 0.118093334)],
+        [ambient_particle(particle_type::WHITE_ASH, 0.118093334)],
     )
 }
 
@@ -203,15 +240,24 @@ pub fn crimson_forest() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed!("weeping_vines"),
-            placed!("crimson_fungi"),
-            placed!("crimson_forest_vegetation"),
+            placed_feature::WEEPING_VINES,
+            placed_feature::CRIMSON_FUNGI,
+            placed_feature::CRIMSON_FOREST_VEGETATION,
         ],
     );
-    nether_biome!(crimson_forest, -13434109, m, g).modified(
+    nether_biome!(
+        MUSIC_NETHER_CRIMSON_FOREST,
+        AMBIENT_CRIMSON_FOREST_LOOP,
+        AMBIENT_CRIMSON_FOREST_MOOD,
+        AMBIENT_CRIMSON_FOREST_ADDITIONS,
+        -13434109,
+        m,
+        g
+    )
+    .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle::CRIMSON_SPORE, 0.025)],
+        [ambient_particle(particle_type::CRIMSON_SPORE, 0.025)],
     )
 }
 
@@ -225,15 +271,24 @@ pub fn warped_forest() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed!("warped_fungi"),
-            placed!("warped_forest_vegetation"),
-            placed!("nether_sprouts"),
-            placed!("twisting_vines"),
+            placed_feature::WARPED_FUNGI,
+            placed_feature::WARPED_FOREST_VEGETATION,
+            placed_feature::NETHER_SPROUTS,
+            placed_feature::TWISTING_VINES,
         ],
     );
-    nether_biome!(warped_forest, -15071974, m, g).modified(
+    nether_biome!(
+        MUSIC_NETHER_WARPED_FOREST,
+        AMBIENT_WARPED_FOREST_LOOP,
+        AMBIENT_WARPED_FOREST_MOOD,
+        AMBIENT_WARPED_FOREST_ADDITIONS,
+        -15071974,
+        m,
+        g
+    )
+    .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle::WARPED_SPORE, 0.01428)],
+        [ambient_particle(particle_type::WARPED_SPORE, 0.01428)],
     )
 }

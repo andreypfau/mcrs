@@ -1,5 +1,5 @@
 use super::{Pool, pool, single};
-use crate::keys::processors;
+use mcrs_minecraft_keys::processor_list;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -7,45 +7,45 @@ pub const POOLS: &[Pool] = &[
         (single("air"), 3),
         (single("gold"), 1),
     ]),
-    pool("bastion/bridge/bridge_pieces").dir("bastion/bridge/bridge_pieces/").processors(processors::BRIDGE).pieces(&[(single("bridge"), 1)]),
-    pool("bastion/bridge/connectors").dir("bastion/bridge/connectors/").processors(processors::BASTION_GENERIC_DEGRADATION).pieces(&[
+    pool("bastion/bridge/bridge_pieces").dir("bastion/bridge/bridge_pieces/").processors(processor_list::BRIDGE).pieces(&[(single("bridge"), 1)]),
+    pool("bastion/bridge/connectors").dir("bastion/bridge/connectors/").processors(processor_list::BASTION_GENERIC_DEGRADATION).pieces(&[
         (single("back_bridge_top"), 1),
         (single("back_bridge_bottom"), 1),
     ]),
-    pool("bastion/bridge/legs").dir("bastion/bridge/legs/").processors(processors::BASTION_GENERIC_DEGRADATION).pieces(&[(single("leg_").numbered(0, 1), 1)]),
-    pool("bastion/bridge/rampart_plates").dir("bastion/bridge/rampart_plates/").processors(processors::RAMPART_DEGRADATION).pieces(&[(single("plate_0"), 1)]),
-    pool("bastion/bridge/ramparts").dir("bastion/bridge/ramparts/").processors(processors::RAMPART_DEGRADATION).pieces(&[(single("rampart_").numbered(0, 1), 1)]),
+    pool("bastion/bridge/legs").dir("bastion/bridge/legs/").processors(processor_list::BASTION_GENERIC_DEGRADATION).pieces(&[(single("leg_").numbered(0, 1), 1)]),
+    pool("bastion/bridge/rampart_plates").dir("bastion/bridge/rampart_plates/").processors(processor_list::RAMPART_DEGRADATION).pieces(&[(single("plate_0"), 1)]),
+    pool("bastion/bridge/ramparts").dir("bastion/bridge/ramparts/").processors(processor_list::RAMPART_DEGRADATION).pieces(&[(single("rampart_").numbered(0, 1), 1)]),
     pool("bastion/bridge/starting_pieces").dir("bastion/bridge/starting_pieces/").pieces(&[
-        (single("entrance").with(processors::ENTRANCE_REPLACEMENT), 1),
-        (single("entrance_face").with(processors::BASTION_GENERIC_DEGRADATION), 1),
+        (single("entrance").with(processor_list::ENTRANCE_REPLACEMENT), 1),
+        (single("entrance_face").with(processor_list::BASTION_GENERIC_DEGRADATION), 1),
     ]),
-    pool("bastion/bridge/walls").dir("bastion/bridge/walls/").processors(processors::RAMPART_DEGRADATION).pieces(&[(single("wall_base_").numbered(0, 1), 1)]),
-    pool("bastion/hoglin_stable/connectors").dir("bastion/hoglin_stable/connectors/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("end_post_connector"), 1)]),
-    pool("bastion/hoglin_stable/large_stables/inner").dir("bastion/hoglin_stable/large_stables/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("inner_").numbered(0, 4), 1)]),
-    pool("bastion/hoglin_stable/large_stables/outer").dir("bastion/hoglin_stable/large_stables/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("outer_").numbered(0, 4), 1)]),
-    pool("bastion/hoglin_stable/mirrored_starting_pieces").dir("bastion/hoglin_stable/starting_pieces/").processors(processors::STABLE_DEGRADATION).pieces(&[
+    pool("bastion/bridge/walls").dir("bastion/bridge/walls/").processors(processor_list::RAMPART_DEGRADATION).pieces(&[(single("wall_base_").numbered(0, 1), 1)]),
+    pool("bastion/hoglin_stable/connectors").dir("bastion/hoglin_stable/connectors/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("end_post_connector"), 1)]),
+    pool("bastion/hoglin_stable/large_stables/inner").dir("bastion/hoglin_stable/large_stables/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("inner_").numbered(0, 4), 1)]),
+    pool("bastion/hoglin_stable/large_stables/outer").dir("bastion/hoglin_stable/large_stables/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("outer_").numbered(0, 4), 1)]),
+    pool("bastion/hoglin_stable/mirrored_starting_pieces").dir("bastion/hoglin_stable/starting_pieces/").processors(processor_list::STABLE_DEGRADATION).pieces(&[
         (single("stairs_0_mirrored"), 1),
         (single("stairs_1_mirrored"), 1),
         (single("stairs_2_mirrored"), 1),
         (single("stairs_3_mirrored"), 1),
         (single("stairs_4_mirrored"), 1),
     ]),
-    pool("bastion/hoglin_stable/posts").dir("bastion/hoglin_stable/posts/").processors(processors::STABLE_DEGRADATION).pieces(&[
+    pool("bastion/hoglin_stable/posts").dir("bastion/hoglin_stable/posts/").processors(processor_list::STABLE_DEGRADATION).pieces(&[
         (single("stair_post"), 1),
         (single("end_post"), 1),
     ]),
-    pool("bastion/hoglin_stable/rampart_plates").dir("bastion/hoglin_stable/rampart_plates/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("rampart_plate_1"), 1)]),
-    pool("bastion/hoglin_stable/ramparts").dir("bastion/hoglin_stable/ramparts/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("ramparts_").numbered(1, 3), 1)]),
-    pool("bastion/hoglin_stable/small_stables/inner").dir("bastion/hoglin_stable/small_stables/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("inner_").numbered(0, 3), 1)]),
-    pool("bastion/hoglin_stable/small_stables/outer").dir("bastion/hoglin_stable/small_stables/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("outer_").numbered(0, 3), 1)]),
-    pool("bastion/hoglin_stable/stairs").dir("bastion/hoglin_stable/stairs/").processors(processors::STABLE_DEGRADATION).pieces(&[
+    pool("bastion/hoglin_stable/rampart_plates").dir("bastion/hoglin_stable/rampart_plates/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("rampart_plate_1"), 1)]),
+    pool("bastion/hoglin_stable/ramparts").dir("bastion/hoglin_stable/ramparts/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("ramparts_").numbered(1, 3), 1)]),
+    pool("bastion/hoglin_stable/small_stables/inner").dir("bastion/hoglin_stable/small_stables/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("inner_").numbered(0, 3), 1)]),
+    pool("bastion/hoglin_stable/small_stables/outer").dir("bastion/hoglin_stable/small_stables/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("outer_").numbered(0, 3), 1)]),
+    pool("bastion/hoglin_stable/stairs").dir("bastion/hoglin_stable/stairs/").processors(processor_list::STABLE_DEGRADATION).pieces(&[
         (single("stairs_1_").numbered(0, 4), 1),
         (single("stairs_2_").numbered(0, 4), 1),
         (single("stairs_3_").numbered(0, 4), 1),
     ]),
-    pool("bastion/hoglin_stable/starting_pieces").dir("bastion/hoglin_stable/starting_pieces/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("starting_stairs_").numbered(0, 4), 1)]),
-    pool("bastion/hoglin_stable/wall_bases").dir("bastion/hoglin_stable/walls/").processors(processors::STABLE_DEGRADATION).pieces(&[(single("wall_base"), 1)]),
-    pool("bastion/hoglin_stable/walls").dir("bastion/hoglin_stable/walls/").processors(processors::SIDE_WALL_DEGRADATION).pieces(&[(single("side_wall_").numbered(0, 1), 1)]),
+    pool("bastion/hoglin_stable/starting_pieces").dir("bastion/hoglin_stable/starting_pieces/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("starting_stairs_").numbered(0, 4), 1)]),
+    pool("bastion/hoglin_stable/wall_bases").dir("bastion/hoglin_stable/walls/").processors(processor_list::STABLE_DEGRADATION).pieces(&[(single("wall_base"), 1)]),
+    pool("bastion/hoglin_stable/walls").dir("bastion/hoglin_stable/walls/").processors(processor_list::SIDE_WALL_DEGRADATION).pieces(&[(single("side_wall_").numbered(0, 1), 1)]),
     pool("bastion/mobs/hoglin").dir("bastion/mobs/").pieces(&[
         (single("hoglin"), 2),
         (single("empty"), 1),
@@ -61,31 +61,31 @@ pub const POOLS: &[Pool] = &[
         (single("melee_piglin"), 5),
         (single("sword_piglin"), 1),
     ]),
-    pool("bastion/starts").dir("bastion/").processors(processors::BASTION_GENERIC_DEGRADATION).pieces(&[
+    pool("bastion/starts").dir("bastion/").processors(processor_list::BASTION_GENERIC_DEGRADATION).pieces(&[
         (single("units/air_base"), 1),
         (single("hoglin_stable/air_base"), 1),
         (single("treasure/big_air_full"), 1),
         (single("bridge/starting_pieces/entrance_base"), 1),
     ]),
-    pool("bastion/treasure/bases").dir("bastion/treasure/bases/").processors(processors::TREASURE_ROOMS).pieces(&[(single("lava_basin"), 1)]),
-    pool("bastion/treasure/bases/centers").dir("bastion/treasure/bases/centers/").processors(processors::TREASURE_ROOMS).pieces(&[(single("center_").numbered(0, 3), 1)]),
-    pool("bastion/treasure/brains").dir("bastion/treasure/brains/").processors(processors::TREASURE_ROOMS).pieces(&[(single("center_brain"), 1)]),
-    pool("bastion/treasure/connectors").dir("bastion/treasure/connectors/").processors(processors::TREASURE_ROOMS).pieces(&[
+    pool("bastion/treasure/bases").dir("bastion/treasure/bases/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("lava_basin"), 1)]),
+    pool("bastion/treasure/bases/centers").dir("bastion/treasure/bases/centers/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("center_").numbered(0, 3), 1)]),
+    pool("bastion/treasure/brains").dir("bastion/treasure/brains/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("center_brain"), 1)]),
+    pool("bastion/treasure/connectors").dir("bastion/treasure/connectors/").processors(processor_list::TREASURE_ROOMS).pieces(&[
         (single("center_to_wall_middle"), 1),
         (single("center_to_wall_top"), 1),
         (single("center_to_wall_top_entrance"), 1),
     ]),
-    pool("bastion/treasure/corners/bottom").dir("bastion/treasure/corners/bottom/").processors(processors::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
-    pool("bastion/treasure/corners/edges").dir("bastion/treasure/corners/edges/").processors(processors::HIGH_WALL).pieces(&[
+    pool("bastion/treasure/corners/bottom").dir("bastion/treasure/corners/bottom/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
+    pool("bastion/treasure/corners/edges").dir("bastion/treasure/corners/edges/").processors(processor_list::HIGH_WALL).pieces(&[
         (single("bottom"), 1),
         (single("middle"), 1),
         (single("top"), 1),
     ]),
-    pool("bastion/treasure/corners/middle").dir("bastion/treasure/corners/middle/").processors(processors::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
-    pool("bastion/treasure/corners/top").dir("bastion/treasure/corners/top/").processors(processors::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
-    pool("bastion/treasure/entrances").dir("bastion/treasure/entrances/").processors(processors::TREASURE_ROOMS).pieces(&[(single("entrance_0"), 1)]),
-    pool("bastion/treasure/extensions/houses").dir("bastion/treasure/extensions/").processors(processors::TREASURE_ROOMS).pieces(&[(single("house_").numbered(0, 1), 1)]),
-    pool("bastion/treasure/extensions/large_pool").dir("bastion/treasure/extensions/").processors(processors::TREASURE_ROOMS).pieces(&[
+    pool("bastion/treasure/corners/middle").dir("bastion/treasure/corners/middle/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
+    pool("bastion/treasure/corners/top").dir("bastion/treasure/corners/top/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("corner_").numbered(0, 1), 1)]),
+    pool("bastion/treasure/entrances").dir("bastion/treasure/entrances/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("entrance_0"), 1)]),
+    pool("bastion/treasure/extensions/houses").dir("bastion/treasure/extensions/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("house_").numbered(0, 1), 1)]),
+    pool("bastion/treasure/extensions/large_pool").dir("bastion/treasure/extensions/").processors(processor_list::TREASURE_ROOMS).pieces(&[
         (single("empty"), 1),
         (single("empty"), 1),
         (single("fire_room"), 1),
@@ -93,33 +93,33 @@ pub const POOLS: &[Pool] = &[
         (single("roofed_bridge"), 1),
         (single("empty"), 1),
     ]),
-    pool("bastion/treasure/extensions/small_pool").dir("bastion/treasure/extensions/").processors(processors::TREASURE_ROOMS).pieces(&[
+    pool("bastion/treasure/extensions/small_pool").dir("bastion/treasure/extensions/").processors(processor_list::TREASURE_ROOMS).pieces(&[
         (single("empty"), 1),
         (single("fire_room"), 1),
         (single("empty"), 1),
         (single("small_bridge_").numbered(0, 3), 1),
     ]),
     pool("bastion/treasure/ramparts").dir("bastion/treasure/ramparts/").pieces(&[
-        (single("mid_wall_main").with(processors::TREASURE_ROOMS), 1),
-        (single("mid_wall_side").with(processors::TREASURE_ROOMS), 1),
-        (single("bottom_wall_0").with(processors::BOTTOM_RAMPART), 1),
-        (single("top_wall").with(processors::HIGH_RAMPART), 1),
-        (single("lava_basin_side").with(processors::TREASURE_ROOMS), 1),
-        (single("lava_basin_main").with(processors::TREASURE_ROOMS), 1),
+        (single("mid_wall_main").with(processor_list::TREASURE_ROOMS), 1),
+        (single("mid_wall_side").with(processor_list::TREASURE_ROOMS), 1),
+        (single("bottom_wall_0").with(processor_list::BOTTOM_RAMPART), 1),
+        (single("top_wall").with(processor_list::HIGH_RAMPART), 1),
+        (single("lava_basin_side").with(processor_list::TREASURE_ROOMS), 1),
+        (single("lava_basin_main").with(processor_list::TREASURE_ROOMS), 1),
     ]),
-    pool("bastion/treasure/roofs").dir("bastion/treasure/roofs/").processors(processors::ROOF).pieces(&[
+    pool("bastion/treasure/roofs").dir("bastion/treasure/roofs/").processors(processor_list::ROOF).pieces(&[
         (single("wall_roof"), 1),
         (single("corner_roof"), 1),
         (single("center_roof"), 1),
     ]),
-    pool("bastion/treasure/stairs").dir("bastion/treasure/stairs/").processors(processors::TREASURE_ROOMS).pieces(&[(single("lower_stairs"), 1)]),
+    pool("bastion/treasure/stairs").dir("bastion/treasure/stairs/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("lower_stairs"), 1)]),
     pool("bastion/treasure/walls").dir("bastion/treasure/walls/").pieces(&[
-        (single("lava_wall").with(processors::TREASURE_ROOMS), 1),
-        (single("entrance_wall").with(processors::HIGH_WALL), 1),
+        (single("lava_wall").with(processor_list::TREASURE_ROOMS), 1),
+        (single("entrance_wall").with(processor_list::HIGH_WALL), 1),
     ]),
-    pool("bastion/treasure/walls/bottom").dir("bastion/treasure/walls/bottom/").processors(processors::TREASURE_ROOMS).pieces(&[(single("wall_").numbered(0, 3), 1)]),
-    pool("bastion/treasure/walls/mid").dir("bastion/treasure/walls/mid/").processors(processors::TREASURE_ROOMS).pieces(&[(single("wall_").numbered(0, 2), 1)]),
-    pool("bastion/treasure/walls/outer").dir("bastion/treasure/walls/outer/").processors(processors::HIGH_WALL).pieces(&[
+    pool("bastion/treasure/walls/bottom").dir("bastion/treasure/walls/bottom/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("wall_").numbered(0, 3), 1)]),
+    pool("bastion/treasure/walls/mid").dir("bastion/treasure/walls/mid/").processors(processor_list::TREASURE_ROOMS).pieces(&[(single("wall_").numbered(0, 2), 1)]),
+    pool("bastion/treasure/walls/outer").dir("bastion/treasure/walls/outer/").processors(processor_list::HIGH_WALL).pieces(&[
         (single("top_corner"), 1),
         (single("mid_corner"), 1),
         (single("bottom_corner"), 1),
@@ -127,28 +127,28 @@ pub const POOLS: &[Pool] = &[
         (single("medium_outer_wall"), 1),
         (single("tall_outer_wall"), 1),
     ]),
-    pool("bastion/treasure/walls/top").dir("bastion/treasure/walls/top/").processors(processors::TREASURE_ROOMS).pieces(&[
+    pool("bastion/treasure/walls/top").dir("bastion/treasure/walls/top/").processors(processor_list::TREASURE_ROOMS).pieces(&[
         (single("main_entrance"), 1),
         (single("wall_").numbered(0, 1), 1),
     ]),
-    pool("bastion/units/center_pieces").dir("bastion/units/center_pieces/").processors(processors::HOUSING).pieces(&[(single("center_").numbered(0, 2), 1)]),
-    pool("bastion/units/edge_wall_units").dir("bastion/units/wall_units/").processors(processors::HOUSING).pieces(&[(single("edge_0_large"), 1)]),
-    pool("bastion/units/edges").dir("bastion/units/edges/").processors(processors::HOUSING).pieces(&[(single("edge_0"), 1)]),
-    pool("bastion/units/fillers/stage_0").dir("bastion/units/fillers/").processors(processors::HOUSING).pieces(&[(single("stage_0"), 1)]),
-    pool("bastion/units/large_ramparts").dir("bastion/units/ramparts/").processors(processors::HOUSING).pieces(&[(single("ramparts_0"), 1)]),
-    pool("bastion/units/pathways").dir("bastion/units/pathways/").processors(processors::HOUSING).pieces(&[
+    pool("bastion/units/center_pieces").dir("bastion/units/center_pieces/").processors(processor_list::HOUSING).pieces(&[(single("center_").numbered(0, 2), 1)]),
+    pool("bastion/units/edge_wall_units").dir("bastion/units/wall_units/").processors(processor_list::HOUSING).pieces(&[(single("edge_0_large"), 1)]),
+    pool("bastion/units/edges").dir("bastion/units/edges/").processors(processor_list::HOUSING).pieces(&[(single("edge_0"), 1)]),
+    pool("bastion/units/fillers/stage_0").dir("bastion/units/fillers/").processors(processor_list::HOUSING).pieces(&[(single("stage_0"), 1)]),
+    pool("bastion/units/large_ramparts").dir("bastion/units/ramparts/").processors(processor_list::HOUSING).pieces(&[(single("ramparts_0"), 1)]),
+    pool("bastion/units/pathways").dir("bastion/units/pathways/").processors(processor_list::HOUSING).pieces(&[
         (single("pathway_0"), 1),
         (single("pathway_wall_0"), 1),
     ]),
-    pool("bastion/units/rampart_plates").dir("bastion/units/rampart_plates/").processors(processors::HOUSING).pieces(&[(single("plate_0"), 1)]),
-    pool("bastion/units/ramparts").dir("bastion/units/ramparts/").processors(processors::HOUSING).pieces(&[(single("ramparts_").numbered(0, 2), 1)]),
-    pool("bastion/units/stages/rot/stage_1").dir("bastion/units/stages/rot/").processors(processors::HOUSING).pieces(&[(single("stage_1_0"), 1)]),
-    pool("bastion/units/stages/stage_0").dir("bastion/units/stages/").processors(processors::HOUSING).pieces(&[(single("stage_0_").numbered(0, 3), 1)]),
-    pool("bastion/units/stages/stage_1").dir("bastion/units/stages/").processors(processors::HOUSING).pieces(&[(single("stage_1_").numbered(0, 3), 1)]),
-    pool("bastion/units/stages/stage_2").dir("bastion/units/stages/").processors(processors::HOUSING).pieces(&[(single("stage_2_").numbered(0, 1), 1)]),
-    pool("bastion/units/stages/stage_3").dir("bastion/units/stages/").processors(processors::HOUSING).pieces(&[(single("stage_3_").numbered(0, 3), 1)]),
-    pool("bastion/units/wall_units").dir("bastion/units/wall_units/").processors(processors::HOUSING).pieces(&[(single("unit_0"), 1)]),
-    pool("bastion/units/walls/wall_bases").dir("bastion/units/walls/").processors(processors::HOUSING).pieces(&[
+    pool("bastion/units/rampart_plates").dir("bastion/units/rampart_plates/").processors(processor_list::HOUSING).pieces(&[(single("plate_0"), 1)]),
+    pool("bastion/units/ramparts").dir("bastion/units/ramparts/").processors(processor_list::HOUSING).pieces(&[(single("ramparts_").numbered(0, 2), 1)]),
+    pool("bastion/units/stages/rot/stage_1").dir("bastion/units/stages/rot/").processors(processor_list::HOUSING).pieces(&[(single("stage_1_0"), 1)]),
+    pool("bastion/units/stages/stage_0").dir("bastion/units/stages/").processors(processor_list::HOUSING).pieces(&[(single("stage_0_").numbered(0, 3), 1)]),
+    pool("bastion/units/stages/stage_1").dir("bastion/units/stages/").processors(processor_list::HOUSING).pieces(&[(single("stage_1_").numbered(0, 3), 1)]),
+    pool("bastion/units/stages/stage_2").dir("bastion/units/stages/").processors(processor_list::HOUSING).pieces(&[(single("stage_2_").numbered(0, 1), 1)]),
+    pool("bastion/units/stages/stage_3").dir("bastion/units/stages/").processors(processor_list::HOUSING).pieces(&[(single("stage_3_").numbered(0, 3), 1)]),
+    pool("bastion/units/wall_units").dir("bastion/units/wall_units/").processors(processor_list::HOUSING).pieces(&[(single("unit_0"), 1)]),
+    pool("bastion/units/walls/wall_bases").dir("bastion/units/walls/").processors(processor_list::HOUSING).pieces(&[
         (single("wall_base"), 1),
         (single("connected_wall"), 1),
     ]),

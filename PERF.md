@@ -828,6 +828,33 @@ directory as the world folder panicked for want of saved world generation settin
 without `BEVY_ASSET_ROOT` (three from another directory, three from the repository root)
 panicked for want of `version.json` beside the executable.
 
+## Keys crate
+
+Scenario: `mcrs_minecraft_keys`, the checked-in crate of generated registry markers, static ids and
+data pack keys (about 1.2 MB of source in 153 files), on the reference machine's 16 cores, dev
+profile, `cargo check`. Each row is one run, not a median. The crate alone is `cargo clean -p
+mcrs_minecraft_keys` followed by `cargo check -p mcrs_minecraft_keys` with its dependencies already
+checked. The workspace rows are `cargo check --workspace` into an empty `CARGO_TARGET_DIR`, once at
+`3b6f10631`, the last commit before the crate existed (455 crates), and once at the tree that adds
+the built-in worldgen change (456 crates). Cargo 1.100 nightly keeps the metadata under
+`target/debug/build/<crate>/<hash>/out/`, not `target/debug/deps/`.
+
+| measurement | result | 1-minute load average at start / end |
+|---|---|---|
+| crate alone, clean check | 1.14 s wall, 4.08 s user | 33.25 / 31.15 |
+| crate alone, first run (also re-checked `mcrs_minecraft_registry`) | 1.56 s wall, 3.75 s user | 47.52 / 48.50 |
+| clean workspace check without the crate | 66 s | 20.02 / 28.84 |
+| clean workspace check with the crate | 59 s | 28.84 / 25.12 |
+| `libmcrs_minecraft_keys-*.rmeta` | 6,161,686 bytes (6,164,226 in the empty target directory) | not applicable |
+| `mcrs_minecraft_keys` after touching `mcrs_minecraft_world/src/lib.rs`, `cargo build -v -p mcrs_minecraft_world` | `Fresh` | 19.32 / 57.09 |
+
+The machine was not idle at any point: every load average above is well over 4, from other builds
+running alongside, so every time is an upper bound and a rerun on an idle machine is the way to get
+the real figure. The two workspace rows are not evidence about the crate: the run with the crate
+was the faster one only because the load happened to be lower, and a one-second crate sits far
+inside that spread. What they do show is that adding it does not move a clean workspace check
+outside the noise, and that a change in a dependent crate does not rebuild it.
+
 ## Findings not yet acted on
 
 - The client is built without Bevy's `multi_threaded` feature: the ECS runs on the

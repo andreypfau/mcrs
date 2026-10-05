@@ -11,11 +11,14 @@ mod village_savanna;
 mod village_snowy;
 mod village_taiga;
 
-use crate::keys::{PlacedKey, ProcessorsKey};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_biome::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::ProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_structure::{PoolElement, PoolEntry, SingleElement, TemplatePool};
+
+type ProcessorListKey = ResourceKey<ProcessorList, &'static str>;
 
 /// A template named relative to its pool's directory. `numbers` makes one row
 /// stand for the templates `name<lo>` to `name<hi>`, zero-padded to a width.
@@ -24,13 +27,13 @@ pub struct Template {
     legacy: bool,
     name: &'static str,
     numbers: Option<(u32, u32, usize)>,
-    processors: Option<ProcessorsKey>,
+    processors: Option<ProcessorListKey>,
 }
 
 #[derive(Clone, Copy)]
 pub enum Piece {
     Template(Template),
-    Feature(PlacedKey),
+    Feature(PlacedFeatureKey),
     List(&'static [Piece]),
     Empty,
 }
@@ -60,7 +63,7 @@ impl Piece {
         }
     }
 
-    pub const fn with(self, processors: ProcessorsKey) -> Self {
+    pub const fn with(self, processors: ProcessorListKey) -> Self {
         let mut template = self.template();
         template.processors = Some(processors);
         Piece::Template(template)
@@ -84,7 +87,7 @@ pub struct Pool {
     fallback: &'static str,
     projection: Projection,
     dir: &'static str,
-    processors: Option<ProcessorsKey>,
+    processors: Option<ProcessorListKey>,
     pieces: &'static [(Piece, i32)],
 }
 
@@ -115,7 +118,7 @@ impl Pool {
         self
     }
 
-    pub const fn processors(mut self, processors: ProcessorsKey) -> Self {
+    pub const fn processors(mut self, processors: ProcessorListKey) -> Self {
         self.processors = Some(processors);
         self
     }

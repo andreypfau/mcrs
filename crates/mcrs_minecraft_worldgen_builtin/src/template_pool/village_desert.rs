@@ -1,6 +1,6 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use crate::keys::{placed, processors};
+use mcrs_minecraft_keys::{placed_feature, processor_list};
 
 const STREETS: &[(Piece, i32)] = &[
     (legacy("corner_").padded(1, 2, 2), 3),
@@ -13,8 +13,8 @@ const STREETS: &[(Piece, i32)] = &[
 
 const DECOR: &[(Piece, i32)] = &[
     (legacy("desert_lamp_1"), 10),
-    (Feature(placed!("patch_cactus")), 4),
-    (Feature(placed!("pile_hay")), 4),
+    (Feature(placed_feature::PATCH_CACTUS), 4),
+    (Feature(placed_feature::PILE_HAY), 4),
     (Empty, 10),
 ];
 
@@ -39,8 +39,8 @@ pub const POOLS: &[Pool] = &[
         (legacy("desert_mason_1"), 2),
         (legacy("desert_weaponsmith_1"), 2),
         (legacy("desert_temple_").numbered(1, 2), 2),
-        (legacy("desert_large_farm_1").with(processors::FARM_DESERT), 11),
-        (legacy("desert_farm_").numbered(1, 2).with(processors::FARM_DESERT), 4),
+        (legacy("desert_large_farm_1").with(processor_list::FARM_DESERT), 11),
+        (legacy("desert_farm_").numbered(1, 2).with(processor_list::FARM_DESERT), 4),
         (legacy("desert_animal_pen_").numbered(1, 2), 2),
         (Empty, 5),
     ]),
@@ -49,16 +49,16 @@ pub const POOLS: &[Pool] = &[
     pool("village/desert/town_centers").dir("village/desert/").pieces(&[
         (legacy("town_centers/desert_meeting_point_").numbered(1, 2), 98),
         (legacy("town_centers/desert_meeting_point_3"), 49),
-        (legacy("zombie/town_centers/desert_meeting_point_").numbered(1, 2).with(processors::ZOMBIE_DESERT), 2),
-        (legacy("zombie/town_centers/desert_meeting_point_3").with(processors::ZOMBIE_DESERT), 1),
+        (legacy("zombie/town_centers/desert_meeting_point_").numbered(1, 2).with(processor_list::ZOMBIE_DESERT), 2),
+        (legacy("zombie/town_centers/desert_meeting_point_3").with(processor_list::ZOMBIE_DESERT), 1),
     ]),
     pool("village/desert/villagers").dir("village/desert/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("baby"), 1),
         (legacy("unemployed"), 10),
     ]),
-    pool("village/desert/zombie/decor").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(DECOR),
-    pool("village/desert/zombie/houses").fallback("village/desert/zombie/terminators").dir("village/desert/").processors(processors::ZOMBIE_DESERT).pieces(&[
+    pool("village/desert/zombie/decor").dir("village/desert/").processors(processor_list::ZOMBIE_DESERT).pieces(DECOR),
+    pool("village/desert/zombie/houses").fallback("village/desert/zombie/terminators").dir("village/desert/").processors(processor_list::ZOMBIE_DESERT).pieces(&[
         (legacy("zombie/houses/desert_small_house_").numbered(1, 5), 2),
         (legacy("zombie/houses/desert_small_house_6"), 1),
         (legacy("zombie/houses/desert_small_house_").numbered(7, 8), 2),

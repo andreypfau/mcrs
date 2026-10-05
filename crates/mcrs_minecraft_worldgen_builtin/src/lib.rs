@@ -5,7 +5,6 @@
 mod beta;
 mod biome;
 mod density;
-mod keys;
 mod noises;
 mod settings;
 mod structure;

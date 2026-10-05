@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 const DARK_DRY_FOLIAGE_COLOR: i32 = 8082228;
 const COLD_WATER_COLOR: i32 = 4020182;
 const FROZEN_WATER_COLOR: i32 = 3750089;
-const FOREST_MUSIC: SoundKey = sound::MUSIC_OVERWORLD_FOREST;
+const FOREST_MUSIC: Id<SoundEvent> = sound_event::MUSIC_OVERWORLD_FOREST;
 const SWAMP_SKELETON_WEIGHT: i32 = 70;
 
 fn sky_color(temperature: f32) -> i32 {
@@ -34,7 +34,7 @@ fn arid_biome(mobs: Mobs, generation: Generation) -> Biome {
 fn swamp_biome(mobs: Mobs, generation: Generation) -> Biome {
     base_biome(0.8, 0.9, mobs, generation)
         .modified(WATER_FOG_END_DISTANCE, Operation::Multiply, 0.85)
-        .music(sound::MUSIC_OVERWORLD_SWAMP)
+        .music(sound_event::MUSIC_OVERWORLD_SWAMP)
         .with(INCREASED_FIRE_BURNOUT, true)
         .dry_foliage(DARK_DRY_FOLIAGE_COLOR)
         .grass_modifier(GrassColorModifier::Swamp)
@@ -51,11 +51,11 @@ pub fn old_growth_taiga(spruce: bool) -> Biome {
     m.taiga_animals();
     let (trees, temperature) = if spruce {
         m.common_spawns();
-        (placed!("trees_old_growth_spruce_taiga"), 0.25)
+        (placed_feature::TREES_OLD_GROWTH_SPRUCE_TAIGA, 0.25)
     } else {
         m.cave_spawns();
         m.monsters(100, 25, 0, 100);
-        (placed!("trees_old_growth_pine_taiga"), 0.3)
+        (placed_feature::TREES_OLD_GROWTH_PINE_TAIGA, 0.3)
     };
     let mut g = overworld_generation();
     mossy_stone_block(&mut g);
@@ -65,20 +65,20 @@ pub fn old_growth_taiga(spruce: bool) -> Biome {
     giant_taiga_vegetation(&mut g);
     mushrooms_and_extra_vegetation(&mut g);
     common_berry_bushes(&mut g);
-    base_biome(temperature, 0.8, m, g).music(sound::MUSIC_OVERWORLD_OLD_GROWTH_TAIGA)
+    base_biome(temperature, 0.8, m, g).music(sound_event::MUSIC_OVERWORLD_OLD_GROWTH_TAIGA)
 }
 
 pub fn sparse_jungle() -> Biome {
     let mut m = Mobs::default();
     m.base_jungle_spawns().spawn(WOLF, 8, 2, 4);
-    base_jungle(0.8, false, true, m).music(sound::MUSIC_OVERWORLD_SPARSE_JUNGLE)
+    base_jungle(0.8, false, true, m).music(sound_event::MUSIC_OVERWORLD_SPARSE_JUNGLE)
 }
 
 pub fn jungle(bamboo: bool) -> Biome {
     let (panda_weight, ocelot_max_count, sound) = if bamboo {
-        (80, 1, sound::MUSIC_OVERWORLD_BAMBOO_JUNGLE)
+        (80, 1, sound_event::MUSIC_OVERWORLD_BAMBOO_JUNGLE)
     } else {
-        (1, 3, sound::MUSIC_OVERWORLD_JUNGLE)
+        (1, 3, sound_event::MUSIC_OVERWORLD_JUNGLE)
     };
     let mut m = Mobs::default();
     m.base_jungle_spawns()
@@ -93,11 +93,11 @@ pub fn jungle(bamboo: bool) -> Biome {
 fn base_jungle(downfall: f32, bamboo: bool, sparse: bool, mobs: Mobs) -> Biome {
     let (trees, melons) = if sparse {
         (
-            placed!("trees_sparse_jungle"),
-            placed!("patch_melon_sparse"),
+            placed_feature::TREES_SPARSE_JUNGLE,
+            placed_feature::PATCH_MELON_SPARSE,
         )
     } else {
-        (placed!("trees_jungle"), placed!("patch_melon"))
+        (placed_feature::TREES_JUNGLE, placed_feature::PATCH_MELON)
     };
     let mut g = overworld_generation();
     if bamboo {
@@ -143,7 +143,7 @@ pub fn desert() -> Biome {
     default_mushrooms(&mut g);
     desert_extra_vegetation(&mut g);
     desert_extra_decoration(&mut g);
-    arid_biome(m, g).music(sound::MUSIC_OVERWORLD_DESERT)
+    arid_biome(m, g).music(sound_event::MUSIC_OVERWORLD_DESERT)
 }
 
 pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
@@ -154,7 +154,7 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
         if spikes {
             g.features(
                 SurfaceStructures,
-                &[placed!("ice_spike"), placed!("ice_patch")],
+                &[placed_feature::ICE_SPIKE, placed_feature::ICE_PATCH],
             );
         }
         snowy_trees(&mut g);
@@ -165,7 +165,7 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
         m.plains_spawns();
         plain_grass(&mut g);
         if sunflower {
-            g.feature(VegetalDecoration, placed!("patch_sunflower"));
+            g.feature(VegetalDecoration, placed_feature::PATCH_SUNFLOWER);
         } else {
             bushes(&mut g);
         }
@@ -235,7 +235,7 @@ pub fn badlands(wooded: bool) -> Biome {
             CREATURE_WORLD_GEN_SPAWN_PROBABILITY,
             creature_spawn_probability,
         )
-        .music(sound::MUSIC_OVERWORLD_BADLANDS)
+        .music(sound_event::MUSIC_OVERWORLD_BADLANDS)
         .foliage(10387789)
         .grass(9470285)
 }
@@ -258,9 +258,9 @@ pub fn cold_ocean(deep: bool) -> Biome {
         .spawn(NAUTILUS, 2, 1, 1);
     let mut g = base_ocean_generation();
     let seagrass = if deep {
-        placed!("seagrass_deep_cold")
+        placed_feature::SEAGRASS_DEEP_COLD
     } else {
-        placed!("seagrass_cold")
+        placed_feature::SEAGRASS_COLD
     };
     g.feature(VegetalDecoration, seagrass);
     cold_ocean_extra_vegetation(&mut g);
@@ -274,9 +274,9 @@ pub fn ocean(deep: bool) -> Biome {
         .spawn(NAUTILUS, 5, 1, 1);
     let mut g = base_ocean_generation();
     let seagrass = if deep {
-        placed!("seagrass_deep")
+        placed_feature::SEAGRASS_DEEP
     } else {
-        placed!("seagrass_normal")
+        placed_feature::SEAGRASS_NORMAL
     };
     g.feature(VegetalDecoration, seagrass);
     cold_ocean_extra_vegetation(&mut g);
@@ -287,10 +287,10 @@ pub fn lukewarm_ocean(deep: bool) -> Biome {
     let mut m = Mobs::default();
     let seagrass = if deep {
         m.ocean_spawns(8, 4, 8);
-        placed!("seagrass_deep_warm")
+        placed_feature::SEAGRASS_DEEP_WARM
     } else {
         m.ocean_spawns(10, 2, 15);
-        placed!("seagrass_warm")
+        placed_feature::SEAGRASS_WARM
     };
     m.spawn(PUFFERFISH, 5, 1, 3)
         .spawn(TROPICAL_FISH, 25, 8, 8)
@@ -313,9 +313,9 @@ pub fn warm_ocean() -> Biome {
     g.features(
         VegetalDecoration,
         &[
-            placed!("warm_ocean_vegetation"),
-            placed!("seagrass_warm"),
-            placed!("sea_pickle"),
+            placed_feature::WARM_OCEAN_VEGETATION,
+            placed_feature::SEAGRASS_WARM,
+            placed_feature::SEA_PICKLE,
         ],
     );
     base_ocean(m, g)
@@ -349,14 +349,14 @@ pub fn forest(birch: bool, tall: bool, flower: bool) -> Biome {
         g.features(
             VegetalDecoration,
             &[
-                placed!("flower_forest_flowers"),
-                placed!("trees_flower_forest"),
-                placed!("flower_flower_forest"),
+                placed_feature::FLOWER_FOREST_FLOWERS,
+                placed_feature::TREES_FLOWER_FOREST,
+                placed_feature::FLOWER_FLOWER_FOREST,
             ],
         );
         default_grass(&mut g);
         m.spawn(RABBIT, 4, 2, 3);
-        sound::MUSIC_OVERWORLD_FLOWER_FOREST
+        sound_event::MUSIC_OVERWORLD_FLOWER_FOREST
     } else {
         forest_flowers(&mut g);
         if !birch {
@@ -408,10 +408,10 @@ pub fn dark_forest(pale_garden: bool) -> Biome {
         g.features(
             VegetalDecoration,
             &[
-                placed!("pale_garden_vegetation"),
-                placed!("pale_moss_patch"),
-                placed!("pale_garden_flowers"),
-                placed!("flower_pale_garden"),
+                placed_feature::PALE_GARDEN_VEGETATION,
+                placed_feature::PALE_MOSS_PATCH,
+                placed_feature::PALE_GARDEN_FLOWERS,
+                placed_feature::FLOWER_PALE_GARDEN,
             ],
         );
         forest_grass(&mut g);
@@ -427,7 +427,7 @@ pub fn dark_forest(pale_garden: bool) -> Biome {
             .dry_foliage(10528412)
     } else {
         m.farm_animals();
-        g.feature(VegetalDecoration, placed!("dark_forest_vegetation"));
+        g.feature(VegetalDecoration, placed_feature::DARK_FOREST_VEGETATION);
         forest_flowers(&mut g);
         default_flowers(&mut g);
         forest_grass(&mut g);
@@ -453,7 +453,7 @@ pub fn swamp() -> Biome {
     swamp_vegetation(&mut g);
     default_mushrooms(&mut g);
     swamp_extra_vegetation(&mut g);
-    g.feature(VegetalDecoration, placed!("seagrass_swamp"));
+    g.feature(VegetalDecoration, placed_feature::SEAGRASS_SWAMP);
     swamp_biome(m, g)
         .with(WATER_FOG_COLOR, HexRgb::of(-14474473))
         .water(6388580)
@@ -492,7 +492,7 @@ pub fn river(frozen: bool) -> Biome {
         (0.0, FROZEN_WATER_COLOR)
     } else {
         m.spawn(DROWNED, 100, 1, 1);
-        g.feature(VegetalDecoration, placed!("seagrass_river"));
+        g.feature(VegetalDecoration, placed_feature::SEAGRASS_RIVER);
         (0.5, Biome::NORMAL_WATER_COLOR)
     };
     base_biome(temperature, 0.5, m, g)
@@ -518,7 +518,7 @@ pub fn beach(snowy: bool, stony: bool) -> Biome {
 
 pub fn the_void() -> Biome {
     let mut g = Generation::default();
-    g.feature(TopLayerModification, placed!("void_start_platform"));
+    g.feature(TopLayerModification, placed_feature::VOID_START_PLATFORM);
     base_biome(0.5, 0.5, Mobs::none(), g).precipitation(false)
 }
 
@@ -532,14 +532,16 @@ pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Biome {
         cherry_grove_vegetation(&mut g);
         biome
             .with(WATER_FOG_COLOR, HexRgb::of(-10635281))
-            .music(sound::MUSIC_OVERWORLD_CHERRY_GROVE)
+            .music(sound_event::MUSIC_OVERWORLD_CHERRY_GROVE)
             .water(6141935)
             .foliage(11983713)
             .grass(11983713)
     } else {
         m.spawn(DONKEY, 1, 1, 2);
         meadow_vegetation(&mut g);
-        biome.music(sound::MUSIC_OVERWORLD_MEADOW).water(937679)
+        biome
+            .music(sound_event::MUSIC_OVERWORLD_MEADOW)
+            .water(937679)
     };
     m.spawn(RABBIT, 2, 2, 6)
         .spawn(SHEEP, 2, 2, 4)
@@ -550,7 +552,7 @@ pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Biome {
 
 pub fn dappled_forest() -> Biome {
     let mut g = overworld_generation();
-    g.feature(VegetalDecoration, placed!("trees_dappled_forest"));
+    g.feature(VegetalDecoration, placed_feature::TREES_DAPPLED_FOREST);
     dappled_forest_vegetation(&mut g);
     forest_grass(&mut g);
     let mut m = Mobs::default();
@@ -569,7 +571,7 @@ pub fn dappled_forest() -> Biome {
         .dry_foliage(9189892)
 }
 
-pub fn peaks(sound: SoundKey) -> Biome {
+pub fn peaks(sound: Id<SoundEvent>) -> Biome {
     let mut m = Mobs::default();
     m.spawn(GOAT, 5, 1, 3).common_spawns();
     let mut g = overworld_generation();
@@ -585,7 +587,7 @@ pub fn stony_peaks() -> Biome {
     m.common_spawns();
     let mut g = overworld_generation();
     mountain_ores(&mut g);
-    base_biome(1.0, 0.3, m, g).music(sound::MUSIC_OVERWORLD_STONY_PEAKS)
+    base_biome(1.0, 0.3, m, g).music(sound_event::MUSIC_OVERWORLD_STONY_PEAKS)
 }
 
 pub fn snowy_slopes() -> Biome {
@@ -598,7 +600,7 @@ pub fn snowy_slopes() -> Biome {
     pumpkin_patches(&mut g);
     mountain_ores(&mut g);
     base_biome(-0.3, 0.9, m, g)
-        .music(sound::MUSIC_OVERWORLD_SNOWY_SLOPES)
+        .music(sound_event::MUSIC_OVERWORLD_SNOWY_SLOPES)
         .with(INCREASED_FIRE_BURNOUT, true)
 }
 
@@ -613,7 +615,7 @@ pub fn grove() -> Biome {
     grove_trees(&mut g);
     pumpkin_patches(&mut g);
     mountain_ores(&mut g);
-    base_biome(-0.2, 0.8, m, g).music(sound::MUSIC_OVERWORLD_GROVE)
+    base_biome(-0.2, 0.8, m, g).music(sound_event::MUSIC_OVERWORLD_GROVE)
 }
 
 pub fn sulfur_caves() -> Biome {
@@ -633,7 +635,7 @@ pub fn sulfur_caves() -> Biome {
     sulfur_caves_features(&mut g);
     base_biome(0.8, 0.4, m, g)
         .with(FOG_COLOR, HexRgb::of(-7555023))
-        .music(sound::MUSIC_OVERWORLD_SULFUR_CAVES)
+        .music(sound_event::MUSIC_OVERWORLD_SULFUR_CAVES)
         .with(WATER_FOG_COLOR, HexRgb::of(-15248324))
         .water(-13320311)
         .grass(11249231)
@@ -651,7 +653,7 @@ pub fn lush_caves() -> Biome {
     lush_caves_special_ores(&mut g);
     default_soft_disks(&mut g);
     lush_caves_vegetation_features(&mut g);
-    base_biome(0.5, 0.5, m, g).music(sound::MUSIC_OVERWORLD_LUSH_CAVES)
+    base_biome(0.5, 0.5, m, g).music(sound_event::MUSIC_OVERWORLD_LUSH_CAVES)
 }
 
 pub fn dripstone_caves() -> Biome {
@@ -663,7 +665,7 @@ pub fn dripstone_caves() -> Biome {
     default_soft_disks(&mut g);
     cave_plains_vegetation(&mut g);
     dripstone(&mut g);
-    base_biome(0.8, 0.4, m, g).music(sound::MUSIC_OVERWORLD_DRIPSTONE_CAVES)
+    base_biome(0.8, 0.4, m, g).music(sound_event::MUSIC_OVERWORLD_DRIPSTONE_CAVES)
 }
 
 pub fn deep_dark() -> Biome {
@@ -677,5 +679,5 @@ pub fn deep_dark() -> Biome {
     default_soft_disks(&mut g);
     cave_plains_vegetation(&mut g);
     sculk(&mut g);
-    base_biome(0.8, 0.4, Mobs::none(), g).music(sound::MUSIC_OVERWORLD_DEEP_DARK)
+    base_biome(0.8, 0.4, Mobs::none(), g).music(sound_event::MUSIC_OVERWORLD_DEEP_DARK)
 }
