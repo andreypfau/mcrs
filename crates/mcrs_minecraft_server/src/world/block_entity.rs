@@ -5,12 +5,12 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
-use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::borrow::Cow;
 
@@ -46,10 +46,10 @@ fn fill_container(mut entity: EntityWorldMut) {
         let mut block_entity = entity.get_mut::<BlockEntity>().unwrap();
         match &mut block_entity.0 {
             GeneratedBlockEntity::Chest(data) => {
-                ("minecraft:chest", std::mem::take(&mut data.items))
+                (keys::block::CHEST, std::mem::take(&mut data.items))
             }
             GeneratedBlockEntity::TrappedChest(data) => {
-                ("minecraft:trapped_chest", std::mem::take(&mut data.items))
+                (keys::block::TRAPPED_CHEST, std::mem::take(&mut data.items))
             }
             _ => return,
         }
@@ -58,8 +58,7 @@ fn fill_container(mut entity: EntityWorldMut) {
     entity.world_scope(|world| {
         let Some(slot_count) = world
             .get_resource::<Blocks>()
-            .and_then(|blocks| blocks.block(block))
-            .and_then(|block| block.container_slots)
+            .and_then(|blocks| blocks[block].container_slots)
         else {
             return;
         };
@@ -86,16 +85,10 @@ pub fn packet_entry(
     entry: &GeneratedBlockEntity,
 ) -> Result<ChunkDataBlockEntity<'static>, mcrs_minecraft_nbt::Error> {
     let pos = entry.position();
-    let data = to_nbt_compound(entry)?;
-    let id = data.get_string("id").expect("the enum is tagged by id");
-    let (kind, _) = (0..=u16::MAX)
-        .zip(BLOCK_ENTITY_TYPES)
-        .find(|(_, kind)| *kind == id)
-        .expect("every modelled block entity is a registered type");
     Ok(ChunkDataBlockEntity {
         packed_xz: (((pos.x & 15) << 4) | (pos.z & 15)) as i8,
         y: pos.y as i16,
-        kind: RegistryId(kind),
-        data: Cow::Owned(data),
+        kind: RegistryId::from(entry.kind()),
+        data: Cow::Owned(to_nbt_compound(entry)?),
     })
 }

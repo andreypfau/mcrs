@@ -14,7 +14,8 @@ use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
-use mcrs_minecraft_item::{ItemStack, Items};
+use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,
@@ -38,10 +39,10 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttrib
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
-use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
-    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
+    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, Item as GeneratedItem,
+    ItemStack as GeneratedStack,
 };
 use serde::de::value::StrDeserializer;
 use serde::de::{DeserializeOwned, IntoDeserializer};
@@ -78,8 +79,6 @@ pub fn spawn_generated_entities(
     dim: InDimension,
     sections: &[(Entity, SectionPos)],
     registry: Option<&RegistryAccess>,
-    items: &Items,
-    ids: &EntityIds,
     entities: Vec<GeneratedEntity>,
 ) {
     for entity in entities {
@@ -91,7 +90,7 @@ pub fn spawn_generated_entities(
             tracing::debug!(pos = ?entity.pos, id = entity.kind.id(), "an entity outside the delivered sections");
             continue;
         };
-        spawn_one(commands, dim, section, registry, items, ids, entity, None);
+        spawn_one(commands, dim, section, registry, entity, None);
     }
 }
 
@@ -100,8 +99,6 @@ fn spawn_one(
     dim: InDimension,
     section: Entity,
     registry: Option<&RegistryAccess>,
-    items: &Items,
-    ids: &EntityIds,
     entity: GeneratedEntity,
     vehicle: Option<Entity>,
 ) {
@@ -128,14 +125,22 @@ fn spawn_one(
     };
     match entity.kind {
         GeneratedKind::Witch { left_handed: left } => {
-            spawned.insert((EntityKind(ids.witch), Health::full(26.0), left_handed(left)));
+            spawned.insert((
+                EntityKind(keys::entity_type::WITCH),
+                Health::full(26.0),
+                left_handed(left),
+            ));
         }
         GeneratedKind::Cat {
             left_handed: left,
             variant,
             sound_variant,
         } => {
-            spawned.insert((EntityKind(ids.cat), Health::full(10.0), left_handed(left)));
+            spawned.insert((
+                EntityKind(keys::entity_type::CAT),
+                Health::full(10.0),
+                left_handed(left),
+            ));
             if let Some((variant, sound)) = registry_id(registry, "cat_variant", &variant)
                 .zip(registry_id(registry, "cat_sound_variant", &sound_variant))
             {
@@ -144,7 +149,7 @@ fn spawn_one(
         }
         GeneratedKind::ElderGuardian { left_handed: left } => {
             spawned.insert((
-                EntityKind(ids.elder_guardian),
+                EntityKind(keys::entity_type::ELDER_GUARDIAN),
                 Health::full(80.0),
                 left_handed(left),
             ));
@@ -155,7 +160,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(ids.drowned),
+                EntityKind(keys::entity_type::DROWNED),
                 Health::full(20.0),
                 left_handed(left),
             ));
@@ -163,7 +168,7 @@ fn spawn_one(
                 spawned.insert(Baby);
             }
             if !equipment.is_empty() {
-                spawned.insert(carried(items, equipment));
+                spawned.insert(carried(equipment));
             }
         }
         GeneratedKind::Chicken {
@@ -173,7 +178,7 @@ fn spawn_one(
             ..
         } => {
             spawned.insert((
-                EntityKind(ids.chicken),
+                EntityKind(keys::entity_type::CHICKEN),
                 Health::full(4.0),
                 left_handed(left),
             ));
@@ -188,7 +193,7 @@ fn spawn_one(
             variant,
         } => {
             spawned.insert((
-                EntityKind(ids.zombie_nautilus),
+                EntityKind(keys::entity_type::ZOMBIE_NAUTILUS),
                 Health::full(15.0),
                 left_handed(left),
             ));
@@ -198,23 +203,23 @@ fn spawn_one(
         }
         GeneratedKind::Shulker { left_handed: left } => {
             spawned.insert((
-                EntityKind(ids.shulker),
+                EntityKind(keys::entity_type::SHULKER),
                 Health::full(30.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::ItemFrame { item, facing } => {
             spawned.insert((
-                EntityKind(ids.item_frame),
+                EntityKind(keys::entity_type::ITEM_FRAME),
                 ItemFrame {
-                    item: stack(items, item),
+                    item: Some(stack(item)),
                     facing,
                 },
             ));
         }
         GeneratedKind::Evoker { left_handed: left } => {
             spawned.insert((
-                EntityKind(ids.evoker),
+                EntityKind(keys::entity_type::EVOKER),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -224,20 +229,24 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(ids.vindicator),
+                EntityKind(keys::entity_type::VINDICATOR),
                 Health::full(24.0),
                 left_handed(left),
             ));
             if !equipment.is_empty() {
-                spawned.insert(carried(items, equipment));
+                spawned.insert(carried(equipment));
             }
         }
         GeneratedKind::Allay { left_handed: left } => {
-            spawned.insert((EntityKind(ids.allay), Health::full(20.0), left_handed(left)));
+            spawned.insert((
+                EntityKind(keys::entity_type::ALLAY),
+                Health::full(20.0),
+                left_handed(left),
+            ));
         }
         GeneratedKind::Villager { data } => {
             spawned.insert((
-                EntityKind(ids.villager),
+                EntityKind(keys::entity_type::VILLAGER),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -245,7 +254,7 @@ fn spawn_one(
         }
         GeneratedKind::ZombieVillager { data } => {
             spawned.insert((
-                EntityKind(ids.zombie_villager),
+                EntityKind(keys::entity_type::ZOMBIE_VILLAGER),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -256,7 +265,7 @@ fn spawn_one(
             loot_table_seed,
         } => {
             spawned.insert((
-                EntityKind(ids.chest_minecart),
+                EntityKind(keys::entity_type::CHEST_MINECART),
                 mcrs_minecraft_level::entity::mob::ContainerLoot {
                     table: loot_table,
                     seed: loot_table_seed,
@@ -266,16 +275,7 @@ fn spawn_one(
     }
     let id = spawned.id();
     for passenger in entity.passengers {
-        spawn_one(
-            commands,
-            dim,
-            section,
-            registry,
-            items,
-            ids,
-            passenger,
-            Some(id),
-        );
+        spawn_one(commands, dim, section, registry, passenger, Some(id));
     }
 }
 
@@ -315,23 +315,21 @@ fn registered<T: DeserializeOwned + Default>(name: &str) -> T {
     })
 }
 
-/// A stack the corpus cannot name is carried as nothing.
-fn stack(items: &Items, stack: GeneratedStack) -> Option<ItemStack> {
-    let name = serde_json::to_value(stack.id).ok()?;
-    Some(ItemStack::new(
-        items.id_of(name.as_str()?)?,
-        stack.count as u8,
-    ))
+fn stack(stack: GeneratedStack) -> ItemStack {
+    let item = match stack.id {
+        GeneratedItem::Trident => keys::item::TRIDENT,
+        GeneratedItem::FishingRod => keys::item::FISHING_ROD,
+        GeneratedItem::NautilusShell => keys::item::NAUTILUS_SHELL,
+        GeneratedItem::IronAxe => keys::item::IRON_AXE,
+        GeneratedItem::Elytra => keys::item::ELYTRA,
+    };
+    ItemStack::new(item, stack.count as u8)
 }
 
-fn carried(items: &Items, equipment: GeneratedEquipment) -> Equipment {
+fn carried(equipment: GeneratedEquipment) -> Equipment {
     Equipment {
-        mainhand: equipment
-            .mainhand
-            .and_then(|stack| self::stack(items, stack)),
-        offhand: equipment
-            .offhand
-            .and_then(|stack| self::stack(items, stack)),
+        mainhand: equipment.mainhand.map(stack),
+        offhand: equipment.offhand.map(stack),
     }
 }
 
@@ -396,7 +394,6 @@ impl PairingItem<'_, '_> {
         &self,
         vehicles: &Query<&RiddenBy>,
         lookup: &dyn RegistryLookup,
-        ids: &EntityIds,
     ) -> Vec<PacketPayload> {
         let id = wire_id(self.entity);
         let yaw = ByteAngle::from_degrees(self.transform.rotation.yaw());
@@ -411,7 +408,7 @@ impl PairingItem<'_, '_> {
             head_yaw: yaw,
             data: VarInt(self.frame.map_or(0, |frame| frame.facing.id() as i32)),
         })];
-        let metadata = self.entity_data(lookup, ids);
+        let metadata = self.entity_data(lookup);
         if !metadata.is_empty() {
             out.push(PacketPayload::SetEntityData(ClientboundSetEntityData {
                 entity_id: id,
@@ -423,7 +420,7 @@ impl PairingItem<'_, '_> {
                 ClientboundUpdateAttributes {
                     entity_id: id,
                     attributes: vec![AttributeSnapshot {
-                        attribute: RegistryId::from(ids.max_health),
+                        attribute: RegistryId::from(keys::attribute::MAX_HEALTH),
                         base: f64::from(health.max),
                         modifiers: Vec::new(),
                     }],
@@ -462,11 +459,7 @@ impl PairingItem<'_, '_> {
         out
     }
 
-    fn entity_data(
-        &self,
-        lookup: &dyn RegistryLookup,
-        ids: &EntityIds,
-    ) -> Vec<MetadataEntry<'static>> {
+    fn entity_data(&self, lookup: &dyn RegistryLookup) -> Vec<MetadataEntry<'static>> {
         let mut data = Vec::new();
         let mut put = |index: u8, value: MetaDataValue<'static>| {
             data.push(MetadataEntry { index, value });
@@ -522,7 +515,7 @@ impl PairingItem<'_, '_> {
             );
         }
         if let Some(villager) = self.villager {
-            let zombie = self.kind.0 == ids.zombie_villager;
+            let zombie = self.kind.0 == keys::entity_type::ZOMBIE_VILLAGER;
             if zombie || villager.0 != VillagerData::default() {
                 put(
                     if zombie {
@@ -557,7 +550,6 @@ pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
     set: Res<RegistrySet>,
-    ids: Res<EntityIds>,
     registry: Res<RegistryAccess>,
     blocks: Res<Blocks>,
     observers: Query<&PlayerObservers, With<Column>>,
@@ -592,7 +584,7 @@ pub fn update_mob_tracked_by(
             let Ok((_, anchor)) = players.get(player) else {
                 continue;
             };
-            for payload in pairing.packets(&vehicles, &lookup, &ids) {
+            for payload in pairing.packets(&vehicles, &lookup) {
                 packets.write(to(anchor.0, payload));
             }
         }
@@ -662,9 +654,8 @@ mod tests {
         app.add_schedule(Schedule::new(FixedPostUpdate));
         app.add_message::<OutboundPlayerPacket>();
         app.insert_resource(RegistryAccess::default());
-        let (set, ids) = crate::world::entity::report_registries();
+        let set = crate::world::entity::report_registries();
         app.insert_resource(set.clone());
-        app.insert_resource(ids.clone());
         app.insert_resource(mcrs_minecraft_world::item::test_corpus().0.clone());
         app.add_plugins(MobTrackerPlugin);
 
@@ -711,8 +702,6 @@ mod tests {
             InDimension(dim),
             &[(section, SectionPos::new(0, 4, 0))],
             None,
-            &Items(std::sync::Arc::default()),
-            &ids,
             vec![witch],
         );
         app.world_mut().flush();

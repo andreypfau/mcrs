@@ -135,7 +135,7 @@ impl Plugin for MinecraftWorldPlugin {
                 path,
             ))
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let (statics, entity_ids) = registries::static_registries(&bytes)
+            let statics = registries::static_registries(&bytes)
                 .unwrap_or_else(|report| registries::refuse(&report));
             tracing::info!(
                 count = statics.tables().count(),
@@ -202,7 +202,6 @@ impl Plugin for MinecraftWorldPlugin {
                 );
             }
             app.insert_resource(registries.clone());
-            app.insert_resource(entity_ids);
             app.insert_resource(entity_types);
             (block_registry, registries)
         };

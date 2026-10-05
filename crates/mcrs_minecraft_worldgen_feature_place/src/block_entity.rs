@@ -9,10 +9,13 @@ use std::io::Cursor;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::Weighted;
+use mcrs_minecraft_keys::BlockEntityType;
+use mcrs_minecraft_keys::block_entity_type;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use serde::{Deserialize, Serialize};
 
@@ -707,6 +710,41 @@ impl GeneratedBlockEntity {
         }
     }
 
+    pub fn kind(&self) -> Id<BlockEntityType> {
+        match self {
+            GeneratedBlockEntity::Beehive { .. } => block_entity_type::BEEHIVE,
+            GeneratedBlockEntity::Chest(_) => block_entity_type::CHEST,
+            GeneratedBlockEntity::TrappedChest(_) => block_entity_type::TRAPPED_CHEST,
+            GeneratedBlockEntity::EnderChest { .. } => block_entity_type::ENDER_CHEST,
+            GeneratedBlockEntity::Barrel(_) => block_entity_type::BARREL,
+            GeneratedBlockEntity::Dispenser(_) => block_entity_type::DISPENSER,
+            GeneratedBlockEntity::Hopper { .. } => block_entity_type::HOPPER,
+            GeneratedBlockEntity::Furnace(_) => block_entity_type::FURNACE,
+            GeneratedBlockEntity::BlastFurnace(_) => block_entity_type::BLAST_FURNACE,
+            GeneratedBlockEntity::Smoker(_) => block_entity_type::SMOKER,
+            GeneratedBlockEntity::BrewingStand { .. } => block_entity_type::BREWING_STAND,
+            GeneratedBlockEntity::Campfire { .. } => block_entity_type::CAMPFIRE,
+            GeneratedBlockEntity::Comparator { .. } => block_entity_type::COMPARATOR,
+            GeneratedBlockEntity::Bell { .. } => block_entity_type::BELL,
+            GeneratedBlockEntity::CopperGolemStatue { .. } => {
+                block_entity_type::COPPER_GOLEM_STATUE
+            }
+            GeneratedBlockEntity::Lectern { .. } => block_entity_type::LECTERN,
+            GeneratedBlockEntity::Jigsaw { .. } => block_entity_type::JIGSAW,
+            GeneratedBlockEntity::CreakingHeart { .. } => block_entity_type::CREAKING_HEART,
+            GeneratedBlockEntity::DecoratedPot { .. } => block_entity_type::DECORATED_POT,
+            GeneratedBlockEntity::BrushableBlock { .. } => block_entity_type::BRUSHABLE_BLOCK,
+            GeneratedBlockEntity::Banner { .. } => block_entity_type::BANNER,
+            GeneratedBlockEntity::Sign { .. } => block_entity_type::SIGN,
+            GeneratedBlockEntity::Skull { .. } => block_entity_type::SKULL,
+            GeneratedBlockEntity::SculkSensor { .. } => block_entity_type::SCULK_SENSOR,
+            GeneratedBlockEntity::MobSpawner { .. } => block_entity_type::MOB_SPAWNER,
+            GeneratedBlockEntity::TrialSpawner { .. } => block_entity_type::TRIAL_SPAWNER,
+            GeneratedBlockEntity::Vault { .. } => block_entity_type::VAULT,
+            GeneratedBlockEntity::EndGateway(_) => block_entity_type::END_GATEWAY,
+        }
+    }
+
     pub fn wants_loot_seed(nbt: &NbtCompound) -> bool {
         nbt.get_string("id")
             .is_some_and(|id| Self::LOOT_SEEDED_IDS.contains(&id))
@@ -818,62 +856,6 @@ impl BeeOccupant {
 
 /// The occupants a hive a generator wrote start with.
 pub const BEE_MIN_TICKS_IN_HIVE: i32 = 600;
-
-/// `BuiltInRegistries.BLOCK_ENTITY_TYPE` in registration order
-/// (`world/level/block/entity/BlockEntityTypes.java`): the index is how the
-/// chunk packet names a block entity. The registry is built in rather than
-/// shipped, so the order is the only place the number comes from.
-pub const BLOCK_ENTITY_TYPES: [&str; 49] = [
-    "minecraft:furnace",
-    "minecraft:chest",
-    "minecraft:trapped_chest",
-    "minecraft:ender_chest",
-    "minecraft:jukebox",
-    "minecraft:dispenser",
-    "minecraft:dropper",
-    "minecraft:sign",
-    "minecraft:hanging_sign",
-    "minecraft:mob_spawner",
-    "minecraft:creaking_heart",
-    "minecraft:piston",
-    "minecraft:brewing_stand",
-    "minecraft:enchanting_table",
-    "minecraft:end_portal",
-    "minecraft:beacon",
-    "minecraft:skull",
-    "minecraft:daylight_detector",
-    "minecraft:hopper",
-    "minecraft:comparator",
-    "minecraft:banner",
-    "minecraft:structure_block",
-    "minecraft:end_gateway",
-    "minecraft:command_block",
-    "minecraft:shulker_box",
-    "minecraft:conduit",
-    "minecraft:barrel",
-    "minecraft:smoker",
-    "minecraft:blast_furnace",
-    "minecraft:lectern",
-    "minecraft:bell",
-    "minecraft:jigsaw",
-    "minecraft:campfire",
-    "minecraft:beehive",
-    "minecraft:sculk_sensor",
-    "minecraft:calibrated_sculk_sensor",
-    "minecraft:sculk_catalyst",
-    "minecraft:sculk_shrieker",
-    "minecraft:chiseled_bookshelf",
-    "minecraft:shelf",
-    "minecraft:brushable_block",
-    "minecraft:decorated_pot",
-    "minecraft:crafter",
-    "minecraft:trial_spawner",
-    "minecraft:vault",
-    "minecraft:test_block",
-    "minecraft:test_instance_block",
-    "minecraft:copper_golem_statue",
-    "minecraft:potent_sulfur",
-];
 
 #[cfg(test)]
 mod tests {
@@ -1152,6 +1134,7 @@ mod tests {
             let id = compound.get_string("id").unwrap();
             assert!(GeneratedBlockEntity::IDS.contains(&id), "{id}");
             assert_eq!(entity.position(), POS);
+            assert_eq!(block_entity_type::NAMES[entity.kind().index()], id);
             assert_eq!(
                 GeneratedBlockEntity::from_compound(&compound).unwrap(),
                 entity,

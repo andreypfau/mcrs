@@ -40,7 +40,7 @@ use super::{
 };
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
-use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
+use mcrs_minecraft_keys::block_entity_type;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP2";
@@ -669,7 +669,7 @@ mod exhaustive {
 
     #[test]
     fn the_block_entity_type_order_is_the_registry_s() {
-        assert_eq!(BLOCK_ENTITY_TYPES.to_vec(), dump().types);
+        assert_eq!(block_entity_type::NAMES.to_vec(), dump().types);
     }
 
     #[test]

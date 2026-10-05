@@ -137,10 +137,10 @@ pub fn handle_creative_slots(world: &mut World) {
         }
         let resolved = req.item.resolve(&lookup).and_then(|slot| {
             (!slot.is_empty())
-                .then(|| slot.to_value(&lookup))
+                .then(|| slot.to_value(&lookup).map(|value| (slot.id, value)))
                 .transpose()
         });
-        let value = match resolved {
+        let carried = match resolved {
             Ok(value) => value,
             Err(error) => {
                 tracing::warn!(%error, player = ?req.player, "a creative stack was rejected");
@@ -153,16 +153,13 @@ pub fn handle_creative_slots(world: &mut World) {
         }
         let slot = Slot::new(req.player, req.slot as u16);
         let existing = stack_in(world, slot).filter(|_| valid_slot);
-        let Some(value) = value else {
+        let Some((item, value)) = carried else {
             if let Some(existing) = existing {
                 commit(world, vec![Op::Despawn { stack: existing }]);
             }
             continue;
         };
-        let Some(entry) = items
-            .id_of(value.item.as_str())
-            .and_then(|id| items.get(id))
-        else {
+        let Some(entry) = items.get(item) else {
             tracing::warn!(item = %value.item, player = ?req.player, "a creative stack names no item");
             continue;
         };

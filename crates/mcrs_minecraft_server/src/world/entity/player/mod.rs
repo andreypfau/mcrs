@@ -55,7 +55,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundGameEvent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundPlayerPosition;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
-use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use movement::TeleportState;
 use tracing::{debug, info};
 
@@ -390,7 +389,6 @@ fn network_add(
     event: On<EntityNetworkAddEvent>,
     added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
     viewer: Query<&HostAnchor, With<Player>>,
-    ids: Res<EntityIds>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
@@ -405,7 +403,7 @@ fn network_add(
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: RegistryId::from(ids.player),
+            kind: RegistryId::from(keys::entity_type::PLAYER),
             pos: transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

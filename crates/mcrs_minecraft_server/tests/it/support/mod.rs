@@ -8,7 +8,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
-use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::{share_registries, static_registries, test_registries};
 use mcrs_minecraft_world::resolvers::run_resolvers;
@@ -32,7 +31,6 @@ pub fn insert_corpus(app: &mut App) {
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
     app.insert_resource(test_registries().clone());
-    app.insert_resource(entity_ids().clone());
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(test_enchantment_registry());
     app.insert_resource(test_enchantments());
@@ -45,8 +43,8 @@ pub fn insert_registries(app: &mut App) {
     run_resolvers(app.world_mut(), test_registries()).unwrap_or_else(|report| panic!("{report}"));
 }
 
-fn registries() -> &'static (RegistrySet, EntityIds) {
-    static REGISTRIES: LazyLock<(RegistrySet, EntityIds)> = LazyLock::new(|| {
+fn registries() -> &'static RegistrySet {
+    static REGISTRIES: LazyLock<RegistrySet> = LazyLock::new(|| {
         let report = std::fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../assets/mcrs/reports/registries.json"
@@ -65,11 +63,7 @@ pub fn dimension_type(name: &str) -> Id<keys::DimensionType> {
 }
 
 pub fn registry_set() -> &'static RegistrySet {
-    &registries().0
-}
-
-pub fn entity_ids() -> &'static EntityIds {
-    &registries().1
+    registries()
 }
 
 /// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.

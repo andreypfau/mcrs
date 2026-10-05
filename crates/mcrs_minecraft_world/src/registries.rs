@@ -6,7 +6,6 @@ use crate::decorated_pot_pattern::DecoratedPotPattern;
 use crate::dialog::Dialog;
 use crate::dimension::DimensionEntry;
 use crate::enchantment_provider::EnchantmentProvider;
-use crate::entity::minecraft::EntityIds;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant;
@@ -348,7 +347,7 @@ pub fn test_registries() -> &'static RegistrySet {
             Path::new("mcrs/reports/registries.json"),
         ))
         .expect("the registries report reads");
-        let (statics, _) = static_registries(&bytes).unwrap_or_else(|report| refuse(&report));
+        let statics = static_registries(&bytes).unwrap_or_else(|report| refuse(&report));
         load_registries(&asset_server, statics).unwrap_or_else(|report| refuse(&report))
     });
     &SET
@@ -356,7 +355,6 @@ pub fn test_registries() -> &'static RegistrySet {
 
 pub fn share_registries(world: &mut World) {
     share::<RegistrySet>(world);
-    share::<EntityIds>(world);
     share::<RegistryAccess>(world);
     share::<Blocks>(world);
     share::<Items>(world);
@@ -365,16 +363,16 @@ pub fn share_registries(world: &mut World) {
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
 }
 
-pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {
+pub fn static_registries(report: &[u8]) -> Result<RegistrySet, LoadReport> {
     let set = from_report(report).map_err(LoadReport::invalid)?;
     let mut missing = LoadReport::new();
     missing.registry::<keys::SoundEvent>(&set);
     missing.registry::<Block>(&set);
     missing.registry::<Item>(&set);
-    let entity_ids = EntityIds::resolve(&set, &mut missing);
-    match entity_ids {
-        Some(entity_ids) if missing.is_empty() => Ok((set, entity_ids)),
-        _ => Err(missing),
+    if missing.is_empty() {
+        Ok(set)
+    } else {
+        Err(missing)
     }
 }
 
@@ -414,6 +412,68 @@ mod tests {
         static_registries(&bytes)
             .err()
             .unwrap_or_else(|| panic!("a report without {registry} is refused"))
+    }
+
+    #[test]
+    fn generated_names_follow_the_report_order() {
+        let set = from_report(include_bytes!(
+            "../../../assets/mcrs/reports/registries.json"
+        ))
+        .unwrap();
+        let registries: [(&str, &[&str]); 6] = [
+            ("minecraft:attribute", keys::attribute::NAMES),
+            ("minecraft:block", keys::block::NAMES),
+            (
+                "minecraft:block_entity_type",
+                keys::block_entity_type::NAMES,
+            ),
+            ("minecraft:entity_type", keys::entity_type::NAMES),
+            ("minecraft:item", keys::item::NAMES),
+            ("minecraft:menu", keys::menu::NAMES),
+        ];
+        for (registry, names) in registries {
+            let table = set.table(registry).unwrap();
+            let in_report: Vec<String> = table.names().iter().map(ToString::to_string).collect();
+            assert_eq!(in_report, names, "{registry}");
+        }
+    }
+
+    #[test]
+    fn generated_constants_stand_at_the_entry_they_name() {
+        use keys::entity_type as kind;
+        let entity_types = [
+            (kind::ALLAY, "allay"),
+            (kind::CAT, "cat"),
+            (kind::CHEST_MINECART, "chest_minecart"),
+            (kind::CHICKEN, "chicken"),
+            (kind::DROWNED, "drowned"),
+            (kind::ELDER_GUARDIAN, "elder_guardian"),
+            (kind::EVOKER, "evoker"),
+            (kind::ITEM, "item"),
+            (kind::ITEM_FRAME, "item_frame"),
+            (kind::PLAYER, "player"),
+            (kind::SHULKER, "shulker"),
+            (kind::TNT, "tnt"),
+            (kind::VILLAGER, "villager"),
+            (kind::VINDICATOR, "vindicator"),
+            (kind::WITCH, "witch"),
+            (kind::ZOMBIE_NAUTILUS, "zombie_nautilus"),
+            (kind::ZOMBIE_VILLAGER, "zombie_villager"),
+        ];
+        for (id, name) in entity_types {
+            assert_eq!(
+                keys::entity_type::NAMES[id.index()],
+                format!("minecraft:{name}")
+            );
+        }
+        assert_eq!(
+            keys::block::NAMES[keys::block::TNT.index()],
+            "minecraft:tnt"
+        );
+        assert_eq!(
+            keys::attribute::NAMES[keys::attribute::MAX_HEALTH.index()],
+            "minecraft:max_health"
+        );
     }
 
     #[test]
