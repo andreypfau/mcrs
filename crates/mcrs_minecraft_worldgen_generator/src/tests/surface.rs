@@ -12,7 +12,7 @@ use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder, MaterialScratch, NO_WATER,
 };
-use mcrs_minecraft_worldgen_testing::registry;
+use mcrs_minecraft_worldgen_testing::{registry, registry_in};
 use std::collections::{BTreeMap, HashMap};
 
 const AIR: VoxelId = VoxelId(0);
@@ -140,6 +140,12 @@ pub(super) fn biome_ids() -> HashMap<String, u16> {
     ids
 }
 
+/// The corpus read with the biomes numbered as `ids` does and every biome it
+/// leaves out after them, which no cell of the preset's grid holds.
+fn corpus_over(ids: &HashMap<String, u16>) -> RegistrySet {
+    super::registries_over(&registry_of(ids))
+}
+
 /// A registry numbering the biomes as `ids` does.
 fn registry_of(ids: &HashMap<String, u16>) -> Registry<keys::Biome> {
     let mut named: Vec<(u16, &str)> = ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
@@ -169,9 +175,11 @@ pub fn overworld_material_router(
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),
     );
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
+    let set = corpus_over(ids);
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry("material_condition");
+        registry_in(&set, "material_condition");
+    let biome_tags = set.tags().expect("the corpus holds the biome tags");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -180,7 +188,7 @@ pub fn overworld_material_router(
                 .block(state.name.as_str())
                 .map(|b| b.default_state_id.into())
         },
-        biome: &|id| Some(ids.get(id.as_str()).copied().unwrap_or(ABSENT_BIOME)),
+        biome_tags: &biome_tags,
     };
     build_router_and_material(
         &settings,

@@ -11,6 +11,8 @@ use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{RegistrySet, Tags};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{
     BlockState, DensityFunctionHolder, ProtoDensityFunction,
@@ -33,7 +35,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use thiserror::Error;
 
-/// Registers the worldgen asset types and their loaders, and nothing else.
+/// Registers the worldgen asset types and the loader of the one that names no
+/// registry entry, and nothing else. The loaders of the rest parse inside the
+/// loaded registry set's scope, so they are registered once that set exists, by
+/// [`register_worldgen_loaders`].
 ///
 /// The world preset that names these settings is loaded by whoever owns the
 /// dimension list; this crate is handed the settings asset it produced.
@@ -54,35 +59,54 @@ impl Plugin for WorldgenAssetsPlugin {
             .init_asset::<TemplatePoolAsset>()
             .init_asset::<ProcessorListAsset>()
             .init_asset::<TemplateAsset>()
-            .register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::default())
-            .register_asset_loader(JsonLoader::<NoiseParamAsset>::default())
-            .register_asset_loader(JsonLoader::<CarverConfigAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::default())
-            .register_asset_loader(JsonLoader::<StructureSetAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::default())
-            .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::default())
-            .register_asset_loader(JsonLoader::<ProcessorListAsset>::default())
             .register_asset_loader(TemplateLoader);
     }
+}
+
+/// Registers the loaders of the worldgen assets that parse names, each holding
+/// `registries` so it can read a file inside the set's scope.
+pub fn register_worldgen_loaders(app: &mut App, registries: &RegistrySet) {
+    app.register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(JsonLoader::<NoiseParamAsset>::new(registries.clone()))
+    .register_asset_loader(JsonLoader::<CarverConfigAsset>::new(registries.clone()))
+    .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::new(registries.clone()))
+    .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(JsonLoader::<StructureSetAsset>::new(registries.clone()))
+    .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::new(
+        registries.clone(),
+    ))
+    .register_asset_loader(JsonLoader::<ProcessorListAsset>::new(registries.clone()));
 }
 
 /// Compiles one dimension's router and material rules from its loaded noise settings.
 ///
 /// `block` resolves a datapack block state against the block registry this
-/// crate does not have, and `biome` an id against the numbering the column's
-/// biome grid holds. Both are lookups the caller owns; the terrain block and
-/// the sea fluid come from the settings themselves, so they are per dimension
-/// rather than global.
+/// crate does not have, and `biome_tags` holds the biome tags a `biome_is` set
+/// may name, whose ids are the numbering the column's biome grid holds. Both
+/// are the caller's; the terrain block and the sea fluid come from the settings
+/// themselves, so they are per dimension rather than global.
 pub fn build_dimension_router(
     settings: &NoiseGeneratorSettingsAsset,
     assets: &WorldgenAssets<'_>,
     seed: u64,
     block: &dyn Fn(&BlockState) -> Option<VoxelId>,
-    biome: &dyn Fn(&ResourceLocation) -> Option<u16>,
+    biome_tags: &Tags<keys::Biome>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
     let mut loaded = Loaded::default();
     loaded.collect(&settings.deps, assets);
@@ -103,7 +127,7 @@ pub fn build_dimension_router(
         rules: &loaded.rules,
         conditions: &loaded.conditions,
         block,
-        biome,
+        biome_tags,
     };
     build_router_and_material(
         &settings.settings,
@@ -432,15 +456,21 @@ impl WorldgenAsset for NoiseGeneratorSettingsAsset {
     }
 }
 
-/// The JSON loader for an asset that names other worldgen assets: parse, turn
-/// the ids into handles, keep both. A leaf takes
-/// [`mcrs_minecraft_assets::asset::JsonLoader`] instead.
+/// The JSON loader for an asset that names other worldgen assets: parse inside
+/// the loaded registry set's scope, turn the ids into handles, keep both. A leaf
+/// takes [`mcrs_minecraft_assets::asset::JsonLoader`] instead.
 #[derive(TypePath)]
-pub struct WorldgenAssetLoader<A: TypePath>(PhantomData<fn() -> A>);
+pub struct WorldgenAssetLoader<A: TypePath> {
+    registries: RegistrySet,
+    asset: PhantomData<fn() -> A>,
+}
 
-impl<A: TypePath> Default for WorldgenAssetLoader<A> {
-    fn default() -> Self {
-        Self(PhantomData)
+impl<A: TypePath> WorldgenAssetLoader<A> {
+    pub fn new(registries: RegistrySet) -> Self {
+        Self {
+            registries,
+            asset: PhantomData,
+        }
     }
 }
 
@@ -456,7 +486,9 @@ impl<A: WorldgenAsset> AssetLoader for WorldgenAssetLoader<A> {
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = read_all(reader).await?;
-        let proto = serde_json::from_slice::<A::Proto>(&bytes)
+        let proto = self
+            .registries
+            .scope(|| serde_json::from_slice::<A::Proto>(&bytes))
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let mut refs = A::references(&proto);
         retain_shipped_templates(&mut refs.templates, load_context).await;
@@ -673,22 +705,13 @@ fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
 mod tests {
     use super::References;
     use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
     use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
     use mcrs_minecraft_worldgen_surface::{MaterialConditionHolder, MaterialRuleHolder};
     use std::collections::{BTreeMap, BTreeSet};
 
-    use mcrs_minecraft_worldgen_testing::{json_files, read, registry, worldgen_dir};
-
-    /// Every shipped biome, numbered by its position in the registry directory,
-    /// which is all the material rules need of a biome id.
-    fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u16> {
-        registry::<serde::de::IgnoredAny>("biome")
-            .into_keys()
-            .enumerate()
-            .map(|(index, id)| (id, u16::try_from(index).unwrap()))
-            .collect()
-    }
+    use mcrs_minecraft_worldgen_testing::{corpus_set, json_files, read, registry, worldgen_dir};
 
     /// The transitive closure of the loader's one-level walk, driven off disk
     /// the way the asset server drives it through the dependency handles.
@@ -846,6 +869,7 @@ mod tests {
             ..AssetPlugin::default()
         });
         app.add_plugins(WorldgenAssetsPlugin);
+        super::register_worldgen_loaders(&mut app, corpus_set());
 
         let handle: Handle<NoiseGeneratorSettingsAsset> = app
             .world()
@@ -893,7 +917,9 @@ mod tests {
         use mcrs_minecraft_chunk::VoxelId;
         use mcrs_minecraft_worldgen_density::proto::BlockState;
 
-        let biomes = shipped_biome_ids();
+        let biomes = corpus_set()
+            .tags::<keys::Biome>()
+            .expect("the corpus holds the biome registry");
         for name in ["overworld", "nether", "end", "beta"] {
             let mut app = load_settings(name);
             let mut state = assets_of(&mut app);
@@ -949,10 +975,7 @@ mod tests {
                 let next = VoxelId(states.len() as u16 + 1);
                 Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
             };
-            let (router, _) =
-                build_dimension_router(asset, &registries, 0, &block, &|id: &ResourceLocation| {
-                    biomes.get(id).copied()
-                })
+            let (router, _) = build_dimension_router(asset, &registries, 0, &block, &biomes)
                 .unwrap_or_else(|error| panic!("{name}: {error}"));
 
             assert_ne!(

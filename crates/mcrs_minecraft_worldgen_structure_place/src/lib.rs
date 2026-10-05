@@ -16,7 +16,7 @@ pub mod woodland_mansion;
 
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BoundingBox, HolderSet, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
@@ -89,11 +89,11 @@ pub fn block_mask(
     blocks: &dyn BlockResolver,
     names: &[&str],
 ) -> Result<StateMask, FeatureCompileError> {
-    let ids = names
+    let ids: Vec<ResourceLocation> = names
         .iter()
         .map(|name| ResourceLocation::parse(name).expect("a literal id"))
         .collect();
-    states_of(blocks, StateQuery::Blocks(&HolderSet::List(ids)))
+    states_of(blocks, StateQuery::Names(&ids))
 }
 
 /// `TemplateStructurePiece.postProcess`: the palette drawn from the piece's

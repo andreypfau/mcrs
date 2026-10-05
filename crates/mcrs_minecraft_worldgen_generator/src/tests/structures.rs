@@ -4,13 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::TagRegistry;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
+use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::{Registry, TagRules, Tags, build_tags};
 use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen_feature::template::{
 use mcrs_minecraft_worldgen_structure::{
     MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
 };
-use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
+use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files};
 
 use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
 use crate::features::possible_biomes;
@@ -59,7 +59,8 @@ fn variant_selectors(registry: &str) -> BTreeMap<ResourceLocation, Vec<SpawnSele
         .into_iter()
         .map(|path| {
             let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let variant: Variant = serde_json::from_slice(&bytes)
+            let variant: Variant = corpus_set()
+                .scope(|| serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let name = path.file_stem().expect("a file").to_string_lossy();
             (ResourceLocation::minecraft(&name), variant.spawn_conditions)
@@ -104,9 +105,9 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             template: &template_file,
             resolve: &|state| resolve_palette_state(corpus(), state),
             biomes: corpus_biomes(),
-            biome_tags: biome_tags(),
+            biome_tags: &biome_tags(),
             structure_registry: structure_registry(),
-            structure_tags: structure_tags(),
+            structure_tags: &structure_tags(),
             variants: &variant_inputs(),
         })
         .unwrap_or_else(|e| panic!("{e}"))
@@ -334,10 +335,18 @@ fn parse<T: serde::de::DeserializeOwned>(
         .map(|(id, json)| {
             (
                 ResourceLocation::parse(id).unwrap(),
-                serde_json::from_str(json).unwrap_or_else(|e| panic!("{id}: {e}")),
+                corpus_set()
+                    .scope(|| serde_json::from_str(json))
+                    .unwrap_or_else(|e| panic!("{id}: {e}")),
             )
         })
         .collect()
+}
+
+fn no_tags<R: RegistryKey>(registry: &Registry<R>) -> Tags<R> {
+    let (table, problems) = build_tags(registry.table(), TagRules::World, &[], None);
+    assert!(problems.is_empty(), "{problems:?}");
+    Tags::new(Arc::new(table))
 }
 
 /// Freeze a synthetic corpus with no templates, biomes or tags loaded.
@@ -360,9 +369,9 @@ fn try_freeze_with(
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
     let biomes = Registry::<keys::Biome>::new([]).expect("an empty registry");
-    let tags = TagRegistry::default();
+    let tags = no_tags(&biomes);
     let structure_registry = Registry::<keys::Structure>::new([]).expect("an empty registry");
-    let structure_tags = TagRegistry::<keys::Structure, Id<keys::Structure>>::default();
+    let structure_tags = no_tags(&structure_registry);
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {
         sets: &sets,
@@ -459,13 +468,16 @@ fn every_dangling_id_is_named() {
         r#""biomes": []"#,
         r##""biomes": "#minecraft:has_structure/gone""##,
     );
-    assert_eq!(
-        check(
-            &[],
-            &[("minecraft:s", &tagged)],
-            &[("minecraft:empty", EMPTY_POOL)]
-        ),
-        "minecraft:s: names the biome tag #minecraft:has_structure/gone, which is not loaded"
+    let error = corpus_set()
+        .scope(|| serde_json::from_str::<Structure>(&tagged))
+        .expect_err(
+            "a biome tag the data pack does not define is refused when the structure is read",
+        )
+        .to_string();
+    assert!(
+        error.contains("minecraft:has_structure/gone")
+            && error.contains("minecraft:worldgen/biome"),
+        "{error}"
     );
     let igloo = r#"{"type": "minecraft:igloo", "biomes": [], "spawn_overrides": {}, "step": "surface_structures"}"#;
     assert_eq!(

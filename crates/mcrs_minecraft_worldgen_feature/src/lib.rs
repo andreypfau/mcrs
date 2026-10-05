@@ -15,9 +15,10 @@ pub mod template;
 mod tests {
     use crate::block_predicate::BlockPredicate;
     use crate::placement::PlacementModifier;
-    use crate::proto::{Feature, FeatureStepList, PlacedFeature, StructureProcessorList};
+    use crate::proto::{Feature, PlacedFeature, PlacedFeatureSet, StructureProcessorList};
     use crate::spawn_condition::{DoubleBounds, SpawnSelector};
     use crate::tree::{BlockStateProvider, FeatureSize, TrunkPlacer};
+    use mcrs_minecraft_worldgen_testing::corpus_set;
     use serde::Serialize;
     use serde::de::DeserializeOwned;
 
@@ -41,14 +42,18 @@ mod tests {
                 codec::<PlacedFeature>,
                 r#"{"feature":"minecraft:oak","placement":[]}"#,
             ),
+            (codec::<PlacedFeatureSet>, r#""minecraft:oak""#),
             (
-                codec::<FeatureStepList>,
-                r##""#minecraft:has_structure/village""##,
+                codec::<PlacedFeatureSet>,
+                r#"["minecraft:oak","minecraft:birch"]"#,
             ),
-            (codec::<FeatureStepList>, r#"["minecraft:oak"]"#),
             (
-                codec::<FeatureStepList>,
-                r#"[{"feature":{"type":"minecraft:no_op"},"placement":[{"type":"minecraft:count","count":1}]}]"#,
+                codec::<PlacedFeatureSet>,
+                r#"[{"feature":{"type":"minecraft:no_op"},"placement":[{"type":"minecraft:count","count":1}]},"minecraft:oak"]"#,
+            ),
+            (
+                codec::<PlacedFeatureSet>,
+                r#"{"feature":{"type":"minecraft:no_op"},"placement":[]}"#,
             ),
             (
                 codec::<Feature>,
@@ -105,9 +110,11 @@ mod tests {
                 r##"{"condition":{"type":"minecraft:structure","structures":"#minecraft:cats_spawn_as_black"},"priority":1}"##,
             ),
         ];
-        for (codec, json) in cases {
-            assert_eq!(codec(json).as_deref(), Ok(*json));
-        }
+        corpus_set().scope(|| {
+            for (codec, json) in cases {
+                assert_eq!(codec(json).as_deref(), Ok(*json));
+            }
+        });
     }
 
     #[test]
@@ -129,9 +136,9 @@ mod tests {
                 "[0;16]: 17",
             ),
             (
-                codec::<FeatureStepList>,
-                r#""minecraft:oak""#,
-                "Not a tag id",
+                codec::<PlacedFeatureSet>,
+                r##""#minecraft:has_structure/village""##,
+                "No placed feature tag exists",
             ),
             (
                 codec::<PlacementModifier>,
@@ -145,9 +152,11 @@ mod tests {
             ),
             (codec::<DoubleBounds>, r#"{"min":2,"max":1}"#, ""),
         ];
-        for (codec, json, message) in cases {
-            let error = codec(json).expect_err(json);
-            assert!(error.contains(message), "{json}: {error}");
-        }
+        corpus_set().scope(|| {
+            for (codec, json, message) in cases {
+                let error = codec(json).expect_err(json);
+                assert!(error.contains(message), "{json}: {error}");
+            }
+        });
     }
 }

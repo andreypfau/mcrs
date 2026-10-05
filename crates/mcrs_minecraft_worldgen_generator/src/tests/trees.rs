@@ -11,7 +11,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
@@ -90,10 +90,12 @@ fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter,
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),
     );
+    let set = super::registries_over(registry);
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> =
-        mcrs_minecraft_worldgen_testing::registry("material_rule");
+        mcrs_minecraft_worldgen_testing::registry_in(&set, "material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        mcrs_minecraft_worldgen_testing::registry("material_condition");
+        mcrs_minecraft_worldgen_testing::registry_in(&set, "material_condition");
+    let biome_tags = set.tags().expect("the corpus holds the biome tags");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -103,9 +105,7 @@ fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter,
                 .block(state.name.as_str())
                 .map(|entry| entry.default_state_id.into())
         },
-        // A biome the registry does not carry is one no rule can match, which
-        // is what an id outside it means to the compiled sets.
-        biome: &|id| Some(registry.get(id.as_str()).map_or(250, Id::number)),
+        biome_tags: &biome_tags,
     };
     build_router_and_material(
         &settings,

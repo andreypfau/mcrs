@@ -7,6 +7,7 @@ use serde::ser::{Error as _, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::Cell;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 thread_local! {
@@ -111,6 +112,16 @@ impl<R, const ALWAYS_LIST: bool> PartialEq for HolderSet<R, ALWAYS_LIST> {
 }
 
 impl<R, const ALWAYS_LIST: bool> Eq for HolderSet<R, ALWAYS_LIST> {}
+
+impl<R, const ALWAYS_LIST: bool> Hash for HolderSet<R, ALWAYS_LIST> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            HolderSet::Named(tag) => tag.hash(state),
+            HolderSet::One(entry) => std::slice::from_ref(entry).hash(state),
+            HolderSet::List(entries) => entries.hash(state),
+        }
+    }
+}
 
 impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

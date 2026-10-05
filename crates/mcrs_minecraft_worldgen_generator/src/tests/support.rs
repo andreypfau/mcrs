@@ -36,7 +36,7 @@ pub fn blocks() -> &'static Blocks {
     })
 }
 
-use mcrs_minecraft_worldgen_testing::registry;
+use mcrs_minecraft_worldgen_testing::{corpus_set, registry};
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_density::compile::build_router;
@@ -75,7 +75,7 @@ pub fn build_beta_router() -> NoiseRouter {
 /// generation, so a corpus rename would otherwise cost every chunk silently.
 #[test]
 fn every_shipped_noise_settings_compiles_its_material_rules() {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     use mcrs_minecraft_worldgen_surface::compile::build_router_and_material;
     use mcrs_minecraft_worldgen_surface::{
@@ -87,11 +87,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
-    let biome_ids: HashMap<String, u16> = registry::<serde::de::IgnoredAny>("biome")
-        .into_keys()
-        .enumerate()
-        .map(|(id, name)| (name.as_str().to_owned(), u16::try_from(id).unwrap()))
-        .collect();
+    let biome_tags = biome_tags();
     let functions = registry("density_function");
     let noises = registry("noise");
 
@@ -102,7 +98,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
             rules: &rules,
             conditions: &conditions,
             block: &|state| try_resolve_state(corpus(), state).map(Into::into),
-            biome: &|id| biome_ids.get(id.as_str()).copied(),
+            biome_tags: &biome_tags,
         };
         build_router_and_material(
             &settings,
@@ -130,7 +126,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::{DenseId, Id, Registry};
+use mcrs_minecraft_registry::{DenseId, Registry, Tags};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub fn text_ordered_table(
@@ -216,11 +212,9 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 pub fn corpus_biomes() -> &'static Registry<keys::Biome> {
     static REGISTRY: std::sync::OnceLock<Registry<keys::Biome>> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
-        let mut names: Vec<_> = registry::<serde::de::IgnoredAny>("biome")
-            .into_keys()
-            .collect();
-        names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-        Registry::new(names).expect("a registry of distinct names")
+        corpus_set()
+            .registry()
+            .expect("the corpus set holds the biome registry")
     })
 }
 
@@ -247,25 +241,23 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> &'static TagRegistry<keys::Biome, Id<keys::Biome>> {
-    static TAGS: std::sync::OnceLock<TagRegistry<keys::Biome, Id<keys::Biome>>> =
-        std::sync::OnceLock::new();
-    TAGS.get_or_init(|| every_tag(corpus_biomes()))
+pub fn biome_tags() -> Tags<keys::Biome> {
+    corpus_set()
+        .tags()
+        .expect("the corpus set holds the biome tags")
 }
 
 pub fn structure_registry() -> &'static Registry<keys::Structure> {
     static REGISTRY: std::sync::OnceLock<Registry<keys::Structure>> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
-        let mut names: Vec<_> = registry::<serde::de::IgnoredAny>("structure")
-            .into_keys()
-            .collect();
-        names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-        Registry::new(names).expect("a registry of distinct names")
+        corpus_set()
+            .registry()
+            .expect("the corpus set holds the structure registry")
     })
 }
 
-pub fn structure_tags() -> &'static TagRegistry<keys::Structure, Id<keys::Structure>> {
-    static TAGS: std::sync::OnceLock<TagRegistry<keys::Structure, Id<keys::Structure>>> =
-        std::sync::OnceLock::new();
-    TAGS.get_or_init(|| every_tag(structure_registry()))
+pub fn structure_tags() -> Tags<keys::Structure> {
+    corpus_set()
+        .tags()
+        .expect("the corpus set holds the structure tags")
 }

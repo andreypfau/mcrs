@@ -2220,13 +2220,15 @@ mod tests {
             liquid_settings: Some(LiquidSettings::IgnoreWaterlogging),
         });
         let json = format!(
-            r##"{{"type":"minecraft:jigsaw","biomes":"#minecraft:x","spawn_overrides":{{}},"step":"surface_structures","start_pool":"minecraft:p","size":1,"start_height":{{"absolute":0}},"use_expansion_hack":true,"max_distance_from_center":80,"liquid_settings":"{}"}}"##,
+            r##"{{"type":"minecraft:jigsaw","biomes":"#minecraft:is_overworld","spawn_overrides":{{}},"step":"surface_structures","start_pool":"minecraft:p","size":1,"start_height":{{"absolute":0}},"use_expansion_hack":true,"max_distance_from_center":80,"liquid_settings":"{}"}}"##,
             serde_json::to_value(liquid_settings)
                 .unwrap()
                 .as_str()
                 .unwrap()
         );
-        let Structure::Jigsaw { jigsaw, .. } = serde_json::from_str(&json).unwrap() else {
+        let Structure::Jigsaw { jigsaw, .. } = mcrs_minecraft_worldgen_testing::corpus_set()
+            .scope(|| serde_json::from_str(&json).unwrap())
+        else {
             unreachable!()
         };
         frozen.structures.push(FrozenStructure {

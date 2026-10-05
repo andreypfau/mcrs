@@ -1,6 +1,5 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::IntProvider;
@@ -434,10 +433,10 @@ pub fn compile_chain(
         if legacy {
             processors.push(CompiledProcessor::BlockIgnore(states_of(
                 blocks,
-                StateQuery::Blocks(&HolderSet::List(vec![
+                StateQuery::Names(&[
                     ResourceLocation::minecraft("air"),
                     ResourceLocation::minecraft("structure_block"),
-                ])),
+                ]),
             )?));
         }
     }
@@ -454,9 +453,12 @@ fn compile_processor(
         Nop => return Ok(None),
         BlockIgnore { blocks: states } => CompiledProcessor::BlockIgnore(states_of(
             blocks,
-            StateQuery::Blocks(&HolderSet::List(
-                states.iter().map(|state| state.name.clone()).collect(),
-            )),
+            StateQuery::Names(
+                &states
+                    .iter()
+                    .map(|state| state.name.clone())
+                    .collect::<Vec<_>>(),
+            ),
         )?),
         JigsawReplacement => CompiledProcessor::JigsawReplacement {
             jigsaw: block_mask(blocks, "jigsaw")?,
@@ -509,11 +511,10 @@ fn compile_processor(
                 mossiness: *mossiness as f32,
                 full_stone: states_of(
                     blocks,
-                    StateQuery::Blocks(&HolderSet::List(
-                        ["stone_bricks", "stone", "chiseled_stone_bricks"]
-                            .map(ResourceLocation::minecraft)
-                            .to_vec(),
-                    )),
+                    StateQuery::Names(
+                        &["stone_bricks", "stone", "chiseled_stone_bricks"]
+                            .map(ResourceLocation::minecraft),
+                    ),
                 )?,
                 stairs: tag("stairs")?,
                 slabs: tag("slabs")?,
@@ -537,10 +538,7 @@ fn compile_processor(
 }
 
 fn default_state(blocks: &dyn BlockResolver, name: &str) -> Result<VoxelId, FeatureCompileError> {
-    state_of(
-        blocks,
-        &BlockState::minecraft(name),
-    )
+    state_of(blocks, &BlockState::minecraft(name))
 }
 
 fn compile_processor_rule(

@@ -19,8 +19,8 @@ use crate::stages::{ColumnProgram, ColumnRegion, FillContext, dimension_y_sectio
 use crate::staging::RegionSnapshots;
 
 use super::{
-    TEMPERATE, bare_fill_context, biome_registry, block_tags, blocks, build_beta_router,
-    build_program, flat_snapshot, fluid_tags, one_step, region_of,
+    TEMPERATE, bare_fill_context, biome_registry, blocks, build_beta_router, build_program,
+    flat_snapshot, one_step, region_of, registries_over, try_build_program,
 };
 
 const ORE: &str = r#"{
@@ -158,19 +158,10 @@ fn a_missing_name_fails_the_build_and_an_unsupported_shape_only_skips() {
              "default": "test:absent" }"#,
         "[]",
     );
-    let error = FeatureProgram::build(
-        &selecting,
-        &Default::default(),
-        &blocks().0,
-        Some(block_tags()),
-        Some(fluid_tags()),
-        &registry,
-        0,
-        None,
-    )
-    .err()
-    .expect("a missing name fails the build")
-    .to_string();
+    let error = try_build_program(&selecting, &Default::default(), &registry, 0, None)
+        .err()
+        .expect("a missing name fails the build")
+        .to_string();
     assert_eq!(
         error,
         "minecraft:ore_coal_test: unknown placed feature: test:absent"
@@ -294,21 +285,18 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
 /// block definition interns that fluid, so matching by name alone inverted it.
 #[test]
 fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
-    use mcrs_minecraft_core::HolderSet;
+    use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
-    let biomes = biome_registry(&[BIOME]);
     let resolver = crate::feature_program::Resolver::new(
         &blocks().0,
-        None,
-        None,
-        &biomes,
+        &registries_over(&biome_registry(&[BIOME])),
         0,
         &[],
         &super::corpus_features().block_state_providers,
     )
     .expect("the corpus resolves");
-    let set = HolderSet::One(ResourceLocation::parse("minecraft:empty").unwrap());
+    let set = HolderSet::One(mcrs_minecraft_keys::fluid::EMPTY);
     let mask = resolver
         .states(StateQuery::Fluids(&set))
         .expect("the empty fluid resolves");

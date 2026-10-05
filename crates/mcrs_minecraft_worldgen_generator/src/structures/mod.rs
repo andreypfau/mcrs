@@ -1,14 +1,12 @@
 use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::TagRegistry;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::spawn_condition::{
@@ -93,10 +91,10 @@ pub struct StructureInputs<'a> {
     pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
     pub biomes: &'a Registry<keys::Biome>,
-    pub biome_tags: &'a TagRegistry<keys::Biome, Id<keys::Biome>>,
+    pub biome_tags: &'a Tags<keys::Biome>,
     /// The structure ids the tags are resolved against, and those tags.
     pub structure_registry: &'a Registry<keys::Structure>,
-    pub structure_tags: &'a TagRegistry<keys::Structure, Id<keys::Structure>>,
+    pub structure_tags: &'a Tags<keys::Structure>,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -131,36 +129,19 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
 fn structure_id_set(
     inputs: &StructureInputs<'_>,
     frozen: &FrozenStructures,
-    set: &HolderSet,
+    set: &HolderSet<keys::Structure>,
 ) -> Result<IdSet, String> {
     let mut mask = FixedBitSet::with_capacity(frozen.structures.len());
-    let mut insert = |id: &str| {
-        frozen
+    for id in set.ids(inputs.structure_tags) {
+        let name = inputs
+            .structure_registry
+            .key(id)
+            .expect("a set member is a structure of the registry");
+        let loaded = frozen
             .structure_ids
-            .get(id)
-            .map(|id| mask.insert(usize::from(id.0)))
-            .ok_or_else(|| format!("names the structure {id}, which is not loaded"))
-    };
-    match set {
-        HolderSet::Tag(tag) => {
-            let key = TagKey::<keys::Structure, _>::from_location(tag.clone());
-            let members = inputs
-                .structure_tags
-                .get(&key)
-                .ok_or_else(|| format!("names the structure tag #{tag}, which is not loaded"))?;
-            for id in members.iter() {
-                let name = inputs
-                    .structure_registry
-                    .key(id)
-                    .expect("a tag member is a structure of the registry");
-                insert(name.as_str())?;
-            }
-        }
-        HolderSet::One(_) | HolderSet::List(_) => {
-            for id in set.entries() {
-                insert(id.as_str())?;
-            }
-        }
+            .get(name.as_str())
+            .ok_or_else(|| format!("names the structure {name}, which is not loaded"))?;
+        mask.insert(usize::from(loaded.0));
     }
     Ok(Arc::new(mask))
 }
@@ -175,13 +156,12 @@ fn freeze_variants(
         let Some(entries) = entries else {
             return Ok(VariantTable::default());
         };
-        let owner = ResourceLocation::parse(registry).expect("a literal id");
         VariantTable::freeze(
             entries
                 .iter()
                 .map(|(id, selectors)| (id.clone(), selectors.as_slice())),
             &|set| structure_id_set(inputs, frozen, set),
-            &|set| biome_mask(inputs, &owner, set),
+            &|set| Ok(biome_mask(inputs, set)),
         )
         .map_err(|error| format!("{registry}: {error}"))
     };
@@ -199,33 +179,10 @@ fn freeze_variants(
     Ok(())
 }
 
-fn biome_mask(
-    inputs: &StructureInputs<'_>,
-    owner: &dyn std::fmt::Display,
-    set: &HolderSet,
-) -> Result<BiomeMask, String> {
+fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<keys::Biome>) -> BiomeMask {
     let mut mask = FixedBitSet::with_capacity(inputs.biomes.len());
-    match set {
-        HolderSet::Tag(tag) => {
-            let key = TagKey::<keys::Biome, _>::from_location(tag.clone());
-            let members = inputs.biome_tags.get(&key).ok_or_else(|| {
-                format!("{owner}: names the biome tag #{tag}, which is not loaded")
-            })?;
-            for id in members.iter() {
-                mask.insert(id.index());
-            }
-        }
-        HolderSet::One(_) | HolderSet::List(_) => {
-            for id in set.entries() {
-                let biome = inputs
-                    .biomes
-                    .get(id.as_str())
-                    .ok_or_else(|| format!("{owner}: names the biome {id}, which is not loaded"))?;
-                mask.insert(biome.index());
-            }
-        }
-    }
-    Ok(Arc::new(mask))
+    mask.extend(set.ids(inputs.biome_tags).map(Id::index));
+    Arc::new(mask)
 }
 
 fn biome_tag_mask(
@@ -233,8 +190,14 @@ fn biome_tag_mask(
     owner: &dyn std::fmt::Display,
     tag: &str,
 ) -> Result<BiomeMask, String> {
-    let tag = ResourceLocation::parse(tag).expect("a literal id");
-    biome_mask(inputs, owner, &HolderSet::Tag(tag))
+    let key = TagKey::<keys::Biome, _>::from_location(
+        ResourceLocation::parse(tag).expect("a literal id"),
+    );
+    let tag = inputs
+        .biome_tags
+        .get(&key)
+        .ok_or_else(|| format!("{owner}: names the biome tag #{tag}, which is not loaded"))?;
+    Ok(biome_mask(inputs, &HolderSet::Named(tag)))
 }
 
 fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> Result<(), String> {
@@ -448,7 +411,7 @@ fn freeze_structures(
     for (id, structure) in ordered {
         let settings = structure.settings();
         let step_index = per_step.entry(settings.step).or_default();
-        let biomes = biome_mask(inputs, id, &settings.biomes)?;
+        let biomes = biome_mask(inputs, &settings.biomes);
         freeze_structure_templates(inputs, frozen, id, structure.templates())?;
         let templates = |names: &[&str]| {
             names
@@ -706,10 +669,7 @@ fn freeze_sets(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> R
                 spreading,
                 preferred_biomes,
                 ..
-            } => (
-                Some(spreading),
-                Some(biome_mask(inputs, id, preferred_biomes)?),
-            ),
+            } => (Some(spreading), Some(biome_mask(inputs, preferred_biomes))),
             StructurePlacement::DimensionOrigin {} => (None, None),
         };
         let exclusion = match spreading.and_then(|spreading| spreading.exclusion_zone.as_ref()) {

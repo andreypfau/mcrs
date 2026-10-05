@@ -1,12 +1,13 @@
 use crate::proto::{
-    BiomeSet, CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule,
-    MaterialRuleHolder,
+    CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::{Random, RandomSource};
+use mcrs_minecraft_registry::{HolderSet, Id, Tags};
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;
 use mcrs_minecraft_worldgen_density::compile::{CompileError, Compiler};
@@ -20,7 +21,7 @@ use std::sync::Arc;
 
 pub type CondId = u32;
 pub type NoiseId = u32;
-pub type BiomeSetId = u32;
+pub type BiomeMaskId = u32;
 pub type VeinId = u32;
 pub type RandomId = u32;
 
@@ -74,7 +75,7 @@ pub enum Condition {
         add_stone_depth: bool,
     },
     Biome {
-        set: BiomeSetId,
+        set: BiomeMaskId,
     },
     NoiseThreshold {
         noise: NoiseId,
@@ -273,13 +274,14 @@ pub enum SurfaceNoise {
     IcebergSurface,
 }
 
-/// The two registries plus the two resolvers this crate cannot supply itself:
-/// it has neither a block registry nor a biome registry.
+/// The two registries plus what this crate cannot supply itself: a resolver for
+/// block states, which it has no registry for, and the biome tags a `biome_is`
+/// set may name.
 pub struct MaterialInputs<'a> {
     pub rules: &'a BTreeMap<ResourceLocation, MaterialRuleHolder>,
     pub conditions: &'a BTreeMap<ResourceLocation, MaterialConditionHolder>,
     pub block: &'a dyn Fn(&BlockState) -> Option<VoxelId>,
-    pub biome: &'a dyn Fn(&ResourceLocation) -> Option<u16>,
+    pub biome_tags: &'a Tags<keys::Biome>,
 }
 
 /// The router and the material program compiled into one graph, which is how
@@ -385,7 +387,7 @@ struct Builder<'a, 'c, 'r> {
     noises: Vec<Arc<NoiseStack<Octave>>>,
     noise_ids: HashMap<(ResourceLocation, bool), NoiseId>,
     biome_sets: Vec<BiomeMask>,
-    biome_set_ids: HashMap<BiomeMask, BiomeSetId>,
+    biome_set_ids: HashMap<BiomeMask, BiomeMaskId>,
     randoms: Vec<RandomSource>,
     random_ids: HashMap<ResourceLocation, RandomId>,
     veins: Vec<OreVein>,
@@ -516,7 +518,7 @@ impl<'r> Builder<'_, '_, 'r> {
             ),
             MaterialCondition::Biome { biome_is } => (
                 Condition::Biome {
-                    set: self.biome_set(biome_is)?,
+                    set: self.biome_set(biome_is),
                 },
                 Scope::Y,
             ),
@@ -601,25 +603,16 @@ impl<'r> Builder<'_, '_, 'r> {
             .ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     }
 
-    fn biome_set(&mut self, set: &BiomeSet) -> Result<BiomeSetId, CompileError> {
-        if let BiomeSet::Tag(tag) = set {
-            return Err(CompileError::UnknownBiome(format!("#{tag}")));
-        }
-        let mut ids = Vec::with_capacity(set.entries().len());
-        for name in set.entries() {
-            ids.push(
-                (self.inputs.biome)(name)
-                    .ok_or_else(|| CompileError::UnknownBiome(name.as_str().to_string()))?,
-            );
-        }
+    fn biome_set(&mut self, set: &HolderSet<keys::Biome>) -> BiomeMaskId {
+        let ids: Vec<u16> = set.ids(self.inputs.biome_tags).map(Id::number).collect();
         let mask = BiomeMask::new(&ids);
         if let Some(&id) = self.biome_set_ids.get(&mask) {
-            return Ok(id);
+            return id;
         }
-        let id = self.biome_sets.len() as BiomeSetId;
+        let id = self.biome_sets.len() as BiomeMaskId;
         self.biome_set_ids.insert(mask.clone(), id);
         self.biome_sets.push(mask);
-        Ok(id)
+        id
     }
 
     /// Each dimensionality gets its own id: the descent's cache is one slot per id,
@@ -759,14 +752,16 @@ pub(crate) mod tests {
         (registry("material_rule"), registry("material_condition"))
     }
 
-    /// Stands in for the block and biome registries the compiling crate does not
-    /// have: any well-formed id resolves, to a distinct id per name.
+    /// Stands in for the block registry the compiling crate does not have: any
+    /// well-formed id resolves, to a distinct id per name.
     pub(crate) fn resolve_block(state: &BlockState) -> Option<VoxelId> {
         Some(VoxelId(hash_id(state.name.as_str()) as u16))
     }
 
-    pub(crate) fn resolve_biome(name: &ResourceLocation) -> Option<u16> {
-        u16::try_from(hash_id(name.as_str()) % 256).ok()
+    pub(crate) fn biome_tags() -> Tags<keys::Biome> {
+        mcrs_minecraft_worldgen_testing::corpus_set()
+            .tags()
+            .expect("the corpus holds the biome registry")
     }
 
     fn hash_id(name: &str) -> u32 {
@@ -785,11 +780,12 @@ pub(crate) mod tests {
         MaterialProgram,
     ) {
         let (rules, conditions) = material_corpus();
+        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome: &resolve_biome,
+            biome_tags: &biomes,
         };
         build_router_and_material(
             &settings(name),
@@ -1033,11 +1029,12 @@ pub(crate) mod tests {
             ResourceLocation::minecraft("overworld"),
             serde_json::from_str(rule).unwrap(),
         );
+        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block,
-            biome: &resolve_biome,
+            biome_tags: &biomes,
         };
         build_router_and_material(
             &settings("overworld"),
@@ -1103,11 +1100,12 @@ pub(crate) mod tests {
     #[test]
     fn a_missing_noise_is_a_compile_error() {
         let (rules, conditions) = material_corpus();
+        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome: &resolve_biome,
+            biome_tags: &biomes,
         };
         let error = build_router_and_material(
             &settings("overworld"),

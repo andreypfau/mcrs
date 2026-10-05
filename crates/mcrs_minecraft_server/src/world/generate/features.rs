@@ -6,14 +6,11 @@ use bevy_asset::Assets;
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::DynTagRegistry;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
@@ -58,18 +55,16 @@ fn decoration_steps(
     steps
         .iter()
         .map(|step| {
-            FeatureStepList::List(
-                step.ids(tags)
-                    .map(|id| {
-                        Holder::Reference(
-                            placed
-                                .key(id)
-                                .expect("an id of the registry has a name")
-                                .clone(),
-                        )
-                    })
-                    .collect(),
-            )
+            step.ids(tags)
+                .map(|id| {
+                    Holder::Reference(
+                        placed
+                            .key(id)
+                            .expect("an id of the registry has a name")
+                            .clone(),
+                    )
+                })
+                .collect()
         })
         .collect()
 }
@@ -91,8 +86,6 @@ fn build_dimension_features(
     structures: Option<Res<DimensionStructures>>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
-    block_tags: Option<Res<DynTagRegistry<Block>>>,
-    fluid_tags: Option<Res<DynTagRegistry<Fluid>>>,
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
@@ -221,9 +214,7 @@ fn build_dimension_features(
             &tables,
             &loaded,
             &blocks.0,
-            block_tags.as_deref(),
-            fluid_tags.as_deref(),
-            &biome_registry,
+            &registries,
             seed.0 as i64,
             structures
                 .as_ref()

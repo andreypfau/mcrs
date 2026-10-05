@@ -36,8 +36,7 @@ use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use super::structures::frozen_shared;
 use super::template_manifest::{freeze, parse_state, resolve};
 use super::{
-    biome_registry, block_tags, blocks, build_program_with, corpus, corpus_features, fluid_tags,
-    one_step,
+    biome_registry, blocks, build_program_with, corpus, corpus_features, one_step, registries_over,
 };
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
@@ -647,9 +646,15 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
             mossiness: f64::from(mossiness),
         },
         StructureProcessor::ProtectedBlocks {
-            value: mcrs_minecraft_core::HolderSet::Tag(ResourceLocation::minecraft(
-                "features_cannot_replace",
-            )),
+            value: mcrs_minecraft_registry::HolderSet::Named(
+                mcrs_minecraft_worldgen_testing::corpus_set()
+                    .tags::<mcrs_minecraft_keys::Block>()
+                    .expect("the corpus holds the block tags")
+                    .get(&mcrs_minecraft_core::TagKey::from_location(
+                        ResourceLocation::minecraft("features_cannot_replace"),
+                    ))
+                    .expect("the corpus names the features_cannot_replace tag"),
+            ),
         },
         StructureProcessor::LavaSubmergedBlock,
     ];
@@ -932,12 +937,10 @@ mod exhaustive {
     #[test]
     fn every_ruined_portal_chain_places_as_the_reference_does() {
         let dump = dump();
-        let biomes = biome_registry(&[BIOME]);
+        let registries = registries_over(&biome_registry(&[BIOME]));
         let resolver = crate::feature_program::Resolver::new(
             &blocks().0,
-            Some(block_tags()),
-            Some(fluid_tags()),
-            &biomes,
+            &registries,
             WORLD_SEED,
             &[],
             &crate::tests::corpus_features().block_state_providers,
