@@ -21,15 +21,15 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::Text;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
+use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_registry::key::Block;
 
 /// chisle: the generic 9x3 menu id is written by hand; reading the id of the
 /// `menu` registry from the static registries report lifts this.
-const GENERIC_9X3: i32 = 2;
+const GENERIC_9X3: RegistryId = RegistryId(2);
 const CHEST_ROWS: usize = 3;
 
 #[derive(Message, Debug)]
@@ -93,10 +93,9 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
     };
     let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)));
     let block = world.resource::<Blocks>().block_index(state);
-    world.resource::<DynTagRegistry<Block>>().contains(
-        &mcrs_minecraft_block::tags::SHULKER_BOXES,
-        u32::from(block.number()),
-    )
+    world
+        .resource::<DynTagRegistry<Block>>()
+        .contains(&mcrs_minecraft_block::tags::SHULKER_BOXES, block.number())
 }
 
 pub fn open_containers(world: &mut World) {
@@ -160,7 +159,7 @@ pub fn open_containers(world: &mut World) {
             req.player,
             PacketPayload::OpenScreen(ClientboundOpenScreen {
                 container_id: VarInt(i32::from(container_id)),
-                menu_type: VarInt(GENERIC_9X3),
+                menu_type: GENERIC_9X3,
                 title: Text::translate("container.chest", Vec::new()),
             }),
         );

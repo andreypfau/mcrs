@@ -8,7 +8,7 @@ use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_nbt::to_nbt_compound;
-use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::chunk::ChunkDataBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::block_entity::BLOCK_ENTITY_TYPES;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -88,14 +88,14 @@ pub fn packet_entry(
     let pos = entry.position();
     let data = to_nbt_compound(entry)?;
     let id = data.get_string("id").expect("the enum is tagged by id");
-    let kind = BLOCK_ENTITY_TYPES
-        .iter()
-        .position(|kind| *kind == id)
-        .expect("every modelled block entity is a registered type") as i32;
+    let (kind, _) = (0..=u16::MAX)
+        .zip(BLOCK_ENTITY_TYPES)
+        .find(|(_, kind)| *kind == id)
+        .expect("every modelled block entity is a registered type");
     Ok(ChunkDataBlockEntity {
         packed_xz: (((pos.x & 15) << 4) | (pos.z & 15)) as i8,
         y: pos.y as i16,
-        kind: VarInt(kind),
+        kind: RegistryId(kind),
         data: Cow::Owned(data),
     })
 }

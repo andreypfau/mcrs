@@ -28,7 +28,7 @@ pub struct SurfaceIds {
 impl SurfaceIds {
     pub fn resolve(blocks: &BlockDefinitions, biomes: &RegistrySnapshot<Biome>) -> Self {
         let biome = |name: &str| {
-            biomes.by_location(name).unwrap_or_else(|| {
+            biomes.by_location(name).map(u32::from).unwrap_or_else(|| {
                 panic!(
                     "the surface stage names the biome `{name}`, which the registry does not hold"
                 )

@@ -166,7 +166,7 @@ fn consume_effect_ids_are_the_registry_protocol_ids() {
                 "consume_effect_type",
                 &ResourceLocation::read(kind.id()).unwrap()
             ),
-            Some(kind as u32),
+            Some(kind as u16),
             "{}",
             kind.id()
         );

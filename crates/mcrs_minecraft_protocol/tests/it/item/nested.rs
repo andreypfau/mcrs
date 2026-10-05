@@ -15,7 +15,7 @@ use crate::item::harness::{TestLookup, from_json, from_nbt, hex, nbt_tree, persi
 
 #[derive(Deserialize)]
 struct Golden {
-    lookup: BTreeMap<String, BTreeMap<String, u32>>,
+    lookup: BTreeMap<String, BTreeMap<String, u16>>,
     cases: Vec<Case>,
 }
 

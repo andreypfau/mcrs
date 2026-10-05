@@ -588,10 +588,11 @@ pub fn spawn_dim_subapp(
         .iter()
         .find(|r| r.registry_key() == "minecraft:dimension_type")
         .and_then(|reg| {
-            reg.iter_entries()
-                .position(|e| e.location.as_str() == type_ident)
+            (0..=u16::MAX)
+                .zip(reg.iter_entries())
+                .find(|(_, e)| e.location.as_str() == type_ident)
+                .map(|(i, _)| i)
         })
-        .map(|i| i as i32)
         .unwrap_or(0);
 
     let dim_entity = sub_app
@@ -704,7 +705,7 @@ pub struct DimSubAppHandle;
 /// `PlayerSpawnInfo.dimension_type_id` so a real client builds its
 /// `ClientLevel` with the correct height (section count).
 #[derive(bevy_ecs::component::Component, Clone, Copy)]
-pub struct DimTypeIndex(pub i32);
+pub struct DimTypeIndex(pub u16);
 
 /// The dimension resource location (e.g. "minecraft:the_nether") of the
 /// sub-app anchored by this host-world label entity. Lets a name-based

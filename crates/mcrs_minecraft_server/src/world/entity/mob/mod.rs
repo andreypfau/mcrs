@@ -1,7 +1,6 @@
 use crate::world::aoi::{PlayerTrackerSet, TrackedBy, on_changed_transform};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::world::entity::player::HostAnchor;
-use crate::world::entity::registry_varint;
 use crate::world::item::item_lookups;
 use crate::world::item::sync::WireStack;
 use bevy_app::{App, FixedPostUpdate, Plugin};
@@ -37,7 +36,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEquipment
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassengers;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_protocol::{ProtoStack, VarInt};
+use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::entity::villager::VillagerData;
@@ -290,7 +289,7 @@ fn registry_id(
     registry: Option<&RegistryAccess>,
     key: &str,
     location: &ResourceLocation,
-) -> Option<u32> {
+) -> Option<u16> {
     let id = registry?.id(key, location);
     if id.is_none() {
         tracing::warn!(key, %location, "a spawned entity names a variant the registry lacks");
@@ -404,7 +403,7 @@ impl PairingItem<'_, '_> {
         let mut out = vec![PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id,
             uuid: self.uuid.0,
-            kind: registry_varint(self.kind.0),
+            kind: RegistryId::from(self.kind.0),
             pos: self.transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw,
@@ -424,7 +423,7 @@ impl PairingItem<'_, '_> {
                 ClientboundUpdateAttributes {
                     entity_id: id,
                     attributes: vec![AttributeSnapshot {
-                        attribute: registry_varint(ids.max_health),
+                        attribute: RegistryId::from(ids.max_health),
                         base: f64::from(health.max),
                         modifiers: Vec::new(),
                     }],
@@ -499,27 +498,27 @@ impl PairingItem<'_, '_> {
         if let Some(cat) = self.cat {
             put(
                 CAT_VARIANT,
-                MetaDataValue::CatVariant(VarInt(cat.variant as i32)),
+                MetaDataValue::CatVariant(RegistryId(cat.variant)),
             );
             put(
                 CAT_SOUND_VARIANT,
-                MetaDataValue::CatSoundVariant(VarInt(cat.sound as i32)),
+                MetaDataValue::CatSoundVariant(RegistryId(cat.sound)),
             );
         }
         if let Some(chicken) = self.chicken {
             put(
                 CHICKEN_VARIANT,
-                MetaDataValue::ChickenVariant(VarInt(chicken.variant as i32)),
+                MetaDataValue::ChickenVariant(RegistryId(chicken.variant)),
             );
             put(
                 CHICKEN_SOUND_VARIANT,
-                MetaDataValue::ChickenSoundVariant(VarInt(chicken.sound as i32)),
+                MetaDataValue::ChickenSoundVariant(RegistryId(chicken.sound)),
             );
         }
         if let Some(nautilus) = self.nautilus {
             put(
                 ZOMBIE_NAUTILUS_VARIANT,
-                MetaDataValue::ZombieNautilusVariant(VarInt(nautilus.0 as i32)),
+                MetaDataValue::ZombieNautilusVariant(RegistryId(nautilus.0)),
             );
         }
         if let Some(villager) = self.villager {
@@ -532,8 +531,8 @@ impl PairingItem<'_, '_> {
                         VILLAGER_DATA
                     },
                     MetaDataValue::VillagerData(mcrs_minecraft_protocol::entity::VillagerData {
-                        kind: VarInt(villager.kind.protocol_id() as i32),
-                        profession: VarInt(villager.profession.protocol_id() as i32),
+                        kind: RegistryId(villager.kind.protocol_id()),
+                        profession: RegistryId(villager.profession.protocol_id()),
                         level: VarInt(villager.level),
                     }),
                 );
@@ -747,7 +746,7 @@ mod tests {
             .unwrap()
             .get("minecraft:witch")
             .unwrap();
-        assert_eq!(*kind, registry_varint(witch_id));
+        assert_eq!(*kind, RegistryId::from(witch_id));
         assert_eq!(*pos, DVec3::new(8.5, 65.0, 8.5));
         assert_eq!(*data, VarInt(0));
         let PacketPayload::SetEntityData(ClientboundSetEntityData { metadata, .. }) = &sent[1].1

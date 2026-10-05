@@ -239,7 +239,10 @@ fn members<T: TaggedRegistry>(
     let set = tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
         tag: tag.as_str().to_owned(),
     })?;
-    Ok((0..len).map(|id| set.contains(id as u32)).collect())
+    Ok((0..=u16::MAX)
+        .take(len)
+        .map(|id| set.contains(id))
+        .collect())
 }
 
 fn resolve(

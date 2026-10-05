@@ -14,6 +14,7 @@ use crate::item::Template;
 use crate::item::component::{ArgbInt, RgbInt};
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
 use crate::item::wire::record_ctx_wire;
+use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode, VarInt};
 
 /// Every particle type in vanilla registration order, which is the wire id.
@@ -248,12 +249,8 @@ particle_types! {
 }
 
 impl ParticleKind {
-    pub const fn from_wire_id(id: i32) -> Option<Self> {
-        if id >= 0 && (id as usize) < Self::COUNT {
-            Some(Self::ALL[id as usize])
-        } else {
-            None
-        }
+    pub fn from_wire_id(id: u16) -> Option<Self> {
+        Self::ALL.get(usize::from(id)).copied()
     }
 }
 
@@ -265,13 +262,13 @@ impl fmt::Display for ParticleKind {
 
 impl Encode for ParticleKind {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(*self as i32).encode(w)
+        encode_registry_id(*self as u16, w)
     }
 }
 
 impl Decode<'_> for ParticleKind {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
+        let id = decode_registry_id(r)?;
         Self::from_wire_id(id).with_context(|| format!("unknown particle type {id}"))
     }
 }
@@ -349,16 +346,15 @@ impl EncodeCtx for BlockStateValue {
         let id = ctx
             .block_state_id(self.block.location(), &properties)
             .with_context(|| format!("{} has no block state {:?}", self.block, self.properties))?;
-        VarInt(id as i32).encode(w)
+        encode_registry_id(id, w)
     }
 }
 
 impl DecodeCtx<'_> for BlockStateValue {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        let (block, properties) = u32::try_from(id)
-            .ok()
-            .and_then(|id| ctx.block_state(id))
+        let id = decode_registry_id(r)?;
+        let (block, properties) = ctx
+            .block_state(id)
             .with_context(|| format!("no block state has id {id}"))?;
         Ok(BlockStateValue {
             block: ResourceKey::from_location(block),

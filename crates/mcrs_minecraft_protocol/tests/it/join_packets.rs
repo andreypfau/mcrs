@@ -11,12 +11,14 @@ use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::{Brand, clientbound, serverbound};
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, VarInt};
+use mcrs_minecraft_protocol::{
+    Bounded, Decode, Encode, GameMode, GlobalPos, RawBytes, RegistryId, VarInt,
+};
 
 const GOLDEN: &str = include_str!("../fixtures/join_packets_golden.txt");
 
 struct Fixture {
-    ids: HashMap<(String, String), u32>,
+    ids: HashMap<(String, String), u16>,
     packets: HashMap<String, Vec<u8>>,
 }
 
@@ -40,8 +42,8 @@ fn fixture() -> Fixture {
     fixture
 }
 
-fn id(fixture: &Fixture, registry: &str, name: &str) -> i32 {
-    fixture.ids[&(registry.into(), name.into())] as i32
+fn id(fixture: &Fixture, registry: &str, name: &str) -> RegistryId {
+    RegistryId(fixture.ids[&(registry.into(), name.into())])
 }
 
 fn decode<'a, P: Decode<'a>>(fixture: &'a Fixture, name: &str) -> (P, &'a [u8]) {
@@ -86,7 +88,7 @@ fn login_carries_no_seed_and_equals_the_reference_bytes() {
         show_death_screen: true,
         do_limited_crafting: false,
         player_spawn_info: PlayerSpawnInfo {
-            dimension_type_id: VarInt(id(&fixture, "dimension_type", "minecraft:overworld")),
+            dimension_type_id: id(&fixture, "dimension_type", "minecraft:overworld"),
             dimension: overworld(),
             game_mode: GameMode::Creative,
             prev_game_mode: OptGameMode(Some(GameMode::Survival)),
@@ -107,7 +109,7 @@ fn respawn_equals_the_reference_bytes() {
     let fixture = fixture();
     let expected = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo {
-            dimension_type_id: VarInt(id(&fixture, "dimension_type", "minecraft:the_nether")),
+            dimension_type_id: id(&fixture, "dimension_type", "minecraft:the_nether"),
             dimension: ResourceLocation::from(mcrs_minecraft_core::rl!("minecraft:the_nether")),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),

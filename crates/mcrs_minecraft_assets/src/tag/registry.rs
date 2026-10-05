@@ -87,7 +87,7 @@ pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
     _marker: PhantomData<fn() -> T>,
 }
 
-pub type DynTagLoader<T> = TagLoader<T, u32>;
+pub type DynTagLoader<T> = TagLoader<T, u16>;
 
 impl<T: TaggedRegistry + 'static, I: TagId> Default for TagLoader<T, I> {
     fn default() -> Self {
@@ -180,7 +180,7 @@ pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
     _marker: PhantomData<fn() -> T>,
 }
 
-pub type DynTagRegistry<T> = TagRegistry<T, u32>;
+pub type DynTagRegistry<T> = TagRegistry<T, u16>;
 
 impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
     fn default() -> Self {
@@ -277,7 +277,7 @@ mod tests {
         }
     }
 
-    fn id(raw: u32) -> Id<TestBlock> {
+    fn id(raw: u16) -> Id<TestBlock> {
         Id::from_raw(raw)
     }
 
@@ -297,7 +297,7 @@ mod tests {
         TagLoader::default()
     }
 
-    fn set(ids: impl IntoIterator<Item = u32>) -> HashSet<Id<TestBlock>> {
+    fn set(ids: impl IntoIterator<Item = u16>) -> HashSet<Id<TestBlock>> {
         ids.into_iter().map(id).collect()
     }
 
@@ -307,7 +307,7 @@ mod tests {
         assert!(empty.is_empty());
         assert_eq!(empty.iter().count(), 0);
 
-        let big: Vec<u32> = vec![0, 1, 15, 63, 64, 100, 127, 255, 500, 999];
+        let big: Vec<u16> = vec![0, 1, 15, 63, 64, 100, 127, 255, 500, 999];
         let mut loader = block_loader();
         loader.insert(rl_arc("minecraft:logs"), set([1, 2]));
         loader.insert(rl_arc("minecraft:leaves"), set([2, 3]));
@@ -322,7 +322,7 @@ mod tests {
             ["minecraft:big_tag", "minecraft:leaves", "minecraft:logs"]
         );
 
-        let expected: [(&'static str, &[u32]); 3] = [
+        let expected: [(&'static str, &[u16]); 3] = [
             ("minecraft:logs", &[1, 2]),
             ("minecraft:leaves", &[2, 3]),
             ("minecraft:big_tag", &big),
@@ -344,14 +344,14 @@ mod tests {
         }
     }
 
-    // ── The same implementation, keyed by a dynamic registry's `u32` ids ──
+    // ── The same implementation, keyed by a dynamic registry's ids ──
 
     #[test]
     fn dyn_loader_freezes_against_index() {
         let index = biome_index();
 
         let mut loader = DynTagLoader::<TestBiome>::default();
-        loader.insert(rl_arc("minecraft:is_forest"), HashSet::from([0u32, 2]));
+        loader.insert(rl_arc("minecraft:is_forest"), HashSet::from([0u16, 2]));
         let reg = loader.freeze(&index);
 
         let t = biome_tag("minecraft:is_forest");

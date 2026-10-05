@@ -18,13 +18,13 @@ pub use crate::common::{hex, nbt_tree};
 /// Every name a sample may reference, with the ids a capture session would
 /// have handed out.
 pub struct TestLookup {
-    by_name: HashMap<String, HashMap<ResourceLocation, u32>>,
+    by_name: HashMap<String, HashMap<ResourceLocation, u16>>,
     by_id: HashMap<String, Vec<Option<ResourceLocation>>>,
     block_states: Vec<TestBlockState>,
 }
 
 struct TestBlockState {
-    id: u32,
+    id: u16,
     block: ResourceLocation,
     properties: Vec<(String, String)>,
     default: bool,
@@ -84,7 +84,7 @@ impl TestLookup {
     }
 
     pub fn with_id_lines(text: &str) -> Self {
-        let mut ids: BTreeMap<String, BTreeMap<String, u32>> = BTreeMap::new();
+        let mut ids: BTreeMap<String, BTreeMap<String, u16>> = BTreeMap::new();
         for line in text.lines().filter_map(|line| line.strip_prefix("id ")) {
             let [registry, name, id] = line.split(' ').collect::<Vec<_>>()[..] else {
                 panic!("malformed id line: {line}");
@@ -98,33 +98,30 @@ impl TestLookup {
         Self::from_ids(&ids)
     }
 
-    pub fn from_ids(ids: &BTreeMap<String, BTreeMap<String, u32>>) -> Self {
+    pub fn from_ids(ids: &BTreeMap<String, BTreeMap<String, u16>>) -> Self {
         let mut lookup = Self::new();
         for (registry, entries) in ids {
-            let entries: Vec<(&str, u32)> = entries.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+            let entries: Vec<(&str, u16)> = entries.iter().map(|(k, v)| (k.as_str(), *v)).collect();
             lookup.registry_with_ids(registry, &entries);
         }
         lookup
     }
 
     fn registry(&mut self, name: &str, paths: &[&str]) {
-        let entries: Vec<(&str, u32)> = paths
-            .iter()
-            .enumerate()
-            .map(|(id, p)| (*p, id as u32))
-            .collect();
+        let entries: Vec<(&str, u16)> = paths.iter().zip(0u16..).map(|(p, id)| (*p, id)).collect();
         self.registry_with_ids(name, &entries);
     }
 
-    pub fn registry_with_ids(&mut self, name: &str, entries: &[(&str, u32)]) {
+    pub fn registry_with_ids(&mut self, name: &str, entries: &[(&str, u16)]) {
         let mut by_id = Vec::new();
         let mut by_name = HashMap::new();
         for (path, id) in entries {
             let location = ResourceLocation::minecraft(path);
-            if by_id.len() <= *id as usize {
-                by_id.resize(*id as usize + 1, None);
+            let index = usize::from(*id);
+            if by_id.len() <= index {
+                by_id.resize(index + 1, None);
             }
-            by_id[*id as usize] = Some(location.clone());
+            by_id[index] = Some(location.clone());
             by_name.insert(location, *id);
         }
         self.by_name.insert(name.into(), by_name);
@@ -133,7 +130,7 @@ impl TestLookup {
 
     pub fn block_state(
         &mut self,
-        id: u32,
+        id: u16,
         block: &str,
         properties: &[(&str, &str)],
         default: bool,
@@ -151,15 +148,15 @@ impl TestLookup {
 }
 
 impl RegistryLookup for TestLookup {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
         self.by_name.get(registry)?.get(name).copied()
     }
 
-    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
-        self.by_id.get(registry)?.get(id as usize)?.as_ref()
+    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
+        self.by_id.get(registry)?.get(usize::from(id))?.as_ref()
     }
 
-    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u16> {
         let states: Vec<&TestBlockState> = self
             .block_states
             .iter()
@@ -193,7 +190,7 @@ impl RegistryLookup for TestLookup {
             .map(|state| state.id)
     }
 
-    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+    fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         let state = self.block_states.iter().find(|state| state.id == id)?;
         let properties = if state.default {
             Vec::new()

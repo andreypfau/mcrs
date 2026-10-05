@@ -252,7 +252,7 @@ struct RawItem {
 #[serde(deny_unknown_fields)]
 struct RawDescription {
     identifier: String,
-    protocol_id: u32,
+    protocol_id: u16,
 }
 
 fn raw_files() -> Vec<(String, RawFile)> {
@@ -314,7 +314,7 @@ fn definition_protocol_ids_match_the_registries_report(files: &[(String, RawFile
         .iter()
         .filter_map(|(path, file)| {
             let description = &file.item.description;
-            let registered = items.names().get(description.protocol_id as usize);
+            let registered = items.names().get(usize::from(description.protocol_id));
             (registered.map(|name| name.as_str()) != Some(description.identifier.as_str())).then(
                 || {
                     format!(

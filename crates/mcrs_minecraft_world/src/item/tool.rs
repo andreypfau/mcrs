@@ -41,10 +41,7 @@ fn contains(
 ) -> bool {
     match set {
         HolderSet::Tag(tag) => blocks.id_of(block).is_some_and(|id| {
-            tags.contains(
-                &TagKey::<Block, _>::from_location(tag.clone()),
-                u32::from(id.number()),
-            )
+            tags.contains(&TagKey::<Block, _>::from_location(tag.clone()), id.number())
         }),
         _ => set.entries().iter().any(|key| key.as_str() == block),
     }

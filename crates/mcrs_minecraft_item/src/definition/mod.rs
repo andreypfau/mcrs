@@ -141,10 +141,10 @@ impl std::ops::Deref for Items {
 
 #[cfg(feature = "bevy")]
 impl TagSource for Items {
-    type Id = u32;
+    type Id = u16;
 
-    fn id_of(&self, loc: &str) -> Option<u32> {
-        ItemDefinitions::id_of(self, loc).map(|id| u32::from(id.0))
+    fn id_of(&self, loc: &str) -> Option<u16> {
+        ItemDefinitions::id_of(self, loc).map(u16::from)
     }
 
     fn capacity(&self) -> u32 {

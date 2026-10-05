@@ -6,7 +6,6 @@ use crate::login::{GameProfile, SessionsById, disconnect, duplicate_login_reason
 use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
-use crate::world::entity::registry_varint;
 use crate::world::session::HostAnchorRef;
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 use bevy_app::{App, Plugin, Update};
@@ -49,7 +48,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfigu
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
-use mcrs_minecraft_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_protocol::{RegistryId, WritePacket};
 use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
@@ -147,7 +146,7 @@ fn request_dynamic_registry_tags(
 fn dynamic_tag_groups(
     entries: &[(ResourceLocation<Arc<str>>, Handle<TagFile>)],
     tag_files: &Assets<TagFile>,
-    index_of: &dyn Fn(&str) -> Option<i32>,
+    index_of: &dyn Fn(&str) -> Option<u16>,
 ) -> Vec<TagGroup<'static>> {
     let mut groups = Vec::with_capacity(entries.len());
     for (location, handle) in entries {
@@ -166,7 +165,7 @@ fn dynamic_tag_groups(
         };
         groups.push(TagGroup {
             name,
-            entries: ids.into_iter().map(VarInt).collect(),
+            entries: ids.into_iter().map(RegistryId).collect(),
         });
     }
     groups.sort_by(|a, b| a.name.path().cmp(b.name.path()));
@@ -176,9 +175,9 @@ fn dynamic_tag_groups(
 fn flatten_tag_file(
     tag_file: &TagFile,
     all_files: &Assets<TagFile>,
-    index_of: &dyn Fn(&str) -> Option<i32>,
+    index_of: &dyn Fn(&str) -> Option<u16>,
     visited: &mut HashSet<AssetId<TagFile>>,
-    out: &mut Vec<i32>,
+    out: &mut Vec<u16>,
 ) {
     for entry in &tag_file.values {
         match entry {
@@ -344,7 +343,7 @@ fn on_configuration_enter(
 
 fn tag_group(
     name: &ResourceLocation<Arc<str>>,
-    entries: impl Iterator<Item = VarInt>,
+    entries: impl Iterator<Item = RegistryId>,
 ) -> TagGroup<'static> {
     TagGroup {
         name: ResourceLocation::parse_cow(Cow::Owned(name.as_str().to_string())).unwrap_or_else(
@@ -460,17 +459,7 @@ fn on_known_packs_response(
             registry: rl!("minecraft:block").into(),
             tags: block_tags
                 .iter()
-                .map(|(name, members)| {
-                    tag_group(
-                        name,
-                        members.iter().map(|index| {
-                            VarInt(
-                                i32::try_from(index)
-                                    .expect("a registry id fits the 32 bits of the wire"),
-                            )
-                        }),
-                    )
-                })
+                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId)))
                 .collect(),
         });
     }
@@ -479,7 +468,7 @@ fn on_known_packs_response(
             registry: rl!("minecraft:item").into(),
             tags: item_tags
                 .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(|id| VarInt(id as i32))))
+                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId)))
                 .collect(),
         });
     }
@@ -488,7 +477,7 @@ fn on_known_packs_response(
             registry: rl!("minecraft:enchantment").into(),
             tags: enchantment_tags
                 .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(registry_varint)))
+                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId::from)))
                 .collect(),
         });
     }
@@ -497,7 +486,7 @@ fn on_known_packs_response(
             registry: rl!("minecraft:entity_type").into(),
             tags: entity_type_tags
                 .iter()
-                .map(|(name, members)| tag_group(name, members.iter().map(registry_varint)))
+                .map(|(name, members)| tag_group(name, members.iter().map(RegistryId::from)))
                 .collect(),
         });
     }
@@ -508,14 +497,12 @@ fn on_known_packs_response(
     // tag must be declared even when the resolved entry list is empty.
     for (registry_key, entries) in &dynamic_tags.per_registry {
         let registry_key = *registry_key;
-        let index_of = |name: &str| -> Option<i32> {
-            access
-                .iter()
-                .find(|r| r.registry_key() == registry_key)?
-                .iter_entries()
-                .enumerate()
+        let index_of = |name: &str| -> Option<u16> {
+            let registry = access.iter().find(|r| r.registry_key() == registry_key)?;
+            (0..=u16::MAX)
+                .zip(registry.iter_entries())
                 .find(|(_, e)| e.location.as_str() == name)
-                .map(|(i, _)| i as i32)
+                .map(|(i, _)| i)
         };
         let groups = dynamic_tag_groups(entries, &tag_files, &index_of);
         if !groups.is_empty() {
@@ -769,10 +756,10 @@ mod tests {
             "minecraft:bad_respawn_point",
         ];
         let index_of = |name: &str| {
-            explosion_types
-                .iter()
-                .position(|known| *known == name)
-                .map(|index| index as i32)
+            (0..=u16::MAX)
+                .zip(explosion_types)
+                .find(|(_, known)| *known == name)
+                .map(|(index, _)| index)
         };
 
         let groups = dynamic_tag_groups(entries, world.resource::<Assets<TagFile>>(), &index_of);

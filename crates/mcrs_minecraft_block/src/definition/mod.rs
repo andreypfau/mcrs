@@ -294,27 +294,27 @@ impl std::ops::Index<Id<Block>> for BlockDefinitions {
 }
 
 impl RegistryLookup for BlockDefinitions {
-    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u32> {
+    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u16> {
         None
     }
 
-    fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
+    fn name(&self, _: &str, _: u16) -> Option<&ResourceLocation> {
         None
     }
 
-    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u16> {
         let entry = self.block(block.as_str())?;
         let id = properties
             .iter()
             .fold(entry.default_state_id, |id, (name, value)| {
                 entry.with_text(id, name, value).unwrap_or(id)
             });
-        Some(u32::from(id.0))
+        Some(id.0)
     }
 
-    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
-        let id = BlockStateId(u16::try_from(id).ok()?);
-        if id.0 as usize >= self.states.len() {
+    fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+        let id = BlockStateId(id);
+        if usize::from(id.0) >= self.states.len() {
             return None;
         }
         let entry = self.owner(id);
@@ -351,10 +351,10 @@ impl mcrs_minecraft_registry::shared::SharedResource for Blocks {
 /// Block tags are resolved against the corpus, so every block the game has can
 /// be in a tag — not only the ones a static registry happens to name.
 impl mcrs_minecraft_registry::TagSource for Blocks {
-    type Id = u32;
+    type Id = u16;
 
-    fn id_of(&self, loc: &str) -> Option<u32> {
-        BlockDefinitions::id_of(self, loc).map(|id| u32::from(id.number()))
+    fn id_of(&self, loc: &str) -> Option<u16> {
+        BlockDefinitions::id_of(self, loc).map(Id::number)
     }
 
     fn capacity(&self) -> u32 {
@@ -367,10 +367,10 @@ impl mcrs_minecraft_registry::TagSource for Blocks {
 pub struct Fluids(pub Arc<BlockDefinitions>);
 
 impl mcrs_minecraft_registry::TagSource for Fluids {
-    type Id = u32;
+    type Id = u16;
 
-    fn id_of(&self, loc: &str) -> Option<u32> {
-        self.0.fluid_id(loc).map(|id| u32::from(id.0))
+    fn id_of(&self, loc: &str) -> Option<u16> {
+        self.0.fluid_id(loc).map(|id| id.0)
     }
 
     fn capacity(&self) -> u32 {
@@ -1216,7 +1216,7 @@ mod tests {
         );
         assert_eq!(lookup.block_state(4), Some((stone, vec![])));
         assert_eq!(lookup.block_state(5), None);
-        assert_eq!(lookup.block_state(u32::MAX), None);
+        assert_eq!(lookup.block_state(u16::MAX), None);
     }
 
     #[test]

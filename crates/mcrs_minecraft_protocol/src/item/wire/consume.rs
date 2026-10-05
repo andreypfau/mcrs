@@ -8,11 +8,12 @@ use crate::item::component::common::Holder;
 use crate::item::component::consume::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
 use crate::item::wire::record_ctx_wire;
-use crate::{Decode, Encode, VarInt};
+use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::{Decode, Encode};
 
 impl EncodeCtx for ConsumeEffect {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.kind() as i32).encode(&mut w)?;
+        encode_registry_id(self.kind() as u16, &mut w)?;
         match self {
             Self::ApplyEffects {
                 effects,
@@ -37,7 +38,7 @@ impl EncodeCtx for ConsumeEffect {
 
 impl DecodeCtx<'_> for ConsumeEffect {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
+        let id = decode_registry_id(r)?;
         let Some(kind) = ConsumeEffectType::from_wire_id(id) else {
             bail!("unknown consume effect type {id}");
         };

@@ -44,7 +44,7 @@ fn generated_nest() -> GeneratedBlockEntity {
 
 /// Every kind a generator leaves, each in `section_pos`, with the wire type id the
 /// built-in registry gives it.
-fn every_kind() -> Vec<(GeneratedBlockEntity, i32)> {
+fn every_kind() -> Vec<(GeneratedBlockEntity, u16)> {
     vec![
         (generated_nest(), 33),
         (

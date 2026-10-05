@@ -21,7 +21,8 @@ fn read(relative: &str) -> String {
 
 fn names_in_index<T: TaggedRegistry + 'static>(app: &App) -> Vec<String> {
     let index = app.world().resource::<DynRegistryIndex<T>>();
-    (0..index.len())
+    (0..=u16::MAX)
+        .take(usize::try_from(index.len()).unwrap())
         .map(|id| index.location(id).expect("ids are dense").to_string())
         .collect()
 }

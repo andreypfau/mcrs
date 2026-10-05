@@ -270,7 +270,7 @@ pub(crate) fn check_tags_ready(
 /// the block `TagLoader`. The tag files were loaded as sub-assets by
 /// `DimensionTypeLoader`, so they're guaranteed to be available here.
 pub(crate) fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagLoader<Block, u32>>,
+    mut tags: ResMut<TagLoader<Block, u16>>,
     tag_files: Res<Assets<TagFile>>,
     registry: Res<block::definition::Blocks>,
     dim_types: Res<Assets<DimensionType>>,

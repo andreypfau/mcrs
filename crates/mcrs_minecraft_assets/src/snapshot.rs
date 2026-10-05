@@ -18,7 +18,7 @@ pub struct SnapshotEntry<T: Asset> {
     pub nbt: NbtTag,
 }
 
-/// Stable `u32` network IDs assigned to all entries of a single dynamic
+/// Stable network IDs assigned to all entries of a single dynamic
 /// registry type once `AppState::WorldgenFreeze` is entered.
 ///
 /// Entries are numbered by the registry loader's [`NameTable`]. The expensive
@@ -27,7 +27,7 @@ pub struct SnapshotEntry<T: Asset> {
 #[derive(Resource, Debug)]
 pub struct RegistrySnapshot<T: Asset> {
     entries: Arc<[SnapshotEntry<T>]>,
-    by_asset: Arc<HashMap<AssetId<T>, u32>>,
+    by_asset: Arc<HashMap<AssetId<T>, u16>>,
     table: Option<Arc<NameTable>>,
     _marker: PhantomData<fn() -> T>,
 }
@@ -81,7 +81,7 @@ impl<T: Asset> RegistrySnapshot<T> {
             let id = table
                 .number(location.as_str())
                 .expect("the listing matches");
-            if let Some((location, _)) = slots[id as usize].replace((location, asset_id)) {
+            if let Some((location, _)) = slots[usize::from(id)].replace((location, asset_id)) {
                 panic!("{}: {location} is loaded twice", table.registry());
             }
         }
@@ -89,7 +89,7 @@ impl<T: Asset> RegistrySnapshot<T> {
         let mut entries = Vec::with_capacity(slots.len());
         let mut by_asset = HashMap::with_capacity(slots.len());
 
-        for (network_id, slot) in slots.into_iter().enumerate() {
+        for (network_id, slot) in (0..=u16::MAX).zip(slots) {
             let (location, asset_id) = slot.expect("the listing matches");
             let Some(value) = assets.get(asset_id) else {
                 panic!(
@@ -100,7 +100,7 @@ impl<T: Asset> RegistrySnapshot<T> {
             let nbt = serialize(value).unwrap_or_else(|e| {
                 panic!("{} does not encode for the network: {e}", location.as_str())
             });
-            by_asset.insert(asset_id, network_id as u32);
+            by_asset.insert(asset_id, network_id);
             entries.push(SnapshotEntry {
                 location,
                 asset_id,
@@ -124,23 +124,23 @@ impl<T: Asset> RegistrySnapshot<T> {
         self.entries.is_empty()
     }
 
-    pub fn by_asset_id(&self, id: AssetId<T>) -> Option<u32> {
+    pub fn by_asset_id(&self, id: AssetId<T>) -> Option<u16> {
         self.by_asset.get(&id).copied()
     }
 
-    pub fn by_id(&self, network_id: u32) -> Option<&SnapshotEntry<T>> {
-        self.entries.get(network_id as usize)
+    pub fn by_id(&self, network_id: u16) -> Option<&SnapshotEntry<T>> {
+        self.entries.get(usize::from(network_id))
     }
 
     /// Resolve a network ID by resource location. Unlike [`by_asset_id`], this is
     /// stable across `AssetServer` instances (e.g. the host world vs. a per-dim
     /// sub-app), where the same biome carries different `AssetId`s.
-    pub fn by_location(&self, location: &str) -> Option<u32> {
-        self.table.as_ref()?.number(location).map(u32::from)
+    pub fn by_location(&self, location: &str) -> Option<u16> {
+        self.table.as_ref()?.number(location)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (u32, &SnapshotEntry<T>)> {
-        self.entries.iter().enumerate().map(|(i, e)| (i as u32, e))
+    pub fn iter(&self) -> impl Iterator<Item = (u16, &SnapshotEntry<T>)> {
+        (0..=u16::MAX).zip(self.entries.iter())
     }
 
     pub fn entries(&self) -> &[SnapshotEntry<T>] {
@@ -174,7 +174,7 @@ pub fn assert_listing_matches<'a>(
         let Some(id) = table.number(name.as_str()) else {
             panic!("{registry}: {name} is loaded but the registry loader has no such entry");
         };
-        seen[id as usize] = true;
+        seen[usize::from(id)] = true;
     }
     if let Some(id) = seen.iter().position(|seen| !seen) {
         let name = table.name(id).expect("ids are dense");

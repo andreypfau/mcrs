@@ -92,13 +92,13 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
             (
-                request_every_tag::<mcrs_minecraft_registry::key::Block, u32>,
-                request_every_tag::<mcrs_minecraft_registry::key::Fluid, u32>,
-                request_every_tag::<mcrs_minecraft_item::Item, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Block, u16>,
+                request_every_tag::<mcrs_minecraft_registry::key::Fluid, u16>,
+                request_every_tag::<mcrs_minecraft_item::Item, u16>,
                 request_every_tag::<EnchantmentData, mcrs_minecraft_registry::Id<EnchantmentData>>,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
-                request_every_tag::<mcrs_minecraft_registry::key::Biome, u32>,
-                request_every_tag::<mcrs_minecraft_registry::key::Structure, u32>,
+                request_every_tag::<mcrs_minecraft_registry::key::Biome, u16>,
+                request_every_tag::<mcrs_minecraft_registry::key::Structure, u16>,
             )
                 .in_set(TagPhase::Request),
         );

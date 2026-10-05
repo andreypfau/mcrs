@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::io::{Cursor, Write};
 use std::sync::Arc;
 
-use anyhow::Context;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -11,7 +10,8 @@ use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use uuid::Uuid;
 
-use crate::{Decode, Encode, VarInt};
+use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::{Decode, Encode};
 use mcrs_minecraft_registry::ItemId;
 
 impl<T: Encode> Encode for Option<T> {
@@ -101,15 +101,12 @@ impl Decode<'_> for ResourceLocation<Arc<str>> {
 
 impl Encode for ItemId {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.0 as i32).encode(w)
+        encode_registry_id(self.0, w)
     }
 }
 
 impl Decode<'_> for ItemId {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        Ok(ItemId(id.try_into().with_context(|| {
-            format!("item id {id} is out of range")
-        })?))
+        decode_registry_id(r).map(ItemId)
     }
 }
