@@ -122,7 +122,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         seed,
     );
     let biome = corpus_biomes()
-        .get(biome_id)
+        .by_name(biome_id)
         .expect("the biome registry holds the corpus");
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
     mask.insert(biome.index());

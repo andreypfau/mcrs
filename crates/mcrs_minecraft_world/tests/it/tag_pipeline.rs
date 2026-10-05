@@ -93,7 +93,7 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
         "minecraft:parched",
     ]
     .into_iter()
-    .map(|name| registry.require(name).unwrap().index())
+    .map(|name| registry.require_by_name(name).unwrap().index())
     .collect();
     expected.sort_unstable();
     assert_eq!(members, expected);
@@ -110,7 +110,7 @@ fn loaded_members<R: RegistryKey>(tag: &str) -> Vec<String> {
         .get(&key)
         .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::KEY));
     tags.members(id)
-        .map(|member| registry.key(member).unwrap().as_str().to_owned())
+        .map(|member| registry.name(member).unwrap().as_str().to_owned())
         .collect()
 }
 

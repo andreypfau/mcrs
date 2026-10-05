@@ -153,7 +153,9 @@ pub(super) fn dimension_with(
     let y_sections = dimension_y_sections(&router, -64, 24);
     let program = program(&registry);
     let source = Arc::new(BiomeSource::Fixed {
-        biome: registry.require(biome).expect("the dimension's biome"),
+        biome: registry
+            .require_by_name(biome)
+            .expect("the dimension's biome"),
     });
     let ctx = FillContext {
         blocks: blocks().0.clone(),

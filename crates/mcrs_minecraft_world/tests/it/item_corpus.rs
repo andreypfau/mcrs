@@ -94,7 +94,7 @@ fn ids_are_dense_and_named() {
     assert_eq!(items.len(), files().len());
     assert_eq!(items.len(), registry.len());
     for (index, entry) in items.iter().enumerate() {
-        let reported = registry.require(entry.identifier.as_str()).unwrap();
+        let reported = registry.require_by_name(entry.identifier.as_str()).unwrap();
         assert_eq!(reported.index(), index, "{}", entry.identifier);
         assert_eq!(entry.id, reported, "{}", entry.identifier);
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));

@@ -23,7 +23,7 @@ fn names_in_registry<T: RegistryKey + Send + Sync + 'static>(app: &App) -> Vec<S
     let registry = app.world().resource::<Registry<T>>();
     registry
         .ids()
-        .map(|id| registry.key(id).expect("ids are dense").to_string())
+        .map(|id| registry.name(id).expect("ids are dense").to_string())
         .collect()
 }
 

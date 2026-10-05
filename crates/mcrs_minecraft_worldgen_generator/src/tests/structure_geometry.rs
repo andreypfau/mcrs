@@ -284,7 +284,7 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
             .map(|state| state.unwrap_or(states.air))
             .collect(),
         biome: corpus_biomes()
-            .get(&case.biome)
+            .by_name(&case.biome)
             .expect("a corpus biome")
             .number(),
         states,
@@ -329,7 +329,7 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     region.world = world;
     region.extent.sea_level = sea_level;
     region.biome = corpus_biomes()
-        .get(&case.biome)
+        .by_name(&case.biome)
         .expect("a corpus biome")
         .number();
     let predicates = predicates().clone();

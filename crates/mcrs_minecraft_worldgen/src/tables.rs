@@ -76,7 +76,7 @@ pub fn lookup<'a, R: RegistryKey, T>(
     entries: &'a Entries<R, Option<T>>,
     name: &str,
 ) -> Result<&'a T, TableError> {
-    lookup_id(registry, entries, registry.require(name)?)
+    lookup_id(registry, entries, registry.require_by_name(name)?)
 }
 
 pub fn lookup_id<'a, R: RegistryKey, T>(
@@ -90,7 +90,7 @@ pub fn lookup_id<'a, R: RegistryKey, T>(
         .ok_or_else(|| TableError::Absent {
             registry: R::KEY.into(),
             name: registry
-                .key(id)
+                .name(id)
                 .map_or_else(|| format!("{id:?}"), ToString::to_string),
         })
 }
@@ -115,7 +115,7 @@ pub fn named<'a, R: RegistryKey, T, V>(
     registry
         .ids()
         .filter_map(|id| {
-            let name = registry.key(id).expect("an id of the registry has a name");
+            let name = registry.name(id).expect("an id of the registry has a name");
             Some((name.clone(), value(entries.get(id)?.as_ref()?)))
         })
         .collect()
@@ -136,7 +136,7 @@ fn column<R: RegistryKey, A: Asset, T>(
     let values = registry
         .ids()
         .map(|id| {
-            let name = registry.key(id).expect("an id of the registry has a name");
+            let name = registry.name(id).expect("an id of the registry has a name");
             let path = asset_path::<R>(name);
             // A handle that exists without an asset is a file that failed to
             // load; a name nothing referenced has no handle and nothing to report.

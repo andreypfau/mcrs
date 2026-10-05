@@ -501,14 +501,14 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     assert_eq!(
         order,
         vec![
-            registry.get("test:zulu").unwrap(),
-            registry.get("test:alpha").unwrap()
+            registry.by_name("test:zulu").unwrap(),
+            registry.by_name("test:alpha").unwrap()
         ]
     );
 
     let ordered: Vec<&Timeline> = order
         .iter()
-        .map(|id| match registry.key(*id).unwrap().as_str() {
+        .map(|id| match registry.name(*id).unwrap().as_str() {
             "test:alpha" => &alpha,
             "test:zulu" => &zulu,
             other => panic!("unexpected member {other}"),

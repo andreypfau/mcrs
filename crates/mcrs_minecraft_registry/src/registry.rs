@@ -2,6 +2,7 @@ use crate::id::{Id, id_number};
 use crate::names::NameTable;
 use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::fmt;
 use std::marker::PhantomData;
@@ -134,23 +135,35 @@ impl<R: RegistryKey> Registry<R> {
         self.table.is_empty()
     }
 
-    pub fn key(&self, id: Id<R>) -> Option<&ResourceLocation<Arc<str>>> {
+    pub fn name(&self, id: Id<R>) -> Option<&ResourceLocation<Arc<str>>> {
         self.table.name(id.index())
     }
 
-    pub fn get(&self, name: &str) -> Option<Id<R>> {
-        self.table.number(name).map(Id::from_number)
+    pub fn get<S: AsRef<str>>(&self, key: &ResourceKey<R, S>) -> Option<Id<R>> {
+        self.table.number(key.as_str()).map(Id::from_number)
+    }
+
+    pub fn require<S: AsRef<str>>(&self, key: &ResourceKey<R, S>) -> Result<Id<R>, UnknownEntry> {
+        self.get(key).ok_or_else(|| UnknownEntry {
+            registry: R::KEY.into(),
+            name: key.as_str().to_owned(),
+        })
+    }
+
+    pub fn by_name(&self, name: &str) -> Option<Id<R>> {
+        let name = ResourceLocation::read(name).ok()?;
+        self.table.number(name.as_str()).map(Id::from_number)
+    }
+
+    pub fn require_by_name(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
+        self.by_name(name).ok_or_else(|| UnknownEntry {
+            registry: R::KEY.into(),
+            name: name.to_owned(),
+        })
     }
 
     pub fn id(&self, number: u16) -> Option<Id<R>> {
         (usize::from(number) < self.len()).then(|| Id::from_number(number))
-    }
-
-    pub fn require(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
-        self.get(name).ok_or_else(|| UnknownEntry {
-            registry: R::KEY.into(),
-            name: name.to_owned(),
-        })
     }
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {
@@ -201,9 +214,9 @@ mod tests {
         let indices: Vec<usize> = registry.ids().map(Id::index).collect();
         assert_eq!(indices, [0, 1, 2]);
         for (position, text) in UNSORTED.iter().enumerate() {
-            let id = registry.get(text).unwrap();
+            let id = registry.by_name(text).unwrap();
             assert_eq!(id.index(), position);
-            assert_eq!(registry.key(id).unwrap().as_str(), *text);
+            assert_eq!(registry.name(id).unwrap().as_str(), *text);
         }
     }
 
@@ -216,12 +229,15 @@ mod tests {
         let registry = registry(&UNSORTED);
         let names: Vec<_> = registry
             .ids()
-            .map(|id| registry.key(id).unwrap().as_str())
+            .map(|id| registry.name(id).unwrap().as_str())
             .collect();
         assert_eq!(names, UNSORTED);
-        assert_eq!(registry.get("minecraft:desert").map(Id::number), Some(1));
+        assert_eq!(
+            registry.by_name("minecraft:desert").map(Id::number),
+            Some(1)
+        );
         let last = registry.id(2).unwrap();
-        assert_eq!(registry.key(last).unwrap().as_str(), "minecraft:forest");
+        assert_eq!(registry.name(last).unwrap().as_str(), "minecraft:forest");
         assert!(registry.id(3).is_none());
     }
 
@@ -230,23 +246,73 @@ mod tests {
         let registry = registry(&[]);
         assert!(registry.is_empty());
         assert_eq!(registry.ids().count(), 0);
-        assert_eq!(registry.get("minecraft:plains"), None);
+        assert_eq!(registry.by_name("minecraft:plains"), None);
         assert!(registry.id(0).is_none());
     }
 
     #[test]
     fn a_failed_lookup_names_registry_and_entry() {
         let registry = registry(&UNSORTED);
-        let error = registry.require("minecraft:absent").unwrap_err();
+        let error = registry.require_by_name("minecraft:absent").unwrap_err();
         let message = error.to_string();
         assert!(message.contains("minecraft:test_registry"), "{message}");
         assert!(message.contains("minecraft:absent"), "{message}");
         assert_eq!(error.registry, TestRegistry::KEY);
         assert_eq!(error.name, "minecraft:absent");
         assert_eq!(
-            registry.require("minecraft:desert").unwrap(),
-            registry.get("minecraft:desert").unwrap()
+            registry.require_by_name("minecraft:desert").unwrap(),
+            registry.by_name("minecraft:desert").unwrap()
         );
+    }
+
+    fn key(text: &'static str) -> ResourceKey<TestRegistry, &'static str> {
+        ResourceKey::new(ResourceLocation::new_static(text))
+    }
+
+    #[test]
+    fn typed_lookups_follow_vanilla() {
+        let registry = registry(&UNSORTED);
+        for (text, number) in [
+            ("minecraft:plains", Some(0)),
+            ("minecraft:desert", Some(1)),
+            ("minecraft:forest", Some(2)),
+            ("minecraft:absent", None),
+        ] {
+            let key = key(text);
+            assert_eq!(registry.get(&key).map(Id::number), number, "{text}");
+            match number {
+                Some(_) => assert_eq!(registry.require(&key), Ok(registry.get(&key).unwrap())),
+                None => {
+                    let error = registry.require(&key).unwrap_err();
+                    let message = error.to_string();
+                    assert!(message.contains("minecraft:test_registry"), "{message}");
+                    assert!(message.contains(text), "{message}");
+                }
+            }
+        }
+
+        for (text, number) in [
+            ("plains", Some(0)),
+            ("minecraft:plains", Some(0)),
+            ("Plains", None),
+            ("minecraft:Plains", None),
+            ("absent", None),
+        ] {
+            assert_eq!(registry.by_name(text).map(Id::number), number, "{text}");
+            assert_eq!(
+                registry.require_by_name(text).ok().map(Id::number),
+                number,
+                "{text}"
+            );
+        }
+        let error = registry.require_by_name("Plains").unwrap_err();
+        assert_eq!(error.name, "Plains");
+        assert_eq!(error.registry, TestRegistry::KEY);
+
+        for id in registry.ids() {
+            let name = registry.name(id).unwrap().clone();
+            assert_eq!(registry.get(&ResourceKey::from_location(name)), Some(id));
+        }
     }
 
     #[test]
@@ -267,11 +333,11 @@ mod tests {
     fn an_id_of_a_larger_registry_has_no_name_in_a_smaller_one() {
         let larger = registry(&UNSORTED);
         let smaller = registry(&["minecraft:plains"]);
-        let first = larger.get("minecraft:plains").unwrap();
-        let second = larger.get("minecraft:desert").unwrap();
-        let third = larger.get("minecraft:forest").unwrap();
-        assert!(smaller.key(first).is_some());
-        assert!(smaller.key(second).is_none());
-        assert!(smaller.key(third).is_none());
+        let first = larger.by_name("minecraft:plains").unwrap();
+        let second = larger.by_name("minecraft:desert").unwrap();
+        let third = larger.by_name("minecraft:forest").unwrap();
+        assert!(smaller.name(first).is_some());
+        assert!(smaller.name(second).is_none());
+        assert!(smaller.name(third).is_none());
     }
 }

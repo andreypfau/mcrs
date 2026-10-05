@@ -358,7 +358,7 @@ fn normal_dimensions() -> Dimensions {
     let set = test_registries();
     let id = set
         .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get("minecraft:normal"))
+        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
     set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
         .dimensions

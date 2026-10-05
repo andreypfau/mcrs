@@ -2,6 +2,7 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::definition::{CORPUS_DIRECTORY, FORMAT_VERSION};
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
@@ -37,7 +38,9 @@ pub fn from_files(
         let item = file.item;
         let found = item.description.protocol_id;
         let reported = items
-            .require(item.description.identifier.as_str())
+            .require(&ResourceKey::from_location(
+                item.description.identifier.clone(),
+            ))
             .map_err(ItemTableError::from)?;
         if found != reported.number() {
             return Err(ItemCorpusError::ProtocolIds {

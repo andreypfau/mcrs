@@ -39,7 +39,7 @@ pub fn dimension_tables(
     for (dimension, source) in &sources.0 {
         let mut mask = FixedBitSet::with_capacity(biomes.len());
         for name in possible_biomes(source, biomes, lists) {
-            if let Some(id) = biomes.get(name.as_str()) {
+            if let Some(id) = biomes.by_name(name.as_str()) {
                 mask.insert(id.index());
             }
         }

@@ -1,7 +1,8 @@
 use crate::id::Id;
-use crate::registry::Registry;
+use crate::registry::{Registry, UnknownEntry};
 use crate::set::RegistrySet;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
 use std::collections::BTreeMap;
@@ -59,8 +60,24 @@ impl LoadReport {
         self.record(registry, None, Some(directory), message.to_string());
     }
 
-    pub fn require<R: RegistryKey>(&mut self, registry: &Registry<R>, name: &str) -> Option<Id<R>> {
-        match registry.require(name) {
+    pub fn require<R: RegistryKey, S: AsRef<str>>(
+        &mut self,
+        registry: &Registry<R>,
+        key: &ResourceKey<R, S>,
+    ) -> Option<Id<R>> {
+        self.resolved(registry.require(key))
+    }
+
+    pub fn require_by_name<R: RegistryKey>(
+        &mut self,
+        registry: &Registry<R>,
+        name: &str,
+    ) -> Option<Id<R>> {
+        self.resolved(registry.require_by_name(name))
+    }
+
+    fn resolved<R>(&mut self, found: Result<Id<R>, UnknownEntry>) -> Option<Id<R>> {
+        match found {
             Ok(id) => Some(id),
             Err(error) => {
                 self.record(&error.registry, Some(&error.name), None, error.to_string());
@@ -150,6 +167,10 @@ mod tests {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:beta");
     }
 
+    fn key<R>(text: &'static str) -> ResourceKey<R, &'static str> {
+        ResourceKey::new(ResourceLocation::new_static(text))
+    }
+
     fn registry<R: RegistryKey>(names: &[&str]) -> Registry<R> {
         Registry::new(
             names
@@ -163,8 +184,8 @@ mod tests {
     fn a_found_entry_is_returned_and_nothing_is_recorded() {
         let alpha = registry::<Alpha>(&["minecraft:one", "minecraft:two"]);
         let mut report = LoadReport::new();
-        let id = report.require(&alpha, "minecraft:two");
-        assert_eq!(id, alpha.get("minecraft:two"));
+        let id = report.require(&alpha, &key("minecraft:two"));
+        assert_eq!(id, alpha.by_name("minecraft:two"));
         assert_eq!(id.unwrap().index(), 1);
         assert!(report.is_empty());
         assert_eq!(report.to_string(), "");
@@ -175,10 +196,10 @@ mod tests {
         let alpha = registry::<Alpha>(&["minecraft:present"]);
         let beta = registry::<Beta>(&[]);
         let mut report = LoadReport::new();
-        assert!(report.require(&beta, "minecraft:b_second").is_none());
-        assert!(report.require(&alpha, "minecraft:z_last").is_none());
-        assert!(report.require(&beta, "minecraft:a_first").is_none());
-        assert!(report.require(&alpha, "minecraft:present").is_some());
+        assert!(report.require(&beta, &key("minecraft:b_second")).is_none());
+        assert!(report.require(&alpha, &key("minecraft:z_last")).is_none());
+        assert!(report.require(&beta, &key("minecraft:a_first")).is_none());
+        assert!(report.require(&alpha, &key("minecraft:present")).is_some());
         assert!(!report.is_empty());
 
         let text = report.to_string();
@@ -195,11 +216,40 @@ mod tests {
     }
 
     #[test]
+    fn a_report_names_the_key_s_own_registry() {
+        let alpha = registry::<Alpha>(&[]);
+        let beta = registry::<Beta>(&["minecraft:one"]);
+        let mut report = LoadReport::new();
+        assert!(report.require(&alpha, &key("minecraft:one")).is_none());
+        assert_eq!(
+            report.require(&beta, &key("minecraft:one")),
+            beta.by_name("minecraft:one")
+        );
+        let text = report.to_string();
+        assert_eq!(text.lines().count(), 1, "{text}");
+        assert!(
+            text.starts_with("minecraft:alpha/minecraft:one: "),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_data_name_is_reported_as_it_was_written() {
+        let alpha = registry::<Alpha>(&["minecraft:one"]);
+        let mut report = LoadReport::new();
+        assert_eq!(report.require_by_name(&alpha, "one"), alpha.by_name("one"));
+        assert!(report.require_by_name(&alpha, "One").is_none());
+        let text = report.to_string();
+        assert_eq!(text.lines().count(), 1, "{text}");
+        assert!(text.starts_with("minecraft:alpha/One: "), "{text}");
+    }
+
+    #[test]
     fn a_miss_asked_for_twice_is_named_once() {
         let alpha = registry::<Alpha>(&[]);
         let mut report = LoadReport::new();
-        report.require(&alpha, "minecraft:absent");
-        report.require(&alpha, "minecraft:absent");
+        report.require(&alpha, &key("minecraft:absent"));
+        report.require(&alpha, &key("minecraft:absent"));
         assert_eq!(report.to_string().lines().count(), 1);
     }
 

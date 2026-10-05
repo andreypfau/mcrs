@@ -143,8 +143,12 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
     };
     let registry =
         super::biome_registry(&["minecraft:swamp", "minecraft:plains", "minecraft:desert"]);
-    let plains = registry.get("minecraft:plains").expect("a registry biome");
-    let desert = registry.get("minecraft:desert").expect("a registry biome");
+    let plains = registry
+        .by_name("minecraft:plains")
+        .expect("a registry biome");
+    let desert = registry
+        .by_name("minecraft:desert")
+        .expect("a registry biome");
     let source = MultiNoiseBiomeSource {
         preset: None,
         biomes: Some(vec![entry(flat(-1.0), plains), entry(flat(1.0), desert)]),
@@ -202,7 +206,7 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     let names: Vec<String> = (0..=256).map(|id| format!("test:biome_{id:03}")).collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let registry = super::biome_registry(&names);
-    let last = registry.get("test:biome_256").expect("the 257th biome");
+    let last = registry.by_name("test:biome_256").expect("the 257th biome");
     assert_eq!(last.number(), 256);
 
     let point = ParameterRange::Point(0.0);
@@ -239,7 +243,7 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
             .ids()
             .map(|id| {
                 names
-                    .key(id)
+                    .name(id)
                     .expect("an id of the registry has a name")
                     .clone()
             })
@@ -247,7 +251,11 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
     )
     .expect("a registry of distinct names");
     let source = MultiNoiseBiomeSource {
-        preset: Some(beyond.require("test:beyond_the_loaded_lists").unwrap()),
+        preset: Some(
+            beyond
+                .require_by_name("test:beyond_the_loaded_lists")
+                .unwrap(),
+        ),
         biomes: None,
     };
     let registry = super::biome_registry(&["minecraft:plains"]);

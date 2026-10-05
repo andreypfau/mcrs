@@ -211,9 +211,12 @@ const _: fn() = || {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::holder::{Holder, HolderWireOnly};
+    use crate::holder_set::HolderSet;
     use crate::id::Id;
-    use mcrs_minecraft_core::rl;
-    use serde::{Deserialize, Deserializer};
+    use mcrs_minecraft_core::{RegistryValue, rl};
+    use serde::de::DeserializeOwned;
+    use serde::{Deserialize, Deserializer, Serialize};
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::Barrier;
 
@@ -268,7 +271,7 @@ mod tests {
         let set = RegistrySet::new().with(biomes.clone()).unwrap();
         set.scope(|| {
             let id: Id<Biome> = serde_json::from_str("\"minecraft:desert\"").unwrap();
-            assert_eq!(Some(id), biomes.get("minecraft:desert"));
+            assert_eq!(Some(id), biomes.by_name("minecraft:desert"));
             assert_eq!(id.index(), 1);
             assert_eq!(serde_json::to_string(&id).unwrap(), "\"minecraft:desert\"");
         });
@@ -285,6 +288,64 @@ mod tests {
         let probe = Registry::<Biome>::in_scope("probe", |_| ());
         assert!(matches!(probe, Err(ScopeError::NoScope { .. })));
         assert!(no_scope_here());
+    }
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Entry {
+        volume: i32,
+    }
+
+    impl RegistryValue for Entry {
+        type Registry = Biome;
+    }
+
+    fn refuses_without_the_registry<T: DeserializeOwned + Serialize>(
+        label: &str,
+        of: fn(Id<Biome>) -> T,
+    ) {
+        let id = registry::<Biome>(&PLAINS_FIRST)
+            .by_name("minecraft:plains")
+            .unwrap();
+        let value = of(id);
+        let without_biomes = RegistrySet::new()
+            .with(registry::<Item>(&["minecraft:stick"]))
+            .unwrap();
+
+        for (set, expected) in [
+            (None, "no registry scope is active"),
+            (Some(without_biomes), "holds no such registry"),
+        ] {
+            let attempt = || {
+                (
+                    serde_json::from_str::<T>("\"minecraft:plains\"").err(),
+                    serde_json::to_string(&value).err(),
+                )
+            };
+            let (read, written) = match &set {
+                Some(set) => set.scope(attempt),
+                None => attempt(),
+            };
+            for (direction, error) in [("read", read), ("write", written)] {
+                let message = error
+                    .unwrap_or_else(|| panic!("{label} {direction} succeeded: {expected}"))
+                    .to_string();
+                assert!(message.contains(expected), "{label} {direction}: {message}");
+                assert!(
+                    message.contains("minecraft:worldgen/biome"),
+                    "{label} {direction}: {message}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scoped_types_refuse_to_work_without_a_scope() {
+        refuses_without_the_registry("Id", |id| id);
+        refuses_without_the_registry("Holder", Holder::<Entry>::Reference);
+        refuses_without_the_registry("HolderWireOnly", |id| {
+            HolderWireOnly(Holder::<Entry>::Reference(id))
+        });
+        refuses_without_the_registry("HolderSet", HolderSet::<Biome>::One);
     }
 
     #[test]

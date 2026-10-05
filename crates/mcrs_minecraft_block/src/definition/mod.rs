@@ -20,9 +20,9 @@ use self::schema::{
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::{Block, Fluid};
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
 
@@ -254,7 +254,7 @@ impl BlockDefinitions {
 
     #[inline]
     pub fn id_of(&self, identifier: &str) -> Option<Id<Block>> {
-        self.registry.get(identifier)
+        self.registry.by_name(identifier)
     }
 
     pub fn table_bytes(&self) -> usize {
@@ -519,7 +519,9 @@ impl Builder {
 
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
         let description = file.block.description;
-        let id = self.registry.require(description.identifier.as_str())?;
+        let id = self
+            .registry
+            .require(&ResourceKey::from_location(description.identifier.clone()))?;
         if usize::from(description.protocol_id) != id.index() {
             return Err(BlockError::ProtocolIdDisagrees {
                 stated: description.protocol_id,
@@ -614,7 +616,7 @@ impl Builder {
 
         let identifier = self
             .registry
-            .key(id)
+            .name(id)
             .expect("the id came from this registry")
             .clone();
         self.blocks[id.index()] = Some(BlockEntry {

@@ -165,7 +165,7 @@ mod tests {
         for name in ["minecraft:air", "minecraft:stone", "minecraft:stick"] {
             assert_eq!(
                 untyped.number(name),
-                items.get(name).map(|id| id.number()),
+                items.by_name(name).map(|id| id.number()),
                 "{name}"
             );
         }

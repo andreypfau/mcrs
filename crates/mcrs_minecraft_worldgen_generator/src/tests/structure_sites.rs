@@ -182,7 +182,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let source = &dimension.source;
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
     for name in possible_biomes(source, corpus_biomes(), &crate::tests::parameter_lists().1) {
-        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
+        mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
@@ -198,7 +198,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
             .unwrap(),
         )),
         BiomeSource::TheEnd => BiomeLookup::TheEnd(
-            EndBiomes::resolve(|name| corpus_biomes().get(name).map(Id::number)).unwrap(),
+            EndBiomes::resolve(|name| corpus_biomes().by_name(name).map(Id::number)).unwrap(),
         ),
         _ => unreachable!(),
     };

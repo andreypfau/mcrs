@@ -1,4 +1,5 @@
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_entity::attribute::MAX_HEALTH;
 use mcrs_minecraft_keys::{Attribute, EntityType};
 use mcrs_minecraft_registry::shared::SharedResource;
@@ -20,10 +21,12 @@ macro_rules! entity_ids {
                 $(
                     let $field = types
                         .as_ref()
-                        .and_then(|types| report.require(types, $named));
+                        .and_then(|types| {
+                            report.require(types, &ResourceKey::<EntityType, _>::new(rl!($named)))
+                        });
                 )*
                 let max_health = attributes.as_ref().and_then(|attributes| {
-                    report.require(attributes, MAX_HEALTH.identifier.as_str())
+                    report.require(attributes, &ResourceKey::new(MAX_HEALTH.identifier))
                 });
                 Some(Self {
                     $($field: $field?,)*

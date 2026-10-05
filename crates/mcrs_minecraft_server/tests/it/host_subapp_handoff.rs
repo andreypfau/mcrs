@@ -648,7 +648,7 @@ fn an_id_names_the_same_entry_in_every_dimension() {
     for other in rest {
         assert_eq!(first.len(), other.len());
         for id in first.ids() {
-            assert_eq!(first.key(id), other.key(id));
+            assert_eq!(first.name(id), other.name(id));
         }
     }
 }

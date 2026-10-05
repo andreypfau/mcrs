@@ -264,7 +264,7 @@ impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V> {
                 let registry = V::Registry::KEY.path();
                 let local = local_registry::<V::Registry>(ctx)?;
                 let name = local
-                    .key(*id)
+                    .name(*id)
                     .with_context(|| format!("{id:?} is not in registry {registry}"))?;
                 let wire = ctx
                     .id(registry, name)
@@ -295,7 +295,7 @@ impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for Holder<V> {
             return Ok(Holder::Reference(Id::from_raw(0)));
         }
         let id = local_registry::<V::Registry>(ctx)?
-            .get(name.as_str())
+            .get(&ResourceKey::<V::Registry>::from_location(name.clone()))
             .with_context(|| format!("{name} is not in registry {registry}"))?;
         Ok(Holder::Reference(id))
     }
@@ -320,7 +320,7 @@ impl<R: RegistryKey, const L: bool> EncodeCtx for HolderSet<R, L> {
         VarInt(entries.len() as i32 + 1).encode(&mut w)?;
         for id in entries {
             let name = registry
-                .key(id)
+                .name(id)
                 .with_context(|| format!("{id:?} is not in registry {}", R::KEY))?;
             ResourceKey::<R>::from_location(name.clone()).encode_ctx(ctx, &mut w)?;
         }
@@ -363,7 +363,7 @@ impl<'a, R: RegistryKey, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
             let key = ResourceKey::<R>::decode_ctx(ctx, r)?;
             entries.push(
                 registry
-                    .require(key.as_str())
+                    .require(&key)
                     .with_context(|| format!("{key} is not in registry {}", R::KEY))?,
             );
         }
@@ -548,8 +548,8 @@ mod tests {
             &["c", "a", "b"],
         );
         let local = lookup.local.registry::<keys::SoundEvent>().unwrap();
-        let holder = Holder::<SoundEvent>::Reference(local.get("minecraft:b").unwrap());
-        assert_eq!(local.get("minecraft:b").unwrap().number(), 2);
+        let holder = Holder::<SoundEvent>::Reference(local.by_name("minecraft:b").unwrap());
+        assert_eq!(local.by_name("minecraft:b").unwrap().number(), 2);
 
         let mut bytes = Vec::new();
         holder.encode_ctx(&lookup, &mut bytes).unwrap();

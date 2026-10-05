@@ -808,7 +808,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     let ids: std::collections::HashMap<String, u16> = registry
         .ids()
         .map(|id| {
-            let name = registry.key(id).expect("an id of the registry has a name");
+            let name = registry.name(id).expect("an id of the registry has a name");
             (name.to_string(), id.number())
         })
         .collect();
@@ -832,7 +832,7 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     .expect("the fill was not cancelled");
 
     let desert = registry
-        .get("minecraft:desert")
+        .by_name("minecraft:desert")
         .expect("the loader holds desert")
         .narrow::<u8>()
         .expect("a biome id the palette can store");

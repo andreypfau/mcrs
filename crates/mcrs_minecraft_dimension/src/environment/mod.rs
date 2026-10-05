@@ -197,7 +197,7 @@ impl EnvironmentAttributes {
         let mut clocks: Vec<ResourceLocation<Arc<str>>> = Vec::new();
         for timeline in timelines {
             let name = world_clocks
-                .key(timeline.clock)
+                .name(timeline.clock)
                 .ok_or(EnvironmentError::UnknownClock)?;
             let clock = match clocks.iter().position(|known| known == name) {
                 Some(known) => known,
@@ -317,7 +317,7 @@ pub fn build_dimension_environments(
     for id in types.ids() {
         let dimension_type = &dimension_types[id];
         let name = types
-            .key(id)
+            .name(id)
             .expect("an id of the registry has a name")
             .as_str();
 

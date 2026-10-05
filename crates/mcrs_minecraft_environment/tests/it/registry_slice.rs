@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
@@ -167,10 +168,10 @@ fn both_registries_load_from_the_shipped_files_inside_a_scope() {
             assert_eq!(Id::index(id), position);
             let row = Entries::get(&rows, id).unwrap();
             let file = read_value(&timeline_files[position]);
-            let clock = Registry::key(&clocks, row.clock).unwrap();
+            let clock = Registry::name(&clocks, row.clock).unwrap();
             assert_eq!(Some(clock.as_str()), file["clock"].as_str());
             assert_eq!(
-                Registry::get(&clocks, clock.as_str()),
+                Registry::get(&clocks, &ResourceKey::from_location(clock.clone())),
                 Some(row.clock),
                 "{clock}"
             );
@@ -186,7 +187,7 @@ fn the_slice_encodes_to_nbt_with_the_clock_as_a_name() {
             let value = read_value(&file);
             let row: TimelineRow = serde_json::from_value(value.clone()).unwrap();
             let nbt = mcrs_minecraft_nbt::to_nbt_compound(&row).unwrap();
-            let clock = Registry::key(&clocks, row.clock).unwrap();
+            let clock = Registry::name(&clocks, row.clock).unwrap();
             assert_eq!(nbt.get_string("clock"), Some(clock.as_str()));
             match value["period_ticks"].as_u64() {
                 Some(period) => assert_eq!(
@@ -245,7 +246,7 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
             }
             match (probe.default_clock, value.get("default_clock")) {
                 (Some(id), Some(written)) => {
-                    let name = Registry::key(&clocks, id).unwrap();
+                    let name = Registry::name(&clocks, id).unwrap();
                     assert_eq!(Some(name.as_str()), written.as_str());
                 }
                 (None, None) => without_clock += 1,
@@ -283,7 +284,7 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
 
     let Slice { clocks, set, .. } = slice();
     let clock = &names("world_clock")[0];
-    let expected = Registry::get(&clocks, clock.as_str()).unwrap();
+    let expected = Registry::get(&clocks, &ResourceKey::from_location(clock.clone())).unwrap();
 
     let text = format!("{{\"clock\":{},\"extra\":3}}", quoted(clock.as_str()));
     let flattened: Flattened = parse(&set, &text).unwrap();

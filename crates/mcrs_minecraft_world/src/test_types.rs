@@ -156,7 +156,7 @@ impl<'de> Deserialize<'de> for GameRuleMap {
                 let mut rules = BTreeMap::new();
                 while let Some(name) = map.next_key::<ResourceLocation>()? {
                     let rule = Registry::<GameRule>::in_scope("GameRuleMap", |registry| {
-                        registry.require(name.as_str())
+                        registry.require(&ResourceKey::from_location(name.clone()))
                     })
                     .map_err(A::Error::custom)?
                     .map_err(A::Error::custom)?;

@@ -130,7 +130,11 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
 }
 
 fn surface_ids(biomes: &Registry<keys::Biome>) -> SurfaceIds {
-    let id = |name: &str| biomes.require(&format!("minecraft:{name}")).unwrap();
+    let id = |name: &str| {
+        biomes
+            .require_by_name(&format!("minecraft:{name}"))
+            .unwrap()
+    };
     SurfaceIds {
         eroded_badlands: id("eroded_badlands"),
         frozen_ocean: id("frozen_ocean"),
@@ -156,7 +160,7 @@ fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
 fn fixed_source(registry: &Registry<keys::Biome>, name: &str) -> BiomeSource {
     BiomeSource::Fixed {
         biome: registry
-            .require(&format!("minecraft:{name}"))
+            .require_by_name(&format!("minecraft:{name}"))
             .expect("a corpus biome"),
     }
 }
@@ -356,7 +360,7 @@ fn natural(
 ) {
     let (list_names, lists) = parameter_lists();
     let multi = MultiNoiseBiomeSource {
-        preset: Some(list_names.require("minecraft:overworld").unwrap()),
+        preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
         biomes: None,
     };
     let table = MultiNoiseBiomeTable::resolve(&multi, registry, &lists)

@@ -270,7 +270,7 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
     };
     let program = program_of(&tables, &registry);
     let other = registry
-        .get(OTHER)
+        .by_name(OTHER)
         .expect("the second biome is in the registry")
         .number();
 

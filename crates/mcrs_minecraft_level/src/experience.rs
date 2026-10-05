@@ -85,7 +85,7 @@ fn process_block_experience(
     };
     let mut value = amount as f32;
     for (id, level) in &enchantments.0 {
-        let Some(data) = registry.get(id.as_str()).and_then(|id| values.get(id)) else {
+        let Some(data) = registry.get(id).and_then(|id| values.get(id)) else {
             continue;
         };
         let Some(effects) = data

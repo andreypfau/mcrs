@@ -156,7 +156,7 @@ fn ids<R: RegistryKey>(
     names
         .iter()
         .filter_map(|name| {
-            let id = registry.get(name.as_str());
+            let id = registry.get(&ResourceKey::<R, _>::new(*name));
             if id.is_none() {
                 failures.push(format!("{name} is not an entry of {}", R::KEY));
             }

@@ -29,7 +29,7 @@ pub struct SurfaceIds {
 impl SurfaceIds {
     pub fn resolve(blocks: &BlockDefinitions, biomes: &Registry<keys::Biome>) -> Self {
         let biome = |key: ResourceKey<keys::Biome, &'static str>| {
-            biomes.require(key.as_str()).unwrap_or_else(|error| {
+            biomes.require(&key).unwrap_or_else(|error| {
                 panic!("the surface stage names a biome the registry does not hold: {error}")
             })
         };

@@ -88,7 +88,7 @@ impl MultiNoiseBiomeTable {
                 let mut failure = None;
                 let table = named.try_map_values(|name| {
                     match biomes
-                        .require(name)
+                        .require_by_name(name)
                         .map_err(BiomeTableError::from)
                         .and_then(|id| id.narrow::<u8>().map_err(BiomeTableError::from))
                     {

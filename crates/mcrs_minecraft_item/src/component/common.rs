@@ -283,8 +283,8 @@ impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for Folded<'_, R, ALWAYS
 }
 
 pub fn entry<R: RegistryKey>(path: &str) -> Id<R> {
-    let name = format!("minecraft:{path}");
-    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&name))
+    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path));
+    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&key))
         .unwrap_or_else(|error| panic!("{error}"))
         .unwrap_or_else(|error| panic!("{error}"))
 }

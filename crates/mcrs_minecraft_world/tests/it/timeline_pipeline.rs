@@ -23,7 +23,7 @@ fn members(app: &App, tag: &str) -> Vec<String> {
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {
             timelines
-                .key(id)
+                .name(id)
                 .expect("a member id maps back")
                 .as_str()
                 .to_owned()
@@ -63,7 +63,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let environment = |name: &str| {
         environments.get(
             types
-                .get(name)
+                .by_name(name)
                 .unwrap_or_else(|| panic!("{name} is not a dimension type")),
         )
     };

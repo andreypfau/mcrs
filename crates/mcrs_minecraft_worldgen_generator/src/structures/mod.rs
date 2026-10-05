@@ -135,7 +135,7 @@ fn structure_id_set(
     for id in set.ids(inputs.structure_tags) {
         let name = inputs
             .structure_registry
-            .key(id)
+            .name(id)
             .expect("a set member is a structure of the registry");
         let loaded = frozen
             .structure_ids

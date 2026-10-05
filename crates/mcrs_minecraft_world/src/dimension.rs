@@ -35,7 +35,7 @@ pub fn bake(
 
     let mut merged = base.clone();
     for id in registry.ids() {
-        let name = registry.key(id).expect("an id of the registry has a name");
+        let name = registry.name(id).expect("an id of the registry has a name");
         merged.insert(
             ResourceKey::from_location(name.clone()),
             defined[id].clone(),
