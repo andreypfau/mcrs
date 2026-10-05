@@ -9,7 +9,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
@@ -80,20 +80,30 @@ type Region = Arc<OnceLock<Option<Arc<RegionFile>>>>;
 
 pub struct Regions {
     dir: PathBuf,
+    registries: RegistrySet,
     open: Mutex<HashMap<RegionPos, Region>>,
 }
 
 impl SavedColumns {
     /// `<world>/dimensions/<namespace>/<path>/region`, or `None` when this
     /// dimension has never been saved.
-    pub fn open(world: &Path, dimension: &ResourceKey<keys::Dimension>) -> Option<Self> {
+    pub fn open(
+        world: &Path,
+        dimension: &ResourceKey<keys::Dimension>,
+        registries: RegistrySet,
+    ) -> Option<Self> {
         let dir = region_dir(world, dimension)?;
         dir.is_dir().then(|| {
             Self(Arc::new(Regions {
                 dir,
+                registries,
                 open: Mutex::new(HashMap::new()),
             }))
         })
+    }
+
+    pub fn registries(&self) -> &RegistrySet {
+        &self.0.registries
     }
 
     /// The saved column, or `None` when the save has never generated it.
@@ -191,15 +201,18 @@ pub type SectionData = (BlockPalette, BiomePalette);
 /// does name that fails to read is an error, never a silently missing entity.
 pub fn saved_block_entities(
     chunk: &Chunk,
+    registries: &RegistrySet,
 ) -> Result<Vec<GeneratedBlockEntity>, mcrs_minecraft_nbt::Error> {
-    chunk
-        .block_entities
-        .iter()
-        .filter(|compound| {
-            compound
-                .get_string("id")
-                .is_some_and(|id| GeneratedBlockEntity::IDS.contains(&id))
-        })
-        .map(GeneratedBlockEntity::from_compound)
-        .collect()
+    registries.scope(|| {
+        chunk
+            .block_entities
+            .iter()
+            .filter(|compound| {
+                compound
+                    .get_string("id")
+                    .is_some_and(|id| GeneratedBlockEntity::IDS.contains(&id))
+            })
+            .map(GeneratedBlockEntity::from_compound)
+            .collect()
+    })
 }

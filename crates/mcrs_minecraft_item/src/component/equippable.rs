@@ -1,10 +1,11 @@
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::EntityType;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
+use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, key};
+use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
 use crate::component::registry_ref::null_as_default;
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -86,8 +87,12 @@ pub struct Equippable {
     pub asset_id: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera_overlay: Option<ResourceLocation>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowed_entities: Option<HolderSet<ResourceKey<EntityType>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub allowed_entities: Option<HolderSet<EntityType>>,
     #[serde(
         default = "default_true",
         deserialize_with = "true_or_default",
@@ -204,7 +209,7 @@ impl Sample for Equippable {
                 )),
                 asset_id: Some(ResourceLocation::minecraft("iron")),
                 camera_overlay: Some(ResourceLocation::minecraft("misc/pumpkinblur")),
-                allowed_entities: Some(HolderSet::List(vec![key("zombie"), key("pig")])),
+                allowed_entities: Some(list_set(&["zombie", "pig"])),
                 dispensable: false,
                 swappable: false,
                 damage_on_hurt: false,
@@ -216,7 +221,7 @@ impl Sample for Equippable {
                 }),
             },
             Equippable {
-                allowed_entities: Some(HolderSet::Tag(ResourceLocation::minecraft("skeletons"))),
+                allowed_entities: Some(tag_set("skeletons")),
                 ..Equippable::new(EquipmentSlot::Saddle)
             },
             Equippable {
@@ -224,7 +229,7 @@ impl Sample for Equippable {
                     sound_id: ResourceLocation::new("mcrs", "equip"),
                     range: None,
                 }),
-                allowed_entities: Some(HolderSet::One(key("pig"))),
+                allowed_entities: Some(one_set("pig")),
                 ..Equippable::new(EquipmentSlot::Body)
             },
         ]

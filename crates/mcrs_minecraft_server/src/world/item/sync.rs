@@ -57,6 +57,11 @@ fn dirty_holders(world: &mut World) -> FxHashSet<Entity> {
 /// Sends every open menu the slots its viewer does not hold yet, and every
 /// tracked dropped item its stack when that changed.
 pub fn sync_stack_slots(world: &mut World) {
+    let set = world.resource::<RegistrySet>().clone();
+    set.scope(|| sync_slots(world));
+}
+
+fn sync_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
     let set = world.resource::<RegistrySet>().clone();
     let registry = world.resource::<RegistryAccess>().clone();

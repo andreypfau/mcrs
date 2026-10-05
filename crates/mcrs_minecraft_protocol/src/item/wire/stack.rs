@@ -6,7 +6,7 @@ use bytes::Bytes;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 
-use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, scoped};
 use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{
@@ -130,15 +130,17 @@ impl RawDelimitedStack {
     /// codec's checks sit on the read side, so the stack is read back from its
     /// persistent form instead.
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ProtoStack> {
-        let mut r = &self.0[..];
-        let stack = decode_delimited_ctx(ctx, &mut r)?;
-        ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
-        if !stack.is_empty() {
-            let value = stack.to_value(ctx)?;
-            let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
-            mcrs_minecraft_nbt::from_tag::<ItemStackValue>(persistent.into())?;
-        }
-        Ok(stack)
+        scoped(ctx, || {
+            let mut r = &self.0[..];
+            let stack = decode_delimited_ctx(ctx, &mut r)?;
+            ensure!(r.is_empty(), "{} trailing bytes after a stack", r.len());
+            if !stack.is_empty() {
+                let value = stack.to_value(ctx)?;
+                let persistent = mcrs_minecraft_nbt::to_nbt_compound(&value)?;
+                mcrs_minecraft_nbt::from_tag::<ItemStackValue>(persistent.into())?;
+            }
+            Ok(stack)
+        })
     }
 
     pub fn from_stack(
@@ -146,7 +148,7 @@ impl RawDelimitedStack {
         ctx: &dyn RegistryLookup,
     ) -> anyhow::Result<RawDelimitedStack> {
         let mut bytes = Vec::new();
-        encode_delimited_ctx(stack, ctx, &mut bytes)?;
+        scoped(ctx, || encode_delimited_ctx(stack, ctx, &mut bytes))?;
         Ok(RawDelimitedStack(bytes.into()))
     }
 }
@@ -160,7 +162,7 @@ impl Encode for RawDelimitedStack {
 impl Decode<'_> for RawDelimitedStack {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let start = *r;
-        decode_delimited_ctx(&Opaque, r)?;
+        mcrs_minecraft_registry::skip_sets(|| decode_delimited_ctx(&Opaque, r))?;
         Ok(RawDelimitedStack(Bytes::copy_from_slice(
             &start[..start.len() - r.len()],
         )))

@@ -4,8 +4,10 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::value::{Bounds, HolderSet, NumberProvider};
+use super::value::{Bounds, NumberProvider};
 use crate::component::predicate::ComponentPredicates;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 
 /// A map whose key selects both the field and the type of its value, the way
 /// `Codec.dispatchedMap` does. An unknown key is an error naming it, so a
@@ -137,7 +139,7 @@ pub enum LootCondition {
 #[serde(deny_unknown_fields)]
 pub struct ItemPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub items: Option<HolderSet>,
+    pub items: Option<HolderSet<keys::Item>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count: Option<Bounds<i32>>,
 }
@@ -179,7 +181,7 @@ pub struct LocationPredicate {
 #[serde(deny_unknown_fields)]
 pub struct LocationBlockPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<HolderSet>,
+    pub blocks: Option<HolderSet<keys::Block>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -246,7 +248,7 @@ dispatched_map! {
     /// Java's component-keyed `EntityPredicate`: the key names the sub-predicate
     /// and so chooses the type of its value.
     EntityPredicate {
-        "minecraft:entity_type" => entity_type: HolderSet,
+        "minecraft:entity_type" => entity_type: HolderSet<keys::EntityType>,
         "minecraft:flags" => flags: EntityFlagsPredicate,
         "minecraft:movement" => movement: MovementPredicate,
         "minecraft:movement_affected_by" => movement_affected_by: LocationPredicate,
@@ -269,7 +271,7 @@ pub enum BlockPredicate {
     AnyOf { predicates: Vec<BlockPredicate> },
     #[serde(rename = "minecraft:matching_blocks")]
     MatchingBlocks {
-        blocks: HolderSet,
+        blocks: HolderSet<keys::Block>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         offset: Option<[i32; 3]>,
     },
@@ -281,7 +283,7 @@ pub enum BlockPredicate {
     },
     #[serde(rename = "minecraft:matching_fluids")]
     MatchingFluids {
-        fluids: HolderSet,
+        fluids: HolderSet<keys::Fluid>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         offset: Option<[i32; 3]>,
     },

@@ -284,6 +284,31 @@ fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
         .collect()
 }
 
+pub fn tagged_report() -> &'static RegistrySet {
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        let root = assets_dir().join("minecraft/tags");
+        let mut set = shipped_report().clone();
+        let mut folders: Vec<_> = std::fs::read_dir(&root)
+            .unwrap_or_else(|e| panic!("{}: {e}", root.display()))
+            .map(|entry| entry.expect("a tag folder entry").path())
+            .filter(|path| path.is_dir())
+            .collect();
+        folders.sort();
+        for folder in folders {
+            let name = folder
+                .file_name()
+                .and_then(|n| n.to_str())
+                .expect("a folder name");
+            let Some(table) = set.table(&format!("minecraft:{name}")).cloned() else {
+                continue;
+            };
+            set = set.with_tags(shipped_tags(&table, name));
+        }
+        set
+    });
+    &SET
+}
+
 pub fn shipped_tags(names: &NameTable, folder: &str) -> Arc<TagTable> {
     let base = assets_dir().join("minecraft/tags").join(folder);
     let files: Vec<_> = json_files(&base)

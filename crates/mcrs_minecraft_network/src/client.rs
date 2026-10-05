@@ -44,7 +44,7 @@ use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, Pa
 use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, Packet, VarInt, WritePacket, uuid::Uuid,
 };
-use mcrs_minecraft_registry::{LookupIndex, RegistryLookup};
+use mcrs_minecraft_registry::{LookupIndex, RegistryLookup, RegistrySet};
 use md5::{Digest, Md5};
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
@@ -170,6 +170,10 @@ impl RegistryLookup for ServerNumbering<'_> {
 
     fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         self.local.block_state(id)
+    }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        self.local.registries()
     }
 }
 

@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_registry::RegistryLookup;
 
-use crate::item::harness::{TestLookup, from_json, hex, nbt_tree, persistent_json};
+use crate::item::harness::{TestLookup, from_json, hex, in_samples, nbt_tree, persistent_json};
 
 const GOLDEN: &str = include_str!("../../fixtures/item/holders_golden.txt");
 
@@ -54,6 +54,10 @@ fn kind_of(label: &str) -> ItemComponentKind {
 
 #[test]
 fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
+    in_samples(every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire_in_scope);
+}
+
+fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire_in_scope() {
     let Golden { lookup, samples } = golden();
     let mut checked = 0;
     for (label, fields) in &samples {

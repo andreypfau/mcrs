@@ -1,11 +1,14 @@
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::item::Enchantments;
+use mcrs_minecraft_server::world::loot::condition::LootCondition;
 use mcrs_minecraft_server::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_server::world::loot::{
     LootTableAsset, LootTableLoader, LootTableLoaderSettings,
 };
+use mcrs_minecraft_world::registries::test_registries;
 
 fn loader_app() -> App {
     let mut app = App::new();
@@ -15,7 +18,7 @@ fn loader_app() -> App {
         ..Default::default()
     });
     app.init_asset::<LootTableAsset>()
-        .register_asset_loader(LootTableLoader);
+        .register_asset_loader(LootTableLoader::new(test_registries().clone()));
     app
 }
 
@@ -81,6 +84,7 @@ fn block_loot_follows_its_conditions() {
     let half = |half| door.with_text(door.default_state_id, "half", half).unwrap();
     let glass = blocks.default_state("minecraft:glass");
     let silk = silk_touch();
+    let tags = test_registries().tags::<Block>().unwrap();
 
     let cases = [
         (0, half("lower"), None, vec!["minecraft:oak_door"]),
@@ -93,6 +97,7 @@ fn block_loot_follows_its_conditions() {
         let ctx = BlockBreakContext {
             blocks,
             state,
+            tags: &tags,
             tool_enchantments,
         };
         let drops: Vec<_> = assets
@@ -106,6 +111,29 @@ fn block_loot_follows_its_conditions() {
         let expected: Vec<_> = expected.into_iter().map(|i| (i.to_owned(), 1)).collect();
         assert_eq!(drops, expected, "{} state {state:?}", handles[table].0);
     }
+}
+
+#[test]
+fn a_match_block_condition_tests_a_block_tag_by_membership() {
+    let registries = test_registries();
+    let tags = registries.tags::<Block>().unwrap();
+    let blocks = &crate::support::standalone_corpus().0;
+    let condition: LootCondition = registries.scope(|| {
+        serde_json::from_str(
+            r##"{"type":"minecraft:match_block","blocks":"#minecraft:mineable/pickaxe"}"##,
+        )
+        .unwrap()
+    });
+    let holds = |block: &str| {
+        condition.check(&BlockBreakContext {
+            blocks,
+            state: blocks.default_state(block),
+            tags: &tags,
+            tool_enchantments: None,
+        })
+    };
+    assert!(holds("minecraft:stone"));
+    assert!(!holds("minecraft:dirt"));
 }
 
 mod exhaustive {

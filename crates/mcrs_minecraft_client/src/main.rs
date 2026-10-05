@@ -393,15 +393,17 @@ fn load_save(world: &Path) -> SaveData {
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
     let (position, yaw, pitch) = match level.singleplayer_uuid {
-        Some(uuid) => match save::read_player_dat(world, uuid) {
-            Ok(Some(player)) => (
-                DVec3::from_array(player.pos),
-                player.rotation[0],
-                player.rotation[1],
-            ),
-            Ok(None) => spawn_fallback(&level.spawn),
-            Err(err) => fatal(err),
-        },
+        Some(uuid) => {
+            match mcrs_minecraft_registry::skip_sets(|| save::read_player_dat(world, uuid)) {
+                Ok(Some(player)) => (
+                    DVec3::from_array(player.pos),
+                    player.rotation[0],
+                    player.rotation[1],
+                ),
+                Ok(None) => spawn_fallback(&level.spawn),
+                Err(err) => fatal(err),
+            }
+        }
         None => spawn_fallback(&level.spawn),
     };
 

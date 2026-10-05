@@ -1,9 +1,10 @@
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::DamageType;
+use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, key};
+use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
@@ -36,8 +37,12 @@ pub struct BlocksAttacks {
     pub damage_reductions: Vec<DamageReduction>,
     #[serde(default, skip_serializing_if = "ItemDamageFunction::is_default")]
     pub item_damage: ItemDamageFunction,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bypassed_by: Option<HolderSet<ResourceKey<DamageType>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub bypassed_by: Option<HolderSet<DamageType>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_sound: Option<Holder<SoundEvent>>,
     #[serde(
@@ -85,8 +90,13 @@ pub struct DamageReduction {
         skip_serializing_if = "is_ninety"
     )]
     pub horizontal_blocking_angle: f32,
-    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
-    pub types: Option<HolderSet<ResourceKey<DamageType>>>,
+    #[serde(
+        default,
+        rename = "type",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub types: Option<HolderSet<DamageType>>,
     pub base: f32,
     pub factor: f32,
 }
@@ -246,18 +256,16 @@ impl Sample for BlocksAttacks {
                 damage_reductions: vec![
                     DamageReduction {
                         horizontal_blocking_angle: 45.0,
-                        types: Some(HolderSet::Tag(ResourceLocation::minecraft(
-                            "bypasses_shield",
-                        ))),
+                        types: Some(tag_set("bypasses_shield")),
                         base: 1.0,
                         factor: 0.5,
                     },
                     DamageReduction {
-                        types: Some(HolderSet::List(vec![key("in_fire"), key("lava")])),
+                        types: Some(list_set(&["in_fire", "lava"])),
                         ..Default::default()
                     },
                     DamageReduction {
-                        types: Some(HolderSet::One(key("lava"))),
+                        types: Some(one_set("lava")),
                         base: 2.0,
                         factor: 0.0,
                         ..Default::default()
@@ -268,7 +276,7 @@ impl Sample for BlocksAttacks {
                     base: 1.0,
                     factor: 0.25,
                 },
-                bypassed_by: Some(HolderSet::One(key("in_fire"))),
+                bypassed_by: Some(one_set("in_fire")),
                 block_sound: Some(item_break()),
                 disable_sound: Some(Holder::Direct(SoundEvent {
                     sound_id: ResourceLocation::new("mcrs", "off"),

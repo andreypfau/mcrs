@@ -3,15 +3,16 @@ use bevy_ecs::prelude::{Component, With};
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::{ResourceKey, VERSION};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use tracing::{error, warn};
 
@@ -47,7 +48,10 @@ pub fn load_player(world: &mut World, player: Entity) {
     let Some(uuid) = world.get::<GameProfile>(player).map(|profile| profile.id) else {
         return;
     };
-    let dat = match read_player_dat(&save.0, uuid) {
+    let Some(registries) = world.get_resource::<RegistrySet>().cloned() else {
+        return;
+    };
+    let dat = match registries.scope(|| read_player_dat(&save.0, uuid)) {
         Ok(Some(dat)) => dat,
         Ok(None) => return,
         Err(err) => {
@@ -149,7 +153,11 @@ pub fn write_player(world: &World, player: Entity) {
     if world.get::<UnreadablePlayerDat>(player).is_some() {
         return;
     }
-    if let Err(err) = write_player_dat(&save.0, uuid, &save_player(world, player)) {
+    let Some(registries) = world.get_resource::<RegistrySet>() else {
+        return;
+    };
+    let dat = save_player(world, player);
+    if let Err(err) = registries.scope(|| write_player_dat(&save.0, uuid, &dat)) {
         error!(%uuid, "player data not saved: {err}");
     }
 }

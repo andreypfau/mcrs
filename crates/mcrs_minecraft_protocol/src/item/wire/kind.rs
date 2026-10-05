@@ -4,7 +4,7 @@ use anyhow::bail;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::*;
-use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
+use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire, scoped};
 use crate::item::kind::{ItemComponentKind, ItemComponentValue};
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
@@ -32,7 +32,7 @@ macro_rules! value_wire {
     ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
         impl EncodeCtx for ItemComponentValue {
             fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
-                match self {
+                scoped(ctx, || match self {
                     $(Self::$ty(value) => {
                         if ItemComponentKind::$ty.is_nbt_wire() {
                             encode_nbt_wire(value, w)
@@ -40,7 +40,7 @@ macro_rules! value_wire {
                             value.encode_ctx(ctx, w)
                         }
                     })*
-                }
+                })
             }
         }
 
@@ -50,13 +50,13 @@ macro_rules! value_wire {
             ctx: &dyn RegistryLookup,
             r: &mut &[u8],
         ) -> anyhow::Result<ItemComponentValue> {
-            match kind {
+            scoped(ctx, || match kind {
                 $(ItemComponentKind::$ty => Ok(ItemComponentValue::$ty(if kind.is_nbt_wire() {
                     decode_nbt_wire(r)?
                 } else {
                     <$ty>::decode_ctx(ctx, r)?
                 })),)*
-            }
+            })
         }
     };
 }

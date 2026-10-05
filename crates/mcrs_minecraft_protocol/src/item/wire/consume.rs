@@ -1,8 +1,7 @@
 use std::io::Write;
 
 use anyhow::bail;
-use mcrs_minecraft_core::HolderSet;
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
 
 use crate::item::component::common::Holder;
 use crate::item::component::consume::*;

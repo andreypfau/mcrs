@@ -2,15 +2,19 @@ use std::borrow::Cow;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation, validated};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, validated};
 use mcrs_minecraft_keys::{
     BannerPattern, Block, BlockTransformer, DamageType, Enchantment, EntityType, Item, MobEffect,
 };
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
+use mcrs_minecraft_registry::HolderSet;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{is_one, key, one, serialize_entries, transparent_newtype};
+use crate::component::common::{
+    is_one, key, list_set, one, one_set, serialize_entries, serialize_set, tag_set,
+    transparent_newtype,
+};
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
 
@@ -172,7 +176,8 @@ transparent_newtype!(StoredEnchantments(Enchantments) => [Clone, Debug, PartialE
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant {
-    pub types: HolderSet<ResourceKey<DamageType>>,
+    #[serde(serialize_with = "serialize_set")]
+    pub types: HolderSet<DamageType>,
 }
 
 impl Sample for DamageResistant {
@@ -183,13 +188,13 @@ impl Sample for DamageResistant {
     fn samples() -> Vec<Self> {
         vec![
             DamageResistant {
-                types: HolderSet::Tag(ResourceLocation::minecraft("is_fire")),
+                types: tag_set("is_fire"),
             },
             DamageResistant {
-                types: HolderSet::One(key("lava")),
+                types: one_set("lava"),
             },
             DamageResistant {
-                types: HolderSet::List(vec![key("in_fire"), key("lava")]),
+                types: list_set(&["in_fire", "lava"]),
             },
         ]
     }
@@ -247,7 +252,8 @@ impl Default for Tool {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct ToolRule {
-    pub blocks: HolderSet<ResourceKey<Block>>,
+    #[serde(serialize_with = "serialize_set")]
+    pub blocks: HolderSet<Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speed: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -291,17 +297,17 @@ impl Sample for Tool {
             Tool {
                 rules: vec![
                     ToolRule {
-                        blocks: HolderSet::Tag(ResourceLocation::minecraft("mineable/pickaxe")),
+                        blocks: tag_set("mineable/pickaxe"),
                         speed: Some(8.0),
                         correct_for_drops: Some(true),
                     },
                     ToolRule {
-                        blocks: HolderSet::List(vec![key("stone"), key("dirt")]),
+                        blocks: list_set(&["stone", "dirt"]),
                         speed: None,
                         correct_for_drops: None,
                     },
                     ToolRule {
-                        blocks: HolderSet::One(key("stone")),
+                        blocks: one_set("stone"),
                         speed: None,
                         correct_for_drops: Some(false),
                     },
@@ -317,7 +323,8 @@ impl Sample for Tool {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Repairable {
-    pub items: HolderSet<ResourceKey<Item>>,
+    #[serde(serialize_with = "serialize_set")]
+    pub items: HolderSet<Item>,
 }
 
 impl Sample for Repairable {
@@ -328,13 +335,13 @@ impl Sample for Repairable {
     fn samples() -> Vec<Self> {
         vec![
             Repairable {
-                items: HolderSet::Tag(ResourceLocation::minecraft("planks")),
+                items: tag_set("planks"),
             },
             Repairable {
-                items: HolderSet::One(key("diamond_sword")),
+                items: one_set("diamond_sword"),
             },
             Repairable {
-                items: HolderSet::List(vec![key("stone"), key("apple")]),
+                items: list_set(&["stone", "apple"]),
             },
         ]
     }
@@ -345,7 +352,8 @@ pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility {
-    pub targeting_entity_types: HolderSet<ResourceKey<EntityType>>,
+    #[serde(serialize_with = "serialize_set")]
+    pub targeting_entity_types: HolderSet<EntityType>,
     #[serde(deserialize_with = "visibility")]
     pub visibility: f32,
 }
@@ -369,15 +377,15 @@ impl Sample for MobVisibility {
     fn samples() -> Vec<Self> {
         vec![
             MobVisibility {
-                targeting_entity_types: HolderSet::Tag(ResourceLocation::minecraft("skeletons")),
+                targeting_entity_types: tag_set("skeletons"),
                 visibility: 0.0,
             },
             MobVisibility {
-                targeting_entity_types: HolderSet::One(key("zombie")),
+                targeting_entity_types: one_set("zombie"),
                 visibility: 0.5,
             },
             MobVisibility {
-                targeting_entity_types: HolderSet::List(vec![key("zombie"), key("pig")]),
+                targeting_entity_types: list_set(&["zombie", "pig"]),
                 visibility: MAX_MOB_VISIBILITY,
             },
         ]
@@ -386,7 +394,9 @@ impl Sample for MobVisibility {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ProvidesBannerPatterns(pub HolderSet<ResourceKey<BannerPattern>>);
+pub struct ProvidesBannerPatterns(
+    #[serde(serialize_with = "serialize_set")] pub HolderSet<BannerPattern>,
+);
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -395,11 +405,9 @@ impl Sample for ProvidesBannerPatterns {
 
     fn samples() -> Vec<Self> {
         vec![
-            ProvidesBannerPatterns(HolderSet::Tag(ResourceLocation::minecraft(
-                "pattern_item/globe",
-            ))),
-            ProvidesBannerPatterns(HolderSet::One(key("globe"))),
-            ProvidesBannerPatterns(HolderSet::List(vec![key("globe"), key("creeper")])),
+            ProvidesBannerPatterns(tag_set("pattern_item/globe")),
+            ProvidesBannerPatterns(one_set("globe")),
+            ProvidesBannerPatterns(list_set(&["globe", "creeper"])),
         ]
     }
 }
@@ -513,9 +521,10 @@ impl Sample for SuspiciousStewEffects {
     }
 }
 
-fn holder_set_tag<T>(set: &HolderSet<T>) -> u8 {
+fn holder_set_tag<T, const L: bool>(set: &HolderSet<T, L>) -> u8 {
     match set {
-        HolderSet::List(entries) if entries.len() != 1 => LIST_ID,
+        HolderSet::List(entries) if L || entries.len() != 1 => LIST_ID,
+        HolderSet::One(_) if L => LIST_ID,
         _ => STRING_ID,
     }
 }

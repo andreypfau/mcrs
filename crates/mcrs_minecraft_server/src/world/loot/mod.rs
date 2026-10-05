@@ -20,7 +20,7 @@ use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::Enchantment;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
@@ -117,8 +117,10 @@ impl VisitAssetDependencies for LootTableAsset {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {}
 }
 
-#[derive(Default, TypePath)]
-pub struct LootTableLoader;
+#[derive(TypePath)]
+pub struct LootTableLoader {
+    registries: RegistrySet,
+}
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct LootTableLoaderSettings {
@@ -138,6 +140,12 @@ pub enum LootTableLoaderError {
     MissingTableId,
 }
 
+impl LootTableLoader {
+    pub fn new(registries: RegistrySet) -> Self {
+        LootTableLoader { registries }
+    }
+}
+
 impl AssetLoader for LootTableLoader {
     type Asset = LootTableAsset;
     type Settings = LootTableLoaderSettings;
@@ -155,7 +163,9 @@ impl AssetLoader for LootTableLoader {
 
         let bytes = read_all(reader).await?;
 
-        let mut table: LootTable = serde_json::from_slice(&bytes)
+        let mut table: LootTable = self
+            .registries
+            .scope(|| serde_json::from_slice(&bytes))
             .map_err(|e| LootTableLoaderError::Json(e.to_string()))?;
         let mut pending = Vec::new();
         table.conditions_mut(|condition| condition.names(&mut pending));
@@ -170,8 +180,10 @@ impl AssetLoader for LootTableLoader {
                 .read_asset_bytes(path)
                 .await
                 .map_err(|e| failed(e.to_string()))?;
-            let predicate: LootCondition =
-                serde_json::from_slice(&bytes).map_err(|e| failed(e.to_string()))?;
+            let predicate: LootCondition = self
+                .registries
+                .scope(|| serde_json::from_slice(&bytes))
+                .map_err(|e| failed(e.to_string()))?;
             predicate.terms().for_each(|term| term.names(&mut pending));
             predicates.insert(name, predicate);
         }
@@ -283,8 +295,13 @@ pub struct LootPlugin;
 
 impl Plugin for LootPlugin {
     fn build(&self, app: &mut App) {
+        let registries = app
+            .world()
+            .get_resource::<RegistrySet>()
+            .expect("the loaded registries precede the loot loader")
+            .clone();
         app.init_asset::<LootTableAsset>()
-            .register_asset_loader(LootTableLoader);
+            .register_asset_loader(LootTableLoader::new(registries));
         app.init_resource::<BlockLootTables>();
         app.add_systems(PostStartup, request_loot_tables_for_corpus);
         app.add_systems(Update, process_loaded_loot_tables);

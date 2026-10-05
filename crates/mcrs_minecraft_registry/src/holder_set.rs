@@ -5,8 +5,33 @@ use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use serde::de::{SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::Cell;
 use std::fmt;
 use std::marker::PhantomData;
+
+thread_local! {
+    static WALKING: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `run` with holder sets reading as empty without consulting any
+/// registry, for a caller that needs only a value's extent or its fields that
+/// name no set, and drops every set it reads.
+pub fn skip_sets<T>(run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            WALKING.set(self.0);
+        }
+    }
+
+    let _restore = Restore(WALKING.replace(true));
+    run()
+}
+
+pub fn skipping_sets() -> bool {
+    WALKING.get()
+}
 
 pub enum HolderSet<R, const ALWAYS_LIST: bool = false> {
     Named(TagId<R>),
@@ -78,10 +103,14 @@ impl<R, const ALWAYS_LIST: bool> PartialEq for HolderSet<R, ALWAYS_LIST> {
             (HolderSet::Named(a), HolderSet::Named(b)) => a == b,
             (HolderSet::One(a), HolderSet::One(b)) => a == b,
             (HolderSet::List(a), HolderSet::List(b)) => a == b,
+            (HolderSet::One(one), HolderSet::List(list))
+            | (HolderSet::List(list), HolderSet::One(one)) => **list == [*one],
             _ => false,
         }
     }
 }
+
+impl<R, const ALWAYS_LIST: bool> Eq for HolderSet<R, ALWAYS_LIST> {}
 
 impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -124,6 +153,9 @@ impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSe
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
+                if skipping_sets() {
+                    return Ok(HolderSet::default());
+                }
                 let Some(tag) = text.strip_prefix('#') else {
                     if ALWAYS_LIST {
                         return Err(E::custom(format_args!("Not a tag id: {text}")));
@@ -144,7 +176,11 @@ impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSe
                     })
             }
 
-            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                if skipping_sets() {
+                    while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+                    return Ok(HolderSet::default());
+                }
                 Vec::<Id<R>>::deserialize(value::SeqAccessDeserializer::new(seq))
                     .map(|entries| HolderSet::List(entries.into_boxed_slice()))
             }
@@ -266,6 +302,23 @@ mod tests {
                 .unwrap_err()
                 .to_string();
             assert!(message.contains("Not a tag id"), "{message}");
+        });
+    }
+
+    #[test]
+    fn a_one_entry_list_equals_the_bare_entry_and_is_written_as_read() {
+        let a = id("minecraft:a");
+        let bare = Set::One(a);
+        let listed = Set::List(Box::new([a]));
+        assert_eq!(bare, listed);
+        assert_ne!(bare, Set::List(Box::new([a, a])));
+        assert_ne!(bare, Set::List(Box::new([])));
+        set().scope(|| {
+            assert_eq!(serde_json::to_string(&bare).unwrap(), r#""minecraft:a""#);
+            assert_eq!(
+                serde_json::to_string(&listed).unwrap(),
+                r#"["minecraft:a"]"#
+            );
         });
     }
 

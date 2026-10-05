@@ -10,13 +10,17 @@ use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
     Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE, handle_container_clicks, tick_drop_throttles,
 };
 use mcrs_minecraft_item::{DroppedItem, SlotTable, Thrower, slots, stack_to_slot};
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::GameMode;
@@ -24,9 +28,10 @@ use mcrs_minecraft_protocol::item::{
     ContainerInput, HashedStack, ProtoStack, QuickCraftButton, QuickCraftKind, QuickCraftStage,
     RawDelimitedStack, RawStack,
 };
+use mcrs_minecraft_protocol::item::{Tool, ToolRule};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_registry::{RegistryLookup, TagSource};
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup, TagSource};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
 use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};
@@ -35,6 +40,7 @@ use mcrs_minecraft_server::world::item::click::{
 };
 use mcrs_minecraft_server::world::item::menu::open_menus;
 use mcrs_minecraft_server::world::item::sync::sync_stack_slots;
+use mcrs_minecraft_world::registries::test_registries;
 
 fn opened() -> (World, Entity) {
     let (mut world, player, _anchor) = world();
@@ -327,6 +333,50 @@ fn a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected() {
         )),
         "{packets:?}"
     );
+}
+
+fn a_claim_hashing_a_component_that_names_a_block_tag_is_agreed_with() {
+    let (mut world, player) = opened();
+    let registries = test_registries().clone();
+    world.insert_resource(registries.clone());
+    let pickaxe_tag = registries
+        .tags::<Block>()
+        .unwrap()
+        .get(&TagKey::<Block, _>::from_location(
+            ResourceLocation::minecraft("mineable/pickaxe"),
+        ))
+        .unwrap();
+    let mut tagged = value("iron_sword", 1);
+    tagged.components.set(Tool {
+        rules: vec![ToolRule {
+            blocks: HolderSet::Named(pickaxe_tag),
+            speed: Some(2.0),
+            correct_for_drops: None,
+        }],
+        default_mining_speed: 1.0,
+        damage_per_block: Bounded(1),
+        can_destroy_blocks_in_creative: true,
+    });
+    let stack = spawn_stack(&mut world, &tagged, &standalone_corpus().1).unwrap();
+    place(&mut world, stack, player, slots::HOTBAR.start);
+    sync_stack_slots(&mut world);
+    drain(&mut world);
+
+    let claimed = registries
+        .scope(|| HashedStack::create(&stack_to_slot(&world, stack, &standalone_corpus().1)))
+        .unwrap();
+    let menu = world.get::<CurrentMenu>(player).unwrap().0;
+    world.get_mut::<RemoteSlots>(menu).unwrap().slots[usize::from(slots::HOTBAR.start)] =
+        Remote::Claimed(claimed);
+
+    sync_stack_slots(&mut world);
+    let packets = drain(&mut world);
+    assert!(packets.is_empty(), "{packets:?}");
+    let remote = world.get::<RemoteSlots>(menu).unwrap();
+    assert!(matches!(
+        remote.slots[usize::from(slots::HOTBAR.start)],
+        Remote::Known(_)
+    ));
 }
 
 fn a_helmet_goes_into_the_helmet_slot() {
@@ -1317,6 +1367,7 @@ fn a_click_moves_the_stack_the_vanilla_way() {
     throw_turns_the_stack_into_a_dropped_item();
     a_click_for_a_container_the_player_no_longer_has_open_moves_nothing();
     a_sword_in_the_helmet_slot_is_refused_and_the_claim_is_corrected();
+    a_claim_hashing_a_component_that_names_a_block_tag_is_agreed_with();
     a_helmet_goes_into_the_helmet_slot();
 }
 

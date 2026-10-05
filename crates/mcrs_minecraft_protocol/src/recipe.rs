@@ -1,10 +1,11 @@
 use std::io::Write;
 
+use anyhow::ensure;
 use mcrs_minecraft_core::codec::Validate;
-use mcrs_minecraft_core::{HolderSet, ResourceKey, validated};
+use mcrs_minecraft_core::{ResourceKey, validated};
 use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup, skipping_sets};
 use serde::{Deserialize, Serialize};
 
 use crate::entity::OptionalUnsignedInt;
@@ -16,18 +17,21 @@ validated!(Ingredient);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", transparent)]
-pub struct Ingredient(pub HolderSet<ResourceKey<Item>>);
+pub struct Ingredient(pub HolderSet<Item>);
+
+const AIR_ITEM_ID: u16 = 0;
 
 impl Validate for Ingredient {
     fn validate(&self) -> Result<(), String> {
-        if matches!(self.0, HolderSet::Tag(_)) {
-            return Ok(());
-        }
-        let entries = self.0.entries();
+        let entries = match &self.0 {
+            HolderSet::Named(_) => return Ok(()),
+            HolderSet::One(item) => std::slice::from_ref(item),
+            HolderSet::List(items) => &items[..],
+        };
         if entries.is_empty() {
             return Err("Ingredients can't be empty".into());
         }
-        if entries.iter().any(|item| item.as_str() == "minecraft:air") {
+        if entries.iter().any(|item| item.number() == AIR_ITEM_ID) {
             return Err("Ingredient can't contain air".into());
         }
         Ok(())
@@ -43,7 +47,12 @@ impl EncodeCtx for Ingredient {
 
 impl DecodeCtx<'_> for Ingredient {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
+        let announced = VarInt::decode(&mut &r[..])?.0;
         let ingredient = Ingredient(HolderSet::decode_ctx(ctx, r)?);
+        if skipping_sets() {
+            ensure!(announced != 1, "Ingredients can't be empty");
+            return Ok(ingredient);
+        }
         ingredient.validate().map_err(anyhow::Error::msg)?;
         Ok(ingredient)
     }
@@ -87,7 +96,7 @@ pub enum SlotDisplay {
     #[serde(rename = "minecraft:item_stack", alias = "item_stack")]
     ItemStack { item: Template },
     #[serde(rename = "minecraft:tag", alias = "tag")]
-    Tag { tag: HolderSet<ResourceKey<Item>> },
+    Tag { tag: HolderSet<Item> },
     #[serde(rename = "minecraft:dyed", alias = "dyed")]
     Dyed {
         dye: Box<SlotDisplay>,

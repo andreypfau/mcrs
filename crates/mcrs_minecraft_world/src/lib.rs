@@ -161,7 +161,7 @@ impl Plugin for MinecraftWorldPlugin {
             mcrs_minecraft_core::check_corpus_version(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         }
-        let (block_registry, item_registry) = {
+        let (block_registry, registries) = {
             let asset_server = app.world().resource::<AssetServer>().clone();
             let source = asset_server
                 .get_source(bevy_asset::io::AssetSourceId::Default)
@@ -193,9 +193,6 @@ impl Plugin for MinecraftWorldPlugin {
             let block_registry = registries
                 .registry::<mcrs_minecraft_keys::Block>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
-            let item_registry = registries
-                .registry::<mcrs_minecraft_keys::Item>()
-                .unwrap_or_else(|| panic!("{}: no minecraft:item registry", path.display()));
             registries::register_world_registries(
                 &mut app
                     .world_mut()
@@ -240,10 +237,10 @@ impl Plugin for MinecraftWorldPlugin {
                     DynRegistryIndex::<mcrs_minecraft_keys::Timeline>::from_table(timeline_table),
                 );
             }
-            app.insert_resource(registries);
+            app.insert_resource(registries.clone());
             app.insert_resource(entity_ids);
             app.insert_resource(entity_types);
-            (block_registry, item_registry)
+            (block_registry, registries)
         };
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
@@ -267,7 +264,7 @@ impl Plugin for MinecraftWorldPlugin {
             ));
             let items = crate::item::definitions::load_item_definitions(
                 &asset_server,
-                &item_registry,
+                &registries,
                 &definitions,
             )
             .expect("the item definition corpus loads");

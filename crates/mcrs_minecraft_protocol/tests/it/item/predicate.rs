@@ -6,7 +6,7 @@ use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use serde::Deserialize;
 
-use crate::item::harness::{TestLookup, decode, from_json, hex, json_value, wire};
+use crate::item::harness::{TestLookup, decode, from_json, hex, in_samples, json_value, wire};
 
 #[derive(Deserialize)]
 struct Case {
@@ -29,6 +29,10 @@ fn lookup() -> TestLookup {
 
 #[test]
 fn predicates_match_the_vanilla_codecs() {
+    in_samples(predicates_match_the_vanilla_codecs_in_scope);
+}
+
+fn predicates_match_the_vanilla_codecs_in_scope() {
     let cases: Vec<Case> =
         serde_json::from_str(include_str!("../../fixtures/item/predicate_vanilla.json")).unwrap();
     assert_eq!(cases.len(), 81);
@@ -65,6 +69,10 @@ fn predicates_match_the_vanilla_codecs() {
 
 #[test]
 fn predicate_errors_read_like_vanilla() {
+    in_samples(predicate_errors_read_like_vanilla_in_scope);
+}
+
+fn predicate_errors_read_like_vanilla_in_scope() {
     let error = |kind: ItemComponentKind, json: &str| -> String {
         let mut d = serde_json::Deserializer::from_str(json);
         ItemComponentValue::deserialize_value(kind, &mut d)
@@ -96,7 +104,7 @@ fn predicate_errors_read_like_vanilla() {
             "Duplicate key 'lit'",
         ),
         (
-            "{\"blocks\":\"a\",\"blocks\":\"b\"}",
+            "{\"blocks\":\"stone\",\"blocks\":\"dirt\"}",
             "duplicate field `blocks`",
         ),
         (

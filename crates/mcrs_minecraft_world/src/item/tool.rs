@@ -1,48 +1,19 @@
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::{HolderSet, ResourceKey};
 use mcrs_minecraft_item::Tool;
 use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_registry::{Id, Tags};
 
-pub fn mining_speed(
-    tool: &Tool,
-    block: &str,
-    blocks: &BlockDefinitions,
-    tags: &DynTagRegistry<Block>,
-) -> f32 {
+pub fn mining_speed(tool: &Tool, block: Id<Block>, tags: &Tags<Block>) -> f32 {
     tool.rules
         .iter()
-        .find(|rule| rule.speed.is_some() && contains(&rule.blocks, block, blocks, tags))
+        .find(|rule| rule.speed.is_some() && rule.blocks.contains(block, tags))
         .and_then(|rule| rule.speed)
         .unwrap_or(tool.default_mining_speed)
 }
 
-pub fn is_correct_for_drops(
-    tool: &Tool,
-    block: &str,
-    blocks: &BlockDefinitions,
-    tags: &DynTagRegistry<Block>,
-) -> bool {
+pub fn is_correct_for_drops(tool: &Tool, block: Id<Block>, tags: &Tags<Block>) -> bool {
     tool.rules
         .iter()
-        .find(|rule| {
-            rule.correct_for_drops.is_some() && contains(&rule.blocks, block, blocks, tags)
-        })
+        .find(|rule| rule.correct_for_drops.is_some() && rule.blocks.contains(block, tags))
         .and_then(|rule| rule.correct_for_drops)
         .unwrap_or(false)
-}
-
-fn contains(
-    set: &HolderSet<ResourceKey<Block>>,
-    block: &str,
-    blocks: &BlockDefinitions,
-    tags: &DynTagRegistry<Block>,
-) -> bool {
-    match set {
-        HolderSet::Tag(tag) => blocks.id_of(block).is_some_and(|id| {
-            tags.contains(&TagKey::<Block, _>::from_location(tag.clone()), id.number())
-        }),
-        _ => set.entries().iter().any(|key| key.as_str() == block),
-    }
 }

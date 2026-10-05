@@ -6,7 +6,8 @@ pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
@@ -22,6 +23,7 @@ pub use mcrs_minecraft_core::codec::{
 };
 
 pub use mcrs_minecraft_registry::holder::*;
+use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 
 /// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -248,6 +250,61 @@ pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
 
 pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
+}
+
+/// Vanilla writes a one-entry set as the bare entry unless it is told to
+/// always write a list.
+pub fn serialize_set<R: RegistryKey, const ALWAYS_LIST: bool, S: Serializer>(
+    set: &HolderSet<R, ALWAYS_LIST>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    match set {
+        HolderSet::List(entries) if !ALWAYS_LIST && entries.len() == 1 => entries[0].serialize(s),
+        _ => set.serialize(s),
+    }
+}
+
+pub fn serialize_optional_set<R: RegistryKey, const ALWAYS_LIST: bool, S: Serializer>(
+    set: &Option<HolderSet<R, ALWAYS_LIST>>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    match set {
+        Some(set) => serialize_set(set, s),
+        None => s.serialize_none(),
+    }
+}
+
+pub struct Folded<'a, R, const ALWAYS_LIST: bool = false>(pub &'a HolderSet<R, ALWAYS_LIST>);
+
+impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for Folded<'_, R, ALWAYS_LIST> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serialize_set(self.0, s)
+    }
+}
+
+pub fn entry<R: RegistryKey>(path: &str) -> Id<R> {
+    let name = format!("minecraft:{path}");
+    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&name))
+        .unwrap_or_else(|error| panic!("{error}"))
+        .unwrap_or_else(|error| panic!("{error}"))
+}
+
+pub fn tag_set<R: RegistryKey, const ALWAYS_LIST: bool>(path: &str) -> HolderSet<R, ALWAYS_LIST> {
+    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path));
+    let tag = Tags::<R>::in_scope("a sample tag", |tags| tags.get(&key))
+        .unwrap_or_else(|error| panic!("{error}"))
+        .unwrap_or_else(|| panic!("the sample registries hold no tag {path}"));
+    HolderSet::Named(tag)
+}
+
+pub fn one_set<R: RegistryKey, const ALWAYS_LIST: bool>(path: &str) -> HolderSet<R, ALWAYS_LIST> {
+    HolderSet::One(entry(path))
+}
+
+pub fn list_set<R: RegistryKey, const ALWAYS_LIST: bool>(
+    paths: &[&str],
+) -> HolderSet<R, ALWAYS_LIST> {
+    HolderSet::List(paths.iter().map(|path| entry(path)).collect())
 }
 
 /// A map kept in the order read, refusing a repeated key.
