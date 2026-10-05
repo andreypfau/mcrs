@@ -11,8 +11,6 @@ pub mod tree;
 pub mod column;
 pub mod template;
 
-pub use proto::FeatureStepList;
-
 #[cfg(test)]
 mod tests {
     use crate::block_predicate::BlockPredicate;

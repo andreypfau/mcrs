@@ -3,11 +3,14 @@
 
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::static_report::shipped_report;
+use mcrs_minecraft_registry::{EntrySet, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -107,11 +110,83 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
+/// The static registries of the shipped report, the carvers and the placed
+/// features of the vanilla tree and of every pack: what a biome's references
+/// resolve against when a test reads or writes one outside the loader.
+pub fn corpus_set() -> &'static RegistrySet {
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        let tables = shipped_report().tables().cloned().chain([
+            Arc::clone(shipped_names::<keys::Carver>("carver").table()),
+            Arc::clone(shipped_names::<keys::PlacedFeature>("placed_feature").table()),
+        ]);
+        RegistrySet::from_tables(tables)
+            .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"))
+    });
+    &SET
+}
+
+fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
+    let roots = std::iter::once(worldgen_dir()).chain(
+        packs()
+            .into_iter()
+            .map(|pack| pack.join("minecraft/worldgen")),
+    );
+    let mut names = Vec::new();
+    for root in roots {
+        let base = root.join(folder);
+        if base.is_dir() {
+            names.extend(json_files(&base).iter().map(|path| id_of(&base, path)));
+        }
+    }
+    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    Registry::new(names, std::iter::empty())
+        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
+}
+
+/// The names `set` holds, as `corpus_set` numbers them.
+pub fn names_of<R: RegistryKey>(set: &EntrySet<R>) -> Vec<String> {
+    let registry = corpus_set()
+        .registry::<R>()
+        .unwrap_or_else(|| panic!("the corpus set holds no {}", R::KEY));
+    set.entries()
+        .iter()
+        .map(|&id| {
+            registry
+                .key(id)
+                .unwrap_or_else(|| panic!("{id:?} is not in the corpus {}", R::KEY))
+                .as_str()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// The built biomes as the JSON they encode to, for the tests that read the
+/// corpus as files.
+pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
+    let set = corpus_set();
+    let biomes = builtin::biomes(set)
+        .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"));
+    set.scope(|| {
+        biomes
+            .into_iter()
+            .map(|(id, biome)| {
+                let json = serde_json::to_vec(&biome)
+                    .unwrap_or_else(|e| panic!("biome/{id} does not encode: {e}"));
+                (id, json)
+            })
+            .collect()
+    })
+}
+
 /// One `minecraft/worldgen` registry as the JSON each entry ships as: the
 /// built-in entries, overridden by the files of the vanilla tree and of every
 /// pack. An id two files ship is refused.
 fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let mut entries = builtin::assets(folder);
+    let mut entries = if folder == "biome" {
+        built_biomes()
+    } else {
+        builtin::assets(folder)
+    };
     let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
     let roots = std::iter::once(worldgen_dir()).chain(
         packs()
@@ -162,14 +237,17 @@ pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
 /// the ones that do not would let a test read "the whole corpus compiles" off a
 /// corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
-    entries(folder)
-        .into_iter()
-        .map(|(id, bytes)| {
-            let parsed =
-                serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-            (id, parsed)
-        })
-        .collect()
+    let entries = entries(folder);
+    corpus_set().scope(|| {
+        entries
+            .into_iter()
+            .map(|(id, bytes)| {
+                let parsed =
+                    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+                (id, parsed)
+            })
+            .collect()
+    })
 }
 
 /// Every `.json` under `assets/<dir>`, parsed. Panics naming every file that
@@ -203,8 +281,13 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
         .chain(packs())
         .find_map(|root| std::fs::read(root.join(&path)).ok())
         .or_else(|| builtin::asset(&path))
+        .or_else(|| {
+            (folder == "biome")
+                .then(|| built_biomes().remove(id))
+                .flatten()
+        })
         .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
-    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}"))
+    corpus_set().scope(|| serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}")))
 }
 
 /// A value as its JSON text reads back. `serde_json::to_value` widens an `f32`

@@ -3,9 +3,13 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_client_jar::{Directory, Files};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
+use mcrs_minecraft_registry::static_report::from_report;
+use mcrs_minecraft_registry::{NameTable, RegistrySet};
 use mcrs_minecraft_worldgen_builtin as builtin;
 use mcrs_minecraft_worldgen_feature::template::{PaletteState, Template};
 
@@ -46,26 +50,92 @@ pub fn from_jar(jar: &[u8]) -> Result<(Files, Vec<u8>), String> {
     Ok((files, version))
 }
 
+/// A set that numbers every registry the stored reports name and holds no
+/// values: enough to read a value that names entries of other registries, and
+/// to build the ones the code describes.
+pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, String> {
+    let bytes = fs::read(registries).map_err(|error| io(registries, error))?;
+    let statics =
+        from_report(&bytes).map_err(|error| format!("{}: {error}", registries.display()))?;
+    let stored = crate::names::read(names)?;
+    let parse = |text: &str| {
+        ResourceLocation::parse(text)
+            .map_err(|error| format!("{}: {text}: {error}", names.display()))
+    };
+    let mut tables: Vec<_> = statics.tables().cloned().collect();
+    for (registry, entries) in &stored.entries {
+        let tags = stored.tags.get(registry).into_iter().flatten();
+        let table = NameTable::new(
+            parse(registry)?,
+            entries
+                .iter()
+                .map(|name| parse(name))
+                .collect::<Result<Vec<_>, _>>()?,
+            tags.map(|tag| parse(tag)).collect::<Result<Vec<_>, _>>()?,
+        )
+        .map_err(|error| format!("{}: {registry}: {error}", names.display()))?;
+        tables.push(std::sync::Arc::new(table));
+    }
+    RegistrySet::from_tables(tables).map_err(|error| format!("{}: {error}", names.display()))
+}
+
 /// Splits off the jar entries the code builds itself. An entry the code builds
 /// identically is dropped, so no file is kept for it. One the code builds
 /// differently stays: the file then overrides the built-in at load, and its
 /// path is returned so the difference is ported rather than lost.
-pub fn without_built_in(files: Files) -> (Files, usize, Vec<String>) {
+///
+/// A biome is compared as a value: the jar text is read against `names` and
+/// the code's biome is built against the same set. A jar biome that does not
+/// read there, a placed feature the stored names lack included, differs.
+pub fn without_built_in(
+    files: Files,
+    names: &RegistrySet,
+) -> Result<(Files, usize, Vec<String>), String> {
+    let mut built_biomes = None;
     let mut identical = 0;
     let mut diverged = Vec::new();
     let mut kept = Files::new();
     for (path, bytes) in files {
-        let built = builtin::asset(&format!("minecraft/{path}"));
-        match built {
-            Some(built) if same_content(&path, &built, &bytes) => identical += 1,
-            Some(_) => {
+        let same = match biome_name(&path) {
+            Some(name) => {
+                if built_biomes.is_none() {
+                    built_biomes = Some(builtin::biomes(names).map_err(|failures| {
+                        format!(
+                            "the built biomes do not resolve against the stored names: {failures:?}"
+                        )
+                    })?);
+                }
+                built_biomes
+                    .as_ref()
+                    .and_then(|built| built.get(&name))
+                    .map(|built| same_biome(names, built, &bytes))
+            }
+            None => builtin::asset(&format!("minecraft/{path}"))
+                .map(|built| same_content(&path, &built, &bytes)),
+        };
+        match same {
+            Some(true) => identical += 1,
+            Some(false) => {
                 diverged.push(path.clone());
                 kept.push((path, bytes));
             }
             None => kept.push((path, bytes)),
         }
     }
-    (kept, identical, diverged)
+    Ok((kept, identical, diverged))
+}
+
+fn biome_name(path: &str) -> Option<ResourceLocation> {
+    let name = path
+        .strip_prefix("worldgen/biome/")?
+        .strip_suffix(".json")?;
+    Some(ResourceLocation::minecraft(name))
+}
+
+fn same_biome(names: &RegistrySet, built: &Biome, shipped: &[u8]) -> bool {
+    names
+        .scope(|| serde_json::from_slice::<Biome>(shipped))
+        .is_ok_and(|shipped| &shipped == built)
 }
 
 fn same_content(path: &str, built: &[u8], shipped: &[u8]) -> bool {
@@ -435,10 +505,52 @@ mod tests {
             (y.to_owned(), b"1.0".to_vec()),
             (biome.to_owned(), b"{}".to_vec()),
         ];
-        let (kept, identical, diverged) = without_built_in(files);
+        let (kept, identical, diverged) = without_built_in(files, &stored_set()).unwrap();
         assert_eq!(identical, 1);
         assert_eq!(diverged, strings(&[y]));
         let kept: Vec<String> = kept.into_iter().map(|(path, _)| path).collect();
         assert_eq!(kept, strings(&[y, biome]));
+    }
+
+    fn stored_set() -> RegistrySet {
+        let reports = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/reports");
+        stored_names(
+            &reports.join("registries.json"),
+            &reports.join("names.json"),
+        )
+        .unwrap()
+    }
+
+    const PLAINS: &str = "worldgen/biome/plains.json";
+
+    fn jar_plains(
+        names: &RegistrySet,
+        change: impl FnOnce(&mut mcrs_minecraft_biome::Biome),
+    ) -> Files {
+        let mut plains = mcrs_minecraft_worldgen_builtin::biomes(names)
+            .unwrap()
+            .remove(&ResourceLocation::minecraft("plains"))
+            .unwrap();
+        change(&mut plains);
+        let text = names.scope(|| serde_json::to_vec_pretty(&plains).unwrap());
+        vec![(PLAINS.to_owned(), text)]
+    }
+
+    #[test]
+    fn a_jar_biome_equal_to_the_built_one_is_left_to_the_code() {
+        let names = stored_set();
+        let files = jar_plains(&names, |_| {});
+        let (kept, identical, diverged) = without_built_in(files, &names).unwrap();
+        assert_eq!((kept.len(), identical, diverged.len()), (0, 1, 0));
+    }
+
+    #[test]
+    fn a_jar_biome_that_differs_is_kept_as_a_file() {
+        let names = stored_set();
+        let files = jar_plains(&names, |plains| plains.temperature = 0.1);
+        let (kept, identical, diverged) = without_built_in(files, &names).unwrap();
+        assert_eq!(identical, 0);
+        assert_eq!(diverged, strings(&[PLAINS]));
+        assert_eq!(kept.len(), 1);
     }
 }

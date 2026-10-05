@@ -15,23 +15,23 @@ fn sky_color(temperature: f32) -> i32 {
     mcrs_minecraft_core::mth::hsv_to_rgb(0.62222224 - temp * 0.05, 0.5 + temp * 0.1, 1.0)
 }
 
-fn climate(temperature: f32, downfall: f32) -> Biome {
-    Biome::new(true, temperature, downfall).with(SKY_COLOR, HexRgb::of(sky_color(temperature)))
+fn climate(temperature: f32, downfall: f32) -> Draft {
+    Draft::new(true, temperature, downfall).with(SKY_COLOR, HexRgb::of(sky_color(temperature)))
 }
 
-fn base_biome(temperature: f32, downfall: f32, mobs: Mobs, generation: Generation) -> Biome {
+fn base_biome(temperature: f32, downfall: f32, mobs: Mobs, generation: Generation) -> Draft {
     climate(temperature, downfall)
         .spawns(mobs.0)
         .generation(generation)
 }
 
-fn arid_biome(mobs: Mobs, generation: Generation) -> Biome {
+fn arid_biome(mobs: Mobs, generation: Generation) -> Draft {
     base_biome(2.0, 0.0, mobs, generation)
         .precipitation(false)
         .with(SNOW_GOLEM_MELTS, true)
 }
 
-fn swamp_biome(mobs: Mobs, generation: Generation) -> Biome {
+fn swamp_biome(mobs: Mobs, generation: Generation) -> Draft {
     base_biome(0.8, 0.9, mobs, generation)
         .modified(WATER_FOG_END_DISTANCE, Operation::Multiply, 0.85)
         .music(sound_event::MUSIC_OVERWORLD_SWAMP)
@@ -46,7 +46,7 @@ fn overworld_generation() -> Generation {
     g
 }
 
-pub fn old_growth_taiga(spruce: bool) -> Biome {
+pub fn old_growth_taiga(spruce: bool) -> Draft {
     let mut m = Mobs::default();
     m.taiga_animals();
     let (trees, temperature) = if spruce {
@@ -68,13 +68,13 @@ pub fn old_growth_taiga(spruce: bool) -> Biome {
     base_biome(temperature, 0.8, m, g).music(sound_event::MUSIC_OVERWORLD_OLD_GROWTH_TAIGA)
 }
 
-pub fn sparse_jungle() -> Biome {
+pub fn sparse_jungle() -> Draft {
     let mut m = Mobs::default();
     m.base_jungle_spawns().spawn(WOLF, 8, 2, 4);
     base_jungle(0.8, false, true, m).music(sound_event::MUSIC_OVERWORLD_SPARSE_JUNGLE)
 }
 
-pub fn jungle(bamboo: bool) -> Biome {
+pub fn jungle(bamboo: bool) -> Draft {
     let (panda_weight, ocelot_max_count, sound) = if bamboo {
         (80, 1, sound_event::MUSIC_OVERWORLD_BAMBOO_JUNGLE)
     } else {
@@ -90,7 +90,7 @@ pub fn jungle(bamboo: bool) -> Biome {
         .with(INCREASED_FIRE_BURNOUT, true)
 }
 
-fn base_jungle(downfall: f32, bamboo: bool, sparse: bool, mobs: Mobs) -> Biome {
+fn base_jungle(downfall: f32, bamboo: bool, sparse: bool, mobs: Mobs) -> Draft {
     let (trees, melons) = if sparse {
         (
             placed_feature::TREES_SPARSE_JUNGLE,
@@ -116,7 +116,7 @@ fn base_jungle(downfall: f32, bamboo: bool, sparse: bool, mobs: Mobs) -> Biome {
     base_biome(0.95, downfall, mobs, g)
 }
 
-pub fn windswept_hills(more_trees: bool) -> Biome {
+pub fn windswept_hills(more_trees: bool) -> Draft {
     let mut m = Mobs::default();
     m.farm_animals().spawn(LLAMA, 5, 4, 6).common_spawns();
     let mut g = overworld_generation();
@@ -131,7 +131,7 @@ pub fn windswept_hills(more_trees: bool) -> Biome {
     base_biome(0.2, 0.3, m, g)
 }
 
-pub fn desert() -> Biome {
+pub fn desert() -> Draft {
     let mut m = Mobs::default();
     m.desert_spawns();
     let mut g = Generation::default();
@@ -146,7 +146,7 @@ pub fn desert() -> Biome {
     arid_biome(m, g).music(sound_event::MUSIC_OVERWORLD_DESERT)
 }
 
-pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
+pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Draft {
     let mut m = Mobs::default();
     let mut g = overworld_generation();
     let biome = if snowy {
@@ -176,7 +176,7 @@ pub fn plains(sunflower: bool, snowy: bool, spikes: bool) -> Biome {
     biome.spawns(m.0).generation(g)
 }
 
-pub fn mushroom_fields() -> Biome {
+pub fn mushroom_fields() -> Draft {
     let mut m = Mobs::default();
     m.mooshroom_spawns();
     let mut g = overworld_generation();
@@ -187,7 +187,7 @@ pub fn mushroom_fields() -> Biome {
         .with(CAN_PILLAGER_PATROL_SPAWN, false)
 }
 
-pub fn savanna(shattered: bool, plateau: bool) -> Biome {
+pub fn savanna(shattered: bool, plateau: bool) -> Draft {
     let mut g = overworld_generation();
     if shattered {
         shattered_savanna_trees(&mut g);
@@ -212,7 +212,7 @@ pub fn savanna(shattered: bool, plateau: bool) -> Biome {
     arid_biome(m, g)
 }
 
-pub fn badlands(wooded: bool) -> Biome {
+pub fn badlands(wooded: bool) -> Draft {
     let mut m = Mobs::default();
     m.farm_animals().common_spawns().spawn(ARMADILLO, 6, 1, 2);
     let mut g = Generation::default();
@@ -240,7 +240,7 @@ pub fn badlands(wooded: bool) -> Biome {
         .grass(9470285)
 }
 
-fn base_ocean(mobs: Mobs, generation: Generation) -> Biome {
+fn base_ocean(mobs: Mobs, generation: Generation) -> Draft {
     base_biome(0.5, 0.5, mobs, generation)
         .background_music(BackgroundMusic::overworld_with_underwater())
 }
@@ -251,7 +251,7 @@ fn base_ocean_generation() -> Generation {
     g
 }
 
-pub fn cold_ocean(deep: bool) -> Biome {
+pub fn cold_ocean(deep: bool) -> Draft {
     let mut m = Mobs::default();
     m.ocean_spawns(3, 4, 15)
         .spawn(SALMON, 15, 1, 5)
@@ -267,7 +267,7 @@ pub fn cold_ocean(deep: bool) -> Biome {
     base_ocean(m, g).water(COLD_WATER_COLOR)
 }
 
-pub fn ocean(deep: bool) -> Biome {
+pub fn ocean(deep: bool) -> Draft {
     let mut m = Mobs::default();
     m.ocean_spawns(1, 4, 10)
         .spawn(DOLPHIN, 1, 1, 2)
@@ -283,7 +283,7 @@ pub fn ocean(deep: bool) -> Biome {
     base_ocean(m, g)
 }
 
-pub fn lukewarm_ocean(deep: bool) -> Biome {
+pub fn lukewarm_ocean(deep: bool) -> Draft {
     let mut m = Mobs::default();
     let seagrass = if deep {
         m.ocean_spawns(8, 4, 8);
@@ -304,7 +304,7 @@ pub fn lukewarm_ocean(deep: bool) -> Biome {
         .water(4566514)
 }
 
-pub fn warm_ocean() -> Biome {
+pub fn warm_ocean() -> Draft {
     let mut m = Mobs::default();
     m.spawn(PUFFERFISH, 15, 1, 3)
         .spawn(NAUTILUS, 5, 1, 1)
@@ -323,7 +323,7 @@ pub fn warm_ocean() -> Biome {
         .water(4445678)
 }
 
-pub fn frozen_ocean(deep: bool) -> Biome {
+pub fn frozen_ocean(deep: bool) -> Draft {
     let mut m = Mobs::default();
     m.spawn(SQUID, 1, 1, 4)
         .spawn(SALMON, 15, 1, 5)
@@ -341,7 +341,7 @@ pub fn frozen_ocean(deep: bool) -> Biome {
         .water(FROZEN_WATER_COLOR)
 }
 
-pub fn forest(birch: bool, tall: bool, flower: bool) -> Biome {
+pub fn forest(birch: bool, tall: bool, flower: bool) -> Draft {
     let mut m = Mobs::default();
     m.farm_animals().common_spawns();
     let mut g = overworld_generation();
@@ -380,7 +380,7 @@ pub fn forest(birch: bool, tall: bool, flower: bool) -> Biome {
     base_biome(temperature, downfall, m, g).music(music)
 }
 
-pub fn taiga(snowy: bool) -> Biome {
+pub fn taiga(snowy: bool) -> Draft {
     let mut m = Mobs::default();
     m.taiga_animals().common_spawns();
     let mut g = overworld_generation();
@@ -394,12 +394,12 @@ pub fn taiga(snowy: bool) -> Biome {
         (-0.5, 0.4, COLD_WATER_COLOR)
     } else {
         common_berry_bushes(&mut g);
-        (0.25, 0.8, Biome::NORMAL_WATER_COLOR)
+        (0.25, 0.8, Draft::NORMAL_WATER_COLOR)
     };
     base_biome(temperature, downfall, m, g).water(water)
 }
 
-pub fn dark_forest(pale_garden: bool) -> Biome {
+pub fn dark_forest(pale_garden: bool) -> Draft {
     let mut m = Mobs::default();
     m.common_spawns();
     let mut g = overworld_generation();
@@ -442,7 +442,7 @@ pub fn dark_forest(pale_garden: bool) -> Biome {
     biome.spawns(m.0).generation(g)
 }
 
-pub fn swamp() -> Biome {
+pub fn swamp() -> Draft {
     let mut m = Mobs::default();
     m.farm_animals().swamp_spawns(SWAMP_SKELETON_WEIGHT);
     let mut g = Generation::default();
@@ -460,7 +460,7 @@ pub fn swamp() -> Biome {
         .foliage(6975545)
 }
 
-pub fn mangrove_swamp() -> Biome {
+pub fn mangrove_swamp() -> Draft {
     let mut m = Mobs::default();
     m.swamp_spawns(SWAMP_SKELETON_WEIGHT)
         .spawn(TROPICAL_FISH, 25, 8, 8);
@@ -478,7 +478,7 @@ pub fn mangrove_swamp() -> Biome {
         .foliage(9285927)
 }
 
-pub fn river(frozen: bool) -> Biome {
+pub fn river(frozen: bool) -> Draft {
     let mut m = Mobs::default();
     m.spawn(SQUID, 2, 1, 4)
         .spawn(SALMON, 5, 1, 5)
@@ -493,21 +493,21 @@ pub fn river(frozen: bool) -> Biome {
     } else {
         m.spawn(DROWNED, 100, 1, 1);
         g.feature(VegetalDecoration, placed_feature::SEAGRASS_RIVER);
-        (0.5, Biome::NORMAL_WATER_COLOR)
+        (0.5, Draft::NORMAL_WATER_COLOR)
     };
     base_biome(temperature, 0.5, m, g)
         .background_music(BackgroundMusic::overworld_with_underwater())
         .water(water)
 }
 
-pub fn beach(snowy: bool, stony: bool) -> Biome {
+pub fn beach(snowy: bool, stony: bool) -> Draft {
     let mut m = Mobs::default();
     let (temperature, downfall, water) = match (snowy, stony) {
         (true, _) => (0.05, 0.3, COLD_WATER_COLOR),
-        (false, true) => (0.2, 0.3, Biome::NORMAL_WATER_COLOR),
+        (false, true) => (0.2, 0.3, Draft::NORMAL_WATER_COLOR),
         (false, false) => {
             m.spawn(TURTLE, 5, 2, 5);
-            (0.8, 0.4, Biome::NORMAL_WATER_COLOR)
+            (0.8, 0.4, Draft::NORMAL_WATER_COLOR)
         }
     };
     m.common_spawns();
@@ -516,13 +516,13 @@ pub fn beach(snowy: bool, stony: bool) -> Biome {
     base_biome(temperature, downfall, m, g).water(water)
 }
 
-pub fn the_void() -> Biome {
+pub fn the_void() -> Draft {
     let mut g = Generation::default();
     g.feature(TopLayerModification, placed_feature::VOID_START_PLATFORM);
     base_biome(0.5, 0.5, Mobs::none(), g).precipitation(false)
 }
 
-pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Biome {
+pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Draft {
     let mut m = Mobs::default();
     let mut g = overworld_generation();
     plain_grass(&mut g);
@@ -550,7 +550,7 @@ pub fn meadow_or_cherry_grove(cherry_grove: bool) -> Biome {
     biome.spawns(m.0).generation(g)
 }
 
-pub fn dappled_forest() -> Biome {
+pub fn dappled_forest() -> Draft {
     let mut g = overworld_generation();
     g.feature(VegetalDecoration, placed_feature::TREES_DAPPLED_FOREST);
     dappled_forest_vegetation(&mut g);
@@ -571,7 +571,7 @@ pub fn dappled_forest() -> Biome {
         .dry_foliage(9189892)
 }
 
-pub fn peaks(sound: Id<SoundEvent>) -> Biome {
+pub fn peaks(sound: Id<SoundEvent>) -> Draft {
     let mut m = Mobs::default();
     m.spawn(GOAT, 5, 1, 3).common_spawns();
     let mut g = overworld_generation();
@@ -582,7 +582,7 @@ pub fn peaks(sound: Id<SoundEvent>) -> Biome {
         .music(sound)
 }
 
-pub fn stony_peaks() -> Biome {
+pub fn stony_peaks() -> Draft {
     let mut m = Mobs::default();
     m.common_spawns();
     let mut g = overworld_generation();
@@ -590,7 +590,7 @@ pub fn stony_peaks() -> Biome {
     base_biome(1.0, 0.3, m, g).music(sound_event::MUSIC_OVERWORLD_STONY_PEAKS)
 }
 
-pub fn snowy_slopes() -> Biome {
+pub fn snowy_slopes() -> Draft {
     let mut m = Mobs::default();
     m.spawn(RABBIT, 4, 2, 3)
         .spawn(GOAT, 5, 1, 3)
@@ -604,7 +604,7 @@ pub fn snowy_slopes() -> Biome {
         .with(INCREASED_FIRE_BURNOUT, true)
 }
 
-pub fn grove() -> Biome {
+pub fn grove() -> Draft {
     let mut m = Mobs::default();
     m.spawn(WOLF, 1, 1, 1)
         .spawn(RABBIT, 8, 2, 3)
@@ -618,7 +618,7 @@ pub fn grove() -> Biome {
     base_biome(-0.2, 0.8, m, g).music(sound_event::MUSIC_OVERWORLD_GROVE)
 }
 
-pub fn sulfur_caves() -> Biome {
+pub fn sulfur_caves() -> Draft {
     let mut m = Mobs::default();
     m.spawn(BAT, 10, 8, 8)
         .spawn(SULFUR_CUBE, 100, 2, 4)
@@ -641,7 +641,7 @@ pub fn sulfur_caves() -> Biome {
         .grass(11249231)
 }
 
-pub fn lush_caves() -> Biome {
+pub fn lush_caves() -> Draft {
     let mut m = Mobs::default();
     m.spawn(AXOLOTL, 10, 4, 6)
         .spawn(TROPICAL_FISH, 25, 8, 8)
@@ -656,7 +656,7 @@ pub fn lush_caves() -> Biome {
     base_biome(0.5, 0.5, m, g).music(sound_event::MUSIC_OVERWORLD_LUSH_CAVES)
 }
 
-pub fn dripstone_caves() -> Biome {
+pub fn dripstone_caves() -> Draft {
     let mut m = Mobs::default();
     m.dripstone_caves_spawns();
     let mut g = Generation::default();
@@ -668,7 +668,7 @@ pub fn dripstone_caves() -> Biome {
     base_biome(0.8, 0.4, m, g).music(sound_event::MUSIC_OVERWORLD_DRIPSTONE_CAVES)
 }
 
-pub fn deep_dark() -> Biome {
+pub fn deep_dark() -> Draft {
     let mut g = Generation::default();
     default_carvers(&mut g);
     default_crystal_formations(&mut g);

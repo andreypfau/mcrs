@@ -85,8 +85,8 @@ macro_rules! nether_biome {
     };
 }
 
-fn base_biome(mobs: Mobs, generation: Generation) -> Biome {
-    Biome::new(false, 2.0, 0.0)
+fn base_biome(mobs: Mobs, generation: Generation) -> Draft {
+    Draft::new(false, 2.0, 0.0)
         .spawns(mobs.0)
         .generation(generation)
 }
@@ -120,7 +120,7 @@ fn nether_generation(
     g
 }
 
-pub fn nether_wastes() -> Biome {
+pub fn nether_wastes() -> Draft {
     let mut m = Mobs::default();
     m.spawn(GHAST, 50, 4, 4)
         .spawn(ZOMBIFIED_PIGLIN, 100, 4, 4)
@@ -148,7 +148,7 @@ pub fn nether_wastes() -> Biome {
     )
 }
 
-pub fn soul_sand_valley() -> Biome {
+pub fn soul_sand_valley() -> Draft {
     let mut m = Mobs::default();
     m.spawn(SKELETON, 20, 5, 5)
         .spawn(GHAST, 50, 4, 4)
@@ -179,7 +179,7 @@ pub fn soul_sand_valley() -> Biome {
     )
 }
 
-pub fn basalt_deltas() -> Biome {
+pub fn basalt_deltas() -> Draft {
     let mut m = Mobs::default();
     m.spawn(GHAST, 40, 1, 1)
         .spawn(MAGMA_CUBE, 100, 2, 5)
@@ -229,7 +229,7 @@ pub fn basalt_deltas() -> Biome {
     )
 }
 
-pub fn crimson_forest() -> Biome {
+pub fn crimson_forest() -> Draft {
     let mut m = Mobs::default();
     m.spawn(ZOMBIFIED_PIGLIN, 1, 2, 4)
         .spawn(HOGLIN, 9, 3, 4)
@@ -261,7 +261,7 @@ pub fn crimson_forest() -> Biome {
     )
 }
 
-pub fn warped_forest() -> Biome {
+pub fn warped_forest() -> Draft {
     let mut m = Mobs::default();
     m.spawn(ENDERMAN, 1, 4, 4)
         .spawn(STRIDER, 60, 1, 2)

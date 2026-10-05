@@ -3,20 +3,22 @@ mod end;
 mod nether;
 mod overworld;
 
-use mcrs_minecraft_biome::{Biome, BiomeGeneration as Generation, GrassColorModifier};
+use mcrs_minecraft_biome::{
+    Biome, BiomeDraft as Draft, BiomeGeneration as Generation, GrassColorModifier,
+};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_keys::{EntityType, SoundEvent, biome, carver, placed_feature, sound_event};
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::{Built, Id, RegistrySet};
 use mcrs_minecraft_worldgen_structure::MobCategory;
 use serde::Serialize;
 
 type BiomeRow = (
     ResourceKey<mcrs_minecraft_keys::Biome, &'static str>,
-    fn() -> Biome,
+    fn() -> Draft,
 );
 
 #[derive(Clone, Copy)]
@@ -229,7 +231,7 @@ pub trait BiomeMusic: Sized {
     }
 }
 
-impl BiomeMusic for Biome {
+impl BiomeMusic for Draft {
     fn background_music(self, music: BackgroundMusic) -> Self {
         self.modified(BACKGROUND_MUSIC, Operation::Override, music)
     }
@@ -311,15 +313,29 @@ const BIOMES: &[BiomeRow] = {
     ]
 };
 
-pub fn all() -> impl Iterator<Item = (ResourceLocation, fn() -> Biome)> {
+pub fn names() -> Vec<ResourceLocation> {
     BIOMES
         .iter()
-        .map(|(id, build)| ((*id.location()).into(), *build))
+        .map(|(key, _)| (*key.location()).into())
+        .collect()
 }
 
-// chisle: a linear scan of 67 rows per biome read. A sorted table and a binary
-// search lift it if the table grows.
-pub fn build(id: &ResourceLocation) -> Option<Biome> {
-    let (_, build) = BIOMES.iter().find(|(key, _)| key.location() == id)?;
-    Some(build())
+pub fn build(set: &RegistrySet) -> Result<Vec<Biome>, Vec<(usize, String)>> {
+    let mut built = Vec::with_capacity(BIOMES.len());
+    let mut failures = Vec::new();
+    for (index, (_, draft)) in BIOMES.iter().enumerate() {
+        match draft().resolve(set) {
+            Ok(biome) => built.push(biome),
+            Err(messages) => failures.push((index, messages.join("; "))),
+        }
+    }
+    if failures.is_empty() {
+        Ok(built)
+    } else {
+        Err(failures)
+    }
+}
+
+pub fn built() -> Built {
+    Built::new(mcrs_minecraft_keys::Biome::KEY, names(), build)
 }

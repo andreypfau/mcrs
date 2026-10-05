@@ -1358,7 +1358,11 @@ mod tests {
         let with_overworld_carvers: BTreeSet<String> =
             mcrs_minecraft_worldgen_testing::registry::<crate::Biome>("biome")
                 .into_iter()
-                .filter(|(_, biome)| biome.carvers.iter().any(|c| c.as_str() == "minecraft:cave"))
+                .filter(|(_, biome)| {
+                    mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
+                        .iter()
+                        .any(|carver| carver == "minecraft:cave")
+                })
                 .map(|(id, _)| id.as_str().to_owned())
                 .collect();
 

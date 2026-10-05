@@ -239,7 +239,11 @@ async fn read_pack(
     Pack {
         name: name.to_owned(),
         files,
-        built: Vec::new(),
+        built: if vanilla {
+            vec![mcrs_minecraft_worldgen_builtin::built_biomes()]
+        } else {
+            Vec::new()
+        },
     }
 }
 

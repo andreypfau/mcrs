@@ -143,8 +143,8 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
     let set = test_registries();
     let biomes = set.table("minecraft:worldgen/biome").expect("biome table");
     let names: BTreeSet<String> = biomes.names().iter().map(|name| name.to_string()).collect();
-    let builtin = mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome");
-    assert!(!builtin.is_empty());
+    let built = mcrs_minecraft_worldgen_builtin::biomes(set).expect("the built biomes resolve");
+    assert!(!built.is_empty());
     let files: Vec<String> = std::iter::once(assets())
         .chain(packs())
         .filter_map(|root| std::fs::read_dir(root.join("minecraft/worldgen/biome")).ok())
@@ -155,18 +155,57 @@ fn every_shipped_and_builtin_biome_has_a_name_from_the_loader() {
         })
         .collect();
     assert!(!files.is_empty());
-    for expected in builtin
-        .iter()
-        .map(|path| {
-            let stem = path.strip_prefix("minecraft/worldgen/biome/").unwrap();
-            format!("minecraft:{}", stem.strip_suffix(".json").unwrap())
-        })
-        .chain(files)
-    {
+    for expected in built.keys().map(|name| name.to_string()).chain(files) {
         assert!(
             names.contains(&expected),
             "{expected} is missing from the biome names"
         );
+    }
+}
+
+#[test]
+fn vanilla_biomes_are_built_entries_not_files() {
+    let set = test_registries();
+    let table = set.table("minecraft:worldgen/biome").expect("biome table");
+    let vanilla = (0..table.len())
+        .filter(|&id| set.pack_of("minecraft:worldgen/biome", id) == Some(VANILLA_PACK))
+        .count();
+    assert_eq!(vanilla, 67);
+    assert!(
+        mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/biome/plains.json").is_none(),
+        "a built biome is served as a file"
+    );
+    assert!(
+        mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome").is_empty(),
+        "a built biome is listed as a file"
+    );
+}
+
+#[test]
+fn a_biome_naming_a_missing_carver_or_placed_feature_fails_the_load() {
+    let cases = [
+        (
+            "carvers",
+            r#""test:no_such_carver""#,
+            "minecraft:worldgen/carver",
+        ),
+        (
+            "features",
+            r#"[["test:no_such_feature"]]"#,
+            "minecraft:worldgen/placed_feature",
+        ),
+    ];
+    for (field, value, registry) in cases {
+        let biome = format!(
+            r##"{{"temperature":0.5,"downfall":0.5,"has_precipitation":true,"effects":{{"water_color":"#3f76e4"}},"{field}":{value}}}"##
+        );
+        let refused = refused_by_the_loader("worldgen/biome", "test_biome", &biome);
+        let line = refused
+            .lines()
+            .find(|line| line.contains("test_biome"))
+            .unwrap_or_else(|| panic!("{field}: no line names the biome: {refused}"));
+        assert!(line.contains(registry), "{field}: {line}");
+        assert!(line.contains("test:no_such_"), "{field}: {line}");
     }
 }
 
@@ -306,24 +345,28 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
                 .pack_of(registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
             let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
-            let text = std::fs::read_to_string(&file).unwrap_or_else(|error| {
-                let built_in = (pack == VANILLA_PACK)
-                    .then(|| {
-                        mcrs_minecraft_worldgen_builtin::asset(&format!(
-                            "{}/{}/{}.json",
-                            name.namespace(),
-                            registry.path(),
-                            name.path()
-                        ))
-                    })
-                    .flatten()
-                    .and_then(|bytes| String::from_utf8(bytes).ok());
-                built_in.unwrap_or_else(|| panic!("{}: {error}", file.display()))
-            });
+            let shipped = std::fs::read_to_string(&file);
             let encoded = world
                 .encode(set, registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
                 .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
+            let Ok(text) = shipped else {
+                assert!(
+                    pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome",
+                    "{registry}/{name}: {} is not a file and the entry is not a built biome",
+                    file.display()
+                );
+                let column = set
+                    .column::<mcrs_minecraft_biome::Biome>(registry.as_str())
+                    .expect("biomes are parsed by the loader");
+                let read: mcrs_minecraft_biome::Biome =
+                    set.scope(|| serde_json::from_str(&encoded).unwrap());
+                assert!(
+                    read == column[index],
+                    "{registry}/{name} reads back changed"
+                );
+                continue;
+            };
             let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
             let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
             assert_eq!(
@@ -1636,7 +1679,7 @@ fn trade_values_the_game_refuses_fail_to_parse() {
 }
 
 #[test]
-fn every_built_in_biome_reads_through_the_layered_file_source() {
+fn every_built_in_file_reads_through_the_layered_file_source() {
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
@@ -1653,11 +1696,18 @@ fn every_built_in_biome_reads_through_the_layered_file_source() {
         .expect("default AssetSource missing")
         .reader();
 
-    let paths = mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome");
-    assert!(!paths.is_empty());
-    for path in paths {
-        bevy_tasks::block_on(read_whole(source, Path::new(&path)))
-            .unwrap_or_else(|error| panic!("{path}: {error}"));
+    for directory in [
+        "minecraft/worldgen/template_pool",
+        "minecraft/worldgen/noise",
+        "minecraft/worldgen/density_function",
+        "minecraft/worldgen/noise_settings",
+    ] {
+        let paths = mcrs_minecraft_worldgen_builtin::paths(directory);
+        assert!(!paths.is_empty(), "{directory}");
+        for path in paths {
+            bevy_tasks::block_on(read_whole(source, Path::new(&path)))
+                .unwrap_or_else(|error| panic!("{path}: {error}"));
+        }
     }
 }
 

@@ -176,7 +176,9 @@ fn run(options: &Options) -> Result<(), String> {
     let jar = release::jar(&official_dir(), &listing.id, &download, get)?;
 
     let (files, version) = corpus::from_jar(&jar)?;
-    let (files, built_in, diverged) = corpus::without_built_in(files);
+    let stored = root.join(REPORTS);
+    let names = corpus::stored_names(&stored.join("registries.json"), &stored.join(NAMES_FILE))?;
+    let (files, built_in, diverged) = corpus::without_built_in(files, &names)?;
     release::check_version(&version, &listing.id)?;
     let descriptor = release::descriptor(&download, &jar, &listing, &package)?;
     let font_hint = release::font_hint(&jar)?;

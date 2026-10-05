@@ -125,7 +125,7 @@ fn digest(entries: impl IntoIterator<Item = (ResourceLocation, Vec<u8>)>) -> Str
 #[test]
 fn the_biomes_template_pools_and_templates_are_the_ones_that_matched_the_game() {
     assert_eq!(
-        digest(builtin::assets("biome")),
+        digest(mcrs_minecraft_worldgen_testing::built_biomes()),
         "268bd82d55f28aaa4fcf5d85f0042d9e0ec173b88edb553619a6b248f5742051"
     );
     assert_eq!(
