@@ -6,40 +6,13 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
 
 use crate::model::{self, Pack};
+use mcrs_minecraft_biome::{Biome, GrassColorModifier};
+use mcrs_minecraft_core::codec::HexRgb;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::RegistrySet;
 
 use super::Catalog;
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
-
-#[derive(serde::Deserialize)]
-struct BiomeFile {
-    #[serde(default)]
-    temperature: f32,
-    #[serde(default)]
-    downfall: f32,
-    effects: BiomeEffects,
-}
-
-#[derive(serde::Deserialize)]
-struct BiomeEffects {
-    water_color: Rgb,
-    #[serde(default)]
-    grass_color: Option<Rgb>,
-    #[serde(default)]
-    foliage_color: Option<Rgb>,
-    #[serde(default)]
-    dry_foliage_color: Option<Rgb>,
-    #[serde(default)]
-    grass_color_modifier: GrassModifier,
-}
-
-#[derive(serde::Deserialize, Default, Copy, Clone, PartialEq, Eq, Debug)]
-#[serde(rename_all = "snake_case")]
-enum GrassModifier {
-    #[default]
-    None,
-    DarkForest,
-    Swamp,
-}
 
 /// A biome's colour for each biome tint, as `0xRRGGBB`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -89,45 +62,12 @@ impl BiomeTint {
     }
 }
 
-/// A biome colour is written either as `#rrggbb` or as the packed integer that spells.
-#[derive(Copy, Clone)]
-struct Rgb(u32);
-
-impl<'de> serde::Deserialize<'de> for Rgb {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct Either;
-
-        impl serde::de::Visitor<'_> for Either {
-            type Value = Rgb;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a `#rrggbb` colour or the packed integer that spells it")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Rgb, E> {
-                let digits = value
-                    .strip_prefix('#')
-                    .filter(|digits| digits.len() == 6)
-                    .ok_or_else(|| E::custom(format!("`{value}` is not a `#rrggbb` colour")))?;
-                u32::from_str_radix(digits, 16)
-                    .map(Rgb)
-                    .map_err(|error| E::custom(format!("`{value}`: {error}")))
-            }
-
-            fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Rgb, E> {
-                Ok(Rgb(value as u32))
-            }
-
-            fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Rgb, E> {
-                Ok(Rgb(value as u32))
-            }
-        }
-
-        deserializer.deserialize_any(Either)
-    }
-}
-
-pub(super) fn extend_tints(pack: &Pack, catalog: &mut Catalog, biomes: &[String]) {
+pub(super) fn extend_tints(
+    pack: &Pack,
+    catalog: &mut Catalog,
+    registries: &RegistrySet,
+    biomes: &[String],
+) {
     let done = catalog.tints.len();
     if done == biomes.len() {
         return;
@@ -135,50 +75,56 @@ pub(super) fn extend_tints(pack: &Pack, catalog: &mut Catalog, biomes: &[String]
     let grass_map = noted(load_colormap(pack, "grass"), &mut catalog.failures);
     let foliage_map = noted(load_colormap(pack, "foliage"), &mut catalog.failures);
     let dry_foliage_map = noted(load_colormap(pack, "dry_foliage"), &mut catalog.failures);
+    let registry = registries.registry::<keys::Biome>();
+    let loaded = registries.entries::<keys::Biome, Biome>();
     for name in &biomes[done..] {
-        let Some(file) = noted(load_biome(pack, name), &mut catalog.failures) else {
-            catalog.tints.push(BiomeTint {
+        let biome = registry
+            .as_ref()
+            .zip(loaded.as_ref())
+            .and_then(|(registry, loaded)| loaded.get(registry.get(name)?))
+            .ok_or_else(|| format!("{name}: not in the loaded biome registry"));
+        let tint = biome.and_then(|biome| {
+            let (temperature, downfall, effects) =
+                (biome.temperature, biome.downfall, &biome.effects);
+            let water = effects
+                .water_color
+                .ok_or_else(|| format!("{name}: has no water colour"))?;
+            let from_map =
+                |map: &Option<Vec<u8>>| sample_colormap(map.as_deref(), temperature, downfall);
+            let base_grass = effects
+                .grass_color
+                .map_or_else(|| from_map(&grass_map), |HexRgb(c)| c);
+            let grass = match effects.grass_color_modifier {
+                GrassColorModifier::None => Grass::Color(base_grass),
+                GrassColorModifier::DarkForest => {
+                    Grass::Color(((base_grass & 0xfefefe) + 0x28340a) >> 1)
+                }
+                GrassColorModifier::Swamp => Grass::Swamp,
+            };
+            Ok(BiomeTint {
+                grass,
+                foliage: effects
+                    .foliage_color
+                    .map_or_else(|| from_map(&foliage_map), |HexRgb(c)| c),
+                dry_foliage: effects
+                    .dry_foliage_color
+                    .map_or_else(|| from_map(&dry_foliage_map), |HexRgb(c)| c),
+                water: water.0,
+            })
+        });
+        catalog
+            .tints
+            .push(noted(tint, &mut catalog.failures).unwrap_or(BiomeTint {
                 grass: Grass::Color(0xffffff),
                 foliage: 0xffffff,
                 dry_foliage: 0xffffff,
                 water: 0xffffff,
-            });
-            continue;
-        };
-        let (temperature, downfall, effects) = (file.temperature, file.downfall, file.effects);
-        let from_map =
-            |map: &Option<Vec<u8>>| sample_colormap(map.as_deref(), temperature, downfall);
-        let base_grass = effects
-            .grass_color
-            .map_or_else(|| from_map(&grass_map), |Rgb(c)| c);
-        let grass = match effects.grass_color_modifier {
-            GrassModifier::None => Grass::Color(base_grass),
-            GrassModifier::DarkForest => Grass::Color(((base_grass & 0xfefefe) + 0x28340a) >> 1),
-            GrassModifier::Swamp => Grass::Swamp,
-        };
-        catalog.tints.push(BiomeTint {
-            grass,
-            foliage: effects
-                .foliage_color
-                .map_or_else(|| from_map(&foliage_map), |Rgb(c)| c),
-            dry_foliage: effects
-                .dry_foliage_color
-                .map_or_else(|| from_map(&dry_foliage_map), |Rgb(c)| c),
-            water: effects.water_color.0,
-        });
+            }));
     }
 }
 
 fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> {
     result.map_err(|reason| failures.push(reason)).ok()
-}
-
-fn load_biome(pack: &Pack, name: &str) -> Result<BiomeFile, String> {
-    let path = model::resource_path(name, "worldgen/biome", "json");
-    let bytes = pack
-        .read(&path)
-        .map_err(|reason| format!("{name}: {reason}"))?;
-    serde_json::from_slice(bytes).map_err(|error| format!("{name}: cannot parse {path}: {error}"))
 }
 
 pub(crate) fn load_colormap(pack: &Pack, name: &str) -> Result<Vec<u8>, String> {
@@ -267,12 +213,49 @@ mod tests {
     use crate::columns::{Column, ColumnStore, Extent, SECTION_VOLUME, Section};
     use mcrs_minecraft_chunk::section::Biomes;
     use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
+    use mcrs_minecraft_world::registries::test_registries;
 
     fn tints_of(biome: &str) -> BiomeTint {
         let mut catalog = crate::blocks::empty();
-        extend_tints(Pack::corpus(), &mut catalog, &[biome.to_string()]);
+        extend_tints(
+            Pack::corpus(),
+            &mut catalog,
+            test_registries(),
+            &[biome.to_string()],
+        );
         assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
         catalog.tints[0]
+    }
+
+    #[test]
+    fn tints_come_from_the_loaded_biome_column() {
+        let names = ["plains", "swamp", "beta_desert"].map(|name| format!("minecraft:{name}"));
+        let mut catalog = crate::blocks::empty();
+        extend_tints(Pack::corpus(), &mut catalog, test_registries(), &names);
+        assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
+        assert_eq!(
+            catalog.tints,
+            [
+                BiomeTint {
+                    grass: Grass::Color(0x91bd59),
+                    foliage: 0x77ab2f,
+                    dry_foliage: 0xa37546,
+                    water: 0x3f76e4,
+                },
+                BiomeTint {
+                    grass: Grass::Swamp,
+                    foliage: 0x6a7039,
+                    dry_foliage: 0x7b5334,
+                    water: 0x617b64,
+                },
+                BiomeTint {
+                    grass: Grass::Color(0xbfb755),
+                    foliage: 0xaea42a,
+                    dry_foliage: 0xa38046,
+                    water: 0x3f76e4,
+                },
+            ]
+        );
     }
 
     #[test]
@@ -359,7 +342,12 @@ mod tests {
 
     fn a_biome_the_pack_does_not_ship_is_reported_rather_than_quietly_defaulted() {
         let mut catalog = crate::blocks::empty();
-        extend_tints(Pack::corpus(), &mut catalog, &["mcrs:nowhere".to_string()]);
+        extend_tints(
+            Pack::corpus(),
+            &mut catalog,
+            test_registries(),
+            &["mcrs:nowhere".to_string()],
+        );
         assert_eq!(catalog.failures.len(), 1);
         assert!(catalog.failures[0].starts_with("mcrs:nowhere:"));
     }

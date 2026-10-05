@@ -28,22 +28,6 @@ const RESOURCE_FOLDERS: [&str; 7] = [
     "lang",
 ];
 
-/// Biome tints come from the data pack, whose `beta_*` biomes exist only in the repo.
-const DATA_FOLDERS: [&str; 1] = ["worldgen/biome"];
-
-/// The data folder entries the code builds, for the paths the pack holds no file at.
-fn add_built_in(files: &mut HashMap<String, Vec<u8>>) {
-    for directory in DATA_FOLDERS {
-        let Some(folder) = directory.strip_prefix("worldgen/") else {
-            continue;
-        };
-        for (id, bytes) in mcrs_minecraft_worldgen_builtin::assets(folder) {
-            let path = format!("{}/{directory}/{}.json", id.namespace(), id.path());
-            files.entry(path).or_insert(bytes);
-        }
-    }
-}
-
 fn insert_once(
     files: &mut HashMap<String, Vec<u8>>,
     path: String,
@@ -75,18 +59,12 @@ pub struct Pack {
 
 impl Pack {
     pub async fn load(assets: &AssetServer) -> Result<Self, String> {
+        let source = AssetSourceId::from(vanilla::SOURCE);
+        let reader = assets
+            .get_source(source.clone())
+            .map_err(|error| format!("no {source} asset source: {error}"))?;
         let mut files = HashMap::new();
-        for (source, folders) in [
-            (AssetSourceId::from(vanilla::SOURCE), &RESOURCE_FOLDERS[..]),
-            (AssetSourceId::Default, &DATA_FOLDERS[..]),
-        ] {
-            let reader = assets
-                .get_source(source.clone())
-                .map_err(|error| format!("no {source} asset source: {error}"))?;
-            let layered = source == AssetSourceId::Default;
-            Self::read_source(reader.reader(), folders, layered, &mut files).await?;
-        }
-        add_built_in(&mut files);
+        Self::read_source(reader.reader(), &RESOURCE_FOLDERS, false, &mut files).await?;
         Ok(Self { files })
     }
 
@@ -189,17 +167,11 @@ impl FromIterator<(String, Vec<u8>)> for Pack {
 
 #[cfg(test)]
 impl Pack {
-    /// The client jar's resource pack plus the repo's data folders, read without an asset
-    /// system: a test has none to read them through.
+    /// The client jar's resource pack, read without an asset system: a test has none to read
+    /// it through.
     pub fn corpus() -> &'static Pack {
-        static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| {
-            let mut files: HashMap<String, Vec<u8>> =
-                vanilla::resource_files().iter().cloned().collect();
-            let reader = bevy::asset::io::file::FileAssetReader::new(crate::asset_corpus());
-            bevy::tasks::block_on(Pack::read_source(&reader, &DATA_FOLDERS, true, &mut files))
-                .unwrap_or_else(|error| panic!("{error}"));
-            add_built_in(&mut files);
-            Pack { files }
+        static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| Pack {
+            files: vanilla::resource_files().iter().cloned().collect(),
         });
         &CORPUS
     }
@@ -652,14 +624,19 @@ mod tests {
             }
             let reader = bevy::asset::io::memory::MemoryAssetReader { root };
             let mut read = HashMap::new();
-            bevy::tasks::block_on(Pack::read_source(&reader, &DATA_FOLDERS, true, &mut read))
-                .map(|()| read)
+            bevy::tasks::block_on(Pack::read_source(
+                &reader,
+                &RESOURCE_FOLDERS,
+                true,
+                &mut read,
+            ))
+            .map(|()| read)
         };
-        let plains = "minecraft/worldgen/biome/plains.json";
+        let stone = "minecraft/models/block/stone.json";
         let added = read(&[
-            plains,
+            stone,
             "mcrs/datapacks/.DS_Store",
-            "mcrs/datapacks/beta/minecraft/worldgen/biome/beta_plains.json",
+            "mcrs/datapacks/beta/minecraft/models/block/beta_stone.json",
         ])
         .unwrap();
         assert_eq!(
@@ -667,15 +644,15 @@ mod tests {
                 .keys()
                 .map(String::as_str)
                 .collect::<std::collections::BTreeSet<_>>(),
-            [plains, "minecraft/worldgen/biome/beta_plains.json"].into(),
+            [stone, "minecraft/models/block/beta_stone.json"].into(),
         );
 
         let error = read(&[
-            plains,
-            "mcrs/datapacks/beta/minecraft/worldgen/biome/plains.json",
+            stone,
+            "mcrs/datapacks/beta/minecraft/models/block/stone.json",
         ])
         .unwrap_err();
-        assert!(error.contains(plains), "{error}");
+        assert!(error.contains(stone), "{error}");
     }
 
     #[test]

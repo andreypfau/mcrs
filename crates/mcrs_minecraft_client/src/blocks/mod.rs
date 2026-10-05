@@ -7,7 +7,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, RegistrySet};
 use tint::extend_tints;
 pub use tint::{BiomeTint, tint_column};
 
@@ -100,6 +100,7 @@ pub fn extend(
     catalog: &mut Catalog,
     definitions: &BlockDefinitions,
     ids: &[u16],
+    registries: &RegistrySet,
     biomes: &[String],
 ) {
     if catalog.blocks.len() < definitions.state_count() {
@@ -134,7 +135,7 @@ pub fn extend(
         catalog.sprites.len(),
     );
 
-    extend_tints(pack, catalog, biomes);
+    extend_tints(pack, catalog, registries, biomes);
 }
 
 #[cfg(test)]
