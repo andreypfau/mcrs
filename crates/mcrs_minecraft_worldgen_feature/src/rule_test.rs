@@ -36,3 +36,37 @@ pub enum RuleTest {
     #[serde(rename = "minecraft:not")]
     Not { rule: Box<RuleTest> },
 }
+
+const RULE_TEST_TYPE_ROWS: &[&str] = &[
+    "minecraft:always_true",
+    "minecraft:block_match",
+    "minecraft:blockstate_match",
+    "minecraft:tag_match",
+    "minecraft:height_match",
+    "minecraft:random_block_match",
+    "minecraft:random_blockstate_match",
+    "minecraft:all_of",
+    "minecraft:any_of",
+    "minecraft:not",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    RULE_TEST_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::rule_test_type::NAMES
+));
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn rule_test_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<RuleTest>(
+            RULE_TEST_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::rule_test_type::NAMES,
+            |name| serde_json::json!({ "predicate_type": name }),
+        );
+    }
+}

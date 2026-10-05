@@ -104,6 +104,21 @@ enum DispatchedLevelBasedValue {
     },
 }
 
+const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS: &[&str] = &[
+    "minecraft:clamped",
+    "minecraft:fraction",
+    "minecraft:levels_squared",
+    "minecraft:linear",
+    "minecraft:exponent",
+    "minecraft:lookup",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::enchantment_level_based_value_type::NAMES
+));
+
 impl From<DispatchedLevelBasedValue> for LevelBasedValue {
     fn from(value: DispatchedLevelBasedValue) -> Self {
         match value {
@@ -346,5 +361,20 @@ impl<T: Serialize + Copy> Serialize for Bounds<T> {
             }
             .serialize(s),
         }
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn enchantment_level_based_value_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<DispatchedLevelBasedValue>(
+            ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::enchantment_level_based_value_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

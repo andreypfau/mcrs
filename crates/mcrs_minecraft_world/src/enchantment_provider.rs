@@ -24,3 +24,30 @@ pub enum EnchantmentProvider {
         level: IntProvider,
     },
 }
+
+const ENCHANTMENT_PROVIDER_TYPE_ROWS: &[&str] = &[
+    "minecraft:by_cost",
+    "minecraft:by_cost_with_difficulty",
+    "minecraft:single",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ENCHANTMENT_PROVIDER_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::enchantment_provider_type::NAMES
+));
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn enchantment_provider_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentProvider>(
+            ENCHANTMENT_PROVIDER_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::enchantment_provider_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+}

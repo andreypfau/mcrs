@@ -31,6 +31,70 @@ pub const fn rows_match(rows: &[(&str, u16)], names: &[&str], complete: bool) ->
     true
 }
 
+const fn count_of(list: &[&str], name: &str) -> usize {
+    let mut count = 0;
+    let mut i = 0;
+    while i < list.len() {
+        if same_name(list[i], name) {
+            count += 1;
+        }
+        i += 1;
+    }
+    count
+}
+
+pub const fn names_cover(rows: &[&str], unsupported: &[&str], names: &[&str]) -> bool {
+    let mut i = 0;
+    while i < names.len() {
+        if count_of(rows, names[i]) + count_of(unsupported, names[i]) != 1 {
+            return false;
+        }
+        i += 1;
+    }
+    rows.len() + unsupported.len() == names.len()
+}
+
+#[cfg(feature = "test-support")]
+pub fn assert_dispatch<T: serde::de::DeserializeOwned>(
+    rows: &[&str],
+    unsupported: &[&str],
+    names: &[&str],
+    probe: impl Fn(&str) -> serde_json::Value,
+) {
+    let unknown = |name: &str| {
+        serde_json::from_value::<T>(probe(name))
+            .err()
+            .map(|e| e.to_string())
+            .filter(|e| e.contains("unknown variant"))
+    };
+    let message =
+        unknown("mcrs:no_such_entry").expect("an unknown tag is refused as an unknown variant");
+    let declared: Vec<&str> = message.split('`').skip(1).step_by(2).skip(1).collect();
+    for row in rows {
+        assert!(declared.contains(row), "{row} has no variant");
+        assert!(
+            unknown(row).is_none(),
+            "{row} is refused as an unknown variant"
+        );
+    }
+    for name in unsupported {
+        assert!(
+            !declared.contains(name),
+            "{name} is listed unsupported but has a variant"
+        );
+        assert!(
+            unknown(name).is_some(),
+            "{name} is listed unsupported but is accepted"
+        );
+    }
+    for variant in declared {
+        assert!(
+            rows.contains(&variant) || !names.contains(&variant),
+            "{variant} names a registry entry that is not in the rows"
+        );
+    }
+}
+
 pub const fn numbered<const N: usize>(names: [&'static str; N]) -> [(&'static str, u16); N] {
     let mut rows = [("", 0); N];
     let mut i = 0;
@@ -177,6 +241,71 @@ mod tests {
         for (case, rows, names, complete, expected) in table {
             assert_eq!(rows_match(rows, names, *complete), *expected, "{case}");
         }
+    }
+
+    #[test]
+    fn the_cover_check_refuses_every_drift() {
+        let table: &[(&str, &[&str], &[&str], bool)] = &[
+            (
+                "rows and unsupported split the registry",
+                &["minecraft:air", "minecraft:dirt"],
+                &["minecraft:stone"],
+                true,
+            ),
+            ("rows alone", NAMES, &[], true),
+            ("unsupported alone", &[], NAMES, true),
+            (
+                "name in neither list",
+                &["minecraft:air"],
+                &["minecraft:stone"],
+                false,
+            ),
+            (
+                "name in both lists",
+                &["minecraft:air", "minecraft:stone", "minecraft:dirt"],
+                &["minecraft:stone"],
+                false,
+            ),
+            (
+                "name twice in rows",
+                &[
+                    "minecraft:air",
+                    "minecraft:air",
+                    "minecraft:stone",
+                    "minecraft:dirt",
+                ],
+                &[],
+                false,
+            ),
+            (
+                "row outside the registry",
+                &[
+                    "minecraft:air",
+                    "minecraft:stone",
+                    "minecraft:dirt",
+                    "minecraft:grass",
+                ],
+                &[],
+                false,
+            ),
+            (
+                "unsupported outside the registry",
+                &["minecraft:air", "minecraft:stone", "minecraft:dirt"],
+                &["minecraft:grass"],
+                false,
+            ),
+            (
+                "row without namespace",
+                &["air", "minecraft:stone", "minecraft:dirt"],
+                &[],
+                false,
+            ),
+            ("empty against a registry", &[], &[], false),
+        ];
+        for (case, rows, unsupported, expected) in table {
+            assert_eq!(names_cover(rows, unsupported, NAMES), *expected, "{case}");
+        }
+        assert!(names_cover(&[], &[], &[]), "empty against empty");
     }
 
     #[test]

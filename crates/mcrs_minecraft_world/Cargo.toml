@@ -40,6 +40,7 @@ bevy_math.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true

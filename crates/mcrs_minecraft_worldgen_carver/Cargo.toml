@@ -11,11 +11,14 @@ doctest = false
 bevy_reflect = { workspace = true, optional = true }
 fixedbitset.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_random.workspace = true
+mcrs_minecraft_registry.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_testing.workspace = true
 serde_json.workspace = true
 

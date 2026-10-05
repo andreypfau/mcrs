@@ -21,6 +21,7 @@ use mcrs_minecraft_core::value_provider::{
     BoundedIntProvider, FloatProvider, IntProvider, Weighted,
 };
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::static_rows::names_cover;
 use mcrs_minecraft_worldgen_density::proto::{BlockState, Either};
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
@@ -634,6 +635,73 @@ pub enum Feature {
     },
 }
 
+const FEATURE_TYPE_ROWS: &[&str] = &[
+    "minecraft:bamboo",
+    "minecraft:block_blob",
+    "minecraft:block_column",
+    "minecraft:block_pile",
+    "minecraft:blue_ice",
+    "minecraft:bonus_chest",
+    "minecraft:chorus_plant",
+    "minecraft:coral_claw",
+    "minecraft:coral_tree",
+    "minecraft:delta_feature",
+    "minecraft:disk",
+    "minecraft:end_gateway",
+    "minecraft:end_island",
+    "minecraft:end_platform",
+    "minecraft:end_podium",
+    "minecraft:end_spike",
+    "minecraft:fallen_tree",
+    "minecraft:fill_layer",
+    "minecraft:fossil",
+    "minecraft:freeze_top_layer",
+    "minecraft:geode",
+    "minecraft:huge_brown_mushroom",
+    "minecraft:huge_fungus",
+    "minecraft:huge_red_mushroom",
+    "minecraft:iceberg",
+    "minecraft:lake",
+    "minecraft:large_dripstone",
+    "minecraft:monster_room",
+    "minecraft:multiface_growth",
+    "minecraft:netherrack_replace_blobs",
+    "minecraft:no_op",
+    "minecraft:ore",
+    "minecraft:overlay",
+    "minecraft:projected_random_patchy_square",
+    "minecraft:random_boolean_selector",
+    "minecraft:random_neighbor_spread",
+    "minecraft:random_selector",
+    "minecraft:replace_single_block",
+    "minecraft:root_system",
+    "minecraft:scattered_ore",
+    "minecraft:sculk_patch",
+    "minecraft:sequence",
+    "minecraft:simple_block",
+    "minecraft:simple_random_selector",
+    "minecraft:single_block_pillar",
+    "minecraft:speleothem",
+    "minecraft:speleothem_cluster",
+    "minecraft:spike",
+    "minecraft:spring_feature",
+    "minecraft:stepped_column_cluster",
+    "minecraft:template",
+    "minecraft:tree",
+    "minecraft:underwater_magma",
+    "minecraft:vegetation_patch",
+    "minecraft:vines",
+    "minecraft:void_start_platform",
+    "minecraft:waterlogged_vegetation_patch",
+    "minecraft:weighted_random_selector",
+];
+
+const _: () = assert!(names_cover(
+    FEATURE_TYPE_ROWS,
+    &[],
+    keys::feature_type::NAMES
+));
+
 impl RegistryValue for Feature {
     type Registry = keys::Feature;
 }
@@ -801,6 +869,26 @@ pub enum StructureProcessor {
     Rule { rules: Vec<ProcessorRule> },
 }
 
+const STRUCTURE_PROCESSOR_ROWS: &[&str] = &[
+    "minecraft:blackstone_replace",
+    "minecraft:block_age",
+    "minecraft:block_ignore",
+    "minecraft:block_rot",
+    "minecraft:capped",
+    "minecraft:gravity",
+    "minecraft:jigsaw_replacement",
+    "minecraft:lava_submerged_block",
+    "minecraft:nop",
+    "minecraft:protected_blocks",
+    "minecraft:rule",
+];
+
+const _: () = assert!(names_cover(
+    STRUCTURE_PROCESSOR_ROWS,
+    &[],
+    keys::structure_processor::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessorRule {
@@ -829,6 +917,18 @@ pub enum PosRuleTest {
     },
 }
 
+const POS_RULE_TEST_ROWS: &[&str] = &[
+    "minecraft:always_true",
+    "minecraft:linear_pos",
+    "minecraft:axis_aligned_linear_pos",
+];
+
+const _: () = assert!(names_cover(
+    POS_RULE_TEST_ROWS,
+    &[],
+    keys::pos_rule_test::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinearPos {
     #[serde(default, skip_serializing_if = "is_default")]
@@ -854,6 +954,20 @@ pub enum RuleBlockEntityModifier {
     #[serde(rename = "minecraft:append_loot")]
     AppendLoot { loot_table: ResourceLocation },
 }
+
+const RULE_BLOCK_ENTITY_MODIFIER_ROWS: &[&str] = &[
+    "minecraft:clear",
+    "minecraft:passthrough",
+    "minecraft:append_loot",
+];
+
+const RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED: &[&str] = &["minecraft:append_static"];
+
+const _: () = assert!(names_cover(
+    RULE_BLOCK_ENTITY_MODIFIER_ROWS,
+    RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
+    keys::rule_block_entity_modifier::NAMES
+));
 
 // ---------------------------------------------------------------------------
 // Bounded scalars, defaults and validators
@@ -910,6 +1024,7 @@ fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFea
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_registry::static_rows::assert_dispatch;
     use mcrs_minecraft_worldgen_testing::round_trips;
 
     #[test]
@@ -917,5 +1032,50 @@ mod tests {
         assert_eq!(round_trips::<Feature>("feature"), 241);
         assert_eq!(round_trips::<PlacedFeature>("placed_feature"), 274);
         assert_eq!(round_trips::<StructureProcessorList>("processor_list"), 40);
+    }
+
+    #[test]
+    fn feature_type_rows_select_their_variants() {
+        assert_dispatch::<Feature>(
+            FEATURE_TYPE_ROWS,
+            &[],
+            keys::feature_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn pos_rule_test_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PosRuleTest>(
+            POS_RULE_TEST_ROWS,
+            &[],
+            keys::pos_rule_test::NAMES,
+            |name| serde_json::json!({ "predicate_type": name }),
+        );
+    }
+
+    #[test]
+    fn rule_block_entity_modifier_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<RuleBlockEntityModifier>(
+            RULE_BLOCK_ENTITY_MODIFIER_ROWS,
+            RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
+            keys::rule_block_entity_modifier::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn structure_processor_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<StructureProcessor>(
+            STRUCTURE_PROCESSOR_ROWS,
+            &[],
+            keys::structure_processor::NAMES,
+            |name| serde_json::json!({ "processor_type": name }),
+        );
     }
 }

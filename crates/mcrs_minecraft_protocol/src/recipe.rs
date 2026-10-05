@@ -74,6 +74,57 @@ pub enum SlotDisplayType {
     Composite,
 }
 
+const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
+    &[
+        (
+            mcrs_minecraft_keys::slot_display::EMPTY.name(),
+            SlotDisplayType::Empty as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::ANY_FUEL.name(),
+            SlotDisplayType::AnyFuel as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::WITH_ANY_POTION.name(),
+            SlotDisplayType::WithAnyPotion as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::ONLY_WITH_COMPONENT.name(),
+            SlotDisplayType::OnlyWithComponent as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::ITEM.name(),
+            SlotDisplayType::Item as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::ITEM_STACK.name(),
+            SlotDisplayType::ItemStack as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::TAG.name(),
+            SlotDisplayType::Tag as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::DYED.name(),
+            SlotDisplayType::Dyed as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::SMITHING_TRIM.name(),
+            SlotDisplayType::SmithingTrim as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::WITH_REMAINDER.name(),
+            SlotDisplayType::WithRemainder as u16
+        ),
+        (
+            mcrs_minecraft_keys::slot_display::COMPOSITE.name(),
+            SlotDisplayType::Composite as u16
+        ),
+    ],
+    mcrs_minecraft_keys::slot_display::NAMES,
+    true
+));
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum SlotDisplay {
@@ -116,6 +167,26 @@ pub enum SlotDisplay {
     #[serde(rename = "minecraft:composite", alias = "composite")]
     Composite { contents: Vec<SlotDisplay> },
 }
+
+const SLOT_DISPLAY_ROWS: &[&str] = &[
+    "minecraft:empty",
+    "minecraft:any_fuel",
+    "minecraft:with_any_potion",
+    "minecraft:only_with_component",
+    "minecraft:item",
+    "minecraft:item_stack",
+    "minecraft:tag",
+    "minecraft:dyed",
+    "minecraft:smithing_trim",
+    "minecraft:with_remainder",
+    "minecraft:composite",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    SLOT_DISPLAY_ROWS,
+    &[],
+    mcrs_minecraft_keys::slot_display::NAMES
+));
 
 impl SlotDisplay {
     pub fn kind(&self) -> SlotDisplayType {
@@ -228,6 +299,33 @@ pub enum RecipeDisplayType {
     Smithing,
 }
 
+const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
+    &[
+        (
+            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPELESS.name(),
+            RecipeDisplayType::CraftingShapeless as u16
+        ),
+        (
+            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPED.name(),
+            RecipeDisplayType::CraftingShaped as u16
+        ),
+        (
+            mcrs_minecraft_keys::recipe_display::FURNACE.name(),
+            RecipeDisplayType::Furnace as u16
+        ),
+        (
+            mcrs_minecraft_keys::recipe_display::STONECUTTER.name(),
+            RecipeDisplayType::Stonecutter as u16
+        ),
+        (
+            mcrs_minecraft_keys::recipe_display::SMITHING.name(),
+            RecipeDisplayType::Smithing as u16
+        ),
+    ],
+    mcrs_minecraft_keys::recipe_display::NAMES,
+    true
+));
+
 validated!(RecipeDisplay);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -271,6 +369,20 @@ pub enum RecipeDisplay {
         crafting_station: SlotDisplay,
     },
 }
+
+const RECIPE_DISPLAY_ROWS: &[&str] = &[
+    "minecraft:crafting_shapeless",
+    "minecraft:crafting_shaped",
+    "minecraft:furnace",
+    "minecraft:stonecutter",
+    "minecraft:smithing",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    RECIPE_DISPLAY_ROWS,
+    &[],
+    mcrs_minecraft_keys::recipe_display::NAMES
+));
 
 impl Validate for RecipeDisplay {
     fn validate(&self) -> Result<(), String> {
@@ -518,4 +630,29 @@ pub struct RecipeBookSettings {
     pub furnace: RecipeBookTypeSettings,
     pub blast_furnace: RecipeBookTypeSettings,
     pub smoker: RecipeBookTypeSettings,
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn slot_display_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<SlotDisplay>(
+            SLOT_DISPLAY_ROWS,
+            &[],
+            mcrs_minecraft_keys::slot_display::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn recipe_display_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<RecipeDisplay>(
+            RECIPE_DISPLAY_ROWS,
+            &[],
+            mcrs_minecraft_keys::recipe_display::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
 }

@@ -592,6 +592,14 @@ enum PositionSourceRepr {
     Entity {},
 }
 
+const POSITION_SOURCE_TYPE_ROWS: &[&str] = &["minecraft:block", "minecraft:entity"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    POSITION_SOURCE_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::position_source_type::NAMES
+));
+
 impl Serialize for PositionSource {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeMap;
@@ -673,3 +681,18 @@ impl Decode<'_> for TrailParticle {
 ctx_free!(VibrationParticle, TrailParticle);
 
 pub type RawParticle = Raw<ParticleOptions>;
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn position_source_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<PositionSourceRepr>(
+            POSITION_SOURCE_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::position_source_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+}

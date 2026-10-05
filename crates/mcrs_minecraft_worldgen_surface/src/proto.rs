@@ -51,6 +51,20 @@ pub enum MaterialRule {
     },
 }
 
+const MATERIAL_RULE_TYPE_ROWS: &[&str] = &[
+    "minecraft:block",
+    "minecraft:sequence",
+    "minecraft:condition",
+    "minecraft:bandlands",
+    "minecraft:ore_vein",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    MATERIAL_RULE_TYPE_ROWS,
+    &[],
+    keys::material_rule_type::NAMES
+));
+
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(deny_unknown_fields)]
@@ -102,6 +116,26 @@ pub enum MaterialCondition {
     },
 }
 
+const MATERIAL_CONDITION_TYPE_ROWS: &[&str] = &[
+    "minecraft:biome",
+    "minecraft:noise_threshold",
+    "minecraft:vertical_gradient",
+    "minecraft:y_above",
+    "minecraft:water",
+    "minecraft:temperature",
+    "minecraft:steep",
+    "minecraft:not",
+    "minecraft:hole",
+    "minecraft:above_preliminary_surface",
+    "minecraft:stone_depth",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    MATERIAL_CONDITION_TYPE_ROWS,
+    &[],
+    keys::material_condition_type::NAMES
+));
+
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaveSurface {
@@ -139,5 +173,30 @@ mod tests {
                 assert_eq!(serde_json::to_string(&condition).unwrap(), json);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn material_condition_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialCondition>(
+            MATERIAL_CONDITION_TYPE_ROWS,
+            &[],
+            keys::material_condition_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn material_rule_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialRule>(
+            MATERIAL_RULE_TYPE_ROWS,
+            &[],
+            keys::material_rule_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

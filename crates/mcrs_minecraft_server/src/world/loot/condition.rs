@@ -94,6 +94,35 @@ pub enum LootCondition {
     Undecidable(IgnoredAny),
 }
 
+const LOOT_CONDITION_TYPE_ROWS: &[&str] = &[
+    "minecraft:inverted",
+    "minecraft:any_of",
+    "minecraft:all_of",
+    "minecraft:match_tool",
+    "minecraft:match_block",
+    "minecraft:survives_explosion",
+    "minecraft:entity_properties",
+    "minecraft:random_chance",
+    "minecraft:random_chance_with_enchanted_bonus",
+    "minecraft:table_bonus",
+    "minecraft:location_check",
+    "minecraft:killed_by_player",
+    "minecraft:entity_scores",
+    "minecraft:damage_source_properties",
+    "minecraft:weather_check",
+    "minecraft:time_check",
+    "minecraft:int_value_check",
+    "minecraft:float_value_check",
+    "minecraft:enchantment_active_check",
+    "minecraft:environment_attribute_check",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    LOOT_CONDITION_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::loot_condition_type::NAMES
+));
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolPredicate {
@@ -283,5 +312,20 @@ impl LootCondition {
             _ => &mut [],
         };
         terms.iter_mut()
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn loot_condition_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<LootCondition>(
+            LOOT_CONDITION_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::loot_condition_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

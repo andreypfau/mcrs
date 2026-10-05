@@ -241,6 +241,25 @@ pub enum TypedBlockStateProvider {
     },
 }
 
+const BLOCK_STATE_PROVIDER_TYPE_ROWS: &[&str] = &[
+    "minecraft:simple",
+    "minecraft:weighted",
+    "minecraft:rule_based",
+    "minecraft:randomized_int",
+    "minecraft:rotated",
+    "minecraft:random_block",
+    "minecraft:copy_properties",
+    "minecraft:noise",
+    "minecraft:noise_threshold",
+    "minecraft:dual_noise",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    BLOCK_STATE_PROVIDER_TYPE_ROWS,
+    &[],
+    keys::block_state_provider_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StateRule {
@@ -342,6 +361,25 @@ pub enum TrunkPlacer {
     },
 }
 
+const TRUNK_PLACER_TYPE_ROWS: &[&str] = &[
+    "minecraft:straight_trunk_placer",
+    "minecraft:forking_trunk_placer",
+    "minecraft:giant_trunk_placer",
+    "minecraft:mega_jungle_trunk_placer",
+    "minecraft:dark_oak_trunk_placer",
+    "minecraft:fancy_trunk_placer",
+    "minecraft:bending_trunk_placer",
+    "minecraft:upwards_branching_trunk_placer",
+    "minecraft:cherry_trunk_placer",
+    "minecraft:poplar_trunk_placer",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    TRUNK_PLACER_TYPE_ROWS,
+    &[],
+    keys::trunk_placer_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum FoliagePlacer {
@@ -423,6 +461,27 @@ pub enum FoliagePlacer {
     },
 }
 
+const FOLIAGE_PLACER_TYPE_ROWS: &[&str] = &[
+    "minecraft:blob_foliage_placer",
+    "minecraft:bush_foliage_placer",
+    "minecraft:fancy_foliage_placer",
+    "minecraft:spruce_foliage_placer",
+    "minecraft:pine_foliage_placer",
+    "minecraft:acacia_foliage_placer",
+    "minecraft:dark_oak_foliage_placer",
+    "minecraft:jungle_foliage_placer",
+    "minecraft:mega_pine_foliage_placer",
+    "minecraft:random_spread_foliage_placer",
+    "minecraft:cherry_foliage_placer",
+    "minecraft:poplar_foliage_placer",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    FOLIAGE_PLACER_TYPE_ROWS,
+    &[],
+    keys::foliage_placer_type::NAMES
+));
+
 /// `P` is the block state provider four decorators carry: the datapack's
 /// [`BlockStateProvider`] as loaded, or whatever a freeze resolves it into.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -476,6 +535,26 @@ pub enum TreeDecorator<P = BlockStateProvider> {
         directions: Vec<Direction>,
     },
 }
+
+const TREE_DECORATOR_TYPE_ROWS: &[&str] = &[
+    "minecraft:trunk_vine",
+    "minecraft:leave_vine",
+    "minecraft:pale_moss",
+    "minecraft:creaking_heart",
+    "minecraft:cocoa",
+    "minecraft:shelf_mushroom",
+    "minecraft:beehive",
+    "minecraft:alter_ground",
+    "minecraft:attached_to_leaves",
+    "minecraft:place_on_ground",
+    "minecraft:attached_to_logs",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    TREE_DECORATOR_TYPE_ROWS,
+    &[],
+    keys::tree_decorator_type::NAMES
+));
 
 impl<P> TreeDecorator<P> {
     /// The same decorator with its provider, if it carries one, resolved by `f`.
@@ -583,6 +662,17 @@ pub enum FeatureSize {
     },
 }
 
+const FEATURE_SIZE_TYPE_ROWS: &[&str] = &[
+    "minecraft:two_layers_feature_size",
+    "minecraft:three_layers_feature_size",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    FEATURE_SIZE_TYPE_ROWS,
+    &[],
+    keys::feature_size_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub enum RootPlacer {
@@ -595,6 +685,14 @@ pub enum RootPlacer {
         mangrove_root_placement: MangroveRootPlacement,
     },
 }
+
+const ROOT_PLACER_TYPE_ROWS: &[&str] = &["minecraft:mangrove_root_placer"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    ROOT_PLACER_TYPE_ROWS,
+    &[],
+    keys::root_placer_type::NAMES
+));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -630,4 +728,69 @@ pub struct TreeConfig {
     #[serde(default)]
     pub ignore_vines: bool,
     pub below_trunk_provider: BlockStateProvider,
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn block_state_provider_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<TypedBlockStateProvider>(
+            BLOCK_STATE_PROVIDER_TYPE_ROWS,
+            &[],
+            keys::block_state_provider_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn feature_size_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<FeatureSize>(
+            FEATURE_SIZE_TYPE_ROWS,
+            &[],
+            keys::feature_size_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn foliage_placer_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<FoliagePlacer>(
+            FOLIAGE_PLACER_TYPE_ROWS,
+            &[],
+            keys::foliage_placer_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn root_placer_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<RootPlacer>(
+            ROOT_PLACER_TYPE_ROWS,
+            &[],
+            keys::root_placer_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn tree_decorator_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<TreeDecorator>(
+            TREE_DECORATOR_TYPE_ROWS,
+            &[],
+            keys::tree_decorator_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
+
+    #[test]
+    fn trunk_placer_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<TrunkPlacer>(
+            TRUNK_PLACER_TYPE_ROWS,
+            &[],
+            keys::trunk_placer_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
+    }
 }

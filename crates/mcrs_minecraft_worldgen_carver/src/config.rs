@@ -45,6 +45,14 @@ pub enum CarverConfig {
     BetaCave,
 }
 
+const CARVER_TYPE_ROWS: &[&str] = &["minecraft:cave", "minecraft:canyon"];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    CARVER_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::carver_type::NAMES
+));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CanyonShape {
@@ -94,6 +102,21 @@ mod tests {
         assert_eq!(
             start_vertical_radius_multiplier,
             FloatProvider::Constant(1.0)
+        );
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn carver_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<CarverConfig>(
+            CARVER_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::carver_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
         );
     }
 }

@@ -266,6 +266,59 @@ pub enum ProtoDensityFunction {
     OldBlendedNoise(BlendedNoiseArguments),
 }
 
+const DENSITY_FUNCTION_TYPE_ROWS: &[&str] = &[
+    "minecraft:constant",
+    "minecraft:blend_alpha",
+    "minecraft:blend_offset",
+    "minecraft:beardifier",
+    "minecraft:noise",
+    "minecraft:end_outer_islands",
+    "minecraft:distance_to_point",
+    "minecraft:gradient",
+    "minecraft:shift_a",
+    "minecraft:shift_b",
+    "minecraft:shift",
+    "minecraft:abs",
+    "minecraft:square",
+    "minecraft:cube",
+    "minecraft:sqrt",
+    "minecraft:half_negative",
+    "minecraft:quarter_negative",
+    "minecraft:reciprocal",
+    "minecraft:negate",
+    "minecraft:squeeze",
+    "minecraft:log",
+    "minecraft:sign",
+    "minecraft:floor",
+    "minecraft:round",
+    "minecraft:ceil",
+    "minecraft:truncate",
+    "minecraft:add",
+    "minecraft:sub",
+    "minecraft:mul",
+    "minecraft:div",
+    "minecraft:min",
+    "minecraft:max",
+    "minecraft:pow",
+    "minecraft:spline",
+    "minecraft:lerp",
+    "minecraft:clamp",
+    "minecraft:range_choice",
+    "minecraft:interval_select",
+    "minecraft:cache",
+    "minecraft:blend_density",
+    "minecraft:interpolated",
+    "minecraft:slice",
+    "minecraft:find_top_surface",
+    "minecraft:old_blended_noise",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    DENSITY_FUNCTION_TYPE_ROWS,
+    &[],
+    mcrs_minecraft_keys::density_function_type::NAMES
+));
+
 fn zero_holder() -> DensityFunctionHolder {
     DensityFunctionHolder::ZERO
 }
@@ -403,6 +456,21 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&plain).unwrap(),
             r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0}"#
+        );
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn density_function_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<ProtoDensityFunction>(
+            DENSITY_FUNCTION_TYPE_ROWS,
+            &[],
+            mcrs_minecraft_keys::density_function_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
         );
     }
 }

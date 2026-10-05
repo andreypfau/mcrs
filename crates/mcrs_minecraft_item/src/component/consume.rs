@@ -92,6 +92,23 @@ impl ConsumeEffectType {
     }
 }
 
+const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
+    &{
+        let mut rows = [("", 0); ConsumeEffectType::ALL.len()];
+        let mut i = 0;
+        while i < rows.len() {
+            rows[i] = (
+                ConsumeEffectType::ALL[i].id(),
+                ConsumeEffectType::ALL[i] as u16,
+            );
+            i += 1;
+        }
+        rows
+    },
+    keys::consume_effect_type::NAMES,
+    true
+));
+
 /// The map buffers on read, so the bools inside go through `nbt_flag`;
 /// vanilla writes the dispatch key last, so `Serialize` is by hand.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -117,6 +134,20 @@ pub enum ConsumeEffect {
     #[serde(rename = "minecraft:play_sound", alias = "play_sound")]
     PlaySound { sound: Holder<SoundEvent> },
 }
+
+const CONSUME_EFFECT_TYPE_ROWS: &[&str] = &[
+    "minecraft:apply_effects",
+    "minecraft:remove_effects",
+    "minecraft:clear_all_effects",
+    "minecraft:teleport_randomly",
+    "minecraft:play_sound",
+];
+
+const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
+    CONSUME_EFFECT_TYPE_ROWS,
+    &[],
+    keys::consume_effect_type::NAMES
+));
 
 impl ConsumeEffect {
     pub fn kind(&self) -> ConsumeEffectType {
@@ -335,5 +366,20 @@ impl Sample for DeathProtection {
                 death_effects: every_consume_effect(),
             },
         ]
+    }
+}
+
+#[cfg(test)]
+mod dispatch_rows {
+    use super::*;
+
+    #[test]
+    fn consume_effect_type_rows_select_their_variants() {
+        mcrs_minecraft_registry::static_rows::assert_dispatch::<ConsumeEffect>(
+            CONSUME_EFFECT_TYPE_ROWS,
+            &[],
+            keys::consume_effect_type::NAMES,
+            |name| serde_json::json!({ "type": name }),
+        );
     }
 }

@@ -23,6 +23,10 @@ macro_rules! dispatched_map {
             $(pub $field: Option<$ty>,)+
         }
 
+        impl $name {
+            pub const KEYS: &'static [&'static str] = &[$($key),+];
+        }
+
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 struct V;
