@@ -5,7 +5,7 @@ use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly};
+use crate::component::common::{Holder, HolderWireOnly, entry};
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
@@ -72,11 +72,9 @@ impl Sample for Instrument {
 
     fn samples() -> Vec<Self> {
         vec![
-            Instrument(Holder::reference(ResourceLocation::minecraft(
-                "ponder_goat_horn",
-            ))),
+            Instrument(Holder::Reference(entry("ponder_goat_horn"))),
             Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::reference(ResourceLocation::minecraft("entity.item.break")),
+                sound_event: Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),
@@ -102,8 +100,8 @@ impl Sample for JukeboxPlayable {
     }
 
     fn samples() -> Vec<Self> {
-        vec![JukeboxPlayable(HolderWireOnly(Holder::reference(
-            ResourceLocation::minecraft("pigstep"),
-        )))]
+        vec![JukeboxPlayable(HolderWireOnly(Holder::Reference(entry(
+            "pigstep",
+        ))))]
     }
 }

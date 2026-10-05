@@ -3,7 +3,7 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::Holder;
+use crate::component::common::{Holder, entry};
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
 
@@ -39,7 +39,7 @@ impl Sample for BannerPatterns {
             BannerPatterns::default(),
             BannerPatterns(vec![
                 BannerLayer {
-                    pattern: Holder::reference(ResourceLocation::minecraft("creeper")),
+                    pattern: Holder::Reference(entry("creeper")),
                     color: DyeColor::Red,
                 },
                 BannerLayer {

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::MobEffect;
+use mcrs_minecraft_keys::{MobEffect, sound_event};
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
 use serde::ser::SerializeMap;
@@ -193,7 +193,7 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
 }
 
 fn generic_eat() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft("entity.generic.eat"))
+    Holder::Reference(sound_event::ENTITY_GENERIC_EAT)
 }
 
 fn is_generic_eat(sound: &Holder<SoundEvent>) -> bool {
@@ -264,7 +264,7 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
             directional_particles: false,
         },
         ConsumeEffect::PlaySound {
-            sound: Holder::reference(ResourceLocation::minecraft("entity.item.break")),
+            sound: Holder::Reference(sound_event::ENTITY_ITEM_BREAK),
         },
         ConsumeEffect::PlaySound {
             sound: Holder::Direct(SoundEvent {

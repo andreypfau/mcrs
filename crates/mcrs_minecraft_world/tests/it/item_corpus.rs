@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
@@ -181,9 +180,9 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(map.get::<Rarity>(), Some(&Rarity::Common));
     assert_eq!(
         map.get::<BreakSound>(),
-        Some(&BreakSound(Holder::reference(ResourceLocation::minecraft(
-            "entity.item.break"
-        ))))
+        Some(&BreakSound(Holder::Reference(
+            mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK
+        )))
     );
     assert_eq!(
         map.get::<TooltipDisplay>(),

@@ -332,6 +332,10 @@ mod tests {
 
     #[test]
     fn round_trips_both_entry_shapes() {
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(round_trips_both_entry_shapes_in_scope);
+    }
+
+    fn round_trips_both_entry_shapes_in_scope() {
         let json = json!({
             "minecraft:visual/sky_color": "#78a7ff",
             "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"},
@@ -390,6 +394,11 @@ mod tests {
 
     #[test]
     fn background_music_is_typed_and_writes_ints() {
+        mcrs_minecraft_worldgen_testing::corpus_set()
+            .scope(background_music_is_typed_and_writes_ints_in_scope);
+    }
+
+    fn background_music_is_typed_and_writes_ints_in_scope() {
         use mcrs_minecraft_nbt::tag::NbtTag;
 
         let map: EnvironmentAttributeMap = serde_json::from_value(json!({
@@ -526,6 +535,11 @@ mod tests {
 
     #[test]
     fn every_shipped_attribute_value_round_trips() {
+        mcrs_minecraft_worldgen_testing::corpus_set()
+            .scope(every_shipped_attribute_value_round_trips_in_scope);
+    }
+
+    fn every_shipped_attribute_value_round_trips_in_scope() {
         let mut maps: Vec<(String, serde_json::Value)> = Vec::new();
         for (path, file) in mcrs_minecraft_worldgen_testing::parse_all::<serde_json::Value>(
             "minecraft/dimension_type",

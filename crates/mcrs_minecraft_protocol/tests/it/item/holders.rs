@@ -116,7 +116,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     wire_only(
         "jukebox_playable_direct",
         JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
-            sound_event: Holder::reference(ResourceLocation::minecraft("entity.item.break")),
+            sound_event: Holder::Reference(mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK),
             description: Text::text("Song"),
             length_in_seconds: 12.5,
             comparator_output: Bounded(7),
@@ -235,9 +235,11 @@ fn errors_read_like_vanilla() {
             "Value must be non-negative: -Infinity",
         ),
     ] {
-        let mut d = serde_json::Deserializer::from_str(input);
-        let error = ItemComponentValue::deserialize_value(kind, &mut d).unwrap_err();
-        assert!(error.to_string().contains(message), "{input}: {error}");
+        in_samples(|| {
+            let mut d = serde_json::Deserializer::from_str(input);
+            let error = ItemComponentValue::deserialize_value(kind, &mut d).unwrap_err();
+            assert!(error.to_string().contains(message), "{input}: {error}");
+        });
     }
     let bad_type = [5u8];
     let error = ConsumeEffect::decode_ctx(&lookup, &mut &bad_type[..]).unwrap_err();

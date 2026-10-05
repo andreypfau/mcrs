@@ -9,6 +9,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 use uuid::Uuid;
 
@@ -41,6 +42,10 @@ fn sorted(tag: &NbtTag) -> NbtTag {
 
 #[test]
 fn the_vanilla_file_round_trips_through_the_typed_shape() {
+    test_registries().scope(the_vanilla_file_round_trips_through_the_typed_shape_in_scope);
+}
+
+fn the_vanilla_file_round_trips_through_the_typed_shape_in_scope() {
     let world = temp_world("round_trip");
     let uuid = Uuid::from_u128(0x1234);
     std::fs::write(

@@ -20,7 +20,7 @@ use mcrs_minecraft_profile::{
     ints_uuid,
 };
 use mcrs_minecraft_registry::tags::TagSource;
-use mcrs_minecraft_registry::{Registry, RegistrySet, TagRules, build_tags};
+use mcrs_minecraft_registry::{Registry, RegistrySet, StaticRegistry, TagRules, build_tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -152,8 +152,7 @@ macro_rules! sample_registries_table {
     ($($key:ty => $path:literal [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
         pub const SAMPLE_NAMES: &[(&str, &[&str])] = &[$(($path, &[$($name),+])),*];
 
-        fn build_sample_registries() -> RegistrySet {
-            let set = RegistrySet::new();
+        fn build_listed_registries(set: RegistrySet) -> RegistrySet {
             $(
                 let tags: &[(&str, &[&str])] = &[$(($tag, &[$($member),*])),*];
                 let set = registry_with_tags::<$key>(set, &[$($name),+], tags);
@@ -166,13 +165,6 @@ macro_rules! sample_registries_table {
 sample_registries_table! {
     keys::Item => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    keys::SoundEvent => "sound_event" [
-        "entity.item.break",
-        "item.armor.equip_generic",
-        "item.shears.snip",
-        "item.armor.equip_iron",
-        "entity.generic.eat"
-    ] [];
     keys::MobEffect => "mob_effect" ["speed", "slowness", "haste"] [];
     keys::Enchantment => "enchantment" ["sharpness", "unbreaking"] [];
     keys::DamageType => "damage_type" ["in_fire", "lava"]
@@ -206,6 +198,20 @@ sample_registries_table! {
     keys::Instrument => "instrument" ["ponder_goat_horn"] [];
     keys::JukeboxSong => "jukebox_song" ["pigstep", "cat"] [];
     keys::PaintingVariant => "painting_variant" ["kebab"] [];
+}
+
+/// A static registry numbers its entries as the generated constants do, so a
+/// constant names the same entry in the samples as in the game.
+fn build_sample_registries() -> RegistrySet {
+    let sounds = Registry::<keys::SoundEvent>::new(
+        keys::SoundEvent::NAMES
+            .iter()
+            .map(|name| ResourceLocation::parse(name).expect("a generated name parses")),
+    )
+    .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"));
+    build_listed_registries(RegistrySet::new())
+        .with(sounds)
+        .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"))
 }
 
 pub fn sample_registries() -> &'static RegistrySet {

@@ -8,6 +8,8 @@ use mcrs_minecraft_item::{
 };
 use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
 
+use mcrs_minecraft_world::registries::test_registries;
+
 use crate::common::{apply, items, place, remove, set_count, world};
 
 fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Result<(), StackError> {
@@ -25,7 +27,7 @@ fn apply_value(world: &mut World, stack: Entity, value: &ItemStackValue) -> Resu
 }
 
 fn parse(json: &str) -> ItemStackValue {
-    serde_json::from_str(json).unwrap()
+    test_registries().scope(|| serde_json::from_str(json).unwrap())
 }
 
 const CHESTPLATE: &str = r#"{"id": "minecraft:leather_chestplate", "count": 1, "components": {

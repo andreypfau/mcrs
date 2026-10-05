@@ -324,7 +324,7 @@ pub fn build(set: &RegistrySet) -> Result<Vec<Biome>, Vec<(usize, String)>> {
     let mut built = Vec::with_capacity(BIOMES.len());
     let mut failures = Vec::new();
     for (index, (_, draft)) in BIOMES.iter().enumerate() {
-        match draft().resolve(set) {
+        match set.scope(|| draft().resolve(set)) {
             Ok(biome) => built.push(biome),
             Err(messages) => failures.push((index, messages.join("; "))),
         }

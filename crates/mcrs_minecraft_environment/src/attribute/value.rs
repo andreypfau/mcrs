@@ -207,6 +207,11 @@ mod tests {
 
     #[test]
     fn one_ambient_addition_is_written_bare_and_two_as_a_list() {
+        mcrs_minecraft_worldgen_testing::corpus_set()
+            .scope(one_ambient_addition_is_written_bare_and_two_as_a_list_in_scope);
+    }
+
+    fn one_ambient_addition_is_written_bare_and_two_as_a_list_in_scope() {
         let one = r#"{"additions":{"sound":"minecraft:ambient.cave","tick_chance":0.5}}"#;
         let two = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5},{"sound":"minecraft:ambient.cave","tick_chance":0.25}]}"#;
         let listed = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5}]}"#;

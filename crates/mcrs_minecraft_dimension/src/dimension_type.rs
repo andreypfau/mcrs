@@ -258,7 +258,7 @@ mod tests {
                 path.display()
             );
             assert_eq!(
-                reencode(&parsed.attributes),
+                dimension_type_set().scope(|| reencode(&parsed.attributes)),
                 raw["attributes"],
                 "{} attributes must round-trip unchanged",
                 path.display()

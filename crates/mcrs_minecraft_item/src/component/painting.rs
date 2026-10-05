@@ -5,7 +5,7 @@ use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly};
+use crate::component::common::{Holder, HolderWireOnly, entry};
 use crate::harness::Sample;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,8 +36,8 @@ impl Sample for PaintingVariant {
     }
 
     fn samples() -> Vec<Self> {
-        vec![PaintingVariant(HolderWireOnly(Holder::reference(
-            ResourceLocation::minecraft("kebab"),
-        )))]
+        vec![PaintingVariant(HolderWireOnly(Holder::Reference(entry(
+            "kebab",
+        ))))]
     }
 }

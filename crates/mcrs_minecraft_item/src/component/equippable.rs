@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_keys::EntityType;
+use mcrs_minecraft_keys::{EntityType, sound_event};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
@@ -139,7 +139,7 @@ null_as_default! {
 }
 
 fn equip_generic() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft("item.armor.equip_generic"))
+    Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_GENERIC)
 }
 
 fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
@@ -147,7 +147,7 @@ fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
 }
 
 fn shears_snip() -> Holder<SoundEvent> {
-    Holder::reference(ResourceLocation::minecraft("item.shears.snip"))
+    Holder::Reference(sound_event::ITEM_SHEARS_SNIP)
 }
 
 fn is_shears_snip(sound: &Holder<SoundEvent>) -> bool {
@@ -191,7 +191,7 @@ impl Sample for Equippable {
                 ("shearing_sound.range", FLOAT_ID),
             ]),
             Holder::Direct(_) => tags.push(("shearing_sound", COMPOUND_ID)),
-            Holder::Reference(key) if key.as_str() != "minecraft:item.shears.snip" => {
+            Holder::Reference(id) if *id != sound_event::ITEM_SHEARS_SNIP => {
                 tags.push(("shearing_sound", STRING_ID))
             }
             Holder::Reference(_) => {}
@@ -204,9 +204,7 @@ impl Sample for Equippable {
             Equippable::new(EquipmentSlot::Head),
             Equippable {
                 slot: EquipmentSlot::OffHand,
-                equip_sound: Holder::reference(ResourceLocation::minecraft(
-                    "item.armor.equip_iron",
-                )),
+                equip_sound: Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_IRON),
                 asset_id: Some(ResourceLocation::minecraft("iron")),
                 camera_overlay: Some(ResourceLocation::minecraft("misc/pumpkinblur")),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),
