@@ -68,14 +68,12 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         .collect()
 }
 
-fn shape<'a>(id: &'a str, proto: &'a DimensionType) -> DimensionEnvironment<'a> {
-    DimensionEnvironment {
-        id,
-        attributes: &proto.attributes,
-        skybox: proto.skybox,
-        has_skylight: proto.has_skylight,
-        has_ceiling: proto.has_ceiling,
-    }
+fn dimension_key(id: &str) -> ResourceKey<keys::Dimension> {
+    ResourceKey::from_location(id.parse().unwrap())
+}
+
+fn shape<'a>(id: &str, proto: &'a DimensionType) -> DimensionEnvironment<'a> {
+    DimensionEnvironment::of(&dimension_key(id), proto)
 }
 
 fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
@@ -279,6 +277,41 @@ fn a_dimension_without_weather_has_no_weather_layer() {
         ),
         color(&end, sky, &context(&ticks, &empty, Weather::default())),
     );
+}
+
+#[test]
+fn weather_follows_the_dimension_key() {
+    let empty = SpatialAttributeInterpolator::default();
+    let light = "minecraft:gameplay/sky_light_level";
+    let storm = Weather {
+        rain: 1.0,
+        thunder: 1.0,
+    };
+    let weathered = |attributes: &EnvironmentAttributes| {
+        let ticks = ticks_at(attributes, NOON, 0.0);
+        float(attributes, light, &context(&ticks, &empty, storm))
+            != float(
+                attributes,
+                light,
+                &context(&ticks, &empty, Weather::default()),
+            )
+    };
+
+    let overworld_type = "overworld.json";
+    let the_end_type = "the_end.json";
+    let cases = [
+        ("minecraft:the_end", overworld_type, false),
+        ("minecraft:overworld", the_end_type, true),
+        ("minecraft:overworld", overworld_type, true),
+        ("test:extra", overworld_type, true),
+    ];
+    for (key, type_file, expected) in cases {
+        assert_eq!(
+            weathered(&build(key, type_file, &[])),
+            expected,
+            "a dimension keyed {key} of the type in {type_file}"
+        );
+    }
 }
 
 // ── Positional layers ────────────────────────────────────────────────────────

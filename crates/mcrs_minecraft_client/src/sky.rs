@@ -712,11 +712,9 @@ mod sky_regression {
         tagged_timelines("in_overworld", &mut timelines);
         let attributes = EnvironmentAttributes::build(
             &DimensionEnvironment {
-                id: "minecraft:overworld",
                 attributes: &dimension.attributes,
                 skybox: dimension.skybox,
-                has_skylight: dimension.has_skylight,
-                has_ceiling: dimension.has_ceiling,
+                can_have_weather: dimension.has_skylight && !dimension.has_ceiling,
             },
             &timelines.iter().collect::<Vec<_>>(),
             &CLOCKS.registry().unwrap(),

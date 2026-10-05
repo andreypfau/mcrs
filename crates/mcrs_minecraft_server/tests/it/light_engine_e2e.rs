@@ -9,7 +9,7 @@ use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::palette::{BlockPalette, ChunkBlocks};
-use mcrs_minecraft_level::world::dimension::InDimension;
+use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::lifecycle::stage::{SectionStage, SectionStageChanged};
 use mcrs_minecraft_level::world::storage::column::ColumnIndex;
 use mcrs_minecraft_level::world::sub_app::DimAppLabel;
@@ -63,7 +63,12 @@ fn light_one_column(app: &mut App, label: DimAppLabel, stone_floor: bool) {
         .iter(world)
         .next()
         .expect("the dimension entity");
-    for y in SECTIONS {
+    let config = *world
+        .query::<&DimensionTypeConfig>()
+        .single(world)
+        .expect("the dimension's shape");
+    let min_section = config.min_y >> 4;
+    for y in min_section..min_section + config.section_count as i32 {
         let solid = stone_floor && y == STONE_SECTION_Y;
         let pos = SectionPos::new(0, y, 0);
         let section = world
@@ -119,10 +124,10 @@ fn published(app: &mut App, label: DimAppLabel, pos: SectionPos) -> (BlockLight,
     (block.clone(), sky.clone())
 }
 
-fn spawn_dimension(id: &str, sky: bool) -> (App, DimAppLabel) {
+fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
     let mut app = host_app::make_host_app();
     host_app::enable_lighting(&mut app);
-    host_app::enqueue_spawn(&mut app, id, sky);
+    host_app::enqueue_spawn(&mut app, id, dimension_type);
     drain_dim_spawn_queue(&mut app);
 
     let mut handles = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
@@ -178,7 +183,7 @@ fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
 }
 
 fn a_placed_torch_lights_its_neighbourhood() {
-    let (mut app, label) = spawn_dimension("minecraft:overworld", true);
+    let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     light_one_column(&mut app, label, true);
 
     let at = BlockPos::new(8, -8, 8);
@@ -193,10 +198,10 @@ fn a_placed_torch_lights_its_neighbourhood() {
 }
 
 fn a_dimension_without_a_sky_publishes_none() {
-    let (mut app, label) = spawn_dimension("minecraft:the_nether", false);
+    let (mut app, label) = spawn_dimension("minecraft:the_nether", "minecraft:the_nether");
     light_one_column(&mut app, label, false);
 
-    for y in [19, 0, -4] {
+    for y in [15, 0] {
         let (_, sky) = published(&mut app, label, SectionPos::new(0, y, 0));
         for local_y in [0, 8, 15] {
             assert_eq!(
@@ -245,7 +250,7 @@ fn nibble(chunk: &mcrs_minecraft_protocol::chunk::LightChunk, x: usize, y: usize
 /// player: the session registry is keyed by anchor, and the dimension world's
 /// own player entity resolves to nothing there.
 fn torch_delta(already_sent: bool) -> (Vec<OutboundPlayerPacket>, Entity) {
-    let (mut app, label) = spawn_dimension("minecraft:overworld", true);
+    let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let sub_app = app
         .sub_apps_mut()
         .sub_apps
@@ -359,7 +364,7 @@ fn a_column_the_player_never_received_gets_no_delta() {
 const SPREAD: [(i32, i32); 6] = [(0, 0), (2, 0), (0, 2), (4, 0), (0, 4), (4, 4)];
 
 fn the_column_under_the_player_is_lit_before_the_far_ones() {
-    let (mut app, label) = spawn_dimension("minecraft:overworld", true);
+    let (mut app, label) = spawn_dimension("minecraft:overworld", "minecraft:overworld");
     let blocks = app.world().resource::<Blocks>().clone();
     let stone = state(&blocks, "minecraft:stone");
     let air = state(&blocks, "minecraft:air");

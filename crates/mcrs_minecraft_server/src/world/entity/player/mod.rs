@@ -18,7 +18,6 @@ use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, EntityUuid};
 use crate::world::inventory::PlayerInventoryBundle;
 use crate::world::item::StackSet;
-use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
@@ -30,16 +29,16 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_inventory::{Op, Slot};
 use mcrs_minecraft_item::{SlotTable, slots};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
-use mcrs_minecraft_level::world::dimension::{Dimension, InDimension};
+use mcrs_minecraft_level::world::dimension::{Dimension, DimensionTypeId, InDimension};
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::GameEventKind;
@@ -166,7 +165,7 @@ fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    dims: Query<(Entity, &ResourceKey<keys::Dimension>, &DimTypeIndex), With<Dimension>>,
+    dims: Query<(Entity, &ResourceKey<keys::Dimension>, &DimensionTypeId), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
@@ -175,10 +174,9 @@ fn consume_inbound_player_spawn(
     default_op_level: Res<DefaultOpLevel>,
 ) {
     for spawn in reader.read() {
-        let Some((dim, dim_key, dim_type_index)) = dims.iter().next() else {
+        let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
             continue;
         };
-        let dim_type_id = dim_type_index.0;
         let view_distance = PlayerViewDistance {
             distance: spawn.snapshot.view_distance.clamp(2, MAX_VIEW_DISTANCE),
             ..Default::default()
@@ -244,7 +242,7 @@ fn consume_inbound_player_spawn(
                     show_death_screen: false,
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
-                        dimension_type_id: RegistryId(dim_type_id),
+                        dimension_type_id: RegistryId(dimension_type.0.number()),
                         dimension: dim_key.clone(),
                         game_mode: default_game_mode.0,
                         ..Default::default()

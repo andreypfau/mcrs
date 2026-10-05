@@ -13,6 +13,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_keys as keys;
@@ -136,27 +137,27 @@ impl AttributeStack {
 /// graph — an infiniburn tag has nothing to say about the sky.
 #[derive(Debug, Clone, Copy)]
 pub struct DimensionEnvironment<'a> {
-    pub id: &'a str,
     pub attributes: &'a EnvironmentAttributeMap,
     pub skybox: Skybox,
-    pub has_skylight: bool,
-    pub has_ceiling: bool,
+    pub can_have_weather: bool,
 }
 
 impl<'a> DimensionEnvironment<'a> {
-    pub fn of(id: &'a str, dimension_type: &'a DimensionType) -> Self {
-        DimensionEnvironment {
-            id,
-            attributes: &dimension_type.attributes,
-            skybox: dimension_type.skybox,
-            has_skylight: dimension_type.has_skylight,
-            has_ceiling: dimension_type.has_ceiling,
-        }
+    /// The end has no weather by its key, whatever type it is given.
+    pub fn of(dimension: &ResourceKey<keys::Dimension>, dimension_type: &'a DimensionType) -> Self {
+        let mut environment = Self::of_type(dimension_type);
+        environment.can_have_weather &= *dimension != keys::dimension::THE_END;
+        environment
     }
 
-    /// `Level.canHaveWeather`.
-    pub fn can_have_weather(&self) -> bool {
-        self.has_skylight && !self.has_ceiling && self.id != "minecraft:the_end"
+    // chisle: a type table has no dimension key, so it cannot apply the end rule;
+    // building environments per dimension lifts it.
+    pub fn of_type(dimension_type: &'a DimensionType) -> Self {
+        DimensionEnvironment {
+            attributes: &dimension_type.attributes,
+            skybox: dimension_type.skybox,
+            can_have_weather: dimension_type.has_skylight && !dimension_type.has_ceiling,
+        }
     }
 }
 
@@ -216,7 +217,7 @@ impl EnvironmentAttributes {
             }
         }
 
-        if dimension.can_have_weather() {
+        if dimension.can_have_weather {
             for (id, rain, thunder) in weather_layers()? {
                 stacks[index_of(id)?]
                     .layers
@@ -345,7 +346,7 @@ pub fn build_dimension_environments(
             .collect();
 
         match EnvironmentAttributes::build(
-            &DimensionEnvironment::of(name, dimension_type),
+            &DimensionEnvironment::of_type(dimension_type),
             &dimension_timelines,
             &world_clocks,
         ) {

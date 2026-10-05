@@ -2,7 +2,6 @@
 //! play-login packet through the bus to the host-resident connection without
 //! querying ServerSideConnection.
 
-
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
@@ -13,9 +12,7 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
-use mcrs_minecraft_level::world::sub_app::{
-    DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
+use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bus::{
@@ -72,8 +69,9 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .0
         .push(DimSpawnRequest {
             dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
-            type_config: mcrs_minecraft_level::world::dimension::DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
+            dimension_type: crate::support::dimension_type(
+                mcrs_minecraft_keys::dimension_type::OVERWORLD.as_str(),
+            ),
         });
     drain_dim_spawn_queue(app);
     let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();

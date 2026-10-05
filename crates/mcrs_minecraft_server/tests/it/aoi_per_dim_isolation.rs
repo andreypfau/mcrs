@@ -26,8 +26,8 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     host_app::materialise_sub_apps(
         &mut app,
         &[
-            ("minecraft:overworld", true),
-            ("minecraft:the_nether", false),
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
         ],
     );
 

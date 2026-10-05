@@ -14,6 +14,7 @@ use bevy_ecs::prelude::{
 };
 use mcrs_minecraft_core::{ResourceKey, SectionPos};
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;
@@ -66,6 +67,13 @@ pub struct Dimension;
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct HasSkyLight;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct HasWeather;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DimensionTypeId(pub Id<keys::DimensionType>);
 
 #[derive(Component, Clone, Default, Deref, Debug)]
 pub struct DimensionPlayers(BTreeSet<Entity>);

@@ -352,7 +352,6 @@ fn no_live_dim_no_spawn() {
 /// must NOT spawn a second in-dim entity.
 fn no_duplicate_spawn_on_reread() {
     use mcrs_minecraft_level::entity::player::Player;
-    use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
     use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
@@ -366,8 +365,9 @@ fn no_duplicate_spawn_on_reread() {
         .0
         .push(DimSpawnRequest {
             dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
+            dimension_type: crate::support::dimension_type(
+                mcrs_minecraft_keys::dimension_type::OVERWORLD.as_str(),
+            ),
         });
     drain_dim_spawn_queue(&mut app);
 
@@ -502,8 +502,8 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     crate::host_app::materialise_sub_apps(
         &mut app,
         &[
-            ("minecraft:overworld", true),
-            ("minecraft:the_nether", false),
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_nether", "minecraft:the_nether"),
         ],
     );
 

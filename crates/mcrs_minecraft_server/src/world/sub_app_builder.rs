@@ -82,16 +82,20 @@ use crate::world::loot::LootPlugin;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_dimension::environment::DimensionEnvironment;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
-use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_minecraft_level::world::dimension::{
+    DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
+};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::shared::SharedRegistries;
-use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
@@ -161,13 +165,23 @@ pub fn spawn_dim_subapp(
     request: &DimSpawnRequest,
     registries: &DimRegistryBundle,
 ) -> Result<Entity, UnknownDimensionType> {
-    let dim_type_index = app
-        .world()
-        .get_resource::<RegistrySet>()
-        .and_then(|set| set.registry::<keys::DimensionType>())
-        .and_then(|types| types.get(request.dimension.as_str()))
-        .map(Id::number)
-        .ok_or_else(|| UnknownDimensionType(request.dimension.as_str().to_owned()))?;
+    let unknown = || UnknownDimensionType {
+        dimension: request.dimension.as_str().to_owned(),
+        dimension_type: request.dimension_type.number(),
+    };
+    let (type_config, has_sky, has_weather) = {
+        let set = app.world().get_resource::<RegistrySet>();
+        let types = set.and_then(|set| set.entries::<keys::DimensionType, DimensionType>());
+        let dimension_type = types
+            .as_ref()
+            .and_then(|types| types.as_slice().get(request.dimension_type.index()))
+            .ok_or_else(unknown)?;
+        (
+            DimensionTypeConfig::new(dimension_type.min_y, dimension_type.height),
+            dimension_type.has_skylight,
+            DimensionEnvironment::of(&request.dimension, dimension_type).can_have_weather,
+        )
+    };
 
     let label_entity = app
         .world_mut()
@@ -427,11 +441,7 @@ pub fn spawn_dim_subapp(
                 std::sync::Arc::clone(router),
                 Some(std::sync::Arc::clone(&dimension_router.material)),
                 blocks,
-                dimension_y_sections(
-                    router,
-                    request.type_config.min_y,
-                    request.type_config.section_count,
-                ),
+                dimension_y_sections(router, type_config.min_y, type_config.section_count),
                 registries
                     .biome_sources
                     .0
@@ -501,10 +511,10 @@ pub fn spawn_dim_subapp(
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),
             bounds: mcrs_minecraft_light::level::LightBounds::from_dimension(
-                request.type_config.min_y,
-                request.type_config.section_count,
+                type_config.min_y,
+                type_config.section_count,
             ),
-            sky: request.has_sky,
+            sky: has_sky,
         });
     } else if lighting == crate::Lighting::Propagated {
         warn!(
@@ -578,15 +588,21 @@ pub fn spawn_dim_subapp(
     let dim_entity = sub_app
         .world_mut()
         .spawn((
-            DimensionBundle::new(request.dimension.clone(), request.type_config),
-            DimTypeIndex(dim_type_index),
+            DimensionBundle::new(request.dimension.clone(), type_config),
+            DimensionTypeId(request.dimension_type),
         ))
         .id();
-    if request.has_sky {
+    if has_sky {
         sub_app
             .world_mut()
             .entity_mut(dim_entity)
             .insert(HasSkyLight);
+    }
+    if has_weather {
+        sub_app
+            .world_mut()
+            .entity_mut(dim_entity)
+            .insert(HasWeather);
     }
 
     // Drain plugins to Ready before finish/cleanup. All plugins currently
@@ -679,19 +695,14 @@ pub(crate) fn flush_from_dim_outbox(
 #[derive(bevy_ecs::component::Component)]
 pub struct DimSubAppHandle;
 
-/// A dimension is typed by the dimension type of its own name, so a dimension
-/// no type shares a name with cannot be spawned.
 #[derive(Debug, thiserror::Error)]
-#[error("{0} names no dimension type of the loaded registry")]
-pub struct UnknownDimensionType(pub String);
-
-/// The dimension-type registry index for a dimension's type, resolved
-/// host-side from the dimension type registry when the sub-app is spawned and stored on
-/// the sub-world's `Dimension` entity. The play-login emitter copies it into
-/// `PlayerSpawnInfo.dimension_type_id` so a real client builds its
-/// `ClientLevel` with the correct height (section count).
-#[derive(bevy_ecs::component::Component, Clone, Copy)]
-pub struct DimTypeIndex(pub u16);
+#[error(
+    "dimension {dimension} names dimension type {dimension_type}, which the loaded registry does not hold"
+)]
+pub struct UnknownDimensionType {
+    pub dimension: String,
+    pub dimension_type: u16,
+}
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a
 /// sub-app for each request. Called from outside the ECS run loop because

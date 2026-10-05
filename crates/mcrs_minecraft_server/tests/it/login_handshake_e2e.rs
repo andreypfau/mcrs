@@ -9,7 +9,6 @@
 
 use crate::mock_connection;
 
-
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -107,7 +106,6 @@ fn build_join_host_app() -> App {
 /// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
-    use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
     use mcrs_minecraft_network::ConnectionState;
 
     let mut app = build_join_host_app();
@@ -155,8 +153,9 @@ fn e2e_join_releases_joining_world() {
         .0
         .push(DimSpawnRequest {
             dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
+            dimension_type: crate::support::dimension_type(
+                mcrs_minecraft_keys::dimension_type::OVERWORLD.as_str(),
+            ),
         });
     drain_dim_spawn_queue(&mut app);
 
@@ -215,4 +214,3 @@ fn e2e_join_releases_joining_world() {
 // ---------------------------------------------------------------------------
 // Shared test utilities
 // ---------------------------------------------------------------------------
-

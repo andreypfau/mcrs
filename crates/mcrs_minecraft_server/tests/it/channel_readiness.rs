@@ -73,14 +73,14 @@ fn messages_buffered_before_dim_boots() {
 
     // Enqueue and spawn the dim. spawn_dim_subapp creates the channel pair
     // before the sub-app's schedule first runs.
-    use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
             dimension: mcrs_minecraft_keys::dimension::THE_END.into(),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
+            dimension_type: crate::support::dimension_type(
+                mcrs_minecraft_keys::dimension_type::THE_END.as_str(),
+            ),
         });
     drain_dim_spawn_queue(&mut app);
 

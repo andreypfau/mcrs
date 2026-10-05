@@ -14,7 +14,7 @@ fn teleport_emits_outbound_player_packet() {
     use mcrs_minecraft_server::world::entity::player::{HostAnchor, movement::TeleportState};
 
     let mut app = host_app::make_host_app();
-    host_app::enqueue_spawn(&mut app, "minecraft:overworld", true);
+    host_app::enqueue_spawn(&mut app, "minecraft:overworld", "minecraft:overworld");
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
