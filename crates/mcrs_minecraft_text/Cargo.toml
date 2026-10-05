@@ -13,6 +13,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_keys.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true

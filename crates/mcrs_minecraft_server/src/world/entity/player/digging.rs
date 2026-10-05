@@ -32,7 +32,7 @@ use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
-use mcrs_minecraft_registry::key::Block as VanillaBlock;
+use mcrs_minecraft_keys::Block;
 use std::time::Duration;
 use tracing::{debug, trace};
 
@@ -50,7 +50,7 @@ impl Plugin for DiggingPlugin {
             Update,
             (
                 (player_start_destroy_block, handle_player_will_destroy_block)
-                    .run_if(resource_exists::<DynTagRegistry<VanillaBlock>>),
+                    .run_if(resource_exists::<DynTagRegistry<Block>>),
                 player_abort_destroy_block,
                 player_stop_destroy_block,
             ),
@@ -135,7 +135,7 @@ fn player_start_destroy_block(
     )>,
     tools: Query<(&ItemStack, Option<&Tool>)>,
     items: Res<Items>,
-    tag_registry: Res<DynTagRegistry<VanillaBlock>>,
+    tag_registry: Res<DynTagRegistry<Block>>,
     blocks: Res<Blocks>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
@@ -312,7 +312,7 @@ fn get_destroy_speed(
     held: Option<Entity>,
     tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
-    tag_registry: &DynTagRegistry<VanillaBlock>,
+    tag_registry: &DynTagRegistry<Block>,
 ) -> f32 {
     let hardness = blocks.state(state).hardness;
     if hardness < 0.0 {
@@ -334,7 +334,7 @@ pub fn extract_tool_data(
     held: Option<Entity>,
     tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
-    tag_registry: &DynTagRegistry<VanillaBlock>,
+    tag_registry: &DynTagRegistry<Block>,
 ) -> (bool, f32) {
     let block = blocks.owner(state).identifier.as_str();
     let requires_correct_tool = blocks
@@ -380,7 +380,7 @@ fn handle_player_will_destroy_block(
     mut destroyed: MessageWriter<BlockDestroyed>,
     players: Query<(&InDimension, &SlotTable, &SelectedHotbarSlot)>,
     tools: Query<(Option<&Tool>, Option<&Enchantments>), With<ItemStack>>,
-    tag_registry: Res<DynTagRegistry<VanillaBlock>>,
+    tag_registry: Res<DynTagRegistry<Block>>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,

@@ -7,6 +7,7 @@ edition.workspace = true
 
 [dependencies]
 mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_item.workspace = true

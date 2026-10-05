@@ -21,6 +21,7 @@ bevy_asset = { workspace = true, optional = true }
 mcrs_minecraft_block = { workspace = true, optional = true }
 mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_registry = { workspace = true, optional = true }
+mcrs_minecraft_keys = { workspace = true, optional = true }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"], optional = true }
 serde_json = { workspace = true, optional = true }
 
@@ -34,6 +35,7 @@ bevy = [
     "dep:mcrs_minecraft_block",
     "dep:mcrs_minecraft_assets",
     "dep:mcrs_minecraft_registry",
+    "dep:mcrs_minecraft_keys",
     "dep:mcrs_minecraft_item",
     "dep:serde_json",
 ]

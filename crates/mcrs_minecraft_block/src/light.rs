@@ -76,7 +76,7 @@ mod tests {
     use bevy_app::App;
     use bevy_app::TaskPoolPlugin;
     use bevy_asset::{AssetPlugin, AssetServer};
-    use mcrs_minecraft_registry::key::Block;
+    use mcrs_minecraft_keys::Block;
     use mcrs_minecraft_registry::static_report::shipped_report;
 
     fn corpus() -> &'static Blocks {

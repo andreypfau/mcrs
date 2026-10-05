@@ -22,6 +22,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_text.workspace = true
 anyhow.workspace = true
 crc32c.workspace = true

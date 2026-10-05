@@ -31,7 +31,8 @@ use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Item, Items, JukeboxSong, PaintingVariantValue, SoundEvent,
     TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_registry::key::{self, Block};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{
@@ -79,34 +80,34 @@ world_registry_table! {
     ChatType => ChatType, synced as Clone::clone;
     TestEnvironment => TestEnvironment, synced as Clone::clone;
     TestInstance => TestInstance, synced as Clone::clone;
-    key::Dialog => Dialog, synced as Clone::clone;
-    mcrs_minecraft_entity::DamageType => DamageType, synced as Clone::clone;
-    key::BlockTransformer => BlockTransformer, synced as Clone::clone;
+    keys::Dialog => Dialog, synced as Clone::clone;
+    keys::DamageType => DamageType, synced as Clone::clone;
+    keys::BlockTransformer => BlockTransformer, synced as Clone::clone;
     EnchantmentData => EnchantmentData, synced as Clone::clone;
-    key::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
-    mcrs_minecraft_entity::WolfVariant => variant::WolfVariant [non_empty],
+    keys::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
+    keys::WolfVariant => variant::WolfVariant [non_empty],
         synced as |v| variant::NetworkWolfVariant::from(v);
-    mcrs_minecraft_entity::WolfSoundVariant => variant::WolfSoundVariant [non_empty],
+    keys::WolfSoundVariant => variant::WolfSoundVariant [non_empty],
         synced as Clone::clone;
-    mcrs_minecraft_entity::PigVariant => variant::PigVariant [non_empty],
+    keys::PigVariant => variant::PigVariant [non_empty],
         synced as |v| variant::NetworkPigVariant::from(v);
-    mcrs_minecraft_entity::PigSoundVariant => variant::PigSoundVariant [non_empty],
+    keys::PigSoundVariant => variant::PigSoundVariant [non_empty],
         synced as Clone::clone;
-    mcrs_minecraft_entity::CowVariant => variant::CowVariant [non_empty],
+    keys::CowVariant => variant::CowVariant [non_empty],
         synced as |v| variant::NetworkCowVariant::from(v);
-    mcrs_minecraft_entity::CowSoundVariant => variant::CowSoundVariant [non_empty],
+    keys::CowSoundVariant => variant::CowSoundVariant [non_empty],
         synced as Clone::clone;
-    mcrs_minecraft_entity::ChickenVariant => variant::ChickenVariant [non_empty],
+    keys::ChickenVariant => variant::ChickenVariant [non_empty],
         synced as |v| variant::NetworkChickenVariant::from(v);
-    mcrs_minecraft_entity::ChickenSoundVariant => variant::ChickenSoundVariant [non_empty],
+    keys::ChickenSoundVariant => variant::ChickenSoundVariant [non_empty],
         synced as Clone::clone;
-    mcrs_minecraft_entity::CatVariant => variant::CatVariant [non_empty],
+    keys::CatVariant => variant::CatVariant [non_empty],
         synced as |v| variant::NetworkCatVariant::from(v);
-    mcrs_minecraft_entity::CatSoundVariant => variant::CatSoundVariant [non_empty],
+    keys::CatSoundVariant => variant::CatSoundVariant [non_empty],
         synced as Clone::clone;
-    mcrs_minecraft_entity::FrogVariant => variant::FrogVariant [non_empty],
+    keys::FrogVariant => variant::FrogVariant [non_empty],
         synced as |v| variant::NetworkFrogVariant::from(v);
-    mcrs_minecraft_entity::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
+    keys::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
         synced as |v| variant::NetworkZombieNautilusVariant::from(v);
     WorldClock => WorldClock, synced as Clone::clone;
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);

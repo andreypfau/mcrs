@@ -6,7 +6,7 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_registry::key::{Dimension, GameRule, TestFunction};
+use mcrs_minecraft_keys::{Dimension, GameRule, TestFunction};
 use mcrs_minecraft_registry::{Holder, Id, Registry};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

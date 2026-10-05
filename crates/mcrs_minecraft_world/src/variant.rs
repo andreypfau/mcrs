@@ -3,11 +3,12 @@ use std::collections::BTreeMap;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::{HolderSet, RegistryKey, ResourceLocation};
 use mcrs_minecraft_item::SoundEvent;
-use mcrs_minecraft_registry::{EntrySet, Holder, Registry, RegistrySet, key};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{EntrySet, Holder, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_feature::spawn_condition as feature;
 use serde::{Deserialize, Serialize};
 
-pub type SpawnSelector = feature::SpawnSelector<EntrySet<key::Structure>, EntrySet<key::Biome>>;
+pub type SpawnSelector = feature::SpawnSelector<EntrySet<keys::Structure>, EntrySet<keys::Biome>>;
 
 macro_rules! spawning_variant {
     (
@@ -223,10 +224,10 @@ pub fn named_selectors<T: 'static>(
     conditions: fn(&T) -> &[SpawnSelector],
 ) -> BTreeMap<ResourceLocation, Vec<feature::SpawnSelector>> {
     let structures = registries
-        .registry::<key::Structure>()
+        .registry::<keys::Structure>()
         .expect("the structure registry is loaded");
     let biomes = registries
-        .registry::<key::Biome>()
+        .registry::<keys::Biome>()
         .expect("the biome registry is loaded");
     let table = registries
         .table(registry)

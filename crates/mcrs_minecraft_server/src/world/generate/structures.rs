@@ -10,9 +10,9 @@ use mcrs_minecraft_assets::{AppState, DynTagRegistry};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::key;
 use mcrs_minecraft_world::variant::{
     CatVariant, ChickenVariant, ZombieNautilusVariant, named_selectors,
 };
@@ -35,7 +35,7 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
-    biomes: &DynRegistryIndex<key::Biome>,
+    biomes: &DynRegistryIndex<keys::Biome>,
     sources: &DimensionBiomeSources,
     named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
 ) -> DimensionStructures {
@@ -86,10 +86,10 @@ pub(crate) fn build_dimension_structures(
     templates: Res<Assets<TemplateAsset>>,
     asset_server: Res<AssetServer>,
     blocks: Res<Blocks>,
-    biomes: Res<DynRegistryIndex<key::Biome>>,
-    biome_tags: Res<DynTagRegistry<key::Biome>>,
-    structure_index: Res<DynRegistryIndex<key::Structure>>,
-    structure_tags: Res<DynTagRegistry<key::Structure>>,
+    biomes: Res<DynRegistryIndex<keys::Biome>>,
+    biome_tags: Res<DynTagRegistry<keys::Biome>>,
+    structure_index: Res<DynRegistryIndex<keys::Structure>>,
+    structure_tags: Res<DynTagRegistry<keys::Structure>>,
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };

@@ -17,6 +17,7 @@ use mcrs_minecraft_inventory::{
     ShulkerBoxSlots, container_menu_layout,
 };
 use mcrs_minecraft_item::SlotTable;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
@@ -25,7 +26,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClo
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_registry::key::Block;
 
 /// chisle: the generic 9x3 menu id is written by hand; reading the id of the
 /// `menu` registry from the static registries report lifts this.

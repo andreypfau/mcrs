@@ -16,7 +16,7 @@ use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
     AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
-use mcrs_minecraft_registry::key::Carver;
+use mcrs_minecraft_keys::Carver;
 use mcrs_minecraft_worldgen_feature::FeatureStepList;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_structure::DecorationStep;

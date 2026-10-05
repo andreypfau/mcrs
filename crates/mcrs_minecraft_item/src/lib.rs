@@ -17,7 +17,6 @@ pub mod held;
 pub mod inventory;
 #[cfg(feature = "bevy")]
 pub mod item_stack;
-pub mod key;
 pub mod kind;
 pub mod patch;
 pub mod stack;

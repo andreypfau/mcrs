@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Dimension;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ARRAY_ID, STRING_ID};
-use mcrs_minecraft_registry::key::Dimension;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::IntArray;

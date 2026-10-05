@@ -9,6 +9,7 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_keys.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true

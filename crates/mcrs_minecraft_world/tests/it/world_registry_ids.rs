@@ -5,7 +5,8 @@ use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet, key};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::{declared_world_registries, loaded_names};
@@ -55,12 +56,12 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     let indexes = [
         (
             "minecraft:worldgen/biome",
-            names_in_index::<key::Biome>(app),
+            names_in_index::<keys::Biome>(app),
         ),
         ("minecraft:timeline", names_in_index::<Timeline>(app)),
         (
             "minecraft:worldgen/structure",
-            names_in_index::<key::Structure>(app),
+            names_in_index::<keys::Structure>(app),
         ),
     ];
     for (registry, numbered) in indexes {

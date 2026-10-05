@@ -7,7 +7,6 @@ use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_entity::MobEffect;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
@@ -15,7 +14,7 @@ use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::key::{ContextFloatProvider, ContextIntProvider};
+use mcrs_minecraft_keys::{ContextFloatProvider, ContextIntProvider, MobEffect};
 
 pub use mcrs_minecraft_core::codec::{
     ArgbInt, BoundedString, IntArray, Number, RgbInt, compound_or_snbt, lenient, lenient_float,

@@ -12,10 +12,10 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -120,7 +120,7 @@ impl FillContext {
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
-        block_tags: Option<&DynTagRegistry<VanillaBlock>>,
+        block_tags: Option<&DynTagRegistry<Block>>,
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {

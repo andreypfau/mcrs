@@ -13,7 +13,7 @@ use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_keys::Block;
 
 // ── Proto (deserialization-only) ──
 

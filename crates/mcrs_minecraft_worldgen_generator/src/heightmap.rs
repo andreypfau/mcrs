@@ -7,9 +7,9 @@ use mcrs_minecraft_block::tags::{
 };
 use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_registry::key::Block;
 use std::cell::Cell;
 use std::sync::Arc;
 

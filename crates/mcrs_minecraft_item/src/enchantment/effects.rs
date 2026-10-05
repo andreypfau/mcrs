@@ -8,7 +8,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use super::predicate::{BlockPredicate, LootCondition, dispatched_map};
 use super::value::{HolderSet, LevelBasedValue};
 use mcrs_minecraft_core::value_provider::FloatProvider;
-use mcrs_minecraft_registry::{Id, key};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -136,7 +137,7 @@ pub struct VelocitySource {
 /// block state or a typed provider.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockStateProvider {
-    Reference(Id<key::BlockStateProvider>),
+    Reference(Id<keys::BlockStateProvider>),
     State(FullBlockState),
     Typed(TypedBlockStateProvider),
 }
@@ -144,14 +145,14 @@ pub enum BlockStateProvider {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FullBlockState {
-    pub id: Id<key::Block>,
+    pub id: Id<keys::Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockState {
-    Block(Id<key::Block>),
+    Block(Id<keys::Block>),
     Full(FullBlockState),
 }
 
@@ -167,7 +168,7 @@ pub enum TypedBlockStateProvider {
 struct ProviderObject {
     #[serde(rename = "type")]
     kind: Option<String>,
-    id: Option<Id<key::Block>>,
+    id: Option<Id<keys::Block>>,
     properties: Option<BTreeMap<String, String>>,
     state: Option<BlockState>,
 }

@@ -10,8 +10,8 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::section::block_direct_bits;
-use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{BlockStateId, Registry};
 

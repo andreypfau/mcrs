@@ -15,11 +15,11 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::NameTable;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::TagId;
-use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen::bevy::StructureAsset;
 use std::sync::Arc;
 
@@ -319,9 +319,9 @@ pub(crate) fn index_biomes(
         .collect();
     let table = loaded_table(&set, "minecraft:worldgen/biome", &entries);
     tracing::info!(count = entries.len(), "indexed biomes");
-    commands.insert_resource(
-        DynRegistryIndex::<mcrs_minecraft_registry::key::Biome>::from_table(table),
-    );
+    commands.insert_resource(DynRegistryIndex::<mcrs_minecraft_keys::Biome>::from_table(
+        table,
+    ));
 }
 
 pub(crate) fn index_structures(
@@ -338,9 +338,7 @@ pub(crate) fn index_structures(
         .collect();
     let table = loaded_table(&set, "minecraft:worldgen/structure", &entries);
     tracing::info!(count = entries.len(), "indexed structures");
-    commands.insert_resource(
-        DynRegistryIndex::<mcrs_minecraft_registry::key::Structure>::from_table(table),
-    );
+    commands.insert_resource(DynRegistryIndex::<mcrs_minecraft_keys::Structure>::from_table(table));
 }
 
 /// Resolve the timeline tag every dimension type names. The tag files were

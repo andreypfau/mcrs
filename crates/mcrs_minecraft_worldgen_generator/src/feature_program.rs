@@ -21,11 +21,11 @@ use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_we
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::key::Block as VanillaBlock;
-use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_registry::{BlockStateId, Id};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
@@ -422,7 +422,7 @@ impl FeatureProgram {
         tables: &FeatureTables,
         corpus: &LoadedFeatures,
         blocks: &BlockDefinitions,
-        tags: Option<&DynTagRegistry<VanillaBlock>>,
+        tags: Option<&DynTagRegistry<Block>>,
         fluid_tags: Option<&DynTagRegistry<Fluid>>,
         biomes: &RegistrySnapshot<Biome>,
         world_seed: i64,
@@ -613,7 +613,7 @@ impl FeatureProgram {
     /// families overrides nothing, and `BlockBehaviour.canSurvive` is true.
     pub fn would_survive(
         &self,
-        block: Id<VanillaBlock>,
+        block: Id<Block>,
         p: BlockPos,
         get: impl Fn(BlockPos) -> VoxelId,
     ) -> bool {
@@ -2569,7 +2569,7 @@ pub struct Resolver<'a> {
     /// and resolved with them: one per dimension, shared by every feature that
     /// reads one.
     pub tables: Arc<BlockTables>,
-    pub tags: Option<&'a DynTagRegistry<VanillaBlock>>,
+    pub tags: Option<&'a DynTagRegistry<Block>>,
     pub fluid_tags: Option<&'a DynTagRegistry<Fluid>>,
     pub biomes: &'a RegistrySnapshot<Biome>,
     /// The geode's noise and the End's spike ring are drawn from the world seed
@@ -2630,7 +2630,7 @@ impl<'a> Resolver<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         blocks: &'a BlockDefinitions,
-        tags: Option<&'a DynTagRegistry<VanillaBlock>>,
+        tags: Option<&'a DynTagRegistry<Block>>,
         fluid_tags: Option<&'a DynTagRegistry<Fluid>>,
         biomes: &'a RegistrySnapshot<Biome>,
         world_seed: i64,
@@ -2815,7 +2815,7 @@ impl<'a> Resolver<'a> {
         &self,
         tag: &ResourceLocation,
     ) -> Option<impl Iterator<Item = Option<&BlockEntry>>> {
-        let key: TagKey<VanillaBlock, Arc<str>> = TagKey::from_location(tag.clone());
+        let key: TagKey<Block, Arc<str>> = TagKey::from_location(tag.clone());
         let members = self.tags?.get(&key)?;
         Some(
             members

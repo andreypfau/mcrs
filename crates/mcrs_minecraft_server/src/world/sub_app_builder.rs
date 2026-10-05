@@ -84,13 +84,13 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnTraceLog, ColumnTraceSink};
 use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_registry::shared::SharedRegistries;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;

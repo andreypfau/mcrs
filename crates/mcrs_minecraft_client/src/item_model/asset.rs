@@ -9,8 +9,8 @@ use mcrs_minecraft_item::{
     ComponentPredicate, ComponentPredicateType, DyeColor, ItemComponentKind, ItemComponentValue,
     RgbInt, TrimMaterial,
 };
+use mcrs_minecraft_keys::Dimension;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::key::Dimension;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
