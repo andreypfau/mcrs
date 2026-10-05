@@ -5,12 +5,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-use mcrs_minecraft_registry::RegistrySet;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 pub mod aoi;
 pub mod arrival;
@@ -138,9 +134,8 @@ impl Plugin for WorldPlugin {
 /// Runs at `OnEnter(AppState::Playing)`. The outer runner loop drains
 /// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
 /// per-dim sub-app per request.
-pub(crate) fn enqueue_dim_spawns(
+pub fn enqueue_dim_spawns(
     dimensions: Res<DimensionList>,
-    registries: Res<RegistrySet>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
 ) {
@@ -153,31 +148,16 @@ pub(crate) fn enqueue_dim_spawns(
         "Enqueueing dimension spawn requests"
     );
 
-    let Some(dimension_types) = registries.entries::<keys::DimensionType, DimensionType>() else {
-        error!("the registry set holds no dimension types to spawn dimensions from");
-        return;
-    };
-
     for (dimension_key, entry) in dimensions.iter() {
-        let dim_type = &dimension_types[entry.dimension_type];
-        let resolved = (
-            DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
-            dim_type.has_skylight,
-        );
-
         debug!(
             dimension_key = %dimension_key,
-            min_y = resolved.0.min_y,
-            height = resolved.0.height,
-            sections = resolved.0.section_count,
-            has_skylight = resolved.1,
+            dimension_type = entry.dimension_type.number(),
             "Enqueueing dimension spawn request"
         );
 
         spawn_queue.0.push(DimSpawnRequest {
             dimension: dimension_key.clone(),
-            type_config: resolved.0,
-            has_sky: resolved.1,
+            dimension_type: entry.dimension_type,
         });
     }
 

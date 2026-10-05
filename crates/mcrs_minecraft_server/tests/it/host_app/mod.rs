@@ -20,7 +20,6 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_server::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
@@ -83,7 +82,7 @@ pub fn drive_to_playing(app: &mut App) {
 }
 
 /// Push a single dimension spawn request onto the host spawn queue.
-pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
+pub fn enqueue_spawn(app: &mut App, id: &str, dimension_type: &str) {
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
@@ -91,16 +90,15 @@ pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
             dimension: ResourceKey::from_location(
                 ResourceLocation::read(id).expect("a test dimension id is a valid identifier"),
             ),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: sky,
+            dimension_type: crate::support::dimension_type(dimension_type),
         });
 }
 
-/// Enqueue every `(id, has_sky)` pair and drain the queue through the
+/// Enqueue every `(dimension, dimension type)` pair and drain the queue through the
 /// production builder, materialising one sub-app per request.
-pub fn materialise_sub_apps(app: &mut App, ids: &[(&str, bool)]) {
-    for (id, sky) in ids {
-        enqueue_spawn(app, id, *sky);
+pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
+    for (id, dimension_type) in dimensions {
+        enqueue_spawn(app, id, dimension_type);
     }
     drain_dim_spawn_queue(app);
 }

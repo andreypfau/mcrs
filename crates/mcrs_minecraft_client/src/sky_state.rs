@@ -357,28 +357,23 @@ mod tests {
             .collect()
     }
 
-    fn shape<'a>(id: &'a str, proto: &'a Dimension) -> DimensionEnvironment<'a> {
+    fn shape(proto: &Dimension) -> DimensionEnvironment<'_> {
         DimensionEnvironment {
-            id,
             attributes: &proto.attributes,
             skybox: proto.skybox,
-            has_skylight: proto.has_skylight,
-            has_ceiling: proto.has_ceiling,
+            can_have_weather: proto.has_skylight && !proto.has_ceiling,
         }
     }
 
-    fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
+    fn build(file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
         let proto = dimension_type(file);
         let borrowed: Vec<&Timeline> = timelines.iter().collect();
-        EnvironmentAttributes::build(&shape(id, &proto), &borrowed, &clock_registry()).unwrap()
+        EnvironmentAttributes::build(&shape(&proto), &borrowed, &clock_registry()).unwrap()
     }
 
     fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
         let timelines = tagged_timelines("in_overworld");
-        (
-            build("minecraft:overworld", "overworld.json", &timelines),
-            timelines,
-        )
+        (build("overworld.json", &timelines), timelines)
     }
 
     /// The tick each clock stands at, read the way a frame reads it.
@@ -481,7 +476,7 @@ mod tests {
             }))
             .unwrap()
         }));
-        let attributes = build("minecraft:overworld", "overworld.json", &timelines);
+        let attributes = build("overworld.json", &timelines);
         let layout = SkyLayout::derive(&attributes);
 
         let frame: Vec<SkyField> = layout.frame_fields().collect();
@@ -551,12 +546,8 @@ mod tests {
         let nether_timelines = [timeline("villager_schedule.json")];
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
-        let attributes = EnvironmentAttributes::build(
-            &shape("minecraft:the_nether", &proto),
-            &borrowed,
-            &clock_registry(),
-        )
-        .unwrap();
+        let attributes =
+            EnvironmentAttributes::build(&shape(&proto), &borrowed, &clock_registry()).unwrap();
 
         let layout = SkyLayout::derive(&attributes);
         let empty = SpatialAttributeInterpolator::default();

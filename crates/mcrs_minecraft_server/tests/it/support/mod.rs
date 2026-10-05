@@ -7,8 +7,9 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_item::Items;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Block, Item};
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::{share_registries, static_registries, test_registries};
@@ -28,7 +29,7 @@ pub fn insert_corpus(app: &mut App) {
 }
 
 /// The host holds the loaded set, dimension types included, because a
-/// dimension is spawned with the type its name selects.
+/// dimension is spawned with the type its entry names.
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
     app.insert_resource(test_registries().clone());
@@ -52,6 +53,13 @@ fn registries() -> &'static (RegistrySet, EntityIds) {
         static_registries(&report).unwrap_or_else(|report| panic!("{report}"))
     });
     &REGISTRIES
+}
+
+pub fn dimension_type(name: &str) -> Id<keys::DimensionType> {
+    test_registries()
+        .registry::<keys::DimensionType>()
+        .and_then(|registry| registry.get(name))
+        .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
 }
 
 pub fn registry_set() -> &'static RegistrySet {
