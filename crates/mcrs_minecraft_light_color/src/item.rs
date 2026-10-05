@@ -21,7 +21,8 @@ use crate::asset::{BlockStateRef, StateTarget};
 use crate::colors::{LightColors, LightType};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
-pub const WATER_SENSITIVE: TagKey<Item> = TagKey::new(rl!("mcrs:water_sensitive_light"));
+pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
+    TagKey::new(rl!("mcrs:water_sensitive_light"));
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -245,7 +246,10 @@ impl ItemLights {
     }
 }
 
-fn tag_of<T: RegistryKey>(tags: &Tags<T>, tag: &TagKey<T>) -> Result<TagId<T>, ItemLightError> {
+fn tag_of<T: RegistryKey>(
+    tags: &Tags<T>,
+    tag: &TagKey<T, &'static str>,
+) -> Result<TagId<T>, ItemLightError> {
     tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
         tag: tag.as_str().to_owned(),
     })
