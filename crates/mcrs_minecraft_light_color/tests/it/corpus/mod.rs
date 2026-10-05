@@ -11,9 +11,10 @@ use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::definition::{Blocks, Fluids};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 

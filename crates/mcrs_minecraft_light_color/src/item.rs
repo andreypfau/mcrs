@@ -12,8 +12,9 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
-use mcrs_minecraft_item::{Item, ItemDefinitions};
+use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_keys::Fluid;
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use serde::{Deserialize, Deserializer, Serialize, de};
 

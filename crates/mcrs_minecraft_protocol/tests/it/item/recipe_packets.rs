@@ -5,10 +5,11 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, Item, ItemComponentKind,
-    ItemComponentValue, Raw, Template, TrimPattern,
+    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
+    Raw, Template, TrimPattern,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,

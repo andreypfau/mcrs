@@ -742,7 +742,7 @@ mod tests {
         };
         assert_eq!(*id, wire_id(mob));
         let witch_id = set
-            .registry::<mcrs_minecraft_entity::EntityType>()
+            .registry::<mcrs_minecraft_keys::EntityType>()
             .unwrap()
             .get("minecraft:witch")
             .unwrap();

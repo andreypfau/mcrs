@@ -25,10 +25,7 @@ use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_entity::EntityType;
-use mcrs_minecraft_item::Item;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, Enchantment, EntityType, Item};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -367,7 +364,7 @@ fn on_known_packs_response(
     dimension_types: Res<Assets<DimensionType>>,
     block_tags: Option<Res<DynTagRegistry<Block>>>,
     item_tags: Option<Res<DynTagRegistry<Item>>>,
-    enchantment_tags: Option<Res<TagRegistry<EnchantmentData, Id<EnchantmentData>>>>,
+    enchantment_tags: Option<Res<TagRegistry<Enchantment, Id<Enchantment>>>>,
     entity_type_tags: Option<Res<TagRegistry<EntityType, Id<EntityType>>>>,
     dynamic_tags: Res<DynamicRegistryTagFiles>,
     tag_files: Res<Assets<TagFile>>,

@@ -4,7 +4,8 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::definition::{CORPUS_DIRECTORY, FORMAT_VERSION};
-use mcrs_minecraft_item::{Item, ItemDefinitions, ItemEntry, ItemTableError};
+use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::{ItemId, Registry};
 
 pub fn from_files(

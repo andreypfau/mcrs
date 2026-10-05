@@ -14,7 +14,6 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use uuid::Uuid;
 
 use mcrs_minecraft_core::codec::{ArgbInt, IntArray, default_true, lenient, optional_flag};
-use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_profile::Profile;
 
@@ -1044,7 +1043,7 @@ pub enum HoverEvent<I: HoverItem> {
     },
     ShowItem(Box<I>),
     ShowEntity {
-        id: ResourceKey<EntityType>,
+        id: ResourceKey<keys::EntityType>,
         #[serde(with = "lenient_uuid")]
         uuid: Uuid,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -1063,7 +1062,7 @@ impl<'de, I: HoverItem> Deserialize<'de> for HoverEvent<I> {
         #[derive(Deserialize)]
         #[serde(bound = "")]
         struct ShowEntity<I: HoverItem> {
-            id: ResourceKey<EntityType>,
+            id: ResourceKey<keys::EntityType>,
             #[serde(deserialize_with = "lenient_uuid::deserialize")]
             uuid: Uuid,
             #[serde(default)]

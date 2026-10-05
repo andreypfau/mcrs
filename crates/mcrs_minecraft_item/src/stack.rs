@@ -7,11 +7,11 @@ use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::Item;
 use crate::component::common::map_only;
 use crate::hash_ops;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentPatch;
+use mcrs_minecraft_keys::Item;
 
 validated!(ItemStackValue);
 

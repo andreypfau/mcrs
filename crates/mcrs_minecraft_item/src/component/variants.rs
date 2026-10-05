@@ -1,6 +1,5 @@
 use crate::component::registry_ref::registry_key_component;
-use mcrs_minecraft_entity::VillagerType;
-use mcrs_minecraft_keys::DecoratedPotPattern;
+use mcrs_minecraft_keys::{DecoratedPotPattern, VillagerType};
 
 registry_key_component! {
     VillagerVariant(VillagerType) ["plains", "desert"],

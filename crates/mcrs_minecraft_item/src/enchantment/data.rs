@@ -1,9 +1,7 @@
-use crate::Item;
 use crate::Text;
 use crate::component::EquipmentSlotGroup;
 use crate::enchantment::effects::EnchantmentEffects;
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::rl;
+use mcrs_minecraft_keys::{Enchantment, Item};
 use mcrs_minecraft_registry::EntrySet;
 use serde::{Deserialize, Serialize};
 
@@ -21,13 +19,9 @@ pub struct EnchantmentData {
     pub weight: u32,
     pub max_level: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclusive_set: Option<EntrySet<EnchantmentData>>,
+    pub exclusive_set: Option<EntrySet<Enchantment>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<EnchantmentEffects>,
-}
-
-impl RegistryKey for EnchantmentData {
-    const KEY: mcrs_minecraft_core::ResourceLocation<&'static str> = rl!("minecraft:enchantment");
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

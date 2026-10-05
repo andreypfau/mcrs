@@ -1,17 +1,15 @@
 use std::io::Write;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Validate;
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{HolderSet, ResourceKey, validated};
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
-use crate::item::{DecodeCtx, EncodeCtx, Holder, Item, ItemComponentKind, Template, TrimPattern};
+use crate::item::{DecodeCtx, EncodeCtx, Holder, ItemComponentKind, Template, TrimPattern};
 use crate::{Decode as _, Encode as _, VarInt};
 
 validated!(Ingredient);
@@ -419,10 +417,6 @@ pub enum RecipeBookCategory {
     Stonecutter,
     Smithing,
     Campfire,
-}
-
-impl RegistryKey for RecipeBookCategory {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:recipe_book_category");
 }
 
 /// One recipe as the client's recipe book shows it; `group` is the index of

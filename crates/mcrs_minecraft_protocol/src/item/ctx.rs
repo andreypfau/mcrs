@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
-use mcrs_minecraft_core::{HolderSet, RegistryKey, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{HolderSet, RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use uuid::Uuid;
@@ -241,13 +241,14 @@ impl<'a, R: RegistryKey> DecodeCtx<'a> for ResourceKey<R> {
     }
 }
 
-impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
+impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             Holder::Reference(key) => {
+                let registry = V::Registry::KEY.path();
                 let id = ctx
-                    .id(T::KEY.path(), key.location())
-                    .with_context(|| format!("{key} is not in registry {}", T::KEY.path()))?;
+                    .id(registry, key.location())
+                    .with_context(|| format!("{key} is not in registry {registry}"))?;
                 encode_holder_id(Some(id), w)
             }
             Holder::Direct(value) => {
@@ -258,16 +259,17 @@ impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
     }
 }
 
-impl<'a, T: RegistryKey + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
+impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for Holder<V> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        let registry = V::Registry::KEY.path();
         let Some(id) = decode_holder_id(r)
-            .with_context(|| format!("registry {} has no id that wide", T::KEY.path()))?
+            .with_context(|| format!("registry {registry} has no id that wide"))?
         else {
-            return T::decode_ctx(ctx, r).map(Holder::Direct);
+            return V::decode_ctx(ctx, r).map(Holder::Direct);
         };
         let name = ctx
-            .name(T::KEY.path(), id)
-            .with_context(|| format!("registry {} has no id {id}", T::KEY.path()))?;
+            .name(registry, id)
+            .with_context(|| format!("registry {registry} has no id {id}"))?;
         Ok(Holder::Reference(ResourceKey::from_location(name.clone())))
     }
 }
@@ -423,7 +425,7 @@ pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> 
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_item::Item;
+    use mcrs_minecraft_keys::Item;
     use mcrs_minecraft_registry::{LookupIndex, NoRegistries};
 
     use super::*;

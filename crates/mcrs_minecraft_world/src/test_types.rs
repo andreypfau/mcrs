@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
-use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Dimension, GameRule, TestFunction};
 use mcrs_minecraft_registry::{Holder, Id, Registry};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
@@ -42,6 +43,10 @@ pub enum TestEnvironment {
 
 impl RegistryKey for TestEnvironment {
     const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_environment");
+}
+
+impl RegistryValue for TestEnvironment {
+    type Registry = keys::TestEnvironment;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

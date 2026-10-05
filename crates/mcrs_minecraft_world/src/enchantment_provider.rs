@@ -2,7 +2,7 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::{EntrySet, Id};
 use serde::{Deserialize, Serialize};
 
@@ -11,18 +11,18 @@ use serde::{Deserialize, Serialize};
 pub enum EnchantmentProvider {
     #[serde(rename = "minecraft:by_cost")]
     ByCost {
-        enchantments: EntrySet<EnchantmentData>,
+        enchantments: EntrySet<Enchantment>,
         cost: IntProvider,
     },
     #[serde(rename = "minecraft:by_cost_with_difficulty")]
     ByCostWithDifficulty {
-        enchantments: EntrySet<EnchantmentData>,
+        enchantments: EntrySet<Enchantment>,
         min_cost: Bounded<1, 10000>,
         max_cost_span: Bounded<0, 10000>,
     },
     #[serde(rename = "minecraft:single")]
     Single {
-        enchantment: Id<EnchantmentData>,
+        enchantment: Id<Enchantment>,
         level: IntProvider,
     },
 }
