@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, UnknownEntry};
+use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, UnknownEntry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_structure::StructureSet;
@@ -76,14 +76,34 @@ pub fn lookup<'a, R: RegistryKey, T>(
     entries: &'a Entries<R, Option<T>>,
     name: &str,
 ) -> Result<&'a T, TableError> {
-    let id = registry.require(name)?;
+    lookup_id(registry, entries, registry.require(name)?)
+}
+
+pub fn lookup_id<'a, R: RegistryKey, T>(
+    registry: &Registry<R>,
+    entries: &'a Entries<R, Option<T>>,
+    id: Id<R>,
+) -> Result<&'a T, TableError> {
     entries
         .get(id)
         .and_then(Option::as_ref)
         .ok_or_else(|| TableError::Absent {
             registry: R::KEY.into(),
-            name: name.to_owned(),
+            name: registry
+                .key(id)
+                .map_or_else(|| format!("{id:?}"), ToString::to_string),
         })
+}
+
+/// The path a registry entry's asset loads from, which is also the path
+/// `build_worldgen_tables` finds the loaded asset at.
+pub fn asset_path<R: RegistryKey>(name: &ResourceLocation) -> String {
+    format!(
+        "{}/{}/{}.json",
+        name.namespace(),
+        R::KEY.path(),
+        name.path()
+    )
 }
 
 pub fn named<'a, R: RegistryKey, T, V>(
@@ -117,12 +137,7 @@ fn column<R: RegistryKey, A: Asset, T>(
         .ids()
         .map(|id| {
             let name = registry.key(id).expect("an id of the registry has a name");
-            let path = format!(
-                "{}/{}/{}.json",
-                name.namespace(),
-                R::KEY.path(),
-                name.path()
-            );
+            let path = asset_path::<R>(name);
             // A handle that exists without an asset is a file that failed to
             // load; a name nothing referenced has no handle and nothing to report.
             let handle = asset_server.get_handle::<A>(path)?;

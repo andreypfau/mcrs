@@ -28,7 +28,7 @@ use crate::data_pack::{
     check_tags_ready, request_data_pack_assets, request_every_tag, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
-use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
+use bevy_asset::{AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
@@ -76,9 +76,6 @@ pub struct MinecraftWorldPlugin;
 
 impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<worldgen::world_preset::WorldPreset>();
-        app.init_asset::<dimension::DimensionDefinition>();
-        app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();

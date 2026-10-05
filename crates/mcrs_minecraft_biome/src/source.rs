@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::climate::{ClimateParameters, ParameterPoint};
 use super::parameter_list::{ParameterLists, Preset};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Id, Registry, UnknownEntry};
+use mcrs_minecraft_registry::Id;
 
 // ===========================================================================
 // Beta biome lookup — enum, cascade, table
@@ -84,27 +81,42 @@ pub fn beta_biome_from_climate(
 }
 
 // ===========================================================================
-// Runtime types
+// Biome sources
 // ===========================================================================
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum BiomeSource {
+    #[serde(rename = "minecraft:multi_noise")]
     MultiNoise(MultiNoiseBiomeSource),
+    #[serde(rename = "minecraft:the_end")]
     TheEnd,
-    Fixed {
-        biome: Id<keys::Biome>,
-    },
+    #[serde(rename = "minecraft:fixed")]
+    Fixed { biome: Id<keys::Biome> },
+    #[serde(rename = "minecraft:checkerboard")]
     Checkerboard {
         biomes: Vec<Id<keys::Biome>>,
+        #[serde(default = "default_scale")]
         scale: u32,
     },
+    #[serde(rename = "mcrs:beta")]
     Beta {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
+        #[serde(rename = "biomes")]
         land_biomes: [Id<keys::Biome>; 11],
+        #[serde(skip, default = "beta_lookup")]
         lookup: Box<[[BetaLandBiome; 64]; 64]>,
     },
+}
+
+fn default_scale() -> u32 {
+    2
+}
+
+fn beta_lookup() -> Box<[[BetaLandBiome; 64]; 64]> {
+    Box::new(build_beta_lookup_table())
 }
 
 impl BiomeSource {
@@ -119,13 +131,21 @@ impl BiomeSource {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MultiNoiseBiomeSource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preset: Option<Id<keys::MultiNoiseBiomeSourceParameterList>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "distinguishable_entries"
+    )]
     pub biomes: Option<Vec<MultiNoiseBiomeEntry>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
     pub biome: Id<keys::Biome>,
@@ -137,50 +157,14 @@ impl MultiNoiseBiomeSource {
     }
 }
 
-// ===========================================================================
-// Proto types (serde layer)
-// ===========================================================================
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
-pub enum ProtoBiomeSource {
-    #[serde(rename = "minecraft:multi_noise")]
-    MultiNoise(ProtoMultiNoiseBiomeSource),
-    #[serde(rename = "minecraft:the_end")]
-    TheEnd {},
-    #[serde(rename = "minecraft:fixed")]
-    Fixed { biome: ResourceLocation<Arc<str>> },
-    #[serde(rename = "minecraft:checkerboard")]
-    Checkerboard {
-        biomes: Vec<ResourceLocation<Arc<str>>>,
-        #[serde(default = "default_scale")]
-        scale: u32,
-    },
-    #[serde(rename = "mcrs:beta")]
-    Beta {
-        biomes: Vec<ResourceLocation<Arc<str>>>,
-    },
-}
-
-fn default_scale() -> u32 {
-    2
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProtoMultiNoiseBiomeSource {
-    pub preset: Option<ResourceLocation<Arc<str>>>,
-    #[serde(default, deserialize_with = "distinguishable_entries")]
-    pub biomes: Option<Vec<ProtoMultiNoiseBiomeEntry>>,
-}
-
 fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<Option<Vec<ProtoMultiNoiseBiomeEntry>>, D::Error> {
-    let entries = Option::<Vec<ProtoMultiNoiseBiomeEntry>>::deserialize(deserializer)?;
+) -> Result<Option<Vec<MultiNoiseBiomeEntry>>, D::Error> {
+    let entries = Option::<Vec<MultiNoiseBiomeEntry>>::deserialize(deserializer)?;
     let points: Vec<_> = entries
         .iter()
         .flatten()
-        .map(|entry| (&entry.biome, ParameterPoint::from(&entry.parameters)))
+        .map(|entry| (entry.biome, ParameterPoint::from(&entry.parameters)))
         .collect();
     for (first, (biome_a, a)) in points.iter().enumerate() {
         for (second, (biome_b, b)) in points.iter().enumerate().skip(first + 1) {
@@ -194,86 +178,6 @@ fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(
     Ok(entries)
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProtoMultiNoiseBiomeEntry {
-    pub parameters: ClimateParameters,
-    pub biome: ResourceLocation<Arc<str>>,
-}
-
-// ===========================================================================
-// Resolve: Proto → Runtime
-// ===========================================================================
-
-impl ProtoBiomeSource {
-    pub fn resolve(
-        self,
-        biomes: &Registry<keys::Biome>,
-        lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
-    ) -> Result<BiomeSource, UnknownEntry> {
-        Ok(match self {
-            ProtoBiomeSource::MultiNoise(src) => {
-                BiomeSource::MultiNoise(src.resolve(biomes, lists)?)
-            }
-            ProtoBiomeSource::TheEnd {} => BiomeSource::TheEnd,
-            ProtoBiomeSource::Fixed { biome } => BiomeSource::Fixed {
-                biome: biomes.require(biome.as_str())?,
-            },
-            ProtoBiomeSource::Checkerboard {
-                biomes: names,
-                scale,
-            } => BiomeSource::Checkerboard {
-                biomes: resolve_all(&names, biomes)?,
-                scale,
-            },
-            ProtoBiomeSource::Beta { biomes: names } => BiomeSource::Beta {
-                land_biomes: resolve_all(&names, biomes)?
-                    .try_into()
-                    .expect("mcrs:beta biome_source requires exactly 11 land biomes"),
-                lookup: Box::new(build_beta_lookup_table()),
-            },
-        })
-    }
-}
-
-fn resolve_all(
-    names: &[ResourceLocation<Arc<str>>],
-    biomes: &Registry<keys::Biome>,
-) -> Result<Vec<Id<keys::Biome>>, UnknownEntry> {
-    names
-        .iter()
-        .map(|name| biomes.require(name.as_str()))
-        .collect()
-}
-
-impl ProtoMultiNoiseBiomeSource {
-    fn resolve(
-        self,
-        biomes: &Registry<keys::Biome>,
-        lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
-    ) -> Result<MultiNoiseBiomeSource, UnknownEntry> {
-        Ok(MultiNoiseBiomeSource {
-            preset: self
-                .preset
-                .map(|preset| lists.require(preset.as_str()))
-                .transpose()?,
-            biomes: self
-                .biomes
-                .map(|entries| {
-                    entries
-                        .into_iter()
-                        .map(|entry| {
-                            Ok(MultiNoiseBiomeEntry {
-                                parameters: entry.parameters,
-                                biome: biomes.require(entry.biome.as_str())?,
-                            })
-                        })
-                        .collect::<Result<_, UnknownEntry>>()
-                })
-                .transpose()?,
-        })
-    }
-}
-
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -281,27 +185,34 @@ impl ProtoMultiNoiseBiomeSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_registry::{Registry, RegistrySet};
     use std::collections::HashSet;
+    use std::sync::Arc;
 
     #[test]
     fn two_biomes_no_climate_can_tell_apart_are_a_load_error() {
+        let names = ["minecraft:plains", "minecraft:desert"]
+            .map(|name| ResourceLocation::<Arc<str>>::parse(name).unwrap());
+        let set = RegistrySet::new()
+            .with(Registry::<keys::Biome>::new(names, []).unwrap())
+            .unwrap();
         let entry = |biome: &str, humidity: &str| {
             format!(
                 r#"{{"biome":"{biome}","parameters":{{"temperature":0.0,"humidity":{humidity},"continentalness":0.0,"erosion":0.0,"depth":0.0,"weirdness":0.0,"offset":0.0}}}}"#
             )
         };
         let parse = |a: String, b: String| {
-            serde_json::from_str::<ProtoMultiNoiseBiomeSource>(&format!(
-                r#"{{"biomes":[{a},{b}]}}"#
-            ))
+            set.scope(|| {
+                serde_json::from_str::<MultiNoiseBiomeSource>(&format!(r#"{{"biomes":[{a},{b}]}}"#))
+            })
         };
 
         let error = parse(
             entry("minecraft:plains", "0.0"),
             entry("minecraft:desert", "0.0"),
         )
-        .err()
-        .expect("two biomes on one climate point")
+        .expect_err("two biomes on one climate point")
         .to_string();
         assert!(error.contains("Entries 0 and 1 overlap"), "{error}");
         assert!(
