@@ -38,11 +38,9 @@ fn parameter_lists() -> (
     Registry<keys::MultiNoiseBiomeSourceParameterList>,
     Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
-    let names = Registry::new(
-        Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()),
-        [],
-    )
-    .unwrap();
+    let names =
+        Registry::new(Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()))
+            .unwrap();
     let lists = Entries::new(
         &names,
         Preset::ALL
@@ -153,7 +151,6 @@ fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
         names.iter().map(|name| {
             ResourceLocation::parse(&format!("minecraft:{name}")).expect("a biome name")
         }),
-        [],
     )
     .expect("the corpus names distinct biomes")
 }

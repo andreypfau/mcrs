@@ -270,7 +270,6 @@ mod tests {
                 names
                     .iter()
                     .map(|name| ResourceLocation::parse(name).unwrap()),
-                [],
             )
             .unwrap(),
         )

@@ -42,11 +42,9 @@ fn parameter_lists() -> (
     Registry<keys::MultiNoiseBiomeSourceParameterList>,
     Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
-    let names = Registry::new(
-        Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()),
-        [],
-    )
-    .unwrap();
+    let names =
+        Registry::new(Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()))
+            .unwrap();
     let lists = Entries::new(
         &names,
         Preset::ALL
@@ -137,7 +135,6 @@ fn main() {
         numbered
             .into_iter()
             .map(|(_, name)| ResourceLocation::parse(name).unwrap()),
-        [],
     )
     .unwrap();
     let (list_names, lists) = parameter_lists();

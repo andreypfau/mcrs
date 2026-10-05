@@ -479,7 +479,6 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         mcrs_minecraft_registry::NameTable::new(
             rl("minecraft:timeline"),
             [rl("test:alpha"), rl("test:zulu")],
-            [],
         )
         .unwrap(),
     ));

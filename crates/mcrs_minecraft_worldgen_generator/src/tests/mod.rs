@@ -244,8 +244,7 @@ pub fn parameter_lists() -> &'static (
             ResourceLocation,
             mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList,
         > = registry("multi_noise_biome_source_parameter_list");
-        let names =
-            Registry::new(shipped.keys().cloned(), []).expect("a registry of distinct names");
+        let names = Registry::new(shipped.keys().cloned()).expect("a registry of distinct names");
         let lists = mcrs_minecraft_registry::Entries::new(&names, shipped.into_values().collect())
             .expect("one list for every name");
         (names, lists)
@@ -267,7 +266,6 @@ pub fn ordered_biome_registry(names: &[&str]) -> Registry<keys::Biome> {
         names
             .iter()
             .map(|name| ResourceLocation::parse(name).expect("a biome name")),
-        [],
     )
     .expect("a registry of distinct names")
 }

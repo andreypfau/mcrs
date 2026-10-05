@@ -64,14 +64,12 @@ pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, Stri
     };
     let mut tables: Vec<_> = statics.tables().cloned().collect();
     for (registry, entries) in &stored.entries {
-        let tags = stored.tags.get(registry).into_iter().flatten();
         let table = NameTable::new(
             parse(registry)?,
             entries
                 .iter()
                 .map(|name| parse(name))
                 .collect::<Result<Vec<_>, _>>()?,
-            tags.map(|tag| parse(tag)).collect::<Result<Vec<_>, _>>()?,
         )
         .map_err(|error| format!("{}: {registry}: {error}", names.display()))?;
         tables.push(std::sync::Arc::new(table));

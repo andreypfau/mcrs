@@ -41,7 +41,7 @@ impl SharedResource for WorldgenTables {
 }
 
 fn empty<R: RegistryKey, T>() -> Entries<R, Option<T>> {
-    let registry = Registry::<R>::new([], []).expect("a registry of no entries");
+    let registry = Registry::<R>::new([]).expect("a registry of no entries");
     Entries::new(&registry, Vec::new()).expect("no values for no entries")
 }
 

@@ -6,12 +6,13 @@ use std::sync::Arc;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
-use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
+use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_worldgen_testing::{assets_dir, json_files, shipped_tags};
 use serde::de::{self, DeserializeOwned, SeqAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -54,8 +55,9 @@ impl<'de> Deserialize<'de> for TimelineSet {
                         .map(TimelineSet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
-                let known = Registry::<keys::Timeline>::in_scope("TimelineSet", |registry| {
-                    registry.has_tag(tag.as_str())
+                let known = Tags::<keys::Timeline>::in_scope("TimelineSet", |tags| {
+                    tags.get(&TagKey::<keys::Timeline, _>::from_location(tag.clone()))
+                        .is_some()
                 })
                 .map_err(E::custom)?;
                 if !known {
@@ -124,15 +126,14 @@ struct Slice {
 }
 
 fn slice() -> Slice {
-    let clocks =
-        Registry::<keys::WorldClock>::new(names("world_clock"), std::iter::empty()).unwrap();
-    let timelines =
-        Registry::<keys::Timeline>::new(names("timeline"), names("tags/timeline")).unwrap();
+    let clocks = Registry::<keys::WorldClock>::new(names("world_clock")).unwrap();
+    let timelines = Registry::<keys::Timeline>::new(names("timeline")).unwrap();
     let set = RegistrySet::new()
         .with(clocks.clone())
         .unwrap()
         .with(timelines.clone())
-        .unwrap();
+        .unwrap()
+        .with_tags(shipped_tags(timelines.table(), "timeline"));
     Slice {
         clocks,
         timelines,
@@ -218,11 +219,7 @@ fn quoted(text: &str) -> String {
 
 #[test]
 fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
-    let Slice {
-        clocks,
-        timelines,
-        set,
-    } = slice();
+    let Slice { clocks, set, .. } = slice();
     let dimension_files = files("dimension_type");
     assert!(!dimension_files.is_empty());
     let mut without_clock = 0;
@@ -233,7 +230,12 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
                 .unwrap_or_else(|error| panic!("{}: {error}", file.display()));
             match &probe.timelines {
                 TimelineSet::Tag(tag) => {
-                    assert!(Registry::has_tag(&timelines, tag.as_str()));
+                    assert!(
+                        set.tags::<keys::Timeline>()
+                            .unwrap()
+                            .get(&TagKey::<keys::Timeline, _>::from_location(tag.clone()))
+                            .is_some()
+                    );
                     assert_eq!(
                         value["timelines"].as_str(),
                         Some(format!("#{tag}").as_str())

@@ -1,5 +1,6 @@
 use crate::id::Id;
-use crate::registry::Registry;
+use crate::tags::Tags;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use serde::de::{SeqAccess, Visitor, value};
 use serde::ser::SerializeSeq;
@@ -93,9 +94,11 @@ impl<'de, R: RegistryKey> Deserialize<'de> for EntrySet<R> {
                     return Id::deserialize(value::StrDeserializer::new(text)).map(EntrySet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
-                let listed =
-                    Registry::<R>::in_scope("EntrySet", |registry| registry.has_tag(tag.as_str()))
-                        .map_err(E::custom)?;
+                let listed = Tags::<R>::in_scope("EntrySet", |tags| {
+                    tags.get(&TagKey::<R, _>::from_location(tag.clone()))
+                        .is_some()
+                })
+                .map_err(E::custom)?;
                 if listed {
                     Ok(EntrySet::Tag(tag))
                 } else {
@@ -118,7 +121,9 @@ impl<'de, R: RegistryKey> Deserialize<'de> for EntrySet<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry::Registry;
     use crate::set::RegistrySet;
+    use crate::tags::{TagRules, TagSource, build_tags};
     use mcrs_minecraft_core::rl;
 
     struct Marker;
@@ -132,12 +137,25 @@ mod tests {
     }
 
     fn set() -> RegistrySet {
-        let markers = Registry::<Marker>::new(
-            ["minecraft:a", "minecraft:b", "minecraft:c"].map(name),
-            [name("minecraft:t")],
-        )
-        .unwrap();
-        RegistrySet::new().with(markers).unwrap()
+        let markers =
+            Registry::<Marker>::new(["minecraft:a", "minecraft:b", "minecraft:c"].map(name))
+                .unwrap();
+        let tag_file = TagSource {
+            pack: "test",
+            path: "minecraft/tags/test_marker/t.json",
+            bytes: br#"{"values":["minecraft:a"]}"#,
+        };
+        let (tags, problems) = build_tags(
+            markers.table(),
+            TagRules::World,
+            &[(name("minecraft:t"), vec![tag_file])],
+            None,
+        );
+        assert!(problems.is_empty());
+        RegistrySet::new()
+            .with(markers)
+            .unwrap()
+            .with_tags(Arc::new(tags))
     }
 
     fn id(text: &str) -> Id<Marker> {

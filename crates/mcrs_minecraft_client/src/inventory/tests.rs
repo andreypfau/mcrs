@@ -511,7 +511,6 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
             NameTable::new(
                 ResourceLocation::minecraft("enchantment").into(),
                 ["sharpness", "protection"].map(|path| enchantment(path).into()),
-                std::iter::empty(),
             )
             .unwrap(),
         )]),

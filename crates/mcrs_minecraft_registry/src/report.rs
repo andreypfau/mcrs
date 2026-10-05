@@ -155,7 +155,6 @@ mod tests {
             names
                 .iter()
                 .map(|text| ResourceLocation::<Arc<str>>::parse(text).unwrap()),
-            std::iter::empty(),
         )
         .unwrap()
     }

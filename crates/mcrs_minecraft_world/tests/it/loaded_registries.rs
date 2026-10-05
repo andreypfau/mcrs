@@ -9,7 +9,7 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
@@ -442,6 +442,35 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
         }
     }
     assert!(parsed > 0, "the loader parses no registry");
+}
+
+#[test]
+fn the_local_light_tag_reaches_the_loaded_item_tags() {
+    let set = test_registries();
+    let items = set.registry::<keys::Item>().unwrap();
+    let tags = set.tags::<keys::Item>().unwrap();
+    let tag = tags
+        .get(&TagKey::<keys::Item, _>::from_location(
+            ResourceLocation::parse("mcrs:water_sensitive_light").unwrap(),
+        ))
+        .expect("the local light tag is loaded");
+    let members: Vec<&str> = tags
+        .members(tag)
+        .map(|id| items.key(id).unwrap().as_str())
+        .collect();
+    assert_eq!(
+        members,
+        [
+            "minecraft:torch",
+            "minecraft:soul_torch",
+            "minecraft:copper_torch",
+            "minecraft:redstone_torch",
+            "minecraft:campfire",
+            "minecraft:soul_campfire",
+            "minecraft:lava_bucket",
+            "minecraft:fire_charge",
+        ]
+    );
 }
 
 #[test]

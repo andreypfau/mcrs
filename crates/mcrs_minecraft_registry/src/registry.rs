@@ -13,10 +13,6 @@ pub enum RegistryError {
         registry: ResourceLocation<Arc<str>>,
         name: ResourceLocation<Arc<str>>,
     },
-    DuplicateTag {
-        registry: ResourceLocation<Arc<str>>,
-        tag: ResourceLocation<Arc<str>>,
-    },
     TooManyEntries {
         registry: ResourceLocation<Arc<str>>,
         len: usize,
@@ -36,9 +32,6 @@ impl fmt::Display for RegistryError {
         match self {
             RegistryError::DuplicateEntry { registry, name } => {
                 write!(f, "registry {registry} lists the entry {name} twice")
-            }
-            RegistryError::DuplicateTag { registry, tag } => {
-                write!(f, "registry {registry} lists the tag {tag} twice")
             }
             RegistryError::TooManyEntries { registry, len } => {
                 write!(
@@ -117,9 +110,8 @@ impl<R: RegistryKey> fmt::Debug for Registry<R> {
 impl<R: RegistryKey> Registry<R> {
     pub fn new(
         names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
-        tags: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
     ) -> Result<Self, RegistryError> {
-        let table = NameTable::new(R::KEY.into(), names, tags)?;
+        let table = NameTable::new(R::KEY.into(), names)?;
         Ok(Self::view(Arc::new(table)))
     }
 
@@ -155,10 +147,6 @@ impl<R: RegistryKey> Registry<R> {
             registry: R::KEY.into(),
             name: name.to_owned(),
         })
-    }
-
-    pub fn has_tag(&self, name: &str) -> bool {
-        self.table.has_tag(name)
     }
 
     pub fn ids(&self) -> impl Iterator<Item = Id<R>> {
@@ -197,7 +185,7 @@ mod tests {
     }
 
     fn registry(names: &[&str]) -> Registry<TestRegistry> {
-        Registry::new(names.iter().map(|text| name(text)), std::iter::empty()).unwrap()
+        Registry::new(names.iter().map(|text| name(text))).unwrap()
     }
 
     const UNSORTED: [&str; 3] = ["minecraft:plains", "minecraft:desert", "minecraft:forest"];
@@ -215,11 +203,8 @@ mod tests {
         }
     }
 
-    fn build(names: &[&str], tags: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
-        Registry::new(
-            names.iter().map(|text| name(text)),
-            tags.iter().map(|text| name(text)),
-        )
+    fn build(names: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
+        Registry::new(names.iter().map(|text| name(text)))
     }
 
     #[test]
@@ -239,7 +224,7 @@ mod tests {
 
     #[test]
     fn a_duplicate_name_does_not_build() {
-        let error = build(&["minecraft:a", "minecraft:b", "minecraft:a"], &[])
+        let error = build(&["minecraft:a", "minecraft:b", "minecraft:a"])
             .err()
             .unwrap();
         let message = error.to_string();
@@ -249,29 +234,6 @@ mod tests {
         );
         assert!(message.contains("minecraft:a"), "{message}");
         assert!(message.contains("minecraft:test_registry"), "{message}");
-    }
-
-    #[test]
-    fn a_duplicate_tag_does_not_build() {
-        let error = build(&["minecraft:a"], &["minecraft:t", "minecraft:t"])
-            .err()
-            .unwrap();
-        let message = error.to_string();
-        assert!(
-            matches!(error, RegistryError::DuplicateTag { .. }),
-            "{message}"
-        );
-        assert!(message.contains("minecraft:t"), "{message}");
-    }
-
-    #[test]
-    fn tag_names_and_entry_names_are_separate() {
-        let registry = build(&["minecraft:a"], &["minecraft:t", "minecraft:u"]).unwrap();
-        assert!(registry.has_tag("minecraft:t"));
-        assert!(registry.has_tag("minecraft:u"));
-        assert!(!registry.has_tag("minecraft:v"));
-        assert!(!registry.has_tag("minecraft:a"));
-        assert!(registry.get("minecraft:t").is_none());
     }
 
     #[test]
