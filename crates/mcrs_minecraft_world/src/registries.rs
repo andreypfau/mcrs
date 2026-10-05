@@ -240,6 +240,7 @@ async fn read_pack(
     Pack {
         name: name.to_owned(),
         files,
+        built: Vec::new(),
     }
 }
 

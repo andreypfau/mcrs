@@ -244,10 +244,12 @@ mod tests {
             Pack {
                 name: "vanilla".to_owned(),
                 files: vec![file("minecraft/test_variant/a.json")],
+                built: Vec::new(),
             },
             Pack {
                 name: "extra".to_owned(),
                 files: vec![file("minecraft/test_variant/b.json")],
+                built: Vec::new(),
             },
         ];
         let set = WorldRegistries::new([registry.clone()])

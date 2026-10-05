@@ -48,6 +48,7 @@ fn load_text(files: &[(&str, &str)]) -> String {
                 bytes: Some(json.as_bytes().to_vec()),
             })
             .collect(),
+        built: Vec::new(),
     }];
     WORLD
         .load(&STATICS, &packs)
@@ -1657,6 +1658,7 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
                 bytes: Some(json.clone().into_bytes()),
             })
             .collect(),
+        built: Vec::new(),
     });
     WORLD
         .load(&STATICS, &packs)
