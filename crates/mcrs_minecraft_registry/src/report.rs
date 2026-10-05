@@ -1,10 +1,12 @@
 use crate::id::Id;
 use crate::registry::{Registry, UnknownEntry};
 use crate::set::RegistrySet;
+use crate::tags::{TagId, Tags};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_core::tag_key::TagKey;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -101,6 +103,37 @@ impl LoadReport {
             );
         }
         registry
+    }
+
+    pub fn tags<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Tags<R>> {
+        let tags = set.tags::<R>();
+        if tags.is_none() {
+            self.record(
+                &ROOT.into(),
+                Some(R::KEY.as_str()),
+                None,
+                format!("tags of registry {} are absent from the loaded set", R::KEY),
+            );
+        }
+        tags
+    }
+
+    pub fn require_tag<R: RegistryKey, S: AsRef<str>>(
+        &mut self,
+        tags: &Tags<R>,
+        key: &TagKey<R, S>,
+    ) -> Option<TagId<R>> {
+        let found = tags.get(key);
+        if found.is_none() {
+            let name = format!("#{}", key.as_str());
+            self.record(
+                &R::KEY.into(),
+                Some(&name),
+                None,
+                format!("registry {} holds no tag named {}", R::KEY, key.as_str()),
+            );
+        }
+        found
     }
 
     pub fn invalid(error: impl fmt::Display) -> Self {
@@ -242,6 +275,31 @@ mod tests {
         let text = report.to_string();
         assert_eq!(text.lines().count(), 1, "{text}");
         assert!(text.starts_with("minecraft:alpha/One: "), "{text}");
+    }
+
+    #[test]
+    fn a_missing_tag_is_named_under_its_registry() {
+        let alpha = registry::<Alpha>(&["minecraft:one"]);
+        let tag = ResourceLocation::<Arc<str>>::read("minecraft:present").unwrap();
+        let tags = Tags::from_members(&alpha, vec![(tag, vec![])]);
+        let mut report = LoadReport::new();
+        assert!(
+            report
+                .require_tag(&tags, &TagKey::new(rl!("minecraft:present")))
+                .is_some()
+        );
+        assert!(report.is_empty());
+        assert!(
+            report
+                .require_tag(&tags, &TagKey::new(rl!("minecraft:absent")))
+                .is_none()
+        );
+        let text = report.to_string();
+        assert_eq!(text.lines().count(), 1, "{text}");
+        assert!(
+            text.starts_with("minecraft:alpha/#minecraft:absent: "),
+            "{text}"
+        );
     }
 
     #[test]

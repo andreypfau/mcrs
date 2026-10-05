@@ -477,11 +477,14 @@ fn entering_the_game_spawns_the_player_once_in_its_saved_dimension() {
 #[test]
 fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     use mcrs_minecraft_block::definition::Blocks;
+    use mcrs_minecraft_inventory::ShulkerBoxes;
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
-    use mcrs_minecraft_registry::shared::SharedRegistries;
+    use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
     use mcrs_minecraft_world::entity::minecraft::EntityIds;
     use mcrs_minecraft_worldgen::tables::WorldgenTables;
+    use mcrs_minecraft_worldgen_generator::SurfaceIds;
+    use mcrs_minecraft_worldgen_generator::ids::{FillIds, SurvivalIds};
     use std::any::type_name;
 
     let expected = [
@@ -493,6 +496,10 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Registry<Enchantment>>(),
         type_name::<Entries<Enchantment, EnchantmentData>>(),
         type_name::<WorldgenTables>(),
+        type_name::<Resolved<SurfaceIds>>(),
+        type_name::<Resolved<FillIds>>(),
+        type_name::<Resolved<SurvivalIds>>(),
+        type_name::<ShulkerBoxes>(),
     ];
 
     let mut app = crate::host_app::make_host_app();

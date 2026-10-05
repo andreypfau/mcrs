@@ -83,7 +83,6 @@ use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::DimensionEnvironment;
-use mcrs_minecraft_inventory::ShulkerBoxes;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
@@ -95,8 +94,10 @@ use mcrs_minecraft_level::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::shared::SharedRegistries;
+use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
+use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
+use mcrs_minecraft_worldgen_generator::ids::FillIds;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 
@@ -431,6 +432,8 @@ pub fn spawn_dim_subapp(
                 .resource::<RegistrySet>()
                 .tags::<Block>()
                 .expect("the data pack loader builds the block tags");
+            let surface_ids = sub_app.world().resource::<Resolved<SurfaceIds>>().clone();
+            let fill_ids = sub_app.world().resource::<Resolved<FillIds>>().clone();
             let features = registries
                 .features
                 .0
@@ -462,7 +465,9 @@ pub fn spawn_dim_subapp(
                     .0
                     .get(dimension)
                     .map(std::sync::Arc::clone),
-                Some(&block_tags),
+                &block_tags,
+                &surface_ids,
+                &fill_ids,
                 features,
                 registries.structures.0.get(dimension).cloned(),
             ));
@@ -493,10 +498,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin::default());
     sub_app.add_plugins(BlockUpdateWirePlugin);
-    sub_app.insert_resource(
-        ShulkerBoxes::new(sub_app.world().resource::<RegistrySet>())
-            .expect("the data pack loader builds the shulker box tags"),
-    );
     sub_app.add_plugins(crate::world::item::ItemPlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);

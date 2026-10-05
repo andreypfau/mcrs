@@ -101,3 +101,13 @@ Notes on rows that depart from the plain reading of the table:
 - **Strings that stand for a registry.** The type of a test instance, the type of a test environment, the function and the environment of a test instance, and the type of a loot table are strings in the tree. They are references by untyped name and have rows.
 - **The dialog.** The dialog value is a raw JSON map in the tree, so the registries its entries would name (`dialog_type`, `dialog_body_type`, `dialog_action_type`, `input_control_type`) are named by no field and have no row until the dialog is typed. The inline dialog of a click event is an opaque compound for the same reason.
 - **The parameter list.** The climate parameter list of the multi-noise biome source is a generic container in the biome crate, instantiated with names; it is not the value of one registry.
+
+## Names
+
+The rules below say how code names an entry of a registry and how it looks one up. They are listed in the order a reader applies them.
+
+1. A type is imported under the name it is declared with, so `use mcrs_minecraft_keys::Block` and never an alias such as `Block as VanillaBlock`.
+2. `get`, `require`, `name(id)` and indexing take only a key or an id of the same registry or set: `biomes.require(&keys::biome::PLAINS)` compiles, and the same key against the block registry does not.
+3. `by_name` and `require_by_name` read a name that is data, such as the world preset name an operator supplies or a name in a data pack file, and never a name written in code.
+4. The entries and tags of a loaded registry that code names are resolved once after the load, by a resolver the crate registers in its plugin, into one `<Consumer>Ids` value per consumer such as `SurfaceIds`, which every dimension shares; a consumer that names nothing loaded has no such value, and nothing is resolved when a dimension spawns.
+5. A value type that names its registry takes the registry's name when its file is rewritten, as `WolfVariant` holds the values of the `wolf_variant` registry.

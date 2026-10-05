@@ -9,12 +9,12 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_keys::fluid_tags::WATER;
 use mcrs_minecraft_keys::{Fluid, Item};
-use mcrs_minecraft_registry::{BlockStateId, Id, RegistrySet, TagId, Tags};
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport, RegistrySet, TagId};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -23,6 +23,28 @@ use crate::colors::{LightColors, LightType};
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
 pub const WATER_SENSITIVE: TagKey<Item, &'static str> =
     TagKey::new(rl!("mcrs:water_sensitive_light"));
+
+pub struct LightColorIds {
+    pub water_sensitive: TagId<Item>,
+    pub water: TagId<Fluid>,
+}
+
+impl LightColorIds {
+    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
+        let items = report.tags::<Item>(set);
+        let fluids = report.tags::<Fluid>(set);
+        let water_sensitive = items
+            .as_ref()
+            .and_then(|tags| report.require_tag(tags, &WATER_SENSITIVE));
+        let water = fluids
+            .as_ref()
+            .and_then(|tags| report.require_tag(tags, &WATER));
+        Some(Resolved::new(Self {
+            water_sensitive: water_sensitive?,
+            water: water?,
+        }))
+    }
+}
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -112,8 +134,6 @@ pub enum ItemLightError {
     NoEmittingState { path: String, item: String },
     #[error("items that place a light-emitting block have no mapping: {}", items.join(", "))]
     Missing { items: Vec<String> },
-    #[error("the tag `#{tag}` does not exist")]
-    MissingTag { tag: String },
 }
 
 impl ItemLights {
@@ -122,12 +142,13 @@ impl ItemLights {
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
         registries: &RegistrySet,
+        ids: &LightColorIds,
     ) -> Result<Self, ItemLightError> {
         let source = asset_server
             .get_source(AssetSourceId::Default)
             .map_err(|_| ItemLightError::NoAssetSource)?;
         let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-        Self::from_files(files, blocks, items, registries)
+        Self::from_files(files, blocks, items, registries, ids)
     }
 
     pub fn from_files(
@@ -135,6 +156,7 @@ impl ItemLights {
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
         registries: &RegistrySet,
+        ids: &LightColorIds,
     ) -> Result<Self, ItemLightError> {
         let mut mapped: Vec<Option<BlockStateId>> = vec![None; items.len()];
         let mut mapped_in: Vec<Option<String>> = vec![None; items.len()];
@@ -188,8 +210,7 @@ impl ItemLights {
         let fluids = registries
             .registry::<Fluid>()
             .expect("the loaded registries hold the fluid registry");
-        let water_sensitive = tag_of(&item_tags, &WATER_SENSITIVE)?;
-        let water = tag_of(&fluid_tags, &WATER)?;
+        let (water_sensitive, water) = (ids.water_sensitive, ids.water);
         Ok(ItemLights {
             mapped: mapped.into(),
             water_sensitive: items
@@ -244,15 +265,6 @@ impl ItemLights {
                 .fluid
                 .is_some_and(|f| self.water.get(f.fluid.index()) == Some(&true))
     }
-}
-
-fn tag_of<T: RegistryKey>(
-    tags: &Tags<T>,
-    tag: &TagKey<T, &'static str>,
-) -> Result<TagId<T>, ItemLightError> {
-    tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
-        tag: tag.as_str().to_owned(),
-    })
 }
 
 fn resolve(

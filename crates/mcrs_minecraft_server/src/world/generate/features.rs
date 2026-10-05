@@ -11,6 +11,7 @@ use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
@@ -20,6 +21,7 @@ use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
+use mcrs_minecraft_worldgen_generator::ids::SurvivalIds;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -87,6 +89,7 @@ fn build_dimension_features(
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
+    survival: Res<Resolved<SurvivalIds>>,
 ) {
     let Some(sources) = sources else { return };
 
@@ -220,6 +223,7 @@ fn build_dimension_features(
                 .as_ref()
                 .and_then(|structures| structures.0.get(dimension))
                 .map(|tables| &*tables.frozen),
+            survival.clone(),
         )
         .unwrap_or_else(|error| {
             panic!("{dimension}: the feature program does not resolve: {error}")

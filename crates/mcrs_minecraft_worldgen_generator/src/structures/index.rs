@@ -1,4 +1,6 @@
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Id, LoadReport, Registry};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -56,13 +58,19 @@ pub struct EndBiomes {
 }
 
 impl EndBiomes {
-    pub fn resolve(mut id_of: impl FnMut(&str) -> Option<u16>) -> Option<Self> {
+    pub fn resolve(biomes: &Registry<keys::Biome>, report: &mut LoadReport) -> Option<Self> {
+        let mut id_of = |key| report.require(biomes, &key).map(Id::number);
+        let end = id_of(keys::biome::THE_END);
+        let highlands = id_of(keys::biome::END_HIGHLANDS);
+        let midlands = id_of(keys::biome::END_MIDLANDS);
+        let islands = id_of(keys::biome::SMALL_END_ISLANDS);
+        let barrens = id_of(keys::biome::END_BARRENS);
         Some(EndBiomes {
-            end: id_of("minecraft:the_end")?,
-            highlands: id_of("minecraft:end_highlands")?,
-            midlands: id_of("minecraft:end_midlands")?,
-            islands: id_of("minecraft:small_end_islands")?,
-            barrens: id_of("minecraft:end_barrens")?,
+            end: end?,
+            highlands: highlands?,
+            midlands: midlands?,
+            islands: islands?,
+            barrens: barrens?,
         })
     }
 

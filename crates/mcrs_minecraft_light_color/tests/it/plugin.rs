@@ -4,6 +4,7 @@ use bevy_asset::AssetPlugin;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::ItemLights;
 use mcrs_minecraft_light_color::plugin::LightColorPlugin;
+use mcrs_minecraft_world::resolvers::run_resolvers;
 
 #[test]
 fn the_colour_table_and_item_lights_are_resources_after_the_first_update() {
@@ -19,6 +20,8 @@ fn the_colour_table_and_item_lights_are_resources_after_the_first_update() {
     app.insert_resource(corpus::items().clone());
     app.insert_resource(corpus::registries().clone());
     app.add_plugins(LightColorPlugin);
+    run_resolvers(app.world_mut(), corpus::registries())
+        .unwrap_or_else(|report| panic!("{report}"));
     app.update();
     let colors = app
         .world()

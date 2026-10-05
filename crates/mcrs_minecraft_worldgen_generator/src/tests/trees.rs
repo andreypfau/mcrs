@@ -15,7 +15,7 @@ use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
-use crate::SurfaceIds;
+use crate::SurfaceStates;
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;
 use crate::heightmap::heightmap_predicates;
@@ -40,8 +40,8 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
     ("minecraft:taiga", "minecraft:trees_taiga"),
 ];
 
-/// The names `SurfaceIds::resolve` asks the registry for, which it panics
-/// without, plus the three the tests decorate in.
+/// The names `SurfaceIds::resolve` asks the registry for, which it refuses
+/// to resolve without, plus the three the tests decorate in.
 pub(super) fn biome_registry() -> Registry<keys::Biome> {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
@@ -165,7 +165,10 @@ pub(super) fn dimension_with(
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
                 multi_noise: None,
-                surface: Some(Arc::new(SurfaceIds::resolve(&blocks().0, &registry))),
+                surface: Some((
+                    crate::tests::surface_ids_over(&registry),
+                    SurfaceStates::new(&blocks().0),
+                )),
                 carver_blocks: Arc::new(ModernCarverBlockIds::for_test(Vec::new())),
             },
             carvers: None,

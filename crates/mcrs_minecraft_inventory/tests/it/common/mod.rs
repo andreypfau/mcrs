@@ -23,7 +23,8 @@ pub fn world() -> World {
 }
 
 pub fn item_tags() -> ShulkerBoxes {
-    ShulkerBoxes::new(test_registries()).expect("the loaded registries hold the shulker box tags")
+    let mut report = mcrs_minecraft_registry::LoadReport::new();
+    ShulkerBoxes::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
 }
 
 pub fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {

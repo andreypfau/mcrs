@@ -6,14 +6,17 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_world::resolvers::AddRegistryResolver;
 
 use crate::colors::{LightColors, LightType};
-use crate::item::ItemLights;
+use crate::item::{ItemLights, LightColorIds};
 
 pub struct LightColorPlugin;
 
 impl Plugin for LightColorPlugin {
     fn build(&self, app: &mut App) {
+        app.add_registry_resolver(LightColorIds::resolve);
         app.add_systems(Startup, (insert_light_colors, insert_item_lights));
     }
 }
@@ -45,8 +48,9 @@ fn insert_item_lights(
     blocks: Res<Blocks>,
     items: Res<Items>,
     registries: Res<RegistrySet>,
+    ids: Res<Resolved<LightColorIds>>,
 ) {
-    let lights = ItemLights::load(&asset_server, &blocks, &items, &registries)
+    let lights = ItemLights::load(&asset_server, &blocks, &items, &registries, &ids)
         .unwrap_or_else(|e| panic!("{e}"));
     tracing::info!(items = lights.mapped_count(), "loaded item lights");
     commands.insert_resource(lights);

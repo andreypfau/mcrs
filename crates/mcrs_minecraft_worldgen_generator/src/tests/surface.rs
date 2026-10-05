@@ -4,7 +4,7 @@ use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::surface::{Visit, descend_strip, set_block};
 use crate::task::CancellationToken;
 use crate::{
-    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    ColumnBlocks, NO_TOP, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
     multi_noise_grid, multi_noise_palettes, spans_dimension,
 };
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
@@ -197,8 +197,14 @@ pub fn overworld_material_router(
     .expect("the overworld material rule compiles")
 }
 
-fn surface_ids(ids: &HashMap<String, u16>) -> SurfaceIds {
-    SurfaceIds::resolve(&super::blocks().0, &registry_of(ids))
+fn surface_ids(
+    ids: &HashMap<String, u16>,
+) -> mcrs_minecraft_registry::shared::Resolved<SurfaceIds> {
+    super::surface_ids_over(&registry_of(ids))
+}
+
+fn surface_states() -> SurfaceStates {
+    SurfaceStates::new(&super::blocks().0)
 }
 
 /// Fill one column and run the surface pass over it, returning the blocks.
@@ -240,6 +246,7 @@ pub(super) fn surfaced_column(
         router,
         material,
         &surface_ids(ids),
+        &surface_states(),
         &mut scratch,
         None,
     );
@@ -389,6 +396,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             &router,
             &material,
             &surface_ids(&ids),
+            &surface_states(),
             &mut MaterialScratch::default(),
             Some(&mut TerrainCarving::new(
                 &mask,
@@ -546,7 +554,10 @@ pub fn fill_context(
     use mcrs_minecraft_biome::source::BiomeSource;
 
     use super::blocks;
-    let surface = std::sync::Arc::new(SurfaceIds::resolve(&blocks().0, &registry));
+    let surface = (
+        super::surface_ids_over(&registry),
+        SurfaceStates::new(&blocks().0),
+    );
     let multi_noise = match &source {
         BiomeSource::MultiNoise(multi) => Some(std::sync::Arc::new(
             MultiNoiseBiomeTable::resolve(multi, &registry, &crate::tests::parameter_lists().1)
@@ -695,6 +706,7 @@ fn surfaced_column_fixed(
         router,
         material,
         &surface_ids(ids),
+        &surface_states(),
         &mut scratch,
         None,
     );

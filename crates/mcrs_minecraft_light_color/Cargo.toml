@@ -22,6 +22,7 @@ mcrs_minecraft_assets = { workspace = true, optional = true }
 mcrs_minecraft_registry = { workspace = true, optional = true }
 mcrs_minecraft_keys = { workspace = true, optional = true }
 mcrs_minecraft_item = { workspace = true, features = ["bevy"], optional = true }
+mcrs_minecraft_world = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [features]
@@ -35,6 +36,7 @@ bevy = [
     "dep:mcrs_minecraft_registry",
     "dep:mcrs_minecraft_keys",
     "dep:mcrs_minecraft_item",
+    "dep:mcrs_minecraft_world",
     "dep:serde_json",
 ]
 
@@ -43,7 +45,6 @@ bevy_math.workspace = true
 proptest = "1.11.0"
 serde_json.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true

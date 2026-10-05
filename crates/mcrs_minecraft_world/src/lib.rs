@@ -15,6 +15,7 @@ pub mod enchantment_provider;
 pub mod entity;
 pub mod item;
 pub mod registries;
+pub mod resolvers;
 // The save on disk is native-only; the browser receives world state over the network.
 #[cfg(not(target_family = "wasm"))]
 pub mod save;
@@ -149,6 +150,8 @@ impl Plugin for MinecraftWorldPlugin {
                 elapsed = ?started.elapsed(),
                 "loaded registries"
             );
+            resolvers::run_resolvers(app.world_mut(), &registries)
+                .unwrap_or_else(|report| registries::refuse(&report));
             let entity_types = registries
                 .registry::<EntityType>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:entity_type registry", path.display()));

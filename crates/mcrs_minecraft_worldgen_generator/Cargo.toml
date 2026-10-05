@@ -8,7 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-bevy_app = { workspace = true, optional = true }
+bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
@@ -25,6 +25,7 @@ mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
@@ -45,7 +46,6 @@ tracing.workspace = true
 [dev-dependencies]
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 base64.workspace = true
-bevy_app.workspace = true
 bytes.workspace = true
 criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
@@ -55,7 +55,7 @@ serde_json.workspace = true
 
 [features]
 # The helpers the generation tests share, for the tests of the crates that drive the pipeline.
-test-support = ["dep:bevy_app", "dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_registry/test-support", "mcrs_minecraft_worldgen_feature/test-support"]
+test-support = ["dep:bytes", "dep:mcrs_minecraft_worldgen_testing", "dep:serde_json", "mcrs_minecraft_registry/test-support", "mcrs_minecraft_worldgen_feature/test-support"]
 telemetry-tracy = []
 
 [[bench]]

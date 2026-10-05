@@ -21,7 +21,7 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
-    ColumnBlocks, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    ColumnBlocks, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
 };
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::{
@@ -129,19 +129,28 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
     .expect("the overworld compiles")
 }
 
-fn surface_ids(biomes: &Registry<keys::Biome>) -> SurfaceIds {
+struct Ids {
+    surface: SurfaceIds,
+    states: SurfaceStates,
+}
+
+fn surface_ids(biomes: &Registry<keys::Biome>) -> Ids {
     let id = |name: &str| {
         biomes
             .require_by_name(&format!("minecraft:{name}"))
             .unwrap()
     };
-    SurfaceIds {
-        eroded_badlands: id("eroded_badlands"),
-        frozen_ocean: id("frozen_ocean"),
-        deep_frozen_ocean: id("deep_frozen_ocean"),
-        snow_block: corpus().default_state("minecraft:snow_block").into(),
-        packed_ice: corpus().default_state("minecraft:packed_ice").into(),
-        dirt: corpus().default_state("minecraft:dirt").into(),
+    Ids {
+        surface: SurfaceIds {
+            eroded_badlands: id("eroded_badlands"),
+            frozen_ocean: id("frozen_ocean"),
+            deep_frozen_ocean: id("deep_frozen_ocean"),
+        },
+        states: SurfaceStates {
+            snow_block: corpus().default_state("minecraft:snow_block").into(),
+            packed_ice: corpus().default_state("minecraft:packed_ice").into(),
+            dirt: corpus().default_state("minecraft:dirt").into(),
+        },
     }
 }
 
@@ -217,7 +226,7 @@ fn main() {
 fn run_pinned(
     router: &NoiseRouter,
     material: &MaterialProgram,
-    ids: &SurfaceIds,
+    ids: &Ids,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
@@ -253,7 +262,8 @@ fn run_pinned(
                 y_sections[0],
                 router,
                 material,
-                ids,
+                &ids.surface,
+                &ids.states,
                 scratch,
                 None,
             );
@@ -268,7 +278,7 @@ fn matrix(
     router: &NoiseRouter,
     material: &MaterialProgram,
     names: &[String],
-    ids: &SurfaceIds,
+    ids: &Ids,
     registry: &Registry<keys::Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
@@ -351,7 +361,7 @@ fn natural(
     router: &NoiseRouter,
     material: &MaterialProgram,
     names: &[String],
-    ids: &SurfaceIds,
+    ids: &Ids,
     registry: &Registry<keys::Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
@@ -419,7 +429,8 @@ fn natural(
                 y_sections[0],
                 router,
                 material,
-                ids,
+                &ids.surface,
+                &ids.states,
                 &mut scratch,
                 None,
             );
@@ -449,7 +460,8 @@ fn natural(
                 y_sections[0],
                 router,
                 material,
-                ids,
+                &ids.surface,
+                &ids.states,
                 &mut scratch,
                 None,
             );

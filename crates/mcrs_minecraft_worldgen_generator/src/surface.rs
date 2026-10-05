@@ -4,11 +4,11 @@ use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
@@ -16,30 +16,41 @@ use mcrs_minecraft_worldgen_surface::{
     MaterialEval, MaterialScratch, NO_WATER, SettledState, SurfaceNoise,
 };
 
-/// The blocks and biomes the two hardcoded landforms name, which no rule does.
+/// The biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
     pub eroded_badlands: Id<keys::Biome>,
     pub frozen_ocean: Id<keys::Biome>,
     pub deep_frozen_ocean: Id<keys::Biome>,
+}
+
+impl SurfaceIds {
+    pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
+        let biomes = report.registry::<keys::Biome>(set)?;
+        let eroded_badlands = report.require(&biomes, &keys::biome::ERODED_BADLANDS);
+        let frozen_ocean = report.require(&biomes, &keys::biome::FROZEN_OCEAN);
+        let deep_frozen_ocean = report.require(&biomes, &keys::biome::DEEP_FROZEN_OCEAN);
+        Some(Resolved::new(Self {
+            eroded_badlands: eroded_badlands?,
+            frozen_ocean: frozen_ocean?,
+            deep_frozen_ocean: deep_frozen_ocean?,
+        }))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct SurfaceStates {
     pub snow_block: VoxelId,
     pub packed_ice: VoxelId,
     pub dirt: VoxelId,
 }
 
-impl SurfaceIds {
-    pub fn resolve(blocks: &BlockDefinitions, biomes: &Registry<keys::Biome>) -> Self {
-        let biome = |key: ResourceKey<keys::Biome, &'static str>| {
-            biomes.require(&key).unwrap_or_else(|error| {
-                panic!("the surface stage names a biome the registry does not hold: {error}")
-            })
-        };
+impl SurfaceStates {
+    pub fn new(blocks: &BlockDefinitions) -> Self {
+        let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).into() };
         Self {
-            eroded_badlands: biome(keys::biome::ERODED_BADLANDS),
-            frozen_ocean: biome(keys::biome::FROZEN_OCEAN),
-            deep_frozen_ocean: biome(keys::biome::DEEP_FROZEN_OCEAN),
-            snow_block: blocks.default_state_of(keys::block::SNOW_BLOCK).into(),
-            packed_ice: blocks.default_state_of(keys::block::PACKED_ICE).into(),
-            dirt: blocks.default_state_of(keys::block::DIRT).into(),
+            snow_block: state(keys::block::SNOW_BLOCK),
+            packed_ice: state(keys::block::PACKED_ICE),
+            dirt: state(keys::block::DIRT),
         }
     }
 }
@@ -83,6 +94,7 @@ pub fn apply_material_surface(
     router: &NoiseRouter,
     program: &MaterialProgram,
     ids: &SurfaceIds,
+    states: &SurfaceStates,
     scratch: &mut MaterialScratch,
     mut carving: Option<&mut TerrainCarving<'_, '_>>,
 ) {
@@ -208,7 +220,7 @@ pub fn apply_material_surface(
                         // Carving the top of a run away bares the block under
                         // it, which is surfaced again as if it were the top.
                         if carved_top {
-                            if state == Some(ids.dirt) {
+                            if state == Some(states.dirt) {
                                 eval.update_y(1, depth_below, water_level, y);
                                 state = eval.apply();
                             }
@@ -240,7 +252,7 @@ pub fn apply_material_surface(
                     starting_height,
                     sea_level,
                     fluid,
-                    ids,
+                    states,
                     carving.as_deref(),
                 );
             }
@@ -436,7 +448,7 @@ fn frozen_ocean(
     height: i32,
     sea_level: i32,
     fluid: VoxelId,
-    ids: &SurfaceIds,
+    states: &SurfaceStates,
     carving: Option<&TerrainCarving<'_, '_>>,
 ) {
     let air = VoxelId::default();
@@ -475,10 +487,10 @@ fn frozen_ocean(
             || old == fluid && y > bottom as i32 && y < sea_level && random.next_f64() > 0.15
         {
             if snow_depth <= max_snow_depth && y > min_snow_height {
-                set_block(tops, y, ids.snow_block);
+                set_block(tops, y, states.snow_block);
                 snow_depth += 1;
             } else {
-                set_block(tops, y, ids.packed_ice);
+                set_block(tops, y, states.packed_ice);
             }
         }
     }

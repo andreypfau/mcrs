@@ -11,6 +11,7 @@ use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_world::entity::minecraft::EntityIds;
 use mcrs_minecraft_world::item::{test_corpus, test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::{share_registries, static_registries, test_registries};
+use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen::tables::WorldgenTables;
 
 /// A dimension sub-app is handed the real corpus at spawn, and worldgen
@@ -37,6 +38,11 @@ pub fn insert_registries(app: &mut App) {
     app.insert_resource(test_enchantments());
     app.insert_resource(WorldgenTables::default());
     share_registries(app.world_mut());
+    app.add_plugins((
+        mcrs_minecraft_worldgen_generator::ids::GeneratorIdsPlugin,
+        mcrs_minecraft_inventory::InventoryIdsPlugin,
+    ));
+    run_resolvers(app.world_mut(), test_registries()).unwrap_or_else(|report| panic!("{report}"));
 }
 
 fn registries() -> &'static (RegistrySet, EntityIds) {

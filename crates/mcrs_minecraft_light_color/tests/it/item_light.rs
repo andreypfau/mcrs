@@ -4,10 +4,11 @@ use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{
-    ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
+    ItemLight, ItemLightError, ItemLightFile, ItemLights, LightColorIds, WATER_SENSITIVE,
 };
+use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
-use mcrs_minecraft_registry::{BlockStateId, Id};
+use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
@@ -20,10 +21,18 @@ fn colours() -> &'static LightColors {
     })
 }
 
+fn ids() -> &'static Resolved<LightColorIds> {
+    static IDS: OnceLock<Resolved<LightColorIds>> = OnceLock::new();
+    IDS.get_or_init(|| {
+        let mut report = LoadReport::new();
+        LightColorIds::resolve(registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
+    })
+}
+
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), registries())
+        ItemLights::load(asset_server(), blocks(), items(), registries(), ids())
             .unwrap_or_else(|e| panic!("{e}"))
     })
 }
@@ -210,7 +219,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items(), registries())
+    ItemLights::from_files(files, blocks(), items(), registries(), ids())
 }
 
 fn an_item_in_two_files_fails() {
@@ -268,10 +277,13 @@ fn a_missing_water_tag_fails() {
     let (no_tags, problems) = build_tags(item_names, TagRules::World, &[], None);
     assert!(problems.is_empty(), "{problems:?}");
     let without = registries().clone().with_tags(std::sync::Arc::new(no_tags));
-    let error = ItemLights::from_files(shipped_files(), blocks(), items(), &without).unwrap_err();
+    let mut report = LoadReport::new();
+    assert!(LightColorIds::resolve(&without, &mut report).is_none());
+    let text = report.to_string();
     assert!(
-        matches!(&error, ItemLightError::MissingTag { tag } if tag == "mcrs:water_sensitive_light"),
-        "{error}"
+        text.lines()
+            .any(|line| { line.starts_with("minecraft:item/#mcrs:water_sensitive_light: ") }),
+        "{text}"
     );
 }
 

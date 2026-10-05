@@ -15,7 +15,8 @@ use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::{Id, Registry, Tags};
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -34,6 +35,7 @@ use crate::heightmap::{
     ColumnHeightmapSet, HeightmapPredicates, TerrainHeightmaps, build_column_heightmaps,
     build_terrain_heightmaps,
 };
+use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
 };
@@ -42,12 +44,13 @@ use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
 };
-use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
+use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
-    BetaCaveBlockIds, ColumnBlocks, SurfaceIds, apply_beta_carvers, apply_beta_surface,
-    apply_material_surface, beta_surface_rng, fill_column_dense_any, spans_dimension,
+    BetaCaveBlockIds, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
+    apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
+    spans_dimension,
 };
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
@@ -87,7 +90,7 @@ pub enum ColumnGenerator {
     Beta(Arc<BetaCaveBlockIds>),
     Modern {
         multi_noise: Option<Arc<MultiNoiseBiomeTable>>,
-        surface: Option<Arc<SurfaceIds>>,
+        surface: Option<(Resolved<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
 }
@@ -121,7 +124,9 @@ impl FillContext {
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
-        block_tags: Option<&Tags<Block>>,
+        block_tags: &Tags<Block>,
+        surface_ids: &Resolved<SurfaceIds>,
+        fill_ids: &Resolved<FillIds>,
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
@@ -140,12 +145,9 @@ impl FillContext {
         let structures = structures.map(|tables| {
             let biome_lookup = match (&multi_noise, &biome) {
                 (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
-                (None, Some((source, registry))) => match source.as_ref() {
+                (None, Some((source, _))) => match source.as_ref() {
                     BiomeSource::Fixed { biome } => BiomeLookup::Fixed(biome.number()),
-                    BiomeSource::TheEnd => {
-                        EndBiomes::resolve(|name| registry.by_name(name).map(Id::number))
-                            .map_or(BiomeLookup::None, BiomeLookup::TheEnd)
-                    }
+                    BiomeSource::TheEnd => BiomeLookup::TheEnd(fill_ids.end),
                     _ => BiomeLookup::None,
                 },
                 (None, None) => BiomeLookup::None,
@@ -181,8 +183,11 @@ impl FillContext {
                 multi_noise,
                 surface: biome
                     .as_ref()
-                    .map(|(_, registry)| Arc::new(SurfaceIds::resolve(&blocks, registry))),
-                carver_blocks: Arc::new(ModernCarverBlockIds::resolve(&blocks, block_tags)),
+                    .map(|_| (surface_ids.clone(), SurfaceStates::new(&blocks))),
+                carver_blocks: Arc::new(ModernCarverBlockIds::resolve(
+                    &blocks,
+                    block_tags.members(fill_ids.uncarvable),
+                )),
             },
         };
         let program = ColumnProgram {
@@ -366,7 +371,7 @@ pub fn fill_column(
                 TerrainCarving::new(mask, carver_blocks, &mut filled.fluid, router, col.x, col.z)
             });
             let surfaced = match (surface, ctx.material.as_deref()) {
-                (Some(ids), Some(material)) if filled.material_surface => {
+                (Some((ids, states)), Some(material)) if filled.material_surface => {
                     thread_local! {
                         static MATERIAL: RefCell<MaterialScratch> = RefCell::new(MaterialScratch::default());
                     }
@@ -385,6 +390,7 @@ pub fn fill_column(
                             router,
                             material,
                             ids,
+                            states,
                             scratch,
                             carving.as_mut(),
                         );
