@@ -13,6 +13,7 @@ use mcrs_minecraft_core::ColumnPos;
 #[cfg(feature = "dev")]
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_network::client::ReceivedRegistries;
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::atlas::SpriteArray;
 use crate::blocks::{self, Catalog};
@@ -919,6 +920,7 @@ impl BlockCatalog {
         &mut self,
         pack: &Arc<Pack>,
         definitions: &Blocks,
+        loaded: &RegistrySet,
         pool: &'static AsyncComputeTaskPool,
     ) {
         let Some(mut catalog) = self.catalog.take() else {
@@ -929,11 +931,12 @@ impl BlockCatalog {
         let known = self.sprites;
         let sent = self.sent.clone();
         let definitions = definitions.clone();
+        let loaded = loaded.clone();
         let pack = pack.clone();
         let bake_items_too = !self.items_baked;
         self.items_baked = true;
         self.baking = Some(pool.spawn(async move {
-            blocks::extend(&pack, &mut catalog, &definitions, &states, &biomes);
+            blocks::extend(&pack, &mut catalog, &definitions, &states, &loaded, &biomes);
             let items = bake_items_too.then(|| {
                 let started = std::time::Instant::now();
                 let items = bake_items(&pack, &mut catalog.sprites)
@@ -1361,6 +1364,7 @@ fn bake_catalog(
     uploads: Res<Uploads>,
     assets: Res<AssetServer>,
     definitions: Res<Blocks>,
+    loaded: Res<RegistrySet>,
     registries: Query<&ReceivedRegistries>,
     mut commands: Commands,
 ) {
@@ -1382,7 +1386,7 @@ fn bake_catalog(
         && (!catalog.to_bake.is_empty() || !catalog.items_baked)
         && !catalog.biomes.is_empty()
     {
-        catalog.start_baking(&pack, &definitions, AsyncComputeTaskPool::get());
+        catalog.start_baking(&pack, &definitions, &loaded, AsyncComputeTaskPool::get());
     }
 }
 
