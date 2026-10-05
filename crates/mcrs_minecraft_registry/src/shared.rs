@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::Tick;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use std::any::{TypeId, type_name};
@@ -29,6 +30,7 @@ struct Entry {
     type_name: &'static str,
     copy: fn(&World, &mut World) -> Result<(), MissingShared>,
     shares: fn(&World, &World) -> Option<bool>,
+    changed_since: fn(&World, Tick) -> Option<bool>,
 }
 
 #[derive(Resource, Default)]
@@ -47,6 +49,13 @@ impl SharedRegistries {
         self.entries
             .iter()
             .map(|entry| (entry.type_name, (entry.shares)(host, dim)))
+            .collect()
+    }
+
+    pub fn changed_since(&self, dim: &World, since: Tick) -> Vec<(&'static str, Option<bool>)> {
+        self.entries
+            .iter()
+            .map(|entry| (entry.type_name, (entry.changed_since)(dim, since)))
             .collect()
     }
 }
@@ -72,6 +81,12 @@ pub fn share<T: SharedResource>(world: &mut World) {
             Some(
                 host.get_resource::<T>()?
                     .shares_with(dim.get_resource::<T>()?),
+            )
+        },
+        changed_since: |dim, since| {
+            Some(
+                dim.get_resource_change_ticks::<T>()?
+                    .is_changed(since, dim.read_change_tick()),
             )
         },
     });
@@ -101,6 +116,22 @@ mod tests {
             .copy_into(&host, &mut dim)
             .unwrap_err();
         assert!(error.to_string().contains("Table"), "{error}");
+    }
+
+    #[test]
+    fn a_shared_resource_written_after_a_tick_reports_changed_since_it() {
+        let mut host = World::new();
+        host.insert_resource(Table(Arc::new(vec![1])));
+        share::<Table>(&mut host);
+        let mut dim = World::new();
+        host.resource::<SharedRegistries>()
+            .copy_into(&host, &mut dim)
+            .unwrap();
+        let since = dim.increment_change_tick();
+        let shared = host.resource::<SharedRegistries>();
+        assert_eq!(shared.changed_since(&dim, since)[0].1, Some(false));
+        dim.resource_mut::<Table>().0 = Arc::new(vec![2]);
+        assert_eq!(shared.changed_since(&dim, since)[0].1, Some(true));
     }
 
     #[test]

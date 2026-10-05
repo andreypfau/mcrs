@@ -828,6 +828,29 @@ directory as the world folder panicked for want of saved world generation settin
 without `BEVY_ASSET_ROOT` (three from another directory, three from the repository root)
 panicked for want of `version.json` beside the executable.
 
+### World registries on the loader
+
+The same scenario on the tree where the world registries are carried by the registry loader and
+every dimension world holds the host's registries by shared `Arc`. The load average is the
+1, 5 and 15 minute reading taken as the run started.
+
+| run | load average | start to Playing | loader duration | registries | entries |
+|---|---|---|---|---|---|
+| 1 | 77.0, 45.2, 30.3 | 2.178 s | 71.6 ms | 147 | 9079 |
+| 2 | 71.3, 44.5, 30.2 | 0.771 s | 39.8 ms | 147 | 9079 |
+| 3 | 71.3, 44.5, 30.2 | 0.768 s | 40.5 ms | 147 | 9079 |
+| median | | 0.771 s | 40.5 ms | 147 | 9079 |
+
+The spread of the start time is 1409.4 ms over the three runs, 2.5 ms over the last two; the
+first run read the binary and the data pack cold. Every load was far above 4 on the machine's 16
+cores, so all of these figures are upper bounds. Against the table above the median start time
+is unchanged (0.769 s then, 0.771 s now), the entry count is unchanged, and the loader's median
+duration reads 40.5 ms where it read 29.1 ms; the earlier table was taken at a load of 48 and
+this one at 71, so the difference cannot be told from the load and is not called a regression.
+
+This is the baseline the work that moves the worldgen registries onto the loader compares
+against.
+
 ## Keys crate
 
 Scenario: `mcrs_minecraft_keys`, the checked-in crate of generated registry markers, static ids and
