@@ -140,7 +140,7 @@ impl Assembly<'_> {
     }
 
     fn pool_is_usable(&self, pool: PoolId) -> bool {
-        let pool = &self.frozen.pools[pool.0 as usize];
+        let pool = &self.frozen.pools[usize::from(pool.0)];
         !pool.expanded.is_empty() || pool.id.as_str() == EMPTY_POOL
     }
 
@@ -167,9 +167,9 @@ impl Assembly<'_> {
                 let Some(pool) = self.pool(&jigsaw.block.pool) else {
                     return 0;
                 };
-                let pool = &self.frozen.pools[pool.0 as usize];
+                let pool = &self.frozen.pools[usize::from(pool.0)];
                 pool.max_size
-                    .max(self.frozen.pools[pool.fallback.0 as usize].max_size)
+                    .max(self.frozen.pools[usize::from(pool.fallback.0)].max_size)
             })
             .max()
             .unwrap_or(0)
@@ -210,7 +210,7 @@ impl Assembly<'_> {
             if !self.pool_is_usable(pool) {
                 continue;
             }
-            let fallback = frozen.pools[pool.0 as usize].fallback;
+            let fallback = frozen.pools[usize::from(pool.0)].fallback;
             if !self.pool_is_usable(fallback) {
                 continue;
             }
@@ -229,12 +229,12 @@ impl Assembly<'_> {
             let mut candidates = Vec::new();
             if depth != size {
                 candidates.extend(shuffled(
-                    &frozen.pools[pool.0 as usize].expanded,
+                    &frozen.pools[usize::from(pool.0)].expanded,
                     &mut self.rng,
                 ));
             }
             candidates.extend(shuffled(
-                &frozen.pools[fallback.0 as usize].expanded,
+                &frozen.pools[usize::from(fallback.0)].expanded,
                 &mut self.rng,
             ));
             let placement_priority = source_jigsaw.block.placement_priority;

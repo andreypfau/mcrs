@@ -83,10 +83,9 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
-    let index: BTreeMap<&str, u32> = names
-        .iter()
-        .enumerate()
-        .map(|(i, n)| (n.as_str(), i as u32))
+    let index: BTreeMap<&str, u16> = (0..=u16::MAX)
+        .zip(names)
+        .map(|(i, n)| (n.as_str(), i))
         .collect();
     let inputs = MaterialInputs {
         rules: &rules,
@@ -115,7 +114,7 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
 }
 
 fn surface_ids(names: &[String]) -> SurfaceIds {
-    let id = |name: &str| names.iter().position(|n| n == name).unwrap() as u32;
+    let id = |name: &str| u16::try_from(names.iter().position(|n| n == name).unwrap()).unwrap();
     SurfaceIds {
         eroded_badlands: id("eroded_badlands"),
         frozen_ocean: id("frozen_ocean"),

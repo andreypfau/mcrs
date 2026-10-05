@@ -49,7 +49,7 @@ pub trait WorldGenVolume: BlocksMut {
 
     fn height(&self, kind: HeightmapName, x: i32, z: i32) -> i32;
 
-    fn biome(&self, p: BlockPos) -> u32;
+    fn biome(&self, p: BlockPos) -> u16;
 
     fn extent(&self) -> HeightContext;
 
@@ -85,7 +85,7 @@ pub fn place<W: WorldGenVolume, R: Random>(
     scratch: &mut PlacerScratch,
     origin: BlockPos,
     rng: &mut R,
-    carries: &dyn Fn(u32) -> bool,
+    carries: &dyn Fn(u16) -> bool,
     generate: &mut dyn FnMut(&mut W, &mut R, BlockPos) -> bool,
 ) -> bool {
     if modifiers.is_empty() {
@@ -121,7 +121,7 @@ pub type Generate<'a, W> = &'a mut dyn FnMut(
     &mut W,
     &mut WorldgenRandom,
     BlockPos,
-    &dyn Fn(u32) -> bool,
+    &dyn Fn(u16) -> bool,
 ) -> bool;
 
 /// `steps` of a volume's decoration program: each step in order, every feature
@@ -140,7 +140,7 @@ pub fn decorate<'a, W: WorldGenVolume>(
     present: &[FixedBitSet],
     steps: Range<usize>,
     chain: &dyn Fn(usize, usize) -> &'a [Modifier],
-    carries: &dyn Fn(u32, usize, usize) -> bool,
+    carries: &dyn Fn(u16, usize, usize) -> bool,
     volume: &mut W,
     scratch: &mut PlacerScratch,
     origin: BlockPos,
@@ -156,7 +156,7 @@ pub fn decorate<'a, W: WorldGenVolume>(
                 .wrapping_add(index as i64)
                 .wrapping_add(10_000 * step as i64);
             let mut rng = WorldgenRandom::new(seed as u64);
-            let carry = |biome: u32| carries(biome, step, index);
+            let carry = |biome: u16| carries(biome, step, index);
             place(
                 chain(step, index),
                 volume,
@@ -196,7 +196,7 @@ mod tests {
         volume
     }
 
-    fn always(_: u32) -> bool {
+    fn always(_: u16) -> bool {
         true
     }
 
@@ -415,7 +415,7 @@ mod tests {
         let mut scratch = PlacerScratch::default();
         let mut rng = WorldgenRandom::new(0);
         let mut hits = 0;
-        let refuse = |biome: u32| biome != 7;
+        let refuse = |biome: u16| biome != 7;
         place(
             &[Modifier::Biome {}],
             &mut volume,

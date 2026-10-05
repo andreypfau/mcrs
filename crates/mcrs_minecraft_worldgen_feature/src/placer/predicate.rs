@@ -48,7 +48,7 @@ impl Predicate {
             Predicate::MatchingStates { offset, states } => {
                 states.contains(volume.get(pos + *offset).0 as usize)
             }
-            Predicate::MatchingBiomes(biomes) => biomes.contains(volume.biome(pos) as usize),
+            Predicate::MatchingBiomes(biomes) => biomes.contains(usize::from(volume.biome(pos))),
             Predicate::WouldSurvive { offset, state } => {
                 volume.would_survive(*state, pos + *offset)
             }

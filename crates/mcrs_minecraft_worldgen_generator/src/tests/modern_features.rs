@@ -283,7 +283,7 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
         .expect("the second biome is in the registry");
 
     assert!(
-        program.carries(u32::from(other), 0, 0),
+        program.carries(other, 0, 0),
         "the biome names this placed feature at step 1, so the filter passes at step 0 too"
     );
 }

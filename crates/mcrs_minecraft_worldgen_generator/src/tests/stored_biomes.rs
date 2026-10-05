@@ -142,7 +142,7 @@ fn the_biomes_between_two_heights_hold_every_biome_read_between_them() {
         );
         for (x, z) in strips {
             for y in lo..=hi {
-                let biome = u32::from(stored_biome(
+                let biome = u16::from(stored_biome(
                     &column.containers,
                     first,
                     column.block_x + x,
@@ -159,7 +159,7 @@ fn the_biomes_between_two_heights_hold_every_biome_read_between_them() {
         let mut covered = Vec::new();
         for y in lo..=hi {
             let (section, _) = column_cell(first, column.containers.len(), y);
-            column.containers[section].for_each_distinct(|biome| covered.push(u32::from(biome)));
+            column.containers[section].for_each_distinct(|biome| covered.push(u16::from(biome)));
         }
         for biome in &out {
             assert!(

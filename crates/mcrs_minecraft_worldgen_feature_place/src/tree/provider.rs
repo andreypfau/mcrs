@@ -8,6 +8,8 @@ use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::{Id, TagId};
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
@@ -29,7 +31,7 @@ pub enum StateProvider {
         source: Box<StateProvider>,
         /// The named property of every block that declares it as an integer,
         /// by block index; a block absent here leaves the state alone.
-        property: Arc<HashMap<u32, IntProperty>>,
+        property: Arc<HashMap<Id<Block>, IntProperty>>,
         values: IntProvider,
     },
     Rotated {
@@ -37,7 +39,7 @@ pub enum StateProvider {
         direction: Option<Direction>,
         /// What `axis`, `facing` and `horizontal_facing` become for each
         /// direction, per block that declares any of them.
-        rotations: Arc<HashMap<u32, Rotations>>,
+        rotations: Arc<HashMap<Id<Block>, Rotations>>,
     },
     RandomBlock(Vec<VoxelId>),
     CopyProperties(Box<StateProvider>),
@@ -134,10 +136,16 @@ impl Rotations {
     }
 }
 
+fn block_id(position: usize) -> Id<Block> {
+    Id::from_raw(
+        u16::try_from(position).expect("the block registry numbers its blocks in sixteen bits"),
+    )
+}
+
 /// [`Rotations`] for every block that declares any of the three properties,
 /// resolved once so the provider never looks a property up by name while
 /// placing.
-pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<u32, Rotations> {
+pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<Id<Block>, Rotations> {
     let direction_property =
         |layout: &BlockLayout, name: &str, text: fn(Direction) -> &'static str| {
             let property = layout.property(name)?;
@@ -165,14 +173,14 @@ pub fn rotation_table(layouts: &[BlockLayout]) -> HashMap<u32, Rotations> {
                     direction.name()
                 }),
             };
-            (rotations != Rotations::default()).then_some((block as u32, rotations))
+            (rotations != Rotations::default()).then_some((block_id(block), rotations))
         })
         .collect()
 }
 
 /// `IntegerProperty` `name` on every block that declares it, resolved once so
 /// the provider never looks a property up by name while placing.
-pub fn int_property_table(layouts: &[BlockLayout], name: &str) -> HashMap<u32, IntProperty> {
+pub fn int_property_table(layouts: &[BlockLayout], name: &str) -> HashMap<Id<Block>, IntProperty> {
     layouts
         .iter()
         .enumerate()
@@ -185,7 +193,7 @@ pub fn int_property_table(layouts: &[BlockLayout], name: &str) -> HashMap<u32, I
                 .collect::<Option<_>>()?;
             let min = *ints.first()?;
             (ints.iter().enumerate().all(|(i, v)| *v == min + i as i32)).then_some((
-                block as u32,
+                block_id(block),
                 IntProperty {
                     base: layout.base,
                     stride: property.stride,
@@ -433,7 +441,7 @@ pub(crate) mod fake {
             self.heights.get(&(x, z)).copied().unwrap_or(i32::MIN)
         }
 
-        fn biome(&self, _: BlockPos) -> u32 {
+        fn biome(&self, _: BlockPos) -> u16 {
             0
         }
 
@@ -565,7 +573,7 @@ mod tests {
         let text =
             |values: &[&str]| -> Arc<[Arc<str>]> { values.iter().map(|v| Arc::from(*v)).collect() };
         let mut volume = FakeVolume::default();
-        volume.world.block_of_state = (0..64).map(|_| 0).collect();
+        volume.world.block_of_state = (0..64).map(|_| Id::from_raw(0)).collect();
         volume.world.layouts = Arc::new([BlockLayout {
             base: 0,
             properties: vec![

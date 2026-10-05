@@ -134,7 +134,9 @@ pub fn place_lake<W: WorldGenVolume>(
         for x in 0..WIDTH {
             for z in 0..WIDTH {
                 let pos = origin + IVec3::new(x as i32, 4, z as i32);
-                let freezes = config.freezing_biomes.contains(volume.biome(pos) as usize)
+                let freezes = config
+                    .freezing_biomes
+                    .contains(usize::from(volume.biome(pos)))
                     && volume.holds(&volume.world().water_states, pos);
                 if freezes && config.can_replace_with_air_or_fluid.test(volume, pos) {
                     volume.set(pos, config.ice);

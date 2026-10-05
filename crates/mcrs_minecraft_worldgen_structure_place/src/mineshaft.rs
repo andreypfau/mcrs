@@ -178,7 +178,9 @@ fn in_invalid_location<W: WorldGenVolume>(
     let min = (*bounds.min - IVec3::ONE).max(*clip.min);
     let max = (*bounds.max + IVec3::ONE).min(*clip.max);
     let centre = (min + max) / 2;
-    if b.blocking.contains(region.biome(centre.into()) as usize) {
+    if b.blocking
+        .contains(usize::from(region.biome(centre.into())))
+    {
         return true;
     }
     let liquid = |x, y, z| region.holds(&region.world().any_fluid, BlockPos::new(x, y, z));

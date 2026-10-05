@@ -33,18 +33,18 @@ mod support;
 use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
 use support::{corpus, router_blocks};
 
-const ABSENT_BIOME: u32 = 250;
+const ABSENT_BIOME: u16 = 250;
 
-fn biome_ids() -> HashMap<String, u32> {
+fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
-        let next = ids.len() as u32;
+        let next = u16::try_from(ids.len()).unwrap();
         ids.entry((*biome).to_owned()).or_insert(next);
     }
     ids
 }
 
-fn material_router(seed: u64, ids: &HashMap<String, u32>) -> (NoiseRouter, MaterialProgram) {
+fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),

@@ -966,6 +966,7 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
+    use mcrs_minecraft_registry::{Id, TagId};
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 
@@ -1020,12 +1021,12 @@ mod tests {
                 ],
             },
         ];
-        let mut block_of_state = vec![0u32; 128];
+        let mut block_of_state = vec![Id::from_raw(0); 128];
         let mut any_source = FixedBitSet::with_capacity(128);
         any_source.insert(WATER.0 as usize);
-        for (block, layout) in layouts.iter().enumerate() {
+        for (block, layout) in (0..).zip(&layouts) {
             for id in layout.base..layout.base + 32 {
-                block_of_state[id as usize] = block as u32;
+                block_of_state[id as usize] = Id::from_raw(block);
                 if value_of(layout, VoxelId(id), "waterlogged") == Some("true") {
                     any_source.insert(id as usize);
                 }

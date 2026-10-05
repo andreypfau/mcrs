@@ -13,7 +13,7 @@ pub struct BoxRegion {
     pub blocks: BoxVolume,
     pub world: WorldStates,
     pub extent: HeightContext,
-    pub biome: u32,
+    pub biome: u16,
     pub height: Box<dyn Fn(&BoxVolume, HeightmapName, i32, i32) -> i32>,
     pub writes: Vec<(BlockPos, VoxelId)>,
 }
@@ -96,7 +96,7 @@ impl WorldGenVolume for BoxRegion {
         (self.height)(&self.blocks, kind, x, z)
     }
 
-    fn biome(&self, _: BlockPos) -> u32 {
+    fn biome(&self, _: BlockPos) -> u16 {
         self.biome
     }
 

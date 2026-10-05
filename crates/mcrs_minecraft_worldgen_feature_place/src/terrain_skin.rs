@@ -270,7 +270,7 @@ pub fn place_freeze_top_layer<W: WorldGenVolume>(
             let y = volume.height(HeightmapName::MotionBlocking, x, z);
             let top = BlockPos::new(x, y, z);
             let below = top - IVec3::Y;
-            let Some(climate) = cfg.biomes.get(volume.biome(top) as usize) else {
+            let Some(climate) = cfg.biomes.get(usize::from(volume.biome(top))) else {
                 continue;
             };
 

@@ -190,7 +190,7 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                     biome,
                     moon_brightness: 1.0,
                 };
-                let frequent = config.frequent_drowned.contains(biome as usize);
+                let frequent = config.frequent_drowned.contains(usize::from(biome));
                 spawns.push(drowned(pos, &ctx, &frozen.variants, frequent, rng));
                 let world = region.world();
                 let fill = if pos.y > region.extent().sea_level {

@@ -128,12 +128,12 @@ fn writing_air_at_the_top_lowers_the_height_and_writing_a_block_raises_it() {
 /// The preset's biomes numbered as the palette numbers them. Any biome a rule
 /// names that the preset does not is given one shared id no grid cell can hold,
 /// so its sets fold to `never` exactly as they should.
-const ABSENT_BIOME: u32 = 250;
+const ABSENT_BIOME: u16 = 250;
 
-pub(super) fn biome_ids() -> HashMap<String, u32> {
+pub(super) fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
-        let next = ids.len() as u32;
+        let next = u16::try_from(ids.len()).unwrap();
         ids.entry((*biome).to_owned()).or_insert(next);
     }
     ids
@@ -141,7 +141,7 @@ pub(super) fn biome_ids() -> HashMap<String, u32> {
 
 pub fn overworld_material_router(
     seed: u64,
-    ids: &HashMap<String, u32>,
+    ids: &HashMap<String, u16>,
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
@@ -171,7 +171,7 @@ pub fn overworld_material_router(
     .expect("the overworld material rule compiles")
 }
 
-fn surface_ids(ids: &HashMap<String, u32>) -> SurfaceIds {
+fn surface_ids(ids: &HashMap<String, u16>) -> SurfaceIds {
     let biome = |name: &str| ids.get(name).copied().unwrap_or(ABSENT_BIOME);
     SurfaceIds {
         eroded_badlands: biome("minecraft:eroded_badlands"),
@@ -187,7 +187,7 @@ fn surface_ids(ids: &HashMap<String, u32>) -> SurfaceIds {
 pub(super) fn surfaced_column(
     router: &NoiseRouter,
     material: &MaterialProgram,
-    ids: &HashMap<String, u32>,
+    ids: &HashMap<String, u16>,
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
@@ -496,7 +496,7 @@ fn bypassing_every_shortcut_writes_the_same_blocks() {
 /// per-strip fold never runs.
 fn grid_biomes(
     router: &NoiseRouter,
-    ids: &HashMap<String, u32>,
+    ids: &HashMap<String, u16>,
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
@@ -521,7 +521,7 @@ fn grid_biomes(
 /// The preset's biomes as a registry, and the ids it gave them.
 pub fn overworld_biome_registry() -> (
     mcrs_minecraft_assets::RegistrySnapshot<Biome>,
-    HashMap<String, u32>,
+    HashMap<String, u16>,
 ) {
     let mut assets = bevy_asset::Assets::<Biome>::default();
     let mut names: Vec<String> = Vec::new();
@@ -548,7 +548,7 @@ pub fn overworld_biome_registry() -> (
     let ids = names
         .iter()
         .map(|name| {
-            let id = u32::from(snapshot.by_location(name).expect("the registry holds it"));
+            let id = snapshot.by_location(name).expect("the registry holds it");
             (name.clone(), id)
         })
         .collect();
@@ -679,7 +679,7 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
 fn surfaced_column_fixed(
     router: &NoiseRouter,
     material: &MaterialProgram,
-    ids: &HashMap<String, u32>,
+    ids: &HashMap<String, u16>,
     biome: &str,
     section_x: i32,
     section_z: i32,

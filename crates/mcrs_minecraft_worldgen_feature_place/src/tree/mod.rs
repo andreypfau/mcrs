@@ -13,6 +13,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::tree::FeatureSize;
@@ -74,7 +76,7 @@ pub struct TreeTables {
     pub leaf_distance: LeafDistances,
     /// `BlockState.canSurvive` per block of a family the shapes cover, keyed by
     /// the block index of the state being tested.
-    pub survive: HashMap<u32, SurviveRule>,
+    pub survive: HashMap<Id<Block>, SurviveRule>,
 }
 
 /// One `tree` feature with every name it carries already resolved.

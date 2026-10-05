@@ -191,9 +191,9 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
             MultiNoiseBiomeTable::resolve(multi, |name| biome_index().get(name).map(|id| id as u8))
                 .unwrap(),
         )),
-        BiomeSource::TheEnd => BiomeLookup::TheEnd(
-            EndBiomes::resolve(|id| biome_index().get(id).map(u32::from)).unwrap(),
-        ),
+        BiomeSource::TheEnd => {
+            BiomeLookup::TheEnd(EndBiomes::resolve(|id| biome_index().get(id)).unwrap())
+        }
         _ => unreachable!(),
     };
     StructureIndex::new(

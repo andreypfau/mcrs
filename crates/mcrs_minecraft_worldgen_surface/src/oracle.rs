@@ -40,8 +40,8 @@ impl<'a> MaterialOracle<'a> {
     }
 
     pub(crate) fn apply<
-        B: FnMut(i32, i32, i32) -> u32,
-        R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+        B: FnMut(i32, i32, i32) -> u16,
+        R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
     >(
         &self,
         eval: &mut MaterialEval<'_, B, R>,
@@ -51,7 +51,7 @@ impl<'a> MaterialOracle<'a> {
         self.rule(self.root, eval, &mut veins, visited)
     }
 
-    fn rule<B: FnMut(i32, i32, i32) -> u32, R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool>(
+    fn rule<B: FnMut(i32, i32, i32) -> u16, R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool>(
         &self,
         holder: &'a MaterialRuleHolder,
         eval: &mut MaterialEval<'_, B, R>,
@@ -108,8 +108,8 @@ impl<'a> MaterialOracle<'a> {
     }
 
     fn condition<
-        B: FnMut(i32, i32, i32) -> u32,
-        R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+        B: FnMut(i32, i32, i32) -> u16,
+        R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
     >(
         &self,
         holder: &'a MaterialConditionHolder,
@@ -303,9 +303,9 @@ mod tests {
 
     /// The biomes the overworld rule actually tests, read back off the interned
     /// masks so a corpus that gains one is covered without an edit here.
-    fn tested_biomes(material: &MaterialProgram) -> Vec<u32> {
+    fn tested_biomes(material: &MaterialProgram) -> Vec<u16> {
         let sets = material.biome_sets();
-        let mut ids: Vec<u32> = (0..256u32)
+        let mut ids: Vec<u16> = (0..256u16)
             .filter(|id| sets.iter().any(|set| set.contains(*id)))
             .collect();
         ids.sort_unstable();
@@ -336,7 +336,7 @@ mod tests {
         // Small palettes so most interned sets fold to `never` or `always` for
         // the column and the folded answers are compared too; one wide palette
         // so the rest stay `maybe`.
-        let mut palettes: Vec<Vec<u32>> = biomes.chunks(5).map(<[u32]>::to_vec).collect();
+        let mut palettes: Vec<Vec<u16>> = biomes.chunks(5).map(<[u16]>::to_vec).collect();
         palettes.push(biomes.clone());
         // Column 8 holds an iron vein at `min_y + 7`; no earlier column has one in its band.
         while palettes.len() < 9 {

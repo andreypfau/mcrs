@@ -87,10 +87,10 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
         registry("material_condition");
-    let biome_ids: HashMap<String, u32> = registry::<serde::de::IgnoredAny>("biome")
+    let biome_ids: HashMap<String, u16> = registry::<serde::de::IgnoredAny>("biome")
         .into_keys()
         .enumerate()
-        .map(|(id, name)| (name.as_str().to_owned(), id as u32))
+        .map(|(id, name)| (name.as_str().to_owned(), u16::try_from(id).unwrap()))
         .collect();
     let functions = registry("density_function");
     let noises = registry("noise");

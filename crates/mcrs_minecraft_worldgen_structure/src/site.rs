@@ -23,7 +23,7 @@ use super::frozen::{
 };
 
 pub trait SiteWorld {
-    fn biome_at(&mut self, block: IVec3) -> Option<u32>;
+    fn biome_at(&mut self, block: IVec3) -> Option<u16>;
     /// `couldStructureExistInColumn`: some biome sampled at quart resolution
     /// in the column between the two block heights, inclusive, is in `biomes`.
     fn column_admits(
@@ -186,7 +186,7 @@ pub fn site(ctx: &mut Context<'_>) -> Option<Site> {
     let biome_ok = ctx
         .world
         .biome_at(position)
-        .is_some_and(|biome| structure.biomes.contains(biome as usize));
+        .is_some_and(|biome| structure.biomes.contains(usize::from(biome)));
     Some(Site {
         position,
         biome_ok,
@@ -253,7 +253,7 @@ fn jigsaw_site(
         .get(&config.start_pool)
         .copied()
         .unwrap_or(start_pool);
-    let expanded = &frozen.pools[pool.0 as usize].expanded;
+    let expanded = &frozen.pools[usize::from(pool.0)].expanded;
     if expanded.is_empty() {
         return None;
     }

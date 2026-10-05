@@ -85,7 +85,7 @@ pub fn build_dimension_router(
     assets: &WorldgenAssets<'_>,
     seed: u64,
     block: &dyn Fn(&BlockState) -> Option<VoxelId>,
-    biome: &dyn Fn(&ResourceLocation) -> Option<u32>,
+    biome: &dyn Fn(&ResourceLocation) -> Option<u16>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
     let mut loaded = Loaded::default();
     loaded.collect(&settings.deps, assets);
@@ -691,11 +691,11 @@ mod tests {
 
     /// Every shipped biome, numbered by its position in the registry directory,
     /// which is all the material rules need of a biome id.
-    fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u32> {
+    fn shipped_biome_ids() -> BTreeMap<ResourceLocation, u16> {
         registry::<serde::de::IgnoredAny>("biome")
             .into_keys()
             .enumerate()
-            .map(|(index, id)| (id, index as u32))
+            .map(|(index, id)| (id, u16::try_from(index).unwrap()))
             .collect()
     }
 
