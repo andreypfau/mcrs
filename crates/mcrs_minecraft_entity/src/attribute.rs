@@ -1,4 +1,5 @@
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_registry::static_rows::{numbered, rows_match};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Attribute {
@@ -195,3 +196,20 @@ pub static ALL: [&Attribute; 40] = [
     &WAYPOINT_TRANSMIT_RANGE,
     &WAYPOINT_RECEIVE_RANGE,
 ];
+
+const _: () = {
+    let mut names = [""; ALL.len()];
+    let mut i = 0;
+    while i < ALL.len() {
+        names[i] = ALL[i].identifier.as_static_str();
+        i += 1;
+    }
+    assert!(
+        rows_match(
+            &numbered(names),
+            mcrs_minecraft_keys::attribute::NAMES,
+            true
+        ),
+        "the attribute statics must equal the generated attribute names row by row",
+    );
+};

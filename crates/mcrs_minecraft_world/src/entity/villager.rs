@@ -1,83 +1,64 @@
-use mcrs_minecraft_entity::VillagerType;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::static_rows::rows_match;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum VillagerProfession {
+macro_rules! professions {
+    ($($(#[$meta:meta])* $variant:ident = $name:literal),* $(,)?) => {
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        pub enum VillagerProfession {
+            $($(#[$meta])* #[serde(rename = $name)] $variant),*
+        }
+
+        impl VillagerProfession {
+            pub const ALL: [Self; [$($name),*].len()] = [$(Self::$variant),*];
+
+            pub const fn protocol_id(self) -> u16 {
+                self as u16
+            }
+        }
+
+        const _: () = assert!(
+            rows_match(
+                &[$(($name, VillagerProfession::$variant as u16)),*],
+                mcrs_minecraft_keys::villager_profession::NAMES,
+                true,
+            ),
+            "the profession table must equal the generated villager_profession names row by row",
+        );
+    };
+}
+
+professions! {
     #[default]
-    #[serde(rename = "minecraft:none")]
-    None,
-    #[serde(rename = "minecraft:armorer")]
-    Armorer,
-    #[serde(rename = "minecraft:butcher")]
-    Butcher,
-    #[serde(rename = "minecraft:cartographer")]
-    Cartographer,
-    #[serde(rename = "minecraft:cleric")]
-    Cleric,
-    #[serde(rename = "minecraft:farmer")]
-    Farmer,
-    #[serde(rename = "minecraft:fisherman")]
-    Fisherman,
-    #[serde(rename = "minecraft:fletcher")]
-    Fletcher,
-    #[serde(rename = "minecraft:leatherworker")]
-    Leatherworker,
-    #[serde(rename = "minecraft:librarian")]
-    Librarian,
-    #[serde(rename = "minecraft:mason")]
-    Mason,
-    #[serde(rename = "minecraft:nitwit")]
-    Nitwit,
-    #[serde(rename = "minecraft:shepherd")]
-    Shepherd,
-    #[serde(rename = "minecraft:toolsmith")]
-    Toolsmith,
-    #[serde(rename = "minecraft:weaponsmith")]
-    Weaponsmith,
+    None = "minecraft:none",
+    Armorer = "minecraft:armorer",
+    Butcher = "minecraft:butcher",
+    Cartographer = "minecraft:cartographer",
+    Cleric = "minecraft:cleric",
+    Farmer = "minecraft:farmer",
+    Fisherman = "minecraft:fisherman",
+    Fletcher = "minecraft:fletcher",
+    Leatherworker = "minecraft:leatherworker",
+    Librarian = "minecraft:librarian",
+    Mason = "minecraft:mason",
+    Nitwit = "minecraft:nitwit",
+    Shepherd = "minecraft:shepherd",
+    Toolsmith = "minecraft:toolsmith",
+    Weaponsmith = "minecraft:weaponsmith",
 }
 
-impl VillagerProfession {
-    pub const ALL: [Self; 15] = [
-        Self::None,
-        Self::Armorer,
-        Self::Butcher,
-        Self::Cartographer,
-        Self::Cleric,
-        Self::Farmer,
-        Self::Fisherman,
-        Self::Fletcher,
-        Self::Leatherworker,
-        Self::Librarian,
-        Self::Mason,
-        Self::Nitwit,
-        Self::Shepherd,
-        Self::Toolsmith,
-        Self::Weaponsmith,
-    ];
-
-    pub const fn protocol_id(self) -> u16 {
-        self as u16
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct VillagerData {
-    #[serde(rename = "type", default)]
-    pub kind: VillagerType,
-    #[serde(default)]
+    pub kind: Id<keys::VillagerType>,
     pub profession: VillagerProfession,
-    #[serde(default = "default_level")]
     pub level: i32,
-}
-
-fn default_level() -> i32 {
-    1
 }
 
 impl Default for VillagerData {
     fn default() -> Self {
         Self {
-            kind: VillagerType::Plains,
+            kind: keys::villager_type::PLAINS,
             profession: VillagerProfession::None,
             level: 1,
         }

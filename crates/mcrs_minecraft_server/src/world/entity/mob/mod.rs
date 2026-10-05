@@ -38,7 +38,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassenger
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{ChainLookup, Id, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, Item as GeneratedItem,
@@ -299,13 +299,20 @@ fn registry_id(
 
 fn villager_data(data: &mcrs_minecraft_worldgen_feature::template::VillagerData) -> VillagerData {
     VillagerData {
-        kind: registered(data.kind.as_str()),
+        kind: registered_type(data.kind.as_str()),
         profession: registered(data.profession.as_str()),
         level: data.level,
     }
 }
 
-/// A villager type or profession by its id, the kind's default when the
+fn registered_type(name: &str) -> Id<keys::VillagerType> {
+    Id::from_name(name).unwrap_or_else(|_| {
+        tracing::warn!(name, "a template villager names a type the registry lacks");
+        keys::villager_type::PLAINS
+    })
+}
+
+/// A villager profession by its id, the kind's default when the
 /// template names one the registry lacks.
 fn registered<T: DeserializeOwned + Default>(name: &str) -> T {
     let named: StrDeserializer<serde::de::value::Error> = name.into_deserializer();
@@ -524,7 +531,7 @@ impl PairingItem<'_, '_> {
                         VILLAGER_DATA
                     },
                     MetaDataValue::VillagerData(mcrs_minecraft_protocol::entity::VillagerData {
-                        kind: RegistryId(villager.kind.protocol_id()),
+                        kind: RegistryId(villager.kind.number()),
                         profession: RegistryId(villager.profession.protocol_id()),
                         level: VarInt(villager.level),
                     }),

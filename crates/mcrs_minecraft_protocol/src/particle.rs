@@ -35,6 +35,15 @@ macro_rules! particle_types {
             let _ = position;
         };
 
+        const _: () = assert!(
+            mcrs_minecraft_registry::static_rows::rows_match(
+                &[$(($full, $id)),*],
+                mcrs_minecraft_keys::particle_type::NAMES,
+                true,
+            ),
+            "the particle table must equal the generated particle_type names row by row",
+        );
+
         impl ParticleKind {
             pub const COUNT: usize = [$($id),*].len();
             pub const ALL: [ParticleKind; Self::COUNT] = [$(Self::$variant),*];

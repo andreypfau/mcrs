@@ -12,6 +12,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_protocol::item::Text;
 use mcrs_minecraft_protocol::particle::ParticleOptions;
+use mcrs_minecraft_registry::static_rows::{numbered, rows_match};
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -688,25 +689,56 @@ fn row(
     }
 }
 
-#[rustfmt::skip]
-fn table() -> Vec<AttributeSpec> {
-    use AttributeRange as R;
-    use AttributeType as T;
-    use AttributeValue as V;
+fn color(packed: i32) -> AttributeValue {
+    AttributeValue::Color(packed as u32)
+}
 
-    let color = |packed: i32| V::Color(packed as u32);
-    let float = V::Float;
-    let flag = V::Bool;
-    let activity = || V::Activity(keys::activity::IDLE.location().to_arc());
-    let bed_rule = |can_set_spawn, destroy_on_leave| V::BedRule(BedRule {
+fn float(value: f32) -> AttributeValue {
+    AttributeValue::Float(value)
+}
+
+fn flag(value: bool) -> AttributeValue {
+    AttributeValue::Bool(value)
+}
+
+fn activity() -> AttributeValue {
+    AttributeValue::Activity(keys::activity::IDLE.location().to_arc())
+}
+
+fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> AttributeValue {
+    AttributeValue::BedRule(BedRule {
         can_sleep: BedRuleCondition::WhenDark,
         can_set_spawn,
         destroy_on_use: false,
         destroy_on_leave,
         error_message: Some(Text::translate("block.minecraft.bed.no_sleep", Vec::new())),
-    });
+    })
+}
 
-    vec![
+macro_rules! table {
+    ($(row($id:literal, $($rest:tt)*)),* $(,)?) => {
+        const IDS: [&str; [$($id),*].len()] = [$($id),*];
+
+        const _: () = assert!(
+            rows_match(
+                &numbered(IDS),
+                keys::environment_attribute::NAMES,
+                true,
+            ),
+            "the attribute table must equal the generated environment_attribute names row by row",
+        );
+
+        fn table() -> Vec<AttributeSpec> {
+            use AttributeRange as R;
+            use AttributeType as T;
+            use AttributeValue as V;
+
+            vec![$(row($id, $($rest)*)),*]
+        }
+    };
+}
+
+table! {
         row("minecraft:visual/fog_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
         row("minecraft:visual/fog_start_distance", T::Float, float(0.0), R::Any, SYNC | INTERP),
         row("minecraft:visual/fog_end_distance", T::Float, float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
@@ -759,7 +791,6 @@ fn table() -> Vec<AttributeSpec> {
         row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, float(0.1), R::UNIT_EPSILON, 0),
         row("minecraft:gameplay/villager_activity", T::Activity, activity(), R::Any, 0),
         row("minecraft:gameplay/baby_villager_activity", T::Activity, activity(), R::Any, 0),
-    ]
 }
 
 #[cfg(test)]
