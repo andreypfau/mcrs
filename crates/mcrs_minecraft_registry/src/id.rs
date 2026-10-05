@@ -142,6 +142,10 @@ impl<R: StaticRegistry> Id<R> {
         R::NAMES[self.number as usize]
     }
 
+    pub const fn location(self) -> ResourceLocation<&'static str> {
+        ResourceLocation::new_static(self.name())
+    }
+
     pub fn from_name(name: &str) -> Result<Self, UnknownEntry> {
         R::NAMES
             .iter()
@@ -227,6 +231,7 @@ mod tests {
 
         assert_eq!(STONE.number(), 1);
         assert_eq!(STONE.name(), "minecraft:stone");
+        assert_eq!(STONE.location(), rl!("minecraft:stone"));
         assert_eq!(Id::<Fixed>::from_static(0).name(), "minecraft:air");
     }
 

@@ -10,9 +10,9 @@ use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, VERSION, rl};
+use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{RegistrySet, Tags};
+use mcrs_minecraft_registry::{Id, RegistrySet, Tags};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{
     BlockState, DensityFunctionHolder, ProtoDensityFunction,
@@ -114,13 +114,13 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let plain = |name: StaticResourceLocation| BlockState::bare(name.to_arc());
-    let stone = plain(rl!("minecraft:stone"));
+    let plain = |block: Id<keys::Block>| BlockState::bare(block.location().to_arc());
+    let stone = plain(keys::block::STONE);
     let blocks = RouterBlocks {
         default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
         default_fluid: resolve(&settings.settings.default_fluid)?,
-        water: resolve(&plain(rl!("minecraft:water")))?,
-        lava: resolve(&plain(rl!("minecraft:lava")))?,
+        water: resolve(&plain(keys::block::WATER))?,
+        lava: resolve(&plain(keys::block::LAVA))?,
     };
 
     let material = MaterialInputs {
@@ -519,7 +519,8 @@ impl References {
             }
         }
         refs.rules.insert(settings.material_rule.clone());
-        refs.noises.extend(SURFACE_NOISE_NAMES.map(Into::into));
+        refs.noises
+            .extend(SURFACE_NOISE_NAMES.map(|noise| noise.location().to_arc()));
         refs
     }
 

@@ -187,12 +187,12 @@ impl ProviderObject {
                 id: None,
                 properties: None,
                 state: Some(state),
-            } if kind == "minecraft:simple" => Ok(BlockStateProvider::Typed(
+            } if kind == keys::block_state_provider_type::SIMPLE.name() => Ok(BlockStateProvider::Typed(
                 TypedBlockStateProvider::Simple { state },
             )),
             ProviderObject {
                 kind: Some(kind), ..
-            } if kind != "minecraft:simple" => {
+            } if kind != keys::block_state_provider_type::SIMPLE.name() => {
                 Err(format!("unknown block state provider type `{kind}`"))
             }
             _ => Err("a block state states an `id` and its `properties`; a provider states a `type` and its fields".to_owned()),

@@ -13,9 +13,10 @@ use crate::proto::{DensityFunctionHolder, ProtoDensityFunction, ProtoSpline};
 use crate::router::{Aquifers, NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_minecraft_worldgen_noise::blended::{BlendedNoise, NOISE_SEED};
+use mcrs_minecraft_worldgen_noise::blended::BlendedNoise;
 use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::jmath;
 use mcrs_minecraft_worldgen_noise::normal as normal_noise;
@@ -1017,7 +1018,7 @@ impl<'a> Compiler<'a> {
             RandomSource::new(self.seed, true)
         } else {
             let mut root = self.random.clone();
-            root.fork_hash(NOISE_SEED)
+            root.fork_hash("minecraft:terrain")
         };
         let params = Arc::new(BlendedNoise::new(
             &mut random,
@@ -1059,22 +1060,19 @@ impl<'a> Compiler<'a> {
     ) -> Result<NoiseStack<Octave>, CompileError> {
         // The two nether climate noises are seeded from the raw world seed, not
         // from the hashed fork every other noise takes.
-        match id.as_str() {
-            "minecraft:nether/temperature" => {
-                return Ok(normal_noise::create_parity(
-                    -7,
-                    &[1.0, 1.0],
-                    &mut LegacyRandom::new(self.seed),
-                ));
-            }
-            "minecraft:nether/vegetation" => {
-                return Ok(normal_noise::create_parity(
-                    -7,
-                    &[1.0, 1.0],
-                    &mut LegacyRandom::new(self.seed.wrapping_add(1)),
-                ));
-            }
-            _ => {}
+        if id == keys::noise::NETHER_TEMPERATURE.location() {
+            return Ok(normal_noise::create_parity(
+                -7,
+                &[1.0, 1.0],
+                &mut LegacyRandom::new(self.seed),
+            ));
+        }
+        if id == keys::noise::NETHER_VEGETATION.location() {
+            return Ok(normal_noise::create_parity(
+                -7,
+                &[1.0, 1.0],
+                &mut LegacyRandom::new(self.seed.wrapping_add(1)),
+            ));
         }
 
         if self.legacy_random
@@ -1122,12 +1120,12 @@ impl<'a> Compiler<'a> {
     /// The Beta noises are drawn from the pre-26.3 `LegacyRandom` streams and
     /// have no `worldgen/noise` entry, so the ids are resolved here instead.
     fn create_legacy_noise(&mut self, id: &ResourceLocation) -> Option<NoiseStack<Octave>> {
+        if id == keys::noise::OFFSET.location() {
+            let mut root = self.random.clone();
+            let mut random = root.fork_hash(keys::noise::OFFSET.as_str());
+            return Some(normal_noise::create_parity(0, &[0.0], &mut random));
+        }
         match id.as_str() {
-            "minecraft:offset" => {
-                let mut root = self.random.clone();
-                let mut random = root.fork_hash("minecraft:offset");
-                Some(normal_noise::create_parity(0, &[0.0], &mut random))
-            }
             "mcrs:beta/scale" => Some(self.beta_terrain().scale.clone()),
             "mcrs:beta/depth" => Some(self.beta_terrain().depth.clone()),
             "mcrs:beta/temperature" => Some(self.beta_climate().temperature.clone()),

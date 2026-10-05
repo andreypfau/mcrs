@@ -1,5 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -12,8 +13,6 @@ use mcrs_minecraft_worldgen_structure::piece::EndCityPiece;
 
 use crate::template_piece::seed_container_loot;
 use crate::{block_mask, place_positional};
-
-pub const END_CITY_TREASURE_LOOT: &str = "minecraft:chests/end_city_treasure";
 
 /// `EndCityPiece.makeSettings`: the two processor chains its pieces place
 /// with, by whether the template's air overwrites what stands there.
@@ -28,11 +27,11 @@ impl EndCityChains {
         Ok(EndCityChains {
             overwrite: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &["minecraft:structure_block"],
+                &[keys::block::STRUCTURE_BLOCK],
             )?)],
             keep_air: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &["minecraft:air", "minecraft:structure_block"],
+                &[keys::block::AIR, keys::block::STRUCTURE_BLOCK],
             )?)],
         })
     }
@@ -90,7 +89,12 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
         if metadata.starts_with("Chest") {
             let chest = BlockPos::from(pos - IVec3::Y);
             if clip.is_inside(chest) {
-                seed_container_loot(entities, chest, END_CITY_TREASURE_LOOT, rng);
+                seed_container_loot(
+                    entities,
+                    chest,
+                    keys::loot_table::CHESTS_END_CITY_TREASURE,
+                    rng,
+                );
             }
         } else if clip.is_inside(pos.into()) {
             if metadata.starts_with("Sentry") {

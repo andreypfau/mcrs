@@ -52,6 +52,10 @@ impl<T> ResourceKey<T, &'static str> {
             _marker: PhantomData,
         }
     }
+
+    pub const fn as_static_str(self) -> &'static str {
+        self.location.as_static_str()
+    }
 }
 
 impl<T> ResourceKey<T, Arc<str>> {

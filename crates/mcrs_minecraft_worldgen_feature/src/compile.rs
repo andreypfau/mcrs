@@ -362,7 +362,7 @@ pub fn compile_predicate(
         }
         BlockPredicate::Unobstructed { .. } => {
             return Err(FeatureCompileError::Unsupported(
-                "minecraft:unobstructed".to_owned(),
+                keys::block_predicate_type::UNOBSTRUCTED.name().to_owned(),
             ));
         }
     })

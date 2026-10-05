@@ -1,5 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{MobEffect, sound_event};
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
@@ -78,11 +79,11 @@ impl ConsumeEffectType {
 
     pub const fn id(self) -> &'static str {
         match self {
-            Self::ApplyEffects => "minecraft:apply_effects",
-            Self::RemoveEffects => "minecraft:remove_effects",
-            Self::ClearAllEffects => "minecraft:clear_all_effects",
-            Self::TeleportRandomly => "minecraft:teleport_randomly",
-            Self::PlaySound => "minecraft:play_sound",
+            Self::ApplyEffects => keys::consume_effect_type::APPLY_EFFECTS.name(),
+            Self::RemoveEffects => keys::consume_effect_type::REMOVE_EFFECTS.name(),
+            Self::ClearAllEffects => keys::consume_effect_type::CLEAR_ALL_EFFECTS.name(),
+            Self::TeleportRandomly => keys::consume_effect_type::TELEPORT_RANDOMLY.name(),
+            Self::PlaySound => keys::consume_effect_type::PLAY_SOUND.name(),
         }
     }
 

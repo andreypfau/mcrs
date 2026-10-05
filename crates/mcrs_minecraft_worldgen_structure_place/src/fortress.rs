@@ -1,6 +1,8 @@
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -8,8 +10,6 @@ use mcrs_minecraft_worldgen_structure::piece::FortressKind;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
-
-pub const NETHER_BRIDGE_LOOT: &str = "minecraft:chests/nether_bridge";
 
 #[derive(Clone, Debug)]
 pub struct FortressBlocks {
@@ -43,25 +43,25 @@ impl FortressBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let fence = |sides: &[&str]| {
             let on: Vec<(&str, &str)> = sides.iter().map(|side| (*side, "true")).collect();
-            Oriented::named(world, blocks, "minecraft:nether_brick_fence", &on)
+            Oriented::named(world, blocks, keys::block::NETHER_BRICK_FENCE, &on)
         };
         let stairs = |facing: &str| {
             Oriented::named(
                 world,
                 blocks,
-                "minecraft:nether_brick_stairs",
+                keys::block::NETHER_BRICK_STAIRS,
                 &[("facing", facing)],
             )
         };
         Ok(FortressBlocks {
-            bricks: oriented("minecraft:nether_bricks")?,
-            air: oriented("minecraft:air")?,
-            lava: oriented("minecraft:lava")?,
-            soul_sand: oriented("minecraft:soul_sand")?,
-            nether_wart: oriented("minecraft:nether_wart")?,
+            bricks: oriented(keys::block::NETHER_BRICKS)?,
+            air: oriented(keys::block::AIR)?,
+            lava: oriented(keys::block::LAVA)?,
+            soul_sand: oriented(keys::block::SOUL_SAND)?,
+            nether_wart: oriented(keys::block::NETHER_WART)?,
             fence: fence(&[])?,
             fence_ns: fence(&["north", "south"])?,
             fence_we: fence(&["west", "east"])?,
@@ -77,7 +77,7 @@ impl FortressBlocks {
             stairs_south: stairs("south")?,
             stairs_east: stairs("east")?,
             stairs_west: stairs("west")?,
-            spawner: state(blocks, "minecraft:spawner", &[])?,
+            spawner: state(blocks, keys::block::SPAWNER, &[])?,
             chest: ChestStates::compile(blocks)?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
         })
@@ -379,7 +379,14 @@ fn small_corridor_left_turn<W: WorldGenVolume, R: Random>(
     c.solid(&b.fence_we, [1, 3, 4], [1, 4, 4]);
     c.solid(&b.fence_we, [3, 3, 4], [3, 4, 4]);
     if chest {
-        c.create_chest(rng, &b.chest, 3, 2, 3, NETHER_BRIDGE_LOOT);
+        c.create_chest(
+            rng,
+            &b.chest,
+            3,
+            2,
+            3,
+            keys::loot_table::CHESTS_NETHER_BRIDGE,
+        );
     }
     small_corridor_roof(b, c);
 }
@@ -414,7 +421,14 @@ fn small_corridor_right_turn<W: WorldGenVolume, R: Random>(
     c.solid(&b.fence_we, [1, 3, 4], [1, 4, 4]);
     c.solid(&b.fence_we, [3, 3, 4], [3, 4, 4]);
     if chest {
-        c.create_chest(rng, &b.chest, 1, 2, 3, NETHER_BRIDGE_LOOT);
+        c.create_chest(
+            rng,
+            &b.chest,
+            1,
+            2,
+            3,
+            keys::loot_table::CHESTS_NETHER_BRIDGE,
+        );
     }
     small_corridor_roof(b, c);
 }
@@ -496,8 +510,10 @@ fn monster_throne<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_,
     let pos = c.world_pos(3, 5, 5);
     if c.clip.is_inside(pos) {
         c.volume.set(pos, b.spawner);
-        c.entities
-            .push(GeneratedBlockEntity::mob_spawner(pos, "minecraft:blaze"));
+        c.entities.push(GeneratedBlockEntity::mob_spawner(
+            pos,
+            keys::entity_type::BLAZE.name(),
+        ));
     }
     for x in 0..=6 {
         for z in 0..=6 {

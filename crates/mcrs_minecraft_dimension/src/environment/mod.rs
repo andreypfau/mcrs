@@ -377,28 +377,43 @@ static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
         let sky_light_alpha = (alpha * 255.0) as u32;
         EnvironmentAttributeMap(
             [
-                ("minecraft:visual/sky_color", blend_to_gray(sky_gray)),
-                ("minecraft:visual/fog_color", multiply(0xFF00_0000 | tint)),
-                ("minecraft:visual/cloud_color", blend_to_gray(cloud_gray)),
-                ("minecraft:gameplay/sky_light_level", alpha_blend(4.0)),
                 (
-                    "minecraft:visual/sky_light_color",
+                    keys::environment_attribute::VISUAL_SKY_COLOR.name(),
+                    blend_to_gray(sky_gray),
+                ),
+                (
+                    keys::environment_attribute::VISUAL_FOG_COLOR.name(),
+                    multiply(0xFF00_0000 | tint),
+                ),
+                (
+                    keys::environment_attribute::VISUAL_CLOUD_COLOR.name(),
+                    blend_to_gray(cloud_gray),
+                ),
+                (
+                    keys::environment_attribute::GAMEPLAY_SKY_LIGHT_LEVEL.name(),
+                    alpha_blend(4.0),
+                ),
+                (
+                    keys::environment_attribute::VISUAL_SKY_LIGHT_COLOR.name(),
                     AttributeEntry {
                         argument: AttributeValue::Color(sky_light_alpha << 24 | 0x7a_7aff),
                         modifier: Operation::AlphaBlend,
                     },
                 ),
-                ("minecraft:visual/sky_light_factor", alpha_blend(0.24)),
                 (
-                    "minecraft:visual/star_brightness",
+                    keys::environment_attribute::VISUAL_SKY_LIGHT_FACTOR.name(),
+                    alpha_blend(0.24),
+                ),
+                (
+                    keys::environment_attribute::VISUAL_STAR_BRIGHTNESS.name(),
                     AttributeEntry::override_value(AttributeValue::Float(0.0)),
                 ),
                 (
-                    "minecraft:visual/sunrise_sunset_color",
+                    keys::environment_attribute::VISUAL_SUNRISE_SUNSET_COLOR.name(),
                     multiply(0xFF00_0000 | tint),
                 ),
                 (
-                    "minecraft:gameplay/bees_stay_in_hive",
+                    keys::environment_attribute::GAMEPLAY_BEES_STAY_IN_HIVE.name(),
                     AttributeEntry::override_value(AttributeValue::Bool(true)),
                 ),
             ]

@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -13,8 +14,6 @@ use mcrs_minecraft_worldgen_structure::piece::WoodlandMansionPiece;
 
 use crate::canvas::ChestStates;
 use crate::{block_mask, place_positional, state};
-
-pub const WOODLAND_MANSION_LOOT: &str = "minecraft:chests/woodland_mansion";
 
 #[derive(Clone)]
 pub struct WoodlandMansionBlocks {
@@ -30,10 +29,10 @@ impl WoodlandMansionBlocks {
         Ok(WoodlandMansionBlocks {
             chain: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &["minecraft:structure_block"],
+                &[keys::block::STRUCTURE_BLOCK],
             )?)],
             chest: ChestStates::compile(blocks)?,
-            cobblestone: state(blocks, "minecraft:cobblestone", &[])?,
+            cobblestone: state(blocks, keys::block::COBBLESTONE, &[])?,
         })
     }
 }
@@ -102,7 +101,9 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
             volume.set(pos, b.chest.facing[index]);
             entities.push(GeneratedBlockEntity::chest(
                 pos,
-                WOODLAND_MANSION_LOOT.to_owned(),
+                keys::loot_table::CHESTS_WOODLAND_MANSION
+                    .as_str()
+                    .to_owned(),
                 rng.next_java_long(),
             ));
             continue;

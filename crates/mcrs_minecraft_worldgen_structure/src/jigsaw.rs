@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::JigsawConfig;
@@ -15,7 +16,6 @@ use super::frozen::{ElementId, FrozenStructures, PoolId};
 use super::piece::{JigsawPiece, Junction};
 use super::site::{Context, PlacedJigsaw, Site, SiteWorld, Stub, element_bounds, shuffled_jigsaws};
 
-const EMPTY_POOL: &str = "minecraft:empty";
 const EXPANSION_HACK_MAX_HEIGHT: i32 = 16;
 
 /// Inclusive integer arithmetic is exact for the reference's quarter-deflated
@@ -141,7 +141,7 @@ impl Assembly<'_> {
 
     fn pool_is_usable(&self, pool: PoolId) -> bool {
         let pool = &self.frozen.pools[usize::from(pool.0)];
-        !pool.expanded.is_empty() || pool.id.as_str() == EMPTY_POOL
+        !pool.expanded.is_empty() || pool.id.as_str() == keys::template_pool::EMPTY.as_str()
     }
 
     fn expansion_of(

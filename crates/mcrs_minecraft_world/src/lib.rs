@@ -34,10 +34,12 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
@@ -189,7 +191,7 @@ impl Plugin for MinecraftWorldPlugin {
                     .registry::<mcrs_minecraft_keys::WorldClock>()
                     .expect("the data pack loader parses minecraft:world_clock");
                 let timelines = registries
-                    .column::<Timeline>("minecraft:timeline")
+                    .column::<Timeline>(keys::Timeline::KEY.as_str())
                     .expect("the data pack loader parses minecraft:timeline");
                 app.insert_resource(
                     ClockTimeMarkers::derive(timelines, &clocks)

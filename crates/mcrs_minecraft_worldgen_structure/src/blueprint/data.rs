@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
@@ -101,7 +102,7 @@ fn texts(fields: &[(&str, &str)]) -> NbtCompound {
 pub(super) fn chest(loot_table: &str) -> BlockData {
     BlockData::Fixed(texts(&[
         ("LootTable", loot_table),
-        ("id", "minecraft:chest"),
+        ("id", keys::block_entity_type::CHEST.name()),
     ]))
 }
 
@@ -125,7 +126,7 @@ impl BlockData {
                     ("final_state", final_state),
                     ("name", name),
                     ("pool", pool),
-                    ("id", "minecraft:jigsaw"),
+                    ("id", keys::block_entity_type::JIGSAW.name()),
                     ("target", name),
                 ])
             }

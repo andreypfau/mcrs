@@ -1,13 +1,12 @@
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_structure::piece::JungleTemplePiece;
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{Oriented, block_mask};
-
-pub const JUNGLE_TEMPLE_LOOT: &str = "minecraft:chests/jungle_temple";
-pub const JUNGLE_TEMPLE_DISPENSER_LOOT: &str = "minecraft:chests/jungle_temple_dispenser";
 
 #[derive(Clone, Debug)]
 pub struct JungleTempleBlocks {
@@ -48,27 +47,27 @@ impl JungleTempleBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let of = |block: &str, properties: &[(&str, &str)]| {
+        let of = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let stairs = |facing| of("minecraft:cobblestone_stairs", &[("facing", facing)]);
+        let stairs = |facing| of(keys::block::COBBLESTONE_STAIRS, &[("facing", facing)]);
         let hook = |facing| {
             of(
-                "minecraft:tripwire_hook",
+                keys::block::TRIPWIRE_HOOK,
                 &[("facing", facing), ("attached", "true")],
             )
         };
         let tripwire = |a, b| {
             of(
-                "minecraft:tripwire",
+                keys::block::TRIPWIRE,
                 &[(a, "true"), (b, "true"), ("attached", "true")],
             )
         };
-        let wire = |sides: &[(&str, &str)]| of("minecraft:redstone_wire", sides);
+        let wire = |sides: &[(&str, &str)]| of(keys::block::REDSTONE_WIRE, sides);
         Ok(JungleTempleBlocks {
-            cobblestone: of("minecraft:cobblestone", &[])?,
-            mossy_cobblestone: of("minecraft:mossy_cobblestone", &[])?,
-            air: of("minecraft:air", &[])?,
+            cobblestone: of(keys::block::COBBLESTONE, &[])?,
+            mossy_cobblestone: of(keys::block::MOSSY_COBBLESTONE, &[])?,
+            air: of(keys::block::AIR, &[])?,
             stairs_north: stairs("north")?,
             stairs_south: stairs("south")?,
             stairs_east: stairs("east")?,
@@ -90,16 +89,16 @@ impl JungleTempleBlocks {
                 ("east", "side"),
                 ("west", "side"),
             ])?,
-            vine_south: of("minecraft:vine", &[("south", "true")])?,
-            vine_east: of("minecraft:vine", &[("east", "true")])?,
-            dispenser_north: of("minecraft:dispenser", &[("facing", "north")])?,
-            dispenser_west: of("minecraft:dispenser", &[("facing", "west")])?,
-            dispenser_states: block_mask(blocks, &["minecraft:dispenser"])?,
-            chiseled_stone_bricks: of("minecraft:chiseled_stone_bricks", &[])?,
-            lever: of("minecraft:lever", &[("facing", "north"), ("face", "wall")])?,
-            piston_up: of("minecraft:sticky_piston", &[("facing", "up")])?,
-            piston_west: of("minecraft:sticky_piston", &[("facing", "west")])?,
-            repeater_north: of("minecraft:repeater", &[("facing", "north")])?,
+            vine_south: of(keys::block::VINE, &[("south", "true")])?,
+            vine_east: of(keys::block::VINE, &[("east", "true")])?,
+            dispenser_north: of(keys::block::DISPENSER, &[("facing", "north")])?,
+            dispenser_west: of(keys::block::DISPENSER, &[("facing", "west")])?,
+            dispenser_states: block_mask(blocks, &[keys::block::DISPENSER])?,
+            chiseled_stone_bricks: of(keys::block::CHISELED_STONE_BRICKS, &[])?,
+            lever: of(keys::block::LEVER, &[("facing", "north"), ("face", "wall")])?,
+            piston_up: of(keys::block::STICKY_PISTON, &[("facing", "up")])?,
+            piston_west: of(keys::block::STICKY_PISTON, &[("facing", "west")])?,
+            repeater_north: of(keys::block::REPEATER, &[("facing", "north")])?,
             chest: ChestStates::compile(blocks)?,
         })
     }
@@ -250,7 +249,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         3,
         -2,
         1,
-        JUNGLE_TEMPLE_DISPENSER_LOOT,
+        keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_south, 3, -2, 2);
@@ -271,12 +270,19 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         9,
         -2,
         3,
-        JUNGLE_TEMPLE_DISPENSER_LOOT,
+        keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_east, 8, -1, 3);
     c.place(&b.vine_east, 8, -2, 3);
-    c.create_chest(rng, &b.chest, 8, -3, 3, JUNGLE_TEMPLE_LOOT);
+    c.create_chest(
+        rng,
+        &b.chest,
+        8,
+        -3,
+        3,
+        keys::loot_table::CHESTS_JUNGLE_TEMPLE,
+    );
 
     c.place(mossy, 9, -3, 2);
     c.place(mossy, 8, -3, 1);
@@ -305,5 +311,12 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
     c.place(&b.piston_west, 10, -2, 8);
     c.place(&b.piston_west, 10, -1, 8);
     c.place(&b.repeater_north, 10, -2, 10);
-    c.create_chest(rng, &b.chest, 9, -3, 10, JUNGLE_TEMPLE_LOOT);
+    c.create_chest(
+        rng,
+        &b.chest,
+        9,
+        -3,
+        10,
+        keys::loot_table::CHESTS_JUNGLE_TEMPLE,
+    );
 }

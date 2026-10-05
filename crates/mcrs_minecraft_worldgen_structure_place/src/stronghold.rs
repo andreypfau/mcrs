@@ -1,5 +1,7 @@
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -8,10 +10,6 @@ use mcrs_minecraft_worldgen_structure::piece::{SmallDoor, StrongholdKind};
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{Oriented, state};
-
-pub const CORRIDOR_LOOT: &str = "minecraft:chests/stronghold_corridor";
-pub const LIBRARY_LOOT: &str = "minecraft:chests/stronghold_library";
-pub const CROSSING_LOOT: &str = "minecraft:chests/stronghold_crossing";
 
 #[derive(Clone, Debug)]
 pub struct StrongholdBlocks {
@@ -73,53 +71,53 @@ impl StrongholdBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let of = |block: &str, properties: &[(&str, &str)]| {
+        let of = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let plain = |block: &str| of(block, &[]);
-        let sides = |block: &str, on: &[&str]| {
+        let plain = |block: Id<keys::Block>| of(block, &[]);
+        let sides = |block: Id<keys::Block>, on: &[&str]| {
             let on: Vec<(&str, &str)> = on.iter().map(|side| (*side, "true")).collect();
             of(block, &on)
         };
-        let bars = |on: &[&str]| sides("minecraft:iron_bars", on);
-        let fence = |on: &[&str]| sides("minecraft:oak_fence", on);
+        let bars = |on: &[&str]| sides(keys::block::IRON_BARS, on);
+        let fence = |on: &[&str]| sides(keys::block::OAK_FENCE, on);
         let frame = |facing: &str| -> Result<[Oriented; 2], FeatureCompileError> {
             Ok([
                 of(
-                    "minecraft:end_portal_frame",
+                    keys::block::END_PORTAL_FRAME,
                     &[("facing", facing), ("eye", "false")],
                 )?,
                 of(
-                    "minecraft:end_portal_frame",
+                    keys::block::END_PORTAL_FRAME,
                     &[("facing", facing), ("eye", "true")],
                 )?,
             ])
         };
         Ok(StrongholdBlocks {
-            stone_bricks: plain("minecraft:stone_bricks")?,
-            cracked_stone_bricks: plain("minecraft:cracked_stone_bricks")?,
-            mossy_stone_bricks: plain("minecraft:mossy_stone_bricks")?,
-            infested_stone_bricks: plain("minecraft:infested_stone_bricks")?,
-            cave_air: plain("minecraft:cave_air")?,
-            stone_brick_slab: plain("minecraft:stone_brick_slab")?,
-            smooth_stone_slab: plain("minecraft:smooth_stone_slab")?,
-            smooth_stone_slab_double: of("minecraft:smooth_stone_slab", &[("type", "double")])?,
-            oak_planks: plain("minecraft:oak_planks")?,
-            bookshelf: plain("minecraft:bookshelf")?,
-            cobweb: plain("minecraft:cobweb")?,
-            cobblestone: plain("minecraft:cobblestone")?,
-            water: plain("minecraft:water")?,
-            lava: plain("minecraft:lava")?,
-            end_portal: plain("minecraft:end_portal")?,
-            torch: plain("minecraft:torch")?,
-            wall_torch_north: of("minecraft:wall_torch", &[("facing", "north")])?,
-            wall_torch_south: of("minecraft:wall_torch", &[("facing", "south")])?,
-            wall_torch_east: of("minecraft:wall_torch", &[("facing", "east")])?,
-            wall_torch_west: of("minecraft:wall_torch", &[("facing", "west")])?,
-            ladder_south: of("minecraft:ladder", &[("facing", "south")])?,
-            ladder_west: of("minecraft:ladder", &[("facing", "west")])?,
-            stone_brick_stairs_north: of("minecraft:stone_brick_stairs", &[("facing", "north")])?,
-            cobblestone_stairs_south: of("minecraft:cobblestone_stairs", &[("facing", "south")])?,
+            stone_bricks: plain(keys::block::STONE_BRICKS)?,
+            cracked_stone_bricks: plain(keys::block::CRACKED_STONE_BRICKS)?,
+            mossy_stone_bricks: plain(keys::block::MOSSY_STONE_BRICKS)?,
+            infested_stone_bricks: plain(keys::block::INFESTED_STONE_BRICKS)?,
+            cave_air: plain(keys::block::CAVE_AIR)?,
+            stone_brick_slab: plain(keys::block::STONE_BRICK_SLAB)?,
+            smooth_stone_slab: plain(keys::block::SMOOTH_STONE_SLAB)?,
+            smooth_stone_slab_double: of(keys::block::SMOOTH_STONE_SLAB, &[("type", "double")])?,
+            oak_planks: plain(keys::block::OAK_PLANKS)?,
+            bookshelf: plain(keys::block::BOOKSHELF)?,
+            cobweb: plain(keys::block::COBWEB)?,
+            cobblestone: plain(keys::block::COBBLESTONE)?,
+            water: plain(keys::block::WATER)?,
+            lava: plain(keys::block::LAVA)?,
+            end_portal: plain(keys::block::END_PORTAL)?,
+            torch: plain(keys::block::TORCH)?,
+            wall_torch_north: of(keys::block::WALL_TORCH, &[("facing", "north")])?,
+            wall_torch_south: of(keys::block::WALL_TORCH, &[("facing", "south")])?,
+            wall_torch_east: of(keys::block::WALL_TORCH, &[("facing", "east")])?,
+            wall_torch_west: of(keys::block::WALL_TORCH, &[("facing", "west")])?,
+            ladder_south: of(keys::block::LADDER, &[("facing", "south")])?,
+            ladder_west: of(keys::block::LADDER, &[("facing", "west")])?,
+            stone_brick_stairs_north: of(keys::block::STONE_BRICK_STAIRS, &[("facing", "north")])?,
+            cobblestone_stairs_south: of(keys::block::COBBLESTONE_STAIRS, &[("facing", "south")])?,
             bars_ns: bars(&["north", "south"])?,
             bars_we: bars(&["west", "east"])?,
             bars_nse: bars(&["north", "south", "east"])?,
@@ -134,24 +132,24 @@ impl StrongholdBlocks {
             fence_e: fence(&["east"])?,
             fence_w: fence(&["west"])?,
             fence_nswe: fence(&["north", "south", "west", "east"])?,
-            oak_door_lower: plain("minecraft:oak_door")?,
-            oak_door_upper: of("minecraft:oak_door", &[("half", "upper")])?,
-            iron_door_lower: plain("minecraft:iron_door")?,
-            iron_door_upper: of("minecraft:iron_door", &[("half", "upper")])?,
-            iron_door_west_lower: of("minecraft:iron_door", &[("facing", "west")])?,
+            oak_door_lower: plain(keys::block::OAK_DOOR)?,
+            oak_door_upper: of(keys::block::OAK_DOOR, &[("half", "upper")])?,
+            iron_door_lower: plain(keys::block::IRON_DOOR)?,
+            iron_door_upper: of(keys::block::IRON_DOOR, &[("half", "upper")])?,
+            iron_door_west_lower: of(keys::block::IRON_DOOR, &[("facing", "west")])?,
             iron_door_west_upper: of(
-                "minecraft:iron_door",
+                keys::block::IRON_DOOR,
                 &[("facing", "west"), ("half", "upper")],
             )?,
-            button_north: of("minecraft:stone_button", &[("facing", "north")])?,
-            button_south: of("minecraft:stone_button", &[("facing", "south")])?,
+            button_north: of(keys::block::STONE_BUTTON, &[("facing", "north")])?,
+            button_south: of(keys::block::STONE_BUTTON, &[("facing", "south")])?,
             portal_frame: [
                 frame("north")?,
                 frame("east")?,
                 frame("south")?,
                 frame("west")?,
             ],
-            spawner: state(blocks, "minecraft:spawner", &[])?,
+            spawner: state(blocks, keys::block::SPAWNER, &[])?,
             chest: ChestStates::compile(blocks)?,
         })
     }
@@ -468,7 +466,14 @@ fn room_crossing<W: WorldGenVolume, R: Random>(
             c.place(&b.ladder_west, 9, 1, 3);
             c.place(&b.ladder_west, 9, 2, 3);
             c.place(&b.ladder_west, 9, 3, 3);
-            c.create_chest(rng, &b.chest, 3, 4, 8, CROSSING_LOOT);
+            c.create_chest(
+                rng,
+                &b.chest,
+                3,
+                4,
+                8,
+                keys::loot_table::CHESTS_STRONGHOLD_CROSSING,
+            );
         }
         _ => {}
     }
@@ -557,7 +562,14 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
     for z in 2..=4 {
         c.place(slab, 2, 1, z);
     }
-    c.create_chest(rng, &b.chest, 3, 2, 3, CORRIDOR_LOOT);
+    c.create_chest(
+        rng,
+        &b.chest,
+        3,
+        2,
+        3,
+        keys::loot_table::CHESTS_STRONGHOLD_CORRIDOR,
+    );
 }
 
 fn library<W: WorldGenVolume, R: Random>(
@@ -649,10 +661,24 @@ fn library<W: WorldGenVolume, R: Random>(
         c.place(&b.torch, 7, 8, 6);
         c.place(&b.torch, 7, 8, 8);
     }
-    c.create_chest(rng, &b.chest, 3, 3, 5, LIBRARY_LOOT);
+    c.create_chest(
+        rng,
+        &b.chest,
+        3,
+        3,
+        5,
+        keys::loot_table::CHESTS_STRONGHOLD_LIBRARY,
+    );
     if tall {
         c.place(&b.cave_air, 12, 9, 1);
-        c.create_chest(rng, &b.chest, 12, 8, 1, LIBRARY_LOOT);
+        c.create_chest(
+            rng,
+            &b.chest,
+            12,
+            8,
+            1,
+            keys::loot_table::CHESTS_STRONGHOLD_LIBRARY,
+        );
     }
 }
 
@@ -716,7 +742,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
         c.volume.set(pos, b.spawner);
         c.entities.push(GeneratedBlockEntity::mob_spawner(
             pos,
-            "minecraft:silverfish",
+            keys::entity_type::SILVERFISH.name(),
         ));
     }
 }

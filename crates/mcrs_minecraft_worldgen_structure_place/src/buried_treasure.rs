@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, Direction};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -8,8 +9,6 @@ use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldSt
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{block_mask, state};
-
-pub const BURIED_TREASURE_LOOT: &str = "minecraft:chests/buried_treasure";
 
 #[derive(Clone, Debug)]
 pub struct BuriedTreasureBlocks {
@@ -29,15 +28,15 @@ impl BuriedTreasureBlocks {
         open.union_with(&world.water_states);
         open.union_with(&world.lava_states);
         Ok(BuriedTreasureBlocks {
-            sand: state(blocks, "minecraft:sand", &[])?,
+            sand: state(blocks, keys::block::SAND, &[])?,
             resting: block_mask(
                 blocks,
                 &[
-                    "minecraft:sandstone",
-                    "minecraft:stone",
-                    "minecraft:andesite",
-                    "minecraft:granite",
-                    "minecraft:diorite",
+                    keys::block::SANDSTONE,
+                    keys::block::STONE,
+                    keys::block::ANDESITE,
+                    keys::block::GRANITE,
+                    keys::block::DIORITE,
                 ],
             )?,
             open: open.into(),
@@ -80,7 +79,14 @@ pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
                 };
                 c.volume.set(relative, fill);
             }
-            c.create_chest(rng, &b.chest, pos.x, pos.y, pos.z, BURIED_TREASURE_LOOT);
+            c.create_chest(
+                rng,
+                &b.chest,
+                pos.x,
+                pos.y,
+                pos.z,
+                keys::loot_table::CHESTS_BURIED_TREASURE,
+            );
             return;
         }
         pos.y -= 1;

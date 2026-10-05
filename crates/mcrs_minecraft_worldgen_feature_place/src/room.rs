@@ -1,8 +1,10 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
@@ -25,15 +27,12 @@ pub struct CompiledMonsterRoom {
     pub cannot_replace: StateMask,
 }
 
-const DUNGEON_LOOT: &str = "minecraft:chests/simple_dungeon";
-const BONUS_CHEST_LOOT: &str = "minecraft:chests/spawn_bonus_chest";
-
 /// `MonsterRoomFeature.MOBS`, whose repeat of the zombie is the weighting.
-const MOBS: [&str; 4] = [
-    "minecraft:skeleton",
-    "minecraft:zombie",
-    "minecraft:zombie",
-    "minecraft:spider",
+const MOBS: [Id<keys::EntityType>; 4] = [
+    keys::entity_type::SKELETON,
+    keys::entity_type::ZOMBIE,
+    keys::entity_type::ZOMBIE,
+    keys::entity_type::SPIDER,
 ];
 
 #[derive(Clone, Debug)]
@@ -128,7 +127,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
             if volume.set_unless(&config.cannot_replace, pos, chest) {
                 entities.push(GeneratedBlockEntity::chest(
                     pos,
-                    DUNGEON_LOOT.to_owned(),
+                    keys::loot_table::CHESTS_SIMPLE_DUNGEON.as_str().to_owned(),
                     rng.next_java_long(),
                 ));
             }
@@ -139,7 +138,7 @@ pub fn place_monster_room<W: WorldGenVolume>(
     let placed = volume.set_unless(&config.cannot_replace, origin, config.spawner);
     if placed || volume.holds(&config.spawner_states, origin) {
         let mob = MOBS[rng.next_i32_bound(4) as usize];
-        entities.push(GeneratedBlockEntity::mob_spawner(origin, mob));
+        entities.push(GeneratedBlockEntity::mob_spawner(origin, mob.name()));
     }
     true
 }
@@ -221,7 +220,9 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
             volume.set(pos, config.chest);
             entities.push(GeneratedBlockEntity::chest(
                 pos,
-                BONUS_CHEST_LOOT.to_owned(),
+                keys::loot_table::CHESTS_SPAWN_BONUS_CHEST
+                    .as_str()
+                    .to_owned(),
                 rng.next_java_long(),
             ));
             for side in Direction::HORIZONTAL {

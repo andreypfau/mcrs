@@ -3,6 +3,7 @@ use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
@@ -39,29 +40,29 @@ pub mod place;
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.
 pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
-    "minecraft:moving_piston",
-    "minecraft:shulker_box",
-    "minecraft:white_shulker_box",
-    "minecraft:orange_shulker_box",
-    "minecraft:magenta_shulker_box",
-    "minecraft:light_blue_shulker_box",
-    "minecraft:yellow_shulker_box",
-    "minecraft:lime_shulker_box",
-    "minecraft:pink_shulker_box",
-    "minecraft:gray_shulker_box",
-    "minecraft:light_gray_shulker_box",
-    "minecraft:cyan_shulker_box",
-    "minecraft:purple_shulker_box",
-    "minecraft:blue_shulker_box",
-    "minecraft:brown_shulker_box",
-    "minecraft:green_shulker_box",
-    "minecraft:red_shulker_box",
-    "minecraft:black_shulker_box",
-    "minecraft:bamboo",
-    "minecraft:scaffolding",
-    "minecraft:powder_snow",
-    "minecraft:pointed_dripstone",
-    "minecraft:sulfur_spike",
+    keys::block::MOVING_PISTON.name(),
+    keys::block::SHULKER_BOX.name(),
+    keys::block::WHITE_SHULKER_BOX.name(),
+    keys::block::ORANGE_SHULKER_BOX.name(),
+    keys::block::MAGENTA_SHULKER_BOX.name(),
+    keys::block::LIGHT_BLUE_SHULKER_BOX.name(),
+    keys::block::YELLOW_SHULKER_BOX.name(),
+    keys::block::LIME_SHULKER_BOX.name(),
+    keys::block::PINK_SHULKER_BOX.name(),
+    keys::block::GRAY_SHULKER_BOX.name(),
+    keys::block::LIGHT_GRAY_SHULKER_BOX.name(),
+    keys::block::CYAN_SHULKER_BOX.name(),
+    keys::block::PURPLE_SHULKER_BOX.name(),
+    keys::block::BLUE_SHULKER_BOX.name(),
+    keys::block::BROWN_SHULKER_BOX.name(),
+    keys::block::GREEN_SHULKER_BOX.name(),
+    keys::block::RED_SHULKER_BOX.name(),
+    keys::block::BLACK_SHULKER_BOX.name(),
+    keys::block::BAMBOO.name(),
+    keys::block::SCAFFOLDING.name(),
+    keys::block::POWDER_SNOW.name(),
+    keys::block::POINTED_DRIPSTONE.name(),
+    keys::block::SULFUR_SPIKE.name(),
 ];
 
 pub fn resolve_palette_state(
@@ -166,12 +167,12 @@ fn freeze_variants(
         .map_err(|error| format!("{registry}: {error}"))
     };
     frozen.variants = VariantTables {
-        cats: table("minecraft:cat_variant", inputs.variants.cats)?,
+        cats: table(keys::CatVariant::KEY.as_str(), inputs.variants.cats)?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
-        chickens: table("minecraft:chicken_variant", inputs.variants.chickens)?,
+        chickens: table(keys::ChickenVariant::KEY.as_str(), inputs.variants.chickens)?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            "minecraft:zombie_nautilus_variant",
+            keys::ZombieNautilusVariant::KEY.as_str(),
             inputs.variants.zombie_nautiluses,
         )?,
         ..VariantTables::default()
@@ -382,7 +383,8 @@ pub(crate) fn check_block_entity_ids(
         let id = nbt.get_string("id");
         if id.is_some_and(|id| {
             GeneratedBlockEntity::IDS.contains(&id)
-                || matches!(id, "minecraft:jigsaw" | "minecraft:structure_block")
+                || id == keys::block_entity_type::JIGSAW.name()
+                || id == keys::block_entity_type::STRUCTURE_BLOCK.name()
         }) {
             continue;
         }

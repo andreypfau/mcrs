@@ -3,9 +3,10 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::WritePacket;
@@ -48,10 +49,10 @@ fn name_key(mode: GameMode) -> &'static str {
 
 fn icon_item(mode: GameMode) -> StaticResourceLocation {
     match mode {
-        GameMode::Creative => rl!("minecraft:grass_block"),
-        GameMode::Survival => rl!("minecraft:iron_sword"),
-        GameMode::Adventure => rl!("minecraft:buried_treasure_map"),
-        GameMode::Spectator => rl!("minecraft:ender_eye"),
+        GameMode::Creative => keys::item::GRASS_BLOCK.location(),
+        GameMode::Survival => keys::item::IRON_SWORD.location(),
+        GameMode::Adventure => keys::item::BURIED_TREASURE_MAP.location(),
+        GameMode::Spectator => keys::item::ENDER_EYE.location(),
     }
 }
 

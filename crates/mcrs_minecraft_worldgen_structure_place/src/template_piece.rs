@@ -1,8 +1,10 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceKey};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::template::{
@@ -18,7 +20,7 @@ use crate::{block_mask, place_positional, state};
 
 fn ignore_blocks(
     blocks: &dyn BlockResolver,
-    names: &[&str],
+    names: &[Id<keys::Block>],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
         blocks, names,
@@ -29,7 +31,7 @@ fn ignore_blocks(
 pub fn ignore_structure_and_air(
     blocks: &dyn BlockResolver,
 ) -> Result<CompiledChain, FeatureCompileError> {
-    ignore_blocks(blocks, &["minecraft:structure_block", "minecraft:air"])
+    ignore_blocks(blocks, &[keys::block::STRUCTURE_BLOCK, keys::block::AIR])
 }
 
 /// `RandomizableContainer.setBlockEntityLootTable`: the container this run
@@ -39,7 +41,7 @@ pub fn ignore_structure_and_air(
 pub fn seed_container_loot(
     entities: &mut [GeneratedBlockEntity],
     pos: BlockPos,
-    loot_table: &str,
+    loot_table: ResourceKey<keys::LootTable, &'static str>,
     rng: &mut WorldgenRandom,
 ) {
     let container = entities
@@ -54,17 +56,17 @@ pub fn seed_container_loot(
             _ => None,
         });
     if let Some(container) = container {
-        container.loot_table = Some(loot_table.to_owned());
+        container.loot_table = Some(loot_table.as_str().to_owned());
         container.loot_table_seed = rng.next_java_long();
     }
 }
 
 /// `ShipwreckPieces.MARKERS_TO_LOOT`.
-fn shipwreck_loot(marker: &str) -> Option<&'static str> {
+fn shipwreck_loot(marker: &str) -> Option<ResourceKey<keys::LootTable, &'static str>> {
     Some(match marker {
-        "map_chest" => "minecraft:chests/shipwreck_map",
-        "treasure_chest" => "minecraft:chests/shipwreck_treasure",
-        "supply_chest" => "minecraft:chests/shipwreck_supply",
+        "map_chest" => keys::loot_table::CHESTS_SHIPWRECK_MAP,
+        "treasure_chest" => keys::loot_table::CHESTS_SHIPWRECK_TREASURE,
+        "supply_chest" => keys::loot_table::CHESTS_SHIPWRECK_SUPPLY,
         _ => return None,
     })
 }
@@ -129,10 +131,10 @@ pub struct IglooBlocks {
 impl IglooBlocks {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(IglooBlocks {
-            chain: ignore_blocks(blocks, &["minecraft:structure_block"])?,
-            snow_block: state(blocks, "minecraft:snow_block", &[])?,
-            air: state(blocks, "minecraft:air", &[])?,
-            ladder: block_mask(blocks, &["minecraft:ladder"])?,
+            chain: ignore_blocks(blocks, &[keys::block::STRUCTURE_BLOCK])?,
+            snow_block: state(blocks, keys::block::SNOW_BLOCK, &[])?,
+            air: state(blocks, keys::block::AIR, &[])?,
+            ladder: block_mask(blocks, &[keys::block::LADDER])?,
         })
     }
 }
@@ -194,7 +196,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
                 seed_container_loot(
                     entities,
                     (pos - IVec3::Y).into(),
-                    "minecraft:chests/igloo_chest",
+                    keys::loot_table::CHESTS_IGLOO_CHEST,
                     rng,
                 );
             }

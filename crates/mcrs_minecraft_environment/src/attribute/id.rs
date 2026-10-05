@@ -1,7 +1,8 @@
+use mcrs_minecraft_keys as keys;
 use std::marker::PhantomData;
 
+use mcrs_minecraft_core::StaticResourceLocation;
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_core::{StaticResourceLocation, rl};
 
 use super::MobSpawnSettings;
 
@@ -25,9 +26,9 @@ impl<T> Copy for Attribute<T> {}
 pub enum Opaque {}
 
 macro_rules! attributes {
-    ($($name:ident: $value:ty = $id:literal;)*) => {
+    ($($name:ident: $value:ty = $id:expr;)*) => {
         $(pub const $name: Attribute<$value> = Attribute {
-            id: rl!($id),
+            id: $id.location(),
             value: PhantomData,
         };)*
 
@@ -37,20 +38,20 @@ macro_rules! attributes {
 }
 
 attributes! {
-    SKY_COLOR: HexRgb = "minecraft:visual/sky_color";
-    FOG_COLOR: HexRgb = "minecraft:visual/fog_color";
-    WATER_FOG_COLOR: HexRgb = "minecraft:visual/water_fog_color";
-    WATER_FOG_END_DISTANCE: f32 = "minecraft:visual/water_fog_end_distance";
-    AMBIENT_PARTICLES: Opaque = "minecraft:visual/ambient_particles";
-    BACKGROUND_MUSIC: Opaque = "minecraft:audio/background_music";
-    MUSIC_VOLUME: f32 = "minecraft:audio/music_volume";
-    AMBIENT_SOUNDS: Opaque = "minecraft:audio/ambient_sounds";
-    INCREASED_FIRE_BURNOUT: bool = "minecraft:gameplay/increased_fire_burnout";
-    SNOW_GOLEM_MELTS: bool = "minecraft:gameplay/snow_golem_melts";
-    CAN_PILLAGER_PATROL_SPAWN: bool = "minecraft:gameplay/can_pillager_patrol_spawn";
+    SKY_COLOR: HexRgb = keys::environment_attribute::VISUAL_SKY_COLOR;
+    FOG_COLOR: HexRgb = keys::environment_attribute::VISUAL_FOG_COLOR;
+    WATER_FOG_COLOR: HexRgb = keys::environment_attribute::VISUAL_WATER_FOG_COLOR;
+    WATER_FOG_END_DISTANCE: f32 = keys::environment_attribute::VISUAL_WATER_FOG_END_DISTANCE;
+    AMBIENT_PARTICLES: Opaque = keys::environment_attribute::VISUAL_AMBIENT_PARTICLES;
+    BACKGROUND_MUSIC: Opaque = keys::environment_attribute::AUDIO_BACKGROUND_MUSIC;
+    MUSIC_VOLUME: f32 = keys::environment_attribute::AUDIO_MUSIC_VOLUME;
+    AMBIENT_SOUNDS: Opaque = keys::environment_attribute::AUDIO_AMBIENT_SOUNDS;
+    INCREASED_FIRE_BURNOUT: bool = keys::environment_attribute::GAMEPLAY_INCREASED_FIRE_BURNOUT;
+    SNOW_GOLEM_MELTS: bool = keys::environment_attribute::GAMEPLAY_SNOW_GOLEM_MELTS;
+    CAN_PILLAGER_PATROL_SPAWN: bool = keys::environment_attribute::GAMEPLAY_CAN_PILLAGER_PATROL_SPAWN;
     CREATURE_WORLD_GEN_SPAWN_PROBABILITY: f32 =
-        "minecraft:gameplay/creature_world_gen_spawn_probability";
-    NATURAL_MOB_SPAWNS: MobSpawnSettings = "minecraft:gameplay/natural_mob_spawns";
+        keys::environment_attribute::GAMEPLAY_CREATURE_WORLD_GEN_SPAWN_PROBABILITY;
+    NATURAL_MOB_SPAWNS: MobSpawnSettings = keys::environment_attribute::GAMEPLAY_NATURAL_MOB_SPAWNS;
 }
 
 #[cfg(test)]

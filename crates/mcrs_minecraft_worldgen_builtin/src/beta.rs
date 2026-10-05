@@ -1,4 +1,5 @@
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
@@ -111,14 +112,14 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
         )
     };
     let settings = NoiseGeneratorSettings {
-        default_block: Some(BlockState::bare(rl!("minecraft:stone").to_arc())),
+        default_block: Some(BlockState::bare(keys::block::STONE.location().to_arc())),
         disable_mob_generation: true,
         legacy_random_source: true,
         ..NoiseGeneratorSettings::new(
             NoiseSettings::new(0, 128),
-            BlockState::bare(rl!("minecraft:water").to_arc()).with("level", "0"),
+            BlockState::bare(keys::block::WATER.location().to_arc()).with("level", "0"),
             router,
-            rl!("minecraft:overworld").to_arc(),
+            keys::material_rule::OVERWORLD.location().to_arc(),
             64,
         )
     };

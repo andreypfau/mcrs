@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
@@ -58,10 +59,10 @@ pub(super) fn with_property<'a>(
 
 pub(super) fn state_of(
     blocks: &BlockDefinitions,
-    block: &str,
+    block: Id<Block>,
     properties: &[(&str, &str)],
 ) -> Option<VoxelId> {
-    let entry = blocks.block(block)?;
+    let entry = &blocks[block];
     let mut id = entry.default_state_id;
     for (name, value) in properties {
         id = entry.with_text(id, name, value)?;
@@ -71,7 +72,7 @@ pub(super) fn state_of(
 
 pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let blocks = resolver.blocks;
-    let air = resolver.block_mask("minecraft:air")?;
+    let air = resolver.block_mask_of(keys::block::AIR)?;
     let logs = resolver.tag_mask(block_tags::LOGS)?;
     let leaves = resolver.tag_mask(block_tags::LEAVES)?;
     let replaceable_by_trees = resolver.tag_mask(block_tags::REPLACEABLE_BY_TREES)?;
@@ -88,26 +89,26 @@ pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let vine_side = std::array::from_fn(|index| {
         state_of(
             blocks,
-            "minecraft:vine",
+            keys::block::VINE,
             &[(Direction::HORIZONTAL[index].name(), "true")],
         )
         .unwrap_or_default()
     });
-    let state = |block: &str, properties: &[(&str, &str)]| {
-        missing(state_of(blocks, block, properties), block)
+    let state = |block: Id<Block>, properties: &[(&str, &str)]| {
+        missing(state_of(blocks, block, properties), block.name())
     };
     let palette = TreePalette {
-        vines: resolver.block_mask("minecraft:vine")?,
-        shelf_mushrooms: resolver.block_mask("minecraft:shelf_mushroom")?,
+        vines: resolver.block_mask_of(keys::block::VINE)?,
+        shelf_mushrooms: resolver.block_mask_of(keys::block::SHELF_MUSHROOM)?,
         vine_side,
-        bee_nest: state("minecraft:bee_nest", &[("facing", "south")])?,
-        cocoa: aged_facings(blocks, "minecraft:cocoa"),
-        shelf_mushroom: aged_facings(blocks, "minecraft:shelf_mushroom"),
+        bee_nest: state(keys::block::BEE_NEST, &[("facing", "south")])?,
+        cocoa: aged_facings(blocks, keys::block::COCOA),
+        shelf_mushroom: aged_facings(blocks, keys::block::SHELF_MUSHROOM),
         pale_hanging_moss: [
-            state("minecraft:pale_hanging_moss", &[("tip", "false")])?,
-            state("minecraft:pale_hanging_moss", &[("tip", "true")])?,
+            state(keys::block::PALE_HANGING_MOSS, &[("tip", "false")])?,
+            state(keys::block::PALE_HANGING_MOSS, &[("tip", "true")])?,
         ],
-        creaking_heart: state("minecraft:creaking_heart", &[])?,
+        creaking_heart: state(keys::block::CREAKING_HEART, &[])?,
     };
 
     Ok(TreeTables {
@@ -118,7 +119,10 @@ pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     })
 }
 
-fn aged_facings<const AGES: usize>(blocks: &BlockDefinitions, block: &str) -> [[VoxelId; 4]; AGES] {
+fn aged_facings<const AGES: usize>(
+    blocks: &BlockDefinitions,
+    block: Id<Block>,
+) -> [[VoxelId; 4]; AGES] {
     std::array::from_fn(|age| {
         std::array::from_fn(|facing| {
             state_of(
@@ -374,7 +378,7 @@ fn rule_of(
         }
         SurviveFamily::SugarCane => SurviveRule::SugarCane {
             sugar_cane: resolver
-                .block_mask("minecraft:sugar_cane")?
+                .block_mask_of(keys::block::SUGAR_CANE)?
                 .as_ref()
                 .clone(),
             supports: tag(ids.supports_sugar_cane),
@@ -388,7 +392,7 @@ fn rule_of(
             let mut blocked = resolver.world.sturdy_up.as_ref().clone();
             blocked.union_with(&resolver.world.lava_fluid);
             let mut supports = tag(ids.supports_cactus);
-            let cactus = resolver.block_mask("minecraft:cactus")?;
+            let cactus = resolver.block_mask_of(keys::block::CACTUS)?;
             supports.union_with(&cactus);
             SurviveRule::Cactus {
                 supports,

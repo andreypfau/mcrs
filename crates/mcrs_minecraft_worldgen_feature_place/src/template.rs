@@ -1,14 +1,16 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, Rotation};
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -351,33 +353,81 @@ fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &m
     layout.try_set(out, "half", half)
 }
 
-const BLACKSTONE_REPLACEMENTS: [(&str, &str); 23] = [
-    ("cobblestone", "blackstone"),
-    ("mossy_cobblestone", "blackstone"),
-    ("stone", "polished_blackstone"),
-    ("stone_bricks", "polished_blackstone_bricks"),
-    ("mossy_stone_bricks", "polished_blackstone_bricks"),
-    ("cobblestone_stairs", "blackstone_stairs"),
-    ("mossy_cobblestone_stairs", "blackstone_stairs"),
-    ("stone_stairs", "polished_blackstone_stairs"),
-    ("stone_brick_stairs", "polished_blackstone_brick_stairs"),
+const BLACKSTONE_REPLACEMENTS: [(Id<keys::Block>, Id<keys::Block>); 23] = [
+    (keys::block::COBBLESTONE, keys::block::BLACKSTONE),
+    (keys::block::MOSSY_COBBLESTONE, keys::block::BLACKSTONE),
+    (keys::block::STONE, keys::block::POLISHED_BLACKSTONE),
     (
-        "mossy_stone_brick_stairs",
-        "polished_blackstone_brick_stairs",
+        keys::block::STONE_BRICKS,
+        keys::block::POLISHED_BLACKSTONE_BRICKS,
     ),
-    ("cobblestone_slab", "blackstone_slab"),
-    ("mossy_cobblestone_slab", "blackstone_slab"),
-    ("smooth_stone_slab", "polished_blackstone_slab"),
-    ("stone_slab", "polished_blackstone_slab"),
-    ("stone_brick_slab", "polished_blackstone_brick_slab"),
-    ("mossy_stone_brick_slab", "polished_blackstone_brick_slab"),
-    ("stone_brick_wall", "polished_blackstone_brick_wall"),
-    ("mossy_stone_brick_wall", "polished_blackstone_brick_wall"),
-    ("cobblestone_wall", "blackstone_wall"),
-    ("mossy_cobblestone_wall", "blackstone_wall"),
-    ("chiseled_stone_bricks", "chiseled_polished_blackstone"),
-    ("cracked_stone_bricks", "cracked_polished_blackstone_bricks"),
-    ("iron_bars", "iron_chain"),
+    (
+        keys::block::MOSSY_STONE_BRICKS,
+        keys::block::POLISHED_BLACKSTONE_BRICKS,
+    ),
+    (
+        keys::block::COBBLESTONE_STAIRS,
+        keys::block::BLACKSTONE_STAIRS,
+    ),
+    (
+        keys::block::MOSSY_COBBLESTONE_STAIRS,
+        keys::block::BLACKSTONE_STAIRS,
+    ),
+    (
+        keys::block::STONE_STAIRS,
+        keys::block::POLISHED_BLACKSTONE_STAIRS,
+    ),
+    (
+        keys::block::STONE_BRICK_STAIRS,
+        keys::block::POLISHED_BLACKSTONE_BRICK_STAIRS,
+    ),
+    (
+        keys::block::MOSSY_STONE_BRICK_STAIRS,
+        keys::block::POLISHED_BLACKSTONE_BRICK_STAIRS,
+    ),
+    (keys::block::COBBLESTONE_SLAB, keys::block::BLACKSTONE_SLAB),
+    (
+        keys::block::MOSSY_COBBLESTONE_SLAB,
+        keys::block::BLACKSTONE_SLAB,
+    ),
+    (
+        keys::block::SMOOTH_STONE_SLAB,
+        keys::block::POLISHED_BLACKSTONE_SLAB,
+    ),
+    (
+        keys::block::STONE_SLAB,
+        keys::block::POLISHED_BLACKSTONE_SLAB,
+    ),
+    (
+        keys::block::STONE_BRICK_SLAB,
+        keys::block::POLISHED_BLACKSTONE_BRICK_SLAB,
+    ),
+    (
+        keys::block::MOSSY_STONE_BRICK_SLAB,
+        keys::block::POLISHED_BLACKSTONE_BRICK_SLAB,
+    ),
+    (
+        keys::block::STONE_BRICK_WALL,
+        keys::block::POLISHED_BLACKSTONE_BRICK_WALL,
+    ),
+    (
+        keys::block::MOSSY_STONE_BRICK_WALL,
+        keys::block::POLISHED_BLACKSTONE_BRICK_WALL,
+    ),
+    (keys::block::COBBLESTONE_WALL, keys::block::BLACKSTONE_WALL),
+    (
+        keys::block::MOSSY_COBBLESTONE_WALL,
+        keys::block::BLACKSTONE_WALL,
+    ),
+    (
+        keys::block::CHISELED_STONE_BRICKS,
+        keys::block::CHISELED_POLISHED_BLACKSTONE,
+    ),
+    (
+        keys::block::CRACKED_STONE_BRICKS,
+        keys::block::CRACKED_POLISHED_BLACKSTONE_BRICKS,
+    ),
+    (keys::block::IRON_BARS, keys::block::IRON_CHAIN),
 ];
 
 pub type CompiledChain = Vec<CompiledProcessor>;
@@ -391,13 +441,11 @@ pub enum ChainKind {
     Feature,
 }
 
-fn minecraft(name: &str) -> Result<ResourceLocation, FeatureCompileError> {
-    ResourceLocation::minecraft(name)
-        .map_err(|error| FeatureCompileError::UnknownBlockState(error.to_string()))
-}
-
-fn block_mask(blocks: &dyn BlockResolver, name: &str) -> Result<StateMask, FeatureCompileError> {
-    states_of(blocks, StateQuery::Block(&minecraft(name)?))
+fn block_mask(
+    blocks: &dyn BlockResolver,
+    block: Id<keys::Block>,
+) -> Result<StateMask, FeatureCompileError> {
+    states_of(blocks, StateQuery::Block(&block.location().to_arc()))
 }
 
 pub fn compile_chain(
@@ -411,11 +459,11 @@ pub fn compile_chain(
         if !legacy {
             processors.push(CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                "structure_block",
+                keys::block::STRUCTURE_BLOCK,
             )?));
         }
         processors.push(CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, "jigsaw")?,
+            jigsaw: block_mask(blocks, keys::block::JIGSAW)?,
         });
     }
     for (index, processor) in list.iter().enumerate() {
@@ -436,8 +484,8 @@ pub fn compile_chain(
             processors.push(CompiledProcessor::BlockIgnore(states_of(
                 blocks,
                 StateQuery::Names(&[
-                    rl!("minecraft:air").to_arc(),
-                    rl!("minecraft:structure_block").to_arc(),
+                    keys::block::AIR.location().to_arc(),
+                    keys::block::STRUCTURE_BLOCK.location().to_arc(),
                 ]),
             )?));
         }
@@ -463,7 +511,7 @@ fn compile_processor(
             ),
         )?),
         JigsawReplacement => CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, "jigsaw")?,
+            jigsaw: block_mask(blocks, keys::block::JIGSAW)?,
         },
         Rule { rules } => CompiledProcessor::Rule(
             rules
@@ -499,34 +547,39 @@ fn compile_processor(
         BlackstoneReplace => CompiledProcessor::BlackstoneReplace(
             BLACKSTONE_REPLACEMENTS
                 .iter()
-                .map(|(from, to)| Ok((block_mask(blocks, from)?, default_state(blocks, to)?)))
+                .map(|&(from, to)| Ok((block_mask(blocks, from)?, default_state(blocks, to)?)))
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
-            let tag = |name: &str| states_of(blocks, StateQuery::BlockTag(&minecraft(name)?));
+            let tag = |tag: TagKey<keys::Block, &'static str>| {
+                states_of(blocks, StateQuery::BlockTag(&tag.location().to_arc()))
+            };
             CompiledProcessor::BlockAge(BlockAgeTables {
                 mossiness: *mossiness as f32,
                 full_stone: states_of(
                     blocks,
                     StateQuery::Names(&[
-                        rl!("minecraft:stone_bricks").to_arc(),
-                        rl!("minecraft:stone").to_arc(),
-                        rl!("minecraft:chiseled_stone_bricks").to_arc(),
+                        keys::block::STONE_BRICKS.location().to_arc(),
+                        keys::block::STONE.location().to_arc(),
+                        keys::block::CHISELED_STONE_BRICKS.location().to_arc(),
                     ]),
                 )?,
-                stairs: tag("stairs")?,
-                slabs: tag("slabs")?,
-                walls: tag("walls")?,
-                obsidian: block_mask(blocks, "obsidian")?,
-                cracked_stone_bricks: default_state(blocks, "cracked_stone_bricks")?,
-                mossy_stone_bricks: default_state(blocks, "mossy_stone_bricks")?,
-                stone_brick_stairs: default_state(blocks, "stone_brick_stairs")?,
-                mossy_stone_brick_stairs: default_state(blocks, "mossy_stone_brick_stairs")?,
-                stone_slab: default_state(blocks, "stone_slab")?,
-                stone_brick_slab: default_state(blocks, "stone_brick_slab")?,
-                mossy_stone_brick_slab: default_state(blocks, "mossy_stone_brick_slab")?,
-                mossy_stone_brick_wall: default_state(blocks, "mossy_stone_brick_wall")?,
-                crying_obsidian: default_state(blocks, "crying_obsidian")?,
+                stairs: tag(keys::block_tags::STAIRS)?,
+                slabs: tag(keys::block_tags::SLABS)?,
+                walls: tag(keys::block_tags::WALLS)?,
+                obsidian: block_mask(blocks, keys::block::OBSIDIAN)?,
+                cracked_stone_bricks: default_state(blocks, keys::block::CRACKED_STONE_BRICKS)?,
+                mossy_stone_bricks: default_state(blocks, keys::block::MOSSY_STONE_BRICKS)?,
+                stone_brick_stairs: default_state(blocks, keys::block::STONE_BRICK_STAIRS)?,
+                mossy_stone_brick_stairs: default_state(
+                    blocks,
+                    keys::block::MOSSY_STONE_BRICK_STAIRS,
+                )?,
+                stone_slab: default_state(blocks, keys::block::STONE_SLAB)?,
+                stone_brick_slab: default_state(blocks, keys::block::STONE_BRICK_SLAB)?,
+                mossy_stone_brick_slab: default_state(blocks, keys::block::MOSSY_STONE_BRICK_SLAB)?,
+                mossy_stone_brick_wall: default_state(blocks, keys::block::MOSSY_STONE_BRICK_WALL)?,
+                crying_obsidian: default_state(blocks, keys::block::CRYING_OBSIDIAN)?,
             })
         }
         LavaSubmergedBlock => CompiledProcessor::LavaSubmergedBlock {
@@ -535,8 +588,11 @@ fn compile_processor(
     }))
 }
 
-fn default_state(blocks: &dyn BlockResolver, name: &str) -> Result<VoxelId, FeatureCompileError> {
-    state_of(blocks, &BlockState::bare(minecraft(name)?))
+fn default_state(
+    blocks: &dyn BlockResolver,
+    block: Id<keys::Block>,
+) -> Result<VoxelId, FeatureCompileError> {
+    state_of(blocks, &BlockState::bare(block.location().to_arc()))
 }
 
 fn compile_processor_rule(
@@ -563,8 +619,10 @@ fn compile_processor_rule(
             // name with their entity; a container output under another name
             // needs a name-to-kind arm.
             let entity_id = match output_name.as_str() {
-                "minecraft:suspicious_sand" | "minecraft:suspicious_gravel" => {
-                    "minecraft:brushable_block"
+                name if name == keys::block::SUSPICIOUS_SAND.name()
+                    || name == keys::block::SUSPICIOUS_GRAVEL.name() =>
+                {
+                    keys::block_entity_type::BRUSHABLE_BLOCK.name()
                 }
                 name => *GeneratedBlockEntity::IDS
                     .iter()
@@ -962,6 +1020,7 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
+    use mcrs_minecraft_core::rl;
     use mcrs_minecraft_registry::{DenseId, Id};
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;

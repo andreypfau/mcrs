@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ResourceKey};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -22,7 +23,7 @@ pub struct ChestStates {
 
 impl ChestStates {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
-        let facing = |name| state(blocks, "minecraft:chest", &[("facing", name)]);
+        let facing = |name| state(blocks, keys::block::CHEST, &[("facing", name)]);
         Ok(ChestStates {
             facing: [
                 facing("north")?,
@@ -30,7 +31,7 @@ impl ChestStates {
                 facing("south")?,
                 facing("west")?,
             ],
-            states: block_mask(blocks, &["minecraft:chest"])?,
+            states: block_mask(blocks, &[keys::block::CHEST])?,
         })
     }
 }
@@ -46,9 +47,9 @@ pub fn replaceable_by_structures(
     let plants = block_mask(
         blocks,
         &[
-            "minecraft:glow_lichen",
-            "minecraft:seagrass",
-            "minecraft:tall_seagrass",
+            keys::block::GLOW_LICHEN,
+            keys::block::SEAGRASS,
+            keys::block::TALL_SEAGRASS,
         ],
     )?;
     mask.union_with(&plants);
@@ -268,7 +269,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: &str,
+        loot_table: ResourceKey<keys::LootTable, &'static str>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(&chest.states, pos) {
@@ -278,7 +279,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         self.volume.set(pos, state);
         self.entities.push(GeneratedBlockEntity::chest(
             pos,
-            loot_table.to_owned(),
+            loot_table.as_str().to_owned(),
             rng.next_java_long(),
         ));
         true
@@ -294,7 +295,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: &str,
+        loot_table: ResourceKey<keys::LootTable, &'static str>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(dispenser_states, pos) {
@@ -304,7 +305,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         self.entities
             .push(GeneratedBlockEntity::Dispenser(ContainerData::looted(
                 pos,
-                loot_table.to_owned(),
+                loot_table.as_str().to_owned(),
                 rng.next_java_long(),
             )));
         true

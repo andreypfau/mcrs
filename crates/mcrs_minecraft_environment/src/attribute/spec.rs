@@ -4,11 +4,12 @@
 //! Immutable data, built once. Nothing here holds an effective value — that is
 //! composed from the layers on demand.
 
+use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_protocol::item::Text;
 use mcrs_minecraft_protocol::particle::ParticleOptions;
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
@@ -696,7 +697,7 @@ fn table() -> Vec<AttributeSpec> {
     let color = |packed: i32| V::Color(packed as u32);
     let float = V::Float;
     let flag = V::Bool;
-    let activity = || V::Activity(rl!("minecraft:idle").to_arc());
+    let activity = || V::Activity(keys::activity::IDLE.location().to_arc());
     let bed_rule = |can_set_spawn, destroy_on_leave| V::BedRule(BedRule {
         can_sleep: BedRuleCondition::WhenDark,
         can_set_spawn,

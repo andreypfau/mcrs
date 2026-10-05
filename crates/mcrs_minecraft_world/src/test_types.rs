@@ -3,7 +3,7 @@ use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
@@ -80,22 +80,38 @@ impl Serialize for GameRuleValue {
 // chisle: a rule not listed here is read as a boolean, so an integer rule a later game version
 // registers is refused until it is added; listing it lifts that.
 pub const INTEGER_GAME_RULES: [(&str, i32, i32); 12] = [
-    ("minecraft:fire_spread_radius_around_player", -1, i32::MAX),
-    ("minecraft:max_block_modifications", 1, i32::MAX),
-    ("minecraft:max_command_forks", 0, i32::MAX),
-    ("minecraft:max_command_sequence_length", 0, i32::MAX),
-    ("minecraft:max_entity_cramming", 0, i32::MAX),
-    ("minecraft:max_minecart_speed", 1, 1000),
-    ("minecraft:max_snow_accumulation_height", 0, 8),
     (
-        "minecraft:players_nether_portal_creative_delay",
+        keys::game_rule::FIRE_SPREAD_RADIUS_AROUND_PLAYER.name(),
+        -1,
+        i32::MAX,
+    ),
+    (keys::game_rule::MAX_BLOCK_MODIFICATIONS.name(), 1, i32::MAX),
+    (keys::game_rule::MAX_COMMAND_FORKS.name(), 0, i32::MAX),
+    (
+        keys::game_rule::MAX_COMMAND_SEQUENCE_LENGTH.name(),
         0,
         i32::MAX,
     ),
-    ("minecraft:players_nether_portal_default_delay", 0, i32::MAX),
-    ("minecraft:players_sleeping_percentage", 0, i32::MAX),
-    ("minecraft:random_tick_speed", 0, i32::MAX),
-    ("minecraft:respawn_radius", 0, i32::MAX),
+    (keys::game_rule::MAX_ENTITY_CRAMMING.name(), 0, i32::MAX),
+    (keys::game_rule::MAX_MINECART_SPEED.name(), 1, 1000),
+    (keys::game_rule::MAX_SNOW_ACCUMULATION_HEIGHT.name(), 0, 8),
+    (
+        keys::game_rule::PLAYERS_NETHER_PORTAL_CREATIVE_DELAY.name(),
+        0,
+        i32::MAX,
+    ),
+    (
+        keys::game_rule::PLAYERS_NETHER_PORTAL_DEFAULT_DELAY.name(),
+        0,
+        i32::MAX,
+    ),
+    (
+        keys::game_rule::PLAYERS_SLEEPING_PERCENTAGE.name(),
+        0,
+        i32::MAX,
+    ),
+    (keys::game_rule::RANDOM_TICK_SPEED.name(), 0, i32::MAX),
+    (keys::game_rule::RESPAWN_RADIUS.name(), 0, i32::MAX),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -178,11 +194,11 @@ type NonNegative = Bounded<0, { i32::MAX }, 0>;
 type Padding = Bounded<0, 128, 0>;
 
 fn overworld() -> ResourceKey<Dimension> {
-    ResourceKey::from_location(rl!("minecraft:overworld").to_arc())
+    keys::dimension::OVERWORLD.into()
 }
 
 fn is_overworld(dimension: &ResourceKey<Dimension>) -> bool {
-    dimension.as_str() == "minecraft:overworld"
+    *dimension == keys::dimension::OVERWORLD
 }
 
 fn unrotated() -> Rotation {

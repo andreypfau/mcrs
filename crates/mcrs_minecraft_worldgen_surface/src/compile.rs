@@ -4,7 +4,7 @@ use crate::proto::{
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registry::{HolderSet, Id, Tags};
@@ -30,16 +30,16 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// The nine noises the stage samples outside the density graph. The reference
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
-pub const SURFACE_NOISE_NAMES: [StaticResourceLocation; 9] = [
-    rl!("minecraft:surface"),
-    rl!("minecraft:surface_secondary"),
-    rl!("minecraft:clay_bands_offset"),
-    rl!("minecraft:badlands_pillar"),
-    rl!("minecraft:badlands_pillar_roof"),
-    rl!("minecraft:badlands_surface"),
-    rl!("minecraft:iceberg_pillar"),
-    rl!("minecraft:iceberg_pillar_roof"),
-    rl!("minecraft:iceberg_surface"),
+pub const SURFACE_NOISE_NAMES: [ResourceKey<keys::Noise, &'static str>; 9] = [
+    keys::noise::SURFACE,
+    keys::noise::SURFACE_SECONDARY,
+    keys::noise::CLAY_BANDS_OFFSET,
+    keys::noise::BADLANDS_PILLAR,
+    keys::noise::BADLANDS_PILLAR_ROOF,
+    keys::noise::BADLANDS_SURFACE,
+    keys::noise::ICEBERG_PILLAR,
+    keys::noise::ICEBERG_PILLAR_ROOF,
+    keys::noise::ICEBERG_SURFACE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,7 +354,7 @@ fn compile_material<'a>(
 
     let mut surface_noises = [0; 9];
     for (slot, name) in surface_noises.iter_mut().zip(SURFACE_NOISE_NAMES) {
-        *slot = builder.noise(&name.into(), false)?;
+        *slot = builder.noise(&name.location().to_arc(), false)?;
     }
     let clay_bands = builder.clay_bands()?;
 

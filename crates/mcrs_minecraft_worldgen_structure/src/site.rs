@@ -1,4 +1,5 @@
 use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -16,7 +17,9 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
-use mcrs_minecraft_worldgen_feature::template::{JigsawBlock, Joint, bounding_box, transform};
+use mcrs_minecraft_worldgen_feature::template::{
+    EMPTY_LABEL, JigsawBlock, Joint, bounding_box, transform,
+};
 
 use super::frozen::{
     ElementId, FrozenElement, FrozenStructure, FrozenStructures, PoolId, StructureKind, TemplateId,
@@ -131,15 +134,15 @@ impl PlacedJigsaw<'_> {
 }
 
 static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
-    let empty = ResourceLocation::read("minecraft:empty").unwrap();
+    let label = EMPTY_LABEL.to_arc();
     JigsawBlock {
         pos: [0; 3],
         front: Direction::Down,
         top: Direction::South,
         joint: Joint::Rollable,
-        name: empty.clone(),
-        pool: empty.clone(),
-        target: empty,
+        name: label.clone(),
+        pool: keys::template_pool::EMPTY.location().to_arc(),
+        target: label,
         placement_priority: 0,
         selection_priority: 0,
         final_state: None,

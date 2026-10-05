@@ -29,13 +29,14 @@ pub struct Mob {
 
 pub mod mob {
     use super::Mob;
-    use mcrs_minecraft_core::{ResourceKey, rl};
+    use mcrs_minecraft_core::ResourceKey;
+    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_worldgen_structure::MobCategory::*;
 
     macro_rules! mobs {
-        ($($name:ident = $id:literal, $category:ident;)*) => {
+        ($($name:ident = $id:expr, $category:ident;)*) => {
             $(pub const $name: Mob = Mob {
-                id: ResourceKey::new(rl!($id)),
+                id: ResourceKey::new($id.location()),
                 category: $category,
             };)*
 
@@ -45,58 +46,58 @@ pub mod mob {
     }
 
     mobs! {
-        ARMADILLO = "minecraft:armadillo", Creature;
-        AXOLOTL = "minecraft:axolotl", Axolotls;
-        BAT = "minecraft:bat", Ambient;
-        BOGGED = "minecraft:bogged", Monster;
-        CAMEL = "minecraft:camel", Creature;
-        CAVE_SPIDER = "minecraft:cave_spider", Monster;
-        CHICKEN = "minecraft:chicken", Creature;
-        COD = "minecraft:cod", WaterAmbient;
-        COW = "minecraft:cow", Creature;
-        CREEPER = "minecraft:creeper", Monster;
-        DOLPHIN = "minecraft:dolphin", WaterCreature;
-        DONKEY = "minecraft:donkey", Creature;
-        DROWNED = "minecraft:drowned", Monster;
-        ENDERMAN = "minecraft:enderman", Monster;
-        FOX = "minecraft:fox", Creature;
-        FROG = "minecraft:frog", Creature;
-        GHAST = "minecraft:ghast", Monster;
-        GLOW_SQUID = "minecraft:glow_squid", UndergroundWaterCreature;
-        GOAT = "minecraft:goat", Creature;
-        HOGLIN = "minecraft:hoglin", Monster;
-        HORSE = "minecraft:horse", Creature;
-        HUSK = "minecraft:husk", Monster;
-        LLAMA = "minecraft:llama", Creature;
-        MAGMA_CUBE = "minecraft:magma_cube", Monster;
-        MOOSHROOM = "minecraft:mooshroom", Creature;
-        NAUTILUS = "minecraft:nautilus", WaterCreature;
-        OCELOT = "minecraft:ocelot", Creature;
-        PANDA = "minecraft:panda", Creature;
-        PARCHED = "minecraft:parched", Monster;
-        PARROT = "minecraft:parrot", Creature;
-        PIG = "minecraft:pig", Creature;
-        PIGLIN = "minecraft:piglin", Monster;
-        POLAR_BEAR = "minecraft:polar_bear", Creature;
-        PUFFERFISH = "minecraft:pufferfish", WaterAmbient;
-        RABBIT = "minecraft:rabbit", Creature;
-        SALMON = "minecraft:salmon", WaterAmbient;
-        SHEEP = "minecraft:sheep", Creature;
-        SKELETON = "minecraft:skeleton", Monster;
-        SLIME = "minecraft:slime", Monster;
-        SPIDER = "minecraft:spider", Monster;
-        SQUID = "minecraft:squid", WaterCreature;
-        STRAY = "minecraft:stray", Monster;
-        STRIDER = "minecraft:strider", Creature;
-        SULFUR_CUBE = "minecraft:sulfur_cube", Monster;
-        TROPICAL_FISH = "minecraft:tropical_fish", WaterAmbient;
-        TURTLE = "minecraft:turtle", Creature;
-        WITCH = "minecraft:witch", Monster;
-        WOLF = "minecraft:wolf", Creature;
-        ZOMBIE = "minecraft:zombie", Monster;
-        ZOMBIE_HORSE = "minecraft:zombie_horse", Monster;
-        ZOMBIE_VILLAGER = "minecraft:zombie_villager", Monster;
-        ZOMBIFIED_PIGLIN = "minecraft:zombified_piglin", Monster;
+        ARMADILLO = keys::entity_type::ARMADILLO, Creature;
+        AXOLOTL = keys::entity_type::AXOLOTL, Axolotls;
+        BAT = keys::entity_type::BAT, Ambient;
+        BOGGED = keys::entity_type::BOGGED, Monster;
+        CAMEL = keys::entity_type::CAMEL, Creature;
+        CAVE_SPIDER = keys::entity_type::CAVE_SPIDER, Monster;
+        CHICKEN = keys::entity_type::CHICKEN, Creature;
+        COD = keys::entity_type::COD, WaterAmbient;
+        COW = keys::entity_type::COW, Creature;
+        CREEPER = keys::entity_type::CREEPER, Monster;
+        DOLPHIN = keys::entity_type::DOLPHIN, WaterCreature;
+        DONKEY = keys::entity_type::DONKEY, Creature;
+        DROWNED = keys::entity_type::DROWNED, Monster;
+        ENDERMAN = keys::entity_type::ENDERMAN, Monster;
+        FOX = keys::entity_type::FOX, Creature;
+        FROG = keys::entity_type::FROG, Creature;
+        GHAST = keys::entity_type::GHAST, Monster;
+        GLOW_SQUID = keys::entity_type::GLOW_SQUID, UndergroundWaterCreature;
+        GOAT = keys::entity_type::GOAT, Creature;
+        HOGLIN = keys::entity_type::HOGLIN, Monster;
+        HORSE = keys::entity_type::HORSE, Creature;
+        HUSK = keys::entity_type::HUSK, Monster;
+        LLAMA = keys::entity_type::LLAMA, Creature;
+        MAGMA_CUBE = keys::entity_type::MAGMA_CUBE, Monster;
+        MOOSHROOM = keys::entity_type::MOOSHROOM, Creature;
+        NAUTILUS = keys::entity_type::NAUTILUS, WaterCreature;
+        OCELOT = keys::entity_type::OCELOT, Creature;
+        PANDA = keys::entity_type::PANDA, Creature;
+        PARCHED = keys::entity_type::PARCHED, Monster;
+        PARROT = keys::entity_type::PARROT, Creature;
+        PIG = keys::entity_type::PIG, Creature;
+        PIGLIN = keys::entity_type::PIGLIN, Monster;
+        POLAR_BEAR = keys::entity_type::POLAR_BEAR, Creature;
+        PUFFERFISH = keys::entity_type::PUFFERFISH, WaterAmbient;
+        RABBIT = keys::entity_type::RABBIT, Creature;
+        SALMON = keys::entity_type::SALMON, WaterAmbient;
+        SHEEP = keys::entity_type::SHEEP, Creature;
+        SKELETON = keys::entity_type::SKELETON, Monster;
+        SLIME = keys::entity_type::SLIME, Monster;
+        SPIDER = keys::entity_type::SPIDER, Monster;
+        SQUID = keys::entity_type::SQUID, WaterCreature;
+        STRAY = keys::entity_type::STRAY, Monster;
+        STRIDER = keys::entity_type::STRIDER, Creature;
+        SULFUR_CUBE = keys::entity_type::SULFUR_CUBE, Monster;
+        TROPICAL_FISH = keys::entity_type::TROPICAL_FISH, WaterAmbient;
+        TURTLE = keys::entity_type::TURTLE, Creature;
+        WITCH = keys::entity_type::WITCH, Monster;
+        WOLF = keys::entity_type::WOLF, Creature;
+        ZOMBIE = keys::entity_type::ZOMBIE, Monster;
+        ZOMBIE_HORSE = keys::entity_type::ZOMBIE_HORSE, Monster;
+        ZOMBIE_VILLAGER = keys::entity_type::ZOMBIE_VILLAGER, Monster;
+        ZOMBIFIED_PIGLIN = keys::entity_type::ZOMBIFIED_PIGLIN, Monster;
     }
 
     #[cfg(test)]
