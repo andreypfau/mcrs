@@ -212,6 +212,29 @@ mod tests {
     }
 
     #[test]
+    fn index_follows_the_table_order() {
+        let registry = registry(&UNSORTED);
+        let names: Vec<_> = registry
+            .ids()
+            .map(|id| registry.key(id).unwrap().as_str())
+            .collect();
+        assert_eq!(names, UNSORTED);
+        assert_eq!(registry.get("minecraft:desert").map(Id::number), Some(1));
+        let last = registry.id(2).unwrap();
+        assert_eq!(registry.key(last).unwrap().as_str(), "minecraft:forest");
+        assert!(registry.id(3).is_none());
+    }
+
+    #[test]
+    fn an_empty_registry_view_has_no_ids() {
+        let registry = registry(&[]);
+        assert!(registry.is_empty());
+        assert_eq!(registry.ids().count(), 0);
+        assert_eq!(registry.get("minecraft:plains"), None);
+        assert!(registry.id(0).is_none());
+    }
+
+    #[test]
     fn a_failed_lookup_names_registry_and_entry() {
         let registry = registry(&UNSORTED);
         let error = registry.require("minecraft:absent").unwrap_err();

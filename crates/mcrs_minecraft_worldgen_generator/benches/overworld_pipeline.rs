@@ -155,7 +155,7 @@ fn main() {
     .unwrap();
     let carvers = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
     let carver_ids = ModernCarverBlockIds::resolve(corpus(), None);
-    let biome = |name: &str| ids.get(name).copied().unwrap_or(ABSENT_BIOME);
+    let biome = |name: &str| biomes.require(name).expect("the preset holds the biome");
     let surface_ids = SurfaceIds {
         eroded_badlands: biome("minecraft:eroded_badlands"),
         frozen_ocean: biome("minecraft:frozen_ocean"),

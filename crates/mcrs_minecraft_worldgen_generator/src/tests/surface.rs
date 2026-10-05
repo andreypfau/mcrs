@@ -126,11 +126,7 @@ fn writing_air_at_the_top_lowers_the_height_and_writing_a_block_raises_it() {
     assert_eq!(tops[0], NO_TOP);
 }
 
-/// The preset's biomes numbered as the palette numbers them. Any biome a rule
-/// names that the preset does not is given one shared id no grid cell can hold,
-/// so its sets fold to `never` exactly as they should.
-const ABSENT_BIOME: u16 = 250;
-
+/// The preset's biomes numbered as the palette numbers them.
 pub(super) fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
     for (_, biome) in overworld_parameter_list().values() {
@@ -202,15 +198,7 @@ pub fn overworld_material_router(
 }
 
 fn surface_ids(ids: &HashMap<String, u16>) -> SurfaceIds {
-    let biome = |name: &str| ids.get(name).copied().unwrap_or(ABSENT_BIOME);
-    SurfaceIds {
-        eroded_badlands: biome("minecraft:eroded_badlands"),
-        frozen_ocean: biome("minecraft:frozen_ocean"),
-        deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
-        snow_block: corpus().default_state("minecraft:snow_block").into(),
-        packed_ice: corpus().default_state("minecraft:packed_ice").into(),
-        dirt: corpus().default_state("minecraft:dirt").into(),
-    }
+    SurfaceIds::resolve(&super::blocks().0, &registry_of(ids))
 }
 
 /// Fill one column and run the surface pass over it, returning the blocks.

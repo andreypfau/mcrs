@@ -246,7 +246,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     use mcrs_minecraft_protocol::item::{
         ComponentPatch, Enchantments, EncodeCtx, ProtoStack, RawStack,
     };
-    use mcrs_minecraft_registry::ItemId;
+    use mcrs_minecraft_registry::Id;
 
     let lookup = TestLookup::new();
     let enchantments = from_json(
@@ -255,7 +255,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     )
     .unwrap();
     let slot = ProtoStack::new(
-        ItemId(2),
+        Id::from_static(2),
         1,
         ComponentPatch {
             added: vec![enchantments],

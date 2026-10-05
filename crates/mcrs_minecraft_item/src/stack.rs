@@ -3,7 +3,7 @@ use std::fmt;
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_core::{RegistryKey, ResourceKey, validated};
-use mcrs_minecraft_registry::{ItemId, RegistryLookup};
+use mcrs_minecraft_registry::{Id, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -11,7 +11,7 @@ use crate::component::common::map_only;
 use crate::hash_ops;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentPatch;
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_keys::{Item, item};
 
 validated!(ItemStackValue);
 
@@ -148,22 +148,28 @@ impl HashedPatchMap {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ProtoStack {
-    pub id: ItemId,
+    pub id: Id<Item>,
     pub count: i32,
     pub components: ComponentPatch,
 }
 
+impl Default for ProtoStack {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
 impl ProtoStack {
     pub const EMPTY: ProtoStack = ProtoStack {
-        id: ItemId(0),
+        id: item::AIR,
         count: 0,
         components: ComponentPatch::EMPTY,
     };
 
     #[must_use]
-    pub const fn new(item: ItemId, count: i32, components: ComponentPatch) -> Self {
+    pub const fn new(item: Id<Item>, count: i32, components: ComponentPatch) -> Self {
         Self {
             id: item,
             count,
@@ -173,7 +179,7 @@ impl ProtoStack {
 
     /// No items, or the air item.
     pub const fn is_empty(&self) -> bool {
-        self.count <= 0 || self.id.0 == 0
+        self.count <= 0 || self.id.number() == 0
     }
 
     pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
@@ -181,7 +187,7 @@ impl ProtoStack {
             .id(Item::KEY.path(), value.item.location())
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
-            id: ItemId(id),
+            id: Id::from_static(id),
             count: value.count.0,
             components: value.components.clone(),
         })
@@ -190,8 +196,8 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(Item::KEY.path(), self.id.0)
-            .with_context(|| format!("registry item has no id {}", self.id.0))?;
+            .name(Item::KEY.path(), self.id.number())
+            .with_context(|| format!("registry item has no id {}", self.id.number()))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),
             count: codec::Bounded(self.count),

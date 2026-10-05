@@ -2290,3 +2290,24 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
         assert!(line.contains("test:no_such_name"), "{registry}: {line}");
     }
 }
+
+#[test]
+fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
+    let set = test_registries();
+    let items = set.registry::<keys::Item>().unwrap();
+    let blocks = set.registry::<keys::Block>().unwrap();
+    assert_eq!(items.get("minecraft:stone"), Some(keys::item::STONE));
+    assert_eq!(blocks.get("minecraft:stone"), Some(keys::block::STONE));
+
+    let mut differing = 0;
+    for item in items.ids() {
+        let name = items.key(item).unwrap().as_str();
+        let Some(block) = blocks.get(name) else {
+            continue;
+        };
+        assert_eq!(Id::<keys::Item>::from_name(name).unwrap(), item, "{name}");
+        assert_eq!(Id::<keys::Block>::from_name(name).unwrap(), block, "{name}");
+        differing += usize::from(item.number() != block.number());
+    }
+    assert!(differing > 0, "no shared name is numbered differently");
+}

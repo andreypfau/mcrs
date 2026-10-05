@@ -23,7 +23,7 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, Fluid};
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
@@ -52,9 +52,6 @@ bitflags::bitflags! {
 pub struct ShapeId(pub u32);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FluidId(pub u16);
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LootId(pub u16);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -62,7 +59,7 @@ pub struct ExperienceId(pub u16);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FluidState {
-    pub fluid: FluidId,
+    pub fluid: Id<Fluid>,
     pub level: u8,
     pub source: bool,
 }
@@ -181,7 +178,6 @@ impl BlockEntry {
 pub struct BlockDefinitions {
     states: Vec<BlockStateData>,
     shapes: Vec<Box<[Aabb]>>,
-    fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
     blocks: Vec<BlockEntry>,
@@ -200,22 +196,6 @@ impl BlockDefinitions {
     #[inline]
     pub fn shape(&self, id: ShapeId) -> &[Aabb] {
         &self.shapes[id.0 as usize]
-    }
-
-    #[inline]
-    pub fn fluid(&self, id: FluidId) -> &ResourceLocation<Arc<str>> {
-        &self.fluids[id.0 as usize]
-    }
-
-    pub fn fluid_id(&self, fluid: &str) -> Option<FluidId> {
-        self.fluids
-            .iter()
-            .position(|known| known.as_str() == fluid)
-            .map(|index| FluidId(index as u16))
-    }
-
-    pub fn fluid_count(&self) -> usize {
-        self.fluids.len()
     }
 
     #[inline]
@@ -484,7 +464,6 @@ struct Builder {
     owners: Vec<Option<Id<Block>>>,
     shapes: Vec<Box<[Aabb]>>,
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
-    fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
     experience: Vec<IntProvider>,
     registry: Registry<Block>,
@@ -499,7 +478,6 @@ impl Builder {
             owners: Vec::new(),
             shapes: Vec::new(),
             shape_ids: FxHashMap::with_hasher(FxBuildHasher),
-            fluids: Vec::new(),
             loot: Vec::new(),
             experience: Vec::new(),
             blocks: std::iter::repeat_with(|| None)
@@ -523,10 +501,6 @@ impl Builder {
         self.shapes.push(boxes.iter().map(to_engine_aabb).collect());
         self.shape_ids.insert(key, id);
         id
-    }
-
-    fn intern_fluid(&mut self, fluid: &ResourceLocation<Arc<str>>) -> FluidId {
-        FluidId(intern(&mut self.fluids, fluid))
     }
 
     fn intern_loot(&mut self, table: &ResourceLocation<Arc<str>>) -> LootId {
@@ -633,7 +607,7 @@ impl Builder {
                     component,
                 });
             }
-            let mut data = self.resolve(&resolved);
+            let mut data = self.resolve(&resolved)?;
             data.flags.set(BlockStateFlags::IS_AIR, air);
             self.states[state] = data;
         }
@@ -661,7 +635,7 @@ impl Builder {
 
     /// Every component a state may not leave unstated is present here:
     /// [`Components::missing`] has already run against these components.
-    fn resolve(&mut self, components: &Components) -> BlockStateData {
+    fn resolve(&mut self, components: &Components) -> Result<BlockStateData, BlockError> {
         let shape = |builder: &mut Self, boxes: &Option<schema::BoxList>| {
             builder.intern_shape(&boxes.as_ref().unwrap().0)
         };
@@ -752,13 +726,19 @@ impl Builder {
             .experience_drop
             .clone()
             .map(|drop| self.intern_experience(drop));
-        let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
-            fluid: self.intern_fluid(&fluid.fluid),
-            level: fluid.level,
-            source: fluid.source,
-        });
+        let fluid = components
+            .fluid_state
+            .as_ref()
+            .map(|fluid| {
+                Ok::<_, BlockError>(FluidState {
+                    fluid: Id::from_name(fluid.fluid.as_str())?,
+                    level: fluid.level,
+                    source: fluid.source,
+                })
+            })
+            .transpose()?;
 
-        BlockStateData {
+        Ok(BlockStateData {
             light_emission: components.light_emission.unwrap(),
             light_dampening: components.light_dampening.unwrap(),
             friction: components.friction.unwrap(),
@@ -778,7 +758,7 @@ impl Builder {
             experience,
             fluid,
             flags,
-        }
+        })
     }
 
     fn finish(&mut self) -> Result<BlockDefinitions, LoadError> {
@@ -803,7 +783,6 @@ impl Builder {
         Ok(BlockDefinitions {
             states: std::mem::take(&mut self.states),
             shapes: std::mem::take(&mut self.shapes),
-            fluids: std::mem::take(&mut self.fluids),
             loot: std::mem::take(&mut self.loot),
             experience: std::mem::take(&mut self.experience),
             blocks,

@@ -6,7 +6,7 @@ use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::definition::{CORPUS_DIRECTORY, FORMAT_VERSION};
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
 use mcrs_minecraft_keys::Item;
-use mcrs_minecraft_registry::{ItemId, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 
 pub fn from_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
@@ -59,7 +59,7 @@ pub fn from_files(
             .transpose()?;
         entries.push(ItemEntry {
             identifier: item.description.identifier,
-            id: ItemId::default(),
+            id: mcrs_minecraft_keys::item::AIR,
             prototype: item.components,
             block_placer: placed.map(|block| block.default_state_id),
             container_slots: placed.and_then(|block| block.container_slots),

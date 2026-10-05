@@ -10,18 +10,6 @@ pub trait DenseId: Copy + Eq + Hash + Send + Sync + 'static {
     fn from_raw(raw: u16) -> Self;
 }
 
-impl DenseId for u16 {
-    #[inline]
-    fn raw(self) -> u16 {
-        self
-    }
-
-    #[inline]
-    fn from_raw(raw: u16) -> Self {
-        raw
-    }
-}
-
 impl<R: 'static> DenseId for Id<R> {
     #[inline]
     fn raw(self) -> u16 {
@@ -40,9 +28,6 @@ pub struct BitSet<I> {
     bits: FixedBitSet,
     _marker: PhantomData<fn() -> I>,
 }
-
-/// Bitset over a dynamic registry's dense ids.
-pub type RawBitSet = BitSet<u16>;
 
 impl<I> Clone for BitSet<I> {
     fn clone(&self) -> Self {
@@ -99,14 +84,17 @@ impl<I: DenseId> BitSet<I> {
 mod tests {
     use super::*;
 
+    struct Entry;
+
     #[test]
     fn insert_grows_and_iterates_in_order() {
-        let mut bs = RawBitSet::with_capacity(8);
+        let id = Id::<Entry>::from_raw;
+        let mut bs = BitSet::<Id<Entry>>::with_capacity(8);
         for raw in [200, 3, 64, 3] {
-            bs.insert(raw);
+            bs.insert(id(raw));
         }
         assert_eq!(bs.len(), 3);
-        assert!(bs.contains(200) && !bs.contains(9999));
-        assert_eq!(bs.iter().collect::<Vec<_>>(), vec![3, 64, 200]);
+        assert!(bs.contains(id(200)) && !bs.contains(id(9999)));
+        assert_eq!(bs.iter().collect::<Vec<_>>(), vec![id(3), id(64), id(200)]);
     }
 }

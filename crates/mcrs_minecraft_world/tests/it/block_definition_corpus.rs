@@ -190,7 +190,7 @@ fn water_carries_its_fluid_state_per_level() {
     assert_eq!(water.state_count, 16);
 
     let source = definitions.state(water.default_state_id).fluid.unwrap();
-    assert_eq!(definitions.fluid(source.fluid).as_str(), "minecraft:water");
+    assert_eq!(source.fluid.name(), "minecraft:water");
     assert_eq!(source.level, 8);
     assert!(source.source);
 
@@ -198,10 +198,7 @@ fn water_carries_its_fluid_state_per_level() {
         .state(water.state_id(&[("level", PropertyValue::Int(1))]).unwrap())
         .fluid
         .unwrap();
-    assert_eq!(
-        definitions.fluid(falling.fluid).as_str(),
-        "minecraft:flowing_water"
-    );
+    assert_eq!(falling.fluid.name(), "minecraft:flowing_water");
     assert_eq!(falling.level, 7);
     assert!(!falling.source);
 

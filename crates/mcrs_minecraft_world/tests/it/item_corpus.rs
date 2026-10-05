@@ -11,8 +11,8 @@ use mcrs_minecraft_item::{
     TooltipDisplay, UseEffects,
 };
 use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{ItemId, Registry};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -97,11 +97,14 @@ fn ids_are_dense_and_named() {
     for (index, entry) in items.iter().enumerate() {
         let reported = registry.require(entry.identifier.as_str()).unwrap();
         assert_eq!(reported.index(), index, "{}", entry.identifier);
-        assert_eq!(entry.id, ItemId(reported.number()), "{}", entry.identifier);
+        assert_eq!(entry.id, reported, "{}", entry.identifier);
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));
         assert!(std::ptr::eq(items.get(entry.id).unwrap(), entry));
     }
-    assert_eq!(items.id_of("minecraft:air"), Some(ItemId(0)));
+    assert_eq!(
+        items.id_of("minecraft:air"),
+        Some(mcrs_minecraft_keys::item::AIR)
+    );
     assert_eq!(items.id_of("minecraft:nothing"), None);
 }
 

@@ -8,7 +8,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_registry::ItemId;
+use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_registry::Id;
 
 use crate::definition::{ItemEntry, Items};
 use crate::held::SlotTable;
@@ -125,7 +126,7 @@ pub fn entry<'a>(
         .item;
     items
         .get(item)
-        .ok_or_else(|| StackError::UnknownItem(format!("#{}", item.0)))
+        .ok_or_else(|| StackError::UnknownItem(format!("#{}", item.number())))
 }
 
 pub fn named_entry<'a>(
@@ -267,6 +268,6 @@ pub fn same_item_same_components(world: &World, a: Entity, b: Entity, items: &It
         && stack_to_value(world, a, items).components == stack_to_value(world, b, items).components
 }
 
-pub fn item_of(world: &World, stack: Entity) -> Option<ItemId> {
+pub fn item_of(world: &World, stack: Entity) -> Option<Id<Item>> {
     world.get::<ItemStack>(stack).map(|stack| stack.item)
 }

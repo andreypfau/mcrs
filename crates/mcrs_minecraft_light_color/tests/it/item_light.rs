@@ -7,7 +7,7 @@ use mcrs_minecraft_light_color::item::{
     ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
 };
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
-use mcrs_minecraft_registry::{BlockStateId, ItemId};
+use mcrs_minecraft_registry::{BlockStateId, Id};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
@@ -110,19 +110,17 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
     );
 }
 
-fn water_sensitive() -> Vec<ItemId> {
+fn water_sensitive() -> Vec<Id<Item>> {
     let tags = registries()
         .tags::<Item>()
         .expect("the load builds the item tags");
     let tag = tags
         .get(&WATER_SENSITIVE)
         .expect("the water-sensitive item tag");
-    tags.members(tag)
-        .map(|item| ItemId(item.number()))
-        .collect()
+    tags.members(tag).collect()
 }
 
-fn light_of(item: ItemId, origin: BlockStateId) -> Option<ItemLight> {
+fn light_of(item: Id<Item>, origin: BlockStateId) -> Option<ItemLight> {
     shipped().light(blocks(), colours(), item, std::iter::empty(), origin)
 }
 
@@ -307,7 +305,7 @@ mod exhaustive {
             let light = shipped().light(
                 blocks(),
                 colours(),
-                ItemId(item),
+                Id::from_static(item),
                 stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
                 BlockStateId(origin),
             );

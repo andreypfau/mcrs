@@ -7,7 +7,7 @@ use crate::{ComponentMap, Template};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::Item;
-use mcrs_minecraft_registry::{BlockStateId, Id, ItemId, Registry, UnknownEntry};
+use mcrs_minecraft_registry::{BlockStateId, Id, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
 pub const FORMAT_VERSION: &str = "1.21.130";
@@ -15,7 +15,7 @@ pub const FORMAT_VERSION: &str = "1.21.130";
 #[derive(Debug)]
 pub struct ItemEntry {
     pub identifier: ResourceLocation<Arc<str>>,
-    pub id: ItemId,
+    pub id: Id<Item>,
     pub prototype: ComponentMap,
     pub block_placer: Option<BlockStateId>,
     pub container_slots: Option<u8>,
@@ -66,7 +66,7 @@ impl ItemDefinitions {
             std::iter::repeat_with(|| None).take(items.len()).collect();
         for (position, mut entry) in entries.into_iter().enumerate() {
             let id = items.require(entry.identifier.as_str())?;
-            entry.id = ItemId(id.number());
+            entry.id = id;
             entry.identifier = items
                 .key(id)
                 .expect("the id came from this registry")
@@ -100,16 +100,12 @@ impl ItemDefinitions {
         })
     }
 
-    pub fn get(&self, id: ItemId) -> Option<&ItemEntry> {
-        self.entries.get(usize::from(id.0))
+    pub fn get(&self, id: Id<Item>) -> Option<&ItemEntry> {
+        self.entries.get(id.index())
     }
 
-    pub fn item_index(&self, id: ItemId) -> Option<Id<Item>> {
-        self.registry.id(id.0)
-    }
-
-    pub fn id_of(&self, location: &str) -> Option<ItemId> {
-        self.registry.get(location).map(|id| ItemId(id.number()))
+    pub fn id_of(&self, location: &str) -> Option<Id<Item>> {
+        self.registry.get(location)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ItemEntry> {
@@ -149,7 +145,7 @@ mod tests {
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
             identifier: ResourceLocation::minecraft(name),
-            id: ItemId(u16::MAX),
+            id: Id::from_static(u16::MAX),
             prototype: ComponentMap::default(),
             block_placer: None,
             container_slots: None,
@@ -173,13 +169,15 @@ mod tests {
             names,
             ["minecraft:stone", "minecraft:apple", "minecraft:dirt"]
         );
-        let ids: Vec<_> = table.iter().map(|entry| entry.id).collect();
-        assert_eq!(ids, [ItemId(0), ItemId(1), ItemId(2)]);
-        assert_eq!(table.id_of("minecraft:stone"), Some(ItemId(0)));
-        assert_eq!(table.id_of("minecraft:apple"), Some(ItemId(1)));
-        assert_eq!(table.id_of("minecraft:dirt"), Some(ItemId(2)));
+        let ids: Vec<_> = table.iter().map(|entry| entry.id.number()).collect();
+        assert_eq!(ids, [0, 1, 2]);
+        let id_of = |name| table.id_of(name).map(Id::number);
+        assert_eq!(id_of("minecraft:stone"), Some(0));
+        assert_eq!(id_of("minecraft:apple"), Some(1));
+        assert_eq!(id_of("minecraft:dirt"), Some(2));
+        let apple = table.id_of("minecraft:apple").unwrap();
         assert_eq!(
-            table.get(ItemId(1)).unwrap().identifier.as_str(),
+            table.get(apple).unwrap().identifier.as_str(),
             "minecraft:apple"
         );
     }
@@ -235,14 +233,12 @@ mod tests {
             table
                 .iter()
                 .enumerate()
-                .all(|(position, entry)| usize::from(entry.id.0) == position)
+                .all(|(position, entry)| entry.id.index() == position)
         );
+        let last_id = table.id_of(&format!("minecraft:{last}")).unwrap();
+        assert_eq!(last_id.number(), u16::MAX);
         assert_eq!(
-            table.id_of(&format!("minecraft:{last}")),
-            Some(ItemId(u16::MAX))
-        );
-        assert_eq!(
-            table.get(ItemId(u16::MAX)).unwrap().identifier.as_str(),
+            table.get(last_id).unwrap().identifier.as_str(),
             format!("minecraft:{last}")
         );
     }
