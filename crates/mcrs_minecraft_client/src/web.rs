@@ -5,7 +5,6 @@ use bevy::asset::io::memory::{Dir, MemoryAssetReader};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_reader;
 use mcrs_minecraft_dimension::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
@@ -120,10 +119,8 @@ pub fn run() {
     // `seed_world_clocks` fills them from the registry, which is later than
     // this, so a frozen time has to be applied there instead.
     if let Some(ticks) = frozen_at {
-        app.insert_resource(FrozenTicks(ticks)).add_systems(
-            OnEnter(AppState::WorldgenFreeze),
-            freeze_clocks.after(seed_world_clocks),
-        );
+        app.insert_resource(FrozenTicks(ticks))
+            .add_systems(Startup, freeze_clocks.after(seed_world_clocks));
     }
 
     app.add_plugins(ClientTerrainPlugin(TERRAIN_LIMITS));

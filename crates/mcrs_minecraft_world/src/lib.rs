@@ -118,18 +118,6 @@ impl Plugin for MinecraftWorldPlugin {
 
         registries::share_registries(app.world_mut());
 
-        mcrs_minecraft_assets::snapshot_registry!(
-            app,
-            [(
-                mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
-                "minecraft:worldgen/block_state_provider",
-                |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
-                    mcrs_minecraft_nbt::to_nbt_tag(v)
-                },
-                Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-            ),]
-        );
-
         app.add_systems(PostStartup, start_loading_data_pack)
             .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
             .add_systems(

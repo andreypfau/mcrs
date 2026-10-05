@@ -19,6 +19,7 @@ use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::{FeatureStepList, Holder};
+use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
@@ -101,6 +102,13 @@ fn build_dimension_features(
 ) {
     let Some(sources) = sources else { return };
 
+    let provider_registry = registries
+        .registry::<keys::BlockStateProvider>()
+        .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
+    let providers = registries
+        .entries::<keys::BlockStateProvider, DirectBlockStateProvider>()
+        .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
+
     let features = named(&registries, &tables.features, |asset| asset);
     let placed_features = named(&registries, &tables.placed_features, |asset| asset);
     let pools = named(&registries, &tables.template_pools, |asset| asset);
@@ -133,12 +141,15 @@ fn build_dimension_features(
             .into_iter()
             .map(|(id, list)| (id, list.clone()))
             .collect(),
-        block_state_providers: named(&registries, &tables.block_state_providers, |provider| {
-            provider
-        })
-        .into_iter()
-        .map(|(id, provider)| (id, provider.clone()))
-        .collect(),
+        block_state_providers: provider_registry
+            .ids()
+            .map(|id| {
+                let name = provider_registry
+                    .key(id)
+                    .expect("an id of the registry has a name");
+                (name.clone(), providers[id].clone())
+            })
+            .collect(),
     };
 
     let placed_names = registries
