@@ -12,7 +12,7 @@ use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
 use crate::config::TerrainLimits;
-use crate::{ClientPlugins, ClientTerrainPlugin, config, local_player, player, sky, vanilla};
+use crate::{ClientPlugins, ClientTerrainPlugin, config, local_player, player, vanilla};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -112,8 +112,7 @@ pub fn run() {
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))
-    .insert_resource(Weather::default())
-    .insert_resource(sky::PlayerDimension("minecraft:overworld".to_owned()));
+    .insert_resource(Weather::default());
 
     // With no save to seed them, the clocks appear only when
     // `seed_world_clocks` fills them from the registry, which is later than

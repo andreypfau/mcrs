@@ -11,6 +11,7 @@ use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_registry::RegistrySet;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
@@ -24,6 +25,7 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
 use crate::vanilla::{self, VanillaAssets};
+use crate::wire_id::{WireId, WireIds, rebuild_wire_ids};
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
@@ -59,10 +61,6 @@ pub struct SkyTextures {
     pub clouds: Handle<Image>,
 }
 
-/// The dimension type whose sky is drawn, as read from the save.
-#[derive(Resource)]
-pub struct PlayerDimension(pub String);
-
 pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
@@ -74,7 +72,12 @@ impl Plugin for SkyPlugin {
                 Update,
                 assemble_arrays.run_if(resource_exists::<SkySources>),
             )
-            .add_systems(OnEnter(AppState::Playing), build_sky_environment)
+            .add_systems(
+                Update,
+                build_sky_environment
+                    .after(rebuild_wire_ids)
+                    .run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 PostUpdate,
                 evaluate_sky
@@ -86,8 +89,6 @@ impl Plugin for SkyPlugin {
         }
     }
 }
-
-const OVERWORLD: &str = "minecraft:overworld";
 
 const HORIZON: f32 = 63.0;
 
@@ -194,12 +195,13 @@ impl SkyEnvironment {
 }
 
 fn build_sky_environment(
-    mut commands: Commands,
-    dimension: Res<PlayerDimension>,
+    joined: Single<&JoinedGame, Changed<JoinedGame>>,
+    wire: Option<Res<WireIds>>,
     environments: Res<DimensionEnvironments>,
     registries: Res<RegistrySet>,
     clocks: Res<WorldClocks>,
     weather: Res<Weather>,
+    mut commands: Commands,
 ) {
     let (Some(types), Some(dimension_types), Some(world_clocks)) = (
         registries.registry::<keys::DimensionType>(),
@@ -209,23 +211,19 @@ fn build_sky_environment(
         error!("the registry set holds no dimension types to draw a sky from");
         return;
     };
-    let found = types.get(&dimension.0).map(|id| (id, dimension.0.as_str()));
-    let fallback = || {
-        warn!(
-            dimension = dimension.0,
-            "no dimension type for this dimension; drawing the overworld"
-        );
-        types.get(OVERWORLD).map(|id| (id, OVERWORLD))
-    };
-    let Some((type_id, id)) = found.or_else(fallback) else {
+    let sent = WireId::<keys::DimensionType>::received(joined.dimension_type_id);
+    let Some(type_id) = wire.and_then(|wire| wire.get(sent)) else {
         error!(
-            dimension = dimension.0,
-            "no dimension type to draw a sky from"
+            dimension = %joined.dimension,
+            dimension_type = joined.dimension_type_id,
+            "the dimension type the server sent is not one the local registries hold; no sky is drawn"
         );
+        commands.remove_resource::<SkyEnvironment>();
         return;
     };
     let Some(attributes) = environments.get(type_id) else {
-        error!(dimension = id, "no environment to draw a sky from");
+        error!(dimension = %joined.dimension, "no environment to draw a sky from");
+        commands.remove_resource::<SkyEnvironment>();
         return;
     };
     let attributes = attributes.clone();
@@ -242,7 +240,8 @@ fn build_sky_environment(
         .cloned();
 
     info!(
-        dimension = id,
+        dimension = %joined.dimension,
+        dimension_type = ?types.key(type_id).map(ToString::to_string),
         skybox = ?statics.key.skybox,
         effects = ?statics.key.effects,
         draws = statics.key.draws(),

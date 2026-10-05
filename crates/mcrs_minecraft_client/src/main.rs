@@ -243,8 +243,7 @@ fn main() -> AppExit {
     }
     app.insert_resource(world_clocks)
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
-        .insert_resource(save_data.weather)
-        .insert_resource(sky::PlayerDimension(save_data.dimension));
+        .insert_resource(save_data.weather);
 
     app.add_plugins(ClientTerrainPlugin(terrain_limits(config::view_distance())));
     #[cfg(feature = "dev")]
@@ -364,7 +363,6 @@ fn world_folder() -> Option<PathBuf> {
 struct SaveData {
     world_clocks: save::WorldClockStates,
     player_uuid: Option<Uuid>,
-    dimension: String,
     advance_time: bool,
     weather: Weather,
     position: DVec3,
@@ -378,7 +376,6 @@ impl Default for SaveData {
         Self {
             world_clocks: save::WorldClockStates::default(),
             player_uuid: None,
-            dimension: "minecraft:overworld".to_owned(),
             advance_time: true,
             weather: Weather::default(),
             position: DVec3::new(0.5, 80.0, 0.5),
@@ -395,13 +392,12 @@ fn load_save(world: &Path) -> SaveData {
     let weather = save::read_weather(world).unwrap_or_else(|err| fatal(err));
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
-    let (position, yaw, pitch, dimension) = match level.singleplayer_uuid {
+    let (position, yaw, pitch) = match level.singleplayer_uuid {
         Some(uuid) => match save::read_player_dat(world, uuid) {
             Ok(Some(player)) => (
                 DVec3::from_array(player.pos),
                 player.rotation[0],
                 player.rotation[1],
-                player.dimension.as_str().to_owned(),
             ),
             Ok(None) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),
@@ -412,7 +408,6 @@ fn load_save(world: &Path) -> SaveData {
     SaveData {
         world_clocks,
         player_uuid: level.singleplayer_uuid,
-        dimension,
         advance_time: game_rules.advance_time,
         weather: Weather {
             rain: if weather.raining { 1.0 } else { 0.0 },
@@ -427,7 +422,7 @@ fn load_save(world: &Path) -> SaveData {
 /// A spawn point is a block position; the player stands at its centre in X and
 /// Z, and Y is the block's own floor.
 #[cfg(not(target_family = "wasm"))]
-fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
+fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32) {
     (
         DVec3::new(
             spawn.pos[0] as f64 + 0.5,
@@ -436,7 +431,6 @@ fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
         ),
         spawn.yaw,
         spawn.pitch,
-        "minecraft:overworld".to_owned(),
     )
 }
 

@@ -29,7 +29,8 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundKeepAlive as GameKeepAlive,
-    ClientboundLogin, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
+    ClientboundLogin, ClientboundPlayerPosition, ClientboundRespawn,
+    ClientboundSetChunkCacheCenter,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as ServerboundGameKeepAlive;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
@@ -192,6 +193,8 @@ pub struct JoinedGame {
     pub player_id: i32,
     pub dimensions: Vec<ResourceKey<keys::Dimension>>,
     pub dimension: ResourceKey<keys::Dimension>,
+    /// The server's number for the dimension's type, meaningful only against the registries it sent.
+    pub dimension_type_id: u16,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -562,10 +565,12 @@ fn handle_game_packet(
         &mut ClientConnection,
         &ConnectionState,
         &mut PendingTeleports,
+        Option<&mut JoinedGame>,
     )>,
     mut commands: Commands,
 ) {
-    let Ok((mut connection, state, mut pending_teleports)) = connections.get_mut(event.entity)
+    let Ok((mut connection, state, mut pending_teleports, joined)) =
+        connections.get_mut(event.entity)
     else {
         return;
     };
@@ -587,7 +592,13 @@ fn handle_game_packet(
             player_id: login.player_id,
             dimensions: login.dimensions,
             dimension: login.player_spawn_info.dimension,
+            dimension_type_id: login.player_spawn_info.dimension_type_id.0,
         });
+    } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
+        if let Some(mut joined) = joined {
+            joined.dimension = respawn.player_spawn_info.dimension;
+            joined.dimension_type_id = respawn.player_spawn_info.dimension_type_id.0;
+        }
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
         if !position.flags.is_empty() {
             // chisle: every relative flag is treated as absolute. Our server
@@ -727,6 +738,74 @@ mod tests {
 
         let information = ClientInformation::decode(&mut &frames[2].body[..]).unwrap();
         assert_eq!(information.view_distance, 11);
+    }
+
+    fn deliver<P: Encode + Packet>(
+        runtime: &Runtime,
+        inbound: &mpsc::Sender<crate::ReceivedPacket>,
+        packet: &P,
+    ) {
+        let mut body = Vec::new();
+        packet.encode(&mut body).unwrap();
+        runtime
+            .block_on(inbound.send(crate::ReceivedPacket {
+                timestamp: crate::Instant::now(),
+                id: P::ID,
+                payload: body.into(),
+            }))
+            .unwrap();
+    }
+
+    #[test]
+    fn a_respawn_moves_the_joined_game_to_the_dimension_and_type_it_names() {
+        use mcrs_minecraft_protocol::RegistryId;
+        use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
+        use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRespawn;
+
+        let runtime = Runtime::new().unwrap();
+        let (mut app, inbound, entity) = client_app(&runtime);
+        let spawn_in = |dimension: ResourceKey<keys::Dimension>, type_id: u16| PlayerSpawnInfo {
+            dimension,
+            dimension_type_id: RegistryId(type_id),
+            ..Default::default()
+        };
+
+        deliver(
+            &runtime,
+            &inbound,
+            &ClientboundLogin {
+                player_id: 7,
+                hardcore: false,
+                dimensions: vec![keys::dimension::OVERWORLD.into()],
+                max_players: VarInt(1),
+                chunk_radius: VarInt(8),
+                simulation_distance: VarInt(8),
+                reduced_debug_info: false,
+                show_death_screen: true,
+                do_limited_crafting: false,
+                player_spawn_info: spawn_in(keys::dimension::OVERWORLD.into(), 3),
+                online_mode: false,
+                enforces_secure_chat: false,
+            },
+        );
+        app.update();
+        let joined = app.world().get::<JoinedGame>(entity).unwrap();
+        assert_eq!(joined.dimension, keys::dimension::OVERWORLD);
+        assert_eq!(joined.dimension_type_id, 3);
+
+        deliver(
+            &runtime,
+            &inbound,
+            &ClientboundRespawn {
+                player_spawn_info: spawn_in(keys::dimension::THE_NETHER.into(), 1),
+                data_to_keep: 0,
+            },
+        );
+        app.update();
+        let joined = app.world().get::<JoinedGame>(entity).unwrap();
+        assert_eq!(joined.player_id, 7);
+        assert_eq!(joined.dimension, keys::dimension::THE_NETHER);
+        assert_eq!(joined.dimension_type_id, 1);
     }
 
     #[test]

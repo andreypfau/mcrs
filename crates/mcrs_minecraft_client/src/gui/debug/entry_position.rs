@@ -2,10 +2,10 @@ use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_network::client::JoinedGame;
 
 use super::DebugScreenDisplayer;
 use crate::player::Player;
-use crate::sky::PlayerDimension;
 
 pub const GROUP: ResourceLocation<&'static str> =
     ResourceLocation::new_static("minecraft:position");
@@ -13,7 +13,7 @@ pub const GROUP: ResourceLocation<&'static str> =
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     camera: Single<&PhysicsTransform, With<Player>>,
-    dimension: Res<PlayerDimension>,
+    joined: Option<Single<&JoinedGame>>,
 ) {
     let position = camera.translation;
     let feet = BlockPos::from(position);
@@ -51,7 +51,10 @@ pub fn display(
                 camera.rotation.pitch(),
             ),
             // Only a server force-loads chunks, and this client has none.
-            format!("{} FC: 0", dimension.0),
+            format!(
+                "{} FC: 0",
+                joined.map_or_else(|| "-".to_owned(), |joined| joined.dimension.to_string())
+            ),
             format!(
                 "Section-relative: {:02} {:02} {:02}",
                 feet.x & 15,
@@ -73,7 +76,12 @@ mod tests {
     fn the_group_reads_the_way_vanilla_prints_it() {
         let mut world = World::new();
         world.init_resource::<DebugScreenDisplayer>();
-        world.insert_resource(PlayerDimension("minecraft:overworld".to_owned()));
+        world.spawn(JoinedGame {
+            player_id: 1,
+            dimensions: Vec::new(),
+            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            dimension_type_id: 0,
+        });
         world.spawn((
             Player,
             PhysicsTransform::from_translation(DVec3::new(100.5, 71.0, -33.25))

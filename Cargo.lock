@@ -3433,6 +3433,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_network",
  "mcrs_minecraft_server",
+ "mcrs_minecraft_world",
  "mcrs_minecraft_worldgen_generator",
  "tokio",
 ]

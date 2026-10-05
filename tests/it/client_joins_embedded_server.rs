@@ -12,7 +12,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use crate::support::{JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog};
+use crate::support::{
+    JOIN_TIMEOUT, drive_client_until_joined, insert_block_catalog, insert_local_registries,
+};
 
 #[test]
 fn the_client_logs_in_configures_and_joins_the_embedded_server() {
@@ -43,6 +45,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     });
     client.add_plugins(ColumnCachePlugin);
     insert_block_catalog(&mut client);
+    insert_local_registries(&mut client);
 
     let outcome = drive_client_until_joined(&mut client);
 

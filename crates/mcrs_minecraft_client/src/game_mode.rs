@@ -132,6 +132,7 @@ mod tests {
                     player_id: PLAYER_ID,
                     dimensions: Vec::new(),
                     dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+                    dimension_type_id: 0,
                 },
             ))
             .id();

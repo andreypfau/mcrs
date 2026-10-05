@@ -127,6 +127,7 @@ mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-suppor
 bevy_state.workspace = true
 mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
+mcrs_minecraft_world.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 
 [features]
