@@ -1,139 +1,97 @@
 use crate::world::generate::routers::DimensionBiomeSources;
-use bevy_asset::{AssetServer, Assets, Handle};
-use bevy_ecs::change_detection::DetectChanges;
+use bevy_asset::AssetServer;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registry::{Entries, Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::dimension::DimensionDefinition;
+use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_world::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
+use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
+use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
+use mcrs_minecraft_worldgen::tables::asset_path;
 use std::env;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
 /// Default world preset name used when MCRS_WORLD_PRESET is not set
 const DEFAULT_WORLD_PRESET: &str = "normal";
 
-pub(crate) fn start_loading_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut registry_assets: ResMut<LoadedRegistryAssets>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-) {
-    let preset_name = get_world_preset_name();
-    let (namespace, path) = match preset_name.split_once(':') {
-        Some((ns, p)) => (ns, p),
-        None => ("minecraft", preset_name.as_str()),
-    };
-    let asset_path = format!("{namespace}/worldgen/world_preset/{path}.json");
-
-    info!(
-        preset = %preset_name,
-        asset_path = %asset_path,
-        "Starting to load world preset via Bevy asset system"
-    );
-
-    let handle: Handle<WorldPreset> = asset_server.load(asset_path);
-    registry_assets.push(handle.clone().untyped());
-    loaded_preset.preset_name = preset_name;
-    commands.insert_resource(ActiveWorldPreset { handle });
+pub fn configured_preset(
+    name: &str,
+    set: &RegistrySet,
+    report: &mut LoadReport,
+) -> Option<Id<keys::WorldPreset>> {
+    let registry = report.registry::<keys::WorldPreset>(set)?;
+    let key = ResourceLocation::read(name).map(ResourceKey::<keys::WorldPreset>::from_location);
+    report.require(&registry, key.as_ref().map_or(name, ResourceKey::as_str))
 }
 
-pub(crate) fn process_loaded_world_preset(
-    active: Option<Res<ActiveWorldPreset>>,
-    presets: Res<Assets<WorldPreset>>,
-    dim_defs: Res<Assets<DimensionDefinition>>,
-    registries: Res<RegistrySet>,
-    mut loaded_preset: ResMut<LoadedWorldPreset>,
-    mut commands: Commands,
-) {
-    if !presets.is_changed() {
-        return;
-    }
-    let Some(active) = active else {
-        return;
+pub(crate) fn choose_world_preset(mut commands: Commands, set: Res<RegistrySet>) {
+    let name = get_world_preset_name();
+    let mut report = LoadReport::new();
+    let Some(id) = configured_preset(&name, &set, &mut report) else {
+        refuse(&report)
     };
-    let Some(preset) = presets.get(&active.handle) else {
-        return;
-    };
+    let presets = set
+        .entries::<keys::WorldPreset, WorldPreset>()
+        .expect("the data pack loader parses minecraft:worldgen/world_preset");
+    let loaded = LoadedWorldPreset { id, presets };
 
-    let mut dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)> = preset
-        .dimensions
-        .iter()
-        .map(|(key, handle)| (key.location().clone(), handle.clone()))
-        .collect();
-    dimensions.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
-
-    loaded_preset.dimensions = dimensions;
-    loaded_preset.is_loaded = true;
-
-    let biomes = registries
-        .registry::<keys::Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let parameter_lists = registries
-        .registry::<keys::MultiNoiseBiomeSourceParameterList>()
-        .expect("the data pack loader parses minecraft:worldgen/multi_noise_biome_source_parameter_list");
-    commands.insert_resource(dimension_biome_sources(
-        &loaded_preset,
-        &dim_defs,
-        &biomes,
-        &parameter_lists,
-    ));
-
-    debug!(
-        preset = %loaded_preset.preset_name,
-        dimensions = loaded_preset.dimensions.len(),
-        "World preset loaded"
-    );
-}
-
-fn dimension_biome_sources(
-    preset: &LoadedWorldPreset,
-    dim_defs: &Assets<DimensionDefinition>,
-    biomes: &Registry<keys::Biome>,
-    parameter_lists: &Registry<keys::MultiNoiseBiomeSourceParameterList>,
-) -> DimensionBiomeSources {
     let mut sources = DimensionBiomeSources::default();
-    for (dimension, handle) in &preset.dimensions {
-        let Some(definition) = dim_defs.get(handle) else {
-            warn!(%dimension, "the dimension definition missing while the world preset loaded");
-            continue;
-        };
-        let ChunkGenerator::Noise(generator) = &definition.generator else {
-            continue;
-        };
-        let source = generator
-            .biome_source
-            .clone()
-            .resolve(biomes, parameter_lists)
-            .unwrap_or_else(|error| {
-                panic!("{dimension}: the biome source does not resolve: {error}")
-            });
-        sources.0.insert(dimension.clone(), Arc::new(source));
-    }
-    sources
-}
-
-/// Resource containing the loaded world preset with ordered dimensions.
-/// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
-#[derive(Resource)]
-pub struct LoadedWorldPreset {
-    pub preset_name: String,
-    pub dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)>,
-    pub is_loaded: bool,
-}
-
-impl Default for LoadedWorldPreset {
-    fn default() -> Self {
-        Self {
-            preset_name: DEFAULT_WORLD_PRESET.to_string(),
-            dimensions: Vec::new(),
-            is_loaded: false,
+    for (dimension, entry) in &loaded.preset().dimensions {
+        if let ChunkGenerator::Noise(generator) = &entry.generator {
+            sources.0.insert(
+                dimension.location().clone(),
+                Arc::new(generator.biome_source.clone()),
+            );
         }
+    }
+    info!(
+        preset = %name,
+        dimensions = loaded.preset().dimensions.len(),
+        "world preset"
+    );
+    commands.insert_resource(sources);
+    commands.insert_resource(loaded);
+}
+
+/// Only the noise settings the chosen preset names are loaded: the rest of the
+/// registry is names, and a dimension nobody spawns costs no asset.
+pub(crate) fn request_preset_noise_settings(
+    preset: Res<LoadedWorldPreset>,
+    set: Res<RegistrySet>,
+    asset_server: Res<AssetServer>,
+    mut loaded: ResMut<LoadedRegistryAssets>,
+) {
+    let settings = set
+        .registry::<keys::NoiseSettings>()
+        .expect("the data pack declares minecraft:worldgen/noise_settings");
+    for entry in preset.preset().dimensions.values() {
+        let ChunkGenerator::Noise(generator) = &entry.generator else {
+            continue;
+        };
+        let Some(name) = settings.key(generator.settings) else {
+            error!(id = ?generator.settings, "the preset names noise settings the registry does not number");
+            continue;
+        };
+        let handle = asset_server
+            .load::<NoiseGeneratorSettingsAsset>(asset_path::<keys::NoiseSettings>(name));
+        loaded.push(handle.untyped());
+    }
+}
+
+#[derive(Resource, Clone)]
+pub struct LoadedWorldPreset {
+    pub id: Id<keys::WorldPreset>,
+    presets: Entries<keys::WorldPreset, WorldPreset>,
+}
+
+impl LoadedWorldPreset {
+    pub fn preset(&self) -> &WorldPreset {
+        &self.presets[self.id]
     }
 }
 
@@ -167,11 +125,39 @@ pub fn world_seed_from_env() -> WorldSeed {
 /// Returns the default 'normal' preset if not set or invalid.
 /// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
 pub fn get_world_preset_name() -> String {
-    let preset = env::var("MCRS_WORLD_PRESET")
+    env::var("MCRS_WORLD_PRESET")
         .ok()
         .map(|name| name.trim().to_lowercase())
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| DEFAULT_WORLD_PRESET.to_string());
-    info!(%preset, "world preset");
-    preset
+        .unwrap_or_else(|| DEFAULT_WORLD_PRESET.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_world::registries::test_registries;
+
+    #[test]
+    fn an_unknown_world_preset_is_refused_with_the_report() {
+        let set = test_registries();
+        let mut report = LoadReport::new();
+        assert_eq!(configured_preset("minecraft:nope", set, &mut report), None);
+        let text = report.to_string();
+        assert!(text.contains("minecraft:worldgen/world_preset"), "{text}");
+        assert!(text.contains("minecraft:nope"), "{text}");
+
+        let presets = set.registry::<keys::WorldPreset>().unwrap();
+        let mut report = LoadReport::new();
+        for (name, expected) in [
+            ("beta", "minecraft:beta"),
+            ("minecraft:normal", "minecraft:normal"),
+        ] {
+            assert_eq!(
+                configured_preset(name, set, &mut report),
+                presets.get(expected),
+                "{name}"
+            );
+        }
+        assert!(report.is_empty(), "{report}");
+    }
 }

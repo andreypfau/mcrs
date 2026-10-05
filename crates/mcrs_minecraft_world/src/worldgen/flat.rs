@@ -1,92 +1,69 @@
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Id, Registry};
 
-// ===========================================================================
-// Runtime types
-// ===========================================================================
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FlatChunkGenerator {
     pub settings: FlatLevelGeneratorSettings,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "FlatSettingsFields")]
 pub struct FlatLevelGeneratorSettings {
-    pub biome: ResourceLocation<Arc<str>>,
+    pub biome: Id<keys::Biome>,
     pub features: bool,
     pub lakes: bool,
     pub layers: Vec<FlatLayerInfo>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub structure_overrides: Vec<ResourceLocation<Arc<str>>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FlatLayerInfo {
+    // chisle: block and structure set names are not checked against their registries; upgrade = Id<keys::Block> and EntrySet<keys::StructureSet>.
     pub block: ResourceLocation<Arc<str>>,
     pub height: u32,
 }
 
-// ===========================================================================
-// Proto types (serde layer)
-// ===========================================================================
-
 #[derive(Deserialize)]
-pub(crate) struct ProtoFlatChunkGenerator {
-    pub(crate) settings: ProtoFlatLevelGeneratorSettings,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct ProtoFlatLevelGeneratorSettings {
-    #[serde(default = "default_plains")]
-    pub(crate) biome: ResourceLocation<Arc<str>>,
+#[serde(deny_unknown_fields)]
+struct FlatSettingsFields {
+    biome: Option<Id<keys::Biome>>,
     #[serde(default)]
-    pub(crate) features: bool,
+    features: bool,
     #[serde(default)]
-    pub(crate) lakes: bool,
-    pub(crate) layers: Vec<ProtoFlatLayerInfo>,
+    lakes: bool,
+    layers: Vec<FlatLayerInfo>,
     #[serde(default)]
-    pub(crate) structure_overrides: Vec<ResourceLocation<Arc<str>>>,
+    structure_overrides: Vec<ResourceLocation<Arc<str>>>,
 }
 
-fn default_plains() -> ResourceLocation<Arc<str>> {
-    ResourceLocation::minecraft("plains")
-}
+impl TryFrom<FlatSettingsFields> for FlatLevelGeneratorSettings {
+    type Error = String;
 
-#[derive(Deserialize)]
-pub(crate) struct ProtoFlatLayerInfo {
-    pub(crate) block: ResourceLocation<Arc<str>>,
-    pub(crate) height: u32,
-}
-
-// ===========================================================================
-// Resolve: Proto → Runtime
-// ===========================================================================
-
-impl ProtoFlatChunkGenerator {
-    pub(crate) fn resolve(self) -> FlatChunkGenerator {
-        FlatChunkGenerator {
-            settings: self.settings.resolve(),
-        }
-    }
-}
-
-impl ProtoFlatLevelGeneratorSettings {
-    fn resolve(self) -> FlatLevelGeneratorSettings {
-        FlatLevelGeneratorSettings {
-            biome: self.biome,
-            features: self.features,
-            lakes: self.lakes,
-            layers: self
-                .layers
-                .into_iter()
-                .map(|l| FlatLayerInfo {
-                    block: l.block,
-                    height: l.height,
+    fn try_from(fields: FlatSettingsFields) -> Result<Self, String> {
+        let biome = match fields.biome {
+            Some(biome) => biome,
+            None => {
+                Registry::<keys::Biome>::in_scope("the flat generator's default biome", |biomes| {
+                    biomes.require("minecraft:plains")
                 })
-                .collect(),
-            structure_overrides: self.structure_overrides,
-        }
+                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())?
+            }
+        };
+        Ok(FlatLevelGeneratorSettings {
+            biome,
+            features: fields.features,
+            lakes: fields.lakes,
+            layers: fields.layers,
+            structure_overrides: fields.structure_overrides,
+        })
     }
 }

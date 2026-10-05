@@ -8,10 +8,12 @@ use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
+use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{EntrySet, Id, Pack, PackFile, RegistrySet, WorldRegistries};
@@ -25,6 +27,8 @@ use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
 use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use mcrs_minecraft_world::villager_trade::VillagerTrade;
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
@@ -106,10 +110,11 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 3] = [
+const PARSED_WORLDGEN: [&str; 4] = [
     "minecraft:worldgen/biome",
     "minecraft:worldgen/block_state_provider",
     "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+    "minecraft:worldgen/world_preset",
 ];
 
 #[test]
@@ -128,10 +133,7 @@ fn the_parsed_registries_are_the_reports_world_registries_outside_unparsed_world
                 && !flags.stable
                 && (!registry.starts_with("minecraft:worldgen/")
                     || PARSED_WORLDGEN.contains(&registry.as_str()))
-                && !matches!(
-                    registry.as_str(),
-                    "minecraft:dimension" | "minecraft:trial_spawner"
-                )
+                && registry.as_str() != "minecraft:trial_spawner"
         })
         .map(|(registry, _)| registry)
         .collect();
@@ -382,6 +384,8 @@ fn shipped_file(
         .join(format!("{path}.json"))
 }
 
+const SHIPPED_EMPTY: [&str; 1] = ["minecraft:dimension"];
+
 #[test]
 fn every_shipped_file_of_a_parsed_registry_round_trips() {
     let set = test_registries();
@@ -392,6 +396,13 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
         let table = set
             .table(registry.as_str())
             .unwrap_or_else(|| panic!("{registry} has no table"));
+        if SHIPPED_EMPTY.contains(&registry.as_str()) {
+            assert!(
+                table.is_empty(),
+                "{registry} is shipped empty and has entries"
+            );
+            continue;
+        }
         assert!(!table.is_empty(), "{registry} parses and has no entries");
         for (index, name) in table.names().iter().enumerate() {
             let pack = set
@@ -2012,5 +2023,208 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
         let message = overworld_dimension_type_with(&[(field, Some(json))])
             .expect_err(&format!("{field}: {json} reads"));
         assert!(message.contains(named), "{field}: {message}");
+    }
+}
+
+fn the_loaded_presets() -> (
+    mcrs_minecraft_registry::Registry<keys::WorldPreset>,
+    mcrs_minecraft_registry::Entries<keys::WorldPreset, WorldPreset>,
+) {
+    let set = test_registries();
+    (
+        set.registry::<keys::WorldPreset>()
+            .expect("world presets are a declared registry"),
+        set.entries::<keys::WorldPreset, WorldPreset>()
+            .expect("the loader parses world presets"),
+    )
+}
+
+#[test]
+fn every_preset_parses_in_registry_context() {
+    let set = test_registries();
+    let (names, presets) = the_loaded_presets();
+    let preset = |name: &str| {
+        &presets[names
+            .get(name)
+            .unwrap_or_else(|| panic!("no preset {name}"))]
+    };
+    let overworld = |name: &str| &preset(name).dimensions["minecraft:overworld"].generator;
+    let id_in = |registry: &str, name: &str| {
+        set.table(registry)
+            .and_then(|table| table.number(name))
+            .unwrap_or_else(|| panic!("{registry} has no {name}"))
+    };
+
+    let ChunkGenerator::Noise(normal) = overworld("minecraft:normal") else {
+        panic!("the normal overworld is a noise generator");
+    };
+    let BiomeSource::MultiNoise(source) = &normal.biome_source else {
+        panic!("the normal overworld uses a multi-noise biome source");
+    };
+    assert_eq!(
+        source.preset.map(|list| list.number()),
+        Some(id_in(
+            "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+            "minecraft:overworld"
+        ))
+    );
+    assert_eq!(
+        normal.settings.number(),
+        id_in("minecraft:worldgen/noise_settings", "minecraft:overworld")
+    );
+
+    let ChunkGenerator::Noise(single) = overworld("minecraft:single_biome_surface") else {
+        panic!("single_biome_surface is a noise generator");
+    };
+    assert_eq!(
+        single.biome_source,
+        BiomeSource::Fixed {
+            biome: set
+                .registry::<keys::Biome>()
+                .unwrap()
+                .get("minecraft:plains")
+                .unwrap()
+        }
+    );
+
+    let ChunkGenerator::Flat(flat) = overworld("minecraft:flat") else {
+        panic!("expected a flat generator");
+    };
+    assert_eq!(preset("minecraft:flat").dimensions.len(), 3);
+    assert_eq!(flat.settings.layers.len(), 3);
+    assert_eq!(flat.settings.structure_overrides.len(), 2);
+
+    assert_eq!(
+        overworld("minecraft:debug_all_block_states"),
+        &ChunkGenerator::Debug
+    );
+
+    for id in names.ids() {
+        let name = names.key(id).unwrap();
+        let written = set
+            .scope(|| serde_json::to_string(&presets[id]))
+            .unwrap_or_else(|e| panic!("{name} does not encode: {e}"));
+        let read: WorldPreset = set
+            .scope(|| serde_json::from_str(&written))
+            .unwrap_or_else(|e| panic!("{name} does not read back: {e}"));
+        assert_eq!(
+            read, presets[id],
+            "{name} changed across an encode and a parse"
+        );
+    }
+}
+
+#[test]
+fn a_preset_reads_its_dimensions_as_a_map_by_key() {
+    let set = test_registries();
+    let (names, presets) = the_loaded_presets();
+    let preset = |name: &str| &presets[names.get(name).unwrap()];
+
+    let beta = preset("minecraft:beta");
+    assert_eq!(
+        beta.dimensions
+            .keys()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>(),
+        ["minecraft:overworld"]
+    );
+    let beta_type = set
+        .registry::<keys::DimensionType>()
+        .unwrap()
+        .get("minecraft:beta")
+        .expect("the beta pack ships the beta dimension type");
+    assert_eq!(
+        beta.dimensions["minecraft:overworld"].dimension_type,
+        beta_type
+    );
+
+    let shipped: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets().join("minecraft/worldgen/world_preset/normal.json")).unwrap(),
+    )
+    .unwrap();
+    let listing = |order: [&str; 3]| {
+        let entries: Vec<String> = order
+            .iter()
+            .map(|key| format!("\"{key}\":{}", shipped["dimensions"][key]))
+            .collect();
+        format!(r#"{{"dimensions":{{{}}}}}"#, entries.join(","))
+    };
+    let parse = |text: String| -> WorldPreset {
+        set.scope(|| serde_json::from_str(&text))
+            .unwrap_or_else(|e| panic!("{e}: {text}"))
+    };
+    let forward = parse(listing([
+        "minecraft:overworld",
+        "minecraft:the_nether",
+        "minecraft:the_end",
+    ]));
+    let backward = parse(listing([
+        "minecraft:the_end",
+        "minecraft:the_nether",
+        "minecraft:overworld",
+    ]));
+    assert_eq!(forward, backward);
+    assert_eq!(&forward, preset("minecraft:normal"));
+}
+
+#[test]
+fn an_inline_dimension_type_is_refused() {
+    let inline: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets().join("minecraft/dimension_type/overworld.json")).unwrap(),
+    )
+    .unwrap();
+    let text = format!(
+        r#"{{"dimensions":{{"minecraft:overworld":{{"type":{inline},"generator":{{"type":"minecraft:debug"}}}}}}}}"#
+    );
+    let error = test_registries()
+        .scope(|| serde_json::from_str::<WorldPreset>(&text))
+        .expect_err("a dimension type written out in the preset is refused")
+        .to_string();
+    assert!(error.contains("minecraft:dimension_type"), "{error}");
+}
+
+#[test]
+fn an_empty_preset_object_names_dimensions() {
+    let refused = refused_by_the_loader("worldgen/world_preset", "empty", "{}");
+    let line = refused
+        .lines()
+        .find(|line| line.contains("minecraft:empty"))
+        .unwrap_or_else(|| panic!("no line names the preset: {refused}"));
+    assert!(line.contains("dimensions"), "{line}");
+}
+
+#[test]
+fn a_preset_naming_something_the_registries_lack_fails_the_load() {
+    let cases = [
+        (
+            "minecraft:dimension_type",
+            r#"{"type":"test:no_such_name","generator":{"type":"minecraft:debug"}}"#,
+        ),
+        (
+            "minecraft:worldgen/noise_settings",
+            r#"{"generator":{"type":"minecraft:noise","settings":"test:no_such_name","biome_source":{"type":"minecraft:the_end"}},"type":"minecraft:overworld"}"#,
+        ),
+        (
+            "minecraft:worldgen/biome",
+            r#"{"generator":{"type":"minecraft:noise","biome_source":{"type":"minecraft:fixed","biome":"test:no_such_name"},"settings":"minecraft:overworld"},"type":"minecraft:overworld"}"#,
+        ),
+        (
+            "minecraft:worldgen/biome",
+            r#"{"generator":{"type":"minecraft:flat","settings":{"biome":"test:no_such_name","layers":[]}},"type":"minecraft:overworld"}"#,
+        ),
+        (
+            "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+            r#"{"generator":{"type":"minecraft:noise","biome_source":{"type":"minecraft:multi_noise","preset":"test:no_such_name"},"settings":"minecraft:overworld"},"type":"minecraft:overworld"}"#,
+        ),
+    ];
+    for (registry, entry) in cases {
+        let preset = format!(r#"{{"dimensions":{{"minecraft:overworld":{entry}}}}}"#);
+        let refused = refused_by_the_loader("worldgen/world_preset", "test_preset", &preset);
+        let line = refused
+            .lines()
+            .find(|line| line.contains("test_preset"))
+            .unwrap_or_else(|| panic!("{registry}: no line names the preset: {refused}"));
+        assert!(line.contains(registry), "{registry}: {line}");
+        assert!(line.contains("test:no_such_name"), "{registry}: {line}");
     }
 }

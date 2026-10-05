@@ -1,90 +1,25 @@
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
-use bevy_asset::{Handle, LoadContext, UntypedAssetId};
-use serde::Deserialize;
+use super::flat::FlatChunkGenerator;
+use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
 
-use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
-
-use super::flat::{FlatChunkGenerator, ProtoFlatChunkGenerator};
-use crate::ResourceLocation;
-use mcrs_minecraft_biome::source::ProtoBiomeSource;
-
-// ===========================================================================
-// Runtime types
-// ===========================================================================
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
 #[allow(clippy::large_enum_variant)]
 pub enum ChunkGenerator {
-    Noise(NoiseChunkGenerator),
-    Flat(FlatChunkGenerator),
-    Debug,
-}
-
-impl ChunkGenerator {
-    pub(crate) fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        match self {
-            ChunkGenerator::Noise(g) => visit(g.settings.id().untyped()),
-            ChunkGenerator::Flat(_) | ChunkGenerator::Debug => {}
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct NoiseChunkGenerator {
-    // chisle: names until the preset is parsed with the registries in scope; the
-    // server resolves them where it builds a dimension's generator.
-    pub biome_source: ProtoBiomeSource,
-    pub settings: Handle<NoiseGeneratorSettingsAsset>,
-    pub settings_name: ResourceLocation<Arc<str>>,
-}
-
-// ===========================================================================
-// Proto types (serde layer)
-// ===========================================================================
-
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-pub(crate) enum ProtoChunkGenerator {
     #[serde(rename = "minecraft:noise")]
-    Noise(ProtoNoiseChunkGenerator),
+    Noise(NoiseChunkGenerator),
     #[serde(rename = "minecraft:flat")]
-    Flat(ProtoFlatChunkGenerator),
+    Flat(FlatChunkGenerator),
     #[serde(rename = "minecraft:debug")]
     Debug,
 }
 
-#[derive(Deserialize)]
-pub(crate) struct ProtoNoiseChunkGenerator {
-    pub(crate) biome_source: ProtoBiomeSource,
-    pub(crate) settings: ResourceLocation<Arc<str>>,
-}
-
-// ===========================================================================
-// Resolve: Proto → Runtime
-// ===========================================================================
-
-impl ProtoChunkGenerator {
-    pub(crate) fn resolve(self, ctx: &mut LoadContext) -> ChunkGenerator {
-        match self {
-            ProtoChunkGenerator::Noise(n) => ChunkGenerator::Noise(n.resolve(ctx)),
-            ProtoChunkGenerator::Flat(f) => ChunkGenerator::Flat(f.resolve()),
-            ProtoChunkGenerator::Debug => ChunkGenerator::Debug,
-        }
-    }
-}
-
-impl ProtoNoiseChunkGenerator {
-    fn resolve(self, ctx: &mut LoadContext) -> NoiseChunkGenerator {
-        let settings_path = format!(
-            "{}/worldgen/noise_settings/{}.json",
-            self.settings.namespace(),
-            self.settings.path()
-        );
-        NoiseChunkGenerator {
-            biome_source: self.biome_source,
-            settings: ctx.load(settings_path),
-            settings_name: self.settings,
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NoiseChunkGenerator {
+    pub biome_source: BiomeSource,
+    pub settings: Id<keys::NoiseSettings>,
 }

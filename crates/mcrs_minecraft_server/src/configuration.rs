@@ -54,9 +54,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
-use crate::world_options::{
-    LoadedWorldPreset, process_loaded_world_preset, start_loading_world_preset,
-};
+use crate::world_options::{LoadedWorldPreset, choose_world_preset, request_preset_noise_settings};
 
 /// Allowlist of registries that emit tag groups in `ClientboundUpdateTags`.
 ///
@@ -220,14 +218,13 @@ pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LoadedWorldPreset>();
         app.init_resource::<DynamicRegistryTagFiles>();
 
+        app.add_systems(bevy_app::Startup, choose_world_preset);
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
-            (start_loading_world_preset, request_dynamic_registry_tags),
+            (request_preset_noise_settings, request_dynamic_registry_tags),
         );
-        app.add_systems(Update, process_loaded_world_preset);
         app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
@@ -585,10 +582,11 @@ pub fn emit_initial_player_spawn(
     }
 
     let dimensions: Vec<String> = match &world_preset {
-        Some(preset) if !preset.dimensions.is_empty() => preset
+        Some(preset) if !preset.preset().dimensions.is_empty() => preset
+            .preset()
             .dimensions
-            .iter()
-            .map(|(dim_key, _)| dim_key.as_str().to_owned())
+            .keys()
+            .map(|dim_key| dim_key.as_str().to_owned())
             .collect(),
         _ => vec!["minecraft:overworld".to_string()],
     };

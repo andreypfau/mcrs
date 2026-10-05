@@ -135,13 +135,11 @@ impl Plugin for WorldPlugin {
 
 /// Enqueue one `DimSpawnRequest` per dimension in the loaded world preset.
 ///
-/// Runs at `OnEnter(AppState::Playing)`, after `WorldgenFreeze` has finished
-/// loading registries and the world preset. The outer runner loop drains
+/// Runs at `OnEnter(AppState::Playing)`. The outer runner loop drains
 /// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
 /// per-dim sub-app per request.
 pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
-    dim_defs: Res<bevy_asset::Assets<mcrs_minecraft_world::dimension::DimensionDefinition>>,
     registries: Res<RegistrySet>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
@@ -150,19 +148,8 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         return;
     }
 
-    if !world_preset.is_loaded {
-        // OnEnter(Playing) fires after the WorldgenFreeze → Playing transition;
-        // by then the preset must be loaded. Treat the unloaded case as an
-        // invariant violation and bail without enqueueing — the server will
-        // come up with zero dimensions, which makes the failure mode visible.
-        error!(
-            "LoadedWorldPreset not loaded when OnEnter(AppState::Playing) fired — \
-             expected the WorldgenFreeze chain to ensure preset load completion"
-        );
-        return;
-    }
-
-    if world_preset.dimensions.is_empty() {
+    let dimensions = &world_preset.preset().dimensions;
+    if dimensions.is_empty() {
         warn!("LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request");
         spawn_queue.0.push(DimSpawnRequest {
             dimension_id: DimensionId::new("minecraft:overworld"),
@@ -174,35 +161,17 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
     }
 
     debug!(
-        preset = %world_preset.preset_name,
-        dimension_count = world_preset.dimensions.len(),
+        dimension_count = dimensions.len(),
         "Enqueueing dimension spawn requests from loaded world preset"
     );
 
-    let (Some(types), Some(dimension_types)) = (
-        registries.registry::<keys::DimensionType>(),
-        registries.entries::<keys::DimensionType, DimensionType>(),
-    ) else {
+    let Some(dimension_types) = registries.entries::<keys::DimensionType, DimensionType>() else {
         error!("the registry set holds no dimension types to spawn dimensions from");
         return;
     };
 
-    for (dimension_key, dim_def_handle) in &world_preset.dimensions {
-        let Some(definition) = dim_defs.get(dim_def_handle) else {
-            error!(dimension = %dimension_key, "the dimension definition is not loaded");
-            continue;
-        };
-        let Some(dim_type) = types
-            .get(definition.dimension_type.as_str())
-            .map(|id| &dimension_types[id])
-        else {
-            error!(
-                dimension = %dimension_key,
-                dimension_type = %definition.dimension_type,
-                "the dimension names a dimension type the registry does not hold"
-            );
-            continue;
-        };
+    for (dimension_key, entry) in dimensions {
+        let dim_type = &dimension_types[entry.dimension_type];
         let resolved = (
             DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
             dim_type.has_skylight,
@@ -226,7 +195,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
 
     *already_enqueued = true;
     info!(
-        dimension_count = world_preset.dimensions.len(),
+        dimension_count = dimensions.len(),
         "All dimensions enqueued from world preset"
     );
 }
