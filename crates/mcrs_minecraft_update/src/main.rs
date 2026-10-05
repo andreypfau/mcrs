@@ -2,13 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use mcrs_minecraft_client_jar::{get, official_dir};
+use mcrs_minecraft_client_jar::{RELEASE, get, official_dir};
 
 mod blocks;
 mod corpus;
 mod definitions;
 mod fixtures;
 mod gradle;
+mod names;
 mod registries;
 mod release;
 #[cfg(test)]
@@ -17,6 +18,7 @@ mod testing;
 const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
        mcrs_minecraft_update recapture <fixture name | --all>
+       mcrs_minecraft_update names
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
 descriptor, runs the data generator and dumps the block and item definitions, stops if the
@@ -24,20 +26,27 @@ block definitions disagree with the blocks report of the generator, then replace
 in assets/mcrs/reports and assets/mcrs/block_definition and assets/mcrs/item_definition. The
 blocks report is checked and not stored. The protocol_id diff against the previous registries report is
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
-of the definitions is printed and written to definitions.txt there. Each diff is computed
-before the files it describes are replaced. Two runs against one working tree at the same
-time are not supported.
+of the definitions is printed and written to definitions.txt there. The names report is
+written after the reports, and its diff is printed and written to names.txt there. Each diff
+is computed before the files it describes are replaced. Two runs against one working tree at
+the same time are not supported.
 
 recapture runs the oracle task of one fixture into a temporary directory, copies the files
 it wrote to their fixture directories and records the version id of assets/minecraft in
 tools/captures.json. With --all it recaptures every fixture one after another, goes on after
-a failure and exits non-zero if any fixture failed. It never updates the corpus.";
+a failure and exits non-zero if any fixture failed. It never updates the corpus.
+
+names writes assets/mcrs/reports/names.json from the client jar the descriptor names: the
+entry names of every registry of datapack.json that has elements and the tag names of every
+registry, in sorted order. It prints the entries and tags added and removed against the stored
+file and touches nothing else.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
+const NAMES_FILE: &str = "names.json";
 const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
 const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
@@ -51,6 +60,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("recapture") => recapture(&args[1..]),
+        Some("names") => names_report(&args[1..]),
         _ => {
             let options = parse(args.into_iter()).unwrap_or_else(|| usage());
             run(&options)
@@ -87,6 +97,21 @@ fn recapture(args: &[String]) -> Result<(), String> {
         }
         _ => usage(),
     }
+}
+
+fn names_report(args: &[String]) -> Result<(), String> {
+    if !args.is_empty() {
+        usage();
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let descriptor = &*RELEASE;
+    let download = release::Download {
+        url: descriptor.jar.url.to_owned(),
+        sha1: descriptor.jar.sha1.to_owned(),
+        size: descriptor.jar.size,
+    };
+    let jar = release::jar(&official_dir(), descriptor.id, &download, get)?;
+    write_names(&root, &jar, None)
 }
 
 fn recapture_one(root: &Path, fixture: &fixtures::Fixture) -> bool {
@@ -179,7 +204,25 @@ fn run(options: &Options) -> Result<(), String> {
             replace_reports(&root, generated, diff_out)?;
             replace_definitions(&root, dumped, diff_out)
         })
-    })
+    })?;
+    write_names(&root, &jar, diff_out)
+}
+
+fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), String> {
+    let stored = root.join(REPORTS);
+    let datapack = stored.join("datapack.json");
+    let text = fs::read_to_string(&datapack).map_err(|error| corpus::io(&datapack, error))?;
+    let registries =
+        names::registries(&text).map_err(|error| format!("{}: {error}", datapack.display()))?;
+    let new = names::from_jar(jar, &registries)?;
+    let old = names::read(&stored.join(NAMES_FILE))?;
+    let rows = names::diff(&old, &new);
+    let text: String = rows.iter().map(|row| format!("{row}\n")).collect();
+
+    println!("names diff: {} rows", rows.len());
+    print!("{text}");
+    write_diff(diff_out, "names.txt", &text)?;
+    write(&stored.join(NAMES_FILE), &names::render(&new)?)
 }
 
 fn with_gradle_output(

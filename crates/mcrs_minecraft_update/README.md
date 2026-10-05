@@ -59,8 +59,8 @@ options are:
 - `--allow-dirty` lets the update run when `assets`, the descriptor or the font
   hint have uncommitted changes. Without it the tool prints those changes and
   stops before it writes anything, so that the diffs below can be read from git.
-- `--diff-out <directory>` also writes the two diffs to `protocol_id.txt` and
-  `definitions.txt` in that directory.
+- `--diff-out <directory>` also writes the three diffs to `protocol_id.txt`,
+  `definitions.txt` and `names.txt` in that directory.
 
 The steps, in order:
 
@@ -87,8 +87,9 @@ The steps, in order:
    `assets/mcrs/reports`, and replace `assets/mcrs/block_definition` and
    `assets/mcrs/item_definition` with what the dump wrote, including the README
    of the block definitions.
+8. Write `assets/mcrs/reports/names.json` from the jar (see below).
 
-Two diffs are printed, and each is computed before the files it describes are
+Three diffs are printed, and each is computed before the files it describes are
 replaced:
 
 - The `protocol_id` diff compares the new `registries.json` with the stored one:
@@ -96,9 +97,34 @@ replaced:
 - The definition diff lists, per file of the block and item definitions, which
   fields were added, removed or changed, and counts the files that changed only
   in how they are written.
+- The names diff lists the entries and tags the new `names.json` adds (`+`) or
+  drops (`-`) against the stored one; a tag is written with a leading `#`.
 
 The Gradle tasks run through `tools/vanilla-oracle/gradlew` with `--no-daemon`.
 The first run downloads the game and its libraries.
+
+## The names report
+
+```sh
+cargo run -p mcrs_minecraft_update -- names
+```
+
+`assets/mcrs/reports/names.json` lists, per registry, the names of its entries
+and the names of its tags, in sorted order. The corpus does not hold every entry
+of a registry (the entries the code builds ship no file), so the vanilla names
+come from the client jar that `release.json` names, never from the corpus or the
+built-in crate. The entries are those of every registry that `datapack.json`
+marks as having elements; a registry with elements and no file in the jar is
+listed empty. The tags are those of every registry with a tag file below
+`data/minecraft/tags/`. `minecraft:dimension` has no files of its own: its
+entries are the dimensions named by the world presets. The experimental packs
+under `data/minecraft/datapacks/` contribute nothing.
+
+The `names` command reads the stored `datapack.json`, verifies the jar against
+the descriptor, prints the names diff and writes the report. It touches neither
+`assets/minecraft`, the descriptor nor another report, and it runs no Gradle
+task. A second run over the same jar prints `names diff: 0 rows` and leaves the
+file unchanged.
 
 ## Recapturing fixtures
 
