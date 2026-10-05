@@ -40,8 +40,6 @@ pub enum CompileError {
     UnknownCondition(String),
     #[error("unknown block state: {0}")]
     UnknownBlockState(String),
-    #[error("unknown biome: {0}")]
-    UnknownBiome(String),
     /// A condition kind this build parses but cannot evaluate.
     #[error("material condition minecraft:{0} cannot be evaluated by this build")]
     UnsupportedCondition(&'static str),

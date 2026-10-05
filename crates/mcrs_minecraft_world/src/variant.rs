@@ -1,14 +1,12 @@
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use mcrs_minecraft_item::SoundEvent;
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Holder, HolderSet, Registry, RegistrySet, Tags};
-use mcrs_minecraft_worldgen_feature::spawn_condition as feature;
+use mcrs_minecraft_registry::{Holder, RegistrySet};
 use serde::{Deserialize, Serialize};
 
-pub type SpawnSelector = feature::SpawnSelector<HolderSet<keys::Structure>, HolderSet<keys::Biome>>;
+pub use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 
 macro_rules! spawning_variant {
     (
@@ -216,25 +214,12 @@ pub struct ChickenSoundVariant {
     pub baby_sounds: ChickenSounds,
 }
 
-/// A variant registry's spawn conditions with their sets written as names, the
-/// form the structure generator resolves against its own indexes.
-pub fn named_selectors<T: 'static>(
+/// A variant registry's spawn conditions by variant, in registry order.
+pub fn spawn_selectors<T: 'static>(
     registries: &RegistrySet,
     registry: &str,
     conditions: fn(&T) -> &[SpawnSelector],
-) -> BTreeMap<ResourceLocation, Vec<feature::SpawnSelector>> {
-    let structures = registries
-        .registry::<keys::Structure>()
-        .expect("the structure registry is loaded");
-    let biomes = registries
-        .registry::<keys::Biome>()
-        .expect("the biome registry is loaded");
-    let structure_tags = registries
-        .tags::<keys::Structure>()
-        .expect("the structure tags are loaded");
-    let biome_tags = registries
-        .tags::<keys::Biome>()
-        .expect("the biome tags are loaded");
+) -> BTreeMap<ResourceLocation, Vec<SpawnSelector>> {
     let table = registries
         .table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
@@ -245,51 +230,6 @@ pub fn named_selectors<T: 'static>(
         .names()
         .iter()
         .zip(values)
-        .map(|(name, value)| {
-            let selectors = conditions(value)
-                .iter()
-                .map(|selector| feature::SpawnSelector {
-                    priority: selector.priority,
-                    condition: selector
-                        .condition
-                        .as_ref()
-                        .map(|condition| match condition {
-                            feature::SpawnCondition::Structure { structures: set } => {
-                                feature::SpawnCondition::Structure {
-                                    structures: names(set, &structures, &structure_tags),
-                                }
-                            }
-                            feature::SpawnCondition::Biome { biomes: set } => {
-                                feature::SpawnCondition::Biome {
-                                    biomes: names(set, &biomes, &biome_tags),
-                                }
-                            }
-                            feature::SpawnCondition::MoonBrightness { range } => {
-                                feature::SpawnCondition::MoonBrightness { range: *range }
-                            }
-                        }),
-                })
-                .collect();
-            (name.clone(), selectors)
-        })
+        .map(|(name, value)| (name.clone(), conditions(value).to_vec()))
         .collect()
-}
-
-fn names<R: RegistryKey>(
-    set: &HolderSet<R>,
-    registry: &Registry<R>,
-    tags: &Tags<R>,
-) -> mcrs_minecraft_core::HolderSet {
-    use mcrs_minecraft_core::HolderSet as Named;
-    let name = |id| {
-        registry
-            .key(id)
-            .expect("a loaded entry is in its registry")
-            .clone()
-    };
-    match set {
-        HolderSet::Named(tag) => Named::Tag(tags.name(*tag).clone()),
-        HolderSet::One(id) => Named::One(name(*id)),
-        HolderSet::List(ids) => Named::List(ids.iter().copied().map(name).collect()),
-    }
 }

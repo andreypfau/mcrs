@@ -4,14 +4,14 @@ use bevy_asset::{Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::{AppState, TagRegistry};
+use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::variant::{
-    CatVariant, ChickenVariant, ZombieNautilusVariant, named_selectors,
+    CatVariant, ChickenVariant, ZombieNautilusVariant, spawn_selectors,
 };
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
@@ -79,17 +79,21 @@ pub(crate) fn build_dimension_structures(
     tables: Res<WorldgenTables>,
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
-    biome_tags: Res<TagRegistry<keys::Biome, Id<keys::Biome>>>,
-    structure_tags: Res<TagRegistry<keys::Structure, Id<keys::Structure>>>,
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
     let biomes = registries
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
+    let biome_tags = registries
+        .tags::<keys::Biome>()
+        .expect("the data pack loader builds the biome tags");
     let structure_registry = registries
         .registry::<keys::Structure>()
         .expect("the data pack declares minecraft:worldgen/structure");
+    let structure_tags = registries
+        .tags::<keys::Structure>()
+        .expect("the data pack loader builds the structure tags");
 
     let sets: BTreeMap<ResourceLocation, StructureSet> =
         named(&registries, &tables.structure_sets, |set| set)
@@ -119,17 +123,17 @@ pub(crate) fn build_dimension_structures(
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let cats = named_selectors(
+    let cats = spawn_selectors(
         &registries,
         "minecraft:cat_variant",
         |variant: &CatVariant| &variant.spawn_conditions,
     );
-    let chickens = named_selectors(
+    let chickens = spawn_selectors(
         &registries,
         "minecraft:chicken_variant",
         |variant: &ChickenVariant| &variant.spawn_conditions,
     );
-    let zombie_nautiluses = named_selectors(
+    let zombie_nautiluses = spawn_selectors(
         &registries,
         "minecraft:zombie_nautilus_variant",
         |variant: &ZombieNautilusVariant| &variant.spawn_conditions,

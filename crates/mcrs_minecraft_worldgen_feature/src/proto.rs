@@ -12,7 +12,6 @@ use super::placement::{HeightmapName, PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
 use super::tree::{BlockSet, BlockStateProvider, TreeConfig, UnitFloat, non_empty};
 use mcrs_minecraft_core::Axis;
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
@@ -73,12 +72,67 @@ impl<T: Serialize> Serialize for Holder<T> {
     }
 }
 
-/// `RegistryCodecs.holderSet(PLACED_FEATURE, …, alwaysUseList = false)`.
-pub type PlacedFeatureSet = HolderSet<Holder<PlacedFeature>>;
+/// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: one entry or a list of them,
+/// each a registry id or an inline placed feature. A `#tag` is refused, since
+/// no `tags/worldgen/placed_feature` file exists for it to name. A one-entry
+/// list writes as the bare entry.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PlacedFeatureSet(Vec<Holder<PlacedFeature>>);
 
-/// One decoration step of a biome: `holderSet(…, alwaysUseList = true)`, so the
-/// only non-list form is a tag.
-pub type FeatureStepList = HolderSet<Holder<PlacedFeature>, true>;
+impl PlacedFeatureSet {
+    pub fn entries(&self) -> &[Holder<PlacedFeature>] {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for PlacedFeatureSet {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct SetVisitor;
+
+        impl<'de> Visitor<'de> for SetVisitor {
+            type Value = PlacedFeatureSet;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a placed feature, or a list of placed features")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
+                if text.starts_with('#') {
+                    return Err(E::custom(format!("No placed feature tag exists: {text}")));
+                }
+                Holder::deserialize(value::StrDeserializer::new(text))
+                    .map(|only| PlacedFeatureSet(vec![only]))
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                Holder::deserialize(value::MapAccessDeserializer::new(map))
+                    .map(|only| PlacedFeatureSet(vec![only]))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                seq: A,
+            ) -> Result<Self::Value, A::Error> {
+                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(PlacedFeatureSet)
+            }
+        }
+
+        deserializer.deserialize_any(SetVisitor)
+    }
+}
+
+impl Serialize for PlacedFeatureSet {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0.as_slice() {
+            [only] => only.serialize(serializer),
+            entries => entries.serialize(serializer),
+        }
+    }
+}
+
+/// One decoration step of a biome: its placed features in order, every tag
+/// already expanded.
+pub type FeatureStepList = Vec<Holder<PlacedFeature>>;
 
 impl Feature {
     /// The structure templates this feature places.
@@ -847,7 +901,7 @@ fn resource_location<E: serde::de::Error>(id: &str) -> Result<ResourceLocation, 
 
 fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFeatureSet, D::Error> {
     let set = PlacedFeatureSet::deserialize(deserializer)?;
-    if matches!(&set, HolderSet::List(entries) if entries.is_empty()) {
+    if set.0.is_empty() {
         return Err(D::Error::custom("List must have contents"));
     }
     Ok(set)

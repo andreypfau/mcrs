@@ -242,6 +242,7 @@ impl Plugin for MinecraftWorldPlugin {
             app.insert_resource(entity_types);
             (block_registry, registries)
         };
+        mcrs_minecraft_worldgen::bevy::register_worldgen_loaders(app, &registries);
         {
             let asset_server = app.world().resource::<AssetServer>().clone();
             let (definitions, report) = mcrs_minecraft_block::definition::load_block_definitions(

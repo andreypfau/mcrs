@@ -15,6 +15,7 @@ use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use super::structures::{frozen_shared, preset};
 use super::{
     biome_registry, block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate,
+    registries_over,
 };
 use crate::base_height;
 use crate::feature_program::Resolver;
@@ -216,12 +217,9 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
 
 fn world_states() -> &'static Arc<WorldStates> {
     static STATES: LazyLock<Arc<WorldStates>> = LazyLock::new(|| {
-        let biomes = biome_registry(&["minecraft:plains"]);
         let resolver = Resolver::new(
             &blocks().0,
-            None,
-            None,
-            &biomes,
+            &registries_over(&biome_registry(&["minecraft:plains"])),
             0,
             &[],
             &super::corpus_features().block_state_providers,

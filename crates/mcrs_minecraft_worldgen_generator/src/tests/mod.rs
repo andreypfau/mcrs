@@ -167,6 +167,21 @@ pub fn build_program(
     build_program_with(tables, corpus, registry, seed, None)
 }
 
+/// The corpus registries with the biomes of `biomes` numbered as it numbers
+/// them and every other corpus biome after them.
+pub fn registries_over(biomes: &Registry<keys::Biome>) -> mcrs_minecraft_registry::RegistrySet {
+    let leading: Vec<&str> = biomes
+        .ids()
+        .map(|id| {
+            biomes
+                .key(id)
+                .expect("an id of the registry has a name")
+                .as_str()
+        })
+        .collect();
+    mcrs_minecraft_worldgen_testing::corpus_set_numbered(&leading)
+}
+
 pub fn build_program_with(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
@@ -174,22 +189,27 @@ pub fn build_program_with(
     seed: i64,
     structures: Option<&FrozenStructures>,
 ) -> FeatureProgram {
+    try_build_program(tables, corpus, registry, seed, structures)
+        .unwrap_or_else(|error| panic!("the feature program does not resolve: {error}"))
+}
+
+pub fn try_build_program(
+    tables: &FeatureTables,
+    corpus: &LoadedFeatures,
+    registry: &Registry<keys::Biome>,
+    seed: i64,
+    structures: Option<&FrozenStructures>,
+) -> Result<FeatureProgram, mcrs_minecraft_worldgen_feature::compile::FeatureCompileError> {
     let mut tables = tables.clone();
-    for id in registry.ids() {
-        let name = registry.key(id).expect("an id of the registry has a name");
+    let registries = registries_over(registry);
+    let numbered = registries
+        .registry::<keys::Biome>()
+        .expect("the corpus holds the biome registry");
+    for id in numbered.ids() {
+        let name = numbered.key(id).expect("an id of the registry has a name");
         tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
-    FeatureProgram::build(
-        &tables,
-        corpus,
-        &blocks().0,
-        Some(block_tags()),
-        Some(fluid_tags()),
-        registry,
-        seed,
-        structures,
-    )
-    .unwrap_or_else(|error| panic!("the feature program does not resolve: {error}"))
+    FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
 }
 
 /// A fill context over one router and the corpus, with nothing else wired in.

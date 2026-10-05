@@ -31,7 +31,7 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
 use support::{corpus, router_blocks};
 
 fn parameter_lists() -> (
@@ -98,13 +98,16 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),
     );
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
-    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry("material_condition");
-    let index: BTreeMap<&str, u16> = (0..=u16::MAX)
-        .zip(names)
-        .map(|(i, n)| (n.as_str(), i))
+    let qualified: Vec<String> = names
+        .iter()
+        .map(|name| format!("minecraft:{name}"))
         .collect();
+    let leading: Vec<&str> = qualified.iter().map(String::as_str).collect();
+    let set = corpus_set_numbered(&leading);
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");
+    let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
+        registry_in(&set, "material_condition");
+    let biome_tags = set.tags().expect("the corpus holds the biome tags");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -113,12 +116,7 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
                 .block(state.name.as_str())
                 .map(|b| b.default_state_id.into())
         },
-        biome: &|id| {
-            index
-                .get(id.path())
-                .copied()
-                .or_else(|| panic!("the corpus has no biome {id}"))
-        },
+        biome_tags: &biome_tags,
     };
     build_router_and_material(
         &settings,

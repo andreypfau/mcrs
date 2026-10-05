@@ -3,7 +3,7 @@
 //! A feature without a generator keeps its index and its seed and places
 //! nothing, so a gap here is silent in the world and loud only in this census.
 
-use mcrs_minecraft_worldgen_testing::registry;
+use mcrs_minecraft_worldgen_testing::{corpus_set, registry};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
@@ -15,9 +15,7 @@ use crate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
 use crate::features::FeatureTables;
 use mcrs_minecraft_worldgen_feature::compile::LoadedFeatures;
 
-use super::{
-    biome_registry, block_tags, blocks, build_program, corpus_features, fluid_tags, one_step,
-};
+use super::{biome_registry, blocks, build_program, corpus_features, one_step, registries_over};
 
 const BIOME: &str = "minecraft:badlands";
 
@@ -201,9 +199,7 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
             &proto,
             &crate::feature_program::Resolver::new(
                 &blocks().0,
-                Some(block_tags()),
-                Some(fluid_tags()),
-                &biome_registry(&[BIOME]),
+                &registries_over(&biome_registry(&[BIOME])),
                 0,
                 &[],
                 &corpus_features().block_state_providers,
@@ -297,7 +293,8 @@ fn corpus_feature_types() -> BTreeMap<String, Vec<Feature>> {
             let parsed = values
                 .into_iter()
                 .map(|value| {
-                    serde_json::from_value(value)
+                    corpus_set()
+                        .scope(|| serde_json::from_value(value))
                         .unwrap_or_else(|e| panic!("{kind} does not parse as a feature: {e}"))
                 })
                 .collect();

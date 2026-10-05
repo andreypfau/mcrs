@@ -145,7 +145,7 @@ mod tests {
     const S: StructureId = StructureId(0);
 
     fn placement(json: &str) -> StructurePlacement {
-        serde_json::from_str(json).unwrap()
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| serde_json::from_str(json).unwrap())
     }
 
     fn wide() -> StructurePlacement {
@@ -158,7 +158,7 @@ mod tests {
 
     fn rings() -> StructurePlacement {
         placement(
-            r##"{"type":"minecraft:concentric_rings","salt":0,"distance":32,"spread":3,"count":128,"preferred_biomes":"#minecraft:x"}"##,
+            r##"{"type":"minecraft:concentric_rings","salt":0,"distance":32,"spread":3,"count":128,"preferred_biomes":"#minecraft:is_overworld"}"##,
         )
     }
 

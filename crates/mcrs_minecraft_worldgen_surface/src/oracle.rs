@@ -180,9 +180,8 @@ impl<'a> MaterialOracle<'a> {
             MaterialCondition::Biome { biome_is } => {
                 let biome = eval.biome();
                 let value = biome_is
-                    .entries()
-                    .iter()
-                    .any(|name| (self.inputs.biome)(name) == Some(biome));
+                    .ids(self.inputs.biome_tags)
+                    .any(|id| id.number() == biome);
                 ("biome", value)
             }
             MaterialCondition::NoiseThreshold {
@@ -278,7 +277,7 @@ impl<'a> MaterialOracle<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile::tests::{build, material_corpus, resolve_biome, resolve_block};
+    use crate::compile::tests::{biome_tags, build, material_corpus, resolve_block};
     use crate::eval::MaterialScratch;
 
     /// Every condition kind the overworld tree reaches. Each has to be seen
@@ -316,11 +315,12 @@ mod tests {
     fn the_tape_and_the_oracle_agree_over_the_whole_context_range() {
         let (router, material) = build("overworld");
         let (rules, conditions) = material_corpus();
+        let biomes = biome_tags();
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
             block: &resolve_block,
-            biome: &resolve_biome,
+            biome_tags: &biomes,
         };
         let height = HeightContext {
             min_y: router.noise.min_y,

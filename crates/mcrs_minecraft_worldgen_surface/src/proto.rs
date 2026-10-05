@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::{BlockState, DensityFunctionHolder};
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
 
@@ -54,7 +56,7 @@ pub enum MaterialRule {
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
     #[serde(rename = "minecraft:biome")]
-    Biome { biome_is: BiomeSet },
+    Biome { biome_is: HolderSet<keys::Biome> },
     #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         noise: ResourceLocation,
@@ -107,14 +109,10 @@ pub enum CaveSurface {
     Floor,
 }
 
-/// The biomes a `biome_is` names: one id or a list of them. A `#tag` parses
-/// but the material compile refuses it.
-pub type BiomeSet = mcrs_minecraft_core::HolderSet;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::round_trips;
+    use mcrs_minecraft_worldgen_testing::{corpus_set, round_trips};
 
     #[test]
     fn every_shipped_material_rule_and_condition_round_trips() {
@@ -129,15 +127,17 @@ mod tests {
     #[test]
     fn the_unshipped_shapes_round_trip() {
         let stated = r#"{"type":"minecraft:block","result_state":{"id":"minecraft:snow","properties":{"layers":"1"}}}"#;
-        let rule: MaterialRule = serde_json::from_str(stated).unwrap();
-        assert_eq!(serde_json::to_string(&rule).unwrap(), stated);
+        corpus_set().scope(|| {
+            let rule: MaterialRule = serde_json::from_str(stated).unwrap();
+            assert_eq!(serde_json::to_string(&rule).unwrap(), stated);
 
-        for json in [
-            r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##,
-            r#"{"type":"minecraft:biome","biome_is":["minecraft:badlands","minecraft:eroded_badlands"]}"#,
-        ] {
-            let condition: MaterialCondition = serde_json::from_str(json).unwrap();
-            assert_eq!(serde_json::to_string(&condition).unwrap(), json);
-        }
+            for json in [
+                r##"{"type":"minecraft:biome","biome_is":"#minecraft:is_overworld"}"##,
+                r#"{"type":"minecraft:biome","biome_is":["minecraft:badlands","minecraft:eroded_badlands"]}"#,
+            ] {
+                let condition: MaterialCondition = serde_json::from_str(json).unwrap();
+                assert_eq!(serde_json::to_string(&condition).unwrap(), json);
+            }
+        });
     }
 }

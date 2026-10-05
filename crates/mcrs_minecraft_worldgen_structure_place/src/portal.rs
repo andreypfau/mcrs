@@ -1,8 +1,10 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, HolderSet, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, ResourceLocation};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, states_of,
@@ -51,6 +53,7 @@ impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
         blocks: &dyn BlockResolver,
+        features_cannot_replace: &HolderSet<keys::Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         let mut chains = Vec::with_capacity(setups.len() * 4);
@@ -66,7 +69,7 @@ impl RuinedPortalBlocks {
                         replace_with_blackstone: setup.replace_with_blackstone,
                     };
                     let chain = compile_chain(
-                        &processors(setup.placement, &properties),
+                        &processors(setup.placement, &properties, features_cannot_replace),
                         ChainKind::Feature,
                         blocks,
                         world_seed,
@@ -96,7 +99,7 @@ impl RuinedPortalBlocks {
             vines: block_mask(blocks, &["minecraft:vine"])?,
             features_cannot_replace: states_of(
                 blocks,
-                StateQuery::BlockTag(&ResourceLocation::minecraft("features_cannot_replace")),
+                StateQuery::Blocks(features_cannot_replace),
             )?,
             full_collision_face: [
                 full_face(Direction::North)?,
@@ -118,7 +121,11 @@ impl RuinedPortalBlocks {
 }
 
 /// `RuinedPortalPiece.makeSettings`' processor list.
-fn processors(placement: PortalPlacement, p: &PortalProperties) -> Vec<StructureProcessor> {
+fn processors(
+    placement: PortalPlacement,
+    p: &PortalProperties,
+    features_cannot_replace: &HolderSet<keys::Block>,
+) -> Vec<StructureProcessor> {
     let block = BlockState::minecraft;
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
@@ -161,7 +168,7 @@ fn processors(placement: PortalPlacement, p: &PortalProperties) -> Vec<Structure
             mossiness: f64::from(p.mossiness),
         },
         StructureProcessor::ProtectedBlocks {
-            value: HolderSet::Tag(ResourceLocation::minecraft("features_cannot_replace")),
+            value: features_cannot_replace.clone(),
         },
         StructureProcessor::LavaSubmergedBlock,
     ];

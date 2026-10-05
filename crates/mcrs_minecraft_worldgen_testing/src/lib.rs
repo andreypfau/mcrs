@@ -113,10 +113,7 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
     ResourceLocation::parse(&format!("minecraft:{name}")).expect("a corpus path is a valid id")
 }
 
-/// The static registries of the shipped report, the carvers and the placed
-/// features of the vanilla tree and of every pack: what a biome's references
-/// resolve against when a test reads or writes one outside the loader.
-pub fn corpus_set() -> &'static RegistrySet {
+fn base_set() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let tables = shipped_report().tables().cloned().chain([
             Arc::clone(shipped_names::<keys::Carver>("carver").table()),
@@ -128,7 +125,50 @@ pub fn corpus_set() -> &'static RegistrySet {
     &SET
 }
 
+/// The static registries of the shipped report, the carvers and the placed
+/// features of the vanilla tree and of every pack, the built-in and shipped
+/// biomes and the shipped structures, with the block, fluid, biome and
+/// structure tags the corpus ships: what a worldgen value's references resolve
+/// against when a test reads or writes one outside the loader.
+pub fn corpus_set() -> &'static RegistrySet {
+    static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
+        let biomes = builtin::biomes(base_set())
+            .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"))
+            .into_keys()
+            .chain(shipped_name_list("biome"))
+            .collect::<Vec<_>>();
+        let mut set = base_set()
+            .clone()
+            .with(numbered::<keys::Biome>("biome", biomes))
+            .and_then(|set| {
+                set.with(numbered::<keys::Structure>(
+                    "structure",
+                    shipped_name_list("structure"),
+                ))
+            })
+            .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
+        for (registry, folder) in [
+            ("minecraft:block", "block"),
+            ("minecraft:fluid", "fluid"),
+            ("minecraft:worldgen/biome", "worldgen/biome"),
+            ("minecraft:worldgen/structure", "worldgen/structure"),
+        ] {
+            let names = Arc::clone(
+                set.table(registry)
+                    .unwrap_or_else(|| panic!("the corpus set holds no {registry}")),
+            );
+            set = set.with_tags(shipped_tags(&names, folder));
+        }
+        set
+    });
+    &SET
+}
+
 fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
+    numbered(folder, shipped_name_list(folder))
+}
+
+fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
     let roots = std::iter::once(worldgen_dir()).chain(
         packs()
             .into_iter()
@@ -141,12 +181,59 @@ fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
             names.extend(json_files(&base).iter().map(|path| id_of(&base, path)));
         }
     }
+    names
+}
+
+fn numbered<R: RegistryKey>(
+    folder: &str,
+    mut names: Vec<ResourceLocation<Arc<str>>>,
+) -> Registry<R> {
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
     Registry::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
-/// The names `set` holds, as `corpus_set` numbers them. The corpus holds no
-/// tags, so a set that names one is refused.
+/// `corpus_set` with the biomes of `leading` numbered first, in that order, and
+/// every other corpus biome after them in name order, the biome tags rebuilt
+/// over that numbering: what a test that fixes its own biome ids reads the
+/// worldgen assets in.
+pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
+    let base = corpus_set();
+    let all = base
+        .registry::<keys::Biome>()
+        .expect("the corpus set holds the biome registry");
+    let mut names: Vec<ResourceLocation<Arc<str>>> = leading
+        .iter()
+        .map(|name| ResourceLocation::parse(name).unwrap_or_else(|e| panic!("{name}: {e}")))
+        .collect();
+    for id in all.ids() {
+        let name = all.key(id).expect("an id of the registry has a name");
+        if !names.contains(name) {
+            names.push(name.clone());
+        }
+    }
+    let biomes = Registry::<keys::Biome>::new(names)
+        .unwrap_or_else(|e| panic!("the biomes do not number: {e}"));
+    let biome_table = keys::Biome::KEY.as_str();
+    let mut set = RegistrySet::from_tables(
+        base.tables()
+            .filter(|table| table.registry().as_str() != biome_table)
+            .cloned()
+            .chain([Arc::clone(biomes.table())]),
+    )
+    .unwrap_or_else(|e| panic!("the renumbered corpus does not join the set: {e}"));
+    for table in base.tables() {
+        let name = table.registry().as_str();
+        if name != biome_table
+            && let Some(tags) = base.tag_table(name)
+        {
+            set = set.with_tags(Arc::clone(tags));
+        }
+    }
+    set.with_tags(shipped_tags(biomes.table(), "worldgen/biome"))
+}
+
+/// The names `set` holds, as `corpus_set` numbers them. A set that names a tag
+/// is refused.
 pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
     let registry = corpus_set()
         .registry::<R>()
@@ -170,7 +257,7 @@ pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
 /// The built biomes as the JSON they encode to, for the tests that read the
 /// corpus as files.
 pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let set = corpus_set();
+    let set = base_set();
     let biomes = builtin::biomes(set)
         .unwrap_or_else(|failures| panic!("the built biomes do not resolve: {failures:?}"));
     set.scope(|| {
@@ -343,8 +430,16 @@ pub fn shipped_tags(names: &NameTable, folder: &str) -> Arc<TagTable> {
 /// the ones that do not would let a test read "the whole corpus compiles" off a
 /// corpus quietly missing the entries that broke.
 pub fn registry<T: DeserializeOwned>(folder: &str) -> BTreeMap<ResourceLocation, T> {
+    registry_in(corpus_set(), folder)
+}
+
+/// [`registry`] read in `set`'s scope.
+pub fn registry_in<T: DeserializeOwned>(
+    set: &RegistrySet,
+    folder: &str,
+) -> BTreeMap<ResourceLocation, T> {
     let entries = entries(folder);
-    corpus_set().scope(|| {
+    set.scope(|| {
         entries
             .into_iter()
             .map(|(id, bytes)| {
@@ -409,13 +504,15 @@ pub fn reencode<T: serde::Serialize>(value: &T) -> serde_json::Value {
 /// as a failure.
 pub fn round_trips<T: DeserializeOwned + serde::Serialize>(folder: &str) -> usize {
     let entries = entries(folder);
-    for (id, bytes) in &entries {
-        let raw: serde_json::Value =
-            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-        let parsed: T =
-            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
-        assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
-    }
+    corpus_set().scope(|| {
+        for (id, bytes) in &entries {
+            let raw: serde_json::Value =
+                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+            let parsed: T =
+                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{folder}/{id}: {e}"));
+            assert_eq!(reencode(&parsed), raw, "{folder}/{id} does not round-trip");
+        }
+    });
     entries.len()
 }
 

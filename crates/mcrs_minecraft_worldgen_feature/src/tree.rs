@@ -3,11 +3,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::block_predicate::{BlockPredicate, Direction};
 use super::proto::Holder;
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider, Weighted};
 use mcrs_minecraft_core::{codec::Validate, validated};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use std::collections::BTreeMap;
@@ -49,7 +50,7 @@ where
 }
 
 /// `RegistryCodecs.holderSet(Registries.BLOCK)`.
-pub type BlockSet = HolderSet;
+pub type BlockSet = HolderSet<keys::Block>;
 
 /// `ExtraCodecs.intervalCodec`: one point, a two-element array, or the named
 /// pair. Vanilla re-encodes all three as the shortest form that fits, so the

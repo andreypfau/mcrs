@@ -46,17 +46,20 @@ fn router(seed: u64) -> NoiseRouter {
     .unwrap()
 }
 
-/// The overworld with its material rules compiled in, every block and biome
-/// they name resolved to a placeholder: the bounds under test are over the
-/// vein densities, which read neither.
+/// The overworld with its material rules compiled in, every block they name
+/// resolved to a placeholder: the bounds under test are over the
+/// vein densities, which read no block.
 fn material_router(seed: u64) -> (NoiseRouter, MaterialProgram) {
     let rules: BTreeMap<_, MaterialRuleHolder> = corpus::registry("material_rule");
     let conditions: BTreeMap<_, MaterialConditionHolder> = corpus::registry("material_condition");
+    let biomes = corpus::corpus_set()
+        .tags()
+        .expect("the corpus holds the biome registry");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
         block: &|_| Some(VoxelId(3)),
-        biome: &|_| Some(0),
+        biome_tags: &biomes,
     };
     build_router_and_material(
         &settings(),

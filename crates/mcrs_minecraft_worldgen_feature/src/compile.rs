@@ -16,7 +16,8 @@ use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
 use crate::tree::DirectBlockStateProvider;
-use mcrs_minecraft_core::HolderSet;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -25,8 +26,6 @@ pub enum FeatureCompileError {
     UnknownFeature(ResourceLocation),
     #[error("unknown placed feature: {0}")]
     UnknownPlacedFeature(ResourceLocation),
-    #[error("unknown placed feature tag: {0}")]
-    UnknownTag(ResourceLocation),
     #[error("unknown template: {0}")]
     UnknownTemplate(ResourceLocation),
     #[error("unknown processor list: {0}")]
@@ -41,8 +40,8 @@ pub enum FeatureCompileError {
     UnknownBlockState(String),
     #[error("unknown block set: {0}")]
     UnknownBlockSet(String),
-    #[error("unknown biome set: {0}")]
-    UnknownBiomeSet(String),
+    #[error("unknown biome: {0}")]
+    UnknownBiome(String),
     /// A shape this build has no code for yet. Unlike every other variant it is
     /// not a data error: the feature keeps its slot and places nothing.
     #[error("unsupported: {0}")]
@@ -108,11 +107,8 @@ pub fn build_feature_steps(
     for biome in biomes {
         let mut steps = Vec::with_capacity(biome.len());
         for list in *biome {
-            let mut tokens = Vec::new();
-            if let HolderSet::Tag(tag) = list {
-                return Err(FeatureCompileError::UnknownTag(tag.clone()));
-            }
-            for holder in list.entries() {
+            let mut tokens = Vec::with_capacity(list.len());
+            for holder in list {
                 tokens.push(interner.token(holder)?);
             }
             steps.push(tokens);
@@ -223,10 +219,12 @@ impl<'a> Interner<'a> {
 /// function of the state, so each of these collapses to one mask at freeze and
 /// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
-    Blocks(&'a HolderSet),
+    Blocks(&'a HolderSet<keys::Block>),
+    /// The blocks a program names itself, by id, rather than a datapack value's set.
+    Names(&'a [ResourceLocation]),
     Block(&'a ResourceLocation),
     BlockTag(&'a ResourceLocation),
-    Fluids(&'a HolderSet),
+    Fluids(&'a HolderSet<keys::Fluid>),
     SturdyFace(Direction),
     /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
     FullCollisionFace(Direction),
@@ -242,19 +240,7 @@ pub trait BlockResolver {
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask>;
 
-    fn biomes(&self, set: &HolderSet) -> Option<BiomeMask>;
-}
-
-pub fn named(set: &HolderSet) -> String {
-    match set {
-        HolderSet::Tag(tag) => format!("#{tag}"),
-        HolderSet::One(id) => id.to_string(),
-        HolderSet::List(ids) => ids
-            .iter()
-            .map(ResourceLocation::to_string)
-            .collect::<Vec<_>>()
-            .join(", "),
-    }
+    fn biomes(&self, set: &HolderSet<keys::Biome>) -> Option<BiomeMask>;
 }
 
 pub fn state_named(state: &BlockState) -> String {
@@ -275,7 +261,12 @@ pub fn state_named(state: &BlockState) -> String {
 impl std::fmt::Display for StateQuery<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StateQuery::Blocks(set) | StateQuery::Fluids(set) => f.write_str(&named(set)),
+            StateQuery::Blocks(set) => write!(f, "{set:?}"),
+            StateQuery::Names(names) => {
+                let names: Vec<_> = names.iter().map(ResourceLocation::as_str).collect();
+                f.write_str(&names.join(", "))
+            }
+            StateQuery::Fluids(set) => write!(f, "{set:?}"),
             StateQuery::Block(id) => write!(f, "{id}"),
             StateQuery::BlockTag(tag) => write!(f, "#{tag}"),
             StateQuery::SturdyFace(direction) => write!(f, "sturdy face {direction:?}"),
@@ -338,7 +329,7 @@ pub fn compile_predicate(
         BlockPredicate::MatchingBiomes { biomes } => Predicate::MatchingBiomes(
             blocks
                 .biomes(biomes)
-                .ok_or_else(|| FeatureCompileError::UnknownBiomeSet(named(biomes)))?,
+                .ok_or_else(|| FeatureCompileError::UnknownBiome(format!("{biomes:?}")))?,
         ),
         BlockPredicate::WouldSurvive { offset, state } => Predicate::WouldSurvive {
             offset: IVec3::from_array(offset.0),
@@ -478,12 +469,12 @@ mod tests {
     }
 
     fn steps(entries: &[&str]) -> Vec<FeatureStepList> {
-        vec![FeatureStepList::List(
+        vec![
             entries
                 .iter()
                 .map(|name| Holder::Reference(id(name)))
                 .collect(),
-        )]
+        ]
     }
 
     fn ids(steps: &FeatureSteps) -> Vec<Vec<Option<String>>> {
@@ -521,10 +512,10 @@ mod tests {
     fn an_inline_entry_is_an_object_of_its_own() {
         let corpus = corpus();
         let inline = || {
-            vec![FeatureStepList::List(vec![
+            vec![vec![
                 Holder::Inline(Box::new(placed("test:leaf"))),
                 Holder::Reference(id("test:a")),
-            ])]
+            ]]
         };
         let first = inline();
         let second = inline();
@@ -575,7 +566,7 @@ mod tests {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
 
-        fn biomes(&self, _set: &HolderSet) -> Option<BiomeMask> {
+        fn biomes(&self, _set: &HolderSet<keys::Biome>) -> Option<BiomeMask> {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
     }
@@ -619,7 +610,7 @@ mod tests {
             fn states(&self, _query: StateQuery<'_>) -> Option<StateMask> {
                 None
             }
-            fn biomes(&self, _set: &HolderSet) -> Option<BiomeMask> {
+            fn biomes(&self, _set: &HolderSet<keys::Biome>) -> Option<BiomeMask> {
                 None
             }
         }

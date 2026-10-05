@@ -1,12 +1,13 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 
 use crate::placement::HeightmapName;
@@ -47,7 +48,7 @@ pub enum BlockPredicate {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        blocks: HolderSet,
+        blocks: HolderSet<keys::Block>,
     },
     #[serde(rename = "minecraft:matching_block_tag")]
     MatchingBlockTag {
@@ -59,10 +60,10 @@ pub enum BlockPredicate {
     MatchingFluids {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        fluids: HolderSet,
+        fluids: HolderSet<keys::Fluid>,
     },
     #[serde(rename = "minecraft:matching_biomes")]
-    MatchingBiomes { biomes: HolderSet },
+    MatchingBiomes { biomes: HolderSet<keys::Biome> },
     #[serde(rename = "minecraft:has_sturdy_face")]
     HasSturdyFace {
         #[serde(default, skip_serializing_if = "is_default")]
@@ -137,6 +138,26 @@ validated!(VolumeMatch);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_worldgen_testing::corpus_set;
+
+    #[test]
+    fn a_block_predicate_tag_resolves_in_the_loaded_scope() {
+        let text =
+            r##"{"type":"minecraft:matching_blocks","blocks":"#minecraft:base_stone_overworld"}"##;
+        assert!(serde_json::from_str::<BlockPredicate>(text).is_err());
+
+        let set = corpus_set();
+        let blocks = set.registry::<keys::Block>().unwrap();
+        let tags = set.tags::<keys::Block>().unwrap();
+        let BlockPredicate::MatchingBlocks {
+            blocks: matching, ..
+        } = set.scope(|| serde_json::from_str(text).unwrap())
+        else {
+            panic!("a matching_blocks predicate parses to its own variant");
+        };
+        assert!(matching.contains(blocks.require("minecraft:stone").unwrap(), &tags));
+        assert!(!matching.contains(blocks.require("minecraft:dirt").unwrap(), &tags));
+    }
 
     #[test]
     fn every_registered_predicate_type_is_a_variant() {

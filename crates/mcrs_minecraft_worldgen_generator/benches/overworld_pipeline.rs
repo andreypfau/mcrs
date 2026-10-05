@@ -33,7 +33,7 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use mcrs_minecraft_worldgen_testing::{registry, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
 use support::{corpus, router_blocks};
 
 const ABSENT_BIOME: u16 = 250;
@@ -69,9 +69,15 @@ fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, Mater
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),
     );
-    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry("material_rule");
+    let mut numbered: Vec<(u16, &str)> =
+        ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
+    numbered.sort();
+    let leading: Vec<&str> = numbered.into_iter().map(|(_, name)| name).collect();
+    let set = corpus_set_numbered(&leading);
+    let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");
     let conditions: BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry("material_condition");
+        registry_in(&set, "material_condition");
+    let biome_tags = set.tags().expect("the corpus holds the biome tags");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -80,7 +86,7 @@ fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, Mater
                 .block(state.name.as_str())
                 .map(|b| b.default_state_id.into())
         },
-        biome: &|id| Some(ids.get(id.as_str()).copied().unwrap_or(ABSENT_BIOME)),
+        biome_tags: &biome_tags,
     };
     build_router_and_material(
         &settings,

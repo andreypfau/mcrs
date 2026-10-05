@@ -17,7 +17,7 @@ use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and
 use mcrs_minecraft_worldgen_surface::{
     MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
 };
-use mcrs_minecraft_worldgen_testing::registry;
+use mcrs_minecraft_worldgen_testing::{registry, registry_in};
 
 use super::modern_carvers::carvers_of;
 use super::surface::fill_context;
@@ -166,16 +166,18 @@ fn the_per_column_mask_is_what_it_was() {
 fn material_router(
     dimension: Dimension,
     seed: u64,
-    ids: &HashMap<String, u16>,
+    biomes: &Registry<keys::Biome>,
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
         &ResourceLocation::minecraft(dimension.settings()),
     );
+    let set = super::registries_over(biomes);
     let rules: std::collections::BTreeMap<ResourceLocation, MaterialRuleHolder> =
-        registry("material_rule");
+        registry_in(&set, "material_rule");
     let conditions: std::collections::BTreeMap<ResourceLocation, MaterialConditionHolder> =
-        registry("material_condition");
+        registry_in(&set, "material_condition");
+    let biome_tags = set.tags().expect("the corpus holds the biome tags");
     let inputs = MaterialInputs {
         rules: &rules,
         conditions: &conditions,
@@ -184,7 +186,7 @@ fn material_router(
                 .block(state.name.as_str())
                 .map(|block| block.default_state_id.into())
         },
-        biome: &|id| Some(ids.get(id.as_str()).copied().unwrap_or(250)),
+        biome_tags: &biome_tags,
     };
     build_router_and_material(
         &settings,
@@ -197,7 +199,7 @@ fn material_router(
     .expect("the material rule compiles")
 }
 
-fn biome_registry(dimension: Dimension) -> (Registry<keys::Biome>, HashMap<String, u16>) {
+fn biome_registry(dimension: Dimension) -> Registry<keys::Biome> {
     let mut names: Vec<&str> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [
@@ -211,20 +213,12 @@ fn biome_registry(dimension: Dimension) -> (Registry<keys::Biome>, HashMap<Strin
         }
     }
     names.sort_unstable();
-    let registry = super::biome_registry(&names);
-    let ids = names
-        .iter()
-        .map(|name| {
-            let id = registry.get(name).expect("registered");
-            ((*name).to_owned(), id.number())
-        })
-        .collect();
-    (registry, ids)
+    super::biome_registry(&names)
 }
 
 fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
-    let (registry, ids) = biome_registry(dimension);
-    let (router, material) = material_router(dimension, seed, &ids);
+    let registry = biome_registry(dimension);
+    let (router, material) = material_router(dimension, seed, &registry);
     let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource {
         preset: Some(super::parameter_list_id(dimension.preset().name())),
         biomes: None,

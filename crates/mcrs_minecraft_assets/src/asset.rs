@@ -4,6 +4,7 @@ use bevy_asset::AsyncSeekExt;
 use bevy_asset::io::{AssetReaderError, ErasedAssetReader, Reader};
 use bevy_tasks::block_on;
 use bevy_tasks::futures_lite::StreamExt;
+use mcrs_minecraft_registry::RegistrySet;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CorpusReadError {
@@ -102,14 +103,21 @@ pub async fn read_all(reader: &mut dyn Reader) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// Loads any asset that is nothing but its JSON: parse the file, hand back the
-/// value. An asset that names other assets needs a loader of its own, because
-/// only that loader knows which ids to turn into handles.
-pub struct JsonLoader<A>(std::marker::PhantomData<fn() -> A>);
+/// Loads any asset that is nothing but its JSON: parse the file inside the
+/// loaded registry set's scope, hand back the value. An asset that names other
+/// assets needs a loader of its own, because only that loader knows which ids
+/// to turn into handles.
+pub struct JsonLoader<A> {
+    registries: RegistrySet,
+    asset: std::marker::PhantomData<fn() -> A>,
+}
 
-impl<A> Default for JsonLoader<A> {
-    fn default() -> Self {
-        Self(std::marker::PhantomData)
+impl<A> JsonLoader<A> {
+    pub fn new(registries: RegistrySet) -> Self {
+        Self {
+            registries,
+            asset: std::marker::PhantomData,
+        }
     }
 }
 
@@ -145,6 +153,7 @@ where
         _settings: &(),
         _load_context: &mut bevy_asset::LoadContext<'_>,
     ) -> Result<A, JsonLoaderError> {
-        Ok(serde_json::from_slice(&read_all(reader).await?)?)
+        let bytes = read_all(reader).await?;
+        Ok(self.registries.scope(|| serde_json::from_slice(&bytes))?)
     }
 }

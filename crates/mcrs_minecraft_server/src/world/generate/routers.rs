@@ -59,9 +59,9 @@ pub(crate) fn build_dimension_routers(
     registries: Res<RegistrySet>,
     structures: Option<Res<DimensionStructures>>,
 ) {
-    let biomes = registries
-        .registry::<keys::Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
+    let biome_tags = registries
+        .tags::<keys::Biome>()
+        .expect("the data pack loader builds the biome tags");
     let noise_settings = registries
         .registry::<keys::NoiseSettings>()
         .expect("the data pack declares minecraft:worldgen/noise_settings");
@@ -88,7 +88,7 @@ pub(crate) fn build_dimension_routers(
         if let Some(tables) = structures.as_ref().and_then(|s| s.0.get(dimension)) {
             refuse_misplaced_beardifier(dimension, settings_name, settings, &assets, tables);
         }
-        match build_router(settings, &assets, seed.0, &blocks, &biomes) {
+        match build_router(settings, &assets, seed.0, &blocks, &biome_tags) {
             Ok((router, material)) => {
                 info!(%dimension, seed = seed.0, "compiled the dimension noise router");
                 routers.0.insert(

@@ -624,9 +624,11 @@ pub fn drowned(
 mod tests {
     use super::*;
     use fixedbitset::FixedBitSet;
-    use mcrs_minecraft_core::HolderSet;
+    use mcrs_minecraft_core::{RegistryKey, TagKey};
     use mcrs_minecraft_nbt::to_nbt_compound;
+    use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnCondition, SpawnSelector};
+    use mcrs_minecraft_worldgen_testing::corpus_set;
     use std::sync::Arc;
 
     const AT: BlockPos = BlockPos::new(10, 64, -20);
@@ -666,12 +668,21 @@ mod tests {
         spawn_conditions: Vec<SpawnSelector>,
     }
 
-    fn tagged(
+    fn tag_of<R: RegistryKey>(tag: &str) -> Option<mcrs_minecraft_registry::TagId<R>> {
+        corpus_set()
+            .tags::<R>()?
+            .get(&TagKey::<R, _>::from_location(ResourceLocation::minecraft(
+                tag,
+            )))
+    }
+
+    fn tagged<R: RegistryKey>(
         tag: &'static str,
         ids: &'static [usize],
-    ) -> impl Fn(&HolderSet) -> Result<IdSet, String> {
+    ) -> impl Fn(&HolderSet<R>) -> Result<IdSet, String> {
+        let wanted = tag_of::<R>(tag);
         move |set| match set {
-            HolderSet::Tag(t) if t.path() == tag => Ok(self::set(ids)),
+            HolderSet::Named(t) if Some(*t) == wanted => Ok(self::set(ids)),
             other => Err(format!("{other:?} is not #{tag}")),
         }
     }
@@ -683,8 +694,8 @@ mod tests {
                 .into_iter()
                 .map(|path| {
                     let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let variant: Variant =
-                        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+                    let variant: Variant = corpus_set()
+                        .scope(|| serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap());
                     (ResourceLocation::minecraft(&name), variant.spawn_conditions)
                 })
                 .collect();
@@ -697,7 +708,7 @@ mod tests {
         .unwrap();
         let in_tag = |tag: &str| SpawnSelector {
             condition: Some(SpawnCondition::Biome {
-                biomes: HolderSet::Tag(ResourceLocation::minecraft(tag)),
+                biomes: HolderSet::Named(tag_of(tag).expect("a biome tag of the corpus")),
             }),
             priority: 1,
         };
@@ -709,7 +720,7 @@ mod tests {
             [
                 (
                     ResourceLocation::minecraft("cold"),
-                    std::slice::from_ref(&in_tag("cold")),
+                    std::slice::from_ref(&in_tag("spawns_cold_variant_farm_animals")),
                 ),
                 (
                     ResourceLocation::minecraft("temperate"),
@@ -717,7 +728,7 @@ mod tests {
                 ),
             ],
             &tagged("", &[]),
-            &tagged("cold", &[5]),
+            &tagged("spawns_cold_variant_farm_animals", &[5]),
         )
         .unwrap();
         let zombie_nautiluses = VariantTable::freeze(
@@ -728,11 +739,11 @@ mod tests {
                 ),
                 (
                     ResourceLocation::minecraft("warm"),
-                    std::slice::from_ref(&in_tag("coral")),
+                    std::slice::from_ref(&in_tag("spawns_coral_variant_zombie_nautilus")),
                 ),
             ],
             &tagged("", &[]),
-            &tagged("coral", &[3]),
+            &tagged("spawns_coral_variant_zombie_nautilus", &[3]),
         )
         .unwrap();
         VariantTables {

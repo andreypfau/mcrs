@@ -6,8 +6,6 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::HolderSet;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
@@ -368,9 +366,8 @@ fn rule_of(
         }
         SurviveFamily::LilyPad => {
             let mut supports = tag(SUPPORTS_LILY_PAD)?;
-            let fluids = resolver.mask(StateQuery::Fluids(&HolderSet::Tag(
-                ResourceLocation::parse(SUPPORTS_LILY_PAD).expect("a literal id"),
-            )))?;
+            let fluids =
+                resolver.mask(StateQuery::Fluids(&resolver.fluid_tag(SUPPORTS_LILY_PAD)?))?;
             supports.union_with(&fluids);
             SurviveRule::SupportedByUnless {
                 offset_y: -1,
@@ -492,7 +489,7 @@ pub(super) fn compile_provider(
             rotations: Arc::new(rotation_table(&r.world.layouts)),
         },
         TypedBlockStateProvider::RandomBlock { blocks } => {
-            StateProvider::RandomBlock(r.block_set_defaults(blocks)?)
+            StateProvider::RandomBlock(r.block_set_defaults(blocks))
         }
         TypedBlockStateProvider::CopyProperties { source } => {
             StateProvider::CopyProperties(Box::new(compile_provider(source, r)?))

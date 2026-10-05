@@ -14,10 +14,11 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_worldgen_feature::template::Projection;
 
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
 use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -59,7 +60,7 @@ pub enum StructurePlacement {
         distance: Bounded<0, 1023>,
         spread: Bounded<0, 1023>,
         count: Bounded<1, 4095>,
-        preferred_biomes: HolderSet,
+        preferred_biomes: HolderSet<keys::Biome>,
     },
     // An empty struct variant, not a unit one: only the former refuses extra keys.
     #[serde(rename = "minecraft:dimension_origin")]
@@ -244,7 +245,7 @@ impl Structure {
 // Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructureSettings {
-    pub biomes: HolderSet,
+    pub biomes: HolderSet<keys::Biome>,
     pub spawn_overrides: BTreeMap<MobCategory, SpawnOverride>,
     pub step: DecorationStep,
     #[serde(default, skip_serializing_if = "is_default")]
@@ -561,7 +562,7 @@ impl SingleElement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_worldgen_testing::round_trips;
+    use mcrs_minecraft_worldgen_testing::{corpus_set, round_trips};
 
     #[test]
     fn every_shipped_set_structure_and_pool_round_trips() {
@@ -571,16 +572,20 @@ mod tests {
     }
 
     fn round_trip<T: serde::de::DeserializeOwned + Serialize>(json: &str) -> T {
-        let parsed: T = serde_json::from_str(json).unwrap();
-        assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
-        parsed
+        corpus_set().scope(|| {
+            let parsed: T = serde_json::from_str(json).unwrap();
+            assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
+            parsed
+        })
     }
 
     type Codec = fn(&str) -> Result<String, String>;
 
     fn codec<T: serde::de::DeserializeOwned + Serialize>(json: &str) -> Result<String, String> {
-        let value: T = serde_json::from_str(json).map_err(|error| error.to_string())?;
-        Ok(serde_json::to_string(&value).unwrap())
+        corpus_set().scope(|| {
+            let value: T = serde_json::from_str(json).map_err(|error| error.to_string())?;
+            Ok(serde_json::to_string(&value).unwrap())
+        })
     }
 
     #[test]
@@ -607,12 +612,12 @@ mod tests {
         let cases: &[(Codec, &str, &str)] = &[
             (
                 codec::<Structure>,
-                r##"{"type":"minecraft:igloo","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes"}"##,
+                r##"{"type":"minecraft:igloo","biomes":"#minecraft:is_overworld","spawn_overrides":{},"step":"lakes"}"##,
                 r#""bogus":1"#,
             ),
             (
                 codec::<Structure>,
-                r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:x","spawn_overrides":{},"step":"lakes","start_pool":"minecraft:p","size":1,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":80}"##,
+                r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:is_overworld","spawn_overrides":{},"step":"lakes","start_pool":"minecraft:p","size":1,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":80}"##,
                 r#""bogus":1"#,
             ),
             (
@@ -635,7 +640,7 @@ mod tests {
 
     #[test]
     fn jigsaw_object_forms_and_explicit_defaults() {
-        let json = r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/x","spawn_overrides":{},"step":"surface_structures","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":false,"max_distance_from_center":{"horizontal":80,"vertical":64},"dimension_padding":{"bottom":3,"top":5}}"##;
+        let json = r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/village_plains","spawn_overrides":{},"step":"surface_structures","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":false,"max_distance_from_center":{"horizontal":80,"vertical":64},"dimension_padding":{"bottom":3,"top":5}}"##;
         let Structure::Jigsaw { jigsaw, .. } = round_trip::<Structure>(json) else {
             panic!("not a jigsaw");
         };
@@ -654,11 +659,12 @@ mod tests {
             (3, 5)
         );
 
-        let explicit_defaults = r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/x","spawn_overrides":{},"step":"surface_structures","terrain_adaptation":"none","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80,"vertical":4064},"dimension_padding":0,"liquid_settings":"apply_waterlogging","pool_aliases":[]}"##;
-        let parsed: Structure = serde_json::from_str(explicit_defaults).unwrap();
+        let explicit_defaults = r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/village_plains","spawn_overrides":{},"step":"surface_structures","terrain_adaptation":"none","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80,"vertical":4064},"dimension_padding":0,"liquid_settings":"apply_waterlogging","pool_aliases":[]}"##;
+        let parsed: Structure =
+            corpus_set().scope(|| serde_json::from_str(explicit_defaults).unwrap());
         assert_eq!(
-            serde_json::to_string(&parsed).unwrap(),
-            r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/x","spawn_overrides":{},"step":"surface_structures","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80}}"##
+            corpus_set().scope(|| serde_json::to_string(&parsed).unwrap()),
+            r##"{"type":"minecraft:jigsaw","biomes":"#minecraft:has_structure/village_plains","spawn_overrides":{},"step":"surface_structures","start_pool":"minecraft:x/start","size":7,"start_height":{"absolute":0},"use_expansion_hack":true,"max_distance_from_center":{"horizontal":80}}"##
         );
         let Structure::Jigsaw { jigsaw, .. } = parsed else {
             panic!("not a jigsaw");

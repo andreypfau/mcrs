@@ -1,34 +1,32 @@
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::{HolderSet, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 
 /// One `spawn_conditions` entry of a variant asset: a priority, and a
 /// condition that an absent field leaves always true.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(
-    deny_unknown_fields,
-    bound(
-        serialize = "Structures: Serialize, Biomes: Serialize",
-        deserialize = "Structures: Deserialize<'de>, Biomes: Deserialize<'de>"
-    )
-)]
-pub struct SpawnSelector<Structures = HolderSet, Biomes = HolderSet> {
+#[serde(deny_unknown_fields)]
+pub struct SpawnSelector {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub condition: Option<SpawnCondition<Structures, Biomes>>,
+    pub condition: Option<SpawnCondition>,
     pub priority: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
-pub enum SpawnCondition<Structures = HolderSet, Biomes = HolderSet> {
+pub enum SpawnCondition {
     #[serde(rename = "minecraft:structure")]
-    Structure { structures: Structures },
+    Structure {
+        structures: HolderSet<keys::Structure>,
+    },
     #[serde(rename = "minecraft:biome")]
-    Biome { biomes: Biomes },
+    Biome { biomes: HolderSet<keys::Biome> },
     #[serde(rename = "minecraft:moon_brightness")]
     MoonBrightness { range: DoubleBounds },
 }
@@ -141,8 +139,8 @@ impl VariantTable {
     /// set into the id set a condition tests.
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector])>,
-        structures: &dyn Fn(&HolderSet) -> Result<IdSet, String>,
-        biomes: &dyn Fn(&HolderSet) -> Result<IdSet, String>,
+        structures: &dyn Fn(&HolderSet<keys::Structure>) -> Result<IdSet, String>,
+        biomes: &dyn Fn(&HolderSet<keys::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();
         for (id, selectors) in entries {
