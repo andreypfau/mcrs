@@ -148,10 +148,10 @@ pub fn corpus_set() -> &'static RegistrySet {
             })
             .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
         for (registry, folder) in [
-            ("minecraft:block", "block"),
-            ("minecraft:fluid", "fluid"),
-            ("minecraft:worldgen/biome", "worldgen/biome"),
-            ("minecraft:worldgen/structure", "worldgen/structure"),
+            (keys::Block::KEY.as_str(), "block"),
+            (keys::Fluid::KEY.as_str(), "fluid"),
+            (keys::Biome::KEY.as_str(), "worldgen/biome"),
+            (keys::Structure::KEY.as_str(), "worldgen/structure"),
         ] {
             let names = Arc::clone(
                 set.table(registry)

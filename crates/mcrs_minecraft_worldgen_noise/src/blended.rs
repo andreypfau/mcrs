@@ -10,8 +10,6 @@ use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
 
-pub const NOISE_SEED: &str = "minecraft:terrain";
-
 thread_local! {
     static LIMITS: RefCell<(Vec<f32>, ColumnScratch)> = RefCell::new(Default::default());
 }

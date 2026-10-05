@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
@@ -119,8 +120,8 @@ pub struct VillagerData {
 impl Default for VillagerData {
     fn default() -> Self {
         VillagerData {
-            kind: rl!("minecraft:plains").to_arc(),
-            profession: rl!("minecraft:none").to_arc(),
+            kind: keys::villager_type::PLAINS.location().to_arc(),
+            profession: keys::villager_profession::NONE.location().to_arc(),
             level: 1,
         }
     }
@@ -174,21 +175,21 @@ pub enum EntityKind {
 
 impl EntityKind {
     pub const IDS: [&'static str; 15] = [
-        "minecraft:allay",
-        "minecraft:armor_stand",
-        "minecraft:camel",
-        "minecraft:cat",
-        "minecraft:cow",
-        "minecraft:cushion",
-        "minecraft:hoglin",
-        "minecraft:horse",
-        "minecraft:iron_golem",
-        "minecraft:pig",
-        "minecraft:piglin",
-        "minecraft:piglin_brute",
-        "minecraft:sheep",
-        "minecraft:villager",
-        "minecraft:zombie_villager",
+        keys::entity_type::ALLAY.name(),
+        keys::entity_type::ARMOR_STAND.name(),
+        keys::entity_type::CAMEL.name(),
+        keys::entity_type::CAT.name(),
+        keys::entity_type::COW.name(),
+        keys::entity_type::CUSHION.name(),
+        keys::entity_type::HOGLIN.name(),
+        keys::entity_type::HORSE.name(),
+        keys::entity_type::IRON_GOLEM.name(),
+        keys::entity_type::PIG.name(),
+        keys::entity_type::PIGLIN.name(),
+        keys::entity_type::PIGLIN_BRUTE.name(),
+        keys::entity_type::SHEEP.name(),
+        keys::entity_type::VILLAGER.name(),
+        keys::entity_type::ZOMBIE_VILLAGER.name(),
     ];
 }
 
@@ -329,10 +330,6 @@ pub enum TemplateError {
     },
 }
 
-const JIGSAW: &str = "minecraft:jigsaw";
-const STRUCTURE_BLOCK: &str = "minecraft:structure_block";
-const STRUCTURE_VOID: &str = "minecraft:structure_void";
-
 fn orientation(name: &str) -> Option<(Direction, Direction)> {
     use Direction::*;
     Some(match name {
@@ -405,10 +402,17 @@ fn int_or_zero(nbt: &NbtCompound, key: &str) -> Result<i32, String> {
     })
 }
 
-fn id_or_empty(nbt: &NbtCompound, key: &str) -> Result<ResourceLocation, String> {
+// The default of a jigsaw's name and target: labels of attachment points, not registry entries.
+pub const EMPTY_LABEL: ResourceLocation<&'static str> = rl!("minecraft:empty");
+
+fn id_or(
+    nbt: &NbtCompound,
+    key: &str,
+    default: ResourceLocation<&'static str>,
+) -> Result<ResourceLocation, String> {
     match nbt.get_string(key) {
         Some(text) => ResourceLocation::read(text).map_err(|e| format!("{key}: {e}")),
-        None => Ok(rl!("minecraft:empty").to_arc()),
+        None => Ok(default.to_arc()),
     }
 }
 
@@ -534,7 +538,7 @@ impl Template {
             let mut palette_jigsaws = Vec::new();
             let mut palette_markers = Vec::new();
             for &(pos, state, nbt) in &ordered {
-                if palette[state].id.as_str() == STRUCTURE_BLOCK {
+                if palette[state].id.as_str() == keys::block::STRUCTURE_BLOCK.name() {
                     let Some(nbt) = nbt else { continue };
                     match nbt.get_string("mode") {
                         Some("DATA") => palette_markers.push(DataMarker {
@@ -554,7 +558,7 @@ impl Template {
                         }
                     }
                 }
-                if palette[state].id.as_str() != JIGSAW {
+                if palette[state].id.as_str() != keys::block::JIGSAW.name() {
                     continue;
                 }
                 let jigsaw = |what: String| TemplateError::Jigsaw {
@@ -583,10 +587,10 @@ impl Template {
                 };
                 let final_state = nbt
                     .get_string("final_state")
-                    .unwrap_or("minecraft:air")
+                    .unwrap_or(keys::block::AIR.name())
                     .parse::<PaletteState>()
                     .map_err(|e| jigsaw(format!("final_state {e}")))?;
-                let final_state = if final_state.id.as_str() == STRUCTURE_VOID {
+                let final_state = if final_state.id.as_str() == keys::block::STRUCTURE_VOID.name() {
                     None
                 } else {
                     Some(
@@ -600,9 +604,10 @@ impl Template {
                     front,
                     top,
                     joint,
-                    name: id_or_empty(nbt, "name").map_err(&jigsaw)?,
-                    pool: id_or_empty(nbt, "pool").map_err(&jigsaw)?,
-                    target: id_or_empty(nbt, "target").map_err(&jigsaw)?,
+                    name: id_or(nbt, "name", EMPTY_LABEL).map_err(&jigsaw)?,
+                    pool: id_or(nbt, "pool", *keys::template_pool::EMPTY.location())
+                        .map_err(&jigsaw)?,
+                    target: id_or(nbt, "target", EMPTY_LABEL).map_err(&jigsaw)?,
                     placement_priority: int_or_zero(nbt, "placement_priority").map_err(&jigsaw)?,
                     selection_priority: int_or_zero(nbt, "selection_priority").map_err(&jigsaw)?,
                     final_state,
@@ -1276,7 +1281,7 @@ mod tests {
                     rotation: [90.0, -5.0],
                     kind: EntityKind::Villager {
                         data: VillagerData {
-                            kind: rl!("minecraft:plains").to_arc(),
+                            kind: keys::villager_type::PLAINS.location().to_arc(),
                             profession: rl!("minecraft:cleric").to_arc(),
                             level: 2,
                         },

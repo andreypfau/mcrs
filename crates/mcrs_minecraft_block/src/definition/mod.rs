@@ -2,6 +2,7 @@ pub mod molang;
 pub mod schema;
 
 use core::time::Duration;
+use mcrs_minecraft_keys as keys;
 use std::sync::Arc;
 
 use bevy_platform::time::Instant;
@@ -572,10 +573,13 @@ impl Builder {
 
         // Bedrock knows its air block by identifier and states no component for
         // it; Java's three air blocks are the same fact.
-        let air = matches!(
-            description.identifier.as_str(),
-            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-        );
+        let air = [
+            keys::block::AIR,
+            keys::block::CAVE_AIR,
+            keys::block::VOID_AIR,
+        ]
+        .iter()
+        .any(|block| block.name() == description.identifier.as_str());
         let mut values = vec![0u8; properties.0.len()];
         for index in 0..state_count {
             let mut rest = index;

@@ -1,8 +1,9 @@
+use mcrs_minecraft_keys as keys;
 use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::mth::wrap_degrees;
-use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation, rl};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, Mirror, ResourceLocation, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
@@ -130,20 +131,20 @@ pub enum GeneratedKind {
 
 impl GeneratedKind {
     pub const IDS: [&'static str; 14] = [
-        "minecraft:witch",
-        "minecraft:cat",
-        "minecraft:elder_guardian",
-        "minecraft:drowned",
-        "minecraft:chicken",
-        "minecraft:zombie_nautilus",
-        "minecraft:shulker",
-        "minecraft:item_frame",
-        "minecraft:evoker",
-        "minecraft:vindicator",
-        "minecraft:allay",
-        "minecraft:villager",
-        "minecraft:zombie_villager",
-        "minecraft:chest_minecart",
+        keys::entity_type::WITCH.name(),
+        keys::entity_type::CAT.name(),
+        keys::entity_type::ELDER_GUARDIAN.name(),
+        keys::entity_type::DROWNED.name(),
+        keys::entity_type::CHICKEN.name(),
+        keys::entity_type::ZOMBIE_NAUTILUS.name(),
+        keys::entity_type::SHULKER.name(),
+        keys::entity_type::ITEM_FRAME.name(),
+        keys::entity_type::EVOKER.name(),
+        keys::entity_type::VINDICATOR.name(),
+        keys::entity_type::ALLAY.name(),
+        keys::entity_type::VILLAGER.name(),
+        keys::entity_type::ZOMBIE_VILLAGER.name(),
+        keys::entity_type::CHEST_MINECART.name(),
     ];
 
     pub fn id(&self) -> &'static str {
@@ -489,7 +490,7 @@ pub fn cat(
         .cats
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| rl!("minecraft:black").to_arc());
+        .unwrap_or_else(|| keys::cat_variant::BLACK.location().to_arc());
     let sound_variant = pick_sound(&tables.cat_sounds, rng);
     placed(
         bottom_centre(at),
@@ -513,7 +514,7 @@ fn chicken_jockey(
         .chickens
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| rl!("minecraft:temperate").to_arc());
+        .unwrap_or_else(|| keys::chicken_variant::TEMPERATE.location().to_arc());
     let sound_variant = pick_sound(&tables.chicken_sounds, rng);
     let left_handed = mob(rng);
     placed(
@@ -539,7 +540,7 @@ fn zombie_nautilus(
         .zombie_nautiluses
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| rl!("minecraft:temperate").to_arc());
+        .unwrap_or_else(|| keys::zombie_nautilus_variant::TEMPERATE.location().to_arc());
     // `NautilusAi.initMemories`: the attack cooldown, `UniformInt.of(2400, 3600)`.
     rng.next_i32_bound(1201);
     let left_handed = mob(rng);
@@ -624,7 +625,7 @@ pub fn drowned(
 mod tests {
     use super::*;
     use fixedbitset::FixedBitSet;
-    use mcrs_minecraft_core::{RegistryKey, TagKey};
+    use mcrs_minecraft_core::{RegistryKey, TagKey, rl};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnCondition, SpawnSelector};

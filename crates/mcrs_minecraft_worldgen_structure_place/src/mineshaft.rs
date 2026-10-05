@@ -1,9 +1,11 @@
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Id;
 use std::cmp::Ordering;
 
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -19,36 +21,34 @@ use mcrs_minecraft_worldgen_structure::piece::{MineshaftKind, MineshaftPiece};
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask, state};
 
-pub const ABANDONED_MINESHAFT_LOOT: &str = "minecraft:chests/abandoned_mineshaft";
-
 const MAX_PILLAR_HEIGHT: i32 = 20;
 const MAX_CHAIN_HEIGHT: i32 = 50;
 
 /// The blocks whose class is `FallingBlock`, which a chain never hangs from.
-const FALLING_BLOCKS: [&str; 23] = [
-    "minecraft:sand",
-    "minecraft:red_sand",
-    "minecraft:gravel",
-    "minecraft:anvil",
-    "minecraft:chipped_anvil",
-    "minecraft:damaged_anvil",
-    "minecraft:dragon_egg",
-    "minecraft:white_concrete_powder",
-    "minecraft:orange_concrete_powder",
-    "minecraft:magenta_concrete_powder",
-    "minecraft:light_blue_concrete_powder",
-    "minecraft:yellow_concrete_powder",
-    "minecraft:lime_concrete_powder",
-    "minecraft:pink_concrete_powder",
-    "minecraft:gray_concrete_powder",
-    "minecraft:light_gray_concrete_powder",
-    "minecraft:cyan_concrete_powder",
-    "minecraft:purple_concrete_powder",
-    "minecraft:blue_concrete_powder",
-    "minecraft:brown_concrete_powder",
-    "minecraft:green_concrete_powder",
-    "minecraft:red_concrete_powder",
-    "minecraft:black_concrete_powder",
+const FALLING_BLOCKS: [Id<keys::Block>; 23] = [
+    keys::block::SAND,
+    keys::block::RED_SAND,
+    keys::block::GRAVEL,
+    keys::block::ANVIL,
+    keys::block::CHIPPED_ANVIL,
+    keys::block::DAMAGED_ANVIL,
+    keys::block::DRAGON_EGG,
+    keys::block::WHITE_CONCRETE_POWDER,
+    keys::block::ORANGE_CONCRETE_POWDER,
+    keys::block::MAGENTA_CONCRETE_POWDER,
+    keys::block::LIGHT_BLUE_CONCRETE_POWDER,
+    keys::block::YELLOW_CONCRETE_POWDER,
+    keys::block::LIME_CONCRETE_POWDER,
+    keys::block::PINK_CONCRETE_POWDER,
+    keys::block::GRAY_CONCRETE_POWDER,
+    keys::block::LIGHT_GRAY_CONCRETE_POWDER,
+    keys::block::CYAN_CONCRETE_POWDER,
+    keys::block::PURPLE_CONCRETE_POWDER,
+    keys::block::BLUE_CONCRETE_POWDER,
+    keys::block::BROWN_CONCRETE_POWDER,
+    keys::block::GREEN_CONCRETE_POWDER,
+    keys::block::RED_CONCRETE_POWDER,
+    keys::block::BLACK_CONCRETE_POWDER,
 ];
 
 #[derive(Clone, Debug)]
@@ -83,40 +83,39 @@ impl MineshaftBlocks {
     ) -> Result<Self, FeatureCompileError> {
         let (log, planks, fence) = match mineshaft_type {
             MineshaftType::Normal => (
-                "minecraft:oak_log",
-                "minecraft:oak_planks",
-                "minecraft:oak_fence",
+                keys::block::OAK_LOG,
+                keys::block::OAK_PLANKS,
+                keys::block::OAK_FENCE,
             ),
             MineshaftType::Mesa => (
-                "minecraft:dark_oak_log",
-                "minecraft:dark_oak_planks",
-                "minecraft:dark_oak_fence",
+                keys::block::DARK_OAK_LOG,
+                keys::block::DARK_OAK_PLANKS,
+                keys::block::DARK_OAK_FENCE,
             ),
         };
-        let oriented = |block: &str, properties: &[(&str, &str)]| {
+        let oriented = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let unstable =
-            ResourceLocation::read("minecraft:unstable_bottom_center").expect("a literal id");
+        let unstable = keys::block_tags::UNSTABLE_BOTTOM_CENTER.location().to_arc();
         let unstable = states_of(blocks, StateQuery::BlockTag(&unstable))?;
         let mut chain_support = FixedBitSet::clone(&world.center_down);
         chain_support.difference_with(&unstable);
         chain_support.difference_with(&*block_mask(blocks, &FALLING_BLOCKS)?);
         Ok(MineshaftBlocks {
-            cave_air: oriented("minecraft:cave_air", &[])?,
+            cave_air: oriented(keys::block::CAVE_AIR, &[])?,
             planks: oriented(planks, &[])?,
             wood: state(blocks, log, &[])?,
             fence: state(blocks, fence, &[])?,
             fence_west: oriented(fence, &[("west", "true")])?,
             fence_east: oriented(fence, &[("east", "true")])?,
-            chain: state(blocks, "minecraft:iron_chain", &[])?,
-            cobweb: oriented("minecraft:cobweb", &[])?,
-            rail_ns: oriented("minecraft:rail", &[("shape", "north_south")])?,
-            rail_ew: oriented("minecraft:rail", &[("shape", "east_west")])?,
-            torch_south: oriented("minecraft:wall_torch", &[("facing", "south")])?,
-            torch_north: oriented("minecraft:wall_torch", &[("facing", "north")])?,
-            spawner: state(blocks, "minecraft:spawner", &[])?,
-            timber: block_mask(blocks, &[planks, log, fence, "minecraft:iron_chain"])?,
+            chain: state(blocks, keys::block::IRON_CHAIN, &[])?,
+            cobweb: oriented(keys::block::COBWEB, &[])?,
+            rail_ns: oriented(keys::block::RAIL, &[("shape", "north_south")])?,
+            rail_ew: oriented(keys::block::RAIL, &[("shape", "east_west")])?,
+            torch_south: oriented(keys::block::WALL_TORCH, &[("facing", "south")])?,
+            torch_north: oriented(keys::block::WALL_TORCH, &[("facing", "north")])?,
+            spawner: state(blocks, keys::block::SPAWNER, &[])?,
+            timber: block_mask(blocks, &[planks, log, fence, keys::block::IRON_CHAIN])?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
             chain_support: chain_support.into(),
             blocking,
@@ -384,7 +383,7 @@ fn corridor<W: WorldGenVolume>(
                 c.volume.set(pos, b.spawner);
                 c.entities.push(GeneratedBlockEntity::mob_spawner(
                     pos,
-                    "minecraft:cave_spider",
+                    keys::entity_type::CAVE_SPIDER.name(),
                 ));
             }
         }
@@ -500,7 +499,9 @@ fn create_minecart<W: WorldGenVolume>(
     c.place(rail, x, y, z);
     c.spawns.push(chest_minecart(
         pos,
-        ABANDONED_MINESHAFT_LOOT.to_owned(),
+        keys::loot_table::CHESTS_ABANDONED_MINESHAFT
+            .as_str()
+            .to_owned(),
         rng,
     ));
 }

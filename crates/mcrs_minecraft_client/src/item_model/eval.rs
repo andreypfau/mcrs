@@ -1,6 +1,6 @@
 use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
     FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
@@ -9,6 +9,7 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::TrimMaterial;
 use mcrs_minecraft_registry::Registry;
 
@@ -27,7 +28,7 @@ pub struct EntityStack<'w, 'l, L> {
 impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
     fn item(&self) -> &ResourceLocation {
         static AIR: std::sync::LazyLock<ResourceLocation> =
-            std::sync::LazyLock::new(|| rl!("minecraft:air").to_arc());
+            std::sync::LazyLock::new(|| keys::item::AIR.location().to_arc());
         self.entity
             .get::<ItemStack>()
             .and_then(|stack| self.items.get(stack.item))
@@ -108,7 +109,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         }
         // chisle: the only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
-        if self.item().as_str() == "minecraft:compass"
+        if self.item().as_str() == keys::item::COMPASS.name()
             && self.has(ItemComponentKind::LodestoneTracker)
         {
             return true;
@@ -243,7 +244,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
             ChargeType::None
         } else if projectiles
             .iter()
-            .any(|c| c.item().as_str() == "minecraft:firework_rocket")
+            .any(|c| c.item().as_str() == keys::item::FIREWORK_ROCKET.name())
         {
             ChargeType::Rocket
         } else {

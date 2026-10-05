@@ -1,8 +1,10 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnContext, VariantTables};
@@ -12,9 +14,6 @@ use mcrs_minecraft_worldgen_structure::piece::DesertPyramidPiece;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
-
-pub const DESERT_PYRAMID_LOOT: &str = "minecraft:chests/desert_pyramid";
-pub const DESERT_PYRAMID_ARCHAEOLOGY_LOOT: &str = "minecraft:archaeology/desert_pyramid";
 
 /// `DesertPyramidPiece.addCellar`'s room centre, piece-local.
 const CELLAR_CENTRE: IVec3 = IVec3::new(16, -4, 13);
@@ -47,31 +46,31 @@ impl DesertPyramidBlocks {
         world: &WorldStates,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str| {
             Oriented::named(
                 world,
                 blocks,
-                "minecraft:sandstone_stairs",
+                keys::block::SANDSTONE_STAIRS,
                 &[("facing", facing)],
             )
         };
         Ok(DesertPyramidBlocks {
-            sandstone: oriented("minecraft:sandstone")?,
-            cut_sandstone: oriented("minecraft:cut_sandstone")?,
-            chiseled_sandstone: oriented("minecraft:chiseled_sandstone")?,
-            sandstone_slab: oriented("minecraft:sandstone_slab")?,
+            sandstone: oriented(keys::block::SANDSTONE)?,
+            cut_sandstone: oriented(keys::block::CUT_SANDSTONE)?,
+            chiseled_sandstone: oriented(keys::block::CHISELED_SANDSTONE)?,
+            sandstone_slab: oriented(keys::block::SANDSTONE_SLAB)?,
             stairs_north: stairs("north")?,
             stairs_south: stairs("south")?,
             stairs_east: stairs("east")?,
             stairs_west: stairs("west")?,
-            air: oriented("minecraft:air")?,
-            orange_terracotta: oriented("minecraft:orange_terracotta")?,
-            blue_terracotta: oriented("minecraft:blue_terracotta")?,
-            tnt: oriented("minecraft:tnt")?,
-            stone_pressure_plate: oriented("minecraft:stone_pressure_plate")?,
-            sand: oriented("minecraft:sand")?,
-            suspicious_sand: state(blocks, "minecraft:suspicious_sand", &[])?,
+            air: oriented(keys::block::AIR)?,
+            orange_terracotta: oriented(keys::block::ORANGE_TERRACOTTA)?,
+            blue_terracotta: oriented(keys::block::BLUE_TERRACOTTA)?,
+            tnt: oriented(keys::block::TNT)?,
+            stone_pressure_plate: oriented(keys::block::STONE_PRESSURE_PLATE)?,
+            sand: oriented(keys::block::SAND)?,
+            suspicious_sand: state(blocks, keys::block::SUSPICIOUS_SAND, &[])?,
             chest: ChestStates::compile(blocks)?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
             world_seed,
@@ -384,7 +383,7 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
             10 + step_x * 2,
             -11,
             10 + step_z * 2,
-            DESERT_PYRAMID_LOOT,
+            keys::loot_table::CHESTS_DESERT_PYRAMID,
         );
     }
 
@@ -569,23 +568,23 @@ impl SwampHutBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: &str| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str, shape: &str| {
             Oriented::named(
                 world,
                 blocks,
-                "minecraft:spruce_stairs",
+                keys::block::SPRUCE_STAIRS,
                 &[("facing", facing), ("shape", shape)],
             )
         };
         Ok(SwampHutBlocks {
-            spruce_planks: oriented("minecraft:spruce_planks")?,
-            oak_log: oriented("minecraft:oak_log")?,
-            oak_fence: oriented("minecraft:oak_fence")?,
-            air: oriented("minecraft:air")?,
-            potted_red_mushroom: oriented("minecraft:potted_red_mushroom")?,
-            crafting_table: oriented("minecraft:crafting_table")?,
-            cauldron: oriented("minecraft:cauldron")?,
+            spruce_planks: oriented(keys::block::SPRUCE_PLANKS)?,
+            oak_log: oriented(keys::block::OAK_LOG)?,
+            oak_fence: oriented(keys::block::OAK_FENCE)?,
+            air: oriented(keys::block::AIR)?,
+            potted_red_mushroom: oriented(keys::block::POTTED_RED_MUSHROOM)?,
+            crafting_table: oriented(keys::block::CRAFTING_TABLE)?,
+            cauldron: oriented(keys::block::CAULDRON)?,
             stairs_north: stairs("north", "straight")?,
             stairs_east: stairs("east", "straight")?,
             stairs_west: stairs("west", "straight")?,

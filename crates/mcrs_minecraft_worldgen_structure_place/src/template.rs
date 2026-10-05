@@ -1,9 +1,11 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -22,9 +24,6 @@ use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, OceanRuinConfi
 use mcrs_minecraft_worldgen_structure::piece::OceanRuinPiece;
 
 use crate::{place_positional, state};
-
-pub const UNDERWATER_RUIN_SMALL_LOOT: &str = "minecraft:chests/underwater_ruin_small";
-pub const UNDERWATER_RUIN_BIG_LOOT: &str = "minecraft:chests/underwater_ruin_big";
 
 /// The integrities `OceanRuinPieces.addPieces` hands its pieces: the large
 /// and small base ruins, then the cracked and mossy overlays.
@@ -48,18 +47,17 @@ impl OceanRuinBlocks {
     ) -> Result<Self, FeatureCompileError> {
         let (candidate, replacement, loot) = match temp {
             OceanTemperature::Warm => (
-                "minecraft:sand",
-                "minecraft:suspicious_sand",
-                "minecraft:archaeology/ocean_ruin_warm",
+                keys::block::SAND,
+                keys::block::SUSPICIOUS_SAND,
+                keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_WARM,
             ),
             OceanTemperature::Cold => (
-                "minecraft:gravel",
-                "minecraft:suspicious_gravel",
-                "minecraft:archaeology/ocean_ruin_cold",
+                keys::block::GRAVEL,
+                keys::block::SUSPICIOUS_GRAVEL,
+                keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
-        let bare =
-            |name: &str| BlockState::bare(ResourceLocation::read(name).expect("a literal id"));
+        let bare = |block: Id<keys::Block>| BlockState::bare(block.location().to_arc());
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {
@@ -69,19 +67,19 @@ impl OceanRuinBlocks {
                         integrity: UnitFloat(f64::from(integrity)),
                     },
                     StructureProcessor::BlockIgnore {
-                        blocks: vec![bare("minecraft:structure_block"), bare("minecraft:air")],
+                        blocks: vec![bare(keys::block::STRUCTURE_BLOCK), bare(keys::block::AIR)],
                     },
                     StructureProcessor::Capped {
                         delegate: Box::new(StructureProcessor::Rule {
                             rules: vec![ProcessorRule {
                                 input_predicate: RuleTest::BlockMatch {
-                                    block: ResourceLocation::read(candidate).expect("a literal id"),
+                                    block: candidate.location().to_arc(),
                                 },
                                 location_predicate: RuleTest::AlwaysTrue,
                                 position_predicate: None,
                                 output_state: bare(replacement),
                                 block_entity_modifier: Some(RuleBlockEntityModifier::AppendLoot {
-                                    loot_table: ResourceLocation::read(loot).expect("a literal id"),
+                                    loot_table: loot.location().to_arc(),
                                 }),
                             }],
                         }),
@@ -96,8 +94,8 @@ impl OceanRuinBlocks {
             .collect::<Result<_, FeatureCompileError>>()?;
         Ok(OceanRuinBlocks {
             chains,
-            chest: state(blocks, "minecraft:chest", &[])?,
-            chest_waterlogged: state(blocks, "minecraft:chest", &[("waterlogged", "true")])?,
+            chest: state(blocks, keys::block::CHEST, &[])?,
+            chest_waterlogged: state(blocks, keys::block::CHEST, &[("waterlogged", "true")])?,
         })
     }
 
@@ -171,13 +169,13 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                     },
                 );
                 let loot = if piece.large {
-                    UNDERWATER_RUIN_BIG_LOOT
+                    keys::loot_table::CHESTS_UNDERWATER_RUIN_BIG
                 } else {
-                    UNDERWATER_RUIN_SMALL_LOOT
+                    keys::loot_table::CHESTS_UNDERWATER_RUIN_SMALL
                 };
                 entities.push(GeneratedBlockEntity::chest(
                     pos,
-                    loot.to_owned(),
+                    loot.as_str().to_owned(),
                     rng.next_java_long(),
                 ));
             }

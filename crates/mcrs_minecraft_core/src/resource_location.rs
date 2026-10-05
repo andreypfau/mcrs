@@ -165,6 +165,12 @@ impl ResourceLocation<&'static str> {
             colon_pos: colon as u16,
         }
     }
+
+    /// `as_str` borrows from the value; this keeps the `'static` lifetime a
+    /// `const` table needs.
+    pub const fn as_static_str(self) -> &'static str {
+        self.string
+    }
 }
 
 // ─── Arc<str> constructors ───────────────────────────────────────────────────
@@ -413,6 +419,8 @@ mod tests {
             );
         }
         assert_eq!(crate::rl!("minecraft:").path(), "");
+        const TEXT: &str = crate::rl!("a.b-c_1:d/e.f-g_2").as_static_str();
+        assert_eq!(TEXT, "a.b-c_1:d/e.f-g_2");
     }
 
     #[test]

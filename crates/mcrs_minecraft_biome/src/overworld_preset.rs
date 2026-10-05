@@ -7,6 +7,7 @@
 //! `OverworldBiomeBuilder`, and the order entries are emitted in is part of the
 //! data because ties in the climate search go to the earlier entry.
 
+use mcrs_minecraft_keys as keys;
 use std::sync::LazyLock;
 
 use super::climate::{Parameter, ParameterList, ParameterPoint};
@@ -20,132 +21,138 @@ const PEAK_END: f32 = 0.766_666_7;
 
 const MIDDLE_BIOMES: [[&str; 5]; 5] = [
     [
-        "minecraft:snowy_plains",
-        "minecraft:snowy_plains",
-        "minecraft:snowy_plains",
-        "minecraft:snowy_taiga",
-        "minecraft:taiga",
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_TAIGA.as_static_str(),
+        keys::biome::TAIGA.as_static_str(),
     ],
     [
-        "minecraft:plains",
-        "minecraft:plains",
-        "minecraft:forest",
-        "minecraft:taiga",
-        "minecraft:old_growth_spruce_taiga",
+        keys::biome::PLAINS.as_static_str(),
+        keys::biome::PLAINS.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::TAIGA.as_static_str(),
+        keys::biome::OLD_GROWTH_SPRUCE_TAIGA.as_static_str(),
     ],
     [
-        "minecraft:flower_forest",
-        "minecraft:plains",
-        "minecraft:forest",
-        "minecraft:birch_forest",
-        "minecraft:dark_forest",
+        keys::biome::FLOWER_FOREST.as_static_str(),
+        keys::biome::PLAINS.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::BIRCH_FOREST.as_static_str(),
+        keys::biome::DARK_FOREST.as_static_str(),
     ],
     [
-        "minecraft:savanna",
-        "minecraft:savanna",
-        "minecraft:forest",
-        "minecraft:jungle",
-        "minecraft:jungle",
+        keys::biome::SAVANNA.as_static_str(),
+        keys::biome::SAVANNA.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::JUNGLE.as_static_str(),
+        keys::biome::JUNGLE.as_static_str(),
     ],
     [
-        "minecraft:desert",
-        "minecraft:desert",
-        "minecraft:desert",
-        "minecraft:desert",
-        "minecraft:desert",
+        keys::biome::DESERT.as_static_str(),
+        keys::biome::DESERT.as_static_str(),
+        keys::biome::DESERT.as_static_str(),
+        keys::biome::DESERT.as_static_str(),
+        keys::biome::DESERT.as_static_str(),
     ],
 ];
 
 const MIDDLE_BIOMES_VARIANT: [[Option<&str>; 5]; 5] = [
     [
-        Some("minecraft:ice_spikes"),
+        Some(keys::biome::ICE_SPIKES.as_static_str()),
         None,
-        Some("minecraft:snowy_taiga"),
+        Some(keys::biome::SNOWY_TAIGA.as_static_str()),
         None,
         None,
     ],
     [
-        Some("minecraft:dappled_forest"),
+        Some(keys::biome::DAPPLED_FOREST.as_static_str()),
         None,
         None,
         None,
-        Some("minecraft:old_growth_pine_taiga"),
+        Some(keys::biome::OLD_GROWTH_PINE_TAIGA.as_static_str()),
     ],
     [
-        Some("minecraft:sunflower_plains"),
+        Some(keys::biome::SUNFLOWER_PLAINS.as_static_str()),
         None,
         None,
-        Some("minecraft:old_growth_birch_forest"),
+        Some(keys::biome::OLD_GROWTH_BIRCH_FOREST.as_static_str()),
         None,
     ],
     [
         None,
         None,
-        Some("minecraft:plains"),
-        Some("minecraft:sparse_jungle"),
-        Some("minecraft:bamboo_jungle"),
+        Some(keys::biome::PLAINS.as_static_str()),
+        Some(keys::biome::SPARSE_JUNGLE.as_static_str()),
+        Some(keys::biome::BAMBOO_JUNGLE.as_static_str()),
     ],
     [None, None, None, None, None],
 ];
 
 const PLATEAU_BIOMES: [[&str; 5]; 5] = [
     [
-        "minecraft:snowy_plains",
-        "minecraft:snowy_plains",
-        "minecraft:snowy_plains",
-        "minecraft:snowy_taiga",
-        "minecraft:snowy_taiga",
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_PLAINS.as_static_str(),
+        keys::biome::SNOWY_TAIGA.as_static_str(),
+        keys::biome::SNOWY_TAIGA.as_static_str(),
     ],
     [
-        "minecraft:meadow",
-        "minecraft:meadow",
-        "minecraft:forest",
-        "minecraft:taiga",
-        "minecraft:old_growth_spruce_taiga",
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::TAIGA.as_static_str(),
+        keys::biome::OLD_GROWTH_SPRUCE_TAIGA.as_static_str(),
     ],
     [
-        "minecraft:meadow",
-        "minecraft:meadow",
-        "minecraft:meadow",
-        "minecraft:meadow",
-        "minecraft:pale_garden",
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::MEADOW.as_static_str(),
+        keys::biome::PALE_GARDEN.as_static_str(),
     ],
     [
-        "minecraft:savanna_plateau",
-        "minecraft:savanna_plateau",
-        "minecraft:forest",
-        "minecraft:forest",
-        "minecraft:jungle",
+        keys::biome::SAVANNA_PLATEAU.as_static_str(),
+        keys::biome::SAVANNA_PLATEAU.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::FOREST.as_static_str(),
+        keys::biome::JUNGLE.as_static_str(),
     ],
     [
-        "minecraft:badlands",
-        "minecraft:badlands",
-        "minecraft:badlands",
-        "minecraft:wooded_badlands",
-        "minecraft:wooded_badlands",
+        keys::biome::BADLANDS.as_static_str(),
+        keys::biome::BADLANDS.as_static_str(),
+        keys::biome::BADLANDS.as_static_str(),
+        keys::biome::WOODED_BADLANDS.as_static_str(),
+        keys::biome::WOODED_BADLANDS.as_static_str(),
     ],
 ];
 
 const PLATEAU_BIOMES_VARIANT: [[Option<&str>; 5]; 5] = [
-    [Some("minecraft:ice_spikes"), None, None, None, None],
     [
-        Some("minecraft:cherry_grove"),
+        Some(keys::biome::ICE_SPIKES.as_static_str()),
         None,
-        Some("minecraft:meadow"),
-        Some("minecraft:meadow"),
-        Some("minecraft:old_growth_pine_taiga"),
+        None,
+        None,
+        None,
     ],
     [
-        Some("minecraft:cherry_grove"),
-        Some("minecraft:cherry_grove"),
-        Some("minecraft:forest"),
-        Some("minecraft:birch_forest"),
+        Some(keys::biome::CHERRY_GROVE.as_static_str()),
+        None,
+        Some(keys::biome::MEADOW.as_static_str()),
+        Some(keys::biome::MEADOW.as_static_str()),
+        Some(keys::biome::OLD_GROWTH_PINE_TAIGA.as_static_str()),
+    ],
+    [
+        Some(keys::biome::CHERRY_GROVE.as_static_str()),
+        Some(keys::biome::CHERRY_GROVE.as_static_str()),
+        Some(keys::biome::FOREST.as_static_str()),
+        Some(keys::biome::BIRCH_FOREST.as_static_str()),
         None,
     ],
     [None, None, None, None, None],
     [
-        Some("minecraft:eroded_badlands"),
-        Some("minecraft:eroded_badlands"),
+        Some(keys::biome::ERODED_BADLANDS.as_static_str()),
+        Some(keys::biome::ERODED_BADLANDS.as_static_str()),
         None,
         None,
         None,
@@ -154,25 +161,25 @@ const PLATEAU_BIOMES_VARIANT: [[Option<&str>; 5]; 5] = [
 
 const SHATTERED_BIOMES: [[Option<&str>; 5]; 5] = [
     [
-        Some("minecraft:windswept_gravelly_hills"),
-        Some("minecraft:windswept_gravelly_hills"),
-        Some("minecraft:windswept_hills"),
-        Some("minecraft:windswept_forest"),
-        Some("minecraft:windswept_forest"),
+        Some(keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
     ],
     [
-        Some("minecraft:windswept_gravelly_hills"),
-        Some("minecraft:windswept_gravelly_hills"),
-        Some("minecraft:windswept_hills"),
-        Some("minecraft:windswept_forest"),
-        Some("minecraft:windswept_forest"),
+        Some(keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
     ],
     [
-        Some("minecraft:windswept_hills"),
-        Some("minecraft:windswept_hills"),
-        Some("minecraft:windswept_hills"),
-        Some("minecraft:windswept_forest"),
-        Some("minecraft:windswept_forest"),
+        Some(keys::biome::WINDSWEPT_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_HILLS.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(keys::biome::WINDSWEPT_FOREST.as_static_str()),
     ],
     [None, None, None, None, None],
     [None, None, None, None, None],
@@ -180,18 +187,18 @@ const SHATTERED_BIOMES: [[Option<&str>; 5]; 5] = [
 
 const OCEANS: [[&str; 5]; 2] = [
     [
-        "minecraft:deep_frozen_ocean",
-        "minecraft:deep_cold_ocean",
-        "minecraft:deep_ocean",
-        "minecraft:deep_lukewarm_ocean",
-        "minecraft:warm_ocean",
+        keys::biome::DEEP_FROZEN_OCEAN.as_static_str(),
+        keys::biome::DEEP_COLD_OCEAN.as_static_str(),
+        keys::biome::DEEP_OCEAN.as_static_str(),
+        keys::biome::DEEP_LUKEWARM_OCEAN.as_static_str(),
+        keys::biome::WARM_OCEAN.as_static_str(),
     ],
     [
-        "minecraft:frozen_ocean",
-        "minecraft:cold_ocean",
-        "minecraft:ocean",
-        "minecraft:lukewarm_ocean",
-        "minecraft:warm_ocean",
+        keys::biome::FROZEN_OCEAN.as_static_str(),
+        keys::biome::COLD_OCEAN.as_static_str(),
+        keys::biome::OCEAN.as_static_str(),
+        keys::biome::LUKEWARM_OCEAN.as_static_str(),
+        keys::biome::WARM_OCEAN.as_static_str(),
     ],
 ];
 
@@ -364,14 +371,14 @@ impl Builder {
     fn badlands(&self, h: usize, weirdness: Parameter) -> &'static str {
         if h < 2 {
             if weirdness.max < 0 {
-                "minecraft:badlands"
+                keys::biome::BADLANDS.as_static_str()
             } else {
-                "minecraft:eroded_badlands"
+                keys::biome::ERODED_BADLANDS.as_static_str()
             }
         } else if h < 3 {
-            "minecraft:badlands"
+            keys::biome::BADLANDS.as_static_str()
         } else {
-            "minecraft:wooded_badlands"
+            keys::biome::WOODED_BADLANDS.as_static_str()
         }
     }
 
@@ -404,7 +411,7 @@ impl Builder {
         underlying: &'static str,
     ) -> &'static str {
         if t > 1 && h < 4 && weirdness.max >= 0 {
-            "minecraft:windswept_savanna"
+            keys::biome::WINDSWEPT_SAVANNA.as_static_str()
         } else {
             underlying
         }
@@ -412,9 +419,9 @@ impl Builder {
 
     fn beach(&self, t: usize) -> &'static str {
         match t {
-            0 => "minecraft:snowy_beach",
-            4 => "minecraft:desert",
-            _ => "minecraft:beach",
+            0 => keys::biome::SNOWY_BEACH.as_static_str(),
+            4 => keys::biome::DESERT.as_static_str(),
+            _ => keys::biome::BEACH.as_static_str(),
         }
     }
 
@@ -439,12 +446,12 @@ impl Builder {
     fn peak(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
         if t <= 2 {
             if weirdness.max < 0 {
-                "minecraft:jagged_peaks"
+                keys::biome::JAGGED_PEAKS.as_static_str()
             } else {
-                "minecraft:frozen_peaks"
+                keys::biome::FROZEN_PEAKS.as_static_str()
             }
         } else if t == 3 {
-            "minecraft:stony_peaks"
+            keys::biome::STONY_PEAKS.as_static_str()
         } else {
             self.badlands(h, weirdness)
         }
@@ -454,9 +461,9 @@ impl Builder {
         if t >= 3 {
             self.plateau(t, h, weirdness)
         } else if h <= 1 {
-            "minecraft:snowy_slopes"
+            keys::biome::SNOWY_SLOPES.as_static_str()
         } else {
-            "minecraft:grove"
+            keys::biome::GROVE.as_static_str()
         }
     }
 
@@ -473,7 +480,7 @@ impl Builder {
             full,
             full,
             0.0,
-            "minecraft:mushroom_fields",
+            keys::biome::MUSHROOM_FIELDS.as_static_str(),
         );
         for t in 0..5 {
             let temperature = self.temperatures[t];
@@ -762,7 +769,7 @@ impl Builder {
             e0.union(e2),
             weirdness,
             0.0,
-            "minecraft:stony_shore",
+            keys::biome::STONY_SHORE.as_static_str(),
         );
         self.surface(
             temperate,
@@ -771,7 +778,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:swamp",
+            keys::biome::SWAMP.as_static_str(),
         );
         self.surface(
             hot,
@@ -780,7 +787,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:mangrove_swamp",
+            keys::biome::MANGROVE_SWAMP.as_static_str(),
         );
 
         for t in 0..5 {
@@ -942,7 +949,7 @@ impl Builder {
             e0.union(e2),
             weirdness,
             0.0,
-            "minecraft:stony_shore",
+            keys::biome::STONY_SHORE.as_static_str(),
         );
         self.surface(
             temperate,
@@ -951,7 +958,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:swamp",
+            keys::biome::SWAMP.as_static_str(),
         );
         self.surface(
             hot,
@@ -960,7 +967,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:mangrove_swamp",
+            keys::biome::MANGROVE_SWAMP.as_static_str(),
         );
 
         for t in 0..5 {
@@ -1084,14 +1091,14 @@ impl Builder {
         );
         let (e0, e1, e2, _e3, _e4, e5, e6) = self.erosion_septet();
         let cold_shore = if weirdness.max < 0 {
-            "minecraft:stony_shore"
+            keys::biome::STONY_SHORE.as_static_str()
         } else {
-            "minecraft:frozen_river"
+            keys::biome::FROZEN_RIVER.as_static_str()
         };
         let warm_shore = if weirdness.max < 0 {
-            "minecraft:stony_shore"
+            keys::biome::STONY_SHORE.as_static_str()
         } else {
-            "minecraft:river"
+            keys::biome::RIVER.as_static_str()
         };
 
         self.surface(
@@ -1119,7 +1126,7 @@ impl Builder {
             e0.union(e1),
             weirdness,
             0.0,
-            "minecraft:frozen_river",
+            keys::biome::FROZEN_RIVER.as_static_str(),
         );
         self.surface(
             unfrozen,
@@ -1128,7 +1135,7 @@ impl Builder {
             e0.union(e1),
             weirdness,
             0.0,
-            "minecraft:river",
+            keys::biome::RIVER.as_static_str(),
         );
         self.surface(
             frozen,
@@ -1137,7 +1144,7 @@ impl Builder {
             e2.union(e5),
             weirdness,
             0.0,
-            "minecraft:frozen_river",
+            keys::biome::FROZEN_RIVER.as_static_str(),
         );
         self.surface(
             unfrozen,
@@ -1146,7 +1153,7 @@ impl Builder {
             e2.union(e5),
             weirdness,
             0.0,
-            "minecraft:river",
+            keys::biome::RIVER.as_static_str(),
         );
         self.surface(
             frozen,
@@ -1155,9 +1162,17 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:frozen_river",
+            keys::biome::FROZEN_RIVER.as_static_str(),
         );
-        self.surface(unfrozen, full, coast, e6, weirdness, 0.0, "minecraft:river");
+        self.surface(
+            unfrozen,
+            full,
+            coast,
+            e6,
+            weirdness,
+            0.0,
+            keys::biome::RIVER.as_static_str(),
+        );
         let temperate = self.temperatures[1].union(self.temperatures[2]);
         let hot = self.temperatures[3].union(self.temperatures[4]);
         self.surface(
@@ -1167,7 +1182,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:swamp",
+            keys::biome::SWAMP.as_static_str(),
         );
         self.surface(
             hot,
@@ -1176,7 +1191,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:mangrove_swamp",
+            keys::biome::MANGROVE_SWAMP.as_static_str(),
         );
         self.surface(
             frozen,
@@ -1185,7 +1200,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            "minecraft:frozen_river",
+            keys::biome::FROZEN_RIVER.as_static_str(),
         );
 
         for t in 0..5 {
@@ -1217,7 +1232,7 @@ impl Builder {
             full,
             full,
             0.0,
-            "minecraft:dripstone_caves",
+            keys::biome::DRIPSTONE_CAVES.as_static_str(),
         );
         self.underground(
             full,
@@ -1226,7 +1241,7 @@ impl Builder {
             full,
             full,
             0.0,
-            "minecraft:lush_caves",
+            keys::biome::LUSH_CAVES.as_static_str(),
         );
         self.underground(
             full,
@@ -1235,7 +1250,7 @@ impl Builder {
             e5.union(e6),
             Parameter::span(-1.1, -0.85),
             0.0,
-            "minecraft:sulfur_caves",
+            keys::biome::SULFUR_CAVES.as_static_str(),
         );
         self.bottom(
             full,
@@ -1244,7 +1259,7 @@ impl Builder {
             e0.union(e1),
             full,
             0.0,
-            "minecraft:deep_dark",
+            keys::biome::DEEP_DARK.as_static_str(),
         );
     }
 
@@ -1295,30 +1310,35 @@ pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
             )
         };
         ParameterList::new(vec![
-            entry(point, point, 0.0, "minecraft:nether_wastes"),
+            entry(
+                point,
+                point,
+                0.0,
+                keys::biome::NETHER_WASTES.as_static_str(),
+            ),
             entry(
                 Parameter::point(0.0),
                 Parameter::point(-0.5),
                 0.0,
-                "minecraft:soul_sand_valley",
+                keys::biome::SOUL_SAND_VALLEY.as_static_str(),
             ),
             entry(
                 Parameter::point(0.4),
                 Parameter::point(0.0),
                 0.0,
-                "minecraft:crimson_forest",
+                keys::biome::CRIMSON_FOREST.as_static_str(),
             ),
             entry(
                 Parameter::point(0.0),
                 Parameter::point(0.5),
                 0.375,
-                "minecraft:warped_forest",
+                keys::biome::WARPED_FOREST.as_static_str(),
             ),
             entry(
                 Parameter::point(-0.5),
                 Parameter::point(0.0),
                 0.175,
-                "minecraft:basalt_deltas",
+                keys::biome::BASALT_DELTAS.as_static_str(),
             ),
         ])
     });
@@ -1395,21 +1415,36 @@ mod tests {
         };
         assert_eq!(
             at(-0.8, 0.0, -1.1, 0.0, 0.0, 0.0),
-            "minecraft:mushroom_fields"
+            keys::biome::MUSHROOM_FIELDS.as_static_str()
         );
         assert_eq!(
             at(-0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
-            "minecraft:deep_frozen_ocean"
+            keys::biome::DEEP_FROZEN_OCEAN.as_static_str()
         );
-        assert_eq!(at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0), "minecraft:warm_ocean");
-        assert_eq!(at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0), "minecraft:frozen_ocean");
-        assert_eq!(at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0), "minecraft:deep_dark");
-        assert_eq!(at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0), "minecraft:lush_caves");
+        assert_eq!(
+            at(0.8, 0.0, -0.8, 0.0, 0.0, 0.0),
+            keys::biome::WARM_OCEAN.as_static_str()
+        );
+        assert_eq!(
+            at(-0.8, 0.0, -0.3, 0.0, 0.0, 0.0),
+            keys::biome::FROZEN_OCEAN.as_static_str()
+        );
+        assert_eq!(
+            at(0.0, 0.0, 0.0, -0.9, 1.1, 0.0),
+            keys::biome::DEEP_DARK.as_static_str()
+        );
+        assert_eq!(
+            at(0.0, 0.8, 0.0, 0.0, 0.5, 0.0),
+            keys::biome::LUSH_CAVES.as_static_str()
+        );
         assert_eq!(
             at(0.0, 0.0, 0.9, 0.0, 0.5, 0.0),
-            "minecraft:dripstone_caves"
+            keys::biome::DRIPSTONE_CAVES.as_static_str()
         );
-        assert_eq!(at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5), "minecraft:desert");
+        assert_eq!(
+            at(0.8, 0.0, 0.5, 0.3, 0.0, -0.5),
+            keys::biome::DESERT.as_static_str()
+        );
     }
 
     #[test]
@@ -1419,11 +1454,11 @@ mod tests {
         let at = |temperature, humidity| {
             *table.find_value(TargetPoint::new(temperature, humidity, 0.0, 0.0, 0.0, 0.0))
         };
-        assert_eq!(at(0.0, 0.0), "minecraft:nether_wastes");
-        assert_eq!(at(0.0, -0.5), "minecraft:soul_sand_valley");
-        assert_eq!(at(0.4, 0.0), "minecraft:crimson_forest");
-        assert_eq!(at(0.0, 0.5), "minecraft:warped_forest");
-        assert_eq!(at(-0.5, 0.0), "minecraft:basalt_deltas");
+        assert_eq!(at(0.0, 0.0), keys::biome::NETHER_WASTES.as_static_str());
+        assert_eq!(at(0.0, -0.5), keys::biome::SOUL_SAND_VALLEY.as_static_str());
+        assert_eq!(at(0.4, 0.0), keys::biome::CRIMSON_FOREST.as_static_str());
+        assert_eq!(at(0.0, 0.5), keys::biome::WARPED_FOREST.as_static_str());
+        assert_eq!(at(-0.5, 0.0), keys::biome::BASALT_DELTAS.as_static_str());
     }
 
     /// Weirdness picks between a slice's plain biome and its variant, so the
@@ -1433,7 +1468,7 @@ mod tests {
         let table = overworld_parameter_list();
         let at =
             |weirdness| *table.find_value(TargetPoint::new(-0.8, -0.8, 0.2, 0.2, 0.0, weirdness));
-        assert_eq!(at(-0.2), "minecraft:snowy_plains");
-        assert_eq!(at(0.2), "minecraft:ice_spikes");
+        assert_eq!(at(-0.2), keys::biome::SNOWY_PLAINS.as_static_str());
+        assert_eq!(at(0.2), keys::biome::ICE_SPIKES.as_static_str());
     }
 }

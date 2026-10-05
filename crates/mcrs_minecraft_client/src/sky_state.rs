@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use mcrs_minecraft_keys as keys;
 
 use mcrs_minecraft_dimension::dimension_type::Skybox;
 use mcrs_minecraft_dimension::environment::{EnvironmentAttributes, EnvironmentContext};
@@ -61,28 +62,44 @@ impl SkyField {
 
     pub fn attribute(self) -> &'static str {
         match self {
-            SkyField::SkyColor => "minecraft:visual/sky_color",
-            SkyField::FogColor => "minecraft:visual/fog_color",
-            SkyField::CloudColor => "minecraft:visual/cloud_color",
-            SkyField::SkyLightColor => "minecraft:visual/sky_light_color",
-            SkyField::SkyLightFactor => "minecraft:visual/sky_light_factor",
-            SkyField::SunriseSunsetColor => "minecraft:visual/sunrise_sunset_color",
-            SkyField::StarBrightness => "minecraft:visual/star_brightness",
-            SkyField::SunAngle => "minecraft:visual/sun_angle",
-            SkyField::MoonAngle => "minecraft:visual/moon_angle",
-            SkyField::StarAngle => "minecraft:visual/star_angle",
-            SkyField::MoonPhase => "minecraft:visual/moon_phase",
-            SkyField::AmbientLightColor => "minecraft:visual/ambient_light_color",
-            SkyField::BlockLightTint => "minecraft:visual/block_light_tint",
-            SkyField::NightVisionColor => "minecraft:visual/night_vision_color",
-            SkyField::WaterFogColor => "minecraft:visual/water_fog_color",
-            SkyField::CloudFogEndDistance => "minecraft:visual/cloud_fog_end_distance",
-            SkyField::CloudHeight => "minecraft:visual/cloud_height",
-            SkyField::FogEndDistance => "minecraft:visual/fog_end_distance",
-            SkyField::FogStartDistance => "minecraft:visual/fog_start_distance",
-            SkyField::SkyFogEndDistance => "minecraft:visual/sky_fog_end_distance",
-            SkyField::WaterFogEndDistance => "minecraft:visual/water_fog_end_distance",
-            SkyField::WaterFogStartDistance => "minecraft:visual/water_fog_start_distance",
+            SkyField::SkyColor => keys::environment_attribute::VISUAL_SKY_COLOR.name(),
+            SkyField::FogColor => keys::environment_attribute::VISUAL_FOG_COLOR.name(),
+            SkyField::CloudColor => keys::environment_attribute::VISUAL_CLOUD_COLOR.name(),
+            SkyField::SkyLightColor => keys::environment_attribute::VISUAL_SKY_LIGHT_COLOR.name(),
+            SkyField::SkyLightFactor => keys::environment_attribute::VISUAL_SKY_LIGHT_FACTOR.name(),
+            SkyField::SunriseSunsetColor => {
+                keys::environment_attribute::VISUAL_SUNRISE_SUNSET_COLOR.name()
+            }
+            SkyField::StarBrightness => keys::environment_attribute::VISUAL_STAR_BRIGHTNESS.name(),
+            SkyField::SunAngle => keys::environment_attribute::VISUAL_SUN_ANGLE.name(),
+            SkyField::MoonAngle => keys::environment_attribute::VISUAL_MOON_ANGLE.name(),
+            SkyField::StarAngle => keys::environment_attribute::VISUAL_STAR_ANGLE.name(),
+            SkyField::MoonPhase => keys::environment_attribute::VISUAL_MOON_PHASE.name(),
+            SkyField::AmbientLightColor => {
+                keys::environment_attribute::VISUAL_AMBIENT_LIGHT_COLOR.name()
+            }
+            SkyField::BlockLightTint => keys::environment_attribute::VISUAL_BLOCK_LIGHT_TINT.name(),
+            SkyField::NightVisionColor => {
+                keys::environment_attribute::VISUAL_NIGHT_VISION_COLOR.name()
+            }
+            SkyField::WaterFogColor => keys::environment_attribute::VISUAL_WATER_FOG_COLOR.name(),
+            SkyField::CloudFogEndDistance => {
+                keys::environment_attribute::VISUAL_CLOUD_FOG_END_DISTANCE.name()
+            }
+            SkyField::CloudHeight => keys::environment_attribute::VISUAL_CLOUD_HEIGHT.name(),
+            SkyField::FogEndDistance => keys::environment_attribute::VISUAL_FOG_END_DISTANCE.name(),
+            SkyField::FogStartDistance => {
+                keys::environment_attribute::VISUAL_FOG_START_DISTANCE.name()
+            }
+            SkyField::SkyFogEndDistance => {
+                keys::environment_attribute::VISUAL_SKY_FOG_END_DISTANCE.name()
+            }
+            SkyField::WaterFogEndDistance => {
+                keys::environment_attribute::VISUAL_WATER_FOG_END_DISTANCE.name()
+            }
+            SkyField::WaterFogStartDistance => {
+                keys::environment_attribute::VISUAL_WATER_FOG_START_DISTANCE.name()
+            }
         }
     }
 }

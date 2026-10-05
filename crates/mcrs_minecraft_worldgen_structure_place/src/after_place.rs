@@ -1,15 +1,13 @@
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
 
-use crate::scattered::{
-    DESERT_PYRAMID_ARCHAEOLOGY_LOOT, DesertPyramidBlocks, collapsed_roof_pos,
-    potential_suspicious_sand,
-};
+use crate::scattered::{DesertPyramidBlocks, collapsed_roof_pos, potential_suspicious_sand};
 use crate::woodland_mansion::WoodlandMansionBlocks;
 
 /// `DesertPyramidStructure.afterPlace` for one column: the marked roof cell,
@@ -32,7 +30,11 @@ pub fn desert_pyramid<W: WorldGenVolume>(
             x: pos.x,
             y: pos.y,
             z: pos.z,
-            loot_table: Some(DESERT_PYRAMID_ARCHAEOLOGY_LOOT.to_owned()),
+            loot_table: Some(
+                keys::loot_table::ARCHAEOLOGY_DESERT_PYRAMID
+                    .as_str()
+                    .to_owned(),
+            ),
             loot_table_seed: pos.as_long(),
             item: None,
             components: None,

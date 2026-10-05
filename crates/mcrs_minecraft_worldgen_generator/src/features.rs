@@ -1,6 +1,6 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
@@ -9,12 +9,12 @@ use std::collections::BTreeMap;
 
 /// `TheEndBiomeSource` lists its five biomes in this order, and that order is
 /// the input of the sort.
-const END_BIOMES: [&str; 5] = [
-    "minecraft:the_end",
-    "minecraft:end_highlands",
-    "minecraft:end_midlands",
-    "minecraft:small_end_islands",
-    "minecraft:end_barrens",
+const END_BIOMES: [ResourceKey<keys::Biome, &'static str>; 5] = [
+    keys::biome::THE_END,
+    keys::biome::END_HIGHLANDS,
+    keys::biome::END_MIDLANDS,
+    keys::biome::SMALL_END_ISLANDS,
+    keys::biome::END_BARRENS,
 ];
 
 /// One dimension's sorted feature tables: what [`FeatureProgram::build`]
@@ -54,7 +54,7 @@ pub fn possible_biomes(
         },
         BiomeSource::TheEnd => END_BIOMES
             .iter()
-            .filter_map(|id| ResourceLocation::read(id).ok())
+            .map(|biome| biome.location().to_arc())
             .collect(),
         BiomeSource::Fixed { biome } => vec![named(biome)],
         BiomeSource::Checkerboard { biomes, .. } => biomes.iter().map(named).collect(),

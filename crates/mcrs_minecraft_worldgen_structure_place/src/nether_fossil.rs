@@ -1,6 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -32,9 +33,9 @@ impl NetherFossilBlocks {
         Ok(NetherFossilBlocks {
             chain: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &["minecraft:air", "minecraft:structure_block"],
+                &[keys::block::AIR, keys::block::STRUCTURE_BLOCK],
             )?)],
-            dried_ghast: state(blocks, "minecraft:dried_ghast", &[])?,
+            dried_ghast: state(blocks, keys::block::DRIED_GHAST, &[])?,
             world_seed,
         })
     }

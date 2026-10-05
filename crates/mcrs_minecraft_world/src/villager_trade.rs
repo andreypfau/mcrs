@@ -193,21 +193,21 @@ impl Serialize for ContextInt {
             ContextInt::Reference(key) => key.serialize(s),
             ContextInt::Uniform { min, max } => {
                 let mut map = s.serialize_map(Some(3))?;
-                map.serialize_entry("type", "minecraft:uniform")?;
+                map.serialize_entry("type", keys::context_int_provider_type::UNIFORM.name())?;
                 map.serialize_entry("min", min)?;
                 map.serialize_entry("max", max)?;
                 map.end()
             }
             ContextInt::Binomial { n, p } => {
                 let mut map = s.serialize_map(Some(3))?;
-                map.serialize_entry("type", "minecraft:binomial")?;
+                map.serialize_entry("type", keys::context_int_provider_type::BINOMIAL.name())?;
                 map.serialize_entry("n", n)?;
                 map.serialize_entry("p", p)?;
                 map.end()
             }
             ContextInt::Sum { inputs } => {
                 let mut map = s.serialize_map(Some(2))?;
-                map.serialize_entry("type", "minecraft:add")?;
+                map.serialize_entry("type", keys::context_int_provider_type::ADD.name())?;
                 map.serialize_entry("inputs", inputs)?;
                 map.end()
             }

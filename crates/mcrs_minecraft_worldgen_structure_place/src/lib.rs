@@ -17,9 +17,11 @@ pub mod woodland_mansion;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, state_of, states_of,
@@ -50,7 +52,7 @@ impl Oriented {
     pub fn named(
         world: &WorldStates,
         blocks: &dyn BlockResolver,
-        block: &str,
+        block: Id<keys::Block>,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
         Ok(Self::of(world, state(blocks, block, properties)?))
@@ -68,13 +70,13 @@ impl Oriented {
 
 pub fn state(
     blocks: &dyn BlockResolver,
-    block: &str,
+    block: Id<keys::Block>,
     properties: &[(&str, &str)],
 ) -> Result<VoxelId, FeatureCompileError> {
     state_of(
         blocks,
         &BlockState {
-            name: ResourceLocation::read(block).expect("a literal id"),
+            name: block.location().to_arc(),
             properties: (!properties.is_empty()).then(|| {
                 properties
                     .iter()
@@ -87,11 +89,11 @@ pub fn state(
 
 pub fn block_mask(
     blocks: &dyn BlockResolver,
-    names: &[&str],
+    names: &[Id<keys::Block>],
 ) -> Result<StateMask, FeatureCompileError> {
     let ids: Vec<ResourceLocation> = names
         .iter()
-        .map(|name| ResourceLocation::read(name).expect("a literal id"))
+        .map(|block| block.location().to_arc())
         .collect();
     states_of(blocks, StateQuery::Names(&ids))
 }

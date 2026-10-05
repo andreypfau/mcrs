@@ -4159,6 +4159,7 @@ dependencies = [
  "bytes",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_noise",

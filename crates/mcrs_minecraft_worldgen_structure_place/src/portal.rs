@@ -78,16 +78,16 @@ impl RuinedPortalBlocks {
                 }
             }
         }
-        let vine = |face: Direction| state(blocks, "minecraft:vine", &[(face.name(), "true")]);
+        let vine = |face: Direction| state(blocks, keys::block::VINE, &[(face.name(), "true")]);
         let full_face = |face: Direction| states_of(blocks, StateQuery::FullCollisionFace(face));
         Ok(RuinedPortalBlocks {
             chains,
-            netherrack: state(blocks, "minecraft:netherrack", &[])?,
-            magma: state(blocks, "minecraft:magma_block", &[])?,
-            obsidian: state(blocks, "minecraft:obsidian", &[])?,
+            netherrack: state(blocks, keys::block::NETHERRACK, &[])?,
+            magma: state(blocks, keys::block::MAGMA_BLOCK, &[])?,
+            obsidian: state(blocks, keys::block::OBSIDIAN, &[])?,
             persistent_jungle_leaves: state(
                 blocks,
-                "minecraft:jungle_leaves",
+                keys::block::JUNGLE_LEAVES,
                 &[("persistent", "true")],
             )?,
             vine_facing: [
@@ -96,7 +96,7 @@ impl RuinedPortalBlocks {
                 vine(Direction::North)?,
                 vine(Direction::East)?,
             ],
-            vines: block_mask(blocks, &["minecraft:vine"])?,
+            vines: block_mask(blocks, &[keys::block::VINE])?,
             features_cannot_replace: states_of(
                 blocks,
                 StateQuery::Blocks(features_cannot_replace),

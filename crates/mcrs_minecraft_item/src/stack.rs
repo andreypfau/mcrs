@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use std::fmt;
 
 use anyhow::{Context, ensure};
@@ -29,7 +30,7 @@ pub struct ItemStackValue {
 
 impl Validate for ItemStackValue {
     fn validate(&self) -> Result<(), String> {
-        if self.item.as_str() == "minecraft:air" {
+        if self.item.as_str() == keys::item::AIR.name() {
             return Err("Item must not be minecraft:air".into());
         }
         Ok(())

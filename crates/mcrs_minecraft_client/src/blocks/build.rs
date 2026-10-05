@@ -6,6 +6,7 @@ use crate::model::Pack;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_mesh::block::{
     BlockInfo, CORNER_UV, CubeFace, FACE_AXES, FaceShapes, Fluid, ModelQuad, Pass, SideCells,
@@ -14,11 +15,11 @@ use mcrs_minecraft_mesh::pack::MODEL_STEPS;
 use mcrs_minecraft_mesh::tint::Tint;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
-    "minecraft:bubble_column",
-    "minecraft:kelp",
-    "minecraft:kelp_plant",
-    "minecraft:seagrass",
-    "minecraft:tall_seagrass",
+    keys::block::BUBBLE_COLUMN.name(),
+    keys::block::KELP.name(),
+    keys::block::KELP_PLANT.name(),
+    keys::block::SEAGRASS.name(),
+    keys::block::TALL_SEAGRASS.name(),
 ];
 
 fn fluid_of(
@@ -35,11 +36,11 @@ fn fluid_of(
             .map(|(_, value)| value.as_str())
     };
     let (lava, amount) = match state.name.as_str() {
-        "minecraft:water" | "minecraft:lava" => {
+        name if name == keys::block::WATER.name() || name == keys::block::LAVA.name() => {
             let fluid = data
                 .fluid
                 .ok_or_else(|| format!("{} states no fluid", state.name))?;
-            (state.name == "minecraft:lava", fluid.level)
+            (name == keys::block::LAVA.name(), fluid.level)
         }
         name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
         _ if prop("waterlogged") == Some("true") => (false, 8),
@@ -70,9 +71,9 @@ pub(super) fn build_one(
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
-    if state.name == "minecraft:air"
-        || state.name == "minecraft:cave_air"
-        || state.name == "minecraft:void_air"
+    if state.name == keys::block::AIR.name()
+        || state.name == keys::block::CAVE_AIR.name()
+        || state.name == keys::block::VOID_AIR.name()
     {
         return Ok(BlockInfo::default());
     }

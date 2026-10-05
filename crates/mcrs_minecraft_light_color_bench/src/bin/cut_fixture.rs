@@ -1,3 +1,4 @@
+use mcrs_minecraft_keys as keys;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -365,11 +366,11 @@ fn cut(world: &Path, dimension: &str, centre: SectionPos, out: &Path) {
 }
 
 const OVERLAP_LIGHTS: [&str; 5] = [
-    "minecraft:torch",
-    "minecraft:soul_lantern",
-    "minecraft:redstone_torch",
-    "minecraft:amethyst_cluster",
-    "minecraft:copper_lantern",
+    keys::block::TORCH.name(),
+    keys::block::SOUL_LANTERN.name(),
+    keys::block::REDSTONE_TORCH.name(),
+    keys::block::AMETHYST_CLUSTER.name(),
+    keys::block::COPPER_LANTERN.name(),
 ];
 
 /// Five differently coloured lights on a ring of radius 4 on a stone floor
@@ -378,7 +379,10 @@ const OVERLAP_LIGHTS: [&str; 5] = [
 fn overlap(out: &Path) {
     let corpus = Corpus::get();
     let state = |name: &str| corpus.resolve(&name.parse().expect("a well-formed state"));
-    let mut used = vec![state("minecraft:air"), state("minecraft:stone")];
+    let mut used = vec![
+        state(keys::block::AIR.name()),
+        state(keys::block::STONE.name()),
+    ];
     used.extend(OVERLAP_LIGHTS.map(state));
     let (colours, palette) = corpus.bake(&used);
 
@@ -428,9 +432,9 @@ fn overlap(out: &Path) {
         })
         .collect();
 
-    let extent = Extent::of("minecraft:overworld");
+    let extent = Extent::of(keys::dimension::OVERWORLD.as_str());
     let mut fixture = Fixture {
-        dimension: "minecraft:overworld".to_owned(),
+        dimension: keys::dimension::OVERWORLD.as_str().to_owned(),
         min_section_y: extent.min_section_y(),
         section_count: extent.sections() as u32,
         origin: [origin.x, origin.y, origin.z],

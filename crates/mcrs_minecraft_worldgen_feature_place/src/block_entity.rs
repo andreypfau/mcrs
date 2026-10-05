@@ -9,6 +9,7 @@ use std::io::Cursor;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::Weighted;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::BlockEntityType;
 use mcrs_minecraft_keys::block_entity_type;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -23,8 +24,12 @@ fn empty_id() -> String {
     "minecraft:empty".to_owned()
 }
 
+fn empty_pool() -> String {
+    keys::template_pool::EMPTY.as_str().to_owned()
+}
+
 fn air_id() -> String {
-    "minecraft:air".to_owned()
+    keys::block::AIR.name().to_owned()
 }
 
 /// A block entity a generator produced, in the compound the save, the chunk
@@ -178,7 +183,7 @@ pub enum GeneratedBlockEntity {
         name: String,
         #[serde(default = "empty_id")]
         target: String,
-        #[serde(default = "empty_id")]
+        #[serde(default = "empty_pool")]
         pool: String,
         #[serde(default = "air_id")]
         final_state: String,
@@ -431,12 +436,11 @@ fn spawner_spawn_range() -> i16 {
     4
 }
 
-const VAULT_LOOT: &str = "minecraft:chests/trial_chambers/reward";
 const VAULT_ACTIVATION_RANGE: f64 = 4.0;
 const VAULT_DEACTIVATION_RANGE: f64 = 4.5;
 
 fn is_vault_loot(value: &String) -> bool {
-    value == VAULT_LOOT
+    value == keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD.as_str()
 }
 
 fn is_vault_activation_range(value: &f64) -> bool {
@@ -594,11 +598,13 @@ pub struct VaultConfig {
 impl Default for VaultConfig {
     fn default() -> Self {
         VaultConfig {
-            loot_table: VAULT_LOOT.to_owned(),
+            loot_table: keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD
+                .as_str()
+                .to_owned(),
             activation_range: VAULT_ACTIVATION_RANGE,
             deactivation_range: VAULT_DEACTIVATION_RANGE,
             key_item: SavedItem {
-                id: "minecraft:trial_key".to_owned(),
+                id: keys::item::TRIAL_KEY.name().to_owned(),
                 count: 1,
                 components: None,
             },
@@ -633,45 +639,45 @@ impl GeneratedBlockEntity {
     /// The `id` each variant is tagged with; a save entry naming any other kind
     /// is one this type does not describe.
     pub const IDS: [&'static str; 28] = [
-        "minecraft:beehive",
-        "minecraft:chest",
-        "minecraft:trapped_chest",
-        "minecraft:ender_chest",
-        "minecraft:mob_spawner",
-        "minecraft:end_gateway",
-        "minecraft:barrel",
-        "minecraft:dispenser",
-        "minecraft:hopper",
-        "minecraft:furnace",
-        "minecraft:blast_furnace",
-        "minecraft:smoker",
-        "minecraft:brewing_stand",
-        "minecraft:campfire",
-        "minecraft:comparator",
-        "minecraft:bell",
-        "minecraft:copper_golem_statue",
-        "minecraft:lectern",
-        "minecraft:jigsaw",
-        "minecraft:creaking_heart",
-        "minecraft:decorated_pot",
-        "minecraft:brushable_block",
-        "minecraft:banner",
-        "minecraft:sign",
-        "minecraft:skull",
-        "minecraft:sculk_sensor",
-        "minecraft:trial_spawner",
-        "minecraft:vault",
+        keys::block_entity_type::BEEHIVE.name(),
+        keys::block_entity_type::CHEST.name(),
+        keys::block_entity_type::TRAPPED_CHEST.name(),
+        keys::block_entity_type::ENDER_CHEST.name(),
+        keys::block_entity_type::MOB_SPAWNER.name(),
+        keys::block_entity_type::END_GATEWAY.name(),
+        keys::block_entity_type::BARREL.name(),
+        keys::block_entity_type::DISPENSER.name(),
+        keys::block_entity_type::HOPPER.name(),
+        keys::block_entity_type::FURNACE.name(),
+        keys::block_entity_type::BLAST_FURNACE.name(),
+        keys::block_entity_type::SMOKER.name(),
+        keys::block_entity_type::BREWING_STAND.name(),
+        keys::block_entity_type::CAMPFIRE.name(),
+        keys::block_entity_type::COMPARATOR.name(),
+        keys::block_entity_type::BELL.name(),
+        keys::block_entity_type::COPPER_GOLEM_STATUE.name(),
+        keys::block_entity_type::LECTERN.name(),
+        keys::block_entity_type::JIGSAW.name(),
+        keys::block_entity_type::CREAKING_HEART.name(),
+        keys::block_entity_type::DECORATED_POT.name(),
+        keys::block_entity_type::BRUSHABLE_BLOCK.name(),
+        keys::block_entity_type::BANNER.name(),
+        keys::block_entity_type::SIGN.name(),
+        keys::block_entity_type::SKULL.name(),
+        keys::block_entity_type::SCULK_SENSOR.name(),
+        keys::block_entity_type::TRIAL_SPAWNER.name(),
+        keys::block_entity_type::VAULT.name(),
     ];
 
     /// The kinds that are a `RandomizableContainer`: a template placing one
     /// draws its `LootTableSeed` from the placement random.
     pub const LOOT_SEEDED_IDS: [&'static str; 6] = [
-        "minecraft:chest",
-        "minecraft:trapped_chest",
-        "minecraft:barrel",
-        "minecraft:dispenser",
-        "minecraft:hopper",
-        "minecraft:decorated_pot",
+        keys::block_entity_type::CHEST.name(),
+        keys::block_entity_type::TRAPPED_CHEST.name(),
+        keys::block_entity_type::BARREL.name(),
+        keys::block_entity_type::DISPENSER.name(),
+        keys::block_entity_type::HOPPER.name(),
+        keys::block_entity_type::DECORATED_POT.name(),
     ];
 
     /// Which block the entity belongs to, which is what routes it to a column.
@@ -845,7 +851,7 @@ impl BeeOccupant {
     /// in a nest.
     pub fn bee(ticks_in_hive: i32) -> Self {
         let mut entity_data = NbtCompound::new();
-        entity_data.put_string("id", "minecraft:bee".to_owned());
+        entity_data.put_string("id", keys::entity_type::BEE.name().to_owned());
         BeeOccupant {
             entity_data,
             ticks_in_hive,

@@ -1,6 +1,7 @@
 //! The parts village buildings share: doors, beds, windows, roofs, fences,
 //! ground drawn from rows of text, and the jigsaws that join pieces.
 
+use mcrs_minecraft_keys as keys;
 use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 
@@ -251,7 +252,7 @@ impl Canvas {
     pub fn torch_post(&mut self, post: &Cell, at: [i32; 3], height: i32) {
         let [x, y, z] = at;
         self.solid(post, [x, y, z], [x, y + height - 1, z]);
-        self.place(&block("minecraft:torch"), x, y + height, z);
+        self.place(&block(keys::block::TORCH.name()), x, y + height, z);
     }
 
     /// A fence round a rectangle, with a gate in place of the fence at each of `gates`.
@@ -358,7 +359,7 @@ impl Canvas {
 
     /// A jigsaw whose orientation follows from the face it stands on.
     pub fn socket(&mut self, at: [i32; 3], name: &str, pool: &str, final_state: &str) {
-        self.place(&settled("minecraft:jigsaw"), at[0], at[1], at[2]);
+        self.place(&settled(keys::block::JIGSAW.name()), at[0], at[1], at[2]);
         self.jigsaw(at, name, pool, final_state);
     }
 
@@ -392,8 +393,8 @@ impl Canvas {
             at,
             "east_up",
             "minecraft:street",
-            "minecraft:empty",
-            "minecraft:structure_void",
+            keys::template_pool::EMPTY.as_str(),
+            keys::block::STRUCTURE_VOID.name(),
         );
     }
 
