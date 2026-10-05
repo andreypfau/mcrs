@@ -131,14 +131,10 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
-        let mut world_seed = crate::world_options::world_seed_from_env();
+        app.insert_resource(crate::world_options::world_seed_from_env());
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
-            let settings = mcrs_minecraft_world::save::read_world_gen_settings(world)
-                .unwrap_or_else(|err| panic!("{err}"));
-            world_seed.0 = settings.seed as u64;
         }
-        app.insert_resource(world_seed);
         app.insert_resource(self.lighting);
         let ops = ops::OpList::read(std::path::Path::new(ops::OPS_FILE))
             .unwrap_or_else(|err| panic!("{err}"));

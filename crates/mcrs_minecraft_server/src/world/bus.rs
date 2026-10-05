@@ -49,8 +49,8 @@ pub struct InboundPlayerSpawn {
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
     /// Dimension resource-location strings forwarded from the host's
-    /// `LoadedWorldPreset` so the per-dim spawn consumer can fill
-    /// `ClientboundLogin.dimensions` without reading the preset resource
+    /// `DimensionList` so the per-dim spawn consumer can fill
+    /// `ClientboundLogin.dimensions` without reading the list resource
     /// (which is host-only and absent from any DimWorld).
     pub dimensions: Vec<String>,
 }

@@ -44,7 +44,7 @@ impl Plugin for FeaturePlugin {
             OnEnter(AppState::Playing),
             build_dimension_features
                 .after(build_dimension_structures)
-                .before(crate::world::enqueue_dim_spawns_from_preset),
+                .before(crate::world::enqueue_dim_spawns),
         );
     }
 }

@@ -1,5 +1,5 @@
 use crate::world::sub_app_builder::DimSubAppHandle;
-use crate::world_options::LoadedWorldPreset;
+use crate::world_options::DimensionList;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -10,7 +10,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_registry::RegistrySet;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 pub mod aoi;
 pub mod arrival;
@@ -126,20 +126,20 @@ impl Plugin for WorldPlugin {
             (
                 crate::world::generate::routers::build_dimension_routers
                     .after(crate::world::generate::structures::build_dimension_structures),
-                enqueue_dim_spawns_from_preset,
+                enqueue_dim_spawns,
             )
                 .chain(),
         );
     }
 }
 
-/// Enqueue one `DimSpawnRequest` per dimension in the loaded world preset.
+/// Enqueue one `DimSpawnRequest` per baked dimension.
 ///
 /// Runs at `OnEnter(AppState::Playing)`. The outer runner loop drains
 /// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
 /// per-dim sub-app per request.
-pub(crate) fn enqueue_dim_spawns_from_preset(
-    world_preset: Res<LoadedWorldPreset>,
+pub(crate) fn enqueue_dim_spawns(
+    dimensions: Res<DimensionList>,
     registries: Res<RegistrySet>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
@@ -148,21 +148,9 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         return;
     }
 
-    let dimensions = &world_preset.preset().dimensions;
-    if dimensions.is_empty() {
-        warn!("LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request");
-        spawn_queue.0.push(DimSpawnRequest {
-            dimension_id: DimensionId::new("minecraft:overworld"),
-            type_config: DimensionTypeConfig::new(-64, 384),
-            has_sky: true,
-        });
-        *already_enqueued = true;
-        return;
-    }
-
     debug!(
         dimension_count = dimensions.len(),
-        "Enqueueing dimension spawn requests from loaded world preset"
+        "Enqueueing dimension spawn requests"
     );
 
     let Some(dimension_types) = registries.entries::<keys::DimensionType, DimensionType>() else {
@@ -170,7 +158,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         return;
     };
 
-    for (dimension_key, entry) in dimensions {
+    for (dimension_key, entry) in dimensions.iter() {
         let dim_type = &dimension_types[entry.dimension_type];
         let resolved = (
             DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
@@ -196,6 +184,6 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
     *already_enqueued = true;
     info!(
         dimension_count = dimensions.len(),
-        "All dimensions enqueued from world preset"
+        "All dimensions enqueued"
     );
 }

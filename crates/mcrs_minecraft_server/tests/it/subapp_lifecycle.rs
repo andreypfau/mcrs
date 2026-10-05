@@ -15,7 +15,7 @@ use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
 };
-use mcrs_minecraft_server::world_options::LoadedWorldPreset;
+use mcrs_minecraft_server::world_options::DimensionList;
 
 use crate::host_app;
 
@@ -72,7 +72,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
             0
         );
         assert!(!world.contains_resource::<PlayerSessionCounter>());
-        assert!(!world.contains_resource::<LoadedWorldPreset>());
+        assert!(!world.contains_resource::<DimensionList>());
     }
 
     app.world_mut()

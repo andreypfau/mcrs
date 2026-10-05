@@ -67,7 +67,7 @@ impl Plugin for StructurePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(AppState::Playing),
-            build_dimension_structures.before(crate::world::enqueue_dim_spawns_from_preset),
+            build_dimension_structures.before(crate::world::enqueue_dim_spawns),
         );
     }
 }

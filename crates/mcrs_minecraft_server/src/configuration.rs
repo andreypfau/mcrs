@@ -54,7 +54,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
-use crate::world_options::{LoadedWorldPreset, choose_world_preset, request_preset_noise_settings};
+use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noise_settings};
 
 /// Allowlist of registries that emit tag groups in `ClientboundUpdateTags`.
 ///
@@ -220,10 +220,13 @@ impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DynamicRegistryTagFiles>();
 
-        app.add_systems(bevy_app::Startup, choose_world_preset);
+        app.add_systems(bevy_app::Startup, bake_dimensions);
         app.add_systems(
             OnEnter(AppState::LoadingDataPack),
-            (request_preset_noise_settings, request_dynamic_registry_tags),
+            (
+                request_dimension_noise_settings,
+                request_dynamic_registry_tags,
+            ),
         );
         app.add_systems(bevy_app::FixedPreUpdate, start_configuration());
         app.add_observer(on_known_packs_response);
@@ -573,7 +576,7 @@ pub fn emit_initial_player_spawn(
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
     live_dims: Query<(Entity, Option<&DimLabel>), With<DimSubAppHandle>>,
     dim_channels: Res<DimChannelsResource>,
-    world_preset: Option<Res<LoadedWorldPreset>>,
+    dimension_list: Option<Res<DimensionList>>,
     save: Option<Res<WorldSave>>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
@@ -581,15 +584,11 @@ pub fn emit_initial_player_spawn(
         return;
     }
 
-    let dimensions: Vec<String> = match &world_preset {
-        Some(preset) if !preset.preset().dimensions.is_empty() => preset
-            .preset()
-            .dimensions
-            .keys()
-            .map(|dim_key| dim_key.as_str().to_owned())
-            .collect(),
-        _ => vec!["minecraft:overworld".to_string()],
-    };
+    let dimensions: Vec<String> = dimension_list
+        .iter()
+        .flat_map(|list| list.iter())
+        .map(|(key, _)| key.as_str().to_owned())
+        .collect();
 
     for (&HostAnchorRef(host_anchor), state, info) in &connections {
         if *state != ConnectionState::Game {

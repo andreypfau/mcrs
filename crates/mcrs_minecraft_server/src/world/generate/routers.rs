@@ -15,7 +15,7 @@ use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
 use tracing::{error, info};
 
 use crate::world::generate::structures::DimensionStructures;
-use crate::world_options::{LoadedWorldPreset, WorldSeed};
+use crate::world_options::{DimensionList, WorldSeed};
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///
@@ -42,16 +42,16 @@ pub struct DimensionRouter {
     pub material: Arc<MaterialProgram>,
 }
 
-/// Compiles one router per noise dimension of the loaded preset.
+/// Compiles one router per noise dimension of the baked list.
 ///
 /// Runs at `OnEnter(AppState::Playing)`, before the spawn requests are
 /// enqueued: `WorldgenFreeze` waits on the whole recursive dependency closure
-/// of the preset's noise settings, so every asset a router needs has landed by
+/// of the dimensions' noise settings, so every asset a router needs has landed by
 /// here, and no sub-app exists yet to miss one.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_dimension_routers(
     mut commands: Commands,
-    preset: Res<LoadedWorldPreset>,
+    dimensions: Res<DimensionList>,
     seed: Res<WorldSeed>,
     tables: Res<WorldgenTables>,
     assets: WorldgenAssets,
@@ -67,7 +67,7 @@ pub(crate) fn build_dimension_routers(
         .expect("the data pack declares minecraft:worldgen/noise_settings");
 
     let mut routers = DimensionRouters::default();
-    for (dimension, entry) in &preset.preset().dimensions {
+    for (dimension, entry) in dimensions.iter() {
         // A flat or debug generator drives no density graph, so the dimension
         // is left out rather than refused.
         let ChunkGenerator::Noise(generator) = &entry.generator else {
