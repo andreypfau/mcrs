@@ -1,6 +1,6 @@
 use super::Piece::*;
 use super::{Pool, pool, single};
-use crate::keys::processors;
+use mcrs_minecraft_keys::processor_list;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -36,8 +36,8 @@ pub const POOLS: &[Pool] = &[
         (single("left_staircase_").numbered(1, 3), 1),
         (single("right_staircase_").numbered(1, 3), 1),
     ]),
-    pool("trial_chambers/chamber/end").dir("trial_chambers/corridor/").processors(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(single("end_").numbered(1, 2), 1)]),
-    pool("trial_chambers/chamber/entrance_cap").dir("trial_chambers/chamber/").processors(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(single("entrance_cap"), 1)]),
+    pool("trial_chambers/chamber/end").dir("trial_chambers/corridor/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(single("end_").numbered(1, 2), 1)]),
+    pool("trial_chambers/chamber/entrance_cap").dir("trial_chambers/chamber/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[(single("entrance_cap"), 1)]),
     pool("trial_chambers/chamber/eruption").dir("trial_chambers/chamber/eruption/").pieces(&[
         (single("center_1"), 1),
         (single("breeze_slice_1"), 1),
@@ -59,7 +59,7 @@ pub const POOLS: &[Pool] = &[
         (single("ramp_").numbered(1, 4), 1),
         (single("ominous_upper_arm_1"), 1),
     ]),
-    pool("trial_chambers/chambers/end").fallback("trial_chambers/hallway/fallback").dir("trial_chambers/chamber/").processors(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
+    pool("trial_chambers/chambers/end").fallback("trial_chambers/hallway/fallback").dir("trial_chambers/chamber/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
         (single("chamber_1"), 1),
         (single("assembly"), 1),
         (single("eruption"), 1),
@@ -69,12 +69,12 @@ pub const POOLS: &[Pool] = &[
     pool("trial_chambers/chests/supply").dir("trial_chambers/chests/connectors/").pieces(&[(single("supply"), 1)]),
     pool("trial_chambers/corridor").dir("trial_chambers/").pieces(&[
         (single("corridor/second_plate"), 1),
-        (single("intersection/intersection_").numbered(1, 3).with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("intersection/intersection_").numbered(1, 3).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
         (single("corridor/first_plate"), 1),
-        (single("corridor/atrium_1").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("corridor/entrance_").numbered(1, 3).with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("corridor/atrium_1").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("corridor/entrance_").numbered(1, 3).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
     ]),
-    pool("trial_chambers/corridor/slices").dir("trial_chambers/corridor/").processors(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
+    pool("trial_chambers/corridor/slices").dir("trial_chambers/corridor/").processors(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION).pieces(&[
         (single("straight_1"), 1),
         (single("straight_").numbered(2, 6), 2),
         (single("straight_7"), 1),
@@ -144,30 +144,30 @@ pub const POOLS: &[Pool] = &[
     pool("trial_chambers/entrance").dir("trial_chambers/corridor/addon/").pieces(&[(single("display_").numbered(1, 3), 1)]),
     pool("trial_chambers/hallway").fallback("trial_chambers/hallway/fallback").dir("trial_chambers/").pieces(&[
         (single("hallway/corridor_connector_1"), 1),
-        (single("hallway/upper_hallway_connector").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/lower_hallway_connector").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/upper_hallway_connector").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/lower_hallway_connector").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
         (single("hallway/rubble"), 1),
-        (single("chamber/chamber_").numbered(1, 2).with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/chamber_4").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/chamber_8").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/assembly").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/eruption").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/slanted").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("chamber/pedestal").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
-        (single("hallway/rubble_chamber").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 10),
-        (single("hallway/rubble_chamber_thin").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/cache_1").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/left_corner").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/right_corner").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/corner_staircase").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/corner_staircase_down").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/long_straight_staircase").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/long_straight_staircase_down").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/straight").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/straight_staircase").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/straight_staircase_down").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/trapped_staircase").with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
-        (single("hallway/encounter_").numbered(1, 5).with(processors::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("chamber/chamber_").numbered(1, 2).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/chamber_4").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/chamber_8").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/assembly").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/eruption").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/slanted").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("chamber/pedestal").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 150),
+        (single("hallway/rubble_chamber").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 10),
+        (single("hallway/rubble_chamber_thin").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/cache_1").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/left_corner").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/right_corner").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/corner_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/corner_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/long_straight_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/long_straight_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/straight").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/straight_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/straight_staircase_down").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/trapped_staircase").with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
+        (single("hallway/encounter_").numbered(1, 5).with(processor_list::TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION), 1),
     ]),
     pool("trial_chambers/hallway/fallback").dir("trial_chambers/hallway/").pieces(&[
         (single("rubble"), 1),

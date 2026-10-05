@@ -1,6 +1,6 @@
 use super::Piece::*;
 use super::{Pool, legacy, pool};
-use crate::keys::processors;
+use mcrs_minecraft_keys::processor_list;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[
@@ -14,5 +14,5 @@ pub const POOLS: &[Pool] = &[
         (legacy("feature_targets"), 1),
         (Empty, 6),
     ]),
-    pool("pillager_outpost/towers").dir("pillager_outpost/").pieces(&[(List(&[legacy("watchtower"), legacy("watchtower_overgrown").with(processors::OUTPOST_ROT)]), 1)]),
+    pool("pillager_outpost/towers").dir("pillager_outpost/").pieces(&[(List(&[legacy("watchtower"), legacy("watchtower_overgrown").with(processor_list::OUTPOST_ROT)]), 1)]),
 ];

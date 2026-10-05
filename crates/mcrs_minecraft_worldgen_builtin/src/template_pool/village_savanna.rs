@@ -1,6 +1,6 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use crate::keys::{placed, processors};
+use mcrs_minecraft_keys::{placed_feature, processor_list};
 
 const STREETS: &[(Piece, i32)] = &[
     (legacy("corner_01"), 2),
@@ -18,9 +18,9 @@ const STREETS: &[(Piece, i32)] = &[
 
 const DECOR: &[(Piece, i32)] = &[
     (legacy("savanna_lamp_post_01"), 4),
-    (Feature(placed!("acacia")), 4),
-    (Feature(placed!("pile_hay")), 4),
-    (Feature(placed!("pile_melon")), 1),
+    (Feature(placed_feature::ACACIA), 4),
+    (Feature(placed_feature::PILE_HAY), 4),
+    (Feature(placed_feature::PILE_MELON), 1),
     (Empty, 4),
 ];
 
@@ -43,14 +43,14 @@ pub const POOLS: &[Pool] = &[
         (legacy("savanna_weaponsmith_").numbered(1, 2), 2),
         (legacy("savanna_temple_1"), 2),
         (legacy("savanna_temple_2"), 3),
-        (legacy("savanna_large_farm_1").with(processors::FARM_SAVANNA), 4),
-        (legacy("savanna_large_farm_2").with(processors::FARM_SAVANNA), 6),
-        (legacy("savanna_small_farm").with(processors::FARM_SAVANNA), 4),
+        (legacy("savanna_large_farm_1").with(processor_list::FARM_SAVANNA), 4),
+        (legacy("savanna_large_farm_2").with(processor_list::FARM_SAVANNA), 6),
+        (legacy("savanna_small_farm").with(processor_list::FARM_SAVANNA), 4),
         (legacy("savanna_animal_pen_").numbered(1, 3), 2),
         (Empty, 5),
     ]),
-    pool("village/savanna/streets").fallback("village/savanna/terminators").terrain_matching().dir("village/savanna/streets/").processors(processors::STREET_SAVANNA).pieces(STREETS),
-    pool("village/savanna/terminators").terrain_matching().dir("village/").processors(processors::STREET_SAVANNA).pieces(&[
+    pool("village/savanna/streets").fallback("village/savanna/terminators").terrain_matching().dir("village/savanna/streets/").processors(processor_list::STREET_SAVANNA).pieces(STREETS),
+    pool("village/savanna/terminators").terrain_matching().dir("village/").processors(processor_list::STREET_SAVANNA).pieces(&[
         (legacy("plains/terminators/terminator_").padded(1, 4, 2), 1),
         (legacy("savanna/terminators/terminator_05"), 1),
     ]),
@@ -58,18 +58,18 @@ pub const POOLS: &[Pool] = &[
         (legacy("town_centers/savanna_meeting_point_1"), 100),
         (legacy("town_centers/savanna_meeting_point_2"), 50),
         (legacy("town_centers/savanna_meeting_point_").numbered(3, 4), 150),
-        (legacy("zombie/town_centers/savanna_meeting_point_1").with(processors::ZOMBIE_SAVANNA), 2),
-        (legacy("zombie/town_centers/savanna_meeting_point_2").with(processors::ZOMBIE_SAVANNA), 1),
-        (legacy("zombie/town_centers/savanna_meeting_point_").numbered(3, 4).with(processors::ZOMBIE_SAVANNA), 3),
+        (legacy("zombie/town_centers/savanna_meeting_point_1").with(processor_list::ZOMBIE_SAVANNA), 2),
+        (legacy("zombie/town_centers/savanna_meeting_point_2").with(processor_list::ZOMBIE_SAVANNA), 1),
+        (legacy("zombie/town_centers/savanna_meeting_point_").numbered(3, 4).with(processor_list::ZOMBIE_SAVANNA), 3),
     ]),
-    pool("village/savanna/trees").pieces(&[(Feature(placed!("acacia")), 1)]),
+    pool("village/savanna/trees").pieces(&[(Feature(placed_feature::ACACIA), 1)]),
     pool("village/savanna/villagers").dir("village/savanna/villagers/").pieces(&[
         (legacy("nitwit"), 1),
         (legacy("baby"), 1),
         (legacy("unemployed"), 10),
     ]),
-    pool("village/savanna/zombie/decor").dir("village/savanna/").processors(processors::ZOMBIE_SAVANNA).pieces(DECOR),
-    pool("village/savanna/zombie/houses").fallback("village/savanna/zombie/terminators").dir("village/savanna/").processors(processors::ZOMBIE_SAVANNA).pieces(&[
+    pool("village/savanna/zombie/decor").dir("village/savanna/").processors(processor_list::ZOMBIE_SAVANNA).pieces(DECOR),
+    pool("village/savanna/zombie/houses").fallback("village/savanna/zombie/terminators").dir("village/savanna/").processors(processor_list::ZOMBIE_SAVANNA).pieces(&[
         (legacy("zombie/houses/savanna_small_house_").numbered(1, 8), 2),
         (legacy("zombie/houses/savanna_medium_house_").numbered(1, 2), 2),
         (legacy("houses/savanna_butchers_shop_").numbered(1, 2), 2),
@@ -92,8 +92,8 @@ pub const POOLS: &[Pool] = &[
         (legacy("zombie/houses/savanna_animal_pen_").numbered(2, 3), 2),
         (Empty, 5),
     ]),
-    pool("village/savanna/zombie/streets").fallback("village/savanna/zombie/terminators").terrain_matching().dir("village/savanna/zombie/streets/").processors(processors::STREET_SAVANNA).pieces(STREETS),
-    pool("village/savanna/zombie/terminators").terrain_matching().dir("village/").processors(processors::STREET_SAVANNA).pieces(&[
+    pool("village/savanna/zombie/streets").fallback("village/savanna/zombie/terminators").terrain_matching().dir("village/savanna/zombie/streets/").processors(processor_list::STREET_SAVANNA).pieces(STREETS),
+    pool("village/savanna/zombie/terminators").terrain_matching().dir("village/").processors(processor_list::STREET_SAVANNA).pieces(&[
         (legacy("plains/terminators/terminator_").padded(1, 4, 2), 1),
         (legacy("savanna/zombie/terminators/terminator_05"), 1),
     ]),

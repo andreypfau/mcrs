@@ -3,16 +3,21 @@ mod end;
 mod nether;
 mod overworld;
 
-use crate::keys::{Id, SoundKey, carver, placed, sound};
 use mcrs_minecraft_biome::{Biome, BiomeGeneration as Generation, GrassColorModifier};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_keys::EntityType;
+use mcrs_minecraft_keys::{EntityType, SoundEvent, biome, carver, placed_feature, sound_event};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_structure::MobCategory;
 use serde::Serialize;
+
+type BiomeRow = (
+    ResourceKey<mcrs_minecraft_keys::Biome, &'static str>,
+    fn() -> Biome,
+);
 
 #[derive(Clone, Copy)]
 pub struct Mob {
@@ -95,7 +100,32 @@ pub mod mob {
     #[cfg(test)]
     mod tests {
         use super::ALL;
-        use crate::keys::report;
+        use mcrs_minecraft_core::ResourceKey;
+        use mcrs_minecraft_core::registry_key::RegistryKey;
+        use mcrs_minecraft_registry::static_report::shipped_report;
+        use std::collections::BTreeSet;
+
+        mod report {
+            use super::*;
+
+            pub fn missing<T: RegistryKey>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
+                let table = shipped_report().table(T::KEY.as_str());
+                keys.iter()
+                    .map(|key| key.as_str())
+                    .filter(|name| table.is_none_or(|table| table.number(name).is_none()))
+                    .map(str::to_owned)
+                    .collect()
+            }
+
+            pub fn repeated<T>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
+                let mut seen = BTreeSet::new();
+                keys.iter()
+                    .map(|key| key.as_str())
+                    .filter(|name| !seen.insert(*name))
+                    .map(str::to_owned)
+                    .collect()
+            }
+        }
 
         #[test]
         fn every_mob_is_an_entity_type_of_the_report() {
@@ -149,15 +179,15 @@ impl Mobs {
 
 #[derive(Serialize)]
 pub struct Music {
-    sound: SoundKey,
+    sound: &'static str,
     min_delay: i32,
     max_delay: i32,
 }
 
 impl Music {
-    pub fn game(sound: SoundKey) -> Self {
+    pub fn game(sound: Id<SoundEvent>) -> Self {
         Music {
-            sound,
+            sound: sound.name(),
             min_delay: 12000,
             max_delay: 24000,
         }
@@ -175,7 +205,7 @@ pub struct BackgroundMusic {
 }
 
 impl BackgroundMusic {
-    pub fn of(sound: SoundKey) -> Self {
+    pub fn of(sound: Id<SoundEvent>) -> Self {
         BackgroundMusic {
             default: Some(Music::game(sound)),
             ..Default::default()
@@ -184,9 +214,9 @@ impl BackgroundMusic {
 
     pub fn overworld_with_underwater() -> Self {
         BackgroundMusic {
-            default: Some(Music::game(sound::MUSIC_GAME)),
-            creative: Some(Music::game(sound::MUSIC_CREATIVE)),
-            underwater: Some(Music::game(sound::MUSIC_UNDER_WATER)),
+            default: Some(Music::game(sound_event::MUSIC_GAME)),
+            creative: Some(Music::game(sound_event::MUSIC_CREATIVE)),
+            underwater: Some(Music::game(sound_event::MUSIC_UNDER_WATER)),
         }
     }
 }
@@ -194,7 +224,7 @@ impl BackgroundMusic {
 pub trait BiomeMusic: Sized {
     fn background_music(self, music: BackgroundMusic) -> Self;
 
-    fn music(self, sound: SoundKey) -> Self {
+    fn music(self, sound: Id<SoundEvent>) -> Self {
         self.background_music(BackgroundMusic::of(sound))
     }
 }
@@ -206,88 +236,90 @@ impl BiomeMusic for Biome {
 }
 
 #[rustfmt::skip]
-const BIOMES: &[(Id, fn() -> Biome)] = {
+const BIOMES: &[BiomeRow] = {
     use end as e;
     use nether as n;
     use overworld as o;
     &[
-        (rl!("minecraft:the_void"), o::the_void),
-        (rl!("minecraft:plains"), || o::plains(false, false, false)),
-        (rl!("minecraft:sunflower_plains"), || o::plains(true, false, false)),
-        (rl!("minecraft:snowy_plains"), || o::plains(false, true, false)),
-        (rl!("minecraft:ice_spikes"), || o::plains(false, true, true)),
-        (rl!("minecraft:desert"), o::desert),
-        (rl!("minecraft:swamp"), o::swamp),
-        (rl!("minecraft:mangrove_swamp"), o::mangrove_swamp),
-        (rl!("minecraft:forest"), || o::forest(false, false, false)),
-        (rl!("minecraft:flower_forest"), || o::forest(false, false, true)),
-        (rl!("minecraft:birch_forest"), || o::forest(true, false, false)),
-        (rl!("minecraft:dappled_forest"), o::dappled_forest),
-        (rl!("minecraft:dark_forest"), || o::dark_forest(false)),
-        (rl!("minecraft:pale_garden"), || o::dark_forest(true)),
-        (rl!("minecraft:old_growth_birch_forest"), || o::forest(true, true, false)),
-        (rl!("minecraft:old_growth_pine_taiga"), || o::old_growth_taiga(false)),
-        (rl!("minecraft:old_growth_spruce_taiga"), || o::old_growth_taiga(true)),
-        (rl!("minecraft:taiga"), || o::taiga(false)),
-        (rl!("minecraft:snowy_taiga"), || o::taiga(true)),
-        (rl!("minecraft:savanna"), || o::savanna(false, false)),
-        (rl!("minecraft:savanna_plateau"), || o::savanna(false, true)),
-        (rl!("minecraft:windswept_hills"), || o::windswept_hills(false)),
-        (rl!("minecraft:windswept_gravelly_hills"), || o::windswept_hills(false)),
-        (rl!("minecraft:windswept_forest"), || o::windswept_hills(true)),
-        (rl!("minecraft:windswept_savanna"), || o::savanna(true, false)),
-        (rl!("minecraft:jungle"), || o::jungle(false)),
-        (rl!("minecraft:sparse_jungle"), o::sparse_jungle),
-        (rl!("minecraft:bamboo_jungle"), || o::jungle(true)),
-        (rl!("minecraft:badlands"), || o::badlands(false)),
-        (rl!("minecraft:eroded_badlands"), || o::badlands(false)),
-        (rl!("minecraft:wooded_badlands"), || o::badlands(true)),
-        (rl!("minecraft:meadow"), || o::meadow_or_cherry_grove(false)),
-        (rl!("minecraft:cherry_grove"), || o::meadow_or_cherry_grove(true)),
-        (rl!("minecraft:grove"), o::grove),
-        (rl!("minecraft:snowy_slopes"), o::snowy_slopes),
-        (rl!("minecraft:frozen_peaks"), || o::peaks(sound::MUSIC_OVERWORLD_FROZEN_PEAKS)),
-        (rl!("minecraft:jagged_peaks"), || o::peaks(sound::MUSIC_OVERWORLD_JAGGED_PEAKS)),
-        (rl!("minecraft:stony_peaks"), o::stony_peaks),
-        (rl!("minecraft:river"), || o::river(false)),
-        (rl!("minecraft:frozen_river"), || o::river(true)),
-        (rl!("minecraft:beach"), || o::beach(false, false)),
-        (rl!("minecraft:snowy_beach"), || o::beach(true, false)),
-        (rl!("minecraft:stony_shore"), || o::beach(false, true)),
-        (rl!("minecraft:warm_ocean"), o::warm_ocean),
-        (rl!("minecraft:lukewarm_ocean"), || o::lukewarm_ocean(false)),
-        (rl!("minecraft:deep_lukewarm_ocean"), || o::lukewarm_ocean(true)),
-        (rl!("minecraft:ocean"), || o::ocean(false)),
-        (rl!("minecraft:deep_ocean"), || o::ocean(true)),
-        (rl!("minecraft:cold_ocean"), || o::cold_ocean(false)),
-        (rl!("minecraft:deep_cold_ocean"), || o::cold_ocean(true)),
-        (rl!("minecraft:frozen_ocean"), || o::frozen_ocean(false)),
-        (rl!("minecraft:deep_frozen_ocean"), || o::frozen_ocean(true)),
-        (rl!("minecraft:mushroom_fields"), o::mushroom_fields),
-        (rl!("minecraft:dripstone_caves"), o::dripstone_caves),
-        (rl!("minecraft:lush_caves"), o::lush_caves),
-        (rl!("minecraft:deep_dark"), o::deep_dark),
-        (rl!("minecraft:sulfur_caves"), o::sulfur_caves),
-        (rl!("minecraft:nether_wastes"), n::nether_wastes),
-        (rl!("minecraft:warped_forest"), n::warped_forest),
-        (rl!("minecraft:crimson_forest"), n::crimson_forest),
-        (rl!("minecraft:soul_sand_valley"), n::soul_sand_valley),
-        (rl!("minecraft:basalt_deltas"), n::basalt_deltas),
-        (rl!("minecraft:the_end"), e::the_end),
-        (rl!("minecraft:end_highlands"), e::end_highlands),
-        (rl!("minecraft:end_midlands"), || e::end_base(Generation::default())),
-        (rl!("minecraft:small_end_islands"), e::small_end_islands),
-        (rl!("minecraft:end_barrens"), || e::end_base(Generation::default())),
+        (biome::THE_VOID, o::the_void),
+        (biome::PLAINS, || o::plains(false, false, false)),
+        (biome::SUNFLOWER_PLAINS, || o::plains(true, false, false)),
+        (biome::SNOWY_PLAINS, || o::plains(false, true, false)),
+        (biome::ICE_SPIKES, || o::plains(false, true, true)),
+        (biome::DESERT, o::desert),
+        (biome::SWAMP, o::swamp),
+        (biome::MANGROVE_SWAMP, o::mangrove_swamp),
+        (biome::FOREST, || o::forest(false, false, false)),
+        (biome::FLOWER_FOREST, || o::forest(false, false, true)),
+        (biome::BIRCH_FOREST, || o::forest(true, false, false)),
+        (biome::DAPPLED_FOREST, o::dappled_forest),
+        (biome::DARK_FOREST, || o::dark_forest(false)),
+        (biome::PALE_GARDEN, || o::dark_forest(true)),
+        (biome::OLD_GROWTH_BIRCH_FOREST, || o::forest(true, true, false)),
+        (biome::OLD_GROWTH_PINE_TAIGA, || o::old_growth_taiga(false)),
+        (biome::OLD_GROWTH_SPRUCE_TAIGA, || o::old_growth_taiga(true)),
+        (biome::TAIGA, || o::taiga(false)),
+        (biome::SNOWY_TAIGA, || o::taiga(true)),
+        (biome::SAVANNA, || o::savanna(false, false)),
+        (biome::SAVANNA_PLATEAU, || o::savanna(false, true)),
+        (biome::WINDSWEPT_HILLS, || o::windswept_hills(false)),
+        (biome::WINDSWEPT_GRAVELLY_HILLS, || o::windswept_hills(false)),
+        (biome::WINDSWEPT_FOREST, || o::windswept_hills(true)),
+        (biome::WINDSWEPT_SAVANNA, || o::savanna(true, false)),
+        (biome::JUNGLE, || o::jungle(false)),
+        (biome::SPARSE_JUNGLE, o::sparse_jungle),
+        (biome::BAMBOO_JUNGLE, || o::jungle(true)),
+        (biome::BADLANDS, || o::badlands(false)),
+        (biome::ERODED_BADLANDS, || o::badlands(false)),
+        (biome::WOODED_BADLANDS, || o::badlands(true)),
+        (biome::MEADOW, || o::meadow_or_cherry_grove(false)),
+        (biome::CHERRY_GROVE, || o::meadow_or_cherry_grove(true)),
+        (biome::GROVE, o::grove),
+        (biome::SNOWY_SLOPES, o::snowy_slopes),
+        (biome::FROZEN_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_FROZEN_PEAKS)),
+        (biome::JAGGED_PEAKS, || o::peaks(sound_event::MUSIC_OVERWORLD_JAGGED_PEAKS)),
+        (biome::STONY_PEAKS, o::stony_peaks),
+        (biome::RIVER, || o::river(false)),
+        (biome::FROZEN_RIVER, || o::river(true)),
+        (biome::BEACH, || o::beach(false, false)),
+        (biome::SNOWY_BEACH, || o::beach(true, false)),
+        (biome::STONY_SHORE, || o::beach(false, true)),
+        (biome::WARM_OCEAN, o::warm_ocean),
+        (biome::LUKEWARM_OCEAN, || o::lukewarm_ocean(false)),
+        (biome::DEEP_LUKEWARM_OCEAN, || o::lukewarm_ocean(true)),
+        (biome::OCEAN, || o::ocean(false)),
+        (biome::DEEP_OCEAN, || o::ocean(true)),
+        (biome::COLD_OCEAN, || o::cold_ocean(false)),
+        (biome::DEEP_COLD_OCEAN, || o::cold_ocean(true)),
+        (biome::FROZEN_OCEAN, || o::frozen_ocean(false)),
+        (biome::DEEP_FROZEN_OCEAN, || o::frozen_ocean(true)),
+        (biome::MUSHROOM_FIELDS, o::mushroom_fields),
+        (biome::DRIPSTONE_CAVES, o::dripstone_caves),
+        (biome::LUSH_CAVES, o::lush_caves),
+        (biome::DEEP_DARK, o::deep_dark),
+        (biome::SULFUR_CAVES, o::sulfur_caves),
+        (biome::NETHER_WASTES, n::nether_wastes),
+        (biome::WARPED_FOREST, n::warped_forest),
+        (biome::CRIMSON_FOREST, n::crimson_forest),
+        (biome::SOUL_SAND_VALLEY, n::soul_sand_valley),
+        (biome::BASALT_DELTAS, n::basalt_deltas),
+        (biome::THE_END, e::the_end),
+        (biome::END_HIGHLANDS, e::end_highlands),
+        (biome::END_MIDLANDS, || e::end_base(Generation::default())),
+        (biome::SMALL_END_ISLANDS, e::small_end_islands),
+        (biome::END_BARRENS, || e::end_base(Generation::default())),
     ]
 };
 
 pub fn all() -> impl Iterator<Item = (ResourceLocation, fn() -> Biome)> {
-    BIOMES.iter().map(|(id, build)| ((*id).into(), *build))
+    BIOMES
+        .iter()
+        .map(|(id, build)| ((*id.location()).into(), *build))
 }
 
 // chisle: a linear scan of 67 rows per biome read. A sorted table and a binary
 // search lift it if the table grows.
 pub fn build(id: &ResourceLocation) -> Option<Biome> {
-    let (_, build) = BIOMES.iter().find(|(key, _)| key == id)?;
+    let (_, build) = BIOMES.iter().find(|(key, _)| key.location() == id)?;
     Some(build())
 }
