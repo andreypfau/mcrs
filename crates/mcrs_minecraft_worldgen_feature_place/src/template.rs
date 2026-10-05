@@ -966,7 +966,7 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
-    use mcrs_minecraft_registry::{Id, TagId};
+    use mcrs_minecraft_registry::{DenseId, Id};
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 
