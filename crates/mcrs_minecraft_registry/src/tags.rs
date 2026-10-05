@@ -1,5 +1,6 @@
 use crate::id::Id;
 use crate::names::NameTable;
+use crate::registry::Registry;
 use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::registry_key::RegistryKey;
@@ -117,6 +118,19 @@ impl<R: RegistryKey> Tags<R> {
             table,
             _marker: PhantomData,
         }
+    }
+
+    pub fn from_members(registry: &Registry<R>, tags: Vec<(Name, Vec<Id<R>>)>) -> Self {
+        let mut seen = HashSet::with_capacity(tags.len());
+        let tags: Vec<_> = tags
+            .into_iter()
+            .filter(|(tag, _)| seen.insert(tag.clone()))
+            .map(|(tag, members)| {
+                let members = members.into_iter().map(Id::number).collect();
+                (tag, members)
+            })
+            .collect();
+        Tags::new(Arc::new(assemble(registry.table(), tags.into_iter())))
     }
 
     pub fn get<S: AsRef<str>>(&self, key: &TagKey<R, S>) -> Option<TagId<R>> {
@@ -525,16 +539,29 @@ pub fn build_tags(
             );
         }
     }
-    let mut table_names = Vec::with_capacity(ids.len());
-    let mut numbers = HashMap::with_capacity(ids.len());
-    let mut table_members = Vec::with_capacity(ids.len());
-    let mut bits = Vec::with_capacity(ids.len());
-    for (tag, number) in ids.into_iter().zip(0..=u16::MAX) {
-        let members: Box<[u16]> = by_name
-            .get(tag.as_str())
-            .copied()
-            .unwrap_or_default()
-            .into();
+    let table = assemble(
+        names,
+        ids.into_iter().map(|tag| {
+            let members = by_name
+                .get(tag.as_str())
+                .copied()
+                .unwrap_or_default()
+                .into();
+            (tag, members)
+        }),
+    );
+    (table, problems)
+}
+
+fn assemble(
+    names: &NameTable,
+    tags: impl ExactSizeIterator<Item = (Name, Box<[u16]>)>,
+) -> TagTable {
+    let mut table_names = Vec::with_capacity(tags.len());
+    let mut numbers = HashMap::with_capacity(tags.len());
+    let mut table_members = Vec::with_capacity(tags.len());
+    let mut bits = Vec::with_capacity(tags.len());
+    for ((tag, members), number) in tags.zip(0..=u16::MAX) {
         let mut set = FixedBitSet::with_capacity(names.len());
         set.extend(members.iter().map(|&member| usize::from(member)));
         numbers.insert(tag.clone(), number);
@@ -542,15 +569,13 @@ pub fn build_tags(
         table_members.push(members);
         bits.push(set);
     }
-
-    let table = TagTable {
+    TagTable {
         registry: names.registry().clone(),
         names: table_names.into(),
         numbers,
         members: table_members.into(),
         bits: bits.into(),
-    };
-    (table, problems)
+    }
 }
 
 fn log_and_push(problems: &mut Vec<TagProblem>, problem: TagProblem) {

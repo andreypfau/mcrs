@@ -7,7 +7,6 @@ use crate::{ComponentMap, Template};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::Item;
-#[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::{BlockStateId, Id, ItemId, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";

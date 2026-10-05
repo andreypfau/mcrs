@@ -5,7 +5,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::RegistrySet;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -151,34 +150,6 @@ pub(crate) fn request_data_pack_assets(
         "json",
     );
     request_templates(&asset_server, &mut loaded);
-}
-
-/// `(tag location, asset path)`, in asset path order.
-pub fn list_tag_files(
-    set: &RegistrySet,
-    registry_path: &str,
-) -> Vec<(ResourceLocation<std::sync::Arc<str>>, String)> {
-    let Some(table) = set
-        .tables()
-        .find(|table| table.registry().path() == registry_path)
-        .and_then(|table| set.tag_table(table.registry().as_str()))
-    else {
-        return Vec::new();
-    };
-    let mut found: Vec<_> = table
-        .names()
-        .iter()
-        .map(|tag| {
-            let path = format!(
-                "{}/tags/{registry_path}/{}.json",
-                tag.namespace(),
-                tag.path()
-            );
-            (tag.clone(), path)
-        })
-        .collect();
-    found.sort_by(|a, b| a.1.cmp(&b.1));
-    found
 }
 
 pub(crate) async fn walk_files(
