@@ -154,12 +154,9 @@ impl FillContext {
                 (None, Some((source, registry))) => match source.as_ref() {
                     BiomeSource::Fixed { biome_id, .. } => registry
                         .by_location(biome_id.as_str())
-                        .map(u32::from)
                         .map_or(BiomeLookup::None, BiomeLookup::Fixed),
-                    BiomeSource::TheEnd => {
-                        { EndBiomes::resolve(|id| registry.by_location(id).map(u32::from)) }
-                            .map_or(BiomeLookup::None, BiomeLookup::TheEnd)
-                    }
+                    BiomeSource::TheEnd => EndBiomes::resolve(|id| registry.by_location(id))
+                        .map_or(BiomeLookup::None, BiomeLookup::TheEnd),
                     _ => BiomeLookup::None,
                 },
                 (None, None) => BiomeLookup::None,
@@ -529,7 +526,7 @@ impl<'a> ColumnRegion<'a> {
     }
 
     /// The stored biome of the block, with the height clamped to the column.
-    fn biome_at(&self, p: BlockPos) -> u32 {
+    fn biome_at(&self, p: BlockPos) -> u16 {
         let Some(slot) = region_slot(
             self.center,
             ColumnPos::new(p.x.div_euclid(16), p.z.div_euclid(16)),
@@ -544,7 +541,7 @@ impl<'a> ColumnRegion<'a> {
         let Some((_, biomes)) = snapshot.sections.get(section).and_then(Option::as_ref) else {
             return 0;
         };
-        u32::from(
+        u16::from(
             biomes
                 .0
                 .get(p.x.rem_euclid(16) as usize, y, p.z.rem_euclid(16) as usize),
@@ -696,7 +693,7 @@ impl WorldGenVolume for ColumnRegion<'_> {
             .unwrap_or(self.ctx.router.noise.min_y)
     }
 
-    fn biome(&self, p: BlockPos) -> u32 {
+    fn biome(&self, p: BlockPos) -> u16 {
         self.biome_at(p)
     }
 
@@ -731,7 +728,7 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
     for snapshot in region.snapshots {
         for section in snapshot.sections.iter().flatten() {
             section.1.for_each_distinct(|biome| {
-                if let Some(slot) = program.slot_of(biome as u32)
+                if let Some(slot) = program.slot_of(u16::from(biome))
                     && !slots.contains(&slot)
                 {
                     slots.push(slot);

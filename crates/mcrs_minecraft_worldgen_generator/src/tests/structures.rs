@@ -117,7 +117,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
 fn structure(id: &str) -> &'static mcrs_minecraft_worldgen_structure::frozen::FrozenStructure {
     let frozen = frozen();
     let id = ResourceLocation::parse(id).unwrap();
-    &frozen.structures[frozen.structure_ids[&id].0 as usize]
+    &frozen.structures[usize::from(frozen.structure_ids[&id].0)]
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     );
     let in_hut = SpawnContext {
         structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
-        biome: u32::from(biome_index().get("minecraft:swamp").unwrap()),
+        biome: biome_index().get("minecraft:swamp").unwrap(),
         moon_brightness: 1.0,
     };
     let mut rng = WorldgenRandom::new(1);
@@ -262,12 +262,12 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
     assert_eq!(structure("minecraft:ancient_city").step_index, 0);
 
     let empty = frozen.pool_ids[&ResourceLocation::minecraft("empty")];
-    let empty_pool = &frozen.pools[empty.0 as usize];
+    let empty_pool = &frozen.pools[usize::from(empty.0)];
     assert_eq!(empty_pool.fallback, empty);
     assert!(empty_pool.expanded.is_empty());
     assert_eq!(empty_pool.max_size, 0);
     let houses = &frozen.pools
-        [frozen.pool_ids[&ResourceLocation::minecraft("village/plains/houses")].0 as usize];
+        [usize::from(frozen.pool_ids[&ResourceLocation::minecraft("village/plains/houses")].0)];
     assert!(
         houses.expanded.len()
             > houses
@@ -287,7 +287,7 @@ fn live_set_names(source: &BiomeSource) -> Vec<String> {
     }
     live_sets(frozen, &mask)
         .into_iter()
-        .map(|(set, _)| frozen.sets[set.0 as usize].id.to_string())
+        .map(|(set, _)| frozen.sets[usize::from(set.0)].id.to_string())
         .collect()
 }
 

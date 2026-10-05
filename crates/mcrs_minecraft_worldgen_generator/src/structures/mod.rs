@@ -114,6 +114,11 @@ pub struct VariantInputs<'a> {
 
 const MAX_JIGSAW_RANGE: i32 = 128;
 
+fn position(index: usize, registry: &str) -> Result<u16, String> {
+    u16::try_from(index)
+        .map_err(|_| format!("the {registry} registry holds more than 65536 entries"))
+}
+
 pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> {
     let mut frozen = FrozenStructures::default();
     freeze_pools(inputs, &mut frozen)?;
@@ -133,7 +138,7 @@ fn structure_id_set(
         frozen
             .structure_ids
             .get(id)
-            .map(|id| mask.insert(id.0 as usize))
+            .map(|id| mask.insert(usize::from(id.0)))
             .ok_or_else(|| format!("names the structure {id}, which is not loaded"))
     };
     match set {
@@ -207,7 +212,7 @@ fn biome_mask(
                 format!("{owner}: names the biome tag #{tag}, which is not loaded")
             })?;
             for id in members.iter() {
-                mask.insert(id as usize);
+                mask.insert(usize::from(id));
             }
         }
         HolderSet::One(_) | HolderSet::List(_) => {
@@ -216,7 +221,7 @@ fn biome_mask(
                     .biomes
                     .get(id.as_str())
                     .ok_or_else(|| format!("{owner}: names the biome {id}, which is not loaded"))?;
-                mask.insert(index as usize);
+                mask.insert(usize::from(index));
             }
         }
     }
@@ -237,8 +242,8 @@ fn freeze_pools(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> 
         .pools
         .keys()
         .enumerate()
-        .map(|(index, id)| (id.clone(), PoolId(index as u32)))
-        .collect();
+        .map(|(index, id)| Ok((id.clone(), PoolId(position(index, "template pool")?))))
+        .collect::<Result<_, String>>()?;
     for (id, pool) in inputs.pools {
         let fallback = *frozen.pool_ids.get(&pool.fallback).ok_or_else(|| {
             format!(
@@ -536,9 +541,10 @@ fn freeze_structures(
             Structure::SwampHut { .. } => StructureKind::SwampHut,
             Structure::WoodlandMansion { .. } => StructureKind::WoodlandMansion,
         };
-        frozen
-            .structure_ids
-            .insert(id.clone(), StructureId(frozen.structures.len() as u32));
+        frozen.structure_ids.insert(
+            id.clone(),
+            StructureId(position(frozen.structures.len(), "structure")?),
+        );
         frozen.structures.push(FrozenStructure {
             id: id.clone(),
             step: settings.step,
@@ -618,7 +624,7 @@ fn check_jigsaw_targets(
         if !visited.insert(pool) {
             continue;
         }
-        let pool = &frozen.pools[pool.0 as usize];
+        let pool = &frozen.pools[usize::from(pool.0)];
         queue.push(pool.fallback);
         elements.clear();
         elements.extend(pool.expanded.iter().copied());
@@ -668,8 +674,8 @@ fn freeze_sets(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> R
         .sets
         .keys()
         .enumerate()
-        .map(|(index, id)| (id.clone(), SetId(index as u32)))
-        .collect();
+        .map(|(index, id)| Ok((id.clone(), SetId(position(index, "structure set")?))))
+        .collect::<Result<_, String>>()?;
     for (id, set) in inputs.sets {
         let mut entries = Vec::with_capacity(set.structures.len());
         for entry in &set.structures {
@@ -730,7 +736,7 @@ fn freeze_sets(inputs: &StructureInputs<'_>, frozen: &mut FrozenStructures) -> R
         let mut chain = vec![start];
         let mut at = start;
         while let Some((next, _)) = frozen.sets[at].exclusion {
-            at = next.0 as usize;
+            at = usize::from(next.0);
             if chain.contains(&at) {
                 let names: Vec<String> = chain
                     .iter()
@@ -755,22 +761,20 @@ pub fn live_sets(
     frozen: &FrozenStructures,
     biomes: &FixedBitSet,
 ) -> Vec<(SetId, Vec<StructureId>)> {
-    frozen
-        .sets
-        .iter()
-        .enumerate()
+    (0..=u16::MAX)
+        .zip(&frozen.sets)
         .filter_map(|(index, set)| {
             let candidates: Vec<StructureId> = set
                 .entries
                 .iter()
                 .map(|(structure, _)| *structure)
                 .filter(|structure| {
-                    !frozen.structures[structure.0 as usize]
+                    !frozen.structures[usize::from(structure.0)]
                         .biomes
                         .is_disjoint(biomes)
                 })
                 .collect();
-            (!candidates.is_empty()).then_some((SetId(index as u32), candidates))
+            (!candidates.is_empty()).then_some((SetId(index), candidates))
         })
         .collect()
 }

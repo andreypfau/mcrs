@@ -744,7 +744,7 @@ mod tests {
         }
     }
 
-    fn ctx(structure: Option<u32>, biome: u32) -> SpawnContext {
+    fn ctx(structure: Option<u16>, biome: u16) -> SpawnContext {
         SpawnContext {
             structure,
             biome,

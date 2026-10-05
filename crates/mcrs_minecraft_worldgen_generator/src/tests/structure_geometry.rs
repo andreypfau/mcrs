@@ -216,7 +216,7 @@ struct FlatSiteWorld<'a> {
     min_y: i32,
     max_y: i32,
     layers: Vec<VoxelId>,
-    biome: u32,
+    biome: u16,
     states: &'a WorldStates,
     predicates: &'a HeightmapPredicates,
 }
@@ -232,16 +232,16 @@ impl FlatSiteWorld<'_> {
 }
 
 impl SiteWorld for FlatSiteWorld<'_> {
-    fn biome_at(&mut self, _: IVec3) -> Option<u32> {
+    fn biome_at(&mut self, _: IVec3) -> Option<u16> {
         Some(self.biome)
     }
 
     fn column_admits(&mut self, _: i32, _: i32, _: i32, _: i32, biomes: &BiomeMask) -> bool {
-        biomes.contains(self.biome as usize)
+        biomes.contains(usize::from(self.biome))
     }
 
     fn all_biomes_within(&mut self, _: IVec3, _: i32, biomes: &BiomeMask) -> bool {
-        biomes.contains(self.biome as usize)
+        biomes.contains(usize::from(self.biome))
     }
 
     fn free_height(&mut self, _: i32, _: i32, heightmap: HeightmapName) -> i32 {
@@ -267,7 +267,7 @@ impl SiteWorld for FlatSiteWorld<'_> {
     }
 
     fn cold_enough_to_snow(&mut self, pos: IVec3, sea_level: i32) -> bool {
-        let climate = &corpus_climate()[self.biome as usize];
+        let climate = &corpus_climate()[usize::from(self.biome)];
         temperature(climate, pos.into(), sea_level) < RAIN_TEMPERATURE
     }
 }
@@ -283,7 +283,7 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
             .into_iter()
             .map(|state| state.unwrap_or(states.air))
             .collect(),
-        biome: u32::from(biome_index().get(&case.biome).expect("a corpus biome")),
+        biome: biome_index().get(&case.biome).expect("a corpus biome"),
         states,
         predicates: predicates(),
     };
@@ -325,7 +325,7 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     }
     region.world = world;
     region.extent.sea_level = sea_level;
-    region.biome = u32::from(biome_index().get(&case.biome).expect("a corpus biome"));
+    region.biome = biome_index().get(&case.biome).expect("a corpus biome");
     let predicates = predicates().clone();
     region.with_height(move |blocks: &BoxVolume, kind: HeightmapName, _, _| {
         let max_y = blocks.max().y;

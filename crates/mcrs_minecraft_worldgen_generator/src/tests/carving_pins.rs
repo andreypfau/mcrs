@@ -166,7 +166,7 @@ fn the_per_column_mask_is_what_it_was() {
 fn material_router(
     dimension: Dimension,
     seed: u64,
-    ids: &HashMap<String, u32>,
+    ids: &HashMap<String, u16>,
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
@@ -197,7 +197,7 @@ fn material_router(
     .expect("the material rule compiles")
 }
 
-fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<String, u32>) {
+fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<String, u16>) {
     let mut names: Vec<String> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [
@@ -227,7 +227,7 @@ fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<Str
         .map(|name| {
             (
                 name.clone(),
-                u32::from(snapshot.by_location(name).expect("registered")),
+                snapshot.by_location(name).expect("registered"),
             )
         })
         .collect();

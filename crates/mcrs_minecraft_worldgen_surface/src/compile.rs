@@ -125,28 +125,28 @@ pub enum Tri {
 pub struct BiomeMask(Box<[u64]>);
 
 impl BiomeMask {
-    fn new(ids: &[u32]) -> Self {
+    fn new(ids: &[u16]) -> Self {
         let words = ids
             .iter()
-            .map(|id| *id as usize / 64 + 1)
+            .map(|id| usize::from(*id) / 64 + 1)
             .max()
             .unwrap_or(0);
         let mut bits = vec![0u64; words];
         for id in ids {
-            bits[*id as usize / 64] |= 1 << (*id % 64);
+            bits[usize::from(*id) / 64] |= 1 << (*id % 64);
         }
         BiomeMask(bits.into_boxed_slice())
     }
 
     #[inline]
-    pub fn contains(&self, biome: u32) -> bool {
-        let word = biome as usize / 64;
+    pub fn contains(&self, biome: u16) -> bool {
+        let word = usize::from(biome) / 64;
         word < self.0.len() && self.0[word] >> (biome % 64) & 1 != 0
     }
 
     /// How this set answers for a column that can select exactly `biomes`.
     /// `Never` and `Always` settle the condition statically for the column.
-    pub fn fold(&self, biomes: impl IntoIterator<Item = u32>) -> Tri {
+    pub fn fold(&self, biomes: impl IntoIterator<Item = u16>) -> Tri {
         let mut any = false;
         let mut all = true;
         for biome in biomes {
@@ -279,7 +279,7 @@ pub struct MaterialInputs<'a> {
     pub rules: &'a BTreeMap<ResourceLocation, MaterialRuleHolder>,
     pub conditions: &'a BTreeMap<ResourceLocation, MaterialConditionHolder>,
     pub block: &'a dyn Fn(&BlockState) -> Option<VoxelId>,
-    pub biome: &'a dyn Fn(&ResourceLocation) -> Option<u32>,
+    pub biome: &'a dyn Fn(&ResourceLocation) -> Option<u16>,
 }
 
 /// The router and the material program compiled into one graph, which is how
@@ -765,8 +765,8 @@ pub(crate) mod tests {
         Some(VoxelId(hash_id(state.name.as_str()) as u16))
     }
 
-    pub(crate) fn resolve_biome(name: &ResourceLocation) -> Option<u32> {
-        Some(hash_id(name.as_str()) % 256)
+    pub(crate) fn resolve_biome(name: &ResourceLocation) -> Option<u16> {
+        u16::try_from(hash_id(name.as_str()) % 256).ok()
     }
 
     fn hash_id(name: &str) -> u32 {

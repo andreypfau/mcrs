@@ -96,8 +96,8 @@ pub type IdSet = Arc<FixedBitSet>;
 /// holds the spawn, the biome there, and the moon the region sees.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpawnContext {
-    pub structure: Option<u32>,
-    pub biome: u32,
+    pub structure: Option<u16>,
+    pub biome: u16,
     pub moon_brightness: f64,
 }
 
@@ -111,8 +111,10 @@ pub enum Condition {
 impl Condition {
     fn test(&self, ctx: &SpawnContext) -> bool {
         match self {
-            Condition::Structure(set) => ctx.structure.is_some_and(|id| set.contains(id as usize)),
-            Condition::Biome(set) => set.contains(ctx.biome as usize),
+            Condition::Structure(set) => ctx
+                .structure
+                .is_some_and(|id| set.contains(usize::from(id))),
+            Condition::Biome(set) => set.contains(usize::from(ctx.biome)),
             Condition::MoonBrightness(range) => range.matches(ctx.moon_brightness),
         }
     }
@@ -120,7 +122,7 @@ impl Condition {
 
 #[derive(Clone, Debug, PartialEq)]
 struct Selector {
-    variant: usize,
+    variant: u16,
     priority: i32,
     condition: Option<Condition>,
 }
@@ -144,7 +146,8 @@ impl VariantTable {
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();
         for (id, selectors) in entries {
-            let variant = table.ids.len();
+            let variant = u16::try_from(table.ids.len())
+                .map_err(|_| format!("{id}: the variant registry holds more than 65536 entries"))?;
             for selector in selectors {
                 let condition = match &selector.condition {
                     None => None,
@@ -191,7 +194,7 @@ impl VariantTable {
             return None;
         }
         let index = rng.next_i32_bound(candidates.len() as i32) as usize;
-        Some(&self.ids[candidates[index]])
+        Some(&self.ids[usize::from(candidates[index])])
     }
 }
 /// The variant registries the spawned kinds draw from, each in registry

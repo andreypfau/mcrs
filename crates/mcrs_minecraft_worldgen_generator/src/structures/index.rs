@@ -40,7 +40,7 @@ use mcrs_minecraft_worldgen_structure::site::{BaseColumn, Context, Site, SiteWor
 #[derive(Clone)]
 pub enum BiomeLookup {
     MultiNoise(Arc<MultiNoiseBiomeTable>),
-    Fixed(u32),
+    Fixed(u16),
     TheEnd(EndBiomes),
     None,
 }
@@ -48,15 +48,15 @@ pub enum BiomeLookup {
 /// `TheEndBiomeSource`: the five biomes it draws from, by registry id.
 #[derive(Clone, Copy, Debug)]
 pub struct EndBiomes {
-    pub end: u32,
-    pub highlands: u32,
-    pub midlands: u32,
-    pub islands: u32,
-    pub barrens: u32,
+    pub end: u16,
+    pub highlands: u16,
+    pub midlands: u16,
+    pub islands: u16,
+    pub barrens: u16,
 }
 
 impl EndBiomes {
-    pub fn resolve(mut id_of: impl FnMut(&str) -> Option<u32>) -> Option<Self> {
+    pub fn resolve(mut id_of: impl FnMut(&str) -> Option<u16>) -> Option<Self> {
         Some(EndBiomes {
             end: id_of("minecraft:the_end")?,
             highlands: id_of("minecraft:end_highlands")?,
@@ -68,7 +68,7 @@ impl EndBiomes {
 
     /// `getNoiseBiome`: the central island within 64 chunks of the origin,
     /// elsewhere the erosion at the chunk's centre column.
-    fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u32 {
+    fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u16 {
         let block: IVec3 = quart << 2;
         let chunk_x = block.x >> 4;
         let chunk_z = block.z >> 4;
@@ -132,7 +132,7 @@ impl StructureIndex {
         accessor_min_y: i32,
         accessor_height: i32,
     ) -> Self {
-        let placement = |set: &SetId| &tables.frozen.sets[set.0 as usize].placement;
+        let placement = |set: &SetId| &tables.frozen.sets[usize::from(set.0)].placement;
         if router.has_spawn_target
             && let Some((set, _)) = tables
                 .live
@@ -141,7 +141,7 @@ impl StructureIndex {
         {
             panic!(
                 "{}: dimension_origin places at the spawn chunk when the noise settings name a spawn_target, and there is no spawn finder yet",
-                tables.frozen.sets[set.0 as usize].id
+                tables.frozen.sets[usize::from(set.0)].id
             );
         }
         let rings = ring_sets(&tables, seed, &router, &biomes);
@@ -172,7 +172,7 @@ impl StructureIndex {
     }
 
     pub fn gate(&self, set: SetId, pos: ColumnPos) -> bool {
-        let frozen_set = &self.tables.frozen.sets[set.0 as usize];
+        let frozen_set = &self.tables.frozen.sets[usize::from(set.0)];
         let excluding = frozen_set.exclusion.map(|(other, _)| other);
         let excluded = |test| excluding.is_some_and(|other| self.gate(other, test));
         match &frozen_set.placement {
@@ -213,7 +213,7 @@ impl StructureIndex {
     ) -> Context<'a> {
         Context {
             frozen: &self.tables.frozen,
-            structure: &self.tables.frozen.structures[structure.0 as usize],
+            structure: &self.tables.frozen.structures[usize::from(structure.0)],
             chunk,
             seed: self.seed,
             height: self.height_context(),
@@ -313,7 +313,7 @@ impl StructureIndex {
             }
         }
         starts.sort_by_key(|(chunk, start)| {
-            let structure = &frozen.structures[start.structure.0 as usize];
+            let structure = &frozen.structures[usize::from(start.structure.0)];
             (structure.step, structure.step_index, chunk.x, chunk.z)
         });
         starts
@@ -325,7 +325,7 @@ impl StructureIndex {
         let frozen = &self.tables.frozen;
         let starts = self.starts_reaching(column);
         let pieces = starts.iter().flat_map(|(_, start)| {
-            let adaptation = frozen.structures[start.structure.0 as usize].adaptation;
+            let adaptation = frozen.structures[usize::from(start.structure.0)].adaptation;
             start.pieces.iter().map(move |piece| {
                 let beard_piece = match piece {
                     Piece::Jigsaw(piece) => BeardPiece {
@@ -398,7 +398,7 @@ impl StructureIndex {
         let structure = select_with_removal(
             self.seed,
             chunk,
-            &frozen.sets[set.0 as usize].entries,
+            &frozen.sets[usize::from(set.0)].entries,
             |structure| {
                 accepted = self
                     .site_in(view, chunk, structure)
@@ -424,7 +424,7 @@ impl StructureIndex {
                     }
                     None => placements.push(LocatePlacement {
                         set: *set,
-                        placement: &self.tables.frozen.sets[set.0 as usize].placement,
+                        placement: &self.tables.frozen.sets[usize::from(set.0)].placement,
                         structures: vec![structure],
                     }),
                 }
@@ -458,7 +458,7 @@ fn ring_sets(
         .live
         .iter()
         .filter_map(|(set, _)| {
-            let frozen_set = &frozen.sets[set.0 as usize];
+            let frozen_set = &frozen.sets[usize::from(set.0)];
             let StructurePlacement::ConcentricRings {
                 distance,
                 spread,
@@ -480,7 +480,7 @@ fn ring_sets(
                         })
                     }
                     BiomeLookup::Fixed(biome) => preferred
-                        .contains(*biome as usize)
+                        .contains(usize::from(*biome))
                         .then(|| fixed_biome_window(initial, fork)),
                     BiomeLookup::TheEnd(end) => {
                         scan_biome_window(initial, fork, |quart_x, quart_z, side| {
@@ -534,7 +534,7 @@ fn plane_admits(
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            preferred.contains(table.biome_at_from(target, &mut last) as usize)
+            preferred.contains(usize::from(table.biome_at_from(target, &mut last)))
         })
         .collect()
 }
@@ -546,7 +546,7 @@ struct View<'a> {
 }
 
 impl SiteWorld for View<'_> {
-    fn biome_at(&mut self, block: IVec3) -> Option<u32> {
+    fn biome_at(&mut self, block: IVec3) -> Option<u16> {
         match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => {
                 let target = climate_target_at(
@@ -556,7 +556,7 @@ impl SiteWorld for View<'_> {
                     block.y >> 2,
                     block.z >> 2,
                 );
-                Some(u32::from(table.biome_at(target)))
+                Some(u16::from(table.biome_at(target)))
             }
             BiomeLookup::Fixed(biome) => Some(*biome),
             BiomeLookup::TheEnd(end) => Some(end.at(&self.index.router, &mut self.ws, block >> 2)),
@@ -576,7 +576,7 @@ impl SiteWorld for View<'_> {
         let max_quart_y = max_block_y >> 2;
         let table = match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => table,
-            BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
+            BiomeLookup::Fixed(biome) => return biomes.contains(usize::from(*biome)),
             BiomeLookup::TheEnd(end) => {
                 return (min_quart_y..=max_quart_y).any(|quart_y| {
                     let quart = IVec3::new(x >> 2, quart_y, z >> 2);
@@ -604,7 +604,7 @@ impl SiteWorld for View<'_> {
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            biomes.contains(table.biome_at(target) as usize)
+            biomes.contains(usize::from(table.biome_at(target)))
         })
     }
 
@@ -613,7 +613,7 @@ impl SiteWorld for View<'_> {
         let hi: IVec3 = (centre + IVec3::splat(radius)) >> 2;
         let table = match &self.index.biomes {
             BiomeLookup::MultiNoise(table) => table,
-            BiomeLookup::Fixed(biome) => return biomes.contains(*biome as usize),
+            BiomeLookup::Fixed(biome) => return biomes.contains(usize::from(*biome)),
             BiomeLookup::TheEnd(end) => {
                 return (lo.x..=hi.x).all(|x| {
                     (lo.y..=hi.y).all(|y| {
@@ -643,7 +643,7 @@ impl SiteWorld for View<'_> {
                 values[4 * cells + at],
                 values[5 * cells + at],
             );
-            biomes.contains(table.biome_at(target) as usize)
+            biomes.contains(usize::from(table.biome_at(target)))
         })
     }
 
@@ -706,7 +706,7 @@ impl SiteWorld for View<'_> {
         let climate = self
             .index
             .climate
-            .get(biome as usize)
+            .get(usize::from(biome))
             .expect("a structure asking the climate needs the climate table");
         temperature(climate, pos.into(), sea_level) < RAIN_TEMPERATURE
     }

@@ -60,7 +60,7 @@ pub fn place_structures<W: WorldGenVolume>(
     decoration_seed: i64,
 ) {
     for group in starts.chunk_by(|(_, a), (_, b)| a.structure == b.structure) {
-        let structure = &frozen.structures[group[0].1.structure.0 as usize];
+        let structure = &frozen.structures[usize::from(group[0].1.structure.0)];
         if structure.step as usize != step {
             continue;
         }
@@ -120,7 +120,7 @@ pub fn place_start<W: WorldGenVolume>(
     rng: &mut WorldgenRandom,
     liquid: LiquidSettings,
 ) {
-    let structure = &frozen.structures[start.structure.0 as usize];
+    let structure = &frozen.structures[usize::from(start.structure.0)];
     let first = start.pieces[0].bounds();
     let centre = first.center();
     let reference = IVec3::new(centre.x, first.min.y, centre.z);

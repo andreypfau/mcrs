@@ -130,7 +130,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         .get(biome_id)
         .expect("the biome index holds the corpus");
     let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    mask.insert(biome as usize);
+    mask.insert(usize::from(biome));
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
         live: live_sets(frozen, &mask),
@@ -139,7 +139,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         Arc::new(tables),
         seed as i64,
         Arc::clone(&ctx.router),
-        BiomeLookup::Fixed(u32::from(biome)),
+        BiomeLookup::Fixed(biome),
         ctx.predicates.clone(),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
         Arc::clone(corpus_climate()),

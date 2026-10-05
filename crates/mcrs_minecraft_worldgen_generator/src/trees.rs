@@ -12,6 +12,8 @@ use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::key::Block;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
@@ -248,7 +250,7 @@ pub(crate) fn face_support(blocks: &BlockDefinitions) -> FaceSupport {
     out
 }
 
-fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<u32, SurviveRule>> {
+fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Block>, SurviveRule>> {
     let blocks = resolver.blocks;
     let mut rules = HashMap::default();
     let faces = face_support(blocks);
@@ -259,10 +261,11 @@ fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<u32, SurviveRule>>
         mask.difference_with(&resolver.world.air_states);
         mask
     };
-    for (index, entry) in blocks.blocks().iter().enumerate() {
+    for entry in blocks.blocks() {
+        let block = blocks.block_index(entry.default_state_id);
         if let Some(filter) = &entry.placement_filter {
             let rule = placement_rule(resolver, filter).map_err(|e| e.within(&entry.identifier))?;
-            rules.insert(index as u32, rule);
+            rules.insert(block, rule);
             continue;
         }
         let Some(family) = family_of(entry.identifier.as_str()) else {
@@ -279,7 +282,7 @@ fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<u32, SurviveRule>>
             }
             Err(error) => return Err(error.within(&entry.identifier)),
         };
-        rules.insert(index as u32, rule);
+        rules.insert(block, rule);
     }
     Ok(rules)
 }

@@ -606,7 +606,7 @@ pub fn paint_swamp_hut<W: WorldGenVolume>(
     b: &SwampHutBlocks,
     c: &mut PieceCanvas<'_, W>,
     rng: &mut WorldgenRandom,
-    structure: u32,
+    structure: u16,
     variants: &VariantTables,
 ) {
     let planks = &b.spruce_planks;

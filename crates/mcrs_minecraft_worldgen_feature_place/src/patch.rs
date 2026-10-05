@@ -219,6 +219,7 @@ mod tests {
 
     use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_registry::{Id, TagId};
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
@@ -254,7 +255,7 @@ mod tests {
     fn flat_world() -> FakeVolume {
         let mut volume = FakeVolume::default();
         volume.world.sturdy_up = mask_of([STONE, MOSS, DRY, WET]);
-        volume.world.block_of_state = (0..64u32).collect();
+        volume.world.block_of_state = (0..64).map(Id::from_raw).collect();
         for x in -12..=12 {
             for z in -12..=12 {
                 for y in 0..=FLOOR_TOP {

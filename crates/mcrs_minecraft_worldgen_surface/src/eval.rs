@@ -51,7 +51,7 @@ pub struct MaterialScratch {
     breaks: Vec<i32>,
     /// Every biome the strip can hold over the y range
     /// `reachable_lo..=reachable_hi`, or wider.
-    reachable: Vec<u32>,
+    reachable: Vec<u16>,
 }
 
 /// Runs shorter than this are walked block by block rather than settled.
@@ -149,14 +149,14 @@ pub struct MaterialEval<'a, B, R> {
     pub(crate) depth_above: i32,
     pub(crate) depth_below: i32,
     pub(crate) water_level: i32,
-    biome: u32,
+    biome: u16,
     biome_stamp: u32,
 }
 
 impl<'a, B, R> MaterialEval<'a, B, R>
 where
-    B: FnMut(i32, i32, i32) -> u32,
-    R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+    B: FnMut(i32, i32, i32) -> u16,
+    R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
 {
     /// `top` is the highest non-air block of the column and `biomes` every biome
     /// the column stores: a set narrower than what `biome_at` can answer folds a
@@ -171,7 +171,7 @@ where
         block_x: i32,
         block_z: i32,
         top: i32,
-        biomes: &[u32],
+        biomes: &[u16],
     ) -> Self {
         let min_y = router.noise.min_y;
         let memoise = !scratch.bypass_shortcuts;
@@ -698,7 +698,7 @@ where
         self.surface_secondary
     }
 
-    pub(crate) fn biome(&mut self) -> u32 {
+    pub(crate) fn biome(&mut self) -> u16 {
         if self.memoise && self.biome_stamp == self.gen_y {
             return self.biome;
         }
@@ -986,8 +986,8 @@ impl<B, R> MaterialEval<'_, B, R> {
 
 impl<B, R> MaterialEval<'_, B, R>
 where
-    B: FnMut(i32, i32, i32) -> u32,
-    R: FnMut(i32, i32, i32, i32, &mut Vec<u32>) -> bool,
+    B: FnMut(i32, i32, i32) -> u16,
+    R: FnMut(i32, i32, i32, i32, &mut Vec<u16>) -> bool,
 {
     /// Answers one guard, memoised against the scope its condition was compiled
     /// with, so a condition shared by dozens of rules is computed once per strip

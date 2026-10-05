@@ -15,11 +15,11 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SetId(pub u32);
+pub struct SetId(pub u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StructureId(pub u32);
+pub struct StructureId(pub u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PoolId(pub u32);
+pub struct PoolId(pub u16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ElementId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

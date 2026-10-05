@@ -73,7 +73,7 @@ fn the_index_finds_the_nearest_village_and_stronghold() {
 fn the_nearest_village_cell_yields_a_start(index: &StructureIndex) {
     let villages = set("minecraft:villages");
     let frozen = frozen_shared();
-    let entries: Vec<_> = frozen.sets[villages.0 as usize]
+    let entries: Vec<_> = frozen.sets[usize::from(villages.0)]
         .entries
         .iter()
         .map(|(structure, _)| *structure)
@@ -130,7 +130,7 @@ fn locate_answers_the_nearest_stronghold_ring_position(index: &StructureIndex) {
         .unwrap();
     assert_eq!(
         found,
-        locate_pos(&frozen.sets[strongholds.0 as usize].placement, expected)
+        locate_pos(&frozen.sets[usize::from(strongholds.0)].placement, expected)
     );
     assert!(index.gate(strongholds, expected));
     assert_eq!(index.selected(strongholds, expected), Some(stronghold));
@@ -164,7 +164,7 @@ mod exhaustive {
             Arc::new(tables),
             SEED as i64,
             Arc::new(build_settings_router("overworld", SEED)),
-            BiomeLookup::Fixed(u32::from(plains)),
+            BiomeLookup::Fixed(plains),
             Some(heightmap_predicates(blocks(), block_tags())),
             Default::default(),
             Arc::clone(corpus_climate()),

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_registry::key::Block;
+use mcrs_minecraft_registry::{Id, TagId};
 
 use super::StateMask;
 
@@ -48,7 +50,7 @@ pub struct WorldStates {
     pub has_block_entity: StateMask,
     /// The block each state id belongs to; a state past the table is its own
     /// block.
-    pub block_of_state: Arc<[u32]>,
+    pub block_of_state: Arc<[Id<Block>]>,
     /// Per block index, its properties as the digits of its state ids.
     pub layouts: Arc<[BlockLayout]>,
 }
@@ -132,7 +134,7 @@ impl BlockLayout {
 
 impl WorldStates {
     pub fn layout_of(&self, state: VoxelId) -> Option<&BlockLayout> {
-        self.layouts.get(self.block_of(state) as usize)
+        self.layouts.get(self.block_of(state).index())
     }
 
     /// [`BlockLayout::with_properties_of`], leaving `target` alone when either
@@ -153,10 +155,10 @@ impl WorldStates {
         self.is_empty_or_water(state) || self.lava_states.contains(state.0 as usize)
     }
 
-    pub fn block_of(&self, state: VoxelId) -> u32 {
+    pub fn block_of(&self, state: VoxelId) -> Id<Block> {
         self.block_of_state
-            .get(state.0 as usize)
+            .get(usize::from(state.0))
             .copied()
-            .unwrap_or(state.0 as u32)
+            .unwrap_or_else(|| Id::from_raw(state.0))
     }
 }

@@ -17,9 +17,9 @@ use mcrs_minecraft_worldgen_surface::{
 
 /// The blocks and biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
-    pub eroded_badlands: u32,
-    pub frozen_ocean: u32,
-    pub deep_frozen_ocean: u32,
+    pub eroded_badlands: u16,
+    pub frozen_ocean: u16,
+    pub deep_frozen_ocean: u16,
     pub snow_block: VoxelId,
     pub packed_ice: VoxelId,
     pub dirt: VoxelId,
@@ -28,7 +28,7 @@ pub struct SurfaceIds {
 impl SurfaceIds {
     pub fn resolve(blocks: &BlockDefinitions, biomes: &RegistrySnapshot<Biome>) -> Self {
         let biome = |name: &str| {
-            biomes.by_location(name).map(u32::from).unwrap_or_else(|| {
+            biomes.by_location(name).unwrap_or_else(|| {
                 panic!(
                     "the surface stage names the biome `{name}`, which the registry does not hold"
                 )
@@ -102,7 +102,7 @@ pub fn apply_material_surface(
         router,
         program,
         scratch,
-        |x, y, z| u32::from(stored_biome(biomes, first_section_y, x, y, z)),
+        |x, y, z| u16::from(stored_biome(biomes, first_section_y, x, y, z)),
         |_, _, lo, hi, out| {
             stored_biomes_between(biomes, first_section_y, lo, hi, out);
             true
@@ -119,7 +119,7 @@ pub fn apply_material_surface(
         for z in 0..16 {
             let (bx, bz) = (block_x + x, block_z + z);
             let starting_height = height_of(tops, x, z, min_y) + 1;
-            let surface_biome = u32::from(stored_biome(
+            let surface_biome = u16::from(stored_biome(
                 biomes,
                 first_section_y,
                 bx,

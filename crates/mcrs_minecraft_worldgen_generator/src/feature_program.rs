@@ -24,9 +24,9 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_registry::key::Block as VanillaBlock;
 use mcrs_minecraft_registry::key::Fluid;
+use mcrs_minecraft_registry::{BlockStateId, Id};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -545,7 +545,7 @@ impl FeatureProgram {
     }
 
     pub fn structure(&self, id: StructureId) -> Option<&CompiledStructure> {
-        self.structures[id.0 as usize].as_ref()
+        self.structures[usize::from(id.0)].as_ref()
     }
 
     pub fn chain(&self, step: usize, index: usize) -> &[Modifier] {
@@ -558,7 +558,7 @@ impl FeatureProgram {
         &self.rungs
     }
 
-    pub fn slot_of(&self, palette_biome: u32) -> Option<usize> {
+    pub fn slot_of(&self, palette_biome: u16) -> Option<usize> {
         let byte = u8::try_from(palette_biome).ok()?;
         self.biome_slot[usize::from(byte)].map(usize::from)
     }
@@ -568,7 +568,7 @@ impl FeatureProgram {
     ///
     /// The biome names it at any step, not at this one: a placed feature a biome
     /// lists at step 5 passes the filter for the same object reached at step 3.
-    pub fn carries(&self, palette_biome: u32, step: usize, index: usize) -> bool {
+    pub fn carries(&self, palette_biome: u16, step: usize, index: usize) -> bool {
         self.slot_of(palette_biome).is_some_and(|slot| {
             self.token
                 .get(step)
@@ -613,13 +613,13 @@ impl FeatureProgram {
     /// families overrides nothing, and `BlockBehaviour.canSurvive` is true.
     pub fn would_survive(
         &self,
-        block_index: u32,
+        block: Id<VanillaBlock>,
         p: BlockPos,
         get: impl Fn(BlockPos) -> VoxelId,
     ) -> bool {
         self.trees
             .survive
-            .get(&block_index)
+            .get(&block)
             .is_none_or(|rule| rule.test(p, get))
     }
 }
@@ -652,7 +652,7 @@ impl Run<'_> {
 /// its moss patch is the program's own `pale_moss_patch` on the tree's source.
 struct TreeRun<'r, 'a, 'c> {
     run: &'r mut Run<'a>,
-    carries: &'c dyn Fn(u32) -> bool,
+    carries: &'c dyn Fn(u16) -> bool,
 }
 
 impl<W: WorldGenVolume> TreeSink<W> for TreeRun<'_, '_, '_> {
@@ -688,7 +688,7 @@ impl Nested {
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u32) -> bool,
+        carries: &dyn Fn(u16) -> bool,
     ) -> bool {
         let generator = self.generator.as_ref();
         let mut scratch = run.scratch.placers.pop().unwrap_or_default();
@@ -750,7 +750,7 @@ impl Generator {
         region: &mut W,
         rng: &mut WorldgenRandom,
         at: BlockPos,
-        carries: &dyn Fn(u32) -> bool,
+        carries: &dyn Fn(u16) -> bool,
     ) -> bool {
         match self {
             Generator::Ore(ore) => place_modern_ore(ore, region, rng, at, &mut run.scratch.ore),
@@ -1291,13 +1291,10 @@ fn compile_generator(
             // anything else survives, which is the default `canSurvive`.
             let hanging_survive = match &hanging {
                 StateProvider::Simple(state) => {
-                    let index = u32::from(
-                        resolver
-                            .blocks
-                            .block_index(mcrs_minecraft_registry::BlockStateId(state.0))
-                            .number(),
-                    );
-                    trees.survive.get(&index).cloned()
+                    let block = resolver
+                        .blocks
+                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0));
+                    trees.survive.get(&block).cloned()
                 }
                 _ => None,
             };
@@ -2715,8 +2712,9 @@ impl<'a> Resolver<'a> {
                 &block("minecraft:damaged_anvil"),
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
-            block_of_state: (0..self.blocks.state_count())
-                .map(|id| u32::from(self.blocks.block_index(BlockStateId(id as u16)).number()))
+            block_of_state: (0..=u16::MAX)
+                .take(self.blocks.state_count())
+                .map(|id| self.blocks.block_index(BlockStateId(id)))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
         }
@@ -2797,7 +2795,7 @@ impl<'a> Resolver<'a> {
     /// `would_survive` naming it unanswerable.
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
         let block = self.blocks.block_index(BlockStateId(state.0));
-        if trees.survive.contains_key(&u32::from(block.number())) {
+        if trees.survive.contains_key(&block) {
             return None;
         }
         Some(self.blocks[block].identifier.as_str().to_owned())
@@ -2890,10 +2888,10 @@ impl BlockResolver for Resolver<'_> {
         let mut mask = FixedBitSet::with_capacity(self.biomes.len() as usize);
         match set {
             HolderSet::Tag(_) => return None,
-            HolderSet::One(id) => mask.insert(self.biomes.by_location(id.as_str())? as usize),
+            HolderSet::One(id) => mask.insert(usize::from(self.biomes.by_location(id.as_str())?)),
             HolderSet::List(ids) => {
                 for id in ids {
-                    mask.insert(self.biomes.by_location(id.as_str())? as usize);
+                    mask.insert(usize::from(self.biomes.by_location(id.as_str())?));
                 }
             }
         }

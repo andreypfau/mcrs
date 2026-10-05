@@ -69,9 +69,9 @@ pub(crate) fn build_dimension_routers(
 ) {
     // The material rules take their biome ids from this snapshot, because it is
     // what `MultiNoiseBiomeTable` fills the column's biome grid with.
-    let biome_ids: BTreeMap<ResourceLocation, u32> = biome_registry
+    let biome_ids: BTreeMap<ResourceLocation, u16> = biome_registry
         .iter()
-        .map(|(network_id, entry)| (entry.location.clone(), u32::from(network_id)))
+        .map(|(network_id, entry)| (entry.location.clone(), network_id))
         .collect();
     let block = |state: &_| try_resolve_state(&blocks, state).map(Into::into);
     let biome = |id: &ResourceLocation| biome_ids.get(id).copied();

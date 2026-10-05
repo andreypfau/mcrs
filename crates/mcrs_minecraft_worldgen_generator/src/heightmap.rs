@@ -68,8 +68,7 @@ impl HeightmapPredicates {
 
 pub fn heightmap_predicates(blocks: &Blocks, tags: &DynTagRegistry<Block>) -> HeightmapPredicates {
     let mut table = Vec::with_capacity(blocks.state_count());
-    for index in 0..blocks.state_count() {
-        let id = BlockStateId(index as u16);
+    for id in (0..=u16::MAX).take(blocks.state_count()).map(BlockStateId) {
         let state = blocks.state(id);
         let block = blocks.block_index(id).number();
         let mut kinds = HeightmapKinds::empty();

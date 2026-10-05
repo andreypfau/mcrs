@@ -545,7 +545,7 @@ impl Start {
     pub fn new(frozen: &FrozenStructures, structure: StructureId, pieces: Vec<Piece>) -> Self {
         let union = union_of(&pieces);
         let bounds =
-            if frozen.structures[structure.0 as usize].adaptation == TerrainAdaptation::None {
+            if frozen.structures[usize::from(structure.0)].adaptation == TerrainAdaptation::None {
                 union
             } else {
                 union.inflated(TERRAIN_MARGIN)
@@ -568,7 +568,7 @@ pub struct PieceContext<'a> {
 
 impl PieceContext<'_> {
     fn liquid_settings(&self) -> LiquidSettings {
-        match &self.frozen.structures[self.structure.0 as usize].kind {
+        match &self.frozen.structures[usize::from(self.structure.0)].kind {
             StructureKind::Jigsaw { config, .. } => config.liquid_settings,
             _ => LiquidSettings::default(),
         }
@@ -577,7 +577,7 @@ impl PieceContext<'_> {
     /// `MST`: the structure's `mineshaft_type` ordinal, which every piece
     /// writes and none holds.
     fn mineshaft_type(&self) -> i32 {
-        match &self.frozen.structures[self.structure.0 as usize].kind {
+        match &self.frozen.structures[usize::from(self.structure.0)].kind {
             StructureKind::Mineshaft {
                 mineshaft_type: MineshaftType::Mesa,
                 ..
