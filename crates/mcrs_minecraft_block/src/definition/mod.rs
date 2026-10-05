@@ -353,36 +353,6 @@ impl mcrs_minecraft_registry::shared::SharedResource for Blocks {
     }
 }
 
-/// Block tags are resolved against the corpus, so every block the game has can
-/// be in a tag — not only the ones a static registry happens to name.
-impl mcrs_minecraft_registry::TagSource for Blocks {
-    type Id = u16;
-
-    fn id_of(&self, loc: &str) -> Option<u16> {
-        BlockDefinitions::id_of(self, loc).map(Id::number)
-    }
-
-    fn capacity(&self) -> u32 {
-        self.blocks.len() as u32
-    }
-}
-
-/// The corpus's interned fluids, which is what `#fluid` tags resolve against.
-#[derive(Debug, Clone, Resource)]
-pub struct Fluids(pub Arc<BlockDefinitions>);
-
-impl mcrs_minecraft_registry::TagSource for Fluids {
-    type Id = u16;
-
-    fn id_of(&self, loc: &str) -> Option<u16> {
-        self.0.fluid_id(loc).map(|id| id.0)
-    }
-
-    fn capacity(&self) -> u32 {
-        self.0.fluid_count() as u32
-    }
-}
-
 impl std::ops::Deref for Blocks {
     type Target = BlockDefinitions;
 

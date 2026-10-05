@@ -1,22 +1,17 @@
-use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::light::block_light_registry;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_world::item::test_corpus;
-use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
+use mcrs_minecraft_world::registries::test_registries;
 
 use crate::fixture::FixtureState;
 
@@ -33,7 +28,10 @@ impl Corpus {
         static CORPUS: OnceLock<Corpus> = OnceLock::new();
         CORPUS.get_or_init(|| {
             let blocks = &test_corpus().0;
-            let colours = LightColors::load(&asset_server(), blocks, &block_tags(blocks))
+            let tags = test_registries()
+                .tags::<Block>()
+                .expect("the load builds the block tags");
+            let colours = LightColors::load(&asset_server(), blocks, &tags)
                 .unwrap_or_else(|e| panic!("the light colour table does not load: {e}"));
             Corpus {
                 blocks,
@@ -128,47 +126,4 @@ fn asset_server() -> AssetServer {
         },
     ));
     app.world().resource::<AssetServer>().clone()
-}
-
-fn block_tags(blocks: &Blocks) -> DynTagRegistry<Block> {
-    let mut loader = TagLoader::<Block, u32>::default();
-    for namespace in std::fs::read_dir(assets_dir()).expect("the assets directory exists") {
-        let namespace = namespace.expect("the assets directory lists").path();
-        let dir = namespace.join("tags").join(Block::KEY.path());
-        if !dir.is_dir() {
-            continue;
-        }
-        let namespace = namespace
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
-        for path in json_files(&dir) {
-            let name = path.strip_prefix(&dir).unwrap().with_extension("");
-            let name = format!("{namespace}:{}", name.to_string_lossy().replace('\\', "/"));
-            let mut members = HashSet::new();
-            collect(blocks, &name, &mut members);
-            loader.insert(ResourceLocation::read(&name).unwrap(), members);
-        }
-    }
-    loader.freeze(blocks)
-}
-
-fn collect(blocks: &Blocks, name: &str, into: &mut HashSet<u32>) {
-    let location = ResourceLocation::read(name).unwrap();
-    let path = assets_dir()
-        .join(location.namespace())
-        .join("tags")
-        .join(Block::KEY.path())
-        .join(format!("{}.json", location.path()));
-    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let file: SerializedTagFile =
-        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    for entry in file.values {
-        if entry.id.is_tag {
-            collect(blocks, entry.id.loc.as_str(), into);
-        } else if let Some(id) = blocks.id_of(entry.id.loc.as_str()) {
-            into.insert(id.number());
-        }
-    }
 }

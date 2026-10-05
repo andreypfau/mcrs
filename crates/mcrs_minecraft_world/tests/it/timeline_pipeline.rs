@@ -1,27 +1,29 @@
 use bevy_app::App;
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
-use mcrs_minecraft_assets::tag::DynTagRegistry;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_dimension::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet};
+use mcrs_minecraft_registry::RegistrySet;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let tags = app.world().resource::<DynTagRegistry<keys::Timeline>>();
-    let index = app.world().resource::<DynRegistryIndex<keys::Timeline>>();
+    let set = app.world().resource::<RegistrySet>();
+    let timelines = set
+        .registry::<keys::Timeline>()
+        .expect("the timeline registry is loaded");
+    let tags = set
+        .tags::<keys::Timeline>()
+        .expect("the load builds the timeline tags");
     let key = TagKey::<keys::Timeline, _>::from_location(ResourceLocation::parse(tag).unwrap());
     let mut names: Vec<String> = tags
-        .get(&key)
-        .expect("the tag is resolved")
-        .iter()
+        .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {
-            index
-                .location(id)
+            timelines
+                .key(id)
                 .expect("a member id maps back")
                 .as_str()
                 .to_owned()

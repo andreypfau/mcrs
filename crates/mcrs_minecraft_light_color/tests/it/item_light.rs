@@ -1,15 +1,17 @@
 use std::sync::OnceLock;
 
-use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
-use mcrs_minecraft_light_color::item::{ItemLight, ItemLightError, ItemLightFile, ItemLights};
+use mcrs_minecraft_light_color::item::{
+    ItemLight, ItemLightError, ItemLightFile, ItemLights, WATER_SENSITIVE,
+};
+use mcrs_minecraft_registry::tags::{TagRules, build_tags};
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
-use crate::corpus::{asset_server, block_tags, blocks, fluid_tags, item_tags, items};
+use crate::corpus::{asset_server, block_tags, blocks, items, registries};
 
 fn colours() -> &'static LightColors {
     static COLOURS: OnceLock<LightColors> = OnceLock::new();
@@ -21,7 +23,7 @@ fn colours() -> &'static LightColors {
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), item_tags(), fluid_tags())
+        ItemLights::load(asset_server(), blocks(), items(), registries())
             .unwrap_or_else(|e| panic!("{e}"))
     })
 }
@@ -109,9 +111,15 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
 }
 
 fn water_sensitive() -> Vec<ItemId> {
-    let tag = TagKey::<Item, _>::new(mcrs_minecraft_core::rl!("mcrs:water_sensitive_light"));
-    let members = item_tags().get(&tag).expect("the water-sensitive item tag");
-    members.iter().map(|i| ItemId(i as u16)).collect()
+    let tags = registries()
+        .tags::<Item>()
+        .expect("the load builds the item tags");
+    let tag = tags
+        .get(&WATER_SENSITIVE)
+        .expect("the water-sensitive item tag");
+    tags.members(tag)
+        .map(|item| ItemId(item.number()))
+        .collect()
 }
 
 fn light_of(item: ItemId, origin: BlockStateId) -> Option<ItemLight> {
@@ -204,7 +212,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items(), item_tags(), fluid_tags())
+    ItemLights::from_files(files, blocks(), items(), registries())
 }
 
 fn an_item_in_two_files_fails() {
@@ -256,14 +264,13 @@ fn the_shipped_item_map_round_trips_unchanged() {
 }
 
 fn a_missing_water_tag_fails() {
-    let error = ItemLights::from_files(
-        shipped_files(),
-        blocks(),
-        items(),
-        &Default::default(),
-        fluid_tags(),
-    )
-    .unwrap_err();
+    let item_names = registries()
+        .table("minecraft:item")
+        .expect("the item registry is loaded");
+    let (no_tags, problems) = build_tags(item_names, TagRules::World, &[], None);
+    assert!(problems.is_empty(), "{problems:?}");
+    let without = registries().clone().with_tags(std::sync::Arc::new(no_tags));
+    let error = ItemLights::from_files(shipped_files(), blocks(), items(), &without).unwrap_err();
     assert!(
         matches!(&error, ItemLightError::MissingTag { tag } if tag == "mcrs:water_sensitive_light"),
         "{error}"

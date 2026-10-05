@@ -8,7 +8,6 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::Item;
 #[cfg(feature = "bevy")]
-use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::{BlockStateId, Id, ItemId, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
@@ -140,19 +139,6 @@ impl std::ops::Deref for Items {
 
     fn deref(&self) -> &ItemDefinitions {
         &self.0
-    }
-}
-
-#[cfg(feature = "bevy")]
-impl TagSource for Items {
-    type Id = u16;
-
-    fn id_of(&self, loc: &str) -> Option<u16> {
-        ItemDefinitions::id_of(self, loc).map(u16::from)
-    }
-
-    fn capacity(&self) -> u32 {
-        self.len() as u32
     }
 }
 

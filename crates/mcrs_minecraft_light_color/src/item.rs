@@ -7,15 +7,14 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_assets::tag::DynTagRegistry;
-use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, FluidId};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
-use mcrs_minecraft_keys::Fluid;
-use mcrs_minecraft_keys::Item;
-use mcrs_minecraft_registry::{BlockStateId, ItemId};
+use mcrs_minecraft_keys::fluid_tags::WATER;
+use mcrs_minecraft_keys::{Fluid, Item};
+use mcrs_minecraft_registry::{BlockStateId, ItemId, RegistrySet, TagId, Tags};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -23,7 +22,6 @@ use crate::colors::{LightColors, LightType};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_light";
 pub const WATER_SENSITIVE: TagKey<Item> = TagKey::new(rl!("mcrs:water_sensitive_light"));
-pub const WATER: TagKey<Fluid> = TagKey::new(rl!("minecraft:water"));
 
 /// A bare block id stands for the block's default state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -122,22 +120,20 @@ impl ItemLights {
         asset_server: &AssetServer,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
-        item_tags: &DynTagRegistry<Item>,
-        fluid_tags: &DynTagRegistry<Fluid>,
+        registries: &RegistrySet,
     ) -> Result<Self, ItemLightError> {
         let source = asset_server
             .get_source(AssetSourceId::Default)
             .map_err(|_| ItemLightError::NoAssetSource)?;
         let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-        Self::from_files(files, blocks, items, item_tags, fluid_tags)
+        Self::from_files(files, blocks, items, registries)
     }
 
     pub fn from_files(
         files: impl IntoIterator<Item = (String, Vec<u8>)>,
         blocks: &BlockDefinitions,
         items: &ItemDefinitions,
-        item_tags: &DynTagRegistry<Item>,
-        fluid_tags: &DynTagRegistry<Fluid>,
+        registries: &RegistrySet,
     ) -> Result<Self, ItemLightError> {
         let mut mapped: Vec<Option<BlockStateId>> = vec![None; items.len()];
         let mut mapped_in: Vec<Option<String>> = vec![None; items.len()];
@@ -182,10 +178,33 @@ impl ItemLights {
         if !missing.is_empty() {
             return Err(ItemLightError::Missing { items: missing });
         }
+        let item_tags = registries
+            .tags::<Item>()
+            .expect("the loaded registries hold the item tags");
+        let fluid_tags = registries
+            .tags::<Fluid>()
+            .expect("the loaded registries hold the fluid tags");
+        let fluids = registries
+            .registry::<Fluid>()
+            .expect("the loaded registries hold the fluid registry");
+        let water_sensitive = tag_of(&item_tags, &WATER_SENSITIVE)?;
+        let water = tag_of(&fluid_tags, &WATER)?;
         Ok(ItemLights {
             mapped: mapped.into(),
-            water_sensitive: members(item_tags, &WATER_SENSITIVE, items.len())?,
-            water: members(fluid_tags, &WATER, blocks.fluid_count())?,
+            water_sensitive: (0..items.len())
+                .map(|number| {
+                    items
+                        .item_index(ItemId(number as u16))
+                        .is_some_and(|item| item_tags.contains(water_sensitive, item))
+                })
+                .collect(),
+            water: (0..blocks.fluid_count())
+                .map(|number| {
+                    fluids
+                        .get(blocks.fluid(FluidId(number as u16)).as_str())
+                        .is_some_and(|fluid| fluid_tags.contains(water, fluid))
+                })
+                .collect(),
         })
     }
 
@@ -233,18 +252,10 @@ impl ItemLights {
     }
 }
 
-fn members<T: RegistryKey>(
-    tags: &DynTagRegistry<T>,
-    tag: &TagKey<T>,
-    len: usize,
-) -> Result<Arc<[bool]>, ItemLightError> {
-    let set = tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
+fn tag_of<T: RegistryKey>(tags: &Tags<T>, tag: &TagKey<T>) -> Result<TagId<T>, ItemLightError> {
+    tags.get(tag).ok_or_else(|| ItemLightError::MissingTag {
         tag: tag.as_str().to_owned(),
-    })?;
-    Ok((0..=u16::MAX)
-        .take(len)
-        .map(|id| set.contains(id))
-        .collect())
+    })
 }
 
 fn resolve(

@@ -3,8 +3,8 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::str::FromStr;
+use mcrs_minecraft_registry::tags::TagFile as TagFileJson;
+use serde::{Deserialize, Serialize};
 
 /// A single entry in a Minecraft tag file.
 #[derive(Debug)]
@@ -38,100 +38,6 @@ impl VisitAssetDependencies for TagFile {
                 TagEntry::Tag(h) | TagEntry::OptionalTag(h) => visit(h.id().into()),
                 _ => {}
             }
-        }
-    }
-}
-
-// ─── Serialized JSON forms ────────────────────────────────────────────────────
-
-/// A tag file as its JSON reads, before its references resolve to handles.
-#[derive(Debug, Deserialize)]
-pub struct SerializedTagFile {
-    pub values: Vec<SerializedTagEntry>,
-    #[serde(default)]
-    pub replace: bool,
-}
-
-/// An entry in the JSON tag file.  Two forms are supported:
-///
-/// Short:  `"minecraft:stone"` or `"#minecraft:base_stone_overworld"`
-/// Full:   `{"id": "minecraft:stone", "required": false}`
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SerializedTagEntry {
-    pub id: TagOrElementLocation,
-    pub required: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TagOrElementLocation {
-    pub loc: ResourceLocation,
-    pub is_tag: bool,
-}
-
-impl FromStr for TagOrElementLocation {
-    type Err = mcrs_minecraft_core::resource_location::ResourceLocationError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some(rest) = s.strip_prefix('#') {
-            Ok(TagOrElementLocation {
-                loc: ResourceLocation::from_str(rest)?,
-                is_tag: true,
-            })
-        } else {
-            Ok(TagOrElementLocation {
-                loc: ResourceLocation::from_str(s)?,
-                is_tag: false,
-            })
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for TagOrElementLocation {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let s = String::deserialize(d)?;
-        TagOrElementLocation::from_str(&s).map_err(serde::de::Error::custom)
-    }
-}
-
-impl Serialize for TagOrElementLocation {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        if self.is_tag {
-            s.serialize_str(&format!("#{}", self.loc.as_str()))
-        } else {
-            s.serialize_str(self.loc.as_str())
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum TagEntryRepr {
-    Short(TagOrElementLocation),
-    Full(TagEntryFull),
-}
-
-#[derive(Debug, Deserialize)]
-struct TagEntryFull {
-    id: TagOrElementLocation,
-    #[serde(default = "default_true")]
-    required: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-impl<'de> Deserialize<'de> for SerializedTagEntry {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        match TagEntryRepr::deserialize(d)? {
-            TagEntryRepr::Short(loc) => Ok(SerializedTagEntry {
-                id: loc,
-                required: true,
-            }),
-            TagEntryRepr::Full(f) => Ok(SerializedTagEntry {
-                id: f.id,
-                required: f.required,
-            }),
         }
     }
 }
@@ -172,15 +78,15 @@ impl AssetLoader for TagFileLoader {
         load_context: &mut LoadContext<'_>,
     ) -> Result<TagFile, TagFileLoaderError> {
         let bytes = read_all(reader).await?;
-        let raw: SerializedTagFile = serde_json::from_slice(&bytes)?;
+        let raw: TagFileJson = serde_json::from_slice(&bytes)?;
 
         let seg = &settings.registry_segment;
         let values = raw
             .values
             .into_iter()
             .map(|entry| {
-                if entry.id.is_tag {
-                    let loc = &entry.id.loc;
+                if entry.tag {
+                    let loc = &entry.id;
                     let path = format!("{}/tags/{}/{}.json", loc.namespace(), seg, loc.path());
                     let s = settings.clone();
                     let handle = load_context
@@ -193,9 +99,9 @@ impl AssetLoader for TagFileLoader {
                         TagEntry::OptionalTag(handle)
                     }
                 } else if entry.required {
-                    TagEntry::Element(entry.id.loc)
+                    TagEntry::Element(entry.id)
                 } else {
-                    TagEntry::OptionalElement(entry.id.loc)
+                    TagEntry::OptionalElement(entry.id)
                 }
             })
             .collect();

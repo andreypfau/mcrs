@@ -16,7 +16,6 @@ thiserror.workspace = true
 tracing.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 bevy_app = { workspace = true, optional = true }
-bevy_state = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 mcrs_minecraft_block = { workspace = true, optional = true }
 mcrs_minecraft_assets = { workspace = true, optional = true }
@@ -30,7 +29,6 @@ default = ["bevy"]
 bevy = [
     "dep:bevy_ecs",
     "dep:bevy_app",
-    "dep:bevy_state",
     "dep:bevy_asset",
     "dep:mcrs_minecraft_block",
     "dep:mcrs_minecraft_assets",
@@ -49,5 +47,4 @@ mcrs_minecraft_world.workspace = true
 mcrs_minecraft_worldgen_testing.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
-bevy_state.workspace = true
 

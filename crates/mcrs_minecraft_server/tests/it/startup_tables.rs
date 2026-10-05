@@ -2,12 +2,14 @@ use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::light::BlockLightRegistry;
+use mcrs_minecraft_dimension::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
+use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 
 #[test]
-fn the_light_table_and_clocks_exist_after_the_first_update() {
+fn the_startup_tables_and_clocks_exist_after_the_first_update() {
     let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
     let mut app = App::new();
     app.add_plugins(MinecraftServerPlugin {
@@ -28,6 +30,15 @@ fn the_light_table_and_clocks_exist_after_the_first_update() {
     assert!(
         app.world().get_resource::<BlockLightRegistry>().is_some(),
         "no block light table after the first update"
+    );
+    assert!(
+        app.world().get_resource::<HeightmapPredicates>().is_some(),
+        "no heightmap predicates after the first update"
+    );
+    let environments = app.world().resource::<DimensionEnvironments>();
+    assert!(
+        !environments.is_empty(),
+        "no dimension environments after the first update"
     );
     let clocks = app.world().resource::<WorldClocks>();
     let registered = app
