@@ -155,6 +155,15 @@ impl RegistrySet {
             }
         }
 
+        let already = CURRENT.with_borrow(|current| {
+            current.as_ref().is_some_and(|current| {
+                Arc::ptr_eq(&current.tables, &self.tables)
+                    && Arc::ptr_eq(&current.values, &self.values)
+            })
+        });
+        if already {
+            return run();
+        }
         let previous = CURRENT.with_borrow_mut(|current| current.replace(self.clone()));
         let _restore = Restore(previous);
         run()

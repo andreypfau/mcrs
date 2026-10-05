@@ -6,10 +6,10 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::predicate::{BlockPredicate, LootCondition, dispatched_map};
-use super::value::{HolderSet, LevelBasedValue};
+use super::value::LevelBasedValue;
 use mcrs_minecraft_core::value_provider::FloatProvider;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::{HolderSet, Id};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -307,7 +307,7 @@ pub enum EnchantmentEntityEffect {
     },
     #[serde(rename = "minecraft:apply_mob_effect")]
     ApplyMobEffect {
-        to_apply: HolderSet,
+        to_apply: HolderSet<keys::MobEffect>,
         min_duration: LevelBasedValue,
         max_duration: LevelBasedValue,
         min_amplifier: LevelBasedValue,
@@ -330,7 +330,7 @@ pub enum EnchantmentEntityEffect {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         knockback_multiplier: Option<LevelBasedValue>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        immune_blocks: Option<HolderSet>,
+        immune_blocks: Option<HolderSet<keys::Block>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         offset: Option<[f64; 3]>,
         radius: LevelBasedValue,
@@ -353,7 +353,7 @@ pub enum EnchantmentEntityEffect {
     ApplyExhaustion { amount: LevelBasedValue },
     #[serde(rename = "minecraft:play_sound")]
     PlaySound {
-        sound: HolderSet,
+        sound: HolderSet<keys::SoundEvent>,
         volume: FloatProvider,
         pitch: FloatProvider,
     },
@@ -380,7 +380,7 @@ pub enum EnchantmentEntityEffect {
     },
     #[serde(rename = "minecraft:summon_entity")]
     SummonEntity {
-        entity: HolderSet,
+        entity: HolderSet<keys::EntityType>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         join_team: Option<bool>,
     },

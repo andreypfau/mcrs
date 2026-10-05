@@ -1,11 +1,14 @@
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
+use mcrs_minecraft_registry::HolderSet;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance};
+use crate::component::common::{
+    Folded, Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance, list_set, one_set,
+};
 use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
 
@@ -100,9 +103,7 @@ pub enum ConsumeEffect {
         probability: f32,
     },
     #[serde(rename = "minecraft:remove_effects", alias = "remove_effects")]
-    RemoveEffects {
-        effects: HolderSet<ResourceKey<MobEffect>>,
-    },
+    RemoveEffects { effects: HolderSet<MobEffect> },
     #[serde(rename = "minecraft:clear_all_effects", alias = "clear_all_effects")]
     ClearAllEffects,
     #[serde(rename = "minecraft:teleport_randomly", alias = "teleport_randomly")]
@@ -141,7 +142,7 @@ impl Serialize for ConsumeEffect {
                     map.serialize_entry("probability", probability)?;
                 }
             }
-            Self::RemoveEffects { effects } => map.serialize_entry("effects", effects)?,
+            Self::RemoveEffects { effects } => map.serialize_entry("effects", &Folded(effects))?,
             Self::ClearAllEffects => {}
             Self::TeleportRandomly {
                 diameter,
@@ -252,15 +253,10 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
             probability: 0.5,
         },
         ConsumeEffect::RemoveEffects {
-            effects: HolderSet::List(vec![
-                ResourceKey::from_location(ResourceLocation::minecraft("speed")),
-                ResourceKey::from_location(ResourceLocation::minecraft("slowness")),
-            ]),
+            effects: list_set(&["speed", "slowness"]),
         },
         ConsumeEffect::RemoveEffects {
-            effects: HolderSet::One(ResourceKey::from_location(ResourceLocation::minecraft(
-                "haste",
-            ))),
+            effects: one_set("haste"),
         },
         ConsumeEffect::ClearAllEffects,
         ConsumeEffect::TeleportRandomly {

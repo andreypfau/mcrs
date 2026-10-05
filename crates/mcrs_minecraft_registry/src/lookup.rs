@@ -21,6 +21,10 @@ pub trait RegistryLookup: Sync {
         let _ = id;
         None
     }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        None
+    }
 }
 
 pub struct ChainLookup<'a>(pub &'a [&'a dyn RegistryLookup]);
@@ -43,6 +47,10 @@ impl RegistryLookup for ChainLookup<'_> {
     fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         self.0.iter().find_map(|l| l.block_state(id))
     }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        self.0.iter().find_map(|l| l.registries())
+    }
 }
 
 // chisle: string lookups by bare path stay while the item wire codecs take names, not typed ids; they go when the codecs take typed ids.
@@ -53,6 +61,10 @@ impl RegistryLookup for RegistrySet {
 
     fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
         self.table_at_path(registry)?.name(usize::from(id))
+    }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        Some(self)
     }
 }
 

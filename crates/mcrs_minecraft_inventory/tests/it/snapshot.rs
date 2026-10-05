@@ -1,15 +1,18 @@
 use crate::common::{holder, items, place, value, world};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     Click, MenuSnapshot, Planner, Slot, StackView, container_menu_layout, menu_slots,
     player_menu_layout,
 };
 use mcrs_minecraft_item::slots;
+use mcrs_minecraft_keys::EntityType;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
+use mcrs_minecraft_world::registries::test_registries;
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
     let mut chestplate = value("iron_chestplate", 1, ComponentPatch::EMPTY);
@@ -54,14 +57,19 @@ fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
 
 fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     let mut world = world();
+    let registries = test_registries();
+    world.insert_resource(registries.clone());
+    let zombie = registries
+        .registry::<EntityType>()
+        .unwrap()
+        .require("minecraft:zombie")
+        .unwrap();
     let player = holder(&mut world, slots::COUNT);
     let zombie_only = crate::common::spawn(&mut world, "iron_helmet", 1);
     world
         .get_mut::<Equippable>(zombie_only)
         .unwrap()
-        .allowed_entities = Some(HolderSet::List(vec![ResourceKey::from_location(
-        ResourceLocation::minecraft("zombie"),
-    )]));
+        .allowed_entities = Some(HolderSet::List(Box::new([zombie])));
     let plain = crate::common::spawn(&mut world, "iron_helmet", 1);
     place(&mut world, zombie_only, player, slots::MAIN.start).unwrap();
     let mut snapshot = MenuSnapshot::new(&world, items(), player, player_menu_layout(player));

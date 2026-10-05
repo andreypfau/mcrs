@@ -1,16 +1,15 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value, tags,
 };
-use mcrs_minecraft_keys::{Enchantment, Item};
+use mcrs_minecraft_keys::{Enchantment, EntityType, Item};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
-use mcrs_minecraft_registry::{Entries, ItemId, Registry};
+use mcrs_minecraft_registry::{Entries, ItemId, Registry, RegistrySet};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -77,7 +76,7 @@ impl StackView {
             fits_inside_container_items: !world
                 .get_resource::<DynTagRegistry<Item>>()
                 .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, item.item.0)),
-            wearable: equippable.is_none_or(admits_player),
+            wearable: equippable.is_none_or(|equippable| admits_player(world, equippable)),
         })
     }
 
@@ -108,17 +107,22 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
     })
 }
 
-fn admits_player(equippable: &Equippable) -> bool {
-    match &equippable.allowed_entities {
-        None => true,
-        // chisle: an entity type tag admits nobody because no tag set is resolved here;
-        // the resolved tag set for entity types lifts this.
-        Some(HolderSet::Tag(_)) => false,
-        Some(set) => set
-            .entries()
-            .iter()
-            .any(|entity| entity.as_str() == "minecraft:player"),
-    }
+fn admits_player(world: &World, equippable: &Equippable) -> bool {
+    let Some(allowed) = &equippable.allowed_entities else {
+        return true;
+    };
+    let Some(registries) = world.get_resource::<RegistrySet>() else {
+        return false;
+    };
+    let (Some(entities), Some(tags)) = (
+        registries.registry::<EntityType>(),
+        registries.tags::<EntityType>(),
+    ) else {
+        return false;
+    };
+    entities
+        .get("minecraft:player")
+        .is_some_and(|player| allowed.contains(player, &tags))
 }
 
 /// A stack the planners move that sits in no slot: a dropped item.

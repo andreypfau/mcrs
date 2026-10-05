@@ -6,21 +6,25 @@ use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::definition::{CORPUS_DIRECTORY, FORMAT_VERSION};
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
 use mcrs_minecraft_keys::Item;
-use mcrs_minecraft_registry::{ItemId, Registry};
+use mcrs_minecraft_registry::{ItemId, RegistrySet};
 
 pub fn from_files(
     files: impl IntoIterator<Item = (String, Vec<u8>)>,
-    items: &Registry<Item>,
+    registries: &RegistrySet,
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
+    let items = registries
+        .registry::<Item>()
+        .ok_or(ItemCorpusError::NoItemRegistry)?;
     let mut entries = Vec::new();
     let mut paths = Vec::new();
     for (path, bytes) in files {
         if bytes.is_empty() {
             return Err(ItemCorpusError::Empty { path });
         }
-        let file: ItemDefinitionFile =
-            serde_json::from_slice(&bytes).map_err(|source| ItemCorpusError::Parse {
+        let file: ItemDefinitionFile = registries
+            .scope(|| serde_json::from_slice(&bytes))
+            .map_err(|source| ItemCorpusError::Parse {
                 path: path.clone(),
                 source,
             })?;
@@ -63,7 +67,7 @@ pub fn from_files(
         });
         paths.push(path);
     }
-    ItemDefinitions::from_entries(items, entries).map_err(|error| match error {
+    ItemDefinitions::from_entries(&items, entries).map_err(|error| match error {
         ItemTableError::Duplicate(duplicate) => ItemCorpusError::DuplicateIdentifier {
             item: duplicate.identifier.as_str().to_owned(),
             file: paths.swap_remove(duplicate.second),
@@ -76,6 +80,8 @@ pub fn from_files(
 pub enum ItemCorpusError {
     #[error("no default asset source")]
     NoAssetSource,
+    #[error("the registry set holds no item registry")]
+    NoItemRegistry,
     #[error(transparent)]
     Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
@@ -103,12 +109,12 @@ pub enum ItemCorpusError {
 
 pub fn load_item_definitions(
     asset_server: &AssetServer,
-    items: &Registry<Item>,
+    registries: &RegistrySet,
     blocks: &BlockDefinitions,
 ) -> Result<ItemDefinitions, ItemCorpusError> {
     let source = asset_server
         .get_source(AssetSourceId::Default)
         .map_err(|_| ItemCorpusError::NoAssetSource)?;
     let files = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
-    from_files(files, items, blocks)
+    from_files(files, registries, blocks)
 }

@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, hash_ops};
 
-use crate::item::harness::{TestLookup, from_nbt, hex, json_value, nbt_tree, persistent_json};
+use crate::item::harness::{
+    TestLookup, from_nbt, hex, in_samples, json_value, nbt_tree, persistent_json,
+};
 
 const GOLDEN: &str = include_str!("../../fixtures/item/registry_refs_golden.txt");
 
@@ -70,6 +72,10 @@ fn from_json(kind: ItemComponentKind, json: &str) -> Result<ItemComponentValue, 
 /// in that sample is accepted there; here a malformed datapack fails at load.
 #[test]
 fn every_golden_sample_matches_vanilla() {
+    in_samples(every_golden_sample_matches_vanilla_in_scope);
+}
+
+fn every_golden_sample_matches_vanilla_in_scope() {
     let (lookup, samples) = parse_fixture();
     assert_eq!(samples.len(), 78);
     let mut kinds_seen = std::collections::BTreeSet::new();
@@ -300,6 +306,10 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
 
 #[test]
 fn nbt_floats_keep_vanillas_number_semantics() {
+    in_samples(nbt_floats_keep_vanillas_number_semantics_in_scope);
+}
+
+fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     use mcrs_minecraft_nbt::tag::NbtTag;
 
     fn from_tag(kind: ItemComponentKind, tag: NbtTag) -> Result<String, String> {
@@ -418,6 +428,10 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 
 #[test]
 fn a_negative_zero_from_the_wire_reloads_from_its_own_save() {
+    in_samples(a_negative_zero_from_the_wire_reloads_from_its_own_save_in_scope);
+}
+
+fn a_negative_zero_from_the_wire_reloads_from_its_own_save_in_scope() {
     let (lookup, _) = parse_fixture();
     let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
     let value =
@@ -495,8 +509,12 @@ fn two_spellings_of_one_enchantment_are_still_a_duplicate() {
 
 #[test]
 fn a_one_entry_list_is_the_bare_entry() {
-    use mcrs_minecraft_core::HolderSet;
+    in_samples(a_one_entry_list_is_the_bare_entry_in_scope);
+}
+
+fn a_one_entry_list_is_the_bare_entry_in_scope() {
     use mcrs_minecraft_protocol::item::DamageResistant;
+    use mcrs_minecraft_registry::HolderSet;
 
     let lookup = TestLookup::new();
     let bare = from_json(

@@ -12,7 +12,9 @@ use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
 
-use crate::item::harness::{TestLookup, decode, from_json, from_nbt, persistent_json, wire};
+use crate::item::harness::{
+    TestLookup, decode, from_json, from_nbt, in_samples, persistent_json, wire,
+};
 
 const ITERATIONS: usize = 256;
 const ITEMS: [(&str, u16); 4] = [
@@ -214,6 +216,10 @@ mod exhaustive {
 
 #[test]
 fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
+    in_samples(random_stacks_round_trip_on_the_wire_and_in_json_and_nbt_in_scope);
+}
+
+fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt_in_scope() {
     let lookup = TestLookup::new();
     let mut generator = Gen::new(0x5107);
     for _ in 0..ITERATIONS {

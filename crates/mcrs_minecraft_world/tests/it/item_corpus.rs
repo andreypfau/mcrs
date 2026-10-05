@@ -17,6 +17,7 @@ use serde::Deserialize;
 use serde::de::IgnoredAny;
 
 use crate::common::{corpus, items};
+use mcrs_minecraft_world::registries::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {
     let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/").to_owned() + CORPUS_DIRECTORY;
@@ -44,17 +45,19 @@ for_each_data_component!(round_tripped_kinds);
 fn every_file_deserialises_and_re_serialises_identically() {
     let files = files();
     assert!(files.len() > 1000, "{} files", files.len());
-    for (path, bytes) in &files {
-        let file: ItemDefinitionFile =
-            serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
-        let expected = &source["minecraft:item"]["components"];
-        let actual = serde_json::to_value(&file.item.components).unwrap();
-        assert!(
-            same_shape(&actual, expected),
-            "{path}\n{actual:#}\n{expected:#}"
-        );
-    }
+    test_registries().scope(|| {
+        for (path, bytes) in &files {
+            let file: ItemDefinitionFile =
+                serde_json::from_slice(bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
+            let source: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+            let expected = &source["minecraft:item"]["components"];
+            let actual = serde_json::to_value(&file.item.components).unwrap();
+            assert!(
+                same_shape(&actual, expected),
+                "{path}\n{actual:#}\n{expected:#}"
+            );
+        }
+    });
 }
 
 /// A float written by Java as a `float` re-emits with `f32` precision.
@@ -208,7 +211,7 @@ fn a_repeated_identifier_fails_to_load() {
         serde_json::to_vec(&stick_json).unwrap(),
     );
     let error =
-        mcrs_minecraft_world::item::definitions::from_files(files, &item_registry(), blocks)
+        mcrs_minecraft_world::item::definitions::from_files(files, test_registries(), blocks)
             .unwrap_err();
     assert!(
         matches!(

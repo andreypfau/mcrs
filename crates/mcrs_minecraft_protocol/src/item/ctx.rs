@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, bail, ensure};
-use mcrs_minecraft_core::{HolderSet, RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::{ItemId, RegistryLookup};
+use mcrs_minecraft_registry::{HolderSet, ItemId, RegistryLookup, skip_sets, skipping_sets};
 use uuid::Uuid;
 
 use crate::item::component::Holder;
@@ -23,6 +24,13 @@ pub trait DecodeCtx<'a>: Sized {
 }
 
 pub const MAX_NESTING: u32 = 64;
+
+pub(crate) fn scoped<T>(ctx: &dyn RegistryLookup, run: impl FnOnce() -> T) -> T {
+    match ctx.registries() {
+        Some(registries) => registries.scope(run),
+        None => run(),
+    }
+}
 
 thread_local! {
     static NESTING: Cell<u32> = const { Cell::new(0) };
@@ -274,41 +282,76 @@ impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for Holder<V> {
     }
 }
 
-impl<R: RegistryKey, const L: bool> EncodeCtx for HolderSet<ResourceKey<R>, L> {
+impl<R: RegistryKey, const L: bool> EncodeCtx for HolderSet<R, L> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        match self {
-            HolderSet::Tag(tag) => {
-                VarInt(0).encode(&mut w)?;
-                tag.encode(w)
-            }
-            _ => {
-                let entries = self.entries();
-                VarInt(entries.len() as i32 + 1).encode(&mut w)?;
-                for entry in entries {
-                    entry.encode_ctx(ctx, &mut w)?;
-                }
-                Ok(())
-            }
+        let set = ctx
+            .registries()
+            .with_context(|| format!("no registries to resolve a set of {} against", R::KEY))?;
+        let tags = set
+            .tags::<R>()
+            .with_context(|| format!("registry {} has no tags", R::KEY))?;
+        if let Some(tag) = self.tag() {
+            VarInt(0).encode(&mut w)?;
+            return tags.name(tag).encode(w);
         }
+        let registry = set
+            .registry::<R>()
+            .with_context(|| format!("registry {} is not loaded", R::KEY))?;
+        let entries = self.ids(&tags).collect::<Vec<_>>();
+        VarInt(entries.len() as i32 + 1).encode(&mut w)?;
+        for id in entries {
+            let name = registry
+                .key(id)
+                .with_context(|| format!("{id:?} is not in registry {}", R::KEY))?;
+            ResourceKey::<R>::from_location(name.clone()).encode_ctx(ctx, &mut w)?;
+        }
+        Ok(())
     }
 }
 
-impl<'a, R: RegistryKey, const L: bool> DecodeCtx<'a> for HolderSet<ResourceKey<R>, L> {
+impl<'a, R: RegistryKey, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         ensure!(raw >= 0, "holder set with negative length");
+        if skipping_sets() {
+            if raw == 0 {
+                ResourceLocation::<Arc<str>>::decode(r)?;
+            }
+            for _ in 1..raw {
+                decode_registry_id(r)?;
+            }
+            return Ok(HolderSet::default());
+        }
+        let set = ctx
+            .registries()
+            .with_context(|| format!("no registries to resolve a set of {} against", R::KEY))?;
         if raw == 0 {
-            return Ok(HolderSet::Tag(ResourceLocation::decode(r)?));
+            let name = ResourceLocation::<Arc<str>>::decode(r)?;
+            let tags = set
+                .tags::<R>()
+                .with_context(|| format!("registry {} has no tags", R::KEY))?;
+            return tags
+                .get(&TagKey::<R, _>::from_location(name.clone()))
+                .map(HolderSet::Named)
+                .with_context(|| format!("Missing tag: '{name}' in '{}'", R::KEY));
         }
+        let registry = set
+            .registry::<R>()
+            .with_context(|| format!("registry {} is not loaded", R::KEY))?;
         let len = raw as usize - 1;
-        if len == 1 && !L {
-            return Ok(HolderSet::One(ResourceKey::decode_ctx(ctx, r)?));
-        }
         let mut entries = Vec::with_capacity(len.min(r.len()));
         for _ in 0..len {
-            entries.push(ResourceKey::decode_ctx(ctx, r)?);
+            let key = ResourceKey::<R>::decode_ctx(ctx, r)?;
+            entries.push(
+                registry
+                    .require(key.as_str())
+                    .with_context(|| format!("{key} is not in registry {}", R::KEY))?,
+            );
         }
-        Ok(HolderSet::List(entries))
+        if let ([only], false) = (&entries[..], L) {
+            return Ok(HolderSet::One(*only));
+        }
+        Ok(HolderSet::List(entries.into()))
     }
 }
 
@@ -366,14 +409,14 @@ impl<T> std::fmt::Debug for Raw<T> {
 impl<T: EncodeCtx + for<'a> DecodeCtx<'a>> Raw<T> {
     pub fn resolve(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<T> {
         let mut r = &self.0[..];
-        let value = T::decode_ctx(ctx, &mut r)?;
+        let value = scoped(ctx, || T::decode_ctx(ctx, &mut r))?;
         ensure!(r.is_empty(), "{} trailing bytes after a raw value", r.len());
         Ok(value)
     }
 
     pub fn from_value(value: &T, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let mut bytes = Vec::new();
-        value.encode_ctx(ctx, &mut bytes)?;
+        scoped(ctx, || value.encode_ctx(ctx, &mut bytes))?;
         Ok(Raw(bytes.into(), PhantomData))
     }
 }
@@ -387,7 +430,7 @@ impl<T> Encode for Raw<T> {
 impl<T: for<'a> DecodeCtx<'a>> Decode<'_> for Raw<T> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let start = *r;
-        T::decode_ctx(&Opaque, r)?;
+        skip_sets(|| T::decode_ctx(&Opaque, r))?;
         Ok(Raw(
             bytes::Bytes::copy_from_slice(&start[..start.len() - r.len()]),
             PhantomData,

@@ -8,10 +8,15 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
+use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent,
 };
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
+
+pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
+    sample_registries().scope(run)
+}
 
 pub use crate::common::{hex, nbt_tree};
 
@@ -37,49 +42,9 @@ impl TestLookup {
             by_id: HashMap::new(),
             block_states: Vec::new(),
         };
-        lookup.registry(
-            "item",
-            &["air", "stone", "diamond_sword", "apple", "bundle"],
-        );
-        lookup.registry(
-            "sound_event",
-            &[
-                "entity.item.break",
-                "item.armor.equip_generic",
-                "item.shears.snip",
-                "item.armor.equip_iron",
-                "entity.generic.eat",
-            ],
-        );
-        lookup.registry("mob_effect", &["speed", "slowness", "haste"]);
-        lookup.registry("enchantment", &["sharpness", "unbreaking"]);
-        lookup.registry("damage_type", &["in_fire", "lava"]);
-        lookup.registry("block", &["stone", "dirt"]);
-        lookup.registry("entity_type", &["zombie", "pig"]);
-        lookup.registry("block_entity_type", &["chest", "sign"]);
-        lookup.registry("potion", &["water", "swiftness"]);
-        lookup.registry("attribute", &["armor", "attack_damage"]);
-        lookup.registry("banner_pattern", &["globe", "creeper"]);
-        lookup.registry("block_transformer", &["axe", "shovel"]);
-        lookup.registry("villager_type", &["plains", "desert"]);
-        lookup.registry("wolf_variant", &["pale", "ashen"]);
-        lookup.registry("wolf_sound_variant", &["classic", "big"]);
-        lookup.registry("pig_variant", &["temperate", "cold"]);
-        lookup.registry("pig_sound_variant", &["classic", "mini"]);
-        lookup.registry("cow_variant", &["temperate", "warm"]);
-        lookup.registry("cow_sound_variant", &["classic", "moody"]);
-        lookup.registry("chicken_variant", &["temperate", "cold"]);
-        lookup.registry("chicken_sound_variant", &["classic", "picky"]);
-        lookup.registry("zombie_nautilus_variant", &["temperate", "warm"]);
-        lookup.registry("frog_variant", &["temperate", "warm"]);
-        lookup.registry("cat_variant", &["tabby", "jellie"]);
-        lookup.registry("cat_sound_variant", &["classic", "royal"]);
-        lookup.registry("decorated_pot_pattern", &["angler", "skull"]);
-        lookup.registry("trim_material", &["amethyst"]);
-        lookup.registry("trim_pattern", &["coast"]);
-        lookup.registry("instrument", &["ponder_goat_horn"]);
-        lookup.registry("jukebox_song", &["pigstep"]);
-        lookup.registry("painting_variant", &["kebab"]);
+        for (registry, names) in SAMPLE_NAMES {
+            lookup.registry(registry, names);
+        }
         lookup
     }
 
@@ -199,13 +164,19 @@ impl RegistryLookup for TestLookup {
         };
         Some((state.block.clone(), properties))
     }
+
+    fn registries(&self) -> Option<&RegistrySet> {
+        Some(sample_registries())
+    }
 }
 
 pub fn persistent_json(value: &ItemComponentValue) -> String {
-    let mut out = Vec::new();
-    let mut s = serde_json::Serializer::new(&mut out);
-    value.serialize_value(&mut s).expect("serialize_value");
-    String::from_utf8(out).unwrap()
+    in_samples(|| {
+        let mut out = Vec::new();
+        let mut s = serde_json::Serializer::new(&mut out);
+        value.serialize_value(&mut s).expect("serialize_value");
+        String::from_utf8(out).unwrap()
+    })
 }
 
 pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
@@ -213,8 +184,10 @@ pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
 }
 
 pub fn from_json(kind: ItemComponentKind, json: &str) -> ItemComponentValue {
-    let mut d = serde_json::Deserializer::from_str(json);
-    ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
+    in_samples(|| {
+        let mut d = serde_json::Deserializer::from_str(json);
+        ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
+    })
 }
 
 pub fn wire(lookup: &TestLookup, value: &ItemComponentValue) -> Vec<u8> {
@@ -241,6 +214,10 @@ pub fn custom_data() -> item::CustomData {
 }
 
 pub fn check_samples<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
+    in_samples(check_samples_in_scope::<T>);
+}
+
+fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValue>>() {
     let lookup = TestLookup::new();
     let samples = T::samples();
     assert!(
@@ -320,15 +297,17 @@ fn check_tag_widths(kind: ItemComponentKind, bytes: &[u8], expected: &[(&str, u8
 }
 
 pub fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
-    let mut cursor = std::io::Cursor::new(bytes);
-    let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-    let value = ItemComponentValue::deserialize_value(kind, &mut d).expect("from nbt");
-    assert_eq!(
-        cursor.position() as usize,
-        bytes.len(),
-        "NBT fully read for {kind}"
-    );
-    value
+    in_samples(|| {
+        let mut cursor = std::io::Cursor::new(bytes);
+        let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+        let value = ItemComponentValue::deserialize_value(kind, &mut d).expect("from nbt");
+        assert_eq!(
+            cursor.position() as usize,
+            bytes.len(),
+            "NBT fully read for {kind}"
+        );
+        value
+    })
 }
 
 macro_rules! samples_round_trip {

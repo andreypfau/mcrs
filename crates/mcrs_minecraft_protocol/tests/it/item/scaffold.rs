@@ -1,5 +1,7 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_protocol::item::component::common::{Folded, entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
@@ -7,9 +9,9 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::{ItemId, NoRegistries};
+use mcrs_minecraft_registry::{HolderSet, Id, ItemId, NoRegistries};
 
-use crate::item::harness::{TestLookup, custom_data};
+use crate::item::harness::{TestLookup, custom_data, in_samples};
 
 fn stack_size(n: i32) -> MaxStackSize {
     MaxStackSize(Bounded(n))
@@ -361,50 +363,86 @@ fn a_component_map_applies_and_diffs_against_its_prototype() {
 }
 
 #[test]
-fn a_one_entry_holder_set_writes_as_the_bare_entry() {
-    let one: HolderSet<String> = HolderSet::List(vec!["minecraft:stone".into()]);
-    assert_eq!(serde_json::to_string(&one).unwrap(), r#""minecraft:stone""#);
-    let two: HolderSet<String> = HolderSet::List(vec!["a:b".into(), "c:d".into()]);
-    assert_eq!(serde_json::to_string(&two).unwrap(), r#"["a:b","c:d"]"#);
-    let always: HolderSet<String, true> = HolderSet::List(vec!["minecraft:stone".into()]);
-    assert_eq!(
-        serde_json::to_string(&always).unwrap(),
-        r#"["minecraft:stone"]"#
-    );
+fn a_one_entry_holder_set_is_the_bare_entry() {
+    in_samples(|| {
+        let one: HolderSet<Block> = list_set(&["stone"]);
+        assert_eq!(one, one_set::<Block, false>("stone"));
+        assert_eq!(
+            serde_json::to_string(&Folded(&one)).unwrap(),
+            r#""minecraft:stone""#
+        );
+        let two: HolderSet<Block> = list_set(&["stone", "dirt"]);
+        assert_eq!(
+            serde_json::to_string(&Folded(&two)).unwrap(),
+            r#"["minecraft:stone","minecraft:dirt"]"#
+        );
+        let always: HolderSet<Block, true> = list_set(&["stone"]);
+        assert_eq!(
+            serde_json::to_string(&Folded(&always)).unwrap(),
+            r#"["minecraft:stone"]"#
+        );
 
-    let lookup = TestLookup::new();
-    type Blocks = HolderSet<ResourceKey<mcrs_minecraft_keys::Block>>;
-    let dirt = ResourceKey::from_location(ResourceLocation::minecraft("dirt"));
-    let cases: [(Blocks, &[u8]); 4] = [
-        (
-            HolderSet::Tag(ResourceLocation::minecraft("logs")),
-            &[
-                0, 14, b'm', b'i', b'n', b'e', b'c', b'r', b'a', b'f', b't', b':', b'l', b'o',
-                b'g', b's',
-            ],
-        ),
-        (HolderSet::One(dirt.clone()), &[2, 1]),
-        (
-            HolderSet::List(vec![dirt.clone(), dirt.clone()]),
-            &[3, 1, 1],
-        ),
-        (HolderSet::List(vec![]), &[1]),
-    ];
-    for (set, bytes) in cases {
+        let lookup = TestLookup::new();
+        type Blocks = HolderSet<Block>;
+        let dirt: Id<Block> = entry("dirt");
+        let cases: [(Blocks, &[u8]); 4] = [
+            (
+                tag_set("logs"),
+                &[
+                    0, 14, b'm', b'i', b'n', b'e', b'c', b'r', b'a', b'f', b't', b':', b'l', b'o',
+                    b'g', b's',
+                ],
+            ),
+            (HolderSet::One(dirt), &[2, 1]),
+            (HolderSet::List(Box::new([dirt, dirt])), &[3, 1, 1]),
+            (HolderSet::List(Box::new([])), &[1]),
+        ];
+        for (set, bytes) in cases {
+            let mut wire = Vec::new();
+            set.encode_ctx(&lookup, &mut wire).unwrap();
+            assert_eq!(wire, bytes, "{set:?}");
+            assert_eq!(Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(), set);
+        }
         let mut wire = Vec::new();
-        set.encode_ctx(&lookup, &mut wire).unwrap();
-        assert_eq!(wire, bytes, "{set:?}");
-        assert_eq!(Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(), set);
+        Blocks::List(Box::new([dirt]))
+            .encode_ctx(&lookup, &mut wire)
+            .unwrap();
+        assert_eq!(wire, [2, 1]);
+        assert_eq!(
+            Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(),
+            HolderSet::One(dirt)
+        );
+    });
+}
+
+#[test]
+fn a_holder_set_naming_what_the_receiver_lacks_fails_the_packet() {
+    let mut lookup = TestLookup::new();
+    lookup.registry_with_ids("block", &[("stone", 0), ("not_a_block", 7)]);
+    let mut unknown_tag = vec![0, 13];
+    unknown_tag.extend(b"minecraft:zzz");
+    for (what, wire) in [
+        ("a tag the receiver never built", unknown_tag),
+        ("a number the sender never assigned", vec![2, 9]),
+        ("a block only the sender has", vec![2, 7]),
+    ] {
+        assert!(
+            HolderSet::<Block>::decode_ctx(&lookup, &mut &wire[..]).is_err(),
+            "{what}"
+        );
     }
-    let mut wire = Vec::new();
-    Blocks::List(vec![dirt.clone()])
-        .encode_ctx(&lookup, &mut wire)
-        .unwrap();
-    assert_eq!(wire, [2, 1]);
     assert_eq!(
-        Blocks::decode_ctx(&lookup, &mut &wire[..]).unwrap(),
-        HolderSet::One(dirt)
+        HolderSet::<Block>::decode_ctx(&lookup, &mut &[2u8, 0][..]).unwrap(),
+        in_samples(|| one_set("stone"))
     );
+}
+
+#[test]
+fn a_holder_set_decoded_without_registries_fails_the_packet() {
+    let one: HolderSet<Block> = in_samples(|| one_set("dirt"));
+    let mut wire = Vec::new();
+    assert!(one.encode_ctx(&NoRegistries, &mut wire).is_err());
+    assert!(HolderSet::<Block>::decode_ctx(&NoRegistries, &mut &[2u8, 1][..]).is_err());
 }
 
 #[test]
@@ -511,8 +549,10 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
         sound,
         Holder::reference(ResourceLocation::minecraft("entity.item.break"))
     );
-    let logs: HolderSet<ResourceKey<EntityType>> = serde_json::from_str("\"#logs\"").unwrap();
-    assert_eq!(logs, HolderSet::Tag(ResourceLocation::minecraft("logs")));
+    in_samples(|| {
+        let logs: HolderSet<Block> = serde_json::from_str("\"#logs\"").unwrap();
+        assert_eq!(logs, tag_set("logs"));
+    });
     let zombie: TypedEntityData<EntityType> = serde_json::from_str(r#"{"id":"zombie"}"#).unwrap();
     assert_eq!(zombie.id.location().as_str(), "minecraft:zombie");
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();

@@ -24,13 +24,12 @@ use mcrs_minecraft_level::world::storage::section::SectionIndex;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{Enchantments, Tool};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBlockDestruction;
-use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_registry::{BlockStateId, RegistrySet, Tags};
 use mcrs_minecraft_world::item::tool::{is_correct_for_drops, mining_speed};
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use mcrs_minecraft_keys::Block;
 use std::time::Duration;
@@ -50,7 +49,7 @@ impl Plugin for DiggingPlugin {
             Update,
             (
                 (player_start_destroy_block, handle_player_will_destroy_block)
-                    .run_if(resource_exists::<DynTagRegistry<Block>>),
+                    .run_if(resource_exists::<RegistrySet>),
                 player_abort_destroy_block,
                 player_stop_destroy_block,
             ),
@@ -135,12 +134,16 @@ fn player_start_destroy_block(
     )>,
     tools: Query<(&ItemStack, Option<&Tool>)>,
     items: Res<Items>,
-    tag_registry: Res<DynTagRegistry<Block>>,
+    registries: Res<RegistrySet>,
     blocks: Res<Blocks>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut commands: Commands,
 ) {
+    if reader.is_empty() {
+        return;
+    }
+    let tags = block_tags(&registries);
     reader.read().for_each(|event| {
         let player = event.player;
         let Ok((dim, _pos, _instant_build, table, selected)) = players.get_mut(player) else {
@@ -181,7 +184,7 @@ fn player_start_destroy_block(
                 held_stack(table, selected),
                 &tools,
                 &items,
-                &tag_registry,
+                &tags,
             );
         }
 
@@ -303,6 +306,12 @@ impl SendDestroyBlockProgress<'_, '_> {
     }
 }
 
+fn block_tags(registries: &RegistrySet) -> Tags<Block> {
+    registries
+        .tags::<Block>()
+        .expect("the loaded registries hold the block tags")
+}
+
 const MINING_EFFICIENCY: f32 = 0.0;
 const BLOCK_BREAK_SPEED: f32 = 1.0;
 
@@ -312,14 +321,13 @@ fn get_destroy_speed(
     held: Option<Entity>,
     tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
-    tag_registry: &DynTagRegistry<Block>,
+    tags: &Tags<Block>,
 ) -> f32 {
     let hardness = blocks.state(state).hardness;
     if hardness < 0.0 {
         return 0.0;
     }
-    let (has_correct_tool, mut speed) =
-        extract_tool_data(state, blocks, held, tools, items, tag_registry);
+    let (has_correct_tool, mut speed) = extract_tool_data(state, blocks, held, tools, items, tags);
     if speed > 1.0 {
         speed += MINING_EFFICIENCY;
     }
@@ -334,8 +342,9 @@ pub fn extract_tool_data(
     held: Option<Entity>,
     tools: &Query<(&ItemStack, Option<&Tool>)>,
     items: &Items,
-    tag_registry: &DynTagRegistry<Block>,
+    tags: &Tags<Block>,
 ) -> (bool, f32) {
+    let block_id = blocks.block_index(state);
     let block = blocks.owner(state).identifier.as_str();
     let requires_correct_tool = blocks
         .state(state)
@@ -357,11 +366,11 @@ pub fn extract_tool_data(
         return (!requires_correct_tool, 1.0);
     };
     let has_correct_tool = if requires_correct_tool {
-        is_correct_for_drops(tool, block, blocks, tag_registry)
+        is_correct_for_drops(tool, block_id, tags)
     } else {
         true
     };
-    let speed = mining_speed(tool, block, blocks, tag_registry);
+    let speed = mining_speed(tool, block_id, tags);
     debug!(
         block,
         item,
@@ -380,12 +389,16 @@ fn handle_player_will_destroy_block(
     mut destroyed: MessageWriter<BlockDestroyed>,
     players: Query<(&InDimension, &SlotTable, &SelectedHotbarSlot)>,
     tools: Query<(Option<&Tool>, Option<&Enchantments>), With<ItemStack>>,
-    tag_registry: Res<DynTagRegistry<Block>>,
+    registries: Res<RegistrySet>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
     mut drops: MessageWriter<BlockDrop>,
 ) {
+    if reader.is_empty() {
+        return;
+    }
+    let tags = block_tags(&registries);
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
         // TODO: anger piglin if block is guarded by piglins
@@ -394,7 +407,7 @@ fn handle_player_will_destroy_block(
         };
 
         let state = blocks.state(event.block_state);
-        let block_id = blocks.owner(event.block_state).identifier.as_str();
+        let block_id = blocks.block_index(event.block_state);
         let held = held_stack(table, selected);
         let held_tool = held.and_then(|slot| tools.get(slot).ok());
 
@@ -404,7 +417,7 @@ fn handle_player_will_destroy_block(
         {
             held_tool
                 .and_then(|(tool, _)| tool)
-                .is_some_and(|tool| is_correct_for_drops(tool, block_id, &blocks, &tag_registry))
+                .is_some_and(|tool| is_correct_for_drops(tool, block_id, &tags))
         } else {
             true
         };
@@ -418,6 +431,7 @@ fn handle_player_will_destroy_block(
                         let ctx = BlockBreakContext {
                             blocks: &blocks,
                             state: event.block_state,
+                            tags: &tags,
                             tool_enchantments,
                         };
                         for drop in table.evaluate(&ctx) {

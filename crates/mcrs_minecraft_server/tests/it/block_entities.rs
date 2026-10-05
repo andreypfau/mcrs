@@ -22,6 +22,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::chunk::{ChunkData, ChunkDataBlockEntity};
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, packet_entry, spawn_block_entities};
+use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_worldgen_feature_place::block_entity::{
     BeeOccupant, EndGatewayData, GeneratedBlockEntity,
 };
@@ -110,7 +111,7 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
         .iter()
         .map(|entry| mcrs_minecraft_nbt::to_nbt_compound(entry).expect("the entry serialises"))
         .collect();
-    saved_block_entities(&saved_column(compounds))
+    saved_block_entities(&saved_column(compounds), test_registries())
         .expect("every entry names a kind this build reads")
 }
 
@@ -121,13 +122,14 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
     let mut jukebox = NbtCompound::new();
     jukebox.put_string("id", "minecraft:jukebox".to_string());
-    let read = saved_block_entities(&saved_column(vec![jukebox])).expect("a jukebox is skipped");
+    let read = saved_block_entities(&saved_column(vec![jukebox]), test_registries())
+        .expect("a jukebox is skipped");
     assert!(read.is_empty());
 
     let mut broken = NbtCompound::new();
     broken.put_string("id", "minecraft:beehive".to_string());
     broken.put_string("x", "not a number".to_string());
-    assert!(saved_block_entities(&saved_column(vec![broken])).is_err());
+    assert!(saved_block_entities(&saved_column(vec![broken]), test_registries()).is_err());
 
     for entry in every_kind().iter().map(|(entry, _)| entry) {
         let compound = mcrs_minecraft_nbt::to_nbt_compound(entry).expect("serialises");

@@ -1,8 +1,8 @@
 use crate::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_block::definition::BlockEntry;
-use mcrs_minecraft_core::{HolderSet, ResourceLocation};
-use mcrs_minecraft_keys::Enchantment;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys::{Block, Enchantment, Item};
+use mcrs_minecraft_registry::{HolderSet, Registry};
 use rustc_hash::FxHashMap;
 use serde::de::{IgnoredAny, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer};
@@ -64,7 +64,7 @@ pub enum LootCondition {
     MatchTool { predicate: ToolPredicate },
     #[serde(rename = "minecraft:match_block")]
     MatchBlock {
-        blocks: Option<HolderSet>,
+        blocks: Option<HolderSet<Block>>,
         state: Option<StatePredicate>,
     },
     #[serde(rename = "minecraft:survives_explosion")]
@@ -97,7 +97,7 @@ pub enum LootCondition {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolPredicate {
-    pub items: Option<HolderSet>,
+    pub items: Option<HolderSet<Item>>,
     pub predicates: Option<ToolPredicates>,
 }
 
@@ -252,11 +252,9 @@ impl LootCondition {
             LootCondition::MatchTool { predicate } => predicate.matches(ctx),
             LootCondition::MatchBlock { blocks, state } => {
                 let block = ctx.blocks.owner(ctx.state);
-                let block_matches = match blocks {
-                    None => true,
-                    Some(HolderSet::Tag(_)) => UNDECIDABLE,
-                    Some(set) => set.entries().contains(&block.identifier),
-                };
+                let block_matches = blocks
+                    .as_ref()
+                    .is_none_or(|set| set.contains(ctx.blocks.block_index(ctx.state), ctx.tags));
                 block_matches && state.as_ref().is_none_or(|s| s.matches(block, ctx))
             }
             LootCondition::SurvivesExplosion {} => true,

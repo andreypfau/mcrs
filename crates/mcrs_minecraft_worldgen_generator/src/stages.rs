@@ -270,7 +270,7 @@ pub fn fill_column(
                 saved.read(col, &ctx.blocks, biomes)?
             };
             let _decode = info_span!("world::column_decode_saved").entered();
-            match saved_block_entities(&chunk) {
+            match saved_block_entities(&chunk, saved.registries()) {
                 Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
                 Err(err) => {
                     error!(%err, x = col.x, z = col.z, "decoding a saved column");

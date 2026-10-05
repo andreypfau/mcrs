@@ -4,8 +4,9 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_protocol::item::component::common::{list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
@@ -25,9 +26,9 @@ use mcrs_minecraft_protocol::recipe::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
 
-use crate::item::harness::{TestLookup, hex};
+use crate::item::harness::{TestLookup, hex, in_samples};
 
 const GOLDEN: &str = include_str!("../../fixtures/recipe_packets_golden.txt");
 
@@ -57,8 +58,16 @@ fn item(path: &str) -> SlotDisplay {
     SlotDisplay::Item { item: key(path) }
 }
 
-fn planks() -> HolderSet<ResourceKey<Item>> {
-    HolderSet::Tag(ResourceLocation::minecraft("planks"))
+fn planks() -> HolderSet<Item> {
+    in_samples(|| tag_set("planks"))
+}
+
+fn one(path: &str) -> HolderSet<Item> {
+    in_samples(|| one_set(path))
+}
+
+fn list(paths: &[&str]) -> HolderSet<Item> {
+    in_samples(|| list_set(paths))
 }
 
 fn expected_entries() -> Vec<RecipeBookEntry> {
@@ -79,7 +88,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                     item("stone"),
                     SlotDisplay::Tag { tag: planks() },
                     SlotDisplay::Tag {
-                        tag: HolderSet::List(vec![key("stone"), key("apple")]),
+                        tag: list(&["stone", "apple"]),
                     },
                 ],
                 result: SlotDisplay::ItemStack { item: sword },
@@ -87,10 +96,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
             },
             group: Some(5),
             category: RecipeBookCategory::CraftingMisc,
-            crafting_requirements: Some(vec![
-                Ingredient(HolderSet::One(key("stone"))),
-                Ingredient(planks()),
-            ]),
+            crafting_requirements: Some(vec![Ingredient(one("stone")), Ingredient(planks())]),
             flags: RecipeBookEntry::FLAG_NOTIFICATION | RecipeBookEntry::FLAG_HIGHLIGHT,
         },
         RecipeBookEntry {
@@ -227,7 +233,7 @@ fn update_recipes_matches_vanilla() {
     let smithing_base: Vec<ResourceKey<Item>> = vec![key("iron_chestplate")];
     let stonecutter = [
         SelectableRecipe {
-            input: Ingredient(HolderSet::One(key("stone"))),
+            input: Ingredient(one("stone")),
             option_display: SlotDisplay::ItemStack {
                 item: Template::new(key("stone_bricks"), 4, ComponentPatch::EMPTY).unwrap(),
             },
@@ -341,17 +347,19 @@ fn ingredient_rejects_what_vanilla_refuses_to_construct() {
     let raw = Raw::<SelectableRecipe>::decode(&mut &air_stonecutter[..]).unwrap();
     let error = raw.resolve(&lookup).unwrap_err();
     assert_eq!(error.to_string(), "Ingredient can't contain air");
-    let error = Ingredient(HolderSet::List(vec![])).validate().unwrap_err();
+    let error = Ingredient(HolderSet::default()).validate().unwrap_err();
     assert_eq!(error, "Ingredients can't be empty");
-    let error = serde_json::from_str::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
-    assert!(
-        error.to_string().contains("Ingredient can't contain air"),
-        "{error}"
-    );
-    assert_eq!(
-        serde_json::from_str::<Ingredient>("\"#planks\"").unwrap(),
-        Ingredient(planks())
-    );
+    in_samples(|| {
+        let error = serde_json::from_str::<Ingredient>(r#"["minecraft:air"]"#).unwrap_err();
+        assert!(
+            error.to_string().contains("Ingredient can't contain air"),
+            "{error}"
+        );
+        assert_eq!(
+            serde_json::from_str::<Ingredient>("\"#planks\"").unwrap(),
+            Ingredient(planks())
+        );
+    });
 }
 
 #[test]
@@ -377,6 +385,10 @@ fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
 
 #[test]
 fn displays_round_trip_through_json() {
+    in_samples(displays_round_trip_through_json_in_scope);
+}
+
+fn displays_round_trip_through_json_in_scope() {
     for entry in expected_entries() {
         let json = serde_json::to_string(&entry.display).unwrap();
         let back: RecipeDisplay = serde_json::from_str(&json).unwrap();

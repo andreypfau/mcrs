@@ -20,10 +20,12 @@ use mcrs_minecraft_assets::RegistrySnapshotErased;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{DroppedItem, Items, slots, stack_to_slot};
+use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
@@ -34,12 +36,13 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ContainerInput, Damage, HashedStack, ItemStackWithSlot, ProtoStack, RawDelimitedStack, RawStack,
 };
+use mcrs_minecraft_protocol::item::{Tool, ToolRule};
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundSetCreativeModeSlot,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{HolderSet, RegistryLookup, RegistrySet};
 use mcrs_minecraft_server::WorldSave;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::disconnect::Departing;
@@ -630,6 +633,46 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
     assert_ne!(content[slots::MAIN.start as usize], RawStack::EMPTY);
 }
 
+fn a_relog_keeps_a_stack_whose_component_names_a_block_tag() {
+    let mut server = Server::start();
+    let registries = server.world().resource::<RegistrySet>().clone();
+    let pickaxe_tag = registries
+        .tags::<Block>()
+        .unwrap()
+        .get(&TagKey::<Block, _>::from_location(
+            ResourceLocation::minecraft("mineable/pickaxe"),
+        ))
+        .unwrap();
+    let mut stack = value("stick", 1);
+    stack.components.set(Tool {
+        rules: vec![ToolRule {
+            blocks: HolderSet::Named(pickaxe_tag),
+            speed: Some(2.0),
+            correct_for_drops: None,
+        }],
+        default_mining_speed: 1.0,
+        damage_per_block: Bounded(1),
+        can_destroy_blocks_in_creative: true,
+    });
+    let mut dat = PlayerDat::default();
+    dat.inventory.push(ItemStackWithSlot {
+        slot: 4,
+        stack: stack.clone(),
+    });
+    registries
+        .scope(|| write_player_dat(&server.save, server.uuid, &dat))
+        .unwrap();
+
+    server.join();
+    assert_eq!(server.cell(slots::held(4)).map(|cell| cell.1), Some(1));
+    server.leave();
+    let saved = registries
+        .scope(|| read_player_dat(&server.save, server.uuid))
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved.inventory, vec![ItemStackWithSlot { slot: 4, stack }]);
+}
+
 fn a_dimension_releases_a_leaving_player_only_once_its_file_is_written() {
     let mut server = Server::start();
     server.join();
@@ -677,5 +720,6 @@ fn a_player_inventory_is_synced_dropped_picked_up_and_saved() {
     a_drop_adds_an_item_entity_and_its_stack_metadata();
     a_pickup_announces_the_full_take_then_fills_the_held_stack_and_a_free_cell();
     a_relog_round_trips_the_player_file_with_keys_it_does_not_model();
+    a_relog_keeps_a_stack_whose_component_names_a_block_tag();
     a_dimension_releases_a_leaving_player_only_once_its_file_is_written();
 }

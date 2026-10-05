@@ -578,6 +578,7 @@ pub fn emit_initial_player_spawn(
     dim_channels: Res<DimChannelsResource>,
     dimension_list: Option<Res<DimensionList>>,
     save: Option<Res<WorldSave>>,
+    registries: Res<RegistrySet>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     if live_dims.is_empty() {
@@ -594,9 +595,12 @@ pub fn emit_initial_player_spawn(
         if placement.place() != Place::Unplaced {
             continue;
         }
-        let saved = save
-            .as_ref()
-            .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
+        let saved = save.as_ref().and_then(|save| {
+            registries
+                .scope(|| read_player_dat(&save.0, profile.id))
+                .ok()
+                .flatten()
+        });
         let live = |key: &str| {
             live_dims
                 .iter()

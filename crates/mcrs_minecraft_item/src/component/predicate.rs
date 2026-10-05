@@ -1,18 +1,20 @@
 use std::fmt;
 
-use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::{
     Attribute, Block, Enchantment, Item, JukeboxSong, MobEffect, Potion, TrimMaterial, TrimPattern,
     VillagerType,
 };
+use mcrs_minecraft_registry::HolderSet;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
-    CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
-    key, map_only, serialize_entries, serialize_unit, transparent_newtype,
+    CompactList, EquipmentSlotGroup, Folded, MinMaxBounds, NbtPredicate, ValueMatcher,
+    deserialize_unit, key, list_set, map_only, one_set, serialize_entries, serialize_optional_set,
+    serialize_set, serialize_unit, tag_set, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
@@ -55,7 +57,7 @@ impl<'de> Deserialize<'de> for AdventureModePredicate {
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct BlockPredicate {
-    pub blocks: Option<HolderSet<ResourceKey<Block>>>,
+    pub blocks: Option<HolderSet<Block>>,
     pub state: Option<StatePropertiesPredicate>,
     pub nbt: Option<NbtPredicate>,
     pub matchers: DataComponentMatchers,
@@ -65,7 +67,7 @@ impl Serialize for BlockPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         if let Some(blocks) = &self.blocks {
-            map.serialize_entry("blocks", blocks)?;
+            map.serialize_entry("blocks", &Folded(blocks))?;
         }
         if let Some(state) = &self.state {
             map.serialize_entry("state", state)?;
@@ -84,7 +86,7 @@ impl<'de> Deserialize<'de> for BlockPredicate {
         #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
-            blocks: Option<HolderSet<ResourceKey<Block>>>,
+            blocks: Option<HolderSet<Block>>,
             #[serde(default)]
             state: Option<StatePropertiesPredicate>,
             #[serde(default)]
@@ -111,7 +113,7 @@ impl<'de> Deserialize<'de> for BlockPredicate {
 /// The wire form of `lock` is this as one NBT tag.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ItemPredicate {
-    pub items: Option<HolderSet<ResourceKey<Item>>>,
+    pub items: Option<HolderSet<Item>>,
     pub count: MinMaxBounds<i32>,
     pub matchers: DataComponentMatchers,
 }
@@ -120,7 +122,7 @@ impl Serialize for ItemPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         if let Some(items) = &self.items {
-            map.serialize_entry("items", items)?;
+            map.serialize_entry("items", &Folded(items))?;
         }
         if !self.count.is_any() {
             map.serialize_entry("count", &self.count)?;
@@ -136,7 +138,7 @@ impl<'de> Deserialize<'de> for ItemPredicate {
         #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
-            items: Option<HolderSet<ResourceKey<Item>>>,
+            items: Option<HolderSet<Item>>,
             #[serde(default)]
             count: Option<MinMaxBounds<i32>>,
             #[serde(default)]
@@ -409,6 +411,21 @@ macro_rules! predicate_types {
     };
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct VillagerVariants(pub HolderSet<VillagerType>);
+
+impl Serialize for VillagerVariants {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serialize_set(&self.0, s)
+    }
+}
+
+impl<'de> Deserialize<'de> for VillagerVariants {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        HolderSet::deserialize(d).map(VillagerVariants)
+    }
+}
+
 predicate_types! {
      0 "damage"                : Damage(DamagePredicate),
      1 "enchantments"          : Enchantments(EnchantmentsPredicate),
@@ -424,7 +441,7 @@ predicate_types! {
     11 "attribute_modifiers"   : AttributeModifiers(AttributeModifiersPredicate),
     12 "trim"                  : Trim(TrimPredicate),
     13 "jukebox_playable"      : JukeboxPlayable(JukeboxPlayablePredicate),
-    14 "villager/variant"      : VillagerVariant(HolderSet<ResourceKey<VillagerType>>),
+    14 "villager/variant"      : VillagerVariant(VillagerVariants),
 }
 
 record_codec! {
@@ -461,8 +478,12 @@ pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enchantments: Option<HolderSet<ResourceKey<Enchantment>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub enchantments: Option<HolderSet<Enchantment>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
 }
@@ -470,8 +491,12 @@ pub struct EnchantmentPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionsPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub potions: Option<HolderSet<ResourceKey<Potion>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub potions: Option<HolderSet<Potion>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<CollectionPredicate<MobEffectsPredicate>>,
 }
@@ -604,8 +629,12 @@ pub struct AttributeModifiersPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct AttributeModifierPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub attribute: Option<HolderSet<ResourceKey<Attribute>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub attribute: Option<HolderSet<Attribute>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
@@ -619,17 +648,29 @@ pub struct AttributeModifierPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct TrimPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub material: Option<HolderSet<ResourceKey<TrimMaterial>>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<HolderSet<ResourceKey<TrimPattern>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub material: Option<HolderSet<TrimMaterial>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub pattern: Option<HolderSet<TrimPattern>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct JukeboxPlayablePredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub song: Option<HolderSet<ResourceKey<JukeboxSong>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_optional_set"
+    )]
+    pub song: Option<HolderSet<JukeboxSong>>,
 }
 
 impl Sample for AdventureModePredicate {
@@ -667,11 +708,11 @@ impl Sample for AdventureModePredicate {
         vec![
             AdventureModePredicate::default(),
             AdventureModePredicate(CompactList(vec![BlockPredicate {
-                blocks: Some(HolderSet::One(key("stone"))),
+                blocks: Some(one_set("stone")),
                 ..Default::default()
             }])),
             AdventureModePredicate(CompactList(vec![BlockPredicate {
-                blocks: Some(HolderSet::List(vec![key("stone"), key("dirt")])),
+                blocks: Some(list_set(&["stone", "dirt"])),
                 state: Some(StatePropertiesPredicate(vec![
                     ("lit".into(), ValueMatcher::Exact("true".into())),
                     (
@@ -701,7 +742,7 @@ impl Sample for AdventureModePredicate {
             }])),
             AdventureModePredicate(CompactList(vec![
                 BlockPredicate {
-                    blocks: Some(HolderSet::Tag(ResourceLocation::minecraft("logs"))),
+                    blocks: Some(tag_set("logs")),
                     state: Some(StatePropertiesPredicate(vec![(
                         "lit".into(),
                         ValueMatcher::Exact("true".into()),
@@ -746,7 +787,7 @@ impl Sample for ItemPredicate {
         vec![
             ItemPredicate::default(),
             ItemPredicate {
-                items: Some(HolderSet::One(key("diamond_sword"))),
+                items: Some(one_set("diamond_sword")),
                 count: MinMaxBounds {
                     min: Some(3),
                     max: Some(3),
@@ -754,7 +795,7 @@ impl Sample for ItemPredicate {
                 ..Default::default()
             },
             ItemPredicate {
-                items: Some(HolderSet::List(vec![key("stone"), key("apple")])),
+                items: Some(list_set(&["stone", "apple"])),
                 count: MinMaxBounds {
                     min: Some(2),
                     max: Some(5),
@@ -762,7 +803,7 @@ impl Sample for ItemPredicate {
                 matchers: sample_matchers(),
             },
             ItemPredicate {
-                items: Some(HolderSet::Tag(ResourceLocation::minecraft("swords"))),
+                items: Some(tag_set("swords")),
                 count: MinMaxBounds {
                     min: None,
                     max: Some(4),
@@ -902,20 +943,19 @@ fn sample_matchers() -> DataComponentMatchers {
                     damage: exactly(3),
                 }),
                 ComponentPredicate::CustomData(NbtPredicate(predicate_data)),
-                ComponentPredicate::VillagerVariant(HolderSet::List(vec![
-                    key("plains"),
-                    key("desert"),
-                ])),
+                ComponentPredicate::VillagerVariant(VillagerVariants(list_set(&[
+                    "plains", "desert",
+                ]))),
                 ComponentPredicate::Enchantments(EnchantmentsPredicate(vec![
                     EnchantmentPredicate {
-                        enchantments: Some(HolderSet::One(key("sharpness"))),
+                        enchantments: Some(one_set("sharpness")),
                         levels: at_least(2),
                     },
                     EnchantmentPredicate::default(),
                 ])),
                 ComponentPredicate::StoredEnchantments(EnchantmentsPredicate(vec![])),
                 ComponentPredicate::PotionContents(PotionsPredicate {
-                    potions: Some(HolderSet::One(key("healing"))),
+                    potions: Some(one_set("healing")),
                     effects: Some(CollectionPredicate {
                         contains: Some(vec![MobEffectsPredicate(vec![(
                             key("speed"),
@@ -939,7 +979,7 @@ fn sample_matchers() -> DataComponentMatchers {
                 ComponentPredicate::Container(ContainerPredicate {
                     items: Some(CollectionPredicate {
                         contains: Some(vec![ItemPredicate {
-                            items: Some(HolderSet::One(key("apple"))),
+                            items: Some(one_set("apple")),
                             count: at_least(2),
                             ..Default::default()
                         }]),
@@ -987,7 +1027,7 @@ fn sample_matchers() -> DataComponentMatchers {
                     modifiers: Some(CollectionPredicate {
                         contains: Some(vec![
                             AttributeModifierPredicate {
-                                attribute: Some(HolderSet::One(key("attack_damage"))),
+                                attribute: Some(one_set("attack_damage")),
                                 id: Some(ResourceLocation::minecraft("base_attack_damage")),
                                 amount: MinMaxBounds {
                                     min: Some(1.5),
@@ -1009,11 +1049,11 @@ fn sample_matchers() -> DataComponentMatchers {
                     }),
                 }),
                 ComponentPredicate::Trim(TrimPredicate {
-                    material: Some(HolderSet::One(key("gold"))),
-                    pattern: Some(HolderSet::List(vec![key("sentry"), key("vex")])),
+                    material: Some(one_set("gold")),
+                    pattern: Some(list_set(&["sentry", "vex"])),
                 }),
                 ComponentPredicate::JukeboxPlayable(JukeboxPlayablePredicate {
-                    song: Some(HolderSet::One(key("cat"))),
+                    song: Some(one_set("cat")),
                 }),
             ]
             .into_iter()

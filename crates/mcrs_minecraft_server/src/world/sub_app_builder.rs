@@ -449,10 +449,10 @@ pub fn spawn_dim_subapp(
                     .map(|source| (std::sync::Arc::clone(source), biome_registry)),
                 &parameter_lists,
                 registries.heightmap_predicates.clone(),
-                registries
-                    .world_save
-                    .as_ref()
-                    .and_then(|save| SavedColumns::open(&save.0, &request.dimension)),
+                registries.world_save.as_ref().and_then(|save| {
+                    let set = sub_app.world().resource::<RegistrySet>().clone();
+                    SavedColumns::open(&save.0, &request.dimension, set)
+                }),
                 registries
                     .modern_carver_biomes
                     .0
