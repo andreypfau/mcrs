@@ -44,16 +44,16 @@ impl fmt::Display for Row {
 #[allow(dead_code)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DatapackReport {
+pub struct Datapack {
     others: IgnoredAny,
-    registries: BTreeMap<String, Flags>,
+    pub registries: BTreeMap<String, Flags>,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Flags {
-    elements: bool,
+pub struct Flags {
+    pub elements: bool,
     stable: bool,
     tags: bool,
 }
@@ -64,13 +64,17 @@ struct WorldPreset {
     dimensions: BTreeMap<String, IgnoredAny>,
 }
 
-pub fn registries(text: &str) -> Result<BTreeMap<String, bool>, String> {
-    let report: DatapackReport = serde_json::from_str(text).map_err(|error| error.to_string())?;
-    Ok(report
-        .registries
-        .into_iter()
-        .map(|(name, flags)| (name, flags.elements))
-        .collect())
+impl Datapack {
+    pub fn parse(text: &str) -> Result<Self, String> {
+        serde_json::from_str(text).map_err(|error| error.to_string())
+    }
+
+    pub fn elements(&self) -> BTreeMap<String, bool> {
+        self.registries
+            .iter()
+            .map(|(name, flags)| (name.clone(), flags.elements))
+            .collect()
+    }
 }
 
 pub fn from_jar(jar: &[u8], registries: &BTreeMap<String, bool>) -> Result<Names, String> {
@@ -478,7 +482,7 @@ mod tests {
             "minecraft:b":{"elements":false,"stable":false,"tags":true}}}"#;
 
         assert_eq!(
-            registries(text).unwrap(),
+            Datapack::parse(text).unwrap().elements(),
             flags(&[("minecraft:a", true), ("minecraft:b", false)])
         );
     }

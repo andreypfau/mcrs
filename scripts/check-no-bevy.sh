@@ -12,6 +12,7 @@ crates=(
     mcrs_minecraft_item
     mcrs_minecraft_chunk
     mcrs_minecraft_registry
+    mcrs_minecraft_keys
     mcrs_minecraft_protocol
     mcrs_minecraft_anvil
     mcrs_minecraft_worldgen_testing

@@ -1,0 +1,47 @@
+// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
+
+use mcrs_minecraft_core::{ResourceKey, rl};
+
+pub const AQUA_AFFINITY: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:aqua_affinity"));
+pub const BANE_OF_ARTHROPODS: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:bane_of_arthropods"));
+pub const BINDING_CURSE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:binding_curse"));
+pub const BLAST_PROTECTION: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:blast_protection"));
+pub const BREACH: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:breach"));
+pub const CHANNELING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:channeling"));
+pub const DENSITY: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:density"));
+pub const DEPTH_STRIDER: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:depth_strider"));
+pub const EFFICIENCY: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:efficiency"));
+pub const FEATHER_FALLING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:feather_falling"));
+pub const FIRE_ASPECT: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:fire_aspect"));
+pub const FIRE_PROTECTION: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:fire_protection"));
+pub const FLAME: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:flame"));
+pub const FORTUNE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:fortune"));
+pub const FROST_WALKER: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:frost_walker"));
+pub const IMPALING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:impaling"));
+pub const INFINITY: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:infinity"));
+pub const KNOCKBACK: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:knockback"));
+pub const LOOTING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:looting"));
+pub const LOYALTY: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:loyalty"));
+pub const LUCK_OF_THE_SEA: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:luck_of_the_sea"));
+pub const LUNGE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:lunge"));
+pub const LURE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:lure"));
+pub const MENDING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:mending"));
+pub const MULTISHOT: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:multishot"));
+pub const PIERCING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:piercing"));
+pub const POWER: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:power"));
+pub const PROJECTILE_PROTECTION: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:projectile_protection"));
+pub const PROTECTION: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:protection"));
+pub const PUNCH: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:punch"));
+pub const QUICK_CHARGE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:quick_charge"));
+pub const RESPIRATION: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:respiration"));
+pub const RIPTIDE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:riptide"));
+pub const SHARPNESS: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:sharpness"));
+pub const SILK_TOUCH: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:silk_touch"));
+pub const SMITE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:smite"));
+pub const SOUL_SPEED: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:soul_speed"));
+pub const SWEEPING_EDGE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:sweeping_edge"));
+pub const SWIFT_SNEAK: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:swift_sneak"));
+pub const THORNS: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:thorns"));
+pub const UNBREAKING: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:unbreaking"));
+pub const VANISHING_CURSE: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:vanishing_curse"));
+pub const WIND_BURST: ResourceKey<crate::Enchantment, &'static str> = ResourceKey::new(rl!("minecraft:wind_burst"));

@@ -9,6 +9,7 @@ mod corpus;
 mod definitions;
 mod fixtures;
 mod gradle;
+mod keys;
 mod names;
 mod registries;
 mod release;
@@ -27,7 +28,8 @@ in assets/mcrs/reports and assets/mcrs/block_definition and assets/mcrs/item_def
 blocks report is checked and not stored. The protocol_id diff against the previous registries report is
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
 of the definitions is printed and written to definitions.txt there. The names report is
-written after the reports, and its diff is printed and written to names.txt there. Each diff
+written after the reports, and its diff is printed and written to names.txt there. The sources
+of crates/mcrs_minecraft_keys are written after the names report. Each diff
 is computed before the files it describes are replaced. Two runs against one working tree at
 the same time are not supported.
 
@@ -39,7 +41,8 @@ a failure and exits non-zero if any fixture failed. It never updates the corpus.
 names writes assets/mcrs/reports/names.json from the client jar the descriptor names: the
 entry names of every registry of datapack.json that has elements and the tag names of every
 registry, in sorted order. It prints the entries and tags added and removed against the stored
-file and touches nothing else.";
+file, then writes the sources of crates/mcrs_minecraft_keys from the stored reports and deletes
+a source file there the generator no longer produces. It touches nothing else.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
@@ -47,6 +50,7 @@ const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const NAMES_FILE: &str = "names.json";
+const KEYS: &str = "crates/mcrs_minecraft_keys";
 const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
 const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
@@ -212,9 +216,9 @@ fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), S
     let stored = root.join(REPORTS);
     let datapack = stored.join("datapack.json");
     let text = fs::read_to_string(&datapack).map_err(|error| corpus::io(&datapack, error))?;
-    let registries =
-        names::registries(&text).map_err(|error| format!("{}: {error}", datapack.display()))?;
-    let new = names::from_jar(jar, &registries)?;
+    let datapack_report = names::Datapack::parse(&text)
+        .map_err(|error| format!("{}: {error}", datapack.display()))?;
+    let new = names::from_jar(jar, &datapack_report.elements())?;
     let old = names::read(&stored.join(NAMES_FILE))?;
     let rows = names::diff(&old, &new);
     let text: String = rows.iter().map(|row| format!("{row}\n")).collect();
@@ -222,7 +226,11 @@ fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), S
     println!("names diff: {} rows", rows.len());
     print!("{text}");
     write_diff(diff_out, "names.txt", &text)?;
-    write(&stored.join(NAMES_FILE), &names::render(&new)?)
+    write(&stored.join(NAMES_FILE), &names::render(&new)?)?;
+
+    let registries = registries::read(&stored.join("registries.json"))?;
+    let files = keys::generate(&registries, &datapack_report, &new)?;
+    keys::write(&root.join(KEYS), &files)
 }
 
 fn with_gradle_output(

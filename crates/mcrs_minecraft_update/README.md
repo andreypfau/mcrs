@@ -87,7 +87,8 @@ The steps, in order:
    `assets/mcrs/reports`, and replace `assets/mcrs/block_definition` and
    `assets/mcrs/item_definition` with what the dump wrote, including the README
    of the block definitions.
-8. Write `assets/mcrs/reports/names.json` from the jar (see below).
+8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
+   regenerate the sources of `crates/mcrs_minecraft_keys` from the three reports.
 
 Three diffs are printed, and each is computed before the files it describes are
 replaced:
@@ -125,6 +126,28 @@ the descriptor, prints the names diff and writes the report. It touches neither
 `assets/minecraft`, the descriptor nor another report, and it runs no Gradle
 task. A second run over the same jar prints `names diff: 0 rows` and leaves the
 file unchanged.
+
+## The keys crate
+
+After the names report, the same command writes `src/` of
+`crates/mcrs_minecraft_keys` from `registries.json`, `datapack.json` and
+`names.json`, and deletes a source file there that the generator no longer
+produces. Only `Cargo.toml` of that crate is written by hand; never edit a
+source by hand.
+
+Every registry of `datapack.json` gets a marker type at the crate root. A
+registry of `registries.json` also gets a module of `Id` constants numbered by
+protocol id and a `NAMES` table in id order. A registry with entries in
+`names.json` gets a module of `ResourceKey` constants, except `minecraft:recipe`
+and `minecraft:advancement`. A constant is the entry path in upper case with
+`/`, `.` and `-` as `_`; the jukebox songs `5`, `11` and `13` become `FIVE`,
+`ELEVEN` and `THIRTEEN`, and a `brigadier:` entry takes the prefix `BRIGADIER_`.
+Any other digit-leading name, a namespace without a rule and two names that make
+one constant stop the generator with the name.
+
+A test of this crate regenerates the files from the stored reports and fails,
+naming the first file that differs, if the checked-in crate is not what the
+generator writes.
 
 ## Recapturing fixtures
 

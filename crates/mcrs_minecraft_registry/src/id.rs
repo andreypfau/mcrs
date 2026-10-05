@@ -141,6 +141,24 @@ impl<R: RegistryKey> Id<R> {
     }
 }
 
+pub trait StaticRegistry: RegistryKey {
+    const NAMES: &'static [&'static str];
+}
+
+impl<R: StaticRegistry> Id<R> {
+    #[doc(hidden)]
+    pub const fn from_static(number: u16) -> Self {
+        Id {
+            number,
+            _marker: PhantomData,
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        R::NAMES[self.number as usize]
+    }
+}
+
 impl<R: RegistryKey> Serialize for Id<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.key(*self) {
@@ -195,6 +213,25 @@ mod tests {
 
     impl RegistryKey for Wide {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:wide");
+    }
+
+    struct Fixed;
+
+    impl RegistryKey for Fixed {
+        const KEY: ResourceLocation<&'static str> = rl!("minecraft:fixed");
+    }
+
+    impl StaticRegistry for Fixed {
+        const NAMES: &'static [&'static str] = &["minecraft:air", "minecraft:stone"];
+    }
+
+    #[test]
+    fn a_static_id_is_a_constant_that_names_its_entry() {
+        const STONE: Id<Fixed> = Id::from_static(1);
+
+        assert_eq!(STONE.number(), 1);
+        assert_eq!(STONE.name(), "minecraft:stone");
+        assert_eq!(Id::<Fixed>::from_static(0).name(), "minecraft:air");
     }
 
     fn names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {
