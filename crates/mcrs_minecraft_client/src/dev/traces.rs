@@ -10,7 +10,9 @@ pub fn record_traces(
     joined: Option<Single<&JoinedGame, With<ClientConnection>>>,
 ) {
     match (&traces, &joined) {
-        (Some(traces), Some(joined)) => traces.record(&joined.dimension, loader.trace.drain(..)),
+        (Some(traces), Some(joined)) => {
+            traces.record(joined.dimension.as_str(), loader.trace.drain(..))
+        }
         _ => loader.trace.clear(),
     }
 }

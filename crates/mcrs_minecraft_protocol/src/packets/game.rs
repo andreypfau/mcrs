@@ -15,8 +15,10 @@ pub mod clientbound {
     use crate::{Decode as _, Encode as _};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
+    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use mcrs_minecraft_registry::BlockStateId;
@@ -177,17 +179,17 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
-    pub struct ClientboundLogin<'a> {
+    pub struct ClientboundLogin {
         pub player_id: i32,
         pub hardcore: bool,
-        pub dimensions: Vec<ResourceLocation<Cow<'a, str>>>,
+        pub dimensions: Vec<ResourceKey<keys::Dimension>>,
         pub max_players: VarInt,
         pub chunk_radius: VarInt,
         pub simulation_distance: VarInt,
         pub reduced_debug_info: bool,
         pub show_death_screen: bool,
         pub do_limited_crafting: bool,
-        pub player_spawn_info: PlayerSpawnInfo<'a>,
+        pub player_spawn_info: PlayerSpawnInfo,
         pub online_mode: bool,
         pub enforces_secure_chat: bool,
     }
@@ -388,8 +390,8 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, PartialEq, Encode, Decode)]
-    pub struct ClientboundRespawn<'a> {
-        pub player_spawn_info: PlayerSpawnInfo<'a>,
+    pub struct ClientboundRespawn {
+        pub player_spawn_info: PlayerSpawnInfo,
         pub data_to_keep: u8,
     }
 

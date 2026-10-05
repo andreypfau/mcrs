@@ -77,7 +77,7 @@ pub struct JoinedTraces<'w, 's> {
 impl JoinedTraces<'_, '_> {
     pub fn snapshot(&self, out: &mut Vec<ColumnSample>) {
         match self.joined.single() {
-            Ok(joined) => self.traces.snapshot(&joined.dimension, out),
+            Ok(joined) => self.traces.snapshot(joined.dimension.as_str(), out),
             Err(_) => out.clear(),
         }
     }

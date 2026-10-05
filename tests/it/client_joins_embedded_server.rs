@@ -81,7 +81,7 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
 
     let joined = world.get::<JoinedGame>(connection).unwrap();
     assert!(!joined.dimensions.is_empty());
-    assert!(joined.dimension.starts_with("minecraft:"));
+    assert!(joined.dimension.as_str().starts_with("minecraft:"));
 
     assert!(
         world

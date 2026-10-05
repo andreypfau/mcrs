@@ -109,7 +109,7 @@ pub enum MetaDataValue<'a> {
     ChickenVariant(RegistryId),
     ChickenSoundVariant(RegistryId),
     ZombieNautilusVariant(RegistryId),
-    OptionalGlobalPos(Option<GlobalPos<'a>>),
+    OptionalGlobalPos(Option<GlobalPos>),
     PaintingVariant(RegistryId),
     SnifferState(SnifferState),
     ArmadilloState(ArmadilloState),

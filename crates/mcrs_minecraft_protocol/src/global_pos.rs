@@ -1,11 +1,21 @@
-use std::borrow::Cow;
+use std::io::Write;
 
 use crate::{Decode, Encode};
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::ResourceLocation;
+pub use mcrs_minecraft_item::component::GlobalPos;
 
-#[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
-pub struct GlobalPos<'a> {
-    pub dimension_name: ResourceLocation<Cow<'a, str>>,
-    pub position: BlockPos,
+impl Encode for GlobalPos {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.dimension.encode(&mut w)?;
+        self.pos.encode(w)
+    }
+}
+
+impl Decode<'_> for GlobalPos {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(GlobalPos {
+            dimension: Decode::decode(r)?,
+            pos: BlockPos::decode(r)?,
+        })
+    }
 }

@@ -217,11 +217,7 @@ fn consume_inbound_player_spawn(
         let center_x = (spawn_pos.x / 16.0).floor() as i32;
         let center_z = (spawn_pos.z / 16.0).floor() as i32;
 
-        let dimensions = spawn
-            .dimensions
-            .iter()
-            .map(|key| key.location().clone().into())
-            .collect();
+        let dimensions = spawn.dimensions.to_vec();
 
         info!(
             "{} logged in with entity id {wire_id} in {dim_key} at ({:.2}, {:.2}, {:.2})",
@@ -249,7 +245,7 @@ fn consume_inbound_player_spawn(
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
                         dimension_type_id: RegistryId(dim_type_id),
-                        dimension: dim_key.location().clone().into(),
+                        dimension: dim_key.clone(),
                         game_mode: default_game_mode.0,
                         ..Default::default()
                     },

@@ -24,7 +24,7 @@ mod pos {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GlobalPosValue {
+pub struct GlobalPos {
     pub dimension: ResourceKey<Dimension>,
     #[serde(with = "pos")]
     pub pos: BlockPos,
@@ -34,7 +34,7 @@ pub struct GlobalPosValue {
 #[serde(deny_unknown_fields)]
 pub struct LodestoneTracker {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target: Option<GlobalPosValue>,
+    pub target: Option<GlobalPos>,
     #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
     pub tracked: bool,
 }
@@ -66,7 +66,7 @@ impl Sample for LodestoneTracker {
         vec![
             LodestoneTracker::default(),
             LodestoneTracker {
-                target: Some(GlobalPosValue {
+                target: Some(GlobalPos {
                     dimension: ResourceKey::from_location(ResourceLocation::minecraft(
                         "the_nether",
                     )),

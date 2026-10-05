@@ -131,7 +131,7 @@ mod tests {
                 JoinedGame {
                     player_id: PLAYER_ID,
                     dimensions: Vec::new(),
-                    dimension: "minecraft:overworld".into(),
+                    dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
                 },
             ))
             .id();
@@ -151,7 +151,7 @@ mod tests {
         app.world_mut().flush();
     }
 
-    fn spawn_info(mode: GameMode, previous: Option<GameMode>) -> PlayerSpawnInfo<'static> {
+    fn spawn_info(mode: GameMode, previous: Option<GameMode>) -> PlayerSpawnInfo {
         PlayerSpawnInfo {
             game_mode: mode,
             prev_game_mode: OptGameMode(previous),
@@ -159,7 +159,7 @@ mod tests {
         }
     }
 
-    fn login(mode: GameMode, previous: Option<GameMode>) -> ClientboundLogin<'static> {
+    fn login(mode: GameMode, previous: Option<GameMode>) -> ClientboundLogin {
         ClientboundLogin {
             player_id: PLAYER_ID,
             hardcore: false,
