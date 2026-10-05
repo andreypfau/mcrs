@@ -4,9 +4,10 @@ use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
-    Item, ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
+    ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value, tags,
 };
+use mcrs_minecraft_keys::{Enchantment, Item};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, ItemId, Registry};
@@ -96,8 +97,8 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
     let Some(enchantments) = enchantments.filter(|enchantments| !enchantments.0.is_empty()) else {
         return false;
     };
-    let registry = world.resource::<Registry<EnchantmentData>>();
-    let values = world.resource::<Entries<EnchantmentData, EnchantmentData>>();
+    let registry = world.resource::<Registry<Enchantment>>();
+    let values = world.resource::<Entries<Enchantment, EnchantmentData>>();
     enchantments.0.iter().any(|(id, _)| {
         registry
             .get(id.as_str())

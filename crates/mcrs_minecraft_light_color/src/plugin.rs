@@ -6,9 +6,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagPhase};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
+use mcrs_minecraft_keys::Item;
 
 use crate::colors::{LightColors, LightType};
 use crate::item::ItemLights;

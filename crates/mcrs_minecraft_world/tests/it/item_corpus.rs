@@ -7,9 +7,10 @@ use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
-    InteractAnimation, Item, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost,
-    SwingAnimation, TooltipDisplay, UseEffects,
+    InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
+    TooltipDisplay, UseEffects,
 };
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{ItemId, Registry};
 use serde::Deserialize;

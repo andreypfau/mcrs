@@ -6,8 +6,9 @@ use bevy_asset::io::AssetSourceId;
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
-use mcrs_minecraft_item::{Item, Items};
+use mcrs_minecraft_item::Items;
 use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::static_report::from_report;
 
 use self::definitions::load_item_definitions;

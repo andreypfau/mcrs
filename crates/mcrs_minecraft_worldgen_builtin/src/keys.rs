@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_item::component::sound::SoundEvent;
-use mcrs_minecraft_keys::{Carver, ParticleType};
+use mcrs_minecraft_keys::{Carver, ParticleType, SoundEvent};
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 
 pub use mcrs_minecraft_biome::PlacedFeatureKey as PlacedKey;

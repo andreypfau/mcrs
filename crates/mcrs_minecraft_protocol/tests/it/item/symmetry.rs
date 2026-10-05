@@ -54,7 +54,7 @@ impl Gen {
         }
     }
 
-    fn item(&mut self) -> (ResourceKey<mcrs_minecraft_protocol::item::Item>, ItemId) {
+    fn item(&mut self) -> (ResourceKey<mcrs_minecraft_keys::Item>, ItemId) {
         let (name, id) = *ITEMS.choose(&mut self.rng).unwrap();
         (
             ResourceKey::from_location(ResourceLocation::minecraft(name)),

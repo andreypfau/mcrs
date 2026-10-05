@@ -1,26 +1,24 @@
 use std::fmt;
 
 use mcrs_minecraft_core::{HolderSet, ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::{Block, MobEffect, Potion};
+use mcrs_minecraft_keys::{
+    Attribute, Block, Enchantment, Item, JukeboxSong, MobEffect, Potion, TrimMaterial, TrimPattern,
+    VillagerType,
+};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::Item;
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
     key, map_only, serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
-use crate::component::instrument::JukeboxSong;
 use crate::component::scalar::record_codec;
-use crate::component::trim::{TrimMaterial, TrimPattern};
-use crate::enchantment::EnchantmentData;
 use crate::harness::Sample;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentMap;
-use mcrs_minecraft_entity::{Attribute, VillagerType};
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
@@ -464,7 +462,7 @@ pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enchantments: Option<HolderSet<ResourceKey<EnchantmentData>>>,
+    pub enchantments: Option<HolderSet<ResourceKey<Enchantment>>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
 }

@@ -37,10 +37,10 @@ use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
-use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock};
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
+use mcrs_minecraft_keys::{Enchantment, EntityType};
 use mcrs_minecraft_registry::DynRegistryIndex;
 
 #[derive(Resource, Default)]
@@ -94,8 +94,8 @@ impl Plugin for MinecraftWorldPlugin {
             (
                 request_every_tag::<mcrs_minecraft_keys::Block, u16>,
                 request_every_tag::<mcrs_minecraft_keys::Fluid, u16>,
-                request_every_tag::<mcrs_minecraft_item::Item, u16>,
-                request_every_tag::<EnchantmentData, mcrs_minecraft_registry::Id<EnchantmentData>>,
+                request_every_tag::<mcrs_minecraft_keys::Item, u16>,
+                request_every_tag::<Enchantment, mcrs_minecraft_registry::Id<Enchantment>>,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
                 request_every_tag::<mcrs_minecraft_keys::Biome, u16>,
                 request_every_tag::<mcrs_minecraft_keys::Structure, u16>,
@@ -104,8 +104,8 @@ impl Plugin for MinecraftWorldPlugin {
         );
         app.add_tagged_registry::<mcrs_minecraft_keys::Block, mcrs_minecraft_block::definition::Blocks>()
         .add_tagged_registry::<mcrs_minecraft_keys::Fluid, mcrs_minecraft_block::definition::Fluids>()
-        .add_tagged_registry::<mcrs_minecraft_item::Item, mcrs_minecraft_item::Items>()
-        .add_tagged_registry::<EnchantmentData, mcrs_minecraft_registry::Registry<EnchantmentData>>()
+        .add_tagged_registry::<mcrs_minecraft_keys::Item, mcrs_minecraft_item::Items>()
+        .add_tagged_registry::<Enchantment, mcrs_minecraft_registry::Registry<Enchantment>>()
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Biome, DynRegistryIndex<mcrs_minecraft_keys::Biome>>()
@@ -231,7 +231,7 @@ impl Plugin for MinecraftWorldPlugin {
                 .registry::<mcrs_minecraft_keys::Block>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:block registry", path.display()));
             let item_registry = registries
-                .registry::<mcrs_minecraft_item::Item>()
+                .registry::<mcrs_minecraft_keys::Item>()
                 .unwrap_or_else(|| panic!("{}: no minecraft:item registry", path.display()));
             registries::register_world_registries(
                 &mut app
@@ -241,12 +241,12 @@ impl Plugin for MinecraftWorldPlugin {
             );
             app.insert_resource(
                 registries
-                    .registry::<EnchantmentData>()
+                    .registry::<Enchantment>()
                     .expect("the data pack loader parses minecraft:enchantment"),
             );
             app.insert_resource(
                 registries
-                    .entries::<EnchantmentData, EnchantmentData>()
+                    .entries::<Enchantment, EnchantmentData>()
                     .expect("the data pack loader parses minecraft:enchantment"),
             );
             {

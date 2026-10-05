@@ -5,8 +5,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::tags as block_tags;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_entity::EntityType;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, EntityType};
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::common::workspace_root;

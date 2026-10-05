@@ -3,25 +3,52 @@ use std::marker::PhantomData;
 
 use crate::registry::Registry;
 use crate::set::ScopeError;
-use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
 use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A registry id, or the entry itself written inline.
-#[derive(Clone, PartialEq, Debug)]
-pub enum Holder<T: RegistryKey> {
-    Reference(ResourceKey<T>),
-    Direct(T),
+pub enum Holder<V: RegistryValue> {
+    Reference(ResourceKey<V::Registry>),
+    Direct(V),
 }
 
-impl<T: RegistryKey> Holder<T> {
+impl<V: RegistryValue + Clone> Clone for Holder<V> {
+    fn clone(&self) -> Self {
+        match self {
+            Holder::Reference(key) => Holder::Reference(key.clone()),
+            Holder::Direct(value) => Holder::Direct(value.clone()),
+        }
+    }
+}
+
+impl<V: RegistryValue + PartialEq> PartialEq for Holder<V> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Holder::Reference(a), Holder::Reference(b)) => a == b,
+            (Holder::Direct(a), Holder::Direct(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl<V: RegistryValue + fmt::Debug> fmt::Debug for Holder<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Holder::Reference(key) => f.debug_tuple("Reference").field(key).finish(),
+            Holder::Direct(value) => f.debug_tuple("Direct").field(value).finish(),
+        }
+    }
+}
+
+impl<V: RegistryValue> Holder<V> {
     pub fn reference(location: ResourceLocation) -> Self {
         Holder::Reference(ResourceKey::from_location(location))
     }
 }
 
-impl<T: RegistryKey + Serialize> Serialize for Holder<T> {
+impl<V: RegistryValue + Serialize> Serialize for Holder<V> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
             Holder::Reference(key) => key.serialize(s),
@@ -30,20 +57,20 @@ impl<T: RegistryKey + Serialize> Serialize for Holder<T> {
     }
 }
 
-impl<'de, T: RegistryKey + DeserializeOwned> Deserialize<'de> for Holder<T> {
+impl<'de, V: RegistryValue + DeserializeOwned> Deserialize<'de> for Holder<V> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct HolderVisitor<T>(PhantomData<T>);
+        struct HolderVisitor<V>(PhantomData<V>);
 
-        impl<'de, T: RegistryKey + DeserializeOwned> Visitor<'de> for HolderVisitor<T> {
-            type Value = Holder<T>;
+        impl<'de, V: RegistryValue + DeserializeOwned> Visitor<'de> for HolderVisitor<V> {
+            type Value = Holder<V>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "a {} id or an inline entry", T::KEY.path())
+                write!(f, "a {} id or an inline entry", V::Registry::KEY.path())
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 let location = ResourceLocation::read(text).map_err(E::custom)?;
-                match Registry::<T>::in_scope("Holder", |registry| {
+                match Registry::<V::Registry>::in_scope("Holder", |registry| {
                     registry.require(location.as_str())
                 }) {
                     Ok(Err(unknown)) => Err(E::custom(unknown)),
@@ -53,7 +80,7 @@ impl<'de, T: RegistryKey + DeserializeOwned> Deserialize<'de> for Holder<T> {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                T::deserialize(value::MapAccessDeserializer::new(map)).map(Holder::Direct)
+                V::deserialize(value::MapAccessDeserializer::new(map)).map(Holder::Direct)
             }
         }
 
@@ -63,22 +90,39 @@ impl<'de, T: RegistryKey + DeserializeOwned> Deserialize<'de> for Holder<T> {
 
 /// A holder whose persistent form is the registry id only; the inline entry
 /// exists on the wire alone.
-#[derive(Clone, PartialEq, Debug)]
-pub struct HolderWireOnly<T: RegistryKey>(pub Holder<T>);
+pub struct HolderWireOnly<V: RegistryValue>(pub Holder<V>);
 
-impl<T: RegistryKey + Serialize> Serialize for HolderWireOnly<T> {
+impl<V: RegistryValue + Clone> Clone for HolderWireOnly<V> {
+    fn clone(&self) -> Self {
+        HolderWireOnly(self.0.clone())
+    }
+}
+
+impl<V: RegistryValue + PartialEq> PartialEq for HolderWireOnly<V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<V: RegistryValue + fmt::Debug> fmt::Debug for HolderWireOnly<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("HolderWireOnly").field(&self.0).finish()
+    }
+}
+
+impl<V: RegistryValue + Serialize> Serialize for HolderWireOnly<V> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match &self.0 {
             Holder::Reference(key) => key.serialize(s),
             Holder::Direct(_) => Err(S::Error::custom(format_args!(
                 "an inline {} entry has no persistent form",
-                T::KEY.path()
+                V::Registry::KEY.path()
             ))),
         }
     }
 }
 
-impl<'de, T: RegistryKey> Deserialize<'de> for HolderWireOnly<T> {
+impl<'de, V: RegistryValue> Deserialize<'de> for HolderWireOnly<V> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         ResourceKey::deserialize(d).map(|key| HolderWireOnly(Holder::Reference(key)))
     }
@@ -94,14 +138,20 @@ mod tests {
     #[derive(Debug, PartialEq, Deserialize)]
     struct Sound;
 
-    impl RegistryKey for Sound {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_sound");
-    }
-
     struct Item;
 
     impl RegistryKey for Item {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_item");
+    }
+
+    struct SoundRegistry;
+
+    impl RegistryKey for SoundRegistry {
+        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_sound");
+    }
+
+    impl RegistryValue for Sound {
+        type Registry = SoundRegistry;
     }
 
     fn registry<R: RegistryKey>(name: &str) -> Registry<R> {
@@ -116,7 +166,7 @@ mod tests {
     #[test]
     fn a_reference_into_the_wrong_registry_fails() {
         let set = RegistrySet::new()
-            .with(registry::<Sound>("minecraft:ding"))
+            .with(registry::<SoundRegistry>("minecraft:ding"))
             .unwrap()
             .with(registry::<Item>("minecraft:stick"))
             .unwrap();

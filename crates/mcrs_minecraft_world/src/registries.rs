@@ -28,11 +28,11 @@ use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
-    BannerPattern, InstrumentValue, Item, Items, JukeboxSong, PaintingVariantValue, SoundEvent,
-    TrimMaterial, TrimPattern,
+    BannerPattern, InstrumentValue, Items, JukeboxSong, PaintingVariantValue, TrimMaterial,
+    TrimPattern,
 };
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, Enchantment, Item};
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{
@@ -71,19 +71,19 @@ macro_rules! world_registry_table {
 }
 
 world_registry_table! {
-    BannerPattern => BannerPattern, synced as Clone::clone;
-    InstrumentValue => InstrumentValue, synced as Clone::clone;
-    JukeboxSong => JukeboxSong, synced as Clone::clone;
-    PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
-    TrimMaterial => TrimMaterial, synced as Clone::clone;
-    TrimPattern => TrimPattern, synced as Clone::clone;
+    keys::BannerPattern => BannerPattern, synced as Clone::clone;
+    keys::Instrument => InstrumentValue, synced as Clone::clone;
+    keys::JukeboxSong => JukeboxSong, synced as Clone::clone;
+    keys::PaintingVariant => PaintingVariantValue [non_empty], synced as Clone::clone;
+    keys::TrimMaterial => TrimMaterial, synced as Clone::clone;
+    keys::TrimPattern => TrimPattern, synced as Clone::clone;
     ChatType => ChatType, synced as Clone::clone;
     TestEnvironment => TestEnvironment, synced as Clone::clone;
     TestInstance => TestInstance, synced as Clone::clone;
     keys::Dialog => Dialog, synced as Clone::clone;
     keys::DamageType => DamageType, synced as Clone::clone;
     keys::BlockTransformer => BlockTransformer, synced as Clone::clone;
-    EnchantmentData => EnchantmentData, synced as Clone::clone;
+    keys::Enchantment => EnchantmentData, synced as Clone::clone;
     keys::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
     keys::WolfVariant => variant::WolfVariant [non_empty],
         synced as |v| variant::NetworkWolfVariant::from(v);
@@ -339,8 +339,8 @@ pub fn share_registries(world: &mut World) {
     share::<RegistryAccess>(world);
     share::<Blocks>(world);
     share::<Items>(world);
-    share::<Registry<EnchantmentData>>(world);
-    share::<Entries<EnchantmentData, EnchantmentData>>(world);
+    share::<Registry<Enchantment>>(world);
+    share::<Entries<Enchantment, EnchantmentData>>(world);
     share::<DynTagRegistry<Block>>(world);
     share::<DynTagRegistry<Item>>(world);
     share::<RegistrySnapshot<Biome>>(world);
@@ -349,7 +349,7 @@ pub fn share_registries(world: &mut World) {
 pub fn static_registries(report: &[u8]) -> Result<(RegistrySet, EntityIds), LoadReport> {
     let set = from_report(report).map_err(LoadReport::invalid)?;
     let mut missing = LoadReport::new();
-    missing.registry::<SoundEvent>(&set);
+    missing.registry::<keys::SoundEvent>(&set);
     missing.registry::<Block>(&set);
     missing.registry::<Item>(&set);
     let entity_ids = EntityIds::resolve(&set, &mut missing);

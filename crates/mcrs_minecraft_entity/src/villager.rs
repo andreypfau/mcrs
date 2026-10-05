@@ -1,5 +1,3 @@
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -35,8 +33,4 @@ impl VillagerType {
     pub const fn protocol_id(self) -> u16 {
         self as u16
     }
-}
-
-impl RegistryKey for VillagerType {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:villager_type");
 }

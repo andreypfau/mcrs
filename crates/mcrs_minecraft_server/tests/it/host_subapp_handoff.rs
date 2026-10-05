@@ -13,9 +13,8 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_item::Item;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, Enchantment, Item};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -361,8 +360,8 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<RegistryAccess>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
-        type_name::<Registry<EnchantmentData>>(),
-        type_name::<Entries<EnchantmentData, EnchantmentData>>(),
+        type_name::<Registry<Enchantment>>(),
+        type_name::<Entries<Enchantment, EnchantmentData>>(),
         type_name::<DynTagRegistry<Block>>(),
         type_name::<DynTagRegistry<Item>>(),
         type_name::<RegistrySnapshot<Biome>>(),

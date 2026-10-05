@@ -4,12 +4,11 @@ use std::marker::PhantomData;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
-use mcrs_minecraft_entity::EntityType;
 use mcrs_minecraft_item::{
     ComponentPredicate, ComponentPredicateType, DyeColor, ItemComponentKind, ItemComponentValue,
-    RgbInt, TrimMaterial,
+    RgbInt,
 };
-use mcrs_minecraft_keys::Dimension;
+use mcrs_minecraft_keys::{Dimension, EntityType, TrimMaterial};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;

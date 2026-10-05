@@ -303,7 +303,7 @@ fn container_packets_are_the_games_bytes() {
     );
 }
 
-fn key(path: &str) -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
+fn key(path: &str) -> ResourceKey<mcrs_minecraft_keys::Item> {
     ResourceKey::from_location(ResourceLocation::minecraft(path))
 }
 

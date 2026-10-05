@@ -1,5 +1,6 @@
-use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{Holder, lenient_float};
@@ -17,8 +18,8 @@ pub struct SoundEvent {
     pub range: Option<f32>,
 }
 
-impl RegistryKey for SoundEvent {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:sound_event");
+impl RegistryValue for SoundEvent {
+    type Registry = keys::SoundEvent;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use std::io::Write;
 use anyhow::ensure;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::component::registry_ref::*;
@@ -40,7 +40,7 @@ impl DecodeCtx<'_> for Enchantments {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(len >= 0, "attempt to decode a map with negative length");
-        let mut entries: Vec<(ResourceKey<EnchantmentData>, i32)> =
+        let mut entries: Vec<(ResourceKey<Enchantment>, i32)> =
             Vec::with_capacity((len as usize).min(r.len()));
         for _ in 0..len {
             let enchantment = ResourceKey::decode_ctx(ctx, r)?;

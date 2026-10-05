@@ -272,7 +272,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     assert_eq!(HashedStack::create(&ProtoStack::EMPTY).unwrap(), None);
 }
 
-fn stone() -> ResourceKey<mcrs_minecraft_protocol::item::Item> {
+fn stone() -> ResourceKey<mcrs_minecraft_keys::Item> {
     ResourceKey::from_location(ResourceLocation::minecraft("stone"))
 }
 
@@ -502,7 +502,7 @@ fn a_patch_compares_as_a_map() {
 
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
-    use mcrs_minecraft_entity::EntityType;
+    use mcrs_minecraft_keys::EntityType;
     use mcrs_minecraft_protocol::item::{
         Holder, ResolvableFloat, ResolvableInt, SoundEvent, TypedEntityData,
     };

@@ -1,6 +1,6 @@
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_entity::attribute::MAX_HEALTH;
-use mcrs_minecraft_entity::{Attribute, EntityType};
+use mcrs_minecraft_keys::{Attribute, EntityType};
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use std::ops::Deref;

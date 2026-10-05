@@ -7,8 +7,9 @@ use bevy_state::state::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,10 @@ pub struct WorldClock {}
 
 impl RegistryKey for WorldClock {
     const KEY: ResourceLocation<&'static str> = rl!("minecraft:world_clock");
+}
+
+impl RegistryValue for WorldClock {
+    type Registry = keys::WorldClock;
 }
 
 /// One clock's authoritative state.
