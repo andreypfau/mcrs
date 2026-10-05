@@ -66,7 +66,7 @@ pub fn make_host_app() -> App {
 }
 
 /// Give the dimensions spawned from this host a lighting engine. Production
-/// inserts the same resource at `AppState::WorldgenFreeze`.
+/// inserts the same resource at `Startup`.
 pub fn enable_lighting(app: &mut App) {
     let blocks = app.world().resource::<Blocks>().clone();
     app.insert_resource(BlockLightRegistry(block_light_registry(&blocks)));

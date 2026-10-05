@@ -11,7 +11,6 @@ use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, UnknownEntry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
-use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_structure::StructureSet;
 use std::collections::BTreeMap;
 use thiserror::Error;
@@ -22,7 +21,6 @@ pub struct WorldgenTables {
     pub features: Entries<keys::Feature, Option<FeatureAsset>>,
     pub placed_features: Entries<keys::PlacedFeature, Option<PlacedFeatureAsset>>,
     pub processor_lists: Entries<keys::ProcessorList, Option<StructureProcessorList>>,
-    pub block_state_providers: Entries<keys::BlockStateProvider, Option<DirectBlockStateProvider>>,
     pub structures: Entries<keys::Structure, Option<StructureAsset>>,
     pub structure_sets: Entries<keys::StructureSet, Option<StructureSet>>,
     pub template_pools: Entries<keys::TemplatePool, Option<TemplatePoolAsset>>,
@@ -35,9 +33,6 @@ impl SharedResource for WorldgenTables {
             && self.features.shares_with(&other.features)
             && self.placed_features.shares_with(&other.placed_features)
             && self.processor_lists.shares_with(&other.processor_lists)
-            && self
-                .block_state_providers
-                .shares_with(&other.block_state_providers)
             && self.structures.shares_with(&other.structures)
             && self.structure_sets.shares_with(&other.structure_sets)
             && self.template_pools.shares_with(&other.template_pools)
@@ -57,7 +52,6 @@ impl Default for WorldgenTables {
             features: empty(),
             placed_features: empty(),
             processor_lists: empty(),
-            block_state_providers: empty(),
             structures: empty(),
             structure_sets: empty(),
             template_pools: empty(),
@@ -151,7 +145,6 @@ pub fn build_worldgen_tables(
     features: Res<Assets<FeatureAsset>>,
     placed_features: Res<Assets<PlacedFeatureAsset>>,
     processor_lists: Res<Assets<ProcessorListAsset>>,
-    block_state_providers: Res<Assets<crate::bevy::BlockStateProviderAsset>>,
     structures: Res<Assets<StructureAsset>>,
     structure_sets: Res<Assets<StructureSetAsset>>,
     template_pools: Res<Assets<TemplatePoolAsset>>,
@@ -163,9 +156,6 @@ pub fn build_worldgen_tables(
         features: column(&set, server, &features, Clone::clone),
         placed_features: column(&set, server, &placed_features, Clone::clone),
         processor_lists: column(&set, server, &processor_lists, |asset| asset.list.clone()),
-        block_state_providers: column(&set, server, &block_state_providers, |asset| {
-            asset.provider.clone()
-        }),
         structures: column(&set, server, &structures, Clone::clone),
         structure_sets: column(&set, server, &structure_sets, |asset| asset.set.clone()),
         template_pools: column(&set, server, &template_pools, Clone::clone),
@@ -176,7 +166,6 @@ pub fn build_worldgen_tables(
         features = tables.features.as_slice().len(),
         placed_features = tables.placed_features.as_slice().len(),
         processor_lists = tables.processor_lists.as_slice().len(),
-        block_state_providers = tables.block_state_providers.as_slice().len(),
         noise_settings = tables.noise_settings.as_slice().len(),
         structures = tables.structures.as_slice().len(),
         structure_sets = tables.structure_sets.as_slice().len(),

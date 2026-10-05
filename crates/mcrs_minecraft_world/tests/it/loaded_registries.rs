@@ -106,8 +106,9 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 2] = [
+const PARSED_WORLDGEN: [&str; 3] = [
     "minecraft:worldgen/biome",
+    "minecraft:worldgen/block_state_provider",
     "minecraft:worldgen/multi_noise_biome_source_parameter_list",
 ];
 

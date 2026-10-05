@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate, Plugin, Startup};
 use bevy_ecs::prelude::*;
-use bevy_state::state::OnEnter;
-use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::{RegistryKey, RegistryValue};
@@ -257,7 +255,7 @@ impl Plugin for WorldClockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldClocks>()
             .init_resource::<AdvanceTime>()
-            .add_systems(OnEnter(AppState::WorldgenFreeze), seed_world_clocks)
+            .add_systems(Startup, seed_world_clocks)
             .add_systems(
                 FixedUpdate,
                 advance_world_clocks.run_if(advance_time_enabled),

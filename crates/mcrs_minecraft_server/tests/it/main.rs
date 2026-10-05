@@ -44,6 +44,7 @@ mod op_level;
 mod play_state_delivery;
 mod run_server_loop_exit;
 mod session_lifecycle;
+mod startup_tables;
 mod subapp_lifecycle;
 mod support;
 mod worldgen_y_range_clamp;

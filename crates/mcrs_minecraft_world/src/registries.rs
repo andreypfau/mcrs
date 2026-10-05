@@ -40,6 +40,7 @@ use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
 };
+use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,6 +117,7 @@ world_registry_table! {
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
     keys::Biome => Biome, synced as |biome| NetworkBiome::from(biome);
     keys::DimensionType => DimensionType, synced as |d| NetworkDimensionType::from(d);
+    keys::BlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
     keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
     keys::EnchantmentProvider => EnchantmentProvider;
     keys::VillagerTrade => VillagerTrade;

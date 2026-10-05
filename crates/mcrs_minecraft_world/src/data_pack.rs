@@ -158,13 +158,6 @@ pub(crate) fn request_data_pack_assets(
         "minecraft:worldgen/template_pool",
         "json",
     );
-    request_registry::<mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:worldgen/block_state_provider",
-        "json",
-    );
     request_templates(&asset_server, &mut loaded);
     keep_ordered_timeline_tags(&asset_server, &set, &mut loaded);
 }
