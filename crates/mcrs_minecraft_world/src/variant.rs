@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::{HolderSet, RegistryKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{EntrySet, Holder, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Holder, HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen_feature::spawn_condition as feature;
 use serde::{Deserialize, Serialize};
 
-pub type SpawnSelector = feature::SpawnSelector<EntrySet<keys::Structure>, EntrySet<keys::Biome>>;
+pub type SpawnSelector = feature::SpawnSelector<HolderSet<keys::Structure>, HolderSet<keys::Biome>>;
 
 macro_rules! spawning_variant {
     (
@@ -229,6 +229,12 @@ pub fn named_selectors<T: 'static>(
     let biomes = registries
         .registry::<keys::Biome>()
         .expect("the biome registry is loaded");
+    let structure_tags = registries
+        .tags::<keys::Structure>()
+        .expect("the structure tags are loaded");
+    let biome_tags = registries
+        .tags::<keys::Biome>()
+        .expect("the biome tags are loaded");
     let table = registries
         .table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
@@ -250,12 +256,12 @@ pub fn named_selectors<T: 'static>(
                         .map(|condition| match condition {
                             feature::SpawnCondition::Structure { structures: set } => {
                                 feature::SpawnCondition::Structure {
-                                    structures: names(set, &structures),
+                                    structures: names(set, &structures, &structure_tags),
                                 }
                             }
                             feature::SpawnCondition::Biome { biomes: set } => {
                                 feature::SpawnCondition::Biome {
-                                    biomes: names(set, &biomes),
+                                    biomes: names(set, &biomes, &biome_tags),
                                 }
                             }
                             feature::SpawnCondition::MoonBrightness { range } => {
@@ -269,7 +275,12 @@ pub fn named_selectors<T: 'static>(
         .collect()
 }
 
-fn names<R: RegistryKey>(set: &EntrySet<R>, registry: &Registry<R>) -> HolderSet {
+fn names<R: RegistryKey>(
+    set: &HolderSet<R>,
+    registry: &Registry<R>,
+    tags: &Tags<R>,
+) -> mcrs_minecraft_core::HolderSet {
+    use mcrs_minecraft_core::HolderSet as Named;
     let name = |id| {
         registry
             .key(id)
@@ -277,8 +288,8 @@ fn names<R: RegistryKey>(set: &EntrySet<R>, registry: &Registry<R>) -> HolderSet
             .clone()
     };
     match set {
-        EntrySet::Tag(tag) => HolderSet::Tag(tag.clone()),
-        EntrySet::One(id) => HolderSet::One(name(*id)),
-        EntrySet::List(ids) => HolderSet::List(ids.iter().copied().map(name).collect()),
+        HolderSet::Named(tag) => Named::Tag(tags.name(*tag).clone()),
+        HolderSet::One(id) => Named::One(name(*id)),
+        HolderSet::List(ids) => Named::List(ids.iter().copied().map(name).collect()),
     }
 }

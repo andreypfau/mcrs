@@ -14,7 +14,7 @@ use mcrs_minecraft_environment::attribute::{
     AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
 use mcrs_minecraft_keys::{Carver, PlacedFeature};
-use mcrs_minecraft_registry::{EntrySet, Id, RegistrySet};
+use mcrs_minecraft_registry::{HolderSet, Id, RegistrySet};
 use mcrs_minecraft_worldgen_structure::DecorationStep;
 
 pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
@@ -26,8 +26,8 @@ pub enum TemperatureModifier {
     Frozen,
 }
 
-pub type CarverSet = EntrySet<Carver>;
-pub type FeatureSteps = Vec<EntrySet<PlacedFeature>>;
+pub type CarverSet = HolderSet<Carver>;
+pub type FeatureSteps = Vec<HolderSet<PlacedFeature>>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Biome<C = CarverSet, F = FeatureSteps> {
@@ -177,15 +177,15 @@ impl BiomeDraft {
     pub fn resolve(self, set: &RegistrySet) -> Result<Biome, Vec<String>> {
         let mut failures = Vec::new();
         let carvers = match ids::<Carver>(set, &self.carvers, &mut failures)[..] {
-            [only] => EntrySet::One(only),
-            ref listed => EntrySet::List(listed.to_vec()),
+            [only] => HolderSet::One(only),
+            ref listed => HolderSet::List(listed.into()),
         };
         let features = self
             .features
             .iter()
             .map(|step| {
                 let names: Vec<_> = step.iter().map(|key| *key.location()).collect();
-                EntrySet::List(ids::<PlacedFeature>(set, &names, &mut failures))
+                HolderSet::List(ids::<PlacedFeature>(set, &names, &mut failures).into())
             })
             .collect();
         if !failures.is_empty() {

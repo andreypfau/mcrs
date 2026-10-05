@@ -7,7 +7,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::tags::TagSource;
 use mcrs_minecraft_registry::{
-    EntrySet, NameTable, Registry, RegistrySet, TagRules, TagTable, build_tags,
+    HolderSet, NameTable, Registry, RegistrySet, TagRules, TagTable, build_tags,
 };
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
@@ -145,13 +145,18 @@ fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
     Registry::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
-/// The names `set` holds, as `corpus_set` numbers them.
-pub fn names_of<R: RegistryKey>(set: &EntrySet<R>) -> Vec<String> {
+/// The names `set` holds, as `corpus_set` numbers them. The corpus holds no
+/// tags, so a set that names one is refused.
+pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
     let registry = corpus_set()
         .registry::<R>()
         .unwrap_or_else(|| panic!("the corpus set holds no {}", R::KEY));
-    set.entries()
-        .iter()
+    let ids = match set {
+        HolderSet::Named(_) => panic!("the corpus set holds no {} tags", R::KEY),
+        HolderSet::One(id) => std::slice::from_ref(id),
+        HolderSet::List(ids) => ids,
+    };
+    ids.iter()
         .map(|&id| {
             registry
                 .key(id)

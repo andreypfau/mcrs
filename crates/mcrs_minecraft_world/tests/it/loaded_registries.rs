@@ -9,14 +9,14 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation, TagKey};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{EntrySet, Id, Pack, PackFile, RegistrySet, WorldRegistries};
+use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
@@ -442,6 +442,30 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
         }
     }
     assert!(parsed > 0, "the loader parses no registry");
+}
+
+#[test]
+fn a_loaded_holder_set_answers_membership_through_the_tags() {
+    let set = test_registries();
+    let archetypes = set
+        .column::<SulfurCubeArchetype>("minecraft:sulfur_cube_archetype")
+        .expect("the archetypes are parsed by the loader");
+    let items = set.registry::<keys::Item>().unwrap();
+    let tags = set.tags::<keys::Item>().unwrap();
+    assert!(!archetypes.is_empty());
+    for archetype in archetypes {
+        let first = archetype
+            .items
+            .ids(&tags)
+            .next()
+            .expect("an archetype names at least one item");
+        assert!(archetype.items.contains(first, &tags));
+        let outside = items
+            .ids()
+            .find(|id| !archetype.items.ids(&tags).any(|member| member == *id))
+            .expect("an item lies outside the set");
+        assert!(!archetype.items.contains(outside, &tags));
+    }
 }
 
 #[test]
@@ -1977,6 +2001,15 @@ fn overworld_dimension_type_with(
     test_registries().scope(|| serde_json::from_value(file).map_err(|e| e.to_string()))
 }
 
+fn tag_in<R: RegistryKey>(set: &RegistrySet, name: &str) -> TagId<R> {
+    set.tags::<R>()
+        .unwrap_or_else(|| panic!("{} has loaded tags", R::KEY))
+        .get(&TagKey::<R, _>::from_location(
+            ResourceLocation::parse(name).unwrap(),
+        ))
+        .unwrap_or_else(|| panic!("{name} is a loaded tag"))
+}
+
 #[test]
 fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
     let set = test_registries();
@@ -1991,13 +2024,13 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
         .get("minecraft:overworld")
         .unwrap();
 
-    let infiniburn: [(&str, EntrySet<Block>); 3] = [
+    let infiniburn: [(&str, HolderSet<Block>); 3] = [
         (
             r##""#minecraft:infiniburn_overworld""##,
-            EntrySet::Tag(ResourceLocation::parse("minecraft:infiniburn_overworld").unwrap()),
+            HolderSet::Named(tag_in::<Block>(set, "minecraft:infiniburn_overworld")),
         ),
-        (r#""minecraft:stone""#, EntrySet::One(stone)),
-        (r#"["minecraft:stone"]"#, EntrySet::List(vec![stone])),
+        (r#""minecraft:stone""#, HolderSet::One(stone)),
+        (r#"["minecraft:stone"]"#, HolderSet::List(Box::new([stone]))),
     ];
     for (json, expected) in infiniburn {
         let read = overworld_dimension_type_with(&[("infiniburn", Some(json))])
@@ -2007,13 +2040,13 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
 
     let absent = overworld_dimension_type_with(&[("timelines", None), ("default_clock", None)])
         .expect("a dimension type without timelines or a clock reads");
-    assert_eq!(absent.timelines, EntrySet::List(Vec::new()));
+    assert_eq!(absent.timelines, HolderSet::default());
     assert_eq!(absent.default_clock, None);
 
     let shipped = overworld_dimension_type_with(&[]).expect("the shipped overworld reads");
     assert_eq!(
         shipped.timelines,
-        EntrySet::Tag(ResourceLocation::parse("minecraft:in_overworld").unwrap())
+        HolderSet::Named(tag_in::<keys::Timeline>(set, "minecraft:in_overworld"))
     );
     assert_eq!(shipped.default_clock, Some(overworld_clock));
 

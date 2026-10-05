@@ -647,7 +647,7 @@ fn directory_of(registry: &Name) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entry_set::EntrySet;
+    use crate::holder_set::HolderSet;
     use crate::id::Id;
     use crate::registry::Registry;
     use mcrs_minecraft_core::registry_key::RegistryKey;
@@ -681,7 +681,7 @@ mod tests {
     #[serde(deny_unknown_fields)]
     struct Linked {
         marker: Option<Id<Marker>>,
-        tag: Option<EntrySet<Marker>>,
+        tag: Option<HolderSet<Marker>>,
     }
 
     impl RegistryKey for Linked {
@@ -691,7 +691,7 @@ mod tests {
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     struct FixedLinked {
-        tag: EntrySet<Fixed>,
+        tag: HolderSet<Fixed>,
     }
 
     impl RegistryKey for FixedLinked {

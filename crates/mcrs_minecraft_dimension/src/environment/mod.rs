@@ -8,16 +8,12 @@
 
 use std::sync::{Arc, LazyLock};
 
-use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_assets::tag::file::TagFile;
-use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, EntrySet, Id, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
 use crate::dimension_type::{DimensionType, Skybox};
 use mcrs_minecraft_core::ResourceLocation;
@@ -294,17 +290,22 @@ impl DimensionEnvironments {
 
 pub fn build_dimension_environments(
     registries: Res<RegistrySet>,
-    timeline_index: Res<DynRegistryIndex<keys::Timeline>>,
-    tag_files: Res<Assets<TagFile>>,
-    asset_server: Res<AssetServer>,
     mut environments: ResMut<DimensionEnvironments>,
 ) {
-    let (Some(timelines), Some(world_clocks), Some(types), Some(dimension_types)) = (
+    let (
+        Some(timelines),
+        Some(timeline_tags),
+        Some(world_clocks),
+        Some(types),
+        Some(dimension_types),
+    ) = (
         registries.column::<Timeline>(keys::Timeline::KEY.as_str()),
+        registries.tags::<keys::Timeline>(),
         registries.registry::<keys::WorldClock>(),
         registries.registry::<keys::DimensionType>(),
         registries.entries::<keys::DimensionType, DimensionType>(),
-    ) else {
+    )
+    else {
         tracing::error!(
             "the registry set holds no dimension types, timelines and clocks to build environments from"
         );
@@ -320,29 +321,10 @@ pub fn build_dimension_environments(
             .expect("an id of the registry has a name")
             .as_str();
 
-        let members = match &dimension_type.timelines {
-            EntrySet::Tag(tag) => {
-                let path = TagKey::<keys::Timeline, _>::from_location(tag.clone()).asset_path();
-                asset_server
-                    .get_handle::<TagFile>(path)
-                    .and_then(|handle| tag_files.get(&handle))
-                    .map(|tag_file| {
-                        resolve_tag_file_ordered(tag_file, &tag_files, &*timeline_index)
-                    })
-                    .unwrap_or_else(|| {
-                        tracing::error!(dimension = name, %tag, "the timeline tag file is not loaded");
-                        Vec::new()
-                    })
-            }
-            listed => listed
-                .entries()
-                .iter()
-                .map(|timeline| timeline.number())
-                .collect(),
-        };
-        let dimension_timelines: Vec<&Timeline> = members
-            .into_iter()
-            .filter_map(|member| timelines.get(usize::from(member)))
+        let dimension_timelines: Vec<&Timeline> = dimension_type
+            .timelines
+            .ids(&timeline_tags)
+            .filter_map(|member| timelines.get(member.index()))
             .collect();
 
         match EnvironmentAttributes::build(
