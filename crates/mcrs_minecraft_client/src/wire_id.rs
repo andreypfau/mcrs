@@ -152,7 +152,7 @@ pub(crate) mod testing {
             .iter()
             .map(|name| ResourceLocation::<Arc<str>>::parse(name).unwrap());
         RegistrySet::new()
-            .with(Registry::<keys::Biome>::new(names, std::iter::empty()).unwrap())
+            .with(Registry::<keys::Biome>::new(names).unwrap())
             .unwrap()
     }
 

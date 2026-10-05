@@ -54,8 +54,7 @@ impl Default for ItemDefinitions {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
-            registry: Registry::new(std::iter::empty(), std::iter::empty())
-                .expect("a registry without entries builds"),
+            registry: Registry::new(std::iter::empty()).expect("a registry without entries builds"),
         }
     }
 }
@@ -170,11 +169,7 @@ mod tests {
     }
 
     fn registry(names: &[&str]) -> Registry<Item> {
-        Registry::new(
-            names.iter().map(|name| ResourceLocation::minecraft(name)),
-            std::iter::empty(),
-        )
-        .unwrap()
+        Registry::new(names.iter().map(|name| ResourceLocation::minecraft(name))).unwrap()
     }
 
     #[test]

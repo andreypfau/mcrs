@@ -34,7 +34,7 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
         .map(|i| ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap())
         .collect();
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    let registry = Registry::<keys::Biome>::new(names, []).expect("distinct land biomes");
+    let registry = Registry::<keys::Biome>::new(names).expect("distinct land biomes");
     let biome_source = BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| {
             registry

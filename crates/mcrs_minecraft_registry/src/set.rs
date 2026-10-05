@@ -1,6 +1,7 @@
 use crate::entries::Entries;
 use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
+use crate::tags::{TagTable, Tags};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use std::any::Any;
@@ -13,8 +14,9 @@ type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
 type Paths = HashMap<Box<str>, Arc<NameTable>>;
 pub(crate) type Column = Arc<dyn Any + Send + Sync>;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Values {
+    pub(crate) tags: HashMap<ResourceLocation<Arc<str>>, Arc<TagTable>>,
     pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, Column>,
     pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
     pub(crate) packs: Box<[Box<str>]>,
@@ -95,6 +97,23 @@ impl RegistrySet {
 
     pub fn table(&self, registry: &str) -> Option<&Arc<NameTable>> {
         self.tables.get(registry)
+    }
+
+    pub fn tags<R: RegistryKey>(&self) -> Option<Tags<R>> {
+        self.values
+            .tags
+            .get(R::KEY.as_str())
+            .map(|table| Tags::new(Arc::clone(table)))
+    }
+
+    pub fn tag_table(&self, registry: &str) -> Option<&Arc<TagTable>> {
+        self.values.tags.get(registry)
+    }
+
+    pub fn with_tags(self, table: Arc<TagTable>) -> Self {
+        let mut values = (*self.values).clone();
+        values.tags.insert(table.registry().clone(), table);
+        self.with_values(values)
     }
 
     pub(crate) fn table_at_path(&self, path: &str) -> Option<&NameTable> {
@@ -221,7 +240,6 @@ mod tests {
             names
                 .iter()
                 .map(|text| ResourceLocation::parse(text).unwrap()),
-            std::iter::empty(),
         )
         .unwrap()
     }

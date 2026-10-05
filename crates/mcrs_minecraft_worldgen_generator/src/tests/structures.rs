@@ -359,9 +359,9 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes = Registry::<keys::Biome>::new([], []).expect("an empty registry");
+    let biomes = Registry::<keys::Biome>::new([]).expect("an empty registry");
     let tags = TagRegistry::default();
-    let structure_registry = Registry::<keys::Structure>::new([], []).expect("an empty registry");
+    let structure_registry = Registry::<keys::Structure>::new([]).expect("an empty registry");
     let structure_tags = TagRegistry::<keys::Structure, Id<keys::Structure>>::default();
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {

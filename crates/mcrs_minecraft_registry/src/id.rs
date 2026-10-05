@@ -239,7 +239,7 @@ mod tests {
     }
 
     fn registry_of(len: usize) -> Registry<Wide> {
-        Registry::new(names(len), std::iter::empty()).unwrap()
+        Registry::new(names(len)).unwrap()
     }
 
     fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(id_at(&registry, 65535).number(), u16::MAX);
         assert_eq!(registry.ids().count(), 65536);
 
-        let error = Registry::<Wide>::new(names(65537), std::iter::empty()).unwrap_err();
+        let error = Registry::<Wide>::new(names(65537)).unwrap_err();
         assert_eq!(
             error,
             RegistryError::TooManyEntries {

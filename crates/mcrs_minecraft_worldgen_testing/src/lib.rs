@@ -5,7 +5,10 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_report::shipped_report;
-use mcrs_minecraft_registry::{EntrySet, Registry, RegistrySet};
+use mcrs_minecraft_registry::tags::TagSource;
+use mcrs_minecraft_registry::{
+    EntrySet, NameTable, Registry, RegistrySet, TagRules, TagTable, build_tags,
+};
 use mcrs_minecraft_worldgen_builtin as builtin;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -139,8 +142,7 @@ fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
         }
     }
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    Registry::new(names, std::iter::empty())
-        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
+    Registry::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
 /// The names `set` holds, as `corpus_set` numbers them.
@@ -226,8 +228,8 @@ pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
             .with_extension("");
         ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
     });
-    let registry = Registry::<R>::new(names, std::iter::empty())
-        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
+    let registry =
+        Registry::<R>::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
     RegistrySet::new()
         .with(registry)
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
@@ -246,12 +248,11 @@ pub fn dimension_type_set() -> &'static RegistrySet {
             .ids()
             .map(|id| blocks.key(id).expect("a block id has a name").clone())
             .collect();
-        let blocks = Registry::<keys::Block>::new(block_names, shipped_tags("block"))
+        let blocks = Registry::<keys::Block>::new(block_names)
             .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
-        let timelines =
-            Registry::<keys::Timeline>::new(shipped_ids("timeline"), shipped_tags("timeline"))
-                .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
-        let clocks = Registry::<keys::WorldClock>::new(shipped_ids("world_clock"), [])
+        let timelines = Registry::<keys::Timeline>::new(shipped_ids("timeline"))
+            .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
+        let clocks = Registry::<keys::WorldClock>::new(shipped_ids("world_clock"))
             .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
         let tables = report
             .tables()
@@ -264,6 +265,8 @@ pub fn dimension_type_set() -> &'static RegistrySet {
             ]);
         RegistrySet::from_tables(tables)
             .unwrap_or_else(|e| panic!("the dimension type registries do not join the set: {e}"))
+            .with_tags(shipped_tags(blocks.table(), "block"))
+            .with_tags(shipped_tags(timelines.table(), "timeline"))
     });
     &SET
 }
@@ -276,8 +279,34 @@ fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
         .collect()
 }
 
-fn shipped_tags(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
-    shipped_ids(&format!("tags/{folder}"))
+pub fn shipped_tags(names: &NameTable, folder: &str) -> Arc<TagTable> {
+    let base = assets_dir().join("minecraft/tags").join(folder);
+    let files: Vec<_> = json_files(&base)
+        .into_iter()
+        .map(|path| {
+            let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            (id_of(&base, &path), path.display().to_string(), bytes)
+        })
+        .collect();
+    let sources: Vec<_> = files
+        .iter()
+        .map(|(tag, path, bytes)| {
+            (
+                tag.clone(),
+                vec![TagSource {
+                    pack: "vanilla",
+                    path,
+                    bytes,
+                }],
+            )
+        })
+        .collect();
+    let (tags, problems) = build_tags(names, TagRules::World, &sources, None);
+    assert!(
+        problems.is_empty(),
+        "the shipped {folder} tags: {problems:?}"
+    );
+    Arc::new(tags)
 }
 
 /// One `minecraft/worldgen` registry, parsed. Every entry must parse: dropping

@@ -1,5 +1,6 @@
 use crate::id::Id;
 use crate::names::NameTable;
+use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -124,6 +125,21 @@ impl<R: RegistryKey> Tags<R> {
             .get(key.as_str())
             .copied()
             .map(TagId::from_number)
+    }
+
+    pub fn in_scope<T>(
+        parsing: &'static str,
+        run: impl FnOnce(&Tags<R>) -> T,
+    ) -> Result<T, ScopeError> {
+        let set = set::current().ok_or(ScopeError::NoScope {
+            parsing,
+            registry: R::KEY,
+        })?;
+        let tags = set.tags::<R>().ok_or(ScopeError::MissingRegistry {
+            parsing,
+            registry: R::KEY,
+        })?;
+        Ok(run(&tags))
     }
 }
 
@@ -613,7 +629,7 @@ mod tests {
     }
 
     fn registry(entries: &[&str]) -> Registry<TestRegistry> {
-        Registry::new(entries.iter().map(|text| name(text)), std::iter::empty()).unwrap()
+        Registry::new(entries.iter().map(|text| name(text))).unwrap()
     }
 
     type Packs<'a> = &'a [(&'a str, &'a str)];

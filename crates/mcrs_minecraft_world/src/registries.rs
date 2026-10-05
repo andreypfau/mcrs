@@ -233,7 +233,7 @@ async fn read_pack(
             let directory = root.join(namespace).join("tags").join(directory);
             for path in walk_files(reader, directory).await {
                 if let Some(path) = relative_to(root, &path) {
-                    found.entry(path).or_default();
+                    found.insert(path, true);
                 }
             }
         }

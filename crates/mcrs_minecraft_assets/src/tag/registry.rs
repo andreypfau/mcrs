@@ -379,7 +379,6 @@ mod tests {
                     rl_arc("minecraft:forest"),
                     rl_arc("minecraft:plains"),
                 ],
-                [],
             )
             .unwrap(),
         ))

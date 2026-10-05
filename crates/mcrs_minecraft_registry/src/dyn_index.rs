@@ -61,7 +61,6 @@ mod tests {
                     rl_arc("minecraft:desert"),
                     rl_arc("minecraft:forest"),
                 ],
-                [],
             )
             .unwrap(),
         );

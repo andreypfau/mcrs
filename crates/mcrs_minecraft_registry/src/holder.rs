@@ -156,7 +156,7 @@ mod tests {
 
     fn registry<R: RegistryKey>(name: &str) -> Registry<R> {
         let name = ResourceLocation::<Arc<str>>::parse(name).unwrap();
-        Registry::new([name], std::iter::empty()).unwrap()
+        Registry::new([name]).unwrap()
     }
 
     fn read(name: &str) -> Result<Holder<Sound>, serde_json::Error> {

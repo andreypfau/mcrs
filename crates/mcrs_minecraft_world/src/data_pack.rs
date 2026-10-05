@@ -196,11 +196,13 @@ pub fn list_tag_files(
     let Some(table) = set
         .tables()
         .find(|table| table.registry().path() == registry_path)
+        .and_then(|table| set.tag_table(table.registry().as_str()))
     else {
         return Vec::new();
     };
     let mut found: Vec<_> = table
-        .tags()
+        .names()
+        .iter()
         .map(|tag| {
             let path = format!(
                 "{}/tags/{registry_path}/{}.json",

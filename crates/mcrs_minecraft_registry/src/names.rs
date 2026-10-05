@@ -1,7 +1,7 @@
 use crate::id::id_number;
 use crate::registry::RegistryError;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -9,14 +9,12 @@ pub struct NameTable {
     registry: ResourceLocation<Arc<str>>,
     names: Vec<ResourceLocation<Arc<str>>>,
     numbers: HashMap<ResourceLocation<Arc<str>>, u16>,
-    tags: HashSet<ResourceLocation<Arc<str>>>,
 }
 
 impl NameTable {
     pub fn new(
         registry: ResourceLocation<Arc<str>>,
         names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
-        tags: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
     ) -> Result<Self, RegistryError> {
         let names: Vec<_> = names.into_iter().collect();
         let mut numbers = HashMap::with_capacity(names.len());
@@ -32,17 +30,10 @@ impl NameTable {
                 });
             }
         }
-        let mut tag_names = HashSet::new();
-        for tag in tags {
-            if !tag_names.insert(tag.clone()) {
-                return Err(RegistryError::DuplicateTag { registry, tag });
-            }
-        }
         Ok(NameTable {
             registry,
             names,
             numbers,
-            tags: tag_names,
         })
     }
 
@@ -66,15 +57,7 @@ impl NameTable {
         self.numbers.get(name).copied()
     }
 
-    pub fn has_tag(&self, name: &str) -> bool {
-        self.tags.contains(name)
-    }
-
     pub fn names(&self) -> &[ResourceLocation<Arc<str>>] {
         &self.names
-    }
-
-    pub fn tags(&self) -> impl Iterator<Item = &ResourceLocation<Arc<str>>> {
-        self.tags.iter()
     }
 }

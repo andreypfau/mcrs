@@ -1,11 +1,12 @@
 use crate::names::NameTable;
 use crate::report::LoadReport;
 use crate::set::{Column, RegistrySet, Values};
+use crate::tags::{TagProblem, TagRules, TagSource, build_tags};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
@@ -271,7 +272,7 @@ impl WorldRegistries {
             .map(|pack| format!("{} (built in)", pack.name))
             .collect();
         let mut candidates: HashMap<&str, Vec<Candidate>> = HashMap::new();
-        let mut tags: HashMap<Name, BTreeSet<Name>> = HashMap::new();
+        let mut tag_files: HashMap<&Name, BTreeMap<Name, Vec<TagSource<'_>>>> = HashMap::new();
         for (pack, contents) in packs.iter().enumerate() {
             for file in &contents.files {
                 let Some((namespace, rest)) = file
@@ -289,9 +290,24 @@ impl WorldRegistries {
                         continue;
                     };
                     match Name::read(&format!("{namespace}:{stem}")) {
-                        Ok(tag) => {
-                            tags.entry(registry.clone()).or_default().insert(tag);
-                        }
+                        Ok(tag) => match file.bytes.as_deref() {
+                            Some(bytes) => tag_files
+                                .entry(registry)
+                                .or_default()
+                                .entry(tag)
+                                .or_default()
+                                .push(TagSource {
+                                    pack: &contents.name,
+                                    path: &file.path,
+                                    bytes,
+                                }),
+                            None => report.entry(
+                                registry,
+                                &format!("#{tag}"),
+                                &file.path,
+                                "the file has no content",
+                            ),
+                        },
                         Err(error) => {
                             report.entry(
                                 registry,
@@ -438,8 +454,7 @@ impl WorldRegistries {
                 );
                 continue;
             }
-            let tag_names = tags.remove(registry).unwrap_or_default();
-            match NameTable::new(registry.clone(), names, tag_names) {
+            match NameTable::new(registry.clone(), names) {
                 Ok(table) => world.push(Loaded {
                     registry,
                     codec: declaration.codec.as_ref(),
@@ -452,25 +467,10 @@ impl WorldRegistries {
             }
         }
 
-        let mut tables = Vec::new();
-        for table in statics.tables() {
-            let Some(mut added) = tags.remove(table.registry()) else {
-                tables.push(Arc::clone(table));
-                continue;
-            };
-            added.extend(table.tags().cloned());
-            match NameTable::new(
-                table.registry().clone(),
-                table.names().iter().cloned(),
-                added,
-            ) {
-                Ok(rebuilt) => tables.push(Arc::new(rebuilt)),
-                Err(error) => {
-                    report.whole_registry(table.registry(), &directory_of(table.registry()), error)
-                }
-            }
-        }
-        tables.extend(world.iter().map(|loaded| Arc::clone(&loaded.table)));
+        let tables = statics
+            .tables()
+            .cloned()
+            .chain(world.iter().map(|loaded| Arc::clone(&loaded.table)));
         let set = match RegistrySet::from_tables(tables) {
             Ok(set) => set,
             Err(error) => {
@@ -480,6 +480,32 @@ impl WorldRegistries {
         };
 
         let mut values = Values::default();
+        let built = statics
+            .tables()
+            .map(|table| (table, TagRules::Static))
+            .chain(world.iter().map(|loaded| (&loaded.table, TagRules::World)));
+        for (table, rules) in built {
+            let files: Vec<_> = tag_files
+                .remove(table.registry())
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            let (tags, problems) = build_tags(table, rules, &files, None);
+            for problem in problems {
+                if let TagProblem::Error {
+                    registry,
+                    tag,
+                    file,
+                    message,
+                } = problem
+                {
+                    report.entry(&registry, &format!("#{tag}"), &file, message);
+                }
+            }
+            values.tags.insert(table.registry().clone(), Arc::new(tags));
+        }
+
+        let set = set.with_values(values.clone());
         set.scope(|| {
             for loaded in &world {
                 let Some(codec) = loaded.codec else {
@@ -626,6 +652,7 @@ mod tests {
     use crate::registry::Registry;
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_core::tag_key::TagKey;
 
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
@@ -659,6 +686,24 @@ mod tests {
 
     impl RegistryKey for Linked {
         const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_linked");
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct FixedLinked {
+        tag: EntrySet<Fixed>,
+    }
+
+    impl RegistryKey for FixedLinked {
+        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_fixed_linked");
+    }
+
+    const EMPTY_TAG: &str = r#"{"values":[]}"#;
+
+    fn fixed_statics() -> RegistrySet {
+        RegistrySet::new()
+            .with(Registry::<Fixed>::new([name("minecraft:one")]).unwrap())
+            .unwrap()
     }
 
     const VARIANT: &str = "minecraft:test_variant";
@@ -953,7 +998,7 @@ mod tests {
                 "vanilla",
                 vec![
                     names_only("minecraft/test_marker/m.json"),
-                    names_only("minecraft/tags/test_marker/listed.json"),
+                    data("minecraft/tags/test_marker/listed.json", EMPTY_TAG),
                     data(
                         "minecraft/test_linked/l.json",
                         &format!(r##"{{"tag":"#{tag}"}}"##),
@@ -966,20 +1011,134 @@ mod tests {
         assert!(text.contains("minecraft:unlisted"), "{text}");
         assert!(text.contains("minecraft:test_linked/minecraft:l"), "{text}");
 
-        let statics = RegistrySet::new()
-            .with(
-                Registry::<Fixed>::new(
-                    [ResourceLocation::parse("minecraft:one").unwrap()],
-                    std::iter::empty(),
-                )
-                .unwrap(),
-            )
-            .unwrap();
-        let tagged = marker_files(&["minecraft/tags/test_static/x.json"]);
-        let set = registries().load(&statics, &tagged).unwrap();
+        let tagged = vec![pack(
+            "vanilla",
+            vec![data("minecraft/tags/test_static/x.json", EMPTY_TAG)],
+        )];
+        let set = registries().load(&fixed_statics(), &tagged).unwrap();
         let table = set.table("minecraft:test_static").unwrap();
-        assert!(table.has_tag("minecraft:x"));
+        assert!(
+            set.tags::<Fixed>()
+                .unwrap()
+                .get(&TagKey::<Fixed, _>::from_location(name("minecraft:x")))
+                .is_some()
+        );
         assert_eq!(table.number("minecraft:one"), Some(0));
+    }
+
+    enum Expect {
+        Loads {
+            present: &'static [&'static str],
+            absent: &'static [&'static str],
+        },
+        Fails(&'static [&'static str]),
+    }
+
+    #[test]
+    fn tag_outcomes_on_the_load() {
+        let cases: [(&str, Vec<PackFile>, Expect); 5] = [
+            (
+                "a world registry tag with a missing required element refuses the load",
+                vec![
+                    names_only("minecraft/test_marker/a.json"),
+                    data(
+                        "minecraft/tags/test_marker/t.json",
+                        r#"{"values":["minecraft:a","minecraft:absent"]}"#,
+                    ),
+                ],
+                Expect::Fails(&[
+                    "minecraft:test_marker/#minecraft:t (minecraft/tags/test_marker/t.json): ",
+                    "minecraft:absent",
+                ]),
+            ),
+            (
+                "a static registry tag with a missing required element is dropped",
+                vec![
+                    data(
+                        "minecraft/tags/test_static/broken.json",
+                        r#"{"values":["minecraft:absent"]}"#,
+                    ),
+                    data(
+                        "minecraft/tags/test_static/good.json",
+                        r#"{"values":["minecraft:one"]}"#,
+                    ),
+                ],
+                Expect::Loads {
+                    present: &["minecraft:good"],
+                    absent: &["minecraft:broken"],
+                },
+            ),
+            (
+                "a value naming a dropped tag refuses the load",
+                vec![
+                    data(
+                        "minecraft/tags/test_static/broken.json",
+                        r#"{"values":["minecraft:absent"]}"#,
+                    ),
+                    data(
+                        "minecraft/test_fixed_linked/v.json",
+                        r##"{"tag":"#minecraft:broken"}"##,
+                    ),
+                ],
+                Expect::Fails(&[
+                    "minecraft:test_fixed_linked/minecraft:v (minecraft/test_fixed_linked/v.json): ",
+                    "Missing tag: 'minecraft:broken'",
+                ]),
+            ),
+            (
+                "a value naming a tag no pack defines refuses the load",
+                vec![data(
+                    "minecraft/test_fixed_linked/v.json",
+                    r##"{"tag":"#minecraft:never"}"##,
+                )],
+                Expect::Fails(&["Missing tag: 'minecraft:never'"]),
+            ),
+            (
+                "a malformed tag file is skipped and the others still load",
+                vec![
+                    data("minecraft/tags/test_static/bad.json", "{"),
+                    data(
+                        "minecraft/tags/test_static/good.json",
+                        r#"{"values":["minecraft:one"]}"#,
+                    ),
+                ],
+                Expect::Loads {
+                    present: &["minecraft:good"],
+                    absent: &[],
+                },
+            ),
+        ];
+        let mut world = WorldRegistries::new(
+            [Marker::KEY, FixedLinked::KEY].map(ResourceLocation::<Arc<str>>::from),
+        );
+        world.parse::<FixedLinked>(FixedLinked::KEY);
+        for (case, files, expect) in cases {
+            let loaded = world.load(&fixed_statics(), &[pack("vanilla", files)]);
+            match (loaded, expect) {
+                (Ok(set), Expect::Loads { present, absent }) => {
+                    let tags = set.tags::<Fixed>().expect("the static registry has tags");
+                    let has = |tag: &str| {
+                        tags.get(&TagKey::<Fixed, _>::from_location(name(tag)))
+                            .is_some()
+                    };
+                    for tag in present {
+                        assert!(has(tag), "{case}: {tag} is built");
+                    }
+                    for tag in absent {
+                        assert!(!has(tag), "{case}: {tag} is not built");
+                    }
+                }
+                (Err(report), Expect::Fails(needles)) => {
+                    let text = report.to_string();
+                    assert_eq!(text.lines().count(), 2, "{case}: {text}");
+                    for needle in needles {
+                        assert!(text.contains(needle), "{case}: {needle} in {text}");
+                    }
+                }
+                (Ok(_), Expect::Fails(_)) => panic!("{case}: the load is refused"),
+                (Err(report), Expect::Loads { .. }) => panic!("{case}: the load holds: {report}"),
+            }
+        }
     }
 
     #[test]

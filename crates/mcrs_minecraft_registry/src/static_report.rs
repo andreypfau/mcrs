@@ -60,8 +60,7 @@ impl RegistryReport {
                 ));
             }
         }
-        NameTable::new(registry, by_id.into_iter().flatten(), std::iter::empty())
-            .map_err(|error| error.to_string())
+        NameTable::new(registry, by_id.into_iter().flatten()).map_err(|error| error.to_string())
     }
 }
 

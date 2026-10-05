@@ -143,7 +143,6 @@ pub fn text_ordered_table(
         mcrs_minecraft_registry::NameTable::new(
             ResourceLocation::parse(registry).expect("a registry key"),
             names,
-            [],
         )
         .expect("a table of distinct names"),
     )
@@ -221,7 +220,7 @@ pub fn corpus_biomes() -> &'static Registry<keys::Biome> {
             .into_keys()
             .collect();
         names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-        Registry::new(names, []).expect("a registry of distinct names")
+        Registry::new(names).expect("a registry of distinct names")
     })
 }
 
@@ -261,7 +260,7 @@ pub fn structure_registry() -> &'static Registry<keys::Structure> {
             .into_keys()
             .collect();
         names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-        Registry::new(names, []).expect("a registry of distinct names")
+        Registry::new(names).expect("a registry of distinct names")
     })
 }
 

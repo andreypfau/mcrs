@@ -3,10 +3,12 @@ use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::registry::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::tags as block_tags;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_keys::{Block, EntityType};
+use mcrs_minecraft_keys::{Biome, Block, EntityType, Timeline};
 use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::workspace_root;
 
@@ -87,6 +89,51 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     .collect();
     expected.sort_unstable();
     assert_eq!(members, expected);
+}
+
+fn loaded_members<R: RegistryKey>(tag: &str) -> Vec<String> {
+    let set = test_registries();
+    let registry = set.registry::<R>().expect("the registry is loaded");
+    let tags = set
+        .tags::<R>()
+        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::KEY));
+    let key = TagKey::<R, _>::from_location(ResourceLocation::parse(tag).unwrap());
+    let id = tags
+        .get(&key)
+        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::KEY));
+    tags.members(id)
+        .map(|member| registry.key(member).unwrap().as_str().to_owned())
+        .collect()
+}
+
+#[test]
+fn the_loaded_set_holds_ordered_tags_of_every_registry() {
+    assert_eq!(
+        loaded_members::<Block>("minecraft:mineable/pickaxe")[..4],
+        [
+            "minecraft:stone",
+            "minecraft:granite",
+            "minecraft:polished_granite",
+            "minecraft:diorite"
+        ]
+    );
+    assert_eq!(
+        loaded_members::<Timeline>("minecraft:in_overworld"),
+        [
+            "minecraft:villager_schedule",
+            "minecraft:day",
+            "minecraft:moon",
+            "minecraft:early_game"
+        ]
+    );
+    assert_eq!(
+        loaded_members::<Biome>("minecraft:is_savanna"),
+        [
+            "minecraft:savanna",
+            "minecraft:savanna_plateau",
+            "minecraft:windswept_savanna"
+        ]
+    );
 }
 
 fn count_json(dir: &std::path::Path) -> usize {

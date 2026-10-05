@@ -88,7 +88,6 @@ mod tests {
             names
                 .iter()
                 .map(|text| ResourceLocation::parse(text).unwrap()),
-            std::iter::empty(),
         )
         .unwrap()
     }
