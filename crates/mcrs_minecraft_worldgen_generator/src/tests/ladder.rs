@@ -18,7 +18,7 @@ use crate::saved::SectionData;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
-use crate::{BetaCaveBlockIds, ColumnBlocks, SurfaceIds};
+use crate::{BetaCaveBlockIds, ColumnBlocks, SurfaceStates};
 use bevy_app::App;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
@@ -203,10 +203,17 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
                 // it. Neither consumer reaches the material surface — it needs a
                 // biome grid, which only a multi-noise or fixed source builds — but
                 // the context has to match all the same.
-                surface: Some(Arc::new(SurfaceIds::resolve(&blocks().0, &registry))),
+                surface: Some((
+                    crate::tests::surface_ids_over(&registry),
+                    SurfaceStates::new(&blocks().0),
+                )),
                 carver_blocks: Arc::new(ModernCarverBlockIds::resolve(
                     &blocks().0,
-                    Some(block_tags()),
+                    block_tags().members(
+                        block_tags()
+                            .get(&mcrs_minecraft_keys::block_tags::UNCARVABLE)
+                            .expect("the corpus holds the uncarvable tag"),
+                    ),
                 )),
             },
             carvers: None,

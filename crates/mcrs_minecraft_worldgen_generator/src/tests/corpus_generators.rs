@@ -195,14 +195,16 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
         };
         assert_eq!(shape, matches, "{name}");
 
+        let registries = registries_over(&biome_registry(&[BIOME]));
         let compiled = crate::trees::compile_provider(
             &proto,
             &crate::feature_program::Resolver::new(
                 &blocks().0,
-                &registries_over(&biome_registry(&[BIOME])),
+                &registries,
                 0,
                 &[],
                 &corpus_features().block_state_providers,
+                super::survival_ids(&registries),
             )
             .expect("the corpus resolves"),
         )

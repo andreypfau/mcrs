@@ -29,6 +29,8 @@ pub mod corpus_generators;
 pub mod corpus_ores;
 #[cfg(test)]
 mod footprint;
+#[cfg(test)]
+mod ids;
 pub mod ladder;
 #[cfg(test)]
 mod modern_carvers;
@@ -209,7 +211,34 @@ pub fn try_build_program(
         let name = numbered.name(id).expect("an id of the registry has a name");
         tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
-    FeatureProgram::build(&tables, corpus, &blocks().0, &registries, seed, structures)
+    FeatureProgram::build(
+        &tables,
+        corpus,
+        &blocks().0,
+        &registries,
+        seed,
+        structures,
+        survival_ids(&registries),
+    )
+}
+
+pub fn surface_ids_over(
+    biomes: &Registry<keys::Biome>,
+) -> mcrs_minecraft_registry::shared::Resolved<crate::SurfaceIds> {
+    let set = mcrs_minecraft_registry::RegistrySet::new()
+        .with(biomes.clone())
+        .expect("one biome registry");
+    let mut report = mcrs_minecraft_registry::LoadReport::new();
+    crate::SurfaceIds::resolve(&set, &mut report)
+        .unwrap_or_else(|| panic!("the registry holds the surface biomes: {report}"))
+}
+
+pub fn survival_ids(
+    registries: &mcrs_minecraft_registry::RegistrySet,
+) -> mcrs_minecraft_registry::shared::Resolved<crate::ids::SurvivalIds> {
+    let mut report = mcrs_minecraft_registry::LoadReport::new();
+    crate::ids::SurvivalIds::resolve(registries, &mut report)
+        .unwrap_or_else(|| panic!("the corpus holds the survival tags: {report}"))
 }
 
 /// A fill context over one router and the corpus, with nothing else wired in.

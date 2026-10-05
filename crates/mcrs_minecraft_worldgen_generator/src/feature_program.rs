@@ -1,5 +1,6 @@
 use crate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
 use crate::features::FeatureTables;
+use crate::ids::SurvivalIds;
 use crate::structures::{check_block_entity_ids, resolve_palette_state};
 use crate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
@@ -23,7 +24,8 @@ use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, Tags};
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, TagId, Tags};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
@@ -422,6 +424,7 @@ impl FeatureProgram {
         registries: &RegistrySet,
         world_seed: i64,
         structures: Option<&FrozenStructures>,
+        survival: Resolved<SurvivalIds>,
     ) -> Result<Self, FeatureCompileError> {
         let biomes = registries
             .registry::<keys::Biome>()
@@ -443,6 +446,7 @@ impl FeatureProgram {
             world_seed,
             &climate,
             &corpus.block_state_providers,
+            survival,
         )?;
         let trees = Arc::new(build_tree_tables(&resolver).map_err(|e| e.within("tree tables"))?);
         let mut steps = Vec::with_capacity(tables.features.steps.len());
@@ -2581,6 +2585,7 @@ pub struct Resolver<'a> {
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
     pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+    pub survival: Resolved<SurvivalIds>,
     shape_masks: ShapeMasks,
 }
 
@@ -2637,9 +2642,11 @@ impl<'a> Resolver<'a> {
         world_seed: i64,
         climate: &'a [BiomeClimate],
         block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
+        survival: Resolved<SurvivalIds>,
     ) -> Compiled<Self> {
         let mut resolver = Resolver {
             block_state_providers,
+            survival,
             blocks,
             world: WorldStates::default(),
             tables: Arc::new(BlockTables::default()),
@@ -2740,6 +2747,14 @@ impl<'a> Resolver<'a> {
 
     pub fn tag_mask(&self, tag: TagKey<Block, &'static str>) -> Compiled<StateMask> {
         self.mask(StateQuery::BlockTag(&tag.location().to_arc()))
+    }
+
+    pub fn tag_states(&self, tag: TagId<Block>) -> FixedBitSet {
+        let mut mask = FixedBitSet::with_capacity(self.blocks.state_count());
+        for id in self.tags.members(tag) {
+            Self::add_entry(&mut mask, &self.blocks[id]);
+        }
+        mask
     }
 
     pub fn blocks_mask(&self, names: &[&str]) -> Compiled<StateMask> {

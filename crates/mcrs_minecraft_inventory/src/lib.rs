@@ -18,6 +18,6 @@ pub use menu::{
     player_menu_layout,
 };
 pub use plan::{Click, Planner, SLOT_CLICKED_OUTSIDE};
-pub use shulker_boxes::ShulkerBoxes;
+pub use shulker_boxes::{InventoryIdsPlugin, ShulkerBoxes};
 pub use slot::{MenuSnapshot, Slot, Source, StackKey, StackView, stack_in};
 pub use transaction::{Op, Transaction, TransactionError};

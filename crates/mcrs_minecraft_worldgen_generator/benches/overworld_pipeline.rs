@@ -22,7 +22,7 @@ use mcrs_minecraft_worldgen_generator::modern_carvers::{
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use mcrs_minecraft_worldgen_generator::{
-    ColumnBlocks, NO_TOP, SurfaceIds, apply_material_surface, fill_column_dense_any,
+    ColumnBlocks, NO_TOP, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
     multi_noise_grid, multi_noise_palettes,
 };
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
@@ -154,7 +154,7 @@ fn main() {
     )
     .unwrap();
     let carvers = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
-    let carver_ids = ModernCarverBlockIds::resolve(corpus(), None);
+    let carver_ids = ModernCarverBlockIds::resolve(corpus(), []);
     let biome = |name: &str| {
         biomes
             .require_by_name(name)
@@ -164,6 +164,8 @@ fn main() {
         eroded_badlands: biome("minecraft:eroded_badlands"),
         frozen_ocean: biome("minecraft:frozen_ocean"),
         deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
+    };
+    let surface_states = SurfaceStates {
         snow_block: corpus().default_state("minecraft:snow_block").into(),
         packed_ice: corpus().default_state("minecraft:packed_ice").into(),
         dirt: corpus().default_state("minecraft:dirt").into(),
@@ -247,6 +249,7 @@ fn main() {
             &router,
             &material,
             &surface_ids,
+            &surface_states,
             scratch,
             Some(&mut TerrainCarving::new(
                 &mask,

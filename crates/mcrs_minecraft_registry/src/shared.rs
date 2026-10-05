@@ -3,9 +3,40 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use std::any::{TypeId, type_name};
 use std::fmt;
+use std::ops::Deref;
+use std::sync::Arc;
 
 pub trait SharedResource: Resource + Clone {
     fn shares_with(&self, other: &Self) -> bool;
+}
+
+#[derive(Resource)]
+pub struct Resolved<T: Send + Sync + 'static>(Arc<T>);
+
+impl<T: Send + Sync + 'static> Resolved<T> {
+    pub fn new(value: T) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+impl<T: Send + Sync + 'static> Clone for Resolved<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<T: Send + Sync + 'static> Deref for Resolved<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Send + Sync + 'static> SharedResource for Resolved<T> {
+    fn shares_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

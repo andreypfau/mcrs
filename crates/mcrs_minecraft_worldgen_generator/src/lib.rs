@@ -1104,6 +1104,7 @@ pub mod beta_ores;
 pub(crate) mod biome_upscale;
 pub mod feature_program;
 pub mod features;
+pub mod ids;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
 pub mod routers;
@@ -1114,7 +1115,7 @@ pub mod structures;
 pub mod surface;
 pub mod trees;
 pub use beta_ores::{BetaOreBlockIds, place_all_ores};
-pub use surface::{SurfaceIds, apply_material_surface, spans_dimension};
+pub use surface::{SurfaceIds, SurfaceStates, apply_material_surface, spans_dimension};
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod tests;

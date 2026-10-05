@@ -9,9 +9,8 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_keys::block_tags::UNCARVABLE;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{Entries, Registry, Tags};
+use mcrs_minecraft_registry::{Entries, Id, Registry};
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -520,11 +519,12 @@ pub struct ModernCarverBlockIds {
 }
 
 impl ModernCarverBlockIds {
-    pub fn resolve(blocks: &BlockDefinitions, tags: Option<&Tags<Block>>) -> Self {
-        let uncarvable = tags
-            .and_then(|tags| Some((tags, tags.get(&UNCARVABLE)?)))
+    pub fn resolve(
+        blocks: &BlockDefinitions,
+        uncarvable: impl IntoIterator<Item = Id<Block>>,
+    ) -> Self {
+        let uncarvable = uncarvable
             .into_iter()
-            .flat_map(|(tags, tag)| tags.members(tag))
             .filter_map(|id| blocks.blocks().get(id.index()))
             .flat_map(|entry| {
                 (0..entry.state_count)

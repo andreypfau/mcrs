@@ -1263,9 +1263,9 @@ fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
 fn opened_over(block: &str) -> (World, Entity, Entity) {
     let (mut world, player) = opened();
     let (blocks, _) = standalone_corpus();
+    let mut report = mcrs_minecraft_registry::LoadReport::new();
     world.insert_resource(
-        ShulkerBoxes::new(test_registries())
-            .expect("the loaded registries hold the shulker box tags"),
+        ShulkerBoxes::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}")),
     );
     let mut palette = ChunkBlocks::default();
     palette

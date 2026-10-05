@@ -288,12 +288,14 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
     use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, StateQuery};
 
+    let registries = registries_over(&biome_registry(&[BIOME]));
     let resolver = crate::feature_program::Resolver::new(
         &blocks().0,
-        &registries_over(&biome_registry(&[BIOME])),
+        &registries,
         0,
         &[],
         &super::corpus_features().block_state_providers,
+        super::survival_ids(&registries),
     )
     .expect("the corpus resolves");
     let set = HolderSet::One(mcrs_minecraft_keys::fluid::EMPTY);
