@@ -11,10 +11,9 @@ use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Local, On, Or
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::SectionPos;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
@@ -41,6 +40,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundForgetLevelC
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetChunkCacheCenter;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChunkBatchReceived;
 use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
+use mcrs_minecraft_registry::RegistrySet;
 
 use crate::world::aoi::ColumnHeld;
 use crate::world::block_entity::{BlockEntity, packet_entry};
@@ -614,7 +614,7 @@ pub(crate) fn send_column_queue(
     column_heightmaps: Query<(&SurfaceHeightmap, &MotionHeightmap, &NoLeavesHeightmap)>,
     codec_params: LightCodecParams,
     lighting: Res<crate::Lighting>,
-    (block_definitions, biome_registry): (Res<Blocks>, Res<RegistrySnapshot<Biome>>),
+    (block_definitions, registries): (Res<Blocks>, Res<RegistrySet>),
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut held: MessageWriter<ColumnHeld>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
@@ -622,7 +622,11 @@ pub(crate) fn send_column_queue(
     mut batch: Local<Vec<PacketPayload>>,
 ) {
     let block_direct_bits = block_direct_bits(block_definitions.state_count());
-    let biome_direct_bits = biome_direct_bits(biome_registry.len() as usize);
+    let biome_direct_bits = biome_direct_bits(
+        registries
+            .registry::<keys::Biome>()
+            .map_or(0, |biomes| biomes.len()),
+    );
     players
         .iter_mut()
         .for_each(|(player, mut chunk_view, in_dim, host_anchor)| {
@@ -915,7 +919,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<Messages<ColumnHeld>>();
         world.init_resource::<crate::Lighting>();
-        world.init_resource::<RegistrySnapshot<Biome>>();
+        world.insert_resource(RegistrySet::new());
         world.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 
         Fixture {

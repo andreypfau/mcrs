@@ -7,7 +7,7 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::structures::{frozen_shared, preset};
-use super::{biome_index, block_tags, blocks, build_settings_router, corpus_climate};
+use super::{block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate};
 use crate::features::possible_biomes;
 use crate::heightmap::heightmap_predicates;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -22,9 +22,9 @@ const SEED: u64 = 12345;
 fn overworld() -> StructureIndex {
     let frozen = frozen_shared();
     let source = preset("minecraft:overworld");
-    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    for id in possible_biomes(&source, |_| None) {
-        mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
+    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+    for name in possible_biomes(&source, corpus_biomes()) {
+        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
@@ -33,9 +33,7 @@ fn overworld() -> StructureIndex {
     let BiomeSource::MultiNoise(multi) = source else {
         unreachable!()
     };
-    let biomes =
-        MultiNoiseBiomeTable::resolve(&multi, |name| biome_index().get(name).map(|id| id as u8))
-            .unwrap();
+    let biomes = MultiNoiseBiomeTable::resolve(&multi, corpus_biomes()).unwrap();
     StructureIndex::new(
         Arc::new(tables),
         SEED as i64,
@@ -150,9 +148,9 @@ mod exhaustive {
     fn every_column_a_village_crosses_finds_its_start() {
         let frozen = frozen_shared();
         let villages = set("minecraft:villages");
-        let plains = biome_index().get("minecraft:plains").unwrap();
-        let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-        mask.insert(plains as usize);
+        let plains = corpus_biomes().get("minecraft:plains").unwrap();
+        let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+        mask.insert(plains.index());
         let tables = DimensionStructureTables {
             frozen: Arc::clone(frozen),
             live: live_sets(frozen, &mask)
@@ -164,7 +162,7 @@ mod exhaustive {
             Arc::new(tables),
             SEED as i64,
             Arc::new(build_settings_router("overworld", SEED)),
-            BiomeLookup::Fixed(plains),
+            BiomeLookup::Fixed(plains.number()),
             Some(heightmap_predicates(blocks(), block_tags())),
             Default::default(),
             Arc::clone(corpus_climate()),

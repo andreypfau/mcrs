@@ -1,7 +1,8 @@
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
@@ -24,8 +25,8 @@ pub struct FeatureTables {
     /// The biome source's own order, which decides the sort.
     pub biome_order: Vec<ResourceLocation>,
     /// What each biome's climate says about freezing. Only the parsed biome
-    /// carries it, and the frozen registry the feature program builds against
-    /// holds NBT, so it is read here and carried rather than resolved there.
+    /// carries it, and the registry the feature program builds against holds
+    /// names alone, so it is read here and carried rather than resolved there.
     pub climate: BTreeMap<ResourceLocation, BiomeClimate>,
 }
 
@@ -33,11 +34,17 @@ pub struct FeatureTables {
 /// repeats — the input the feature order is defined against.
 pub fn possible_biomes(
     source: &BiomeSource,
-    named: impl Fn(&bevy_asset::Handle<Biome>) -> Option<ResourceLocation>,
+    biomes: &Registry<keys::Biome>,
 ) -> Vec<ResourceLocation> {
+    let named = |id: &mcrs_minecraft_registry::Id<keys::Biome>| {
+        biomes
+            .key(*id)
+            .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
+            .clone()
+    };
     let listed: Vec<ResourceLocation> = match source {
         BiomeSource::MultiNoise(multi) => match (&multi.biomes, &multi.preset) {
-            (Some(entries), _) => entries.iter().map(|entry| entry.location.clone()).collect(),
+            (Some(entries), _) => entries.iter().map(|entry| named(&entry.biome)).collect(),
             (None, Some(preset)) => match preset.as_str() {
                 "minecraft:overworld" => preset_biomes(overworld_parameter_list()),
                 "minecraft:nether" => preset_biomes(nether_parameter_list()),
@@ -49,9 +56,9 @@ pub fn possible_biomes(
             .iter()
             .filter_map(|id| ResourceLocation::parse(id).ok())
             .collect(),
-        BiomeSource::Fixed { biome_id, .. } => vec![biome_id.clone()],
-        BiomeSource::Checkerboard { biomes, .. } => biomes.iter().filter_map(named).collect(),
-        BiomeSource::Beta { land_biome_ids, .. } => land_biome_ids.to_vec(),
+        BiomeSource::Fixed { biome } => vec![named(biome)],
+        BiomeSource::Checkerboard { biomes, .. } => biomes.iter().map(named).collect(),
+        BiomeSource::Beta { land_biomes, .. } => land_biomes.iter().map(named).collect(),
     };
 
     let mut seen = std::collections::HashSet::new();
@@ -105,7 +112,8 @@ mod tests {
     }
 
     fn order(source: &BiomeSource) -> Vec<String> {
-        possible_biomes(source, |_| None)
+        let biomes = Registry::<keys::Biome>::new([], []).unwrap();
+        possible_biomes(source, &biomes)
             .iter()
             .map(|id| id.as_str().to_owned())
             .collect()

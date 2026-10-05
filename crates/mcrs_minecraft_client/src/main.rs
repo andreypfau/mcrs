@@ -19,7 +19,6 @@ use bevy::window::{
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_file_source;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_dimension::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
@@ -448,15 +447,11 @@ fn fatal(err: SaveError) -> ! {
     std::process::exit(1);
 }
 
-fn log_registry_counts(
-    dimension_types: Res<Assets<DimensionType>>,
-    biomes: Res<Assets<Biome>>,
-    registries: Res<RegistrySet>,
-) {
+fn log_registry_counts(dimension_types: Res<Assets<DimensionType>>, registries: Res<RegistrySet>) {
     let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
     info!(
         dimension_types = dimension_types.len(),
-        biomes = biomes.len(),
+        biomes = loaded("minecraft:worldgen/biome"),
         timelines = loaded("minecraft:timeline"),
         world_clocks = loaded("minecraft:world_clock"),
         "registry assets loaded"

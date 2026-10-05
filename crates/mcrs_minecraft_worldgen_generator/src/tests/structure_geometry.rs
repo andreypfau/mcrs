@@ -25,7 +25,7 @@ use super::structure_pieces::{read_box, read_nbt};
 use super::structures::frozen_shared;
 use super::template_manifest::{parse_state, resolve};
 use super::template_parity::{canonical, fnv, program, state_named, written};
-use super::{biome_index, block_tags, blocks, corpus, corpus_climate};
+use super::{block_tags, blocks, corpus, corpus_biomes, corpus_climate};
 use crate::feature_program::RunScratch;
 use crate::heightmap::{HeightmapPredicates, heightmap_predicates};
 use crate::heightmap_kind;
@@ -283,7 +283,10 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
             .into_iter()
             .map(|state| state.unwrap_or(states.air))
             .collect(),
-        biome: biome_index().get(&case.biome).expect("a corpus biome"),
+        biome: corpus_biomes()
+            .get(&case.biome)
+            .expect("a corpus biome")
+            .number(),
         states,
         predicates: predicates(),
     };
@@ -325,7 +328,10 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     }
     region.world = world;
     region.extent.sea_level = sea_level;
-    region.biome = biome_index().get(&case.biome).expect("a corpus biome");
+    region.biome = corpus_biomes()
+        .get(&case.biome)
+        .expect("a corpus biome")
+        .number();
     let predicates = predicates().clone();
     region.with_height(move |blocks: &BoxVolume, kind: HeightmapName, _, _| {
         let max_y = blocks.max().y;

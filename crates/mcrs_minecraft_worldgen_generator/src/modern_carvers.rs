@@ -10,8 +10,10 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -327,21 +329,26 @@ impl CarverBiomeTable {
     /// alone.
     pub fn beta(
         source: &BiomeSource,
+        biomes: &Registry<keys::Biome>,
         lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
     ) -> Option<CarverBiomeTable> {
         let BiomeSource::Beta {
-            land_biome_ids,
+            land_biomes,
             lookup: grid,
-            ..
         } = source
         else {
             return None;
         };
         Some(Self::with_biomes(SourceBiomes::Beta {
             lookup: grid.clone(),
-            land: land_biome_ids
+            land: land_biomes
                 .iter()
-                .map(|id| lookup(id.as_str()))
+                .map(|id| {
+                    let name = biomes.key(*id).unwrap_or_else(|| {
+                        panic!("the biome registry holds no entry numbered {}", id.index())
+                    });
+                    lookup(name.as_str())
+                })
                 .collect(),
         }))
     }
@@ -842,10 +849,15 @@ pub fn resolve_carver_biomes(
 /// [`resolve_carver_biomes`] for a Beta source.
 pub fn resolve_beta_carver_biomes(
     source: &BiomeSource,
+    biomes: &Registry<keys::Biome>,
     carvers_by_biome: &HashMap<String, Vec<String>>,
     config_by_location: &HashMap<String, CarverConfig>,
 ) -> Option<CarverBiomeTable> {
-    CarverBiomeTable::beta(source, biome_carvers(carvers_by_biome, config_by_location))
+    CarverBiomeTable::beta(
+        source,
+        biomes,
+        biome_carvers(carvers_by_biome, config_by_location),
+    )
 }
 
 /// The carvers a biome runs, by the biome's name.

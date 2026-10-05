@@ -8,11 +8,10 @@
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
-use bevy_asset::Assets;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -30,56 +29,27 @@ mod support;
 
 use support::{build_settings_router, corpus};
 
-fn make_beta_biome() -> Biome {
-    Biome {
-        temperature: 0.5,
-        downfall: 0.5,
-        has_precipitation: true,
-        temperature_modifier: None,
-        effects: mcrs_minecraft_biome::BiomeEffects {
-            water_color: None,
-            foliage_color: None,
-            grass_color: None,
-            grass_color_modifier: Default::default(),
-            dry_foliage_color: None,
-        },
-        carvers: Vec::new(),
-        features: Vec::new(),
-        attributes: Default::default(),
-    }
-}
-
-fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
-    let mut assets = Assets::<Biome>::default();
-    let land_handles: Vec<_> = (0..11).map(|_| assets.add(make_beta_biome())).collect();
-    let land_ids: Vec<_> = land_handles.iter().map(|h| h.id()).collect();
-    let all_pairs: Vec<(ResourceLocation<Arc<str>>, _)> = (0..11)
-        .map(|i| {
-            let rl = ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap();
-            (rl, land_ids[i])
-        })
+fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
+    let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)
+        .map(|i| ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap())
         .collect();
-    let table = support::text_ordered_table(
-        "minecraft:worldgen/biome",
-        all_pairs.iter().map(|(name, _)| name.clone()),
-    );
-    let snapshot = RegistrySnapshot::<Biome>::build(&table, all_pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    });
-    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
-        ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
-    });
+    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    let registry = Registry::<keys::Biome>::new(names, []).expect("distinct land biomes");
     let biome_source = BiomeSource::Beta {
-        land_biomes: land_handles.try_into().expect("11 land handles"),
-        land_biome_ids,
+        land_biomes: std::array::from_fn(|i| {
+            registry
+                .get(&format!("minecraft:land_biome_{i}"))
+                .expect("a land biome")
+        }),
         lookup: Box::new(build_beta_lookup_table()),
     };
-    (biome_source, snapshot)
+    (biome_source, registry)
 }
 
 /// Beta's carver in every land biome, as the shipped Beta biomes carry it.
-fn beta_carvers(source: &BiomeSource) -> CarverBiomeTable {
-    CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave])).expect("a Beta source")
+fn beta_carvers(source: &BiomeSource, biomes: &Registry<keys::Biome>) -> CarverBiomeTable {
+    CarverBiomeTable::beta(source, biomes, |_| Arc::from([CarverConfig::BetaCave]))
+        .expect("a Beta source")
 }
 
 #[derive(Default, Clone, Copy)]
@@ -108,7 +78,6 @@ fn generate_chunk(
     chunk_z: i32,
     router: &NoiseRouter,
     biome_source: &BiomeSource,
-    snapshot: &RegistrySnapshot<Biome>,
     carvers: &CarverBiomeTable,
     cancel: &CancellationToken,
 ) -> (f64, Stages) {
@@ -123,7 +92,7 @@ fn generate_chunk(
         chunk_z,
         y_sections,
         router,
-        Some((biome_source, snapshot)),
+        Some(biome_source),
         None,
         None,
         cancel,
@@ -176,8 +145,8 @@ fn generate_range(
     start: Option<&Barrier>,
 ) -> (Vec<f64>, Stages, f64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, snapshot) = build_beta_biome_source();
-    let carvers = beta_carvers(&biome_source);
+    let (biome_source, registry) = build_beta_biome_source();
+    let carvers = beta_carvers(&biome_source, &registry);
     let cancel = CancellationToken::new();
     let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
     let mut stages = Stages::default();
@@ -197,7 +166,6 @@ fn generate_range(
                 cz,
                 &router,
                 &biome_source,
-                &snapshot,
                 &carvers,
                 &cancel,
             );
@@ -211,7 +179,7 @@ fn generate_range(
 /// Non-air blocks in one column, to confirm a section span actually carries terrain.
 fn report_content(y_sections: &[i32], seed: u64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, snapshot) = build_beta_biome_source();
+    let (biome_source, registry) = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let mut column = ColumnBlocks::new(y_sections);
     let _ = fill_column_dense_any(
@@ -220,7 +188,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         0,
         y_sections,
         &router,
-        Some((&biome_source, &snapshot)),
+        Some(&biome_source),
         None,
         None,
         &cancel,
@@ -236,7 +204,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         world_seed,
         &router,
         &mut Workspace::new(),
-        &beta_carvers(&biome_source),
+        &beta_carvers(&biome_source, &registry),
         extent(&router),
         &BetaCaveBlockIds::resolve(corpus()),
     );

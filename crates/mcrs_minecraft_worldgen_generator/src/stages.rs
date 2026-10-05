@@ -5,17 +5,17 @@ use std::sync::Arc;
 use crate::stored_biomes::column_cell;
 use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
@@ -64,7 +64,7 @@ pub struct FillContext {
     /// delta names a cell by its index in it, so it is one list, not one per
     /// dispatch.
     pub y_sections: Arc<[i32]>,
-    pub biome: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)>,
+    pub biome: Option<(Arc<BiomeSource>, Registry<keys::Biome>)>,
     pub predicates: Option<HeightmapPredicates>,
     /// Read only where `biome` names the registry the save is decoded against.
     pub saved: Option<SavedColumns>,
@@ -116,7 +116,7 @@ impl FillContext {
         material: Option<Arc<MaterialProgram>>,
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
-        biome: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)>,
+        biome: Option<(Arc<BiomeSource>, Registry<keys::Biome>)>,
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
@@ -128,35 +128,23 @@ impl FillContext {
             let BiomeSource::MultiNoise(multi) = source.as_ref() else {
                 return None;
             };
-            MultiNoiseBiomeTable::resolve(multi, |location| {
-                // The palette stores a biome in a byte, so an id past
-                // 255 would silently alias another biome.
-                match registry.by_location(location).map(u8::try_from) {
-                    Some(Ok(id)) => Some(id),
-                    Some(Err(_)) => {
-                        error!(
-                            biome = location,
-                            "biome id is past the 256 the palette can store"
-                        );
-                        None
-                    }
-                    None => {
-                        error!(biome = location, "biome missing from the registry");
-                        None
-                    }
+            match MultiNoiseBiomeTable::resolve(multi, registry) {
+                Ok(table) => Some(Arc::new(table)),
+                Err(error) => {
+                    error!(%error, "the multi-noise biome source has no climate table");
+                    None
                 }
-            })
-            .map(Arc::new)
+            }
         });
         let structures = structures.map(|tables| {
             let biome_lookup = match (&multi_noise, &biome) {
                 (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
                 (None, Some((source, registry))) => match source.as_ref() {
-                    BiomeSource::Fixed { biome_id, .. } => registry
-                        .by_location(biome_id.as_str())
-                        .map_or(BiomeLookup::None, BiomeLookup::Fixed),
-                    BiomeSource::TheEnd => EndBiomes::resolve(|id| registry.by_location(id))
-                        .map_or(BiomeLookup::None, BiomeLookup::TheEnd),
+                    BiomeSource::Fixed { biome } => BiomeLookup::Fixed(biome.number()),
+                    BiomeSource::TheEnd => {
+                        EndBiomes::resolve(|name| registry.get(name).map(Id::number))
+                            .map_or(BiomeLookup::None, BiomeLookup::TheEnd)
+                    }
                     _ => BiomeLookup::None,
                 },
                 (None, None) => BiomeLookup::None,
@@ -214,10 +202,8 @@ impl FillContext {
         }
     }
 
-    fn biome_context(&self) -> Option<(&BiomeSource, &RegistrySnapshot<Biome>)> {
-        self.biome
-            .as_ref()
-            .map(|(src, reg)| (src.as_ref(), reg.as_ref()))
+    fn biome_source(&self) -> Option<&BiomeSource> {
+        self.biome.as_ref().map(|(source, _)| source.as_ref())
     }
 
     pub fn features(&self) -> Option<&FeatureProgram> {
@@ -330,7 +316,7 @@ pub fn fill_column(
             col.z,
             y_sections,
             router,
-            ctx.biome_context(),
+            ctx.biome_source(),
             multi_noise,
             beard.as_ref(),
             cancel,
@@ -351,8 +337,8 @@ pub fn fill_column(
 
     match &ctx.program.generator {
         ColumnGenerator::Beta(ids) => {
-            let (src, _) = ctx
-                .biome_context()
+            let src = ctx
+                .biome_source()
                 .expect("a beta program has a biome source");
             let mut rng = beta_surface_rng(col.x, col.z);
             apply_beta_surface(
@@ -1143,14 +1129,14 @@ mod tests {
             let carved = FillContext {
                 y_sections: dimension_y_sections(&router, -64, 24),
                 blocks: blocks().0.clone(),
-                biome: Some((Arc::clone(&source), Arc::new(registry))),
+                biome: Some((Arc::clone(&source), registry.clone())),
                 predicates: Some(heightmap_predicates(blocks(), block_tags())),
                 saved: None,
                 program: ColumnProgram {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
                     ))),
-                    carvers: Some(Arc::new(beta_carver_table(&source))),
+                    carvers: Some(Arc::new(beta_carver_table(&source, &registry))),
                     features: None,
                 },
                 router,

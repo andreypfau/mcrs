@@ -7,13 +7,14 @@ use bytes::Buf;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::{frozen_shared, preset};
 use super::{
-    biome_index, biome_registry, block_tags, blocks, build_settings_router, corpus_climate,
+    biome_registry, block_tags, blocks, build_settings_router, corpus_biomes, corpus_climate,
 };
 use crate::base_height;
 use crate::feature_program::Resolver;
@@ -178,9 +179,9 @@ pub(super) fn dimension(id: &str) -> Dimension {
 pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = &dimension.source;
-    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    for id in possible_biomes(source, |_| None) {
-        mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
+    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+    for name in possible_biomes(source, corpus_biomes()) {
+        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
@@ -188,12 +189,11 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     };
     let biomes = match source {
         BiomeSource::MultiNoise(multi) => BiomeLookup::MultiNoise(Arc::new(
-            MultiNoiseBiomeTable::resolve(multi, |name| biome_index().get(name).map(|id| id as u8))
-                .unwrap(),
+            MultiNoiseBiomeTable::resolve(multi, corpus_biomes()).unwrap(),
         )),
-        BiomeSource::TheEnd => {
-            BiomeLookup::TheEnd(EndBiomes::resolve(|id| biome_index().get(id)).unwrap())
-        }
+        BiomeSource::TheEnd => BiomeLookup::TheEnd(
+            EndBiomes::resolve(|name| corpus_biomes().get(name).map(Id::number)).unwrap(),
+        ),
         _ => unreachable!(),
     };
     StructureIndex::new(

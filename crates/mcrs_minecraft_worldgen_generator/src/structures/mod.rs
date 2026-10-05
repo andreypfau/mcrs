@@ -1,14 +1,14 @@
 use crate::block_state::try_resolve_state;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::DynTagRegistry;
+use mcrs_minecraft_assets::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::HolderSet;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry};
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::spawn_condition::{
@@ -92,8 +92,8 @@ pub struct StructureInputs<'a> {
     pub pools: &'a BTreeMap<ResourceLocation, TemplatePool>,
     pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
-    pub biomes: &'a DynRegistryIndex<keys::Biome>,
-    pub biome_tags: &'a DynTagRegistry<keys::Biome>,
+    pub biomes: &'a Registry<keys::Biome>,
+    pub biome_tags: &'a TagRegistry<keys::Biome, Id<keys::Biome>>,
     /// The structure ids the tags are resolved against, and those tags.
     pub structure_index: &'a DynRegistryIndex<keys::Structure>,
     pub structure_tags: &'a DynTagRegistry<keys::Structure>,
@@ -204,7 +204,7 @@ fn biome_mask(
     owner: &dyn std::fmt::Display,
     set: &HolderSet,
 ) -> Result<BiomeMask, String> {
-    let mut mask = FixedBitSet::with_capacity(inputs.biomes.len() as usize);
+    let mut mask = FixedBitSet::with_capacity(inputs.biomes.len());
     match set {
         HolderSet::Tag(tag) => {
             let key = TagKey::<keys::Biome, _>::from_location(tag.clone());
@@ -212,16 +212,16 @@ fn biome_mask(
                 format!("{owner}: names the biome tag #{tag}, which is not loaded")
             })?;
             for id in members.iter() {
-                mask.insert(usize::from(id));
+                mask.insert(id.index());
             }
         }
         HolderSet::One(_) | HolderSet::List(_) => {
             for id in set.entries() {
-                let index = inputs
+                let biome = inputs
                     .biomes
                     .get(id.as_str())
                     .ok_or_else(|| format!("{owner}: names the biome {id}, which is not loaded"))?;
-                mask.insert(usize::from(index));
+                mask.insert(biome.index());
             }
         }
     }

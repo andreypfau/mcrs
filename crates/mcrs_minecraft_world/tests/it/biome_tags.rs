@@ -1,23 +1,24 @@
 use bevy_app::App;
-use mcrs_minecraft_assets::snapshot::RegistrySnapshot;
-use mcrs_minecraft_assets::tag::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_assets::RegistryAccess;
+use mcrs_minecraft_assets::tag::TagRegistry;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::{Id, Registry};
 
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let tags = app.world().resource::<DynTagRegistry<keys::Biome>>();
-    let index = app.world().resource::<DynRegistryIndex<keys::Biome>>();
+    let tags = app
+        .world()
+        .resource::<TagRegistry<keys::Biome, Id<keys::Biome>>>();
+    let biomes = app.world().resource::<Registry<keys::Biome>>();
     let key = TagKey::<keys::Biome, _>::from_location(ResourceLocation::parse(tag).unwrap());
     let mut names: Vec<String> = tags
         .get(&key)
         .expect("the tag is resolved")
         .iter()
         .map(|id| {
-            index
-                .location(id)
+            biomes
+                .key(id)
                 .expect("a member id maps back")
                 .as_str()
                 .to_owned()
@@ -42,15 +43,20 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
     assert_eq!(nested.len(), 56);
 }
 
-pub fn the_biome_index_and_snapshot_agree_on_the_id_space(app: &App) {
-    let index = app.world().resource::<DynRegistryIndex<keys::Biome>>();
-    let snapshot = app.world().resource::<RegistrySnapshot<Biome>>();
+pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {
+    let biomes = app.world().resource::<Registry<keys::Biome>>();
+    let synced = app
+        .world()
+        .resource::<RegistryAccess>()
+        .iter()
+        .find(|registry| registry.registry_key() == "minecraft:worldgen/biome")
+        .expect("the biomes are synced");
 
-    assert_eq!(index.len(), snapshot.len());
-    assert!(!index.is_empty());
-    for (id, entry) in snapshot.iter() {
+    assert_eq!(biomes.len(), synced.len());
+    assert!(!biomes.is_empty());
+    for (id, entry) in biomes.ids().zip(synced.iter_entries()) {
         assert_eq!(
-            index.location(id).map(|l| l.as_str()),
+            biomes.key(id).map(|name| name.as_str()),
             Some(entry.location.as_str())
         );
     }

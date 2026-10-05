@@ -5,7 +5,7 @@ use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet};
+use mcrs_minecraft_registry::{DynRegistryIndex, Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::{declared_world_registries, loaded_names};
@@ -24,6 +24,14 @@ fn names_in_index<T: RegistryKey + 'static>(app: &App) -> Vec<String> {
     (0..=u16::MAX)
         .take(usize::try_from(index.len()).unwrap())
         .map(|id| index.location(id).expect("ids are dense").to_string())
+        .collect()
+}
+
+fn names_in_registry<T: RegistryKey + Send + Sync + 'static>(app: &App) -> Vec<String> {
+    let registry = app.world().resource::<Registry<T>>();
+    registry
+        .ids()
+        .map(|id| registry.key(id).expect("ids are dense").to_string())
         .collect()
 }
 
@@ -55,7 +63,7 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     let indexes = [
         (
             "minecraft:worldgen/biome",
-            names_in_index::<keys::Biome>(app),
+            names_in_registry::<keys::Biome>(app),
         ),
         ("minecraft:timeline", names_in_index::<keys::Timeline>(app)),
         (

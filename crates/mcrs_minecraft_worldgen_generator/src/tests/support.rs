@@ -122,15 +122,15 @@ use std::collections::HashSet;
 
 use mcrs_minecraft_assets::tag::TagLoader;
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
-use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
+use mcrs_minecraft_assets::tag::registry::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
-use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::TagSource;
+use mcrs_minecraft_registry::{DynRegistryIndex, Id, Registry, TagId};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub fn text_ordered_table(
@@ -162,11 +162,11 @@ pub fn tag_members(name: &str) -> HashSet<u16> {
     members
 }
 
-fn collect_tag_members<S: TagSource<Id = u16>>(
+fn collect_tag_members<I: TagId, S: TagSource<Id = I>>(
     registry: &str,
     source: &S,
     name: &str,
-    into: &mut HashSet<u16>,
+    into: &mut HashSet<I>,
 ) {
     let path = tag_dir(registry).join(format!("{}.json", name.trim_start_matches("minecraft:")));
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
@@ -182,9 +182,9 @@ fn collect_tag_members<S: TagSource<Id = u16>>(
 
 /// Every tag file of one registry, subfolders included, expanded off the
 /// files themselves.
-fn every_tag<T: RegistryKey, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
+fn every_tag<T: RegistryKey, I: TagId, S: TagSource<Id = I>>(source: &S) -> TagRegistry<T, I> {
     let dir = tag_dir(T::KEY.path());
-    let mut loader = TagLoader::<T, u16>::default();
+    let mut loader = TagLoader::<T, I>::default();
     for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {
         let relative = path.strip_prefix(&dir).unwrap().with_extension("");
         let name = format!(
@@ -213,29 +213,30 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
     TAGS.get_or_init(|| every_tag(&Fluids(blocks().0.clone())))
 }
 
-/// Every biome id of the corpus, numbered the way the snapshot numbers them.
-pub fn biome_index() -> &'static DynRegistryIndex<keys::Biome> {
-    static INDEX: std::sync::OnceLock<DynRegistryIndex<keys::Biome>> = std::sync::OnceLock::new();
-    INDEX.get_or_init(|| {
-        DynRegistryIndex::from_table(&text_ordered_table(
-            "minecraft:worldgen/biome",
-            registry::<serde::de::IgnoredAny>("biome").into_keys(),
-        ))
+/// Every biome of the corpus, numbered in text order.
+pub fn corpus_biomes() -> &'static Registry<keys::Biome> {
+    static REGISTRY: std::sync::OnceLock<Registry<keys::Biome>> = std::sync::OnceLock::new();
+    REGISTRY.get_or_init(|| {
+        let mut names: Vec<_> = registry::<serde::de::IgnoredAny>("biome")
+            .into_keys()
+            .collect();
+        names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+        Registry::new(names, []).expect("a registry of distinct names")
     })
 }
 
-/// Every corpus biome's climate, indexed like [`biome_index`].
+/// Every corpus biome's climate, indexed like [`corpus_biomes`].
 pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     static CLIMATE: std::sync::OnceLock<std::sync::Arc<[BiomeClimate]>> =
         std::sync::OnceLock::new();
     CLIMATE.get_or_init(|| {
         let biomes = registry::<Biome>("biome");
-        (0..=u16::MAX)
-            .take(usize::try_from(biome_index().len()).unwrap())
+        corpus_biomes()
+            .ids()
             .map(|id| {
-                let name = biome_index()
-                    .location(id)
-                    .expect("an index below the length");
+                let name = corpus_biomes()
+                    .key(id)
+                    .expect("an id of the registry has a name");
                 let biome = &biomes[&ResourceLocation::parse(name.as_str()).expect("a corpus id")];
                 BiomeClimate {
                     base_temperature: biome.temperature,
@@ -247,9 +248,10 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> &'static DynTagRegistry<keys::Biome> {
-    static TAGS: std::sync::OnceLock<DynTagRegistry<keys::Biome>> = std::sync::OnceLock::new();
-    TAGS.get_or_init(|| every_tag(biome_index()))
+pub fn biome_tags() -> &'static TagRegistry<keys::Biome, Id<keys::Biome>> {
+    static TAGS: std::sync::OnceLock<TagRegistry<keys::Biome, Id<keys::Biome>>> =
+        std::sync::OnceLock::new();
+    TAGS.get_or_init(|| every_tag(corpus_biomes()))
 }
 
 pub fn structure_index() -> &'static DynRegistryIndex<keys::Structure> {

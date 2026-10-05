@@ -1,5 +1,7 @@
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::CARVER_REGISTRY;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
@@ -38,7 +40,7 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
     sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
-    biomes: bevy_ecs::prelude::Res<bevy_asset::Assets<mcrs_minecraft_biome::Biome>>,
+    registries: bevy_ecs::prelude::Res<RegistrySet>,
     carvers: bevy_ecs::prelude::Res<
         bevy_asset::Assets<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>,
     >,
@@ -59,17 +61,24 @@ fn build_modern_carver_biomes(
         config_by_location.insert(location.as_str().to_owned(), asset.config.clone());
     }
 
+    let biomes = registries
+        .registry::<keys::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
+    let values = registries
+        .entries::<keys::Biome, mcrs_minecraft_biome::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
+    let name_of = |id| {
+        biomes
+            .key(id)
+            .expect("an id of the registry has a name")
+            .as_str()
+            .to_owned()
+    };
     let mut carvers_by_biome: HashMap<String, Vec<String>> = HashMap::new();
-    for (asset_id, biome) in biomes.iter() {
-        let Some(path) = asset_server.get_path(asset_id) else {
-            continue;
-        };
-        let Some(location) = rl_from_asset_path(path.path(), "worldgen/biome") else {
-            continue;
-        };
+    for id in biomes.ids() {
         carvers_by_biome.insert(
-            location.as_str().to_owned(),
-            biome
+            name_of(id),
+            values[id]
                 .carvers
                 .iter()
                 .map(|carver| carver.as_str().to_owned())
@@ -80,8 +89,9 @@ fn build_modern_carver_biomes(
     let mut tables = DimensionCarverBiomes::default();
     for (dimension, source) in &sources.0 {
         if let BiomeSource::Beta { .. } = source.as_ref() {
-            let table = resolve_beta_carver_biomes(source, &carvers_by_biome, &config_by_location)
-                .expect("a Beta source resolves to a Beta table");
+            let table =
+                resolve_beta_carver_biomes(source, &biomes, &carvers_by_biome, &config_by_location)
+                    .expect("a Beta source resolves to a Beta table");
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
             continue;
@@ -93,7 +103,7 @@ fn build_modern_carver_biomes(
         // climate.
         let (preset, fixed_biome) = match source.as_ref() {
             BiomeSource::MultiNoise(multi) => (Some(multi), None),
-            BiomeSource::Fixed { biome_id, .. } => (None, Some(biome_id.as_str().to_owned())),
+            BiomeSource::Fixed { biome } => (None, Some(name_of(*biome))),
             _ => continue,
         };
 
@@ -101,13 +111,11 @@ fn build_modern_carver_biomes(
             (Some(multi), _) => multi.biomes.as_ref().map(|entries| {
                 entries
                     .iter()
-                    .filter_map(|entry| {
-                        let path = asset_server.get_path(entry.biome.id())?;
-                        let location = rl_from_asset_path(path.path(), "worldgen/biome")?;
-                        Some((
+                    .map(|entry| {
+                        (
                             ParameterPoint::from(&entry.parameters),
-                            location.as_str().to_owned(),
-                        ))
+                            name_of(entry.biome),
+                        )
                     })
                     .collect()
             }),

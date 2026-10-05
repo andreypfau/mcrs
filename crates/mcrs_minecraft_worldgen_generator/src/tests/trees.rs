@@ -6,12 +6,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
@@ -42,7 +42,7 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
 
 /// The names `SurfaceIds::resolve` asks the registry for, which it panics
 /// without, plus the three the tests decorate in.
-pub(super) fn biome_registry() -> RegistrySnapshot<Biome> {
+pub(super) fn biome_registry() -> Registry<keys::Biome> {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
         "minecraft:eroded_badlands",
@@ -85,10 +85,7 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
 
 /// The overworld router with its material rules compiled against the registry
 /// below, so that the surface a tree grows on is the biome's own.
-fn material_router(
-    registry: &RegistrySnapshot<Biome>,
-    seed: u64,
-) -> (NoiseRouter, MaterialProgram) {
+fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
         &ResourceLocation::minecraft("overworld"),
@@ -108,7 +105,7 @@ fn material_router(
         },
         // A biome the registry does not carry is one no rule can match, which
         // is what an id outside it means to the compiled sets.
-        biome: &|id| Some(registry.by_location(id.as_str()).unwrap_or(250)),
+        biome: &|id| Some(registry.get(id.as_str()).map_or(250, Id::number)),
     };
     build_router_and_material(
         &settings,
@@ -147,20 +144,16 @@ pub(super) fn dimension_over(
 /// registry the dimension is given.
 pub(super) fn dimension_with(
     biome: &str,
-    program: impl FnOnce(&RegistrySnapshot<Biome>) -> FeatureProgram,
+    program: impl FnOnce(&Registry<keys::Biome>) -> FeatureProgram,
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
-    let registry0 = biome_registry();
-    let (router, material) = material_router(&registry0, seed);
+    let registry = biome_registry();
+    let (router, material) = material_router(&registry, seed);
     let router = Arc::new(router);
     let y_sections = dimension_y_sections(&router, -64, 24);
-    let registry = Arc::new(registry0);
     let program = program(&registry);
-    let mut assets = bevy_asset::Assets::<Biome>::default();
-    let handle = assets.add(super::beta_biome_palette::make_beta_biome());
     let source = Arc::new(BiomeSource::Fixed {
-        biome: handle,
-        biome_id: ResourceLocation::parse(biome).unwrap().to_arc(),
+        biome: registry.require(biome).expect("the dimension's biome"),
     });
     let ctx = FillContext {
         blocks: blocks().0.clone(),

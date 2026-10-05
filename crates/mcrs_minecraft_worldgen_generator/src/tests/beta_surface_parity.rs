@@ -299,7 +299,7 @@ mod exhaustive {
     fn beta_surface_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();
-        let (biome_source, snapshot) = build_beta_biome_source();
+        let (biome_source, _) = build_beta_biome_source();
         let cancel = CancellationToken::new();
         let biome_table = build_beta_lookup_table();
 
@@ -326,7 +326,7 @@ mod exhaustive {
                 *cz,
                 &y_sections,
                 &router,
-                Some((&biome_source, &snapshot)),
+                Some(&biome_source),
                 None,
                 &cancel,
             );

@@ -16,9 +16,8 @@ use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
+use mcrs_minecraft_assets::RegistrySnapshotErased;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_assets::{RegistrySnapshotErased, snapshot::RegistrySnapshot};
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
@@ -90,7 +89,6 @@ impl Server {
                 None,
             ),
         );
-        app.insert_resource(RegistrySnapshot::<Biome>::default());
         host_app::drive_to_playing(&mut app);
         host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
         let dim = app

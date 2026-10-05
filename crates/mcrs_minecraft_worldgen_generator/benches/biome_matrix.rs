@@ -12,10 +12,10 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -125,50 +125,24 @@ fn surface_ids(names: &[String]) -> SurfaceIds {
     }
 }
 
-/// A registry snapshot over the whole corpus. `build` sorts by location and
-/// assigns dense ids, which is the same order `corpus_biome_ids` produces, so a
-/// biome's network id here equals the id the material rules were compiled with.
-fn biome_registry(names: &[String]) -> (RegistrySnapshot<Biome>, bevy_asset::Assets<Biome>) {
-    let mut assets = bevy_asset::Assets::<Biome>::default();
-    let pairs: Vec<_> = names
-        .iter()
-        .map(|name| {
-            let handle = assets.add(Biome {
-                temperature: 0.5,
-                downfall: 0.5,
-                has_precipitation: true,
-                temperature_modifier: None,
-                effects: mcrs_minecraft_biome::BiomeEffects {
-                    water_color: None,
-                    foliage_color: None,
-                    grass_color: None,
-                    grass_color_modifier: Default::default(),
-                    dry_foliage_color: None,
-                },
-                carvers: Vec::new(),
-                features: Vec::new(),
-                attributes: Default::default(),
-            });
-            (
-                ResourceLocation::parse(&format!("minecraft:{name}")).expect("a biome name"),
-                handle.id(),
-            )
-        })
-        .collect();
-    let table = support::text_ordered_table(
-        "minecraft:worldgen/biome",
-        pairs.iter().map(|(name, _)| name.clone()),
-    );
-    let snapshot = RegistrySnapshot::<Biome>::build(&table, pairs, &assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    });
-    (snapshot, assets)
+/// A registry over the whole corpus, numbering `names` in order, which is the
+/// order `corpus_biome_ids` produces, so a biome's id here equals the id the
+/// material rules were compiled with.
+fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
+    Registry::new(
+        names.iter().map(|name| {
+            ResourceLocation::parse(&format!("minecraft:{name}")).expect("a biome name")
+        }),
+        [],
+    )
+    .expect("the corpus names distinct biomes")
 }
 
-fn fixed_source(name: &str) -> BiomeSource {
+fn fixed_source(registry: &Registry<keys::Biome>, name: &str) -> BiomeSource {
     BiomeSource::Fixed {
-        biome: bevy_asset::Handle::default(),
-        biome_id: ResourceLocation::parse(&format!("minecraft:{name}")).expect("a biome name"),
+        biome: registry
+            .require(&format!("minecraft:{name}"))
+            .expect("a corpus biome"),
     }
 }
 
@@ -185,7 +159,7 @@ fn main() {
     let names = corpus_biome_ids();
     let (router, material) = material_router(seed, &names);
     let ids = surface_ids(&names);
-    let (registry, _assets) = biome_registry(&names);
+    let registry = biome_registry(&names);
     let y_sections: Vec<i32> = (-4..20).collect();
     let cancel = CancellationToken::new();
 
@@ -230,7 +204,6 @@ fn run_pinned(
     side: i32,
     offset: i32,
     source: &BiomeSource,
-    registry: &RegistrySnapshot<Biome>,
     column: &mut ColumnBlocks,
     scratch: &mut MaterialScratch,
 ) -> Duration {
@@ -244,7 +217,7 @@ fn run_pinned(
                 cz,
                 y_sections,
                 router,
-                Some((source, registry)),
+                Some(source),
                 None,
                 None,
                 cancel,
@@ -277,7 +250,7 @@ fn matrix(
     material: &MaterialProgram,
     names: &[String],
     ids: &SurfaceIds,
-    registry: &RegistrySnapshot<Biome>,
+    registry: &Registry<keys::Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
@@ -298,8 +271,7 @@ fn matrix(
         cancel,
         2,
         offsets[0],
-        &fixed_source(&names[0]),
-        registry,
+        &fixed_source(registry, &names[0]),
         &mut column,
         &mut scratch,
     );
@@ -313,7 +285,7 @@ fn matrix(
     let mut rows: Vec<(String, f64, usize)> = Vec::new();
 
     for (id, name) in &overworld {
-        let source = fixed_source(name);
+        let source = fixed_source(registry, name);
         let mut elapsed = Duration::ZERO;
         for offset in offsets {
             elapsed += run_pinned(
@@ -325,7 +297,6 @@ fn matrix(
                 side,
                 *offset,
                 &source,
-                registry,
                 &mut column,
                 &mut scratch,
             );
@@ -362,7 +333,7 @@ fn natural(
     material: &MaterialProgram,
     names: &[String],
     ids: &SurfaceIds,
-    registry: &RegistrySnapshot<Biome>,
+    registry: &Registry<keys::Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
@@ -372,11 +343,8 @@ fn natural(
         preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
         biomes: None,
     };
-    let table = MultiNoiseBiomeTable::resolve(&multi, |biome| {
-        let path = biome.strip_prefix("minecraft:").unwrap_or(biome);
-        names.iter().position(|n| n == path).map(|i| i as u8)
-    })
-    .expect("the overworld preset resolves");
+    let table =
+        MultiNoiseBiomeTable::resolve(&multi, registry).expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
 
     let mut column = ColumnBlocks::new(y_sections);
@@ -393,7 +361,7 @@ fn natural(
                 cz,
                 y_sections,
                 router,
-                Some((&natural_source, registry)),
+                Some(&natural_source),
                 Some(&table),
                 None,
                 cancel,
@@ -437,14 +405,14 @@ fn natural(
             );
             let real = t.elapsed().as_secs_f64() * 1e3;
 
-            let source = fixed_source(&names[dominant as usize]);
+            let source = fixed_source(registry, &names[dominant as usize]);
             let pinned_fill = fill_column_dense_any(
                 &mut column,
                 cx,
                 cz,
                 y_sections,
                 router,
-                Some((&source, registry)),
+                Some(&source),
                 None,
                 None,
                 cancel,

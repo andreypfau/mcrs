@@ -4,10 +4,10 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use bevy_asset::Handle;
 use bevy_ecs::prelude::{Commands, Res, Resource};
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_world::dimension::DimensionDefinition;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
@@ -64,17 +64,16 @@ pub(crate) fn build_dimension_routers(
     settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
     assets: WorldgenAssets,
     blocks: Res<Blocks>,
-    biome_registry: Res<RegistrySnapshot<Biome>>,
+    registries: Res<RegistrySet>,
     structures: Option<Res<DimensionStructures>>,
 ) {
-    // The material rules take their biome ids from this snapshot, because it is
+    // The material rules take their biome ids from the registry, because it is
     // what `MultiNoiseBiomeTable` fills the column's biome grid with.
-    let biome_ids: BTreeMap<ResourceLocation, u16> = biome_registry
-        .iter()
-        .map(|(network_id, entry)| (entry.location.clone(), network_id))
-        .collect();
+    let biomes = registries
+        .registry::<keys::Biome>()
+        .expect("the data pack loader parses minecraft:worldgen/biome");
     let block = |state: &_| try_resolve_state(&blocks, state).map(Into::into);
-    let biome = |id: &ResourceLocation| biome_ids.get(id).copied();
+    let biome = |id: &ResourceLocation| biomes.get(id.as_str()).map(Id::number);
 
     let mut routers = DimensionRouters::default();
     for (dimension, handle) in &preset.dimensions {

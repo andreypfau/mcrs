@@ -6,7 +6,6 @@
 mod base_height;
 #[cfg(test)]
 mod beta_biome_grid;
-mod beta_biome_palette;
 #[cfg(test)]
 mod beta_cave_parity;
 #[cfg(test)]
@@ -69,12 +68,12 @@ use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_registry::Registry;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
@@ -160,7 +159,7 @@ pub const TEMPERATE: BiomeClimate = BiomeClimate {
 pub fn build_program(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
-    registry: &RegistrySnapshot<Biome>,
+    registry: &Registry<keys::Biome>,
     seed: i64,
 ) -> FeatureProgram {
     build_program_with(tables, corpus, registry, seed, None)
@@ -169,16 +168,14 @@ pub fn build_program(
 pub fn build_program_with(
     tables: &FeatureTables,
     corpus: &LoadedFeatures,
-    registry: &RegistrySnapshot<Biome>,
+    registry: &Registry<keys::Biome>,
     seed: i64,
     structures: Option<&FrozenStructures>,
 ) -> FeatureProgram {
     let mut tables = tables.clone();
-    for entry in registry.entries() {
-        tables
-            .climate
-            .entry(entry.location.clone())
-            .or_insert(TEMPERATE);
+    for id in registry.ids() {
+        let name = registry.key(id).expect("an id of the registry has a name");
+        tables.climate.entry(name.clone()).or_insert(TEMPERATE);
     }
     FeatureProgram::build(
         &tables,
@@ -223,35 +220,24 @@ pub fn fill_context_with(
     }
 }
 
-pub fn biome_snapshot(
-    pairs: Vec<(
-        ResourceLocation<std::sync::Arc<str>>,
-        bevy_asset::AssetId<Biome>,
-    )>,
-    assets: &bevy_asset::Assets<Biome>,
-) -> RegistrySnapshot<Biome> {
-    let table = text_ordered_table(
-        "minecraft:worldgen/biome",
-        pairs.iter().map(|(name, _)| name.clone()),
-    );
-    RegistrySnapshot::<Biome>::build(&table, pairs, assets, |_| {
-        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new().into())
-    })
+/// A biome registry naming `names`, numbered in name order: the feature tables
+/// only need the ids to resolve, and the surface stage only needs its own three
+/// to exist.
+pub fn biome_registry(names: &[&str]) -> Registry<keys::Biome> {
+    let mut names = names.to_vec();
+    names.sort_unstable();
+    ordered_biome_registry(&names)
 }
 
-/// A biome registry naming `names` in order, every one the Beta palette biome:
-/// the feature tables only need the ids to resolve, and the surface stage only
-/// needs its own three to exist.
-pub fn biome_registry(names: &[&str]) -> RegistrySnapshot<Biome> {
-    let mut assets = bevy_asset::Assets::<Biome>::default();
-    let handle = assets.add(beta_biome_palette::make_beta_biome());
-    biome_snapshot(
+/// A biome registry numbering `names` in the order given.
+pub fn ordered_biome_registry(names: &[&str]) -> Registry<keys::Biome> {
+    Registry::new(
         names
             .iter()
-            .map(|name| (ResourceLocation::parse(name).unwrap(), handle.id()))
-            .collect::<Vec<_>>(),
-        &assets,
+            .map(|name| ResourceLocation::parse(name).expect("a biome name")),
+        [],
     )
+    .expect("a registry of distinct names")
 }
 
 /// A filled column of one block per section — `None` leaves the section empty
@@ -370,8 +356,9 @@ pub fn generate_region(
 /// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
+    registry: &Registry<keys::Biome>,
 ) -> crate::modern_carvers::CarverBiomeTable {
-    crate::modern_carvers::CarverBiomeTable::beta(source, |_| {
+    crate::modern_carvers::CarverBiomeTable::beta(source, registry, |_| {
         Arc::from([mcrs_minecraft_worldgen_carver::config::CarverConfig::BetaCave])
     })
     .expect("a Beta biome source")
@@ -379,7 +366,7 @@ pub fn beta_carver_table(
 
 /// The program every biome of a Beta `registry` runs: the shipped populate step,
 /// alone in its one step.
-pub fn beta_populate_program(registry: &RegistrySnapshot<Biome>, seed: i64) -> FeatureProgram {
+pub fn beta_populate_program(registry: &Registry<keys::Biome>, seed: i64) -> FeatureProgram {
     let id = ResourceLocation::parse("minecraft:beta_populate").unwrap();
     let entry = Arc::new(CompiledPlacedFeature {
         placed: corpus_features().placed_features[&id].clone(),
@@ -388,9 +375,13 @@ pub fn beta_populate_program(registry: &RegistrySnapshot<Biome>, seed: i64) -> F
     let mut carried = FixedBitSet::with_capacity(1);
     carried.insert(0);
     let biome_order: Vec<ResourceLocation> = registry
-        .entries()
-        .iter()
-        .map(|entry| entry.location.clone())
+        .ids()
+        .map(|id| {
+            registry
+                .key(id)
+                .expect("an id of the registry has a name")
+                .clone()
+        })
         .collect();
     let tables = FeatureTables {
         features: FeatureSteps {

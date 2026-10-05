@@ -6,8 +6,6 @@ pub mod zoom;
 
 use std::sync::Arc;
 
-use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
@@ -29,7 +27,7 @@ pub enum TemperatureModifier {
     Frozen,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Biome {
     pub temperature: f32,
     pub downfall: f32,
@@ -37,7 +35,7 @@ pub struct Biome {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature_modifier: Option<TemperatureModifier>,
     pub effects: BiomeEffects,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, with = "mcrs_minecraft_core::codec::compact_list")]
     pub carvers: Vec<ResourceLocation<Arc<str>>>,
@@ -46,14 +44,6 @@ pub struct Biome {
 }
 
 impl Biome {
-    pub fn load(ctx: &mut LoadContext<'_>, loc: &ResourceLocation<Arc<str>>) -> Handle<Biome> {
-        ctx.load(format!(
-            "{}/worldgen/biome/{}.json",
-            loc.namespace(),
-            loc.path()
-        ))
-    }
-
     pub fn natural_mob_spawns(&self) -> Option<&MobSpawnSettings> {
         match self
             .attributes
@@ -91,12 +81,6 @@ impl From<&Biome> for NetworkBiome {
             effects: biome.effects.clone(),
         }
     }
-}
-
-impl Asset for Biome {}
-
-impl VisitAssetDependencies for Biome {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

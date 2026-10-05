@@ -2,12 +2,12 @@ use crate::modern_carvers::TerrainCarving;
 use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
@@ -26,13 +26,14 @@ pub struct SurfaceIds {
 }
 
 impl SurfaceIds {
-    pub fn resolve(blocks: &BlockDefinitions, biomes: &RegistrySnapshot<Biome>) -> Self {
+    pub fn resolve(blocks: &BlockDefinitions, biomes: &Registry<keys::Biome>) -> Self {
         let biome = |name: &str| {
-            biomes.by_location(name).unwrap_or_else(|| {
-                panic!(
-                    "the surface stage names the biome `{name}`, which the registry does not hold"
-                )
-            })
+            biomes
+                .require(name)
+                .unwrap_or_else(|error| {
+                    panic!("the surface stage names a biome the registry does not hold: {error}")
+                })
+                .number()
         };
         Self {
             eroded_badlands: biome("minecraft:eroded_badlands"),

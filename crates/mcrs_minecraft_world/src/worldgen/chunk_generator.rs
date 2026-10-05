@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 
 use super::flat::{FlatChunkGenerator, ProtoFlatChunkGenerator};
 use crate::ResourceLocation;
-use mcrs_minecraft_biome::source::{BiomeSource, ProtoBiomeSource};
+use mcrs_minecraft_biome::source::ProtoBiomeSource;
 
 // ===========================================================================
 // Runtime types
@@ -24,24 +24,18 @@ pub enum ChunkGenerator {
 impl ChunkGenerator {
     pub(crate) fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
         match self {
-            ChunkGenerator::Noise(g) => g.visit_dependencies(visit),
-            ChunkGenerator::Flat(g) => g.visit_dependencies(visit),
-            ChunkGenerator::Debug => {}
+            ChunkGenerator::Noise(g) => visit(g.settings.id().untyped()),
+            ChunkGenerator::Flat(_) | ChunkGenerator::Debug => {}
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct NoiseChunkGenerator {
-    pub biome_source: BiomeSource,
+    // chisle: names until the preset is parsed with the registries in scope; the
+    // server resolves them where it builds a dimension's generator.
+    pub biome_source: ProtoBiomeSource,
     pub settings: Handle<NoiseGeneratorSettingsAsset>,
-}
-
-impl NoiseChunkGenerator {
-    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        visit(self.settings.id().untyped());
-        self.biome_source.visit_dependencies(visit);
-    }
 }
 
 // ===========================================================================
@@ -73,7 +67,7 @@ impl ProtoChunkGenerator {
     pub(crate) fn resolve(self, ctx: &mut LoadContext) -> ChunkGenerator {
         match self {
             ProtoChunkGenerator::Noise(n) => ChunkGenerator::Noise(n.resolve(ctx)),
-            ProtoChunkGenerator::Flat(f) => ChunkGenerator::Flat(f.resolve(ctx)),
+            ProtoChunkGenerator::Flat(f) => ChunkGenerator::Flat(f.resolve()),
             ProtoChunkGenerator::Debug => ChunkGenerator::Debug,
         }
     }
@@ -87,7 +81,7 @@ impl ProtoNoiseChunkGenerator {
             self.settings.path()
         );
         NoiseChunkGenerator {
-            biome_source: self.biome_source.resolve(ctx),
+            biome_source: self.biome_source,
             settings: ctx.load(settings_path),
         }
     }

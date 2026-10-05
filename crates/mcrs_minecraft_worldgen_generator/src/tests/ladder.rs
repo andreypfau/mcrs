@@ -9,7 +9,7 @@
 use super::corpus_ores::{one_biome_registry, ore_program, ore_tables};
 use super::structures::frozen_shared;
 use super::{
-    biome_index, block_tags, blocks, build_beta_router, build_program_with, corpus_climate,
+    block_tags, blocks, build_beta_router, build_program_with, corpus_biomes, corpus_climate,
     corpus_features, one_step,
 };
 use crate::heightmap::heightmap_predicates;
@@ -22,8 +22,6 @@ use crate::{BetaCaveBlockIds, ColumnBlocks, SurfaceIds};
 use bevy_app::App;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::RegistrySnapshot;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::ColumnPos;
@@ -88,7 +86,6 @@ const STRUCTURE_SEED: u64 = 0x51A6E;
 /// worlds rather than two orderings of one.
 pub struct Dimension {
     pub ctx: FillContext,
-    pub registry: Arc<RegistrySnapshot<Biome>>,
     /// The column the compared region is centred on.
     pub centre: ColumnPos,
 }
@@ -97,7 +94,6 @@ impl Dimension {
     pub fn install(&self, app: &mut App) {
         app.insert_resource(self.ctx.clone());
         app.insert_resource(blocks().clone());
-        app.insert_resource(RegistrySnapshot::clone(&self.registry));
         app.insert_resource(block_tags().clone());
         app.insert_resource(
             self.ctx
@@ -126,11 +122,11 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         },
         seed,
     );
-    let biome = biome_index()
+    let biome = corpus_biomes()
         .get(biome_id)
-        .expect("the biome index holds the corpus");
-    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    mask.insert(usize::from(biome));
+        .expect("the biome registry holds the corpus");
+    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+    mask.insert(biome.index());
     let tables = DimensionStructureTables {
         frozen: Arc::clone(frozen),
         live: live_sets(frozen, &mask),
@@ -139,7 +135,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         Arc::new(tables),
         seed as i64,
         Arc::clone(&ctx.router),
-        BiomeLookup::Fixed(biome),
+        BiomeLookup::Fixed(biome.number()),
         ctx.predicates.clone(),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
         Arc::clone(corpus_climate()),
@@ -156,12 +152,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         "{structure} at {centre:?} does not reach its own column"
     );
     ctx.structures = Some(Arc::new(index));
-    let (_, registry) = ctx.biome.clone().expect("the dimension has a biome");
-    Dimension {
-        ctx,
-        registry,
-        centre,
-    }
+    Dimension { ctx, centre }
 }
 
 pub fn fill_context(consumer: Consumer) -> Dimension {
@@ -175,10 +166,8 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
             let tables = Arc::new(super::corpus_generators::every_placed_feature());
             super::trees::dimension_over(CORPUS_BIOME, tables, CORPUS_SEED)
         };
-        let (_, registry) = ctx.biome.clone().expect("the dimension has a biome");
         return Dimension {
             ctx,
-            registry,
             centre: ColumnPos::new(0, 0),
         };
     }
@@ -187,11 +176,11 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     let (source, registry, tables) = match consumer {
         Consumer::BetaOre => {
             let (source, registry) = super::beta_surface::build_beta_biome_source();
-            (Some(Arc::new(source)), Arc::new(registry), None)
+            (Some(Arc::new(source)), registry, None)
         }
         Consumer::ModernOre => {
             let (tables, _) = ore_tables();
-            (None, Arc::new(one_biome_registry()), Some(Arc::new(tables)))
+            (None, one_biome_registry(), Some(Arc::new(tables)))
         }
         Consumer::Tree | Consumer::Corpus | Consumer::Structure { .. } => {
             unreachable!("the feature and structure dimensions returned above")
@@ -202,7 +191,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
             generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
             carvers: source
                 .as_deref()
-                .map(|source| Arc::new(super::beta_carver_table(source))),
+                .map(|source| Arc::new(super::beta_carver_table(source, &registry))),
             features: Some(Arc::new(super::beta_populate_program(
                 &registry,
                 router.world_seed as i64,
@@ -240,7 +229,6 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     };
     Dimension {
         ctx,
-        registry,
         centre: ColumnPos::new(0, 0),
     }
 }

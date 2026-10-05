@@ -314,7 +314,8 @@ mod exhaustive {
     fn beta_cave_parity_gate() {
         let corpus = load_corpus();
         let router = build_beta_router();
-        let table = crate::tests::beta_carver_table(&build_beta_biome_source().0);
+        let (source, registry) = build_beta_biome_source();
+        let table = crate::tests::beta_carver_table(&source, &registry);
 
         let world_seed: i64 = 12345;
         let y_sections: Vec<i32> = (0..8).collect();
@@ -450,10 +451,10 @@ mod exhaustive {
     #[test]
     fn generate_column_beta_has_caves() {
         let router = build_beta_router();
-        let (biome_source, snapshot) = build_beta_biome_source();
+        let (biome_source, registry) = build_beta_biome_source();
         let cancel = CancellationToken::new();
         let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
-        let table = crate::tests::beta_carver_table(&biome_source);
+        let table = crate::tests::beta_carver_table(&biome_source, &registry);
 
         let world_seed = router.world_seed as i64;
         let y_sections: Vec<i32> = (0..8).collect();
@@ -466,7 +467,7 @@ mod exhaustive {
             chunk_z,
             &y_sections,
             &router,
-            Some((&biome_source, &snapshot)),
+            Some(&biome_source),
             None,
             &cancel,
         );
@@ -554,10 +555,10 @@ mod exhaustive {
     #[test]
     fn beta_real_pipeline_has_cave_air_below_y32() {
         let router = build_beta_router();
-        let (biome_source, snapshot) = build_beta_biome_source();
+        let (biome_source, registry) = build_beta_biome_source();
         let cancel = CancellationToken::new();
         let ids = BetaCaveBlockIds::resolve(crate::tests::corpus());
-        let table = crate::tests::beta_carver_table(&biome_source);
+        let table = crate::tests::beta_carver_table(&biome_source, &registry);
         let world_seed = router.world_seed as i64;
         let y_sections: Vec<i32> = (0..8).collect();
         let air = ids.air;
@@ -572,7 +573,7 @@ mod exhaustive {
                     chunk_z,
                     &y_sections,
                     &router,
-                    Some((&biome_source, &snapshot)),
+                    Some(&biome_source),
                     None,
                     &cancel,
                 );

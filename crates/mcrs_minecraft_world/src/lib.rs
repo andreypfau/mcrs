@@ -25,7 +25,7 @@ pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, index_biomes, index_structures, request_data_pack_assets, request_every_tag,
+    check_tags_ready, index_structures, request_data_pack_assets, request_every_tag,
     resolve_infiniburn_tags, resolve_timeline_tags, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
@@ -33,7 +33,6 @@ use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::asset::JsonLoader;
 use mcrs_minecraft_assets::tag::{TagPhase, TagRegistryAppExt};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
@@ -83,8 +82,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.init_asset::<worldgen::world_preset::WorldPreset>();
         app.init_asset::<dimension::DimensionDefinition>();
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
-        app.init_asset::<mcrs_minecraft_biome::Biome>();
-        app.register_asset_loader(JsonLoader::<mcrs_minecraft_biome::Biome>::default());
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
@@ -97,7 +94,10 @@ impl Plugin for MinecraftWorldPlugin {
                 request_every_tag::<mcrs_minecraft_keys::Item, u16>,
                 request_every_tag::<Enchantment, mcrs_minecraft_registry::Id<Enchantment>>,
                 request_every_tag::<EntityType, mcrs_minecraft_registry::Id<EntityType>>,
-                request_every_tag::<mcrs_minecraft_keys::Biome, u16>,
+                request_every_tag::<
+                    mcrs_minecraft_keys::Biome,
+                    mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Biome>,
+                >,
                 request_every_tag::<mcrs_minecraft_keys::Structure, u16>,
             )
                 .in_set(TagPhase::Request),
@@ -108,7 +108,7 @@ impl Plugin for MinecraftWorldPlugin {
         .add_tagged_registry::<Enchantment, mcrs_minecraft_registry::Registry<Enchantment>>()
         .add_tagged_registry::<EntityType, mcrs_minecraft_registry::Registry<EntityType>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Timeline, DynRegistryIndex<mcrs_minecraft_keys::Timeline>>()
-        .add_tagged_registry::<mcrs_minecraft_keys::Biome, DynRegistryIndex<mcrs_minecraft_keys::Biome>>()
+        .add_tagged_registry::<mcrs_minecraft_keys::Biome, mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>>()
         .add_tagged_registry::<mcrs_minecraft_keys::Structure, DynRegistryIndex<mcrs_minecraft_keys::Structure>>();
 
         app.init_resource::<DimensionEnvironments>();
@@ -120,14 +120,6 @@ impl Plugin for MinecraftWorldPlugin {
         mcrs_minecraft_assets::snapshot_registry!(
             app,
             [
-                (
-                    mcrs_minecraft_biome::Biome,
-                    "minecraft:worldgen/biome",
-                    |b: &mcrs_minecraft_biome::Biome| mcrs_minecraft_nbt::to_nbt_tag(
-                        &mcrs_minecraft_biome::NetworkBiome::from(b)
-                    ),
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
                 (
                     mcrs_minecraft_dimension::dimension_type::DimensionType,
                     "minecraft:dimension_type",
@@ -173,7 +165,7 @@ impl Plugin for MinecraftWorldPlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    (index_biomes, index_structures).before(TagPhase::Resolve),
+                    index_structures.before(TagPhase::Resolve),
                     (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
                     build_dimension_environments
                         .after(TagPhase::Freeze)
@@ -238,6 +230,11 @@ impl Plugin for MinecraftWorldPlugin {
                     .world_mut()
                     .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
                 &registries,
+            );
+            app.insert_resource(
+                registries
+                    .registry::<mcrs_minecraft_keys::Biome>()
+                    .expect("the data pack loader parses minecraft:worldgen/biome"),
             );
             app.insert_resource(
                 registries

@@ -4,12 +4,14 @@ use mcrs_minecraft_biome::climate::ClimateParameters;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
-use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::{BlockPos, ResourceLocation};
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
 use crate::modern_carvers::climate_target_at;
-use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable};
 use crate::{multi_noise_grid, multi_noise_palettes};
 use bevy_math::IVec3;
 
@@ -24,16 +26,22 @@ pub(super) fn preset_ids() -> HashMap<String, u8> {
     ids
 }
 
+/// A registry numbering `ids` the way the map does.
+fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<keys::Biome> {
+    let mut named: Vec<(&u8, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
+    named.sort();
+    let names: Vec<&str> = named.into_iter().map(|(_, name)| name.as_str()).collect();
+    super::ordered_biome_registry(&names)
+}
+
 pub(super) fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
     let ids = preset_ids();
     let source = MultiNoiseBiomeSource {
-        preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:overworld").unwrap()),
+        preset: Some(ResourceLocation::parse("minecraft:overworld").unwrap()),
         biomes: None,
     };
-    let table = MultiNoiseBiomeTable::resolve(&source, |biome| {
-        Some(*ids.get(biome).expect("the preset names its own biome"))
-    })
-    .expect("the overworld preset resolves");
+    let table = MultiNoiseBiomeTable::resolve(&source, &registry_numbered_as(&ids))
+        .expect("the overworld preset resolves");
     (table, ids)
 }
 
@@ -84,7 +92,7 @@ fn a_column_carries_its_cave_biome_under_its_surface_biome(
 
 /// A source that lists its biomes rather than naming a preset.
 #[test]
-fn an_explicit_entry_list_resolves_by_location() {
+fn an_explicit_entry_list_resolves_to_the_registry_ids() {
     use mcrs_minecraft_biome::climate::ParameterRange;
 
     let flat = |value: f64| ClimateParameters {
@@ -96,43 +104,36 @@ fn an_explicit_entry_list_resolves_by_location() {
         weirdness: ParameterRange::Point(0.0),
         offset: 0.0,
     };
+    let registry =
+        super::biome_registry(&["minecraft:swamp", "minecraft:plains", "minecraft:desert"]);
+    let plains = registry.get("minecraft:plains").expect("a registry biome");
+    let desert = registry.get("minecraft:desert").expect("a registry biome");
     let source = MultiNoiseBiomeSource {
         preset: None,
-        biomes: Some(vec![
-            entry(flat(-1.0), "minecraft:plains"),
-            entry(flat(1.0), "minecraft:desert"),
-        ]),
+        biomes: Some(vec![entry(flat(-1.0), plains), entry(flat(1.0), desert)]),
     };
-    let table = MultiNoiseBiomeTable::resolve(&source, |biome| match biome {
-        "minecraft:plains" => Some(7),
-        "minecraft:desert" => Some(9),
-        other => panic!("unexpected biome {other}"),
-    })
-    .expect("an explicit list resolves");
+    let table =
+        MultiNoiseBiomeTable::resolve(&source, &registry).expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             -1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
-        7
+        plains.narrow::<u8>().unwrap()
     );
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
             1.0, 0.0, 0.0, 0.0, 0.0, 0.0
         )),
-        9
+        desert.narrow::<u8>().unwrap()
     );
 }
 
 fn entry(
     parameters: ClimateParameters,
-    biome: &str,
+    biome: Id<keys::Biome>,
 ) -> mcrs_minecraft_biome::source::MultiNoiseBiomeEntry {
-    mcrs_minecraft_biome::source::MultiNoiseBiomeEntry {
-        parameters,
-        biome: bevy_asset::Handle::default(),
-        location: mcrs_minecraft_core::ResourceLocation::parse(biome).unwrap(),
-    }
+    mcrs_minecraft_biome::source::MultiNoiseBiomeEntry { parameters, biome }
 }
 
 /// The palette stores a biome in a byte. A registry that grew past 256 entries
@@ -140,22 +141,57 @@ fn entry(
 /// see, so the table refuses to be built at all.
 #[test]
 fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
-    let ids = preset_ids();
     let source = MultiNoiseBiomeSource {
         preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:overworld").unwrap()),
         biomes: None,
     };
-    let oversized = "minecraft:eroded_badlands";
-    assert!(ids.contains_key(oversized), "the preset names it");
+    let mut names: Vec<String> = (0..256).map(|id| format!("a:filler_{id:03}")).collect();
+    names.extend(preset_ids().into_keys());
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let registry = super::biome_registry(&names);
 
-    let table = MultiNoiseBiomeTable::resolve(&source, |biome| {
-        if biome == oversized {
-            u8::try_from(260u32).ok()
-        } else {
-            Some(*ids.get(biome).expect("the preset names its own biome"))
-        }
-    });
-    assert!(table.is_none());
+    let error = MultiNoiseBiomeTable::resolve(&source, &registry)
+        .err()
+        .expect("every preset biome sorts past the 256 fillers");
+    assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
+}
+
+/// An id past the byte's range is refused, and the message names the registry
+/// it is an id of.
+#[test]
+fn a_biome_id_beyond_the_narrow_width_is_refused() {
+    use mcrs_minecraft_biome::climate::ParameterRange;
+
+    let names: Vec<String> = (0..=256).map(|id| format!("test:biome_{id:03}")).collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let registry = super::biome_registry(&names);
+    let last = registry.get("test:biome_256").expect("the 257th biome");
+    assert_eq!(last.number(), 256);
+
+    let point = ParameterRange::Point(0.0);
+    let source = MultiNoiseBiomeSource {
+        preset: None,
+        biomes: Some(vec![entry(
+            ClimateParameters {
+                temperature: point.clone(),
+                humidity: point.clone(),
+                continentalness: point.clone(),
+                erosion: point.clone(),
+                depth: point.clone(),
+                weirdness: point,
+                offset: 0.0,
+            },
+            last,
+        )]),
+    };
+    let error = MultiNoiseBiomeTable::resolve(&source, &registry)
+        .err()
+        .expect("an id of 256 does not fit a byte");
+    assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
+    assert!(
+        error.to_string().contains("minecraft:worldgen/biome"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -164,7 +200,11 @@ fn an_unknown_preset_is_not_resolved() {
         preset: Some(mcrs_minecraft_core::ResourceLocation::parse("minecraft:the_end").unwrap()),
         biomes: None,
     };
-    assert!(MultiNoiseBiomeTable::resolve(&source, |_| Some(0)).is_none());
+    let registry = super::biome_registry(&["minecraft:plains"]);
+    assert!(matches!(
+        MultiNoiseBiomeTable::resolve(&source, &registry),
+        Err(BiomeTableError::NoTable(_))
+    ));
 }
 
 /// The zoom reads eight quart corners around a block and they reach outside the

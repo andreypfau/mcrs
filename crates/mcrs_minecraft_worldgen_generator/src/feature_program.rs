@@ -6,9 +6,7 @@ use crate::trees::{
 };
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::RegistrySnapshot;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags, FluidId,
@@ -21,11 +19,13 @@ use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_we
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::{BlockStateId, Id};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
@@ -424,19 +424,19 @@ impl FeatureProgram {
         blocks: &BlockDefinitions,
         tags: Option<&DynTagRegistry<Block>>,
         fluid_tags: Option<&DynTagRegistry<Fluid>>,
-        biomes: &RegistrySnapshot<Biome>,
+        biomes: &Registry<keys::Biome>,
         world_seed: i64,
         structures: Option<&FrozenStructures>,
     ) -> Result<Self, FeatureCompileError> {
         let climate: Vec<BiomeClimate> = biomes
-            .entries()
-            .iter()
-            .map(|entry| {
+            .ids()
+            .map(|id| {
+                let name = biomes.key(id).expect("an id of the registry has a name");
                 tables
                     .climate
-                    .get(entry.location.as_str())
+                    .get(name.as_str())
                     .copied()
-                    .ok_or_else(|| FeatureCompileError::UnknownBiomeSet(entry.location.to_string()))
+                    .ok_or_else(|| FeatureCompileError::UnknownBiomeSet(name.to_string()))
             })
             .collect::<Result<_, _>>()?;
         let resolver = Resolver::new(
@@ -476,8 +476,8 @@ impl FeatureProgram {
 
         let mut biome_slot = [None; 256];
         for (slot, id) in tables.biome_order.iter().enumerate() {
-            if let Some(network) = biomes.by_location(id.as_str())
-                && let Ok(byte) = u8::try_from(network)
+            if let Some(id) = biomes.get(id.as_str())
+                && let Ok(byte) = id.narrow::<u8>()
             {
                 biome_slot[usize::from(byte)] = Some(slot as u16);
             }
@@ -2571,7 +2571,7 @@ pub struct Resolver<'a> {
     pub tables: Arc<BlockTables>,
     pub tags: Option<&'a DynTagRegistry<Block>>,
     pub fluid_tags: Option<&'a DynTagRegistry<Fluid>>,
-    pub biomes: &'a RegistrySnapshot<Biome>,
+    pub biomes: &'a Registry<keys::Biome>,
     /// The geode's noise and the End's spike ring are drawn from the world seed
     /// rather than from the object's own source, so they belong to the freeze.
     pub world_seed: i64,
@@ -2632,7 +2632,7 @@ impl<'a> Resolver<'a> {
         blocks: &'a BlockDefinitions,
         tags: Option<&'a DynTagRegistry<Block>>,
         fluid_tags: Option<&'a DynTagRegistry<Fluid>>,
-        biomes: &'a RegistrySnapshot<Biome>,
+        biomes: &'a Registry<keys::Biome>,
         world_seed: i64,
         climate: &'a [BiomeClimate],
         block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
@@ -2885,13 +2885,13 @@ impl BlockResolver for Resolver<'_> {
     }
 
     fn biomes(&self, set: &HolderSet) -> Option<BiomeMask> {
-        let mut mask = FixedBitSet::with_capacity(self.biomes.len() as usize);
+        let mut mask = FixedBitSet::with_capacity(self.biomes.len());
         match set {
             HolderSet::Tag(_) => return None,
-            HolderSet::One(id) => mask.insert(usize::from(self.biomes.by_location(id.as_str())?)),
+            HolderSet::One(id) => mask.insert(self.biomes.get(id.as_str())?.index()),
             HolderSet::List(ids) => {
                 for id in ids {
-                    mask.insert(usize::from(self.biomes.by_location(id.as_str())?));
+                    mask.insert(self.biomes.get(id.as_str())?.index());
                 }
             }
         }

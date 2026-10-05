@@ -4,12 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_assets::DynTagRegistry;
+use mcrs_minecraft_assets::{DynTagRegistry, TagRegistry};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_registry::{DynRegistryIndex, Registry};
 use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
@@ -20,7 +21,7 @@ use mcrs_minecraft_worldgen_structure::{
 };
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
-use super::{biome_index, biome_tags, corpus, structure_index, structure_tags};
+use super::{biome_tags, corpus, corpus_biomes, structure_index, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
@@ -102,7 +103,7 @@ pub(super) fn frozen_shared() -> &'static Arc<FrozenStructures> {
             pools: &corpus_registries.pools,
             template: &template_file,
             resolve: &|state| resolve_palette_state(corpus(), state),
-            biomes: biome_index(),
+            biomes: corpus_biomes(),
             biome_tags: biome_tags(),
             structure_index: structure_index(),
             structure_tags: structure_tags(),
@@ -148,7 +149,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     );
     let in_hut = SpawnContext {
         structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
-        biome: biome_index().get("minecraft:swamp").unwrap(),
+        biome: corpus_biomes().get("minecraft:swamp").unwrap().number(),
         moon_brightness: 1.0,
     };
     let mut rng = WorldgenRandom::new(1);
@@ -171,7 +172,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
 }
 
 fn every_hardcoded_type_freezes_its_own_config() {
-    let biome = |name: &str| biome_index().get(name).unwrap() as usize;
+    let biome = |name: &str| corpus_biomes().get(name).unwrap().index();
     let StructureKind::Mineshaft {
         mineshaft_type,
         blocking,
@@ -281,9 +282,9 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
 
 fn live_set_names(source: &BiomeSource) -> Vec<String> {
     let frozen = frozen();
-    let mut mask = FixedBitSet::with_capacity(biome_index().len() as usize);
-    for id in possible_biomes(source, |_| None) {
-        mask.insert(biome_index().get(id.as_str()).unwrap() as usize);
+    let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
+    for name in possible_biomes(source, corpus_biomes()) {
+        mask.insert(corpus_biomes().get(name.as_str()).unwrap().index());
     }
     live_sets(frozen, &mask)
         .into_iter()
@@ -358,11 +359,8 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes = DynRegistryIndex::from_table(&super::text_ordered_table(
-        "minecraft:worldgen/biome",
-        std::iter::empty(),
-    ));
-    let tags = DynTagRegistry::default();
+    let biomes = Registry::<keys::Biome>::new([], []).expect("an empty registry");
+    let tags = TagRegistry::default();
     let structure_index = DynRegistryIndex::from_table(&super::text_ordered_table(
         "minecraft:worldgen/structure",
         std::iter::empty(),
