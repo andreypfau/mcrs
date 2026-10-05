@@ -6,18 +6,17 @@
 //! stack is derived once from immutable assets and every read composes it
 //! afresh.
 
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::file::TagFile;
 use mcrs_minecraft_assets::tag::resolve_tag_file_ordered;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{DynRegistryIndex, Registry, RegistrySet};
+use mcrs_minecraft_registry::{DynRegistryIndex, EntrySet, Id, Registry, RegistrySet};
 
 use crate::dimension_type::{DimensionType, Skybox};
 use mcrs_minecraft_core::ResourceLocation;
@@ -276,75 +275,82 @@ impl EnvironmentAttributes {
 /// Derived once from the dimension type registry, the `timeline` registry and
 /// the tag that joins them.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct DimensionEnvironments(HashMap<ResourceLocation<Arc<str>>, EnvironmentAttributes>);
+pub struct DimensionEnvironments(Vec<Option<EnvironmentAttributes>>);
 
 impl DimensionEnvironments {
-    pub fn get(&self, dimension_type: &str) -> Option<&EnvironmentAttributes> {
-        self.0.get(dimension_type)
-    }
-
-    pub fn iter(
-        &self,
-    ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &EnvironmentAttributes)> {
-        self.0.iter()
+    pub fn get(&self, dimension_type: Id<keys::DimensionType>) -> Option<&EnvironmentAttributes> {
+        self.0.get(dimension_type.index())?.as_ref()
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.0.iter().flatten().count()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.0.iter().all(Option::is_none)
     }
 }
 
 pub fn build_dimension_environments(
     registries: Res<RegistrySet>,
-    dimension_types: Res<Assets<DimensionType>>,
     timeline_index: Res<DynRegistryIndex<keys::Timeline>>,
     tag_files: Res<Assets<TagFile>>,
     asset_server: Res<AssetServer>,
     mut environments: ResMut<DimensionEnvironments>,
 ) {
-    let (Some(timelines), Some(world_clocks)) = (
+    let (Some(timelines), Some(world_clocks), Some(types), Some(dimension_types)) = (
         registries.column::<Timeline>(keys::Timeline::KEY.as_str()),
         registries.registry::<keys::WorldClock>(),
+        registries.registry::<keys::DimensionType>(),
+        registries.entries::<keys::DimensionType, DimensionType>(),
     ) else {
         tracing::error!(
-            "the registry set holds no timelines and clocks to build environments from"
+            "the registry set holds no dimension types, timelines and clocks to build environments from"
         );
         return;
     };
 
     environments.0.clear();
-    for (asset_id, dimension_type) in dimension_types.iter() {
-        let Some(id) = asset_server
-            .get_path(asset_id)
-            .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
-        else {
-            continue;
-        };
+    environments.0.resize_with(types.len(), || None);
+    for id in types.ids() {
+        let dimension_type = &dimension_types[id];
+        let name = types
+            .key(id)
+            .expect("an id of the registry has a name")
+            .as_str();
 
-        let members = dimension_type
-            .timelines
-            .as_ref()
-            .and_then(|tag| tag_files.get(tag.handle()))
-            .map(|tag_file| resolve_tag_file_ordered(tag_file, &tag_files, &*timeline_index))
-            .unwrap_or_default();
+        let members = match &dimension_type.timelines {
+            EntrySet::Tag(tag) => {
+                let path = TagKey::<keys::Timeline, _>::from_location(tag.clone()).asset_path();
+                asset_server
+                    .get_handle::<TagFile>(path)
+                    .and_then(|handle| tag_files.get(&handle))
+                    .map(|tag_file| {
+                        resolve_tag_file_ordered(tag_file, &tag_files, &*timeline_index)
+                    })
+                    .unwrap_or_else(|| {
+                        tracing::error!(dimension = name, %tag, "the timeline tag file is not loaded");
+                        Vec::new()
+                    })
+            }
+            listed => listed
+                .entries()
+                .iter()
+                .map(|timeline| timeline.number())
+                .collect(),
+        };
         let dimension_timelines: Vec<&Timeline> = members
             .into_iter()
-            .filter_map(|member| timelines.get(member as usize))
+            .filter_map(|member| timelines.get(usize::from(member)))
             .collect();
 
         match EnvironmentAttributes::build(
-            &DimensionEnvironment::of(id.as_str(), dimension_type),
+            &DimensionEnvironment::of(name, dimension_type),
             &dimension_timelines,
             &world_clocks,
         ) {
-            Ok(attributes) => {
-                environments.0.insert(id, attributes);
-            }
-            Err(error) => tracing::error!(dimension = %id, %error, "could not build environment"),
+            Ok(attributes) => environments.0[id.index()] = Some(attributes),
+            Err(error) => tracing::error!(dimension = name, %error, "could not build environment"),
         }
     }
 

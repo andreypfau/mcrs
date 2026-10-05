@@ -1,7 +1,5 @@
 use bevy_app::App;
-use bevy_asset::{AssetServer, Assets};
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
-use mcrs_minecraft_assets::snapshot::rl_from_asset_path;
 use mcrs_minecraft_assets::tag::DynTagRegistry;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -55,6 +53,18 @@ pub fn the_timeline_tags_resolve_through_universal(app: &App) {
 
 pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let environments = app.world().resource::<DimensionEnvironments>();
+    let types = app
+        .world()
+        .resource::<RegistrySet>()
+        .registry::<keys::DimensionType>()
+        .expect("the dimension types are loaded");
+    let environment = |name: &str| {
+        environments.get(
+            types
+                .get(name)
+                .unwrap_or_else(|| panic!("{name} is not a dimension type")),
+        )
+    };
 
     for id in [
         "minecraft:overworld",
@@ -62,10 +72,10 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
         "minecraft:the_nether",
         "minecraft:the_end",
     ] {
-        assert!(environments.get(id).is_some(), "{id} has no environment");
+        assert!(environment(id).is_some(), "{id} has no environment");
     }
 
-    let overworld = environments.get("minecraft:overworld").unwrap();
+    let overworld = environment("minecraft:overworld").unwrap();
     assert_eq!(
         overworld
             .clocks()
@@ -83,7 +93,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
 
     // `#minecraft:in_nether` pulls in villager_schedule alone, which touches
     // no sky attribute, so the Nether sky never moves.
-    let nether = environments.get("minecraft:the_nether").unwrap();
+    let nether = environment("minecraft:the_nether").unwrap();
     assert!(!nether.stack(sky_light).is_dynamic());
 }
 
@@ -104,25 +114,18 @@ pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
 }
 
 pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app: &App) {
-    let asset_server = app.world().resource::<AssetServer>();
     let set = app.world().resource::<RegistrySet>();
-    let dimension_types = set
+    let table = set
         .table("minecraft:dimension_type")
         .expect("the dimension type table is loaded");
+    let dimension_types = set
+        .column::<DimensionType>("minecraft:dimension_type")
+        .expect("the loader parses the dimension types");
 
     let mut seen = 0;
-    for (id, dimension_type) in app.world().resource::<Assets<DimensionType>>().iter() {
-        let Some(rl) = asset_server
-            .get_path(id)
-            .and_then(|path| rl_from_asset_path(path.path(), "dimension_type"))
-        else {
-            continue;
-        };
-        let number = dimension_types
-            .number(&rl.to_string())
-            .unwrap_or_else(|| panic!("{rl} is not in the loaded names"));
+    for (index, (rl, dimension_type)) in table.names().iter().zip(dimension_types).enumerate() {
         let pack = set
-            .pack_of("minecraft:dimension_type", number as usize)
+            .pack_of("minecraft:dimension_type", index)
             .unwrap_or_else(|| panic!("{rl} has no pack"));
         let root = match pack {
             "vanilla" => "assets/minecraft".to_owned(),
@@ -133,9 +136,10 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
         )
         .unwrap();
 
-        let sent = NetworkDimensionType::from(dimension_type);
+        let sent =
+            set.scope(|| serde_json::to_value(NetworkDimensionType::from(dimension_type)).unwrap());
         assert_eq!(
-            sent.timelines.as_deref(),
+            sent.get("timelines").and_then(|v| v.as_str()),
             raw.get("timelines").and_then(|v| v.as_str()),
             "{rl} timelines must round-trip"
         );

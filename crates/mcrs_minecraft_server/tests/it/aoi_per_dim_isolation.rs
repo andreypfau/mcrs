@@ -25,7 +25,10 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     let mut app = host_app::make_host_app();
     host_app::materialise_sub_apps(
         &mut app,
-        &[("test:overworld", true), ("test:nether", false)],
+        &[
+            ("minecraft:overworld", true),
+            ("minecraft:the_nether", false),
+        ],
     );
 
     // Enumerate the per-dim label entities. `app.sub_apps()` exposes

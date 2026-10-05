@@ -25,8 +25,7 @@ pub mod villager_trade;
 pub mod worldgen;
 
 use crate::data_pack::{
-    check_tags_ready, request_data_pack_assets, request_every_tag, resolve_infiniburn_tags,
-    resolve_timeline_tags, start_loading_data_pack,
+    check_tags_ready, request_data_pack_assets, request_every_tag, start_loading_data_pack,
 };
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, UntypedHandle};
@@ -54,10 +53,9 @@ impl LoadedRegistryAssets {
     }
 
     /// True once every handle and everything it pulls in has either finished
-    /// loading successfully or failed to load. The tag files a `DimensionType`
-    /// names are dependencies, and a tag file's nested `#tag` references are
-    /// dependencies of that, so waiting on the registry asset alone resolves
-    /// those tags against a half-loaded tree. Missing or malformed files do not
+    /// loading successfully or failed to load. A tag file's nested `#tag`
+    /// references are dependencies of it, so waiting on the tag file alone
+    /// resolves it against a half-loaded tree. Missing or malformed files do not
     /// stall the gate; they are logged once `WorldgenFreeze` proceeds.
     ///
     /// A recursive state turns `Failed` as soon as one dependency fails, while
@@ -78,8 +76,6 @@ pub struct MinecraftWorldPlugin;
 
 impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<mcrs_minecraft_dimension::dimension_type::DimensionType>();
-        app.register_asset_loader(mcrs_minecraft_dimension::dimension_type::DimensionTypeLoader);
         app.init_asset::<worldgen::world_preset::WorldPreset>();
         app.init_asset::<dimension::DimensionDefinition>();
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
@@ -103,6 +99,7 @@ impl Plugin for MinecraftWorldPlugin {
                     mcrs_minecraft_keys::Structure,
                     mcrs_minecraft_registry::Id<mcrs_minecraft_keys::Structure>,
                 >,
+                request_every_tag::<mcrs_minecraft_keys::Timeline, u16>,
             )
                 .in_set(TagPhase::Request),
         );
@@ -123,28 +120,14 @@ impl Plugin for MinecraftWorldPlugin {
 
         mcrs_minecraft_assets::snapshot_registry!(
             app,
-            [
-                (
-                    mcrs_minecraft_dimension::dimension_type::DimensionType,
-                    "minecraft:dimension_type",
-                    |d: &mcrs_minecraft_dimension::dimension_type::DimensionType| {
-                        mcrs_minecraft_nbt::to_nbt_tag(
-                            &mcrs_minecraft_dimension::dimension_type::NetworkDimensionType::from(
-                                d,
-                            ),
-                        )
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-                (
-                    mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
-                    "minecraft:worldgen/block_state_provider",
-                    |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
-                        mcrs_minecraft_nbt::to_nbt_tag(v)
-                    },
-                    Some(mcrs_minecraft_assets::PackSource::vanilla_core())
-                ),
-            ]
+            [(
+                mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset,
+                "minecraft:worldgen/block_state_provider",
+                |v: &mcrs_minecraft_worldgen::bevy::BlockStateProviderAsset| {
+                    mcrs_minecraft_nbt::to_nbt_tag(v)
+                },
+                Some(mcrs_minecraft_assets::PackSource::vanilla_core())
+            ),]
         );
 
         app.add_systems(PostStartup, start_loading_data_pack)
@@ -170,7 +153,6 @@ impl Plugin for MinecraftWorldPlugin {
                 OnEnter(AppState::WorldgenFreeze),
                 (
                     build_worldgen_tables,
-                    (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
                     build_dimension_environments
                         .after(TagPhase::Freeze)
                         .before(transition_to_playing),

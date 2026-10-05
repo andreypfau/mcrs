@@ -72,7 +72,7 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .0
         .push(DimSpawnRequest {
             dimension_id: mcrs_minecraft_level::world::dimension::DimensionId::new(
-                "test:overworld",
+                "minecraft:overworld",
             ),
             type_config: mcrs_minecraft_level::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,

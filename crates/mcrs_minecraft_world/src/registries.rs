@@ -25,6 +25,7 @@ use mcrs_minecraft_biome::parameter_list::{
 use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{WorldClock, check_time_markers};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -114,6 +115,7 @@ world_registry_table! {
     keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
     keys::Biome => Biome, synced as |biome| NetworkBiome::from(biome);
+    keys::DimensionType => DimensionType, synced as |d| NetworkDimensionType::from(d);
     keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
     keys::EnchantmentProvider => EnchantmentProvider;
     keys::VillagerTrade => VillagerTrade;

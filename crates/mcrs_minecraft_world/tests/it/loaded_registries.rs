@@ -8,11 +8,13 @@ use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
-use mcrs_minecraft_keys::SoundEvent;
+use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_registry::{Id, Pack, PackFile, RegistrySet, WorldRegistries};
+use mcrs_minecraft_registry::{EntrySet, Id, Pack, PackFile, RegistrySet, WorldRegistries};
 use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
@@ -127,7 +129,7 @@ fn the_parsed_registries_are_the_reports_world_registries_outside_unparsed_world
                     || PARSED_WORLDGEN.contains(&registry.as_str()))
                 && !matches!(
                     registry.as_str(),
-                    "minecraft:dimension" | "minecraft:dimension_type" | "minecraft:trial_spawner"
+                    "minecraft:dimension" | "minecraft:trial_spawner"
                 )
         })
         .map(|(registry, _)| registry)
@@ -1913,5 +1915,101 @@ fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
             tables.carvers.get(id).is_some_and(Option::is_some),
             "{name} has no value in the carver table"
         );
+    }
+}
+
+fn overworld_dimension_type_with(
+    changes: &[(&str, Option<&str>)],
+) -> Result<DimensionType, String> {
+    let mut file: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(assets().join("minecraft/dimension_type/overworld.json")).unwrap(),
+    )
+    .unwrap();
+    for (field, value) in changes {
+        match value {
+            Some(json) => file[*field] = serde_json::from_str(json).unwrap(),
+            None => {
+                file.as_object_mut().unwrap().remove(*field);
+            }
+        }
+    }
+    test_registries().scope(|| serde_json::from_value(file).map_err(|e| e.to_string()))
+}
+
+#[test]
+fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
+    let set = test_registries();
+    let stone = set
+        .registry::<Block>()
+        .unwrap()
+        .get("minecraft:stone")
+        .unwrap();
+    let overworld_clock = set
+        .registry::<WorldClock>()
+        .unwrap()
+        .get("minecraft:overworld")
+        .unwrap();
+
+    let infiniburn: [(&str, EntrySet<Block>); 3] = [
+        (
+            r##""#minecraft:infiniburn_overworld""##,
+            EntrySet::Tag(ResourceLocation::parse("minecraft:infiniburn_overworld").unwrap()),
+        ),
+        (r#""minecraft:stone""#, EntrySet::One(stone)),
+        (r#"["minecraft:stone"]"#, EntrySet::List(vec![stone])),
+    ];
+    for (json, expected) in infiniburn {
+        let read = overworld_dimension_type_with(&[("infiniburn", Some(json))])
+            .unwrap_or_else(|e| panic!("{json}: {e}"));
+        assert_eq!(read.infiniburn, expected, "{json}");
+    }
+
+    let absent = overworld_dimension_type_with(&[("timelines", None), ("default_clock", None)])
+        .expect("a dimension type without timelines or a clock reads");
+    assert_eq!(absent.timelines, EntrySet::List(Vec::new()));
+    assert_eq!(absent.default_clock, None);
+
+    let shipped = overworld_dimension_type_with(&[]).expect("the shipped overworld reads");
+    assert_eq!(
+        shipped.timelines,
+        EntrySet::Tag(ResourceLocation::parse("minecraft:in_overworld").unwrap())
+    );
+    assert_eq!(shipped.default_clock, Some(overworld_clock));
+
+    for (field, json, named) in [
+        (
+            "infiniburn",
+            r##""#minecraft:no_such_tag""##,
+            "minecraft:no_such_tag",
+        ),
+        (
+            "infiniburn",
+            r#""minecraft:no_such_block""#,
+            "minecraft:no_such_block",
+        ),
+        (
+            "infiniburn",
+            r#"["minecraft:no_such_block"]"#,
+            "minecraft:no_such_block",
+        ),
+        (
+            "timelines",
+            r##""#minecraft:no_such_tag""##,
+            "minecraft:no_such_tag",
+        ),
+        (
+            "timelines",
+            r#"["minecraft:no_such_timeline"]"#,
+            "minecraft:no_such_timeline",
+        ),
+        (
+            "default_clock",
+            r#""minecraft:no_such_clock""#,
+            "minecraft:no_such_clock",
+        ),
+    ] {
+        let message = overworld_dimension_type_with(&[(field, Some(json))])
+            .expect_err(&format!("{field}: {json} reads"));
+        assert!(message.contains(named), "{field}: {message}");
     }
 }

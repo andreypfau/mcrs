@@ -1,19 +1,18 @@
 use crate::LoadedRegistryAssets;
 use bevy_asset::io::AssetSourceId;
-use bevy_asset::{Asset, AssetServer, Assets};
+use bevy_asset::{Asset, AssetServer};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::tag::file::TagFile;
-use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
-use mcrs_minecraft_block as block;
+use mcrs_minecraft_assets::tag::file::{TagFile, TagFileSettings};
+use mcrs_minecraft_assets::tag::{TagLoader, TagLoadersSettled};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_registry::DynRegistryIndex;
+use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::EntrySet;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::TagId;
 
@@ -167,13 +166,33 @@ pub(crate) fn request_data_pack_assets(
         "json",
     );
     request_templates(&asset_server, &mut loaded);
-    request_registry::<mcrs_minecraft_dimension::dimension_type::DimensionType>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        "minecraft:dimension_type",
-        "json",
-    );
+    keep_ordered_timeline_tags(&asset_server, &set, &mut loaded);
+}
+
+/// A dimension's timelines stack in the order their tag file lists them, which
+/// the frozen tag bitsets do not keep, so the tag files stay loaded for
+/// `build_dimension_environments` to read in order.
+fn keep_ordered_timeline_tags(
+    asset_server: &AssetServer,
+    set: &RegistrySet,
+    loaded: &mut LoadedRegistryAssets,
+) {
+    let Some(dimension_types) = set.column::<DimensionType>(keys::DimensionType::KEY.as_str())
+    else {
+        return;
+    };
+    for dimension_type in dimension_types {
+        if let EntrySet::Tag(tag) = &dimension_type.timelines {
+            let key = TagKey::<keys::Timeline, _>::from_location(tag.clone());
+            let handle = asset_server
+                .load_builder()
+                .with_settings(|settings: &mut TagFileSettings| {
+                    settings.registry_segment = keys::Timeline::KEY.path().to_string();
+                })
+                .load::<TagFile>(key.asset_path());
+            loaded.handles.push(handle.untyped());
+        }
+    }
 }
 
 /// `(tag location, asset path)`, in asset path order.
@@ -250,56 +269,5 @@ pub(crate) fn check_tags_ready(
     if tags_settled.get() && registry_assets.all_handles_settled(&asset_server) {
         tracing::info!("all tag files and registry assets settled — entering WorldgenFreeze");
         next.set(AppState::WorldgenFreeze);
-    }
-}
-
-/// Resolve infiniburn tag files from loaded `DimensionType` assets into
-/// the block `TagLoader`. The tag files were loaded as sub-assets by
-/// `DimensionTypeLoader`, so they're guaranteed to be available here.
-pub(crate) fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagLoader<Block, u16>>,
-    tag_files: Res<Assets<TagFile>>,
-    registry: Res<block::definition::Blocks>,
-    dim_types: Res<Assets<DimensionType>>,
-) {
-    let mut resolved = 0usize;
-    for (_id, dim_type) in dim_types.iter() {
-        let key = dim_type.infiniburn.key();
-        if let Some(tf) = tag_files.get(dim_type.infiniburn.handle()) {
-            tags.resolve_and_insert(key.location().clone(), tf, &tag_files, &*registry);
-            resolved += 1;
-        } else {
-            tracing::warn!(
-                "infiniburn tag file not available at WorldgenFreeze: {}",
-                key.as_str()
-            );
-        }
-    }
-    if resolved > 0 {
-        tracing::info!(resolved_tags = resolved, "resolved infiniburn tags");
-    }
-}
-
-/// Resolve the timeline tag every dimension type names. The tag files were
-/// loaded as sub-assets by `DimensionTypeLoader`, so they are available here.
-pub(crate) fn resolve_timeline_tags(
-    mut tags: ResMut<DynTagLoader<mcrs_minecraft_keys::Timeline>>,
-    tag_files: Res<Assets<TagFile>>,
-    index: Res<DynRegistryIndex<mcrs_minecraft_keys::Timeline>>,
-    dim_types: Res<Assets<DimensionType>>,
-) {
-    for (_id, dim_type) in dim_types.iter() {
-        let Some(tag) = &dim_type.timelines else {
-            continue;
-        };
-        match tag_files.get(tag.handle()) {
-            Some(tag_file) => {
-                tags.resolve_and_insert(tag.key().location().clone(), tag_file, &tag_files, &*index)
-            }
-            None => tracing::warn!(
-                "timeline tag file not available at WorldgenFreeze: {}",
-                tag.key().as_str()
-            ),
-        }
     }
 }

@@ -7,7 +7,7 @@ use serde_json::json;
 use super::*;
 use mcrs_minecraft_assets::tag::file::TagEntry;
 
-use crate::dimension_type::ProtoDimensionType;
+use crate::dimension_type::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
@@ -23,9 +23,11 @@ fn assets_dir() -> PathBuf {
         .join("assets/minecraft")
 }
 
-fn dimension_type(name: &str) -> ProtoDimensionType {
+fn dimension_type(name: &str) -> DimensionType {
     let bytes = std::fs::read(assets_dir().join("dimension_type").join(name)).unwrap();
-    serde_json::from_slice(&bytes).unwrap()
+    mcrs_minecraft_worldgen_testing::dimension_type_set()
+        .scope(|| serde_json::from_slice(&bytes))
+        .unwrap()
 }
 
 static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
@@ -66,7 +68,7 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         .collect()
 }
 
-fn shape<'a>(id: &'a str, proto: &'a ProtoDimensionType) -> DimensionEnvironment<'a> {
+fn shape<'a>(id: &'a str, proto: &'a DimensionType) -> DimensionEnvironment<'a> {
     DimensionEnvironment {
         id,
         attributes: &proto.attributes,
@@ -499,7 +501,8 @@ fn a_dimension_type_outside_the_games_bounds_fails() {
                 value => file[key] = value.clone(),
             }
         }
-        serde_json::from_value::<ProtoDimensionType>(file)
+        mcrs_minecraft_worldgen_testing::dimension_type_set()
+            .scope(|| serde_json::from_value::<DimensionType>(file))
     };
     for refused in [
         json!({"weather": true}),

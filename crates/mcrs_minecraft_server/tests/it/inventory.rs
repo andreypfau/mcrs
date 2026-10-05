@@ -90,7 +90,7 @@ impl Server {
             ),
         );
         host_app::drive_to_playing(&mut app);
-        host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+        host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", true)]);
         let dim = app
             .world_mut()
             .query_filtered::<Entity, With<DimSubAppHandle>>()

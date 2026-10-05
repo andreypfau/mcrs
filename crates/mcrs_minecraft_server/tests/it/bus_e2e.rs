@@ -73,7 +73,7 @@ fn enqueue_overworld(app: &mut App) {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:overworld"),
+            dimension_id: DimensionId::new("minecraft:overworld"),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

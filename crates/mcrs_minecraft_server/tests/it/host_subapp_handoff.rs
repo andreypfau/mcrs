@@ -279,7 +279,7 @@ fn no_duplicate_spawn_on_reread() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("test:overworld"),
+            dimension_id: DimensionId::new("minecraft:overworld"),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
@@ -369,7 +369,10 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     let mut app = crate::host_app::make_host_app();
     crate::host_app::materialise_sub_apps(
         &mut app,
-        &[("test:overworld", true), ("test:nether", false)],
+        &[
+            ("minecraft:overworld", true),
+            ("minecraft:the_nether", false),
+        ],
     );
 
     let shared = app.world().resource::<SharedRegistries>();
