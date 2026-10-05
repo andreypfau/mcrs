@@ -20,7 +20,6 @@ use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundEntityPositionSync;
 use mcrs_minecraft_protocol::packets::game::clientbound::PositionPath;
-use mcrs_minecraft_registry::Id;
 
 pub mod explosive;
 pub mod item;
@@ -47,10 +46,6 @@ pub(crate) fn report_registries() -> &'static (
             .unwrap_or_else(|report| panic!("{report}"))
     });
     &REGISTRIES
-}
-
-pub fn registry_varint<R>(id: Id<R>) -> VarInt {
-    VarInt(i32::from(id.number()))
 }
 
 pub struct MinecraftEntityPlugin;

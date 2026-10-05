@@ -156,17 +156,17 @@ fn tag_dir(registry: &str) -> PathBuf {
 }
 
 /// One block tag of the corpus, expanded off the files themselves.
-pub fn tag_members(name: &str) -> HashSet<u32> {
+pub fn tag_members(name: &str) -> HashSet<u16> {
     let mut members = HashSet::new();
     collect_tag_members(Block::REGISTRY_PATH, blocks(), name, &mut members);
     members
 }
 
-fn collect_tag_members<S: TagSource<Id = u32>>(
+fn collect_tag_members<S: TagSource<Id = u16>>(
     registry: &str,
     source: &S,
     name: &str,
-    into: &mut HashSet<u32>,
+    into: &mut HashSet<u16>,
 ) {
     let path = tag_dir(registry).join(format!("{}.json", name.trim_start_matches("minecraft:")));
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
@@ -182,9 +182,9 @@ fn collect_tag_members<S: TagSource<Id = u32>>(
 
 /// Every tag file of one registry, subfolders included, expanded off the
 /// files themselves.
-fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
+fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
     let dir = tag_dir(T::REGISTRY_PATH);
-    let mut loader = TagLoader::<T, u32>::default();
+    let mut loader = TagLoader::<T, u16>::default();
     for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {
         let relative = path.strip_prefix(&dir).unwrap().with_extension("");
         let name = format!(
@@ -230,7 +230,8 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
         std::sync::OnceLock::new();
     CLIMATE.get_or_init(|| {
         let biomes = registry::<Biome>("biome");
-        (0..biome_index().len())
+        (0..=u16::MAX)
+            .take(usize::try_from(biome_index().len()).unwrap())
             .map(|id| {
                 let name = biome_index()
                     .location(id)

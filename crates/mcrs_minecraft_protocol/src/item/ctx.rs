@@ -10,6 +10,7 @@ use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 use uuid::Uuid;
 
 use crate::item::component::Holder;
+use crate::registry::{decode_holder_id, decode_registry_id, encode_holder_id, encode_registry_id};
 use crate::text::Text;
 use crate::{Bounded, Decode, Encode, VarInt, VarLong};
 
@@ -225,16 +226,16 @@ impl<R: RegistryKey> EncodeCtx for ResourceKey<R> {
         let id = ctx
             .id(R::KEY.path(), self.location())
             .with_context(|| format!("{self} is not in registry {}", R::KEY.path()))?;
-        VarInt(id as i32).encode(w)
+        encode_registry_id(id, w)
     }
 }
 
 impl<'a, R: RegistryKey> DecodeCtx<'a> for ResourceKey<R> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        let name = u32::try_from(id)
-            .ok()
-            .and_then(|id| ctx.name(R::KEY.path(), id))
+        let id = decode_registry_id(r)
+            .with_context(|| format!("registry {} has no id that wide", R::KEY.path()))?;
+        let name = ctx
+            .name(R::KEY.path(), id)
             .with_context(|| format!("registry {} has no id {id}", R::KEY.path()))?;
         Ok(ResourceKey::from_location(name.clone()))
     }
@@ -247,10 +248,10 @@ impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
                 let id = ctx
                     .id(T::KEY.path(), key.location())
                     .with_context(|| format!("{key} is not in registry {}", T::KEY.path()))?;
-                VarInt(id as i32 + 1).encode(w)
+                encode_holder_id(Some(id), w)
             }
             Holder::Direct(value) => {
-                VarInt(0).encode(&mut w)?;
+                encode_holder_id(None, &mut w)?;
                 value.encode_ctx(ctx, w)
             }
         }
@@ -259,14 +260,13 @@ impl<T: RegistryKey + EncodeCtx> EncodeCtx for Holder<T> {
 
 impl<'a, T: RegistryKey + DecodeCtx<'a>> DecodeCtx<'a> for Holder<T> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        let raw = VarInt::decode(r)?.0;
-        if raw == 0 {
+        let Some(id) = decode_holder_id(r)
+            .with_context(|| format!("registry {} has no id that wide", T::KEY.path()))?
+        else {
             return T::decode_ctx(ctx, r).map(Holder::Direct);
-        }
-        let id = raw.wrapping_sub(1);
-        let name = u32::try_from(id)
-            .ok()
-            .and_then(|id| ctx.name(T::KEY.path(), id))
+        };
+        let name = ctx
+            .name(T::KEY.path(), id)
             .with_context(|| format!("registry {} has no id {id}", T::KEY.path()))?;
         Ok(Holder::Reference(ResourceKey::from_location(name.clone())))
     }
@@ -319,19 +319,19 @@ static UNRESOLVED: LazyLock<ResourceLocation> =
 pub(crate) struct Opaque;
 
 impl RegistryLookup for Opaque {
-    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u32> {
+    fn id(&self, _: &str, _: &ResourceLocation) -> Option<u16> {
         Some(0)
     }
 
-    fn name(&self, _: &str, _: u32) -> Option<&ResourceLocation> {
+    fn name(&self, _: &str, _: u16) -> Option<&ResourceLocation> {
         Some(&UNRESOLVED)
     }
 
-    fn block_state_id(&self, _: &ResourceLocation, _: &[(&str, &str)]) -> Option<u32> {
+    fn block_state_id(&self, _: &ResourceLocation, _: &[(&str, &str)]) -> Option<u16> {
         Some(0)
     }
 
-    fn block_state(&self, _: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+    fn block_state(&self, _: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         Some((UNRESOLVED.clone(), Vec::new()))
     }
 }
@@ -432,19 +432,19 @@ mod tests {
     struct Indexed(LookupIndex);
 
     impl RegistryLookup for Indexed {
-        fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+        fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
             self.0.id(registry, name)
         }
 
-        fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+        fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
             self.0.name(registry, id)
         }
     }
 
     fn lookup(registry: &str, names: &[&str]) -> Indexed {
         let mut index = LookupIndex::default();
-        for (id, name) in names.iter().enumerate() {
-            index.insert(registry, id as u32, Some(ResourceLocation::minecraft(name)));
+        for (id, name) in (0u16..).zip(names) {
+            index.insert(registry, id, Some(ResourceLocation::minecraft(name)));
         }
         Indexed(index)
     }

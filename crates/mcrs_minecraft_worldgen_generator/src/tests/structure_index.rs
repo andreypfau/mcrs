@@ -164,7 +164,7 @@ mod exhaustive {
             Arc::new(tables),
             SEED as i64,
             Arc::new(build_settings_router("overworld", SEED)),
-            BiomeLookup::Fixed(plains),
+            BiomeLookup::Fixed(u32::from(plains)),
             Some(heightmap_predicates(blocks(), block_tags())),
             Default::default(),
             Arc::clone(corpus_climate()),

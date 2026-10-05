@@ -55,8 +55,8 @@ impl VillagerProfession {
         Self::Weaponsmith,
     ];
 
-    pub const fn protocol_id(self) -> u32 {
-        self as u32
+    pub const fn protocol_id(self) -> u16 {
+        self as u16
     }
 }
 

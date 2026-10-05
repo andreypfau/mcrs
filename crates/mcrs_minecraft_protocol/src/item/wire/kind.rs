@@ -6,19 +6,20 @@ use mcrs_minecraft_registry::RegistryLookup;
 use crate::item::component::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire};
 use crate::item::kind::{ItemComponentKind, ItemComponentValue};
-use crate::{Decode, Encode, VarInt};
+use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::{Decode, Encode};
 use mcrs_minecraft_item::for_each_data_component;
 
 impl Encode for ItemComponentKind {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.wire_id() as i32).encode(w)
+        encode_registry_id(self.wire_id(), w)
     }
 }
 
 impl Decode<'_> for ItemComponentKind {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        match u16::try_from(id).ok().and_then(Self::from_wire_id) {
+        let id = decode_registry_id(r)?;
+        match Self::from_wire_id(id) {
             Some(kind) => Ok(kind),
             None => bail!("unknown data component type {id}"),
         }

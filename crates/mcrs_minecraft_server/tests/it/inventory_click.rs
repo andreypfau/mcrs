@@ -1212,7 +1212,7 @@ fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
 }
 
 fn tag_from_assets<T: TaggedRegistry>(
-    source: &impl TagSource<Id = u32>,
+    source: &impl TagSource<Id = u16>,
     key: TagKey<T>,
 ) -> DynTagRegistry<T> {
     let location = key.location();

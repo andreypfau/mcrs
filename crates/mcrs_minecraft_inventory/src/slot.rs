@@ -75,7 +75,7 @@ impl StackView {
             binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
             fits_inside_container_items: !world
                 .get_resource::<DynTagRegistry<Item>>()
-                .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, u32::from(item.item.0))),
+                .is_some_and(|tags| tags.contains(&tags::SHULKER_BOXES, item.item.0)),
             wearable: equippable.is_none_or(admits_player),
         })
     }

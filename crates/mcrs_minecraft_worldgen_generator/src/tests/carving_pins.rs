@@ -227,7 +227,7 @@ fn biome_registry(dimension: Dimension) -> (RegistrySnapshot<Biome>, HashMap<Str
         .map(|name| {
             (
                 name.clone(),
-                snapshot.by_location(name).expect("registered"),
+                u32::from(snapshot.by_location(name).expect("registered")),
             )
         })
         .collect();

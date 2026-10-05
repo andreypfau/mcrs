@@ -109,20 +109,20 @@ impl ReceivedRegistries {
             .map_or(registry.registry.as_str(), |(_, path)| path)
             .into();
         self.1.declare(&key);
-        for (id, entry) in registry.entries.iter().enumerate() {
+        for (id, entry) in (0..=u16::MAX).zip(&registry.entries) {
             self.1
-                .insert(&key, id as u32, ResourceLocation::parse(&entry.id).ok());
+                .insert(&key, id, ResourceLocation::parse(&entry.id).ok());
         }
         self.0.push(registry);
     }
 }
 
 impl RegistryLookup for ReceivedRegistries {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
         self.1.id(registry, name)
     }
 
-    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
         self.1.name(registry, id)
     }
 }
@@ -154,19 +154,19 @@ impl ServerNumbering<'_> {
 }
 
 impl RegistryLookup for ServerNumbering<'_> {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
         self.source(registry).id(registry, name)
     }
 
-    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
         self.source(registry).name(registry, id)
     }
 
-    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u32> {
+    fn block_state_id(&self, block: &ResourceLocation, properties: &[(&str, &str)]) -> Option<u16> {
         self.local.block_state_id(block, properties)
     }
 
-    fn block_state(&self, id: u32) -> Option<(ResourceLocation, Vec<(String, String)>)> {
+    fn block_state(&self, id: u16) -> Option<(ResourceLocation, Vec<(String, String)>)> {
         self.local.block_state(id)
     }
 }
@@ -174,7 +174,7 @@ impl RegistryLookup for ServerNumbering<'_> {
 #[derive(Clone, Debug)]
 pub struct ReceivedTagGroup {
     pub name: String,
-    pub entries: Vec<i32>,
+    pub entries: Vec<u16>,
 }
 
 #[derive(Clone, Debug)]
@@ -540,7 +540,7 @@ fn handle_configuration_packet(
                     .into_iter()
                     .map(|group| ReceivedTagGroup {
                         name: group.name.to_string(),
-                        entries: group.entries.into_iter().map(|id| id.0).collect(),
+                        entries: group.entries.into_iter().map(u16::from).collect(),
                     })
                     .collect(),
             })

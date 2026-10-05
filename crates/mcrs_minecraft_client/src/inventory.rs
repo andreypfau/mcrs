@@ -158,7 +158,7 @@ fn receive_inventory_packets(
             }
         }
     } else if let Some(packet) = event.decode::<ClientboundOpenScreen>() {
-        let Some(menu_type) = registries.name("menu", packet.menu_type.0 as u32).cloned() else {
+        let Some(menu_type) = registries.name("menu", packet.menu_type.0).cloned() else {
             warn!("open_screen: unknown menu type {}", packet.menu_type.0);
             return;
         };

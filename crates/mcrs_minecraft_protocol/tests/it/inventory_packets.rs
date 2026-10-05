@@ -13,23 +13,23 @@ use mcrs_minecraft_protocol::item::{
 use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, VarInt};
+use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::{ItemId, RegistryLookup};
 
 const GOLDEN: &str = include_str!("../fixtures/inventory_packets_golden.txt");
 
 struct Fixture {
-    ids: HashMap<(String, String), u32>,
-    names: HashMap<(String, u32), ResourceLocation>,
+    ids: HashMap<(String, String), u16>,
+    names: HashMap<(String, u16), ResourceLocation>,
     packets: HashMap<String, Vec<u8>>,
 }
 
 impl RegistryLookup for Fixture {
-    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
+    fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u16> {
         self.ids.get(&(registry.into(), name.to_string())).copied()
     }
 
-    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {
+    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation> {
         self.names.get(&(registry.into(), id))
     }
 }
@@ -45,7 +45,7 @@ fn fixture() -> Fixture {
             let [registry, name, id] = rest.split(' ').collect::<Vec<_>>()[..] else {
                 panic!("malformed id line: {line}");
             };
-            let id: u32 = id.parse().unwrap();
+            let id: u16 = id.parse().unwrap();
             fixture.ids.insert((registry.into(), name.into()), id);
             fixture.names.insert(
                 (registry.into(), id),
@@ -62,7 +62,7 @@ fn item(fixture: &Fixture, path: &str) -> ItemId {
     ItemId(
         fixture
             .id("item", &ResourceLocation::minecraft(path))
-            .unwrap() as u16,
+            .unwrap(),
     )
 }
 
@@ -149,9 +149,9 @@ fn container_packets_are_the_games_bytes() {
         "open_screen",
         ClientboundOpenScreen {
             container_id: VarInt(1),
-            menu_type: VarInt(
+            menu_type: RegistryId(
                 f.id("menu", &ResourceLocation::minecraft("generic_9x3"))
-                    .unwrap() as i32,
+                    .unwrap(),
             ),
             title: Text::text("Chest"),
         },

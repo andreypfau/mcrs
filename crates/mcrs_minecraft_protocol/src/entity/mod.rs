@@ -1,8 +1,9 @@
 use crate::item::RawStack;
 pub use crate::item::component::enums::DyeColor;
 pub use crate::item::component::equippable::EquipmentSlot;
+use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::text::Text;
-use crate::{Direction, GlobalPos, VarInt, VarLong};
+use crate::{Direction, GlobalPos, RegistryId, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_protocol::entity::player::HumanoidArm;
@@ -96,20 +97,20 @@ pub enum MetaDataValue<'a> {
     VillagerData(VillagerData),
     OptionalUnsignedInt(OptionalUnsignedInt),
     Pose(Pose),
-    CatVariant(VarInt),
-    CatSoundVariant(VarInt),
-    CowVariant(VarInt),
-    CowSoundVariant(VarInt),
-    WolfVariant(VarInt),
-    WolfSoundVariant(VarInt),
-    FrogVariant(VarInt),
-    PigVariant(VarInt),
-    PigSoundVariant(VarInt),
-    ChickenVariant(VarInt),
-    ChickenSoundVariant(VarInt),
-    ZombieNautilusVariant(VarInt),
+    CatVariant(RegistryId),
+    CatSoundVariant(RegistryId),
+    CowVariant(RegistryId),
+    CowSoundVariant(RegistryId),
+    WolfVariant(RegistryId),
+    WolfSoundVariant(RegistryId),
+    FrogVariant(RegistryId),
+    PigVariant(RegistryId),
+    PigSoundVariant(RegistryId),
+    ChickenVariant(RegistryId),
+    ChickenSoundVariant(RegistryId),
+    ZombieNautilusVariant(RegistryId),
     OptionalGlobalPos(Option<GlobalPos<'a>>),
-    PaintingVariant(VarInt),
+    PaintingVariant(RegistryId),
     SnifferState(SnifferState),
     ArmadilloState(ArmadilloState),
     CopperGolemState(CopperGolemState),
@@ -128,17 +129,14 @@ pub struct OptionalBlockState(pub Option<BlockStateId>);
 
 impl crate::Encode for OptionalBlockState {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(self.0.map_or(0, |state| i32::from(state.0))).encode(w)
+        encode_registry_id(self.0.map_or(0, u16::from), w)
     }
 }
 
 impl crate::Decode<'_> for OptionalBlockState {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        if id == 0 {
-            return Ok(Self(None));
-        }
-        Ok(Self(Some(BlockStateId(u16::try_from(id)?))))
+        let id = decode_registry_id(r)?;
+        Ok(Self((id != 0).then_some(BlockStateId(id))))
     }
 }
 
@@ -220,7 +218,7 @@ pub enum CopperGolemState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct VillagerData {
-    pub kind: VarInt,
-    pub profession: VarInt,
+    pub kind: RegistryId,
+    pub profession: RegistryId,
     pub level: VarInt,
 }

@@ -420,12 +420,12 @@ fn biome_registry_len(registries: &[ReceivedRegistry]) -> usize {
         .map_or(0, |registry| registry.entries.len())
 }
 
-fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: i32) -> Option<Extent> {
+fn extent_of(registries: &[ReceivedRegistry], dimension_type_id: u16) -> Option<Extent> {
     let data = registries
         .iter()
         .find(|registry| registry.registry == "minecraft:dimension_type")?
         .entries
-        .get(usize::try_from(dimension_type_id).ok()?)?
+        .get(usize::from(dimension_type_id))?
         .data
         .as_ref()?
         .extract_compound()?;

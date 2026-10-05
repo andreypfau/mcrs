@@ -4,7 +4,7 @@ use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// A dense `ResourceLocation`-to-`u32` index for dynamic registry types,
+/// A dense `ResourceLocation`-to-id index for dynamic registry types,
 /// numbered by the registry loader's table.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct DynRegistryIndex<T: TaggedRegistry> {
@@ -20,12 +20,12 @@ impl<T: TaggedRegistry> DynRegistryIndex<T> {
         }
     }
 
-    pub fn get(&self, rl: &str) -> Option<u32> {
-        self.table.number(rl).map(u32::from)
+    pub fn get(&self, rl: &str) -> Option<u16> {
+        self.table.number(rl)
     }
 
-    pub fn location(&self, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
-        self.table.name(id as usize)
+    pub fn location(&self, id: u16) -> Option<&ResourceLocation<Arc<str>>> {
+        self.table.name(usize::from(id))
     }
 
     pub fn len(&self) -> u32 {

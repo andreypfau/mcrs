@@ -21,12 +21,12 @@ use mcrs_minecraft_level::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::item::{ItemStackWithSlot, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerClose;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundOpenScreen;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
+use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_server::world::block_entity::{BlockEntity, spawn_block_entities};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::item::pickup::pickup_items;
@@ -252,7 +252,7 @@ fn opening_a_chest_swaps_the_menu_and_sends_its_contents() {
         packets[0].data,
         PacketPayload::OpenScreen(ClientboundOpenScreen {
             container_id: VarInt(1),
-            menu_type: VarInt(2),
+            menu_type: RegistryId(2),
             ..
         })
     ));

@@ -27,5 +27,5 @@ pub struct ItemDefinition {
 #[serde(deny_unknown_fields)]
 pub struct Description {
     pub identifier: ResourceLocation<Arc<str>>,
-    pub protocol_id: u32,
+    pub protocol_id: u16,
 }

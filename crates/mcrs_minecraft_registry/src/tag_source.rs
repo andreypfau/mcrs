@@ -28,9 +28,9 @@ impl<R: RegistryKey> TagSource for Registry<R> {
 }
 
 impl<T: TaggedRegistry + Send + Sync + 'static> TagSource for DynRegistryIndex<T> {
-    type Id = u32;
+    type Id = u16;
 
-    fn id_of(&self, loc: &str) -> Option<u32> {
+    fn id_of(&self, loc: &str) -> Option<u16> {
         DynRegistryIndex::get(self, loc)
     }
 

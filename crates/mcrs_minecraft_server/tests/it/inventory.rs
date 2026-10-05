@@ -1,10 +1,10 @@
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetEntityData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetHeldSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundTakeItemEntity;
+use mcrs_minecraft_protocol::{RegistryId, VarInt};
 use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, InboundPlayerPacket};
 use std::path::PathBuf;
 
@@ -481,7 +481,7 @@ fn a_drop_adds_an_item_entity_and_its_stack_metadata() {
             packet.data,
             PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                 id: VarInt(id),
-                kind: VarInt(72),
+                kind: RegistryId(72),
                 ..
             }) if id == wire_id
         )

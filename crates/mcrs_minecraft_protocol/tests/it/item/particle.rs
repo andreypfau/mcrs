@@ -105,11 +105,14 @@ fn particle_kinds_match_the_registry_report() {
             .unwrap_or_else(|| panic!("{name} is not modelled"));
         assert_eq!(kind as usize, id, "{name}");
         assert_eq!(kind.id().as_str(), name.as_str());
-        assert_eq!(ParticleKind::from_wire_id(id as i32), Some(kind));
+        assert_eq!(
+            ParticleKind::from_wire_id(u16::try_from(id).unwrap()),
+            Some(kind)
+        );
     }
     for line in GOLDEN.lines().filter_map(|line| line.strip_prefix("type ")) {
         let mut parts = line.split(' ');
-        let id: i32 = parts.next().unwrap().parse().unwrap();
+        let id: u16 = parts.next().unwrap().parse().unwrap();
         let name = parts.next().unwrap();
         assert_eq!(ParticleKind::from_wire_id(id).unwrap().id().as_str(), name);
     }

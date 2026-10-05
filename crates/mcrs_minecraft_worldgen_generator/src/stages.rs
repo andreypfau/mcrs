@@ -154,9 +154,12 @@ impl FillContext {
                 (None, Some((source, registry))) => match source.as_ref() {
                     BiomeSource::Fixed { biome_id, .. } => registry
                         .by_location(biome_id.as_str())
+                        .map(u32::from)
                         .map_or(BiomeLookup::None, BiomeLookup::Fixed),
-                    BiomeSource::TheEnd => EndBiomes::resolve(|id| registry.by_location(id))
-                        .map_or(BiomeLookup::None, BiomeLookup::TheEnd),
+                    BiomeSource::TheEnd => {
+                        { EndBiomes::resolve(|id| registry.by_location(id).map(u32::from)) }
+                            .map_or(BiomeLookup::None, BiomeLookup::TheEnd)
+                    }
                     _ => BiomeLookup::None,
                 },
                 (None, None) => BiomeLookup::None,

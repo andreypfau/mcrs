@@ -318,7 +318,7 @@ fn predicate_type_ids_are_the_registry_protocol_ids() {
     for kind in ComponentPredicateType::ALL {
         assert_eq!(
             report.id("data_component_predicate_type", &kind.id().into()),
-            Some(*kind as u32),
+            Some(*kind as u16),
             "{kind:?}"
         );
         assert_eq!(

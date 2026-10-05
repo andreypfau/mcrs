@@ -428,9 +428,10 @@ impl FeatureProgram {
         world_seed: i64,
         structures: Option<&FrozenStructures>,
     ) -> Result<Self, FeatureCompileError> {
-        let climate: Vec<BiomeClimate> = (0..biomes.len())
-            .map(|id| {
-                let entry = biomes.by_id(id).expect("a registry id below its length");
+        let climate: Vec<BiomeClimate> = biomes
+            .entries()
+            .iter()
+            .map(|entry| {
                 tables
                     .climate
                     .get(entry.location.as_str())

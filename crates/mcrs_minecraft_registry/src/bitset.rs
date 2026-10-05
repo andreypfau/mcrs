@@ -6,31 +6,31 @@ use std::marker::PhantomData;
 
 /// A dense index into the registry a tag is defined over.
 pub trait TagId: Copy + Eq + Hash + Send + Sync + 'static {
-    fn raw(self) -> u32;
-    fn from_raw(raw: u32) -> Self;
+    fn raw(self) -> u16;
+    fn from_raw(raw: u16) -> Self;
 }
 
-impl TagId for u32 {
+impl TagId for u16 {
     #[inline]
-    fn raw(self) -> u32 {
+    fn raw(self) -> u16 {
         self
     }
 
     #[inline]
-    fn from_raw(raw: u32) -> Self {
+    fn from_raw(raw: u16) -> Self {
         raw
     }
 }
 
 impl<R: 'static> TagId for Id<R> {
     #[inline]
-    fn raw(self) -> u32 {
-        u32::from(self.number())
+    fn raw(self) -> u16 {
+        self.number()
     }
 
     #[inline]
-    fn from_raw(raw: u32) -> Self {
-        Id::from_number(u16::try_from(raw).expect("a bitset over ids holds only ids"))
+    fn from_raw(raw: u16) -> Self {
+        Id::from_number(raw)
     }
 }
 
@@ -42,8 +42,8 @@ pub struct BitSet<I> {
     _marker: PhantomData<fn() -> I>,
 }
 
-/// Bitset over a dynamic registry's dense `u32` ids.
-pub type RawBitSet = BitSet<u32>;
+/// Bitset over a dynamic registry's dense ids.
+pub type RawBitSet = BitSet<u16>;
 
 impl<I> Clone for BitSet<I> {
     fn clone(&self) -> Self {
@@ -63,12 +63,12 @@ impl<I: TagId> BitSet<I> {
     }
 
     pub fn insert(&mut self, id: I) {
-        self.bits.grow_and_insert(id.raw() as usize);
+        self.bits.grow_and_insert(usize::from(id.raw()));
     }
 
     #[inline]
     pub fn contains(&self, id: I) -> bool {
-        self.bits.contains(id.raw() as usize)
+        self.bits.contains(usize::from(id.raw()))
     }
 
     #[inline]
@@ -82,7 +82,9 @@ impl<I: TagId> BitSet<I> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = I> + '_ {
-        self.bits.ones().map(|raw| I::from_raw(raw as u32))
+        self.bits
+            .ones()
+            .map(|raw| I::from_raw(u16::try_from(raw).expect("a bitset holds only inserted ids")))
     }
 
     pub fn from_hash_set(set: &HashSet<I>, capacity: u32) -> Self {

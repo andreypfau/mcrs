@@ -56,8 +56,8 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 
 /// Every tag of one registry in every namespace, expanded off the files
 /// themselves.
-pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTagRegistry<T> {
-    let mut loader = TagLoader::<T, u32>::default();
+pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
+    let mut loader = TagLoader::<T, u16>::default();
     for namespace in std::fs::read_dir(assets_dir()).unwrap() {
         let namespace = namespace.unwrap().path();
         let dir = namespace.join("tags").join(T::REGISTRY_PATH);
@@ -80,11 +80,11 @@ pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u32>>(source: &S) -> DynTa
     loader.freeze(source)
 }
 
-fn collect<S: TagSource<Id = u32>>(
+fn collect<S: TagSource<Id = u16>>(
     registry: &str,
     source: &S,
     name: &str,
-    into: &mut HashSet<u32>,
+    into: &mut HashSet<u16>,
 ) {
     let location = ResourceLocation::read(name).unwrap();
     let path = assets_dir()

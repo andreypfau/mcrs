@@ -22,7 +22,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetPlayerInventory,
 };
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, VarInt};
+use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::static_report::shipped_report as registries;
 use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
@@ -189,7 +189,7 @@ impl Client {
             .unwrap();
         self.receive(&ClientboundOpenScreen {
             container_id: VarInt(container_id),
-            menu_type: VarInt(id as i32),
+            menu_type: RegistryId(id),
             title: Text::text(menu_type),
         });
         let Screen::Container(menu) = self.screen() else {

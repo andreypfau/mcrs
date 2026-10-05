@@ -139,7 +139,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         Arc::new(tables),
         seed as i64,
         Arc::clone(&ctx.router),
-        BiomeLookup::Fixed(biome),
+        BiomeLookup::Fixed(u32::from(biome)),
         ctx.predicates.clone(),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
         Arc::clone(corpus_climate()),

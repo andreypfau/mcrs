@@ -53,18 +53,18 @@ pub struct Baby;
 /// Registry ids, as the wire carries them.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CatVariant {
-    pub variant: u32,
-    pub sound: u32,
+    pub variant: u16,
+    pub sound: u16,
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ChickenVariant {
-    pub variant: u32,
-    pub sound: u32,
+    pub variant: u16,
+    pub sound: u16,
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ZombieNautilusVariant(pub u32);
+pub struct ZombieNautilusVariant(pub u16);
 
 #[derive(Component, Clone, Copy, Debug, Deref, PartialEq, Eq)]
 pub struct Villager(pub VillagerData);
@@ -98,3 +98,15 @@ pub struct EntityInSection(pub Entity);
 #[derive(Component, Debug, Default, Deref)]
 #[relationship_target(relationship = EntityInSection, linked_spawn)]
 pub struct SectionMobs(Vec<Entity>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn variant_components_stay_sixteen_bits_per_id() {
+        assert!(size_of::<CatVariant>() <= 4);
+        assert!(size_of::<ChickenVariant>() <= 4);
+        assert!(size_of::<ZombieNautilusVariant>() <= 2);
+    }
+}

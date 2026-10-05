@@ -83,11 +83,8 @@ impl ConsumeEffectType {
         }
     }
 
-    pub fn from_wire_id(id: i32) -> Option<Self> {
-        usize::try_from(id)
-            .ok()
-            .and_then(|id| Self::ALL.get(id))
-            .copied()
+    pub fn from_wire_id(id: u16) -> Option<Self> {
+        Self::ALL.get(usize::from(id)).copied()
     }
 }
 

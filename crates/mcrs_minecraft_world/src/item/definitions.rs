@@ -34,9 +34,9 @@ pub fn from_files(
         let reported = items
             .require(item.description.identifier.as_str())
             .map_err(ItemTableError::from)?;
-        if found as usize != reported.index() {
+        if found != reported.number() {
             return Err(ItemCorpusError::ProtocolIds {
-                expected: reported.index(),
+                expected: reported.number(),
                 found,
                 file: path,
             });
@@ -88,8 +88,8 @@ pub enum ItemCorpusError {
     FormatVersion { path: String, found: String },
     #[error("`{file}` has protocol_id {found} where {expected} was expected")]
     ProtocolIds {
-        expected: usize,
-        found: u32,
+        expected: u16,
+        found: u16,
         file: String,
     },
     #[error(transparent)]

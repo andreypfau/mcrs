@@ -134,19 +134,19 @@ fn build_lookup_index(registries: &[RegistrySnapshotErased]) -> LookupIndex {
     for registry in registries {
         let key = registry.registry_key();
         let key: Box<str> = key.split_once(':').map_or(key, |(_, path)| path).into();
-        for (network_id, entry) in registry.iter_entries().enumerate() {
-            index.insert(&key, network_id as u32, Some(entry.location.clone()));
+        for (network_id, entry) in (0..=u16::MAX).zip(registry.iter_entries()) {
+            index.insert(&key, network_id, Some(entry.location.clone()));
         }
     }
     index
 }
 
 impl RegistryLookup for RegistryAccess {
-    fn id(&self, registry: &str, name: &ResourceLocation<Arc<str>>) -> Option<u32> {
+    fn id(&self, registry: &str, name: &ResourceLocation<Arc<str>>) -> Option<u16> {
         self.lookup().id(registry, name)
     }
 
-    fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
+    fn name(&self, registry: &str, id: u16) -> Option<&ResourceLocation<Arc<str>>> {
         self.lookup().name(registry, id)
     }
 }

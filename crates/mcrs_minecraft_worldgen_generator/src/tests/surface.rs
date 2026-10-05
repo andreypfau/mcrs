@@ -548,7 +548,7 @@ pub fn overworld_biome_registry() -> (
     let ids = names
         .iter()
         .map(|name| {
-            let id = snapshot.by_location(name).expect("the registry holds it");
+            let id = u32::from(snapshot.by_location(name).expect("the registry holds it"));
             (name.clone(), id)
         })
         .collect();

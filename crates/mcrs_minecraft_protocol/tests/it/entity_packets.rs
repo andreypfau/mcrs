@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
     ClientboundUpdateAttributes,
 };
-use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, VarInt};
+use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::{BlockStateId, ItemId, NoRegistries};
 use uuid::Uuid;
 
@@ -35,7 +35,7 @@ fn add_entity_writes_pitch_before_yaw() {
     let packet = ClientboundAddEntity {
         id: VarInt(7),
         uuid: Uuid::nil(),
-        kind: VarInt(159),
+        kind: RegistryId(159),
         pos: DVec3::ZERO,
         movement: LpVec3(DVec3::ZERO),
         pitch: ByteAngle(1),
@@ -71,8 +71,8 @@ fn entity_data_uses_the_registered_serializer_ids() {
         (
             8,
             MetaDataValue::VillagerData(VillagerData {
-                kind: VarInt(2),
-                profession: VarInt(4),
+                kind: RegistryId(2),
+                profession: RegistryId(4),
                 level: VarInt(1),
             }),
             18,
@@ -83,10 +83,10 @@ fn entity_data_uses_the_registered_serializer_ids() {
             19,
         ),
         (10, MetaDataValue::Pose(Pose::Sitting), 20),
-        (11, MetaDataValue::CatVariant(VarInt(1)), 21),
-        (12, MetaDataValue::CatSoundVariant(VarInt(0)), 22),
-        (13, MetaDataValue::ZombieNautilusVariant(VarInt(0)), 32),
-        (14, MetaDataValue::PaintingVariant(VarInt(3)), 34),
+        (11, MetaDataValue::CatVariant(RegistryId(1)), 21),
+        (12, MetaDataValue::CatSoundVariant(RegistryId(0)), 22),
+        (13, MetaDataValue::ZombieNautilusVariant(RegistryId(0)), 32),
+        (14, MetaDataValue::PaintingVariant(RegistryId(3)), 34),
         (15, MetaDataValue::DyeColor(DyeColor::Black), 43),
     ];
     for (index, value, serializer) in &entries {
@@ -205,12 +205,12 @@ fn attributes_round_trip_with_modifiers() {
         entity_id: VarInt(5),
         attributes: vec![
             AttributeSnapshot {
-                attribute: VarInt(23),
+                attribute: RegistryId(23),
                 base: 26.0,
                 modifiers: vec![],
             },
             AttributeSnapshot {
-                attribute: VarInt(20),
+                attribute: RegistryId(20),
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::parse_cow("minecraft:random_spawn_bonus").unwrap(),

@@ -11,14 +11,14 @@ pub struct Registry {
     #[allow(dead_code)]
     #[serde(default)]
     pub default: Option<String>,
-    pub protocol_id: u32,
+    pub protocol_id: u16,
     pub entries: BTreeMap<String, Entry>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Entry {
-    pub protocol_id: u32,
+    pub protocol_id: u16,
 }
 
 pub type Report = BTreeMap<String, Registry>;
@@ -28,12 +28,12 @@ pub struct Row {
     pub kind: &'static str,
     pub registry: String,
     pub entry: Option<String>,
-    pub old: Option<u32>,
-    pub new: Option<u32>,
+    pub old: Option<u16>,
+    pub new: Option<u16>,
 }
 
 impl Row {
-    fn key(&self) -> (&str, bool, Option<u32>, Option<&str>) {
+    fn key(&self) -> (&str, bool, Option<u16>, Option<&str>) {
         (
             &self.registry,
             self.entry.is_some(),
@@ -130,7 +130,7 @@ pub fn diff(old: &Report, new: &Report) -> Vec<Row> {
     rows
 }
 
-fn registry_row(kind: &'static str, registry: &str, old: Option<u32>, new: Option<u32>) -> Row {
+fn registry_row(kind: &'static str, registry: &str, old: Option<u16>, new: Option<u16>) -> Row {
     Row {
         kind,
         registry: registry.to_owned(),
@@ -144,8 +144,8 @@ fn entry_row(
     kind: &'static str,
     registry: &str,
     entry: &str,
-    old: Option<u32>,
-    new: Option<u32>,
+    old: Option<u16>,
+    new: Option<u16>,
 ) -> Row {
     Row {
         kind,

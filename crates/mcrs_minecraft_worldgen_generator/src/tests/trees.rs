@@ -108,7 +108,7 @@ fn material_router(
         },
         // A biome the registry does not carry is one no rule can match, which
         // is what an id outside it means to the compiled sets.
-        biome: &|id| Some(registry.by_location(id.as_str()).unwrap_or(250)),
+        biome: &|id| Some(registry.by_location(id.as_str()).map_or(250, u32::from)),
     };
     build_router_and_material(
         &settings,

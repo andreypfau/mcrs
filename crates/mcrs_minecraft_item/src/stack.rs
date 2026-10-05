@@ -181,7 +181,7 @@ impl ProtoStack {
             .id(Item::KEY.path(), value.item.location())
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
-            id: ItemId(u16::try_from(id).with_context(|| format!("item id {id} is out of range"))?),
+            id: ItemId(id),
             count: value.count.0,
             components: value.components.clone(),
         })
@@ -190,7 +190,7 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(Item::KEY.path(), self.id.0 as u32)
+            .name(Item::KEY.path(), self.id.0)
             .with_context(|| format!("registry item has no id {}", self.id.0))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),

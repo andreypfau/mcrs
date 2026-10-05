@@ -1,4 +1,3 @@
-use crate::VarInt;
 use anyhow::Context;
 use mcrs_minecraft_chunk::{SectionKind, VoxelId, ceillog2};
 
@@ -60,26 +59,24 @@ pub trait NetworkSectionKind: SectionKind {
 
 /// A value a section container holds, which fixes the widths and the entry
 /// count its wire form is read at.
-pub trait SectionValue: Copy + Into<VarInt> {
+pub trait SectionValue: Copy + Into<u16> {
     type Section: NetworkSectionKind;
 
-    fn from_registry_id(id: i32) -> anyhow::Result<Self>;
+    fn from_registry_id(id: u16) -> anyhow::Result<Self>;
 }
 
 impl SectionValue for VoxelId {
     type Section = Blocks;
 
-    fn from_registry_id(id: i32) -> anyhow::Result<Self> {
-        Ok(VoxelId(
-            u16::try_from(id).with_context(|| format!("block state id {id}"))?,
-        ))
+    fn from_registry_id(id: u16) -> anyhow::Result<Self> {
+        Ok(VoxelId(id))
     }
 }
 
 impl SectionValue for u8 {
     type Section = Biomes;
 
-    fn from_registry_id(id: i32) -> anyhow::Result<Self> {
+    fn from_registry_id(id: u16) -> anyhow::Result<Self> {
         u8::try_from(id).with_context(|| format!("biome id {id}"))
     }
 }

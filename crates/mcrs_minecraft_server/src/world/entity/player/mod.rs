@@ -15,7 +15,7 @@ use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
-use crate::world::entity::{EntityBundle, EntityUuid, registry_varint};
+use crate::world::entity::{EntityBundle, EntityUuid};
 use crate::world::inventory::PlayerInventoryBundle;
 use crate::world::item::StackSet;
 use crate::world::sub_app_builder::DimTypeIndex;
@@ -45,6 +45,7 @@ use mcrs_minecraft_protocol::GameEventKind;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::LpVec3;
+use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundAddEntity;
@@ -247,7 +248,7 @@ fn consume_inbound_player_spawn(
                     show_death_screen: false,
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
-                        dimension_type_id: VarInt(dim_type_id),
+                        dimension_type_id: RegistryId(dim_type_id),
                         dimension: ResourceLocation::parse_cow(dim_name)
                             .expect("dimension id is a valid resource location"),
                         game_mode: default_game_mode.0,
@@ -411,7 +412,7 @@ fn network_add(
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: registry_varint(ids.player),
+            kind: RegistryId::from(ids.player),
             pos: transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

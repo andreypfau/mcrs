@@ -283,7 +283,7 @@ fn flat_start(frozen: &FrozenStructures, case: &DumpCase) -> Option<Start> {
             .into_iter()
             .map(|state| state.unwrap_or(states.air))
             .collect(),
-        biome: biome_index().get(&case.biome).expect("a corpus biome"),
+        biome: u32::from(biome_index().get(&case.biome).expect("a corpus biome")),
         states,
         predicates: predicates(),
     };
@@ -325,7 +325,7 @@ fn region(case: &DumpCase, bounds: BoundingBox) -> BoxRegion {
     }
     region.world = world;
     region.extent.sea_level = sea_level;
-    region.biome = biome_index().get(&case.biome).expect("a corpus biome");
+    region.biome = u32::from(biome_index().get(&case.biome).expect("a corpus biome"));
     let predicates = predicates().clone();
     region.with_height(move |blocks: &BoxVolume, kind: HeightmapName, _, _| {
         let max_y = blocks.max().y;

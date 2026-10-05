@@ -71,7 +71,7 @@ pub fn heightmap_predicates(blocks: &Blocks, tags: &DynTagRegistry<Block>) -> He
     for index in 0..blocks.state_count() {
         let id = BlockStateId(index as u16);
         let state = blocks.state(id);
-        let block = u32::from(blocks.block_index(id).number());
+        let block = blocks.block_index(id).number();
         let mut kinds = HeightmapKinds::empty();
         if !state.flags.contains(BlockStateFlags::IS_AIR) {
             kinds |= HeightmapKinds::SURFACE;

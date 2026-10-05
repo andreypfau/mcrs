@@ -10,6 +10,7 @@ use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentMap;
 use crate::item::wire::nbt_wire::nbt_wire;
 use crate::item::wire::newtype_ctx_wire;
+use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode, VarInt};
 
 newtype_ctx_wire!(
@@ -110,14 +111,14 @@ impl DecodeCtx<'_> for DataComponentMatchers {
 
 impl Encode for ComponentPredicateType {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        VarInt(*self as i32).encode(w)
+        encode_registry_id(*self as u16, w)
     }
 }
 
 impl Decode<'_> for ComponentPredicateType {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = VarInt::decode(r)?.0;
-        match usize::try_from(id).ok().and_then(|id| Self::ALL.get(id)) {
+        let id = decode_registry_id(r)?;
+        match Self::ALL.get(usize::from(id)) {
             Some(kind) => Ok(*kind),
             None => bail!("unknown data component predicate type {id}"),
         }

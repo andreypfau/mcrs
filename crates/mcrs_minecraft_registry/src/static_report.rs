@@ -31,26 +31,28 @@ struct RegistryReport {
     #[allow(dead_code)]
     default: Option<ResourceLocation>,
     #[allow(dead_code)]
-    protocol_id: u32,
+    protocol_id: u16,
     entries: BTreeMap<ResourceLocation, EntryReport>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EntryReport {
-    protocol_id: u32,
+    protocol_id: u16,
 }
 
 impl RegistryReport {
     fn into_table(self, registry: ResourceLocation) -> Result<NameTable, String> {
         let mut by_id: Vec<Option<ResourceLocation>> = vec![None; self.entries.len()];
         for (name, entry) in self.entries {
-            let slot = by_id.get_mut(entry.protocol_id as usize).ok_or_else(|| {
-                format!(
-                    "registry {registry}: {name} has protocol_id {} out of range",
-                    entry.protocol_id
-                )
-            })?;
+            let slot = by_id
+                .get_mut(usize::from(entry.protocol_id))
+                .ok_or_else(|| {
+                    format!(
+                        "registry {registry}: {name} has protocol_id {} out of range",
+                        entry.protocol_id
+                    )
+                })?;
             if let Some(other) = slot.replace(name.clone()) {
                 return Err(format!(
                     "registry {registry}: {name} and {other} share protocol_id {}",
@@ -222,7 +224,7 @@ mod tests {
 
     #[test]
     fn a_malformed_report_names_the_registry() {
-        let cases: [(&str, &[u8], &str); 6] = [
+        let cases: [(&str, &[u8], &str); 7] = [
             (
                 "a gap",
                 br#"{"minecraft:x":{"protocol_id":0,"entries":{"a:a":{"protocol_id":0},"a:b":{"protocol_id":2}}}}"#,
@@ -237,6 +239,11 @@ mod tests {
                 "an id out of range",
                 br#"{"minecraft:x":{"protocol_id":0,"entries":{"a:a":{"protocol_id":1}}}}"#,
                 "a:a",
+            ),
+            (
+                "an id wider than sixteen bits",
+                br#"{"minecraft:x":{"protocol_id":0,"entries":{"a:a":{"protocol_id":65536}}}}"#,
+                "65536",
             ),
             (
                 "an unknown field of the registry",

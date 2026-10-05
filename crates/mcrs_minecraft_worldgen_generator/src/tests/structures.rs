@@ -148,7 +148,7 @@ fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     );
     let in_hut = SpawnContext {
         structure: Some(frozen.structure_ids[&ResourceLocation::minecraft("swamp_hut")].0),
-        biome: biome_index().get("minecraft:swamp").unwrap(),
+        biome: u32::from(biome_index().get("minecraft:swamp").unwrap()),
         moon_brightness: 1.0,
     };
     let mut rng = WorldgenRandom::new(1);

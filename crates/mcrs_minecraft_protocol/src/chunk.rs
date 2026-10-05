@@ -1,8 +1,9 @@
+use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::section::{
     Biomes, Blocks, NetworkSectionKind, PaletteForm, SectionValue, biome_direct_bits,
     block_direct_bits,
 };
-use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
+use crate::{Decode as DecodeTrait, Encode as EncodeTrait, RegistryId, VarInt, VarLong};
 use anyhow::{Context, bail, ensure};
 use bitfield_struct::bitfield;
 use mcrs_minecraft_chunk::{
@@ -195,7 +196,7 @@ impl<'a> Default for LightData<'a> {
 pub struct ChunkDataBlockEntity<'a> {
     pub packed_xz: i8,
     pub y: i16,
-    pub kind: VarInt,
+    pub kind: RegistryId,
     pub data: Cow<'a, NbtCompound>,
 }
 
@@ -236,7 +237,7 @@ pub fn encode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
     let data = match container {
         PalettedContainer::Homogeneous(value) => {
             0u8.encode(&mut w)?;
-            return (*value).into().encode(w);
+            return encode_registry_id((*value).into(), w);
         }
         PalettedContainer::Heterogeneous(data) => data,
     };
@@ -247,7 +248,7 @@ pub fn encode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
             let (palette, packed) = container.to_palette_and_packed_data(bits as u8);
             VarInt(palette.len() as i32).encode(&mut w)?;
             for value in palette.iter() {
-                (*value).into().encode(&mut w)?;
+                encode_registry_id((*value).into(), &mut w)?;
             }
             packed
         }
@@ -258,10 +259,7 @@ pub fn encode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
             );
             (bits as u8).encode(&mut w)?;
             let cells = data.cube.as_flattened().as_flattened();
-            pack_from(bits, cells, |&value| {
-                let id: VarInt = value.into();
-                id.0 as u32
-            })
+            pack_from(bits, cells, |&value| u32::from(Into::<u16>::into(value)))
         }
     };
     for word in packed.iter() {
@@ -329,7 +327,7 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
             unpack_into(storage_bits, &packed, &mut ids)
                 .expect("the packed length was read to fit");
             for (cell, id) in cells.iter_mut().zip(ids) {
-                *cell = V::from_registry_id(id as i32)?;
+                *cell = V::from_registry_id(id)?;
             }
         }
     }
@@ -337,7 +335,7 @@ pub fn decode_container<V: SectionValue + Hash + Eq + Default, const DIM: usize>
 }
 
 fn read_id<V: SectionValue>(r: &mut &[u8]) -> anyhow::Result<V> {
-    V::from_registry_id(VarInt::decode(r)?.0)
+    V::from_registry_id(decode_registry_id(r)?)
 }
 
 #[derive(Clone, PartialEq, Debug)]
