@@ -14,8 +14,9 @@ pub mod set;
 pub mod shared;
 pub mod static_report;
 pub mod tag_source;
+pub mod tags;
 
-pub use bitset::{BitSet, RawBitSet, TagId};
+pub use bitset::{BitSet, DenseId, RawBitSet};
 pub use dyn_index::DynRegistryIndex;
 pub use entries::Entries;
 pub use entry_set::EntrySet;
@@ -28,3 +29,4 @@ pub use registry::{Registry, RegistryError, UnknownEntry};
 pub use report::LoadReport;
 pub use set::{RegistrySet, ScopeError};
 pub use tag_source::TagSource;
+pub use tags::{TagId, TagProblem, TagRules, TagTable, Tags, build_tags, number_tags};

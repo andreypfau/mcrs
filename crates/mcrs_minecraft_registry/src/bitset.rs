@@ -5,12 +5,12 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 /// A dense index into the registry a tag is defined over.
-pub trait TagId: Copy + Eq + Hash + Send + Sync + 'static {
+pub trait DenseId: Copy + Eq + Hash + Send + Sync + 'static {
     fn raw(self) -> u16;
     fn from_raw(raw: u16) -> Self;
 }
 
-impl TagId for u16 {
+impl DenseId for u16 {
     #[inline]
     fn raw(self) -> u16 {
         self
@@ -22,7 +22,7 @@ impl TagId for u16 {
     }
 }
 
-impl<R: 'static> TagId for Id<R> {
+impl<R: 'static> DenseId for Id<R> {
     #[inline]
     fn raw(self) -> u16 {
         self.number()
@@ -54,7 +54,7 @@ impl<I> Clone for BitSet<I> {
     }
 }
 
-impl<I: TagId> BitSet<I> {
+impl<I: DenseId> BitSet<I> {
     pub fn with_capacity(cap: u32) -> Self {
         Self {
             bits: FixedBitSet::with_capacity(cap as usize),

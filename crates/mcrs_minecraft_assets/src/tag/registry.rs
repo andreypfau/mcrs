@@ -4,7 +4,7 @@ use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_registry::bitset::{BitSet, TagId};
+use mcrs_minecraft_registry::bitset::{BitSet, DenseId};
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, TagSource};
 use std::collections::{HashMap, HashSet};
@@ -82,7 +82,7 @@ fn extend_from_tag_file<S: TagSource>(
 /// [`TagRegistry`] only exists once this has been consumed, so no reader can
 /// ask a membership question against half-loaded data.
 #[derive(Resource)]
-pub struct TagLoader<T: RegistryKey + 'static, I: TagId = Id<T>> {
+pub struct TagLoader<T: RegistryKey + 'static, I: DenseId = Id<T>> {
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
     resolved: HashMap<ResourceLocation<Arc<str>>, HashSet<I>>,
     _marker: PhantomData<fn() -> T>,
@@ -90,7 +90,7 @@ pub struct TagLoader<T: RegistryKey + 'static, I: TagId = Id<T>> {
 
 pub type DynTagLoader<T> = TagLoader<T, u16>;
 
-impl<T: RegistryKey + 'static, I: TagId> Default for TagLoader<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> Default for TagLoader<T, I> {
     fn default() -> Self {
         TagLoader {
             handles: HashMap::new(),
@@ -100,7 +100,7 @@ impl<T: RegistryKey + 'static, I: TagId> Default for TagLoader<T, I> {
     }
 }
 
-impl<T: RegistryKey + 'static, I: TagId> TagLoader<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> TagLoader<T, I> {
     /// Request a tag file to be loaded. No-op if already requested.
     ///
     /// Loading uses `TagFileSettings` so the loader can resolve nested `#tag`
@@ -175,7 +175,7 @@ impl<T: RegistryKey + 'static, I: TagId> TagLoader<T, I> {
 /// Membership is a single bit test instead of a hash probe; the cost is one
 /// `u64` word per 64 registry entries per tag, paid once at freeze.
 #[derive(Resource)]
-pub struct TagRegistry<T: RegistryKey + 'static, I: TagId = Id<T>> {
+pub struct TagRegistry<T: RegistryKey + 'static, I: DenseId = Id<T>> {
     index: Arc<HashMap<ResourceLocation<Arc<str>>, usize>>,
     bitsets: Arc<[BitSet<I>]>,
     _marker: PhantomData<fn() -> T>,
@@ -183,7 +183,7 @@ pub struct TagRegistry<T: RegistryKey + 'static, I: TagId = Id<T>> {
 
 pub type DynTagRegistry<T> = TagRegistry<T, u16>;
 
-impl<T: RegistryKey + 'static, I: TagId> Default for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> Default for TagRegistry<T, I> {
     fn default() -> Self {
         TagRegistry {
             index: Arc::default(),
@@ -193,7 +193,7 @@ impl<T: RegistryKey + 'static, I: TagId> Default for TagRegistry<T, I> {
     }
 }
 
-impl<T: RegistryKey + 'static, I: TagId> Clone for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> Clone for TagRegistry<T, I> {
     fn clone(&self) -> Self {
         TagRegistry {
             index: Arc::clone(&self.index),
@@ -203,13 +203,13 @@ impl<T: RegistryKey + 'static, I: TagId> Clone for TagRegistry<T, I> {
     }
 }
 
-impl<T: RegistryKey + 'static, I: TagId> SharedResource for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> SharedResource for TagRegistry<T, I> {
     fn shares_with(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.bitsets, &other.bitsets)
     }
 }
 
-impl<T: RegistryKey + 'static, I: TagId> TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: DenseId> TagRegistry<T, I> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -261,13 +261,13 @@ mod tests {
     /// freeze without building a whole registry.
     struct IdSpace<I>(u32, PhantomData<fn() -> I>);
 
-    impl<I: TagId> IdSpace<I> {
+    impl<I: DenseId> IdSpace<I> {
         fn new(capacity: u32) -> Self {
             IdSpace(capacity, PhantomData)
         }
     }
 
-    impl<I: TagId> TagSource for IdSpace<I> {
+    impl<I: DenseId> TagSource for IdSpace<I> {
         type Id = I;
 
         fn id_of(&self, _loc: &str) -> Option<I> {

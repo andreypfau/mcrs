@@ -12,9 +12,9 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::EntrySet;
 use mcrs_minecraft_registry::RegistrySet;
-use mcrs_minecraft_registry::TagId;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
@@ -236,7 +236,7 @@ pub(crate) async fn walk_files(
 }
 
 #[allow(clippy::needless_pass_by_value)]
-pub(crate) fn request_every_tag<T: RegistryKey + 'static, I: TagId>(
+pub(crate) fn request_every_tag<T: RegistryKey + 'static, I: DenseId>(
     mut loader: ResMut<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
     set: Res<RegistrySet>,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_registry::{Id, TagId};
+use mcrs_minecraft_registry::{DenseId, Id};
 
 use super::StateMask;
 

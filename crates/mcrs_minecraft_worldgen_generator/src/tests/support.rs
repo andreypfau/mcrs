@@ -130,7 +130,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::{Id, Registry, TagId};
+use mcrs_minecraft_registry::{DenseId, Id, Registry};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 
 pub fn text_ordered_table(
@@ -162,7 +162,7 @@ pub fn tag_members(name: &str) -> HashSet<u16> {
     members
 }
 
-fn collect_tag_members<I: TagId, S: TagSource<Id = I>>(
+fn collect_tag_members<I: DenseId, S: TagSource<Id = I>>(
     registry: &str,
     source: &S,
     name: &str,
@@ -182,7 +182,7 @@ fn collect_tag_members<I: TagId, S: TagSource<Id = I>>(
 
 /// Every tag file of one registry, subfolders included, expanded off the
 /// files themselves.
-fn every_tag<T: RegistryKey, I: TagId, S: TagSource<Id = I>>(source: &S) -> TagRegistry<T, I> {
+fn every_tag<T: RegistryKey, I: DenseId, S: TagSource<Id = I>>(source: &S) -> TagRegistry<T, I> {
     let dir = tag_dir(T::KEY.path());
     let mut loader = TagLoader::<T, I>::default();
     for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {

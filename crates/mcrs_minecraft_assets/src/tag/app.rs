@@ -7,7 +7,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::TagSource;
-use mcrs_minecraft_registry::bitset::TagId;
+use mcrs_minecraft_registry::bitset::DenseId;
 
 /// The phases a tagged registry passes through, as system sets so callers can
 /// order their own systems against them.
@@ -92,7 +92,7 @@ fn reset_settled(mut settled: ResMut<TagLoadersSettled>) {
     settled.0 = true;
 }
 
-fn check_settled<T: RegistryKey + 'static, I: TagId>(
+fn check_settled<T: RegistryKey + 'static, I: DenseId>(
     loader: Res<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
     mut settled: ResMut<TagLoadersSettled>,

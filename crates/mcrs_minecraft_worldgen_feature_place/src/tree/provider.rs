@@ -9,7 +9,7 @@ use mcrs_minecraft_core::value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::{Id, TagId};
+use mcrs_minecraft_registry::{DenseId, Id};
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};

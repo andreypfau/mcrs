@@ -1,4 +1,4 @@
-use crate::bitset::TagId;
+use crate::bitset::DenseId;
 use crate::dyn_index::DynRegistryIndex;
 use crate::id::Id;
 use crate::registry::Registry;
@@ -6,7 +6,7 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 
 /// The registry a tag file's element references are resolved against.
 pub trait TagSource: Send + Sync + 'static {
-    type Id: TagId;
+    type Id: DenseId;
 
     fn id_of(&self, loc: &str) -> Option<Self::Id>;
 

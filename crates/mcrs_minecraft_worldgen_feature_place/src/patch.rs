@@ -219,7 +219,7 @@ mod tests {
 
     use mcrs_minecraft_chunk::BlocksMut;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
-    use mcrs_minecraft_registry::{Id, TagId};
+    use mcrs_minecraft_registry::{DenseId, Id};
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;
