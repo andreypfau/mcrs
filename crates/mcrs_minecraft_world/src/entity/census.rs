@@ -1,10 +1,9 @@
-use super::minecraft::EntityIds;
 use super::villager::VillagerProfession;
 use bytes::Buf;
 use mcrs_minecraft_entity::VillagerType;
 use mcrs_minecraft_entity::attribute;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -82,12 +81,10 @@ fn entity_types_follow_the_registry_order() {
     let actual: Vec<String> = table.names().iter().map(ToString::to_string).collect();
     assert_eq!(actual, census.ids["minecraft:entity_type"]);
 
-    let mut missing = LoadReport::new();
-    let ids = EntityIds::resolve(&set, &mut missing).unwrap_or_else(|| panic!("{missing}"));
     let attributes = set.table("minecraft:attribute").unwrap();
     assert_eq!(
         attributes
-            .name(ids.max_health.index())
+            .name(mcrs_minecraft_keys::attribute::MAX_HEALTH.index())
             .map(|name| name.as_str()),
         Some(attribute::MAX_HEALTH.identifier.as_str())
     );

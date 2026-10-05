@@ -36,7 +36,7 @@ use crate::common::{assets, datapack_report, declared_world_registries, loaded_n
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(assets().join("mcrs/reports/registries.json")).unwrap();
-    build_static_registries(&bytes).unwrap().0
+    build_static_registries(&bytes).unwrap()
 });
 
 static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {

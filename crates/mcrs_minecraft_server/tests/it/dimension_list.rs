@@ -27,7 +27,7 @@ const ASSETS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets");
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| {
     let bytes = std::fs::read(format!("{ASSETS}/mcrs/reports/registries.json")).unwrap();
-    static_registries(&bytes).unwrap().0
+    static_registries(&bytes).unwrap()
 });
 
 static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {

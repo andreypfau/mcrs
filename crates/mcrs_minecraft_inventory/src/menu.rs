@@ -1,7 +1,9 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_item::slots;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
+use mcrs_minecraft_registry::Id;
 
 use crate::drag::Drag;
 use crate::slot::Slot;
@@ -88,51 +90,57 @@ pub struct MenuSlots {
     pub trailing_result: bool,
 }
 
-/// Vanilla menus add their own slots first, then the player's main and hotbar
-/// rows; the lectern adds none of the player's and the crafter appends a
-/// non-interactive result slot after them.
-pub fn menu_slots(menu_type: &str) -> Option<MenuSlots> {
-    let own = |own| MenuSlots {
+const fn own(own: u16) -> MenuSlots {
+    MenuSlots {
         own,
         player_slots: true,
         trailing_result: false,
-    };
-    Some(match menu_type {
-        "minecraft:generic_9x1" => own(9),
-        "minecraft:generic_9x2" => own(18),
-        "minecraft:generic_9x3" => own(27),
-        "minecraft:generic_9x4" => own(36),
-        "minecraft:generic_9x5" => own(45),
-        "minecraft:generic_9x6" => own(54),
-        "minecraft:generic_3x3" => own(9),
-        "minecraft:crafter_3x3" => MenuSlots {
-            own: 9,
-            player_slots: true,
-            trailing_result: true,
-        },
-        "minecraft:anvil" => own(3),
-        "minecraft:beacon" => own(1),
-        "minecraft:blast_furnace" => own(3),
-        "minecraft:brewing_stand" => own(5),
-        "minecraft:crafting" => own(10),
-        "minecraft:enchantment" => own(2),
-        "minecraft:furnace" => own(3),
-        "minecraft:grindstone" => own(3),
-        "minecraft:hopper" => own(5),
-        "minecraft:lectern" => MenuSlots {
-            own: 1,
-            player_slots: false,
-            trailing_result: false,
-        },
-        "minecraft:loom" => own(4),
-        "minecraft:merchant" => own(3),
-        "minecraft:shulker_box" => own(27),
-        "minecraft:smithing" => own(4),
-        "minecraft:smoker" => own(3),
-        "minecraft:cartography_table" => own(3),
-        "minecraft:stonecutter" => own(2),
-        _ => return None,
-    })
+    }
+}
+
+const MENU_SLOTS: [Option<MenuSlots>; keys::menu::NAMES.len()] = {
+    let mut table = [None; keys::menu::NAMES.len()];
+    table[keys::menu::GENERIC_9X1.index()] = Some(own(9));
+    table[keys::menu::GENERIC_9X2.index()] = Some(own(18));
+    table[keys::menu::GENERIC_9X3.index()] = Some(own(27));
+    table[keys::menu::GENERIC_9X4.index()] = Some(own(36));
+    table[keys::menu::GENERIC_9X5.index()] = Some(own(45));
+    table[keys::menu::GENERIC_9X6.index()] = Some(own(54));
+    table[keys::menu::GENERIC_3X3.index()] = Some(own(9));
+    table[keys::menu::CRAFTER_3X3.index()] = Some(MenuSlots {
+        own: 9,
+        player_slots: true,
+        trailing_result: true,
+    });
+    table[keys::menu::ANVIL.index()] = Some(own(3));
+    table[keys::menu::BEACON.index()] = Some(own(1));
+    table[keys::menu::BLAST_FURNACE.index()] = Some(own(3));
+    table[keys::menu::BREWING_STAND.index()] = Some(own(5));
+    table[keys::menu::CRAFTING.index()] = Some(own(10));
+    table[keys::menu::ENCHANTMENT.index()] = Some(own(2));
+    table[keys::menu::FURNACE.index()] = Some(own(3));
+    table[keys::menu::GRINDSTONE.index()] = Some(own(3));
+    table[keys::menu::HOPPER.index()] = Some(own(5));
+    table[keys::menu::LECTERN.index()] = Some(MenuSlots {
+        own: 1,
+        player_slots: false,
+        trailing_result: false,
+    });
+    table[keys::menu::LOOM.index()] = Some(own(4));
+    table[keys::menu::MERCHANT.index()] = Some(own(3));
+    table[keys::menu::SHULKER_BOX.index()] = Some(own(27));
+    table[keys::menu::SMITHING.index()] = Some(own(4));
+    table[keys::menu::SMOKER.index()] = Some(own(3));
+    table[keys::menu::CARTOGRAPHY_TABLE.index()] = Some(own(3));
+    table[keys::menu::STONECUTTER.index()] = Some(own(2));
+    table
+};
+
+/// Vanilla menus add their own slots first, then the player's main and hotbar
+/// rows; the lectern adds none of the player's and the crafter appends a
+/// non-interactive result slot after them.
+pub fn menu_slots(menu: Id<keys::Menu>) -> Option<MenuSlots> {
+    MENU_SLOTS.get(menu.index()).copied().flatten()
 }
 
 /// The container's own slots, then the player's main and hotbar rows.

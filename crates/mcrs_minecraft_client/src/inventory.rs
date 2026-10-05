@@ -1,11 +1,11 @@
 use bevy::ecs::system::Command;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_inventory::{
     MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
 };
-use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, item_of, slots};
+use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, item_of, slots};
+use mcrs_minecraft_keys::{Item, Menu};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -19,7 +19,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClose, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_protocol::{GameMode, VarInt, WritePacket};
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{Id, RegistryLookup, RegistrySet};
 
 use crate::player::{self, Player};
 
@@ -63,12 +63,20 @@ pub fn inventory_index_to_cell(index: i32) -> Option<u16> {
         .and_then(slots::from_inventory_index)
 }
 
-fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option<ItemStackValue>> {
+struct ReceivedStack {
+    item: Id<Item>,
+    value: ItemStackValue,
+}
+
+fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option<ReceivedStack>> {
     let slot = raw.resolve(lookup)?;
     if slot.is_empty() {
         return Ok(None);
     }
-    slot.to_value(lookup).map(Some)
+    Ok(Some(ReceivedStack {
+        item: slot.id,
+        value: slot.to_value(lookup)?,
+    }))
 }
 
 fn receive_inventory_packets(
@@ -158,7 +166,10 @@ fn receive_inventory_packets(
             }
         }
     } else if let Some(packet) = event.decode::<ClientboundOpenScreen>() {
-        let Some(menu_type) = registries.name("menu", packet.menu_type.0).cloned() else {
+        let Some(menu_type) = registries
+            .registry::<Menu>()
+            .and_then(|menus| menus.id(packet.menu_type.0))
+        else {
             warn!("open_screen: unknown menu type {}", packet.menu_type.0);
             return;
         };
@@ -207,21 +218,24 @@ fn holder_cell(world: &World, container: Entity, index: usize) -> Option<Slot> {
 
 /// A cell keeps its stack entity when the item stays the same, so a count or
 /// component change is a revision rather than a respawn.
-fn set_cell(world: &mut World, cell: Slot, value: Option<ItemStackValue>) {
+fn set_cell(world: &mut World, cell: Slot, received: Option<ReceivedStack>) {
     let current = stack_in(world, cell);
-    let same_item = |world: &World, stack: Entity, value: &ItemStackValue| {
-        item_of(world, stack) == world.resource::<Items>().id_of(value.item.as_str())
-    };
-    let ops = match (current, value) {
+    let ops = match (current, received) {
         (None, None) => Vec::new(),
         (Some(stack), None) => vec![Op::Despawn { stack }],
-        (Some(stack), Some(value)) if same_item(world, stack, &value) => {
-            vec![Op::Apply { stack, value }]
+        (Some(stack), Some(received)) if item_of(world, stack) == Some(received.item) => {
+            vec![Op::Apply {
+                stack,
+                value: received.value,
+            }]
         }
-        (current, Some(value)) => current
+        (current, Some(received)) => current
             .map(|stack| Op::Despawn { stack })
             .into_iter()
-            .chain(std::iter::once(Op::Spawn { value, to: cell }))
+            .chain(std::iter::once(Op::Spawn {
+                value: received.value,
+                to: cell,
+            }))
             .collect(),
     };
     Transaction(ops).apply(world);
@@ -237,8 +251,8 @@ fn apply_set_content(
     world: &mut World,
     container_id: i32,
     seqno: i32,
-    stacks: Vec<Option<ItemStackValue>>,
-    carried: Option<ItemStackValue>,
+    stacks: Vec<Option<ReceivedStack>>,
+    carried: Option<ReceivedStack>,
 ) {
     let Some(container) = container(world, container_id) else {
         return;
@@ -263,7 +277,7 @@ fn apply_set_slot(
     container_id: i32,
     seqno: i32,
     slot: i16,
-    item: Option<ItemStackValue>,
+    item: Option<ReceivedStack>,
 ) {
     let Some(container) = container(world, container_id) else {
         return;
@@ -278,12 +292,15 @@ fn apply_set_slot(
     set_seqno(world, container, seqno);
 }
 
-fn open_screen(world: &mut World, container_id: i32, menu_type: ResourceLocation) {
+fn open_screen(world: &mut World, container_id: i32, menu_type: Id<Menu>) {
     let Some(player) = player(world) else {
         return;
     };
-    let Some(slots) = menu_slots(menu_type.as_str()) else {
-        warn!("open_screen: {menu_type} has no slot layout, the screen stays closed");
+    let Some(slots) = menu_slots(menu_type) else {
+        warn!(
+            "open_screen: menu type {} has no slot layout, the screen stays closed",
+            menu_type.number()
+        );
         return;
     };
     if let Some((menu, _)) = open_menu(world) {

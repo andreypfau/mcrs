@@ -14,7 +14,6 @@ use mcrs_minecraft_level::explosion::{Explosion, ExplosionRadius};
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::lifecycle::level::SectionLevels;
 use mcrs_minecraft_protocol::uuid::Uuid;
-use mcrs_minecraft_world::entity::minecraft::EntityIds;
 
 pub struct PrimedTntPlugin;
 
@@ -41,11 +40,11 @@ pub struct PrimedTntBundle {
 }
 
 impl PrimedTntBundle {
-    pub fn new(ids: &EntityIds, dimension: InDimension, transform: Transform) -> Self {
+    pub fn new(dimension: InDimension, transform: Transform) -> Self {
         Self {
             explosion_radius: ExplosionRadius(DEFAULT_EXPLOSION_RADIUS),
             fuse: Fuse::default(),
-            kind: EntityKind(ids.primed_tnt),
+            kind: EntityKind(mcrs_minecraft_keys::entity_type::TNT),
             tracked_by: TrackedBy::default(),
             mc_entity_marker: MinecraftEntity,
             marker: PrimedTnt,
@@ -122,16 +121,15 @@ mod tests {
             .world_mut()
             .spawn((tickets, SectionLevels::default()))
             .id();
-        let (_, ids) = crate::world::entity::report_registries();
         let near = app
             .world_mut()
-            .spawn(PrimedTntBundle::new(&ids, InDimension(dim), Transform::default()).with_fuse(5))
+            .spawn(PrimedTntBundle::new(InDimension(dim), Transform::default()).with_fuse(5))
             .id();
         let mut far_away = Transform::default();
         far_away.translation.x = 16.0 * 5.0;
         let far = app
             .world_mut()
-            .spawn(PrimedTntBundle::new(&ids, InDimension(dim), far_away).with_fuse(5))
+            .spawn(PrimedTntBundle::new(InDimension(dim), far_away).with_fuse(5))
             .id();
 
         app.world_mut().run_schedule(FixedUpdate);

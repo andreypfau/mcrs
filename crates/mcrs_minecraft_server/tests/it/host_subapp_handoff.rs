@@ -481,7 +481,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     use mcrs_minecraft_item::Items;
     use mcrs_minecraft_registry::RegistrySet;
     use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
-    use mcrs_minecraft_world::entity::minecraft::EntityIds;
     use mcrs_minecraft_worldgen::tables::WorldgenTables;
     use mcrs_minecraft_worldgen_generator::SurfaceIds;
     use mcrs_minecraft_worldgen_generator::ids::{FillIds, SurvivalIds};
@@ -489,7 +488,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
 
     let expected = [
         type_name::<RegistrySet>(),
-        type_name::<EntityIds>(),
         type_name::<RegistryAccess>(),
         type_name::<Blocks>(),
         type_name::<Items>(),

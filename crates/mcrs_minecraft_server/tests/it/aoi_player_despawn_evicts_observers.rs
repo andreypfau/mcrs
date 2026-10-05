@@ -16,9 +16,7 @@ use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::session::PlayerSession;
-use mcrs_minecraft_level::world::dimension::{
-    DimensionBundle, DimensionTypeConfig, InDimension,
-};
+use mcrs_minecraft_level::world::dimension::{DimensionBundle, DimensionTypeConfig, InDimension};
 use mcrs_minecraft_level::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundRemoveEntities;
@@ -68,7 +66,6 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         world.run_schedule(FixedPreUpdate);
         world.run_schedule(FixedPostUpdate);
     });
-    sub_app.insert_resource(crate::support::entity_ids().clone());
     sub_app.add_plugins(PlayerTrackerPlugin);
 
     let dim = sub_app
