@@ -3,6 +3,7 @@ use mcrs_minecraft_core::BlockPos;
 use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::BlocksMut;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
@@ -26,19 +27,19 @@ pub struct BetaOreBlockIds {
 impl BetaOreBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
         BetaOreBlockIds {
-            stone: blocks.default_state("minecraft:stone"),
-            sand: blocks.default_state("minecraft:sand"),
-            clay: blocks.default_state("minecraft:clay"),
-            dirt: blocks.default_state("minecraft:dirt"),
-            gravel: blocks.default_state("minecraft:gravel"),
-            coal: blocks.default_state("minecraft:coal_ore"),
-            iron: blocks.default_state("minecraft:iron_ore"),
-            gold: blocks.default_state("minecraft:gold_ore"),
+            stone: blocks.default_state_of(keys::block::STONE),
+            sand: blocks.default_state_of(keys::block::SAND),
+            clay: blocks.default_state_of(keys::block::CLAY),
+            dirt: blocks.default_state_of(keys::block::DIRT),
+            gravel: blocks.default_state_of(keys::block::GRAVEL),
+            coal: blocks.default_state_of(keys::block::COAL_ORE),
+            iron: blocks.default_state_of(keys::block::IRON_ORE),
+            gold: blocks.default_state_of(keys::block::GOLD_ORE),
             // REDSTONE_ORE default state carries lit=false, matching Beta placement
-            redstone: blocks.default_state("minecraft:redstone_ore"),
-            diamond: blocks.default_state("minecraft:diamond_ore"),
-            lapis: blocks.default_state("minecraft:lapis_ore"),
-            water: blocks.default_state("minecraft:water"),
+            redstone: blocks.default_state_of(keys::block::REDSTONE_ORE),
+            diamond: blocks.default_state_of(keys::block::DIAMOND_ORE),
+            lapis: blocks.default_state_of(keys::block::LAPIS_ORE),
+            water: blocks.default_state_of(keys::block::WATER),
         }
     }
 }

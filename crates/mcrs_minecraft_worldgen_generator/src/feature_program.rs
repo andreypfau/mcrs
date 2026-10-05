@@ -1484,18 +1484,18 @@ fn compile_generator(
             placement_radius_around_floor: placement_radius_around_floor.0,
             placement_probability_per_valid_position: placement_probability_per_valid_position.0
                 as f32,
-            magma: resolver.default_state("minecraft:magma_block")?,
+            magma: resolver.default_state_of(keys::block::MAGMA_BLOCK),
         }),
         Feature::BlueIce => Generator::BlueIce(CompiledBlueIce {
-            blue_ice: resolver.default_state("minecraft:blue_ice")?,
-            packed_ice: resolver.default_state("minecraft:packed_ice")?,
-            ice: resolver.default_state("minecraft:ice")?,
+            blue_ice: resolver.default_state_of(keys::block::BLUE_ICE),
+            packed_ice: resolver.default_state_of(keys::block::PACKED_ICE),
+            ice: resolver.default_state_of(keys::block::ICE),
         }),
         Feature::FreezeTopLayer => {
             let snow = resolver.block("minecraft:snow")?;
             Generator::FreezeTopLayer(Box::new(CompiledFreezeTopLayer {
                 biomes: resolver.climate.to_vec(),
-                ice: resolver.default_state("minecraft:ice")?,
+                ice: resolver.default_state_of(keys::block::ICE),
                 snow: VoxelId::from(snow.default_state_id.0),
                 snow_layers_8: VoxelId::from(set(snow, snow.default_state_id, "layers", "8")?.0),
                 snow_states: resolver.block_mask("minecraft:snow")?,
@@ -1519,9 +1519,9 @@ fn compile_generator(
             valid_blocks: resolver.mask(StateQuery::Blocks(valid_blocks))?,
         }),
         Feature::MonsterRoom => Generator::MonsterRoom(Box::new(CompiledMonsterRoom {
-            cobblestone: resolver.default_state("minecraft:cobblestone")?,
-            mossy_cobblestone: resolver.default_state("minecraft:mossy_cobblestone")?,
-            spawner: resolver.default_state("minecraft:spawner")?,
+            cobblestone: resolver.default_state_of(keys::block::COBBLESTONE),
+            mossy_cobblestone: resolver.default_state_of(keys::block::MOSSY_COBBLESTONE),
+            spawner: resolver.default_state_of(keys::block::SPAWNER),
             chest_facing: missing(
                 horizontal_facings(resolver.blocks, "minecraft:chest"),
                 "minecraft:chest",
@@ -1531,8 +1531,8 @@ fn compile_generator(
             cannot_replace: resolver.tag_mask("minecraft:features_cannot_replace")?,
         })),
         Feature::BonusChest => Generator::BonusChest(CompiledBonusChest {
-            chest: resolver.default_state("minecraft:chest")?,
-            torch: resolver.default_state("minecraft:torch")?,
+            chest: resolver.default_state_of(keys::block::CHEST),
+            torch: resolver.default_state_of(keys::block::TORCH),
         }),
         Feature::Lake {
             fluid,
@@ -1549,7 +1549,7 @@ fn compile_generator(
                 resolver,
             )?,
             can_replace_with_barrier: compile_predicate(can_replace_with_barrier, resolver)?,
-            ice: resolver.default_state("minecraft:ice")?,
+            ice: resolver.default_state_of(keys::block::ICE),
             freezing_biomes: resolver.freezing_biomes(),
         })),
         Feature::Geode {
@@ -1682,7 +1682,7 @@ fn compile_generator(
             let dripstone = resolver.block_mask("minecraft:dripstone_block")?;
             let (column_radius_min, column_radius_max) = column_radius.bounds();
             Generator::LargeDripstone(Box::new(CompiledLargeDripstone {
-                dripstone: resolver.default_state("minecraft:dripstone_block")?,
+                dripstone: resolver.default_state_of(keys::block::DRIPSTONE_BLOCK),
                 column_edge: union_masks(&[&dripstone, &replaceable, &resolver.world.lava_states]),
                 floor_to_ceiling_search_range: floor_to_ceiling_search_range.0,
                 column_radius_min,
@@ -1711,7 +1711,7 @@ fn compile_generator(
                 supports_bamboo: resolver.tag_mask("minecraft:supports_bamboo")?,
                 beneath_podzol_replaceable: resolver
                     .tag_mask("minecraft:beneath_bamboo_podzol_replaceable")?,
-                podzol: resolver.default_state("minecraft:podzol")?,
+                podzol: resolver.default_state_of(keys::block::PODZOL),
                 trunk: stalk("none", "0")?,
                 final_large: stalk("large", "1")?,
                 top_large: stalk("large", "0")?,
@@ -1749,12 +1749,13 @@ fn compile_generator(
                 valid_base: resolver.block_mask(valid_base_block.name.as_str())?,
                 stem_state: resolver.resolve(stem_state)?,
                 hat_block: resolver.block_mask(hat_state.name.as_str())?,
-                place_vines: hat_state.name.as_str() == "minecraft:nether_wart_block",
+                place_vines: resolver.blocks.id_of(hat_state.name.as_str())
+                    == Some(keys::block::NETHER_WART_BLOCK),
                 hat_state: resolver.resolve(hat_state)?,
                 decor_state: resolver.resolve(decor_state)?,
                 replaceable_blocks: compile_predicate(replaceable_blocks, resolver)?,
                 planted: *planted,
-                weeping_vines_plant: resolver.default_state("minecraft:weeping_vines_plant")?,
+                weeping_vines_plant: resolver.default_state_of(keys::block::WEEPING_VINES_PLANT),
                 weeping_vines_by_age: [
                     VoxelId::from(set(weeping, weeping.default_state_id, "age", "23")?.0),
                     VoxelId::from(set(weeping, weeping.default_state_id, "age", "24")?.0),
@@ -1790,7 +1791,7 @@ fn compile_generator(
         Feature::Iceberg { state } => Generator::Iceberg(CompiledIceberg {
             state: resolver.resolve(state)?,
             ice_mask: resolver.block_mask("minecraft:ice")?,
-            snow_block: resolver.default_state("minecraft:snow_block")?,
+            snow_block: resolver.default_state_of(keys::block::SNOW_BLOCK),
             snow_block_mask: resolver.block_mask("minecraft:snow_block")?,
             snow_layer_mask: resolver.block_mask("minecraft:snow")?,
             iceberg_mask: resolver.blocks_mask(&[
@@ -1809,17 +1810,17 @@ fn compile_generator(
             can_replace: compile_predicate(can_replace, resolver)?,
         }),
         Feature::EndPlatform => Generator::EndPlatform(CompiledEndPlatform {
-            obsidian: resolver.default_state("minecraft:obsidian")?,
+            obsidian: resolver.default_state_of(keys::block::OBSIDIAN),
         }),
         Feature::VoidStartPlatform => Generator::VoidStartPlatform(CompiledVoidStartPlatform {
-            stone: resolver.default_state("minecraft:stone")?,
-            cobblestone: resolver.default_state("minecraft:cobblestone")?,
+            stone: resolver.default_state_of(keys::block::STONE),
+            cobblestone: resolver.default_state_of(keys::block::COBBLESTONE),
         }),
         Feature::EndPodium { active } => Generator::EndPodium(CompiledEndPodium {
             active: *active,
-            bedrock: resolver.default_state("minecraft:bedrock")?,
-            end_stone: resolver.default_state("minecraft:end_stone")?,
-            end_portal: resolver.default_state("minecraft:end_portal")?,
+            bedrock: resolver.default_state_of(keys::block::BEDROCK),
+            end_stone: resolver.default_state_of(keys::block::END_STONE),
+            end_portal: resolver.default_state_of(keys::block::END_PORTAL),
             wall_torch: missing(
                 horizontal_facings(resolver.blocks, "minecraft:wall_torch"),
                 "minecraft:wall_torch",
@@ -1828,11 +1829,11 @@ fn compile_generator(
         Feature::EndGateway { exit, exact } => Generator::EndGateway(CompiledEndGateway {
             exit: *exit,
             exact: *exact,
-            gateway: resolver.default_state("minecraft:end_gateway")?,
-            bedrock: resolver.default_state("minecraft:bedrock")?,
+            gateway: resolver.default_state_of(keys::block::END_GATEWAY),
+            bedrock: resolver.default_state_of(keys::block::BEDROCK),
         }),
         Feature::EndIsland => Generator::EndIsland(CompiledEndIsland {
-            end_stone: resolver.default_state("minecraft:end_stone")?,
+            end_stone: resolver.default_state_of(keys::block::END_STONE),
         }),
         Feature::EndSpikes { spikes, .. } => {
             let bars = resolver.block("minecraft:iron_bars")?;
@@ -1849,9 +1850,9 @@ fn compile_generator(
                 } else {
                     spikes.clone()
                 },
-                obsidian: resolver.default_state("minecraft:obsidian")?,
-                bedrock: resolver.default_state("minecraft:bedrock")?,
-                fire: resolver.default_state("minecraft:fire")?,
+                obsidian: resolver.default_state_of(keys::block::OBSIDIAN),
+                bedrock: resolver.default_state_of(keys::block::BEDROCK),
+                fire: resolver.default_state_of(keys::block::FIRE),
                 iron_bars,
             }))
         }
@@ -1952,7 +1953,7 @@ fn compile_generator(
                 multiface_states(resolver.blocks, "minecraft:sculk_vein"),
                 "minecraft:sculk_vein",
             )?,
-            sculk: resolver.default_state("minecraft:sculk")?,
+            sculk: resolver.default_state_of(keys::block::SCULK),
             sculk_states: resolver.block_mask("minecraft:sculk")?,
             blocks_vein: resolver.blocks_mask(&[
                 "minecraft:sculk",
@@ -2658,7 +2659,7 @@ impl<'a> Resolver<'a> {
     /// here so the corpus's seventy-five `simple_block` entries share one copy
     /// rather than each compiling its own.
     fn block_tables(&self) -> Compiled<BlockTables> {
-        let water = self.blocks.default_state("minecraft:water");
+        let water = self.blocks.default_state_of(keys::block::WATER);
         Ok(BlockTables {
             double_plants: double_plant_table(self.blocks),
             mossy_carpet: mossy_carpet_states(self)?,
@@ -2678,19 +2679,20 @@ impl<'a> Resolver<'a> {
             "minecraft:lava",
         ))));
         let block = |name: &str| self.block_mask(name).unwrap_or_default();
+        let water_fluid_id = self.blocks.fluid_id(keys::fluid::WATER.name());
         WorldStates {
-            air: self.default_state("minecraft:air").unwrap_or_default(),
-            cave_air: self.default_state("minecraft:cave_air").unwrap_or_default(),
-            water: self.default_state("minecraft:water").unwrap_or_default(),
-            lava: self.default_state("minecraft:lava").unwrap_or_default(),
+            air: self.default_state_of(keys::block::AIR),
+            cave_air: self.default_state_of(keys::block::CAVE_AIR),
+            water: self.default_state_of(keys::block::WATER),
+            lava: self.default_state_of(keys::block::LAVA),
             air_states: self.flag_mask(BlockStateFlags::IS_AIR),
             water_states: block("minecraft:water"),
             lava_states: block("minecraft:lava"),
             water_fluid: water.clone().unwrap_or_default(),
             water_source: self.state_mask(|state| {
-                state.fluid.is_some_and(|f| {
-                    f.source && self.blocks.fluid(f.fluid).as_str() == "minecraft:water"
-                })
+                state
+                    .fluid
+                    .is_some_and(|f| f.source && Some(f.fluid) == water_fluid_id)
             }),
             lava_fluid: lava.clone().unwrap_or_default(),
             any_source_fluid: self.state_mask(|state| state.fluid.is_some_and(|f| f.source)),
@@ -2739,6 +2741,10 @@ impl<'a> Resolver<'a> {
     pub fn blocks_mask(&self, names: &[&str]) -> Compiled<StateMask> {
         let ids = names.iter().map(|name| location(name)).collect();
         self.mask(StateQuery::Blocks(&HolderSet::List(ids)))
+    }
+
+    pub fn default_state_of(&self, block: Id<Block>) -> VoxelId {
+        VoxelId::from(self.blocks.default_state_of(block).0)
     }
 
     pub fn default_state(&self, block: &str) -> Compiled<VoxelId> {
