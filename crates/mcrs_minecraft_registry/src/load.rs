@@ -4,7 +4,7 @@ use crate::set::{Column, RegistrySet, Values};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use std::sync::Arc;
 type Name = ResourceLocation<Arc<str>>;
 type Failures = Vec<(usize, String)>;
 type Validator = Box<dyn Fn(&(dyn Any + Send + Sync), &RegistrySet) -> Failures + Send + Sync>;
-type Parse = fn(&[Option<&[u8]>]) -> Result<Column, Failures>;
+type Parse = fn(Vec<Input<'_>>) -> Result<Column, Failures>;
 type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<Result<String, serde_json::Error>>;
 type Check<T> = fn(&[T], &RegistrySet) -> Failures;
 
@@ -24,9 +24,56 @@ pub struct PackFile {
 pub struct Pack {
     pub name: String,
     pub files: Vec<PackFile>,
+    pub built: Vec<Built>,
+}
+
+type BuiltValue = Box<dyn Any + Send + Sync>;
+type Build = Box<dyn Fn(&RegistrySet) -> Result<Vec<BuiltValue>, Failures> + Send + Sync>;
+
+pub struct Built {
+    registry: ResourceLocation<&'static str>,
+    names: Vec<Name>,
+    files: Vec<String>,
+    value_type: TypeId,
+    value_name: &'static str,
+    build: Build,
+}
+
+impl Built {
+    pub fn new<T: Send + Sync + 'static>(
+        registry: ResourceLocation<&'static str>,
+        names: Vec<Name>,
+        build: fn(&RegistrySet) -> Result<Vec<T>, Failures>,
+    ) -> Self {
+        let expected = names.len();
+        Built {
+            registry,
+            files: names
+                .iter()
+                .map(|name| format!("{}.json", name.path()))
+                .collect(),
+            names,
+            value_type: TypeId::of::<T>(),
+            value_name: std::any::type_name::<T>(),
+            build: Box::new(move |set| {
+                let values = build(set)?;
+                assert_eq!(
+                    values.len(),
+                    expected,
+                    "the builder of {registry} returns one value per name"
+                );
+                Ok(values
+                    .into_iter()
+                    .map(|value| Box::new(value) as BuiltValue)
+                    .collect())
+            }),
+        }
+    }
 }
 
 struct Codec {
+    value_type: TypeId,
+    value_name: &'static str,
     parse: Parse,
     encode: Encode,
     validators: Vec<Validator>,
@@ -58,21 +105,43 @@ struct Flags {
     tags: bool,
 }
 
+enum Source<'a> {
+    File(Option<&'a [u8]>),
+    Built {
+        built: &'a Built,
+        index: usize,
+        label: &'a str,
+    },
+}
+
+enum Input<'a> {
+    File(Option<&'a [u8]>),
+    Built(BuiltValue),
+    Skipped,
+}
+
 fn parse_column<T: DeserializeOwned + Send + Sync + 'static>(
-    inputs: &[Option<&[u8]>],
+    inputs: Vec<Input<'_>>,
 ) -> Result<Column, Failures> {
     let mut values = Vec::with_capacity(inputs.len());
     let mut failures = Vec::new();
-    for (index, bytes) in inputs.iter().enumerate() {
-        match bytes {
-            None => failures.push((index, "the file has no content".to_owned())),
-            Some(bytes) => match serde_json::from_slice::<T>(bytes) {
+    let mut skipped = false;
+    for (index, input) in inputs.into_iter().enumerate() {
+        match input {
+            Input::File(None) => failures.push((index, "the file has no content".to_owned())),
+            Input::File(Some(bytes)) => match serde_json::from_slice::<T>(bytes) {
                 Ok(value) => values.push(value),
                 Err(error) => failures.push((index, error.to_string())),
             },
+            Input::Built(value) => values.push(
+                *value
+                    .downcast::<T>()
+                    .expect("a built value has the type its registry parses"),
+            ),
+            Input::Skipped => skipped = true,
         }
     }
-    if failures.is_empty() {
+    if failures.is_empty() && !skipped {
         Ok(Arc::new(Arc::<[T]>::from(values)))
     } else {
         Err(failures)
@@ -137,6 +206,8 @@ impl WorldRegistries {
         T: DeserializeOwned + Serialize + Send + Sync + 'static,
     {
         self.declaration(registry).codec = Some(Codec {
+            value_type: TypeId::of::<T>(),
+            value_name: std::any::type_name::<T>(),
             parse: parse_column::<T>,
             encode: encode_value::<T>,
             validators: Vec::new(),
@@ -195,6 +266,10 @@ impl WorldRegistries {
             tag_directories.insert(registry.path(), registry);
         }
 
+        let labels: Vec<String> = packs
+            .iter()
+            .map(|pack| format!("{} (built in)", pack.name))
+            .collect();
         let mut candidates: HashMap<&str, Vec<Candidate>> = HashMap::new();
         let mut tags: HashMap<Name, BTreeSet<Name>> = HashMap::new();
         for (pack, contents) in packs.iter().enumerate() {
@@ -237,7 +312,49 @@ impl WorldRegistries {
                             namespace,
                             pack: pack as u32,
                             path: &file.path,
-                            bytes: file.bytes.as_deref(),
+                            source: Source::File(file.bytes.as_deref()),
+                        });
+                }
+            }
+            for built in &contents.built {
+                let registry = Name::from(built.registry);
+                let directory = directory_of(&registry);
+                let Some((declared, declaration)) = self.declared.get_key_value(registry.as_str())
+                else {
+                    report.whole_registry(
+                        &registry,
+                        &directory,
+                        "built entries name a registry that is not a declared world registry",
+                    );
+                    continue;
+                };
+                let Some(codec) = &declaration.codec else {
+                    report.whole_registry(
+                        declared,
+                        &directory,
+                        "built entries name a registry that parses no values",
+                    );
+                    continue;
+                };
+                assert_eq!(
+                    built.value_type, codec.value_type,
+                    "built entries of {declared} are {} and the registry parses {}",
+                    built.value_name, codec.value_name
+                );
+                for (index, name) in built.names.iter().enumerate() {
+                    candidates
+                        .entry(declared.as_str())
+                        .or_default()
+                        .push(Candidate {
+                            file_name: &built.files[index],
+                            namespace: name.namespace(),
+                            pack: pack as u32,
+                            path: &labels[pack],
+                            source: Source::Built {
+                                built,
+                                index,
+                                label: &labels[pack],
+                            },
                         });
                 }
             }
@@ -252,6 +369,7 @@ impl WorldRegistries {
                     .cmp(b.file_name)
                     .then_with(|| a.namespace.cmp(b.namespace))
                     .then_with(|| a.pack.cmp(&b.pack))
+                    .then_with(|| a.is_built().cmp(&b.is_built()))
             });
 
             let mut names = Vec::new();
@@ -266,17 +384,18 @@ impl WorldRegistries {
                     kept.file_name == candidate.file_name && kept.namespace == candidate.namespace
                 });
                 if let Some(kept) = repeated {
+                    if kept.pack == candidate.pack && !kept.is_built() && candidate.is_built() {
+                        continue;
+                    }
                     // chisle: a pack may not redefine an entry of an earlier pack, where vanilla lets the later one win; stacking with override lifts this
                     report.entry(
                         registry,
                         &entry,
                         candidate.path,
                         format_args!(
-                            "defined by both {}/{} and {}/{}",
-                            packs[kept.pack as usize].name,
-                            kept.path,
-                            packs[candidate.pack as usize].name,
-                            candidate.path
+                            "defined by both {} and {}",
+                            kept.origin(packs),
+                            candidate.origin(packs)
                         ),
                     );
                     continue;
@@ -286,7 +405,18 @@ impl WorldRegistries {
                     Ok(name) => {
                         names.push(name);
                         origins.push(candidate.pack);
-                        inputs.push(candidate.bytes);
+                        inputs.push(match &candidate.source {
+                            Source::File(bytes) => Source::File(*bytes),
+                            Source::Built {
+                                built,
+                                index,
+                                label,
+                            } => Source::Built {
+                                built,
+                                index: *index,
+                                label,
+                            },
+                        });
                         paths.push(candidate.path);
                     }
                     Err(error) => report.entry(registry, &entry, candidate.path, error),
@@ -355,7 +485,7 @@ impl WorldRegistries {
                 let Some(codec) = loaded.codec else {
                     continue;
                 };
-                match (codec.parse)(&loaded.inputs) {
+                match (codec.parse)(loaded.inputs(&set, &mut report)) {
                     Ok(column) => {
                         for validator in &codec.validators {
                             for (index, message) in validator(&*column, &set) {
@@ -391,7 +521,20 @@ struct Candidate<'a> {
     namespace: &'a str,
     pack: u32,
     path: &'a str,
-    bytes: Option<&'a [u8]>,
+    source: Source<'a>,
+}
+
+impl Candidate<'_> {
+    fn is_built(&self) -> bool {
+        matches!(self.source, Source::Built { .. })
+    }
+
+    fn origin(&self, packs: &[Pack]) -> String {
+        match self.source {
+            Source::File(_) => format!("{}/{}", packs[self.pack as usize].name, self.path),
+            Source::Built { .. } => self.path.to_owned(),
+        }
+    }
 }
 
 struct Loaded<'a> {
@@ -399,11 +542,53 @@ struct Loaded<'a> {
     codec: Option<&'a Codec>,
     table: Arc<NameTable>,
     origins: Vec<u32>,
-    inputs: Vec<Option<&'a [u8]>>,
+    inputs: Vec<Source<'a>>,
     paths: Vec<&'a str>,
 }
 
-impl Loaded<'_> {
+impl<'a> Loaded<'a> {
+    fn inputs(&self, set: &RegistrySet, report: &mut LoadReport) -> Vec<Input<'a>> {
+        let mut outputs: HashMap<*const Built, Option<Vec<Option<BuiltValue>>>> = HashMap::new();
+        for source in &self.inputs {
+            let Source::Built { built, label, .. } = source else {
+                continue;
+            };
+            outputs
+                .entry(std::ptr::from_ref(*built))
+                .or_insert_with(|| match (built.build)(set) {
+                    Ok(values) => Some(values.into_iter().map(Some).collect()),
+                    Err(failures) => {
+                        for (index, message) in failures {
+                            report.entry(
+                                self.registry,
+                                built.names[index].as_str(),
+                                label,
+                                message,
+                            );
+                        }
+                        None
+                    }
+                });
+        }
+        self.inputs
+            .iter()
+            .map(|source| match source {
+                Source::File(bytes) => Input::File(*bytes),
+                Source::Built { built, index, .. } => {
+                    match outputs
+                        .get_mut(&std::ptr::from_ref(*built))
+                        .expect("every built of this registry was built")
+                    {
+                        Some(values) => {
+                            Input::Built(values[*index].take().expect("a built name takes one id"))
+                        }
+                        None => Input::Skipped,
+                    }
+                }
+            })
+            .collect()
+    }
+
     fn report(&self, report: &mut LoadReport, index: usize, message: impl fmt::Display) {
         let name = self
             .table
@@ -515,6 +700,7 @@ mod tests {
         Pack {
             name: name.to_owned(),
             files,
+            built: Vec::new(),
         }
     }
 
@@ -533,6 +719,63 @@ mod tests {
             .iter()
             .map(ToString::to_string)
             .collect()
+    }
+
+    fn name(text: &str) -> Name {
+        Name::read(text).unwrap()
+    }
+
+    type Builder = fn(&RegistrySet) -> Result<Vec<Variant>, Failures>;
+
+    fn built_variants(
+        registry: ResourceLocation<&'static str>,
+        names: &[&str],
+        build: Builder,
+    ) -> Built {
+        Built::new(
+            registry,
+            names.iter().map(|text| name(text)).collect(),
+            build,
+        )
+    }
+
+    fn next_is_c(set: &RegistrySet) -> Result<Vec<Variant>, Failures> {
+        let table = set.table(VARIANT).unwrap();
+        let next = Id::from_number(table.number("test:c").unwrap());
+        Ok(vec![Variant {
+            asset_id: "built".to_owned(),
+            next,
+        }])
+    }
+
+    fn first_entry(_: &RegistrySet) -> Result<Vec<Variant>, Failures> {
+        Ok(vec![Variant {
+            asset_id: "built".to_owned(),
+            next: Id::from_number(0),
+        }])
+    }
+
+    fn nothing(_: &RegistrySet) -> Result<Vec<Variant>, Failures> {
+        Ok(Vec::new())
+    }
+
+    fn refuses(_: &RegistrySet) -> Result<Vec<Variant>, Failures> {
+        Err(vec![(0, "no good".to_owned())])
+    }
+
+    fn built_one(name: &str, build: Builder) -> Pack {
+        built_pack(
+            "builtin",
+            vec![built_variants(Variant::KEY, &[name], build)],
+        )
+    }
+
+    fn built_pack(name: &str, built: Vec<Built>) -> Pack {
+        Pack {
+            name: name.to_owned(),
+            files: Vec::new(),
+            built,
+        }
     }
 
     fn marker_files(paths: &[&str]) -> Vec<Pack> {
@@ -870,20 +1113,46 @@ mod tests {
                 files.push(data("minecraft/test_variant/bad.json", "{"));
                 files.push(data("minecraft/test_linked/bad.json", r#"{"marker":2}"#));
             }
+            let mut packs = vec![
+                pack("vanilla", files),
+                built_pack(
+                    "first",
+                    vec![
+                        built_variants(Variant::KEY, &["minecraft:made", "a:made"], two_entries),
+                        built_variants(Variant::KEY, &["b:made"], first_entry),
+                    ],
+                ),
+                built_one("z:made", first_entry),
+            ];
             if reversed {
-                files.reverse();
+                packs.reverse();
+                packs[1].built.reverse();
             }
-            vec![pack("vanilla", files)]
+            packs
         }
 
-        fn snapshot(set: &RegistrySet) -> (Vec<String>, Vec<String>, Vec<usize>) {
-            let nexts = set
+        fn two_entries(_: &RegistrySet) -> Result<Vec<Variant>, Failures> {
+            Ok(["first", "second"]
+                .map(|asset_id| Variant {
+                    asset_id: asset_id.to_owned(),
+                    next: Id::from_number(1),
+                })
+                .into())
+        }
+
+        type Snapshot = (Vec<String>, Vec<String>, Vec<String>, Vec<Option<String>>);
+
+        fn snapshot(set: &RegistrySet) -> Snapshot {
+            let values = set
                 .column::<Variant>(VARIANT)
                 .unwrap()
                 .iter()
-                .map(|value| value.next.index())
+                .map(|value| format!("{}>{}", value.asset_id, value.next.index()))
                 .collect();
-            (names(set, VARIANT), names(set, MARKER), nexts)
+            let packs = (0..names(set, VARIANT).len())
+                .map(|id| set.pack_of(VARIANT, id).map(str::to_owned))
+                .collect();
+            (names(set, VARIANT), names(set, MARKER), values, packs)
         }
 
         let outcomes = [false, true].map(|reversed| {
@@ -893,7 +1162,166 @@ mod tests {
             )
         });
         assert_eq!(outcomes[0], outcomes[1]);
-        assert_eq!(outcomes[0].0.0.len(), 3);
+        assert_eq!(outcomes[0].0.0.len(), 7);
         assert_eq!(outcomes[0].1.lines().count(), 3, "{}", outcomes[0].1);
+    }
+
+    #[test]
+    fn a_built_entry_takes_the_id_of_the_file_it_stands_for() {
+        let packs = [
+            pack(
+                "files",
+                vec![
+                    variant("test/test_variant/c.json", "c", "test:a"),
+                    variant("test/test_variant/a.json", "a", "test:c"),
+                ],
+            ),
+            built_one("test:b", next_is_c),
+        ];
+        let set = load(&packs).unwrap();
+
+        assert_eq!(names(&set, VARIANT), ["test:a", "test:b", "test:c"]);
+        let values = set.column::<Variant>(VARIANT).unwrap();
+        assert_eq!(values[1].asset_id, "built");
+        assert_eq!(values[1].next.index(), 2);
+        assert_eq!(set.pack_of(VARIANT, 0), Some("files"));
+        assert_eq!(set.pack_of(VARIANT, 1), Some("builtin"));
+    }
+
+    #[test]
+    fn a_file_in_the_same_pack_replaces_a_built_entry() {
+        let same_pack = Pack {
+            built: vec![built_variants(Variant::KEY, &["test:b"], next_is_c)],
+            ..pack(
+                "files",
+                vec![
+                    variant("test/test_variant/b.json", "file", "test:c"),
+                    variant("test/test_variant/c.json", "c", "test:b"),
+                ],
+            )
+        };
+        let set = load(&[same_pack]).unwrap();
+        assert_eq!(names(&set, VARIANT), ["test:b", "test:c"]);
+        assert_eq!(set.column::<Variant>(VARIANT).unwrap()[0].asset_id, "file");
+        assert_eq!(set.pack_of(VARIANT, 0), Some("files"));
+    }
+
+    #[test]
+    fn a_built_entry_and_a_file_of_another_pack_are_refused() {
+        let packs = [
+            pack(
+                "files",
+                vec![
+                    variant("test/test_variant/b.json", "file", "test:c"),
+                    variant("test/test_variant/c.json", "c", "test:b"),
+                ],
+            ),
+            built_one("test:b", next_is_c),
+        ];
+        assert_eq!(
+            report(&packs),
+            "registry load failed: 1 errors in 1 registries\n\
+             minecraft:test_variant/test:b (builtin (built in)): \
+             defined by both files/test/test_variant/b.json and builtin (built in)"
+        );
+    }
+
+    #[test]
+    fn a_failing_builder_reports_into_the_one_report() {
+        let packs = [
+            built_one("test:b", refuses),
+            pack("files", vec![data("minecraft/test_variant/bad.json", "{")]),
+        ];
+        let text = report(&packs);
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3, "{text}");
+        assert_eq!(lines[0], "registry load failed: 2 errors in 1 registries");
+        assert!(
+            lines[1].starts_with(
+                "minecraft:test_variant/minecraft:bad (minecraft/test_variant/bad.json): "
+            ),
+            "{text}"
+        );
+        assert_eq!(
+            lines[2],
+            "minecraft:test_variant/test:b (builtin (built in)): no good"
+        );
+    }
+
+    #[test]
+    fn a_built_entry_for_a_registry_without_values_is_refused() {
+        let packs = [built_pack(
+            "builtin",
+            vec![built_variants(Marker::KEY, &["test:b"], first_entry)],
+        )];
+        assert_eq!(
+            report(&packs),
+            "registry load failed: 1 errors in 1 registries\n\
+             minecraft:test_marker (minecraft/test_marker/): \
+             built entries name a registry that parses no values"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "built entries of minecraft:test_linked")]
+    fn a_built_entry_of_the_wrong_type_is_a_programming_error() {
+        let packs = [built_pack(
+            "builtin",
+            vec![built_variants(Linked::KEY, &["test:b"], first_entry)],
+        )];
+        let _ = load(&packs);
+    }
+
+    #[test]
+    fn built_entries_satisfy_the_non_empty_rule() {
+        let mut registries = registries();
+        registries.non_empty(Variant::KEY);
+        let set = registries
+            .load(&RegistrySet::new(), &[built_one("test:b", first_entry)])
+            .unwrap();
+        assert_eq!(names(&set, VARIANT), ["test:b"]);
+        assert!(registries.load(&RegistrySet::new(), &[]).is_err());
+    }
+
+    #[test]
+    fn a_built_without_names_adds_nothing() {
+        let packs = [built_pack(
+            "builtin",
+            vec![built_variants(Variant::KEY, &[], nothing)],
+        )];
+        let set = load(&packs).unwrap();
+        assert!(names(&set, VARIANT).is_empty());
+        assert!(set.column::<Variant>(VARIANT).unwrap().is_empty());
+    }
+
+    #[test]
+    fn loading_twice_gives_equal_sets() {
+        let registries = registries();
+        let packs = [
+            pack(
+                "files",
+                vec![
+                    variant("test/test_variant/a.json", "a", "test:c"),
+                    variant("test/test_variant/c.json", "c", "test:a"),
+                    names_only("minecraft/test_marker/one.json"),
+                ],
+            ),
+            built_one("test:b", next_is_c),
+        ];
+        let [first, second] =
+            [(); 2].map(|()| registries.load(&RegistrySet::new(), &packs).unwrap());
+        for registry in [VARIANT, MARKER, LINKED] {
+            assert_eq!(names(&first, registry), names(&second, registry));
+            for id in 0..names(&first, registry).len() {
+                assert_eq!(first.pack_of(registry, id), second.pack_of(registry, id));
+                let encoded = |set: &RegistrySet| {
+                    registries
+                        .encode(set, registry, id)
+                        .map(|text| text.unwrap())
+                };
+                assert_eq!(encoded(&first), encoded(&second));
+            }
+        }
+        assert_eq!(names(&first, VARIANT).len(), 3);
     }
 }
