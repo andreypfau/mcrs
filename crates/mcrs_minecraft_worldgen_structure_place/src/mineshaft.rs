@@ -97,7 +97,7 @@ impl MineshaftBlocks {
             Oriented::named(world, blocks, block, properties)
         };
         let unstable =
-            ResourceLocation::parse("minecraft:unstable_bottom_center").expect("a literal id");
+            ResourceLocation::read("minecraft:unstable_bottom_center").expect("a literal id");
         let unstable = states_of(blocks, StateQuery::BlockTag(&unstable))?;
         let mut chain_support = FixedBitSet::clone(&world.center_down);
         chain_support.difference_with(&unstable);

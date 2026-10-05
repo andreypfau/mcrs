@@ -113,7 +113,7 @@ impl ReceivedRegistries {
         self.1.declare(&key);
         for (id, entry) in (0..=u16::MAX).zip(&registry.entries) {
             self.1
-                .insert(&key, id, ResourceLocation::parse(&entry.id).ok());
+                .insert(&key, id, ResourceLocation::read(&entry.id).ok());
         }
         self.0.push(registry);
     }
@@ -826,6 +826,7 @@ mod tests {
 #[cfg(test)]
 mod lookup_tests {
     use super::*;
+    use mcrs_minecraft_core::rl;
 
     #[test]
     fn offline_player_uuid_matches_vanilla() {
@@ -846,7 +847,7 @@ mod lookup_tests {
             registry: "minecraft:enchantment".to_owned(),
             entries: vec![entry("minecraft:sharpness"), entry("minecraft:unbreaking")],
         });
-        let unbreaking = ResourceLocation::minecraft("unbreaking");
+        let unbreaking = rl!("minecraft:unbreaking").to_arc();
         assert_eq!(registries.id("enchantment", &unbreaking), Some(1));
         assert_eq!(registries.name("enchantment", 1), Some(&unbreaking));
         assert_eq!(registries.name("enchantment", 2), None);
@@ -858,7 +859,7 @@ mod lookup_tests {
         });
         assert_eq!(
             registries.name("damage_type", 0),
-            Some(&ResourceLocation::minecraft("lava"))
+            Some(&rl!("minecraft:lava").to_arc())
         );
     }
 
@@ -881,7 +882,7 @@ mod lookup_tests {
             entries: Vec::new(),
         });
         let lookup = server.over(&local);
-        let a = ResourceLocation::minecraft("a");
+        let a = rl!("minecraft:a").to_arc();
         assert_eq!(lookup.name("enchantment", 0), None);
         assert_eq!(lookup.id("enchantment", &a), None);
         assert_eq!(lookup.name("item", 0), Some(&a));

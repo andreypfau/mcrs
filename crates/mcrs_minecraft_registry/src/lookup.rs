@@ -125,6 +125,7 @@ mod tests {
     use super::*;
     use crate::RegistrySet;
     use crate::static_report::from_report;
+    use mcrs_minecraft_core::rl;
     use std::sync::LazyLock;
 
     static REPORT: LazyLock<Vec<u8>> = LazyLock::new(|| {
@@ -150,7 +151,7 @@ mod tests {
             let mut sampled = 0;
             for (name, entry) in entries.iter().step_by(entries.len() / 7 + 1) {
                 let stated = u16::try_from(entry["protocol_id"].as_u64().unwrap()).unwrap();
-                let location = ResourceLocation::parse(name).unwrap();
+                let location = ResourceLocation::read(name).unwrap();
                 assert_eq!(
                     SET.id(registry, &location),
                     Some(stated),
@@ -164,11 +165,11 @@ mod tests {
                 sampled += 1;
             }
             assert!(sampled >= 5, "{registry}");
-            let absent = ResourceLocation::minecraft("not_an_entry");
+            let absent = rl!("minecraft:not_an_entry").to_arc();
             assert_eq!(SET.id(registry, &absent), None);
             assert_eq!(SET.name(registry, u16::MAX), None);
         }
-        let stone = ResourceLocation::minecraft("stone");
+        let stone = rl!("minecraft:stone").to_arc();
         assert_eq!(SET.id("minecraft:item", &stone), None);
         assert_eq!(SET.id("no_such_registry", &stone), None);
         assert_eq!(SET.name("no_such_registry", 0), None);

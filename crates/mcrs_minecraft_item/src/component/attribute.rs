@@ -91,7 +91,7 @@ impl Sample for AttributeModifiers {
         let entry = |path: &str, id: &str, amount: f64, operation, slot, display| AttributeEntry {
             attribute: key(path),
             modifier: AttributeModifierValue {
-                id: ResourceLocation::new("mcrs", id),
+                id: ResourceLocation::new("mcrs", id).unwrap(),
                 amount,
                 operation,
             },

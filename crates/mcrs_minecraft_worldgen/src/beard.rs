@@ -610,7 +610,7 @@ mod tests {
     ) -> BeardifierPlacement {
         let registry = registry
             .iter()
-            .map(|(id, holder)| (ResourceLocation::minecraft(id), holder.clone()))
+            .map(|(id, holder)| (ResourceLocation::minecraft(id).unwrap(), holder.clone()))
             .collect();
         beardifier_placement(&root, &registry)
     }

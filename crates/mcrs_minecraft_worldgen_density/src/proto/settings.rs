@@ -1,4 +1,5 @@
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -31,8 +32,8 @@ impl BlockState {
         }
     }
 
-    pub fn minecraft(name: &str) -> Self {
-        Self::bare(ResourceLocation::minecraft(name))
+    pub fn minecraft(name: &str) -> Result<Self, InvalidResourceLocation> {
+        Ok(Self::bare(ResourceLocation::minecraft(name)?))
     }
 
     pub fn with(mut self, property: &str, value: &str) -> Self {

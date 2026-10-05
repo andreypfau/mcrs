@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation, rl};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
@@ -46,12 +46,12 @@ fn name_key(mode: GameMode) -> &'static str {
     }
 }
 
-fn icon_item(mode: GameMode) -> &'static str {
+fn icon_item(mode: GameMode) -> StaticResourceLocation {
     match mode {
-        GameMode::Creative => "grass_block",
-        GameMode::Survival => "iron_sword",
-        GameMode::Adventure => "buried_treasure_map",
-        GameMode::Spectator => "ender_eye",
+        GameMode::Creative => rl!("minecraft:grass_block"),
+        GameMode::Survival => rl!("minecraft:iron_sword"),
+        GameMode::Adventure => rl!("minecraft:buried_treasure_map"),
+        GameMode::Spectator => rl!("minecraft:ender_eye"),
     }
 }
 
@@ -125,7 +125,7 @@ fn spawn_icons(world: &mut World) {
     let known = ICONS.iter().all(|&mode| {
         items
             .iter()
-            .any(|entry| entry.identifier == ResourceLocation::minecraft(icon_item(mode)))
+            .any(|entry| entry.identifier == icon_item(mode))
     });
     if !known {
         warn!("an item the game mode switcher shows is missing from the item corpus");
@@ -136,7 +136,7 @@ fn spawn_icons(world: &mut World) {
         .enumerate()
         .map(|(index, &mode)| Op::Spawn {
             value: ItemStackValue {
-                item: ResourceKey::from_location(ResourceLocation::minecraft(icon_item(mode))),
+                item: ResourceKey::from_location(icon_item(mode).to_arc()),
                 count: Bounded(1),
                 components: ComponentPatch::EMPTY,
             },

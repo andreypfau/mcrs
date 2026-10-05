@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
@@ -94,7 +94,7 @@ pub fn noises() -> impl Iterator<Item = (ResourceLocation, NoiseParam)> {
     ]
     .into_iter()
     .map(|(name, base_octave, octave_count)| {
-        let id = ResourceLocation::new("mcrs", &format!("beta/{name}"));
+        let id = ResourceLocation::new("mcrs", &format!("beta/{name}")).expect("a hardcoded name");
         (id, NoiseParam::uniform(base_octave, octave_count))
     })
 }
@@ -111,16 +111,16 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
         )
     };
     let settings = NoiseGeneratorSettings {
-        default_block: Some(BlockState::minecraft("stone")),
+        default_block: Some(BlockState::bare(rl!("minecraft:stone").to_arc())),
         disable_mob_generation: true,
         legacy_random_source: true,
         ..NoiseGeneratorSettings::new(
             NoiseSettings::new(0, 128),
-            BlockState::minecraft("water").with("level", "0"),
+            BlockState::bare(rl!("minecraft:water").to_arc()).with("level", "0"),
             router,
-            ResourceLocation::minecraft("overworld"),
+            rl!("minecraft:overworld").to_arc(),
             64,
         )
     };
-    (ResourceLocation::minecraft("beta"), settings)
+    (rl!("minecraft:beta").to_arc(), settings)
 }

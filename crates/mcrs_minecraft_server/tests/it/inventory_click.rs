@@ -7,10 +7,9 @@ use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::tag_key::TagKey;
+use mcrs_minecraft_core::{BlockPos, rl};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
@@ -341,7 +340,7 @@ fn a_claim_hashing_a_component_that_names_a_block_tag_is_agreed_with() {
         .tags::<Block>()
         .unwrap()
         .get(&TagKey::<Block, _>::from_location(
-            ResourceLocation::minecraft("mineable/pickaxe"),
+            rl!("minecraft:mineable/pickaxe").to_arc(),
         ))
         .unwrap();
     let mut tagged = value("iron_sword", 1);

@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -43,7 +43,7 @@ fn parameter_lists() -> (
     Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
     let names =
-        Registry::new(Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()))
+        Registry::new(Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()))
             .unwrap();
     let lists = Entries::new(
         &names,
@@ -67,7 +67,7 @@ fn biome_ids() -> HashMap<String, u16> {
 fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft("overworld"),
+        &rl!("minecraft:overworld").to_arc(),
     );
     let mut numbered: Vec<(u16, &str)> =
         ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
@@ -100,7 +100,7 @@ fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, Mater
 }
 
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = ResourceLocation::parse(biome).expect("a biome id");
+    let id = ResourceLocation::read(biome).expect("a biome id");
     let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
     mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
         .iter()
@@ -140,7 +140,7 @@ fn main() {
     let biomes = Registry::<keys::Biome>::new(
         numbered
             .into_iter()
-            .map(|(_, name)| ResourceLocation::parse(name).unwrap()),
+            .map(|(_, name)| ResourceLocation::read(name).unwrap()),
     )
     .unwrap();
     let (list_names, lists) = parameter_lists();

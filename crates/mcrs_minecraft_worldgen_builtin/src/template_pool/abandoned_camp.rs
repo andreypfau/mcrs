@@ -59,7 +59,7 @@ fn pool(elements: impl IntoIterator<Item = PoolElement>) -> TemplatePool {
 }
 
 fn legacy(location: String) -> PoolElement {
-    let location = ResourceLocation::minecraft(&location);
+    let location = ResourceLocation::minecraft(&location).expect("a hardcoded name");
     PoolElement::LegacySingle(SingleElement::new(location, None, Rigid))
 }
 
@@ -101,7 +101,7 @@ pub fn keys() -> impl Iterator<Item = ResourceLocation> {
     });
     trees
         .chain(campsites)
-        .map(|name| ResourceLocation::minecraft(&name))
+        .map(|name| ResourceLocation::minecraft(&name).expect("a hardcoded name"))
 }
 
 pub fn all() -> impl Iterator<Item = (ResourceLocation, TemplatePool)> {

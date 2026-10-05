@@ -126,15 +126,15 @@ fn processors(
     p: &PortalProperties,
     features_cannot_replace: &HolderSet<keys::Block>,
 ) -> Vec<StructureProcessor> {
-    let block = BlockState::minecraft;
+    let block = |name: &str| BlockState::minecraft(name).expect("a hardcoded block name");
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
-                block: ResourceLocation::minecraft(source),
+                block: ResourceLocation::minecraft(source).expect("a hardcoded block name"),
                 probability,
             },
             None => RuleTest::BlockMatch {
-                block: ResourceLocation::minecraft(source),
+                block: ResourceLocation::minecraft(source).expect("a hardcoded block name"),
             },
         },
         location_predicate: RuleTest::AlwaysTrue,

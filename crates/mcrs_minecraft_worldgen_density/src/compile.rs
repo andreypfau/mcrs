@@ -1243,6 +1243,7 @@ enum Key {
 #[cfg(test)]
 pub(crate) mod tests {
     use mcrs_minecraft_chunk::VoxelId;
+    use mcrs_minecraft_core::rl;
     pub(crate) const TEST_BLOCKS: RouterBlocks = RouterBlocks {
         default_block: VoxelId(1),
         default_fluid: VoxelId(2),
@@ -1634,7 +1635,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
             "noise_settings",
-            &ResourceLocation::minecraft("overworld"),
+            &rl!("minecraft:overworld").to_arc(),
         );
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
@@ -1661,7 +1662,7 @@ pub(crate) mod tests {
         let (functions, noises) = corpus();
         let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
             "noise_settings",
-            &ResourceLocation::minecraft("overworld"),
+            &rl!("minecraft:overworld").to_arc(),
         );
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
@@ -1692,10 +1693,8 @@ pub(crate) mod tests {
     #[test]
     fn the_end_islands_slice_pins_y_to_zero() {
         let (functions, noises) = corpus();
-        let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-            "noise_settings",
-            &ResourceLocation::minecraft("end"),
-        );
+        let settings: NoiseGeneratorSettings =
+            mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_arc());
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(1, 32, 1), IVec3::new(-25, 0, -25));
@@ -1720,10 +1719,8 @@ pub(crate) mod tests {
     #[test]
     fn the_end_final_density_is_a_real_field() {
         let (functions, noises) = corpus();
-        let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
-            "noise_settings",
-            &ResourceLocation::minecraft("end"),
-        );
+        let settings: NoiseGeneratorSettings =
+            mcrs_minecraft_worldgen_testing::read("noise_settings", &rl!("minecraft:end").to_arc());
         let router = build_router(&settings, &functions, &noises, 42, TEST_BLOCKS).unwrap();
 
         let volume = SampleGrid::dense(IVec3::new(8, 32, 8), IVec3::new(-32, 0, -32));

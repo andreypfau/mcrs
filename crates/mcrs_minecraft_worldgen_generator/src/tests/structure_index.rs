@@ -50,7 +50,7 @@ fn overworld() -> StructureIndex {
 }
 
 fn set(id: &str) -> SetId {
-    frozen_shared().set_ids[&ResourceLocation::parse(id).unwrap()]
+    frozen_shared().set_ids[&ResourceLocation::read(id).unwrap()]
 }
 
 fn outward() -> impl Iterator<Item = (i32, i32)> {
@@ -104,8 +104,7 @@ fn the_nearest_village_cell_yields_a_start(index: &StructureIndex) {
 fn locate_answers_the_nearest_stronghold_ring_position(index: &StructureIndex) {
     let frozen = frozen_shared();
     let strongholds = set("minecraft:strongholds");
-    let stronghold =
-        frozen.structure_ids[&ResourceLocation::parse("minecraft:stronghold").unwrap()];
+    let stronghold = frozen.structure_ids[&ResourceLocation::read("minecraft:stronghold").unwrap()];
     let origin = IVec3::new(0, 64, 0);
     let (found, structure) = index
         .locate(origin, &[stronghold])
@@ -172,7 +171,7 @@ mod exhaustive {
             384,
         );
         let village =
-            frozen.structure_ids[&ResourceLocation::parse("minecraft:village_plains").unwrap()];
+            frozen.structure_ids[&ResourceLocation::read("minecraft:village_plains").unwrap()];
         let chunk = ColumnPos::new(-31, 72);
         let (_, start) = index
             .starts_reaching(chunk)

@@ -150,7 +150,7 @@ pub(crate) mod testing {
     pub fn local_biomes(names: &[&str]) -> RegistrySet {
         let names = names
             .iter()
-            .map(|name| ResourceLocation::<Arc<str>>::parse(name).unwrap());
+            .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         RegistrySet::new()
             .with(Registry::<keys::Biome>::new(names).unwrap())
             .unwrap()

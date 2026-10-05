@@ -153,7 +153,7 @@ mod tests {
         Registry::new(
             names
                 .iter()
-                .map(|name| ResourceLocation::<Arc<str>>::parse(name).unwrap()),
+                .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
         )
         .unwrap()
     }

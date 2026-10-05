@@ -3,8 +3,8 @@ use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BoundingBox, Direction};
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
@@ -119,8 +119,8 @@ pub struct VillagerData {
 impl Default for VillagerData {
     fn default() -> Self {
         VillagerData {
-            kind: ResourceLocation::minecraft("plains"),
-            profession: ResourceLocation::minecraft("none"),
+            kind: rl!("minecraft:plains").to_arc(),
+            profession: rl!("minecraft:none").to_arc(),
             level: 1,
         }
     }
@@ -363,7 +363,7 @@ impl std::str::FromStr for PaletteState {
             Some((id, rest)) => (id, Some(rest)),
             None => (text, None),
         };
-        let id = ResourceLocation::parse(id.trim()).map_err(|e| e.to_string())?;
+        let id = ResourceLocation::read(id.trim()).map_err(|e| e.to_string())?;
         let Some(rest) = rest else {
             return Ok(PaletteState {
                 id,
@@ -407,8 +407,8 @@ fn int_or_zero(nbt: &NbtCompound, key: &str) -> Result<i32, String> {
 
 fn id_or_empty(nbt: &NbtCompound, key: &str) -> Result<ResourceLocation, String> {
     match nbt.get_string(key) {
-        Some(text) => ResourceLocation::parse(text).map_err(|e| format!("{key}: {e}")),
-        None => Ok(ResourceLocation::minecraft("empty")),
+        Some(text) => ResourceLocation::read(text).map_err(|e| format!("{key}: {e}")),
+        None => Ok(rl!("minecraft:empty").to_arc()),
     }
 }
 
@@ -733,7 +733,7 @@ mod tests {
 
     fn state(id: &str, properties: &[(&str, &str)]) -> PaletteState {
         PaletteState {
-            id: ResourceLocation::parse(id).unwrap(),
+            id: ResourceLocation::read(id).unwrap(),
             properties: (!properties.is_empty()).then(|| {
                 properties
                     .iter()
@@ -788,7 +788,7 @@ mod tests {
     }
 
     fn id() -> ResourceLocation {
-        ResourceLocation::minecraft("test")
+        rl!("minecraft:test").to_arc()
     }
 
     #[test]
@@ -898,7 +898,7 @@ mod tests {
         let (_, manifest) = t.freeze(&id(), &resolve).unwrap();
         let jigsaws = &manifest.jigsaws[0];
         assert_eq!(jigsaws.len(), 3);
-        let empty = ResourceLocation::minecraft("empty");
+        let empty = rl!("minecraft:empty").to_arc();
         assert_eq!(
             jigsaws[0],
             JigsawBlock {
@@ -921,9 +921,9 @@ mod tests {
                 front: Direction::North,
                 top: Direction::Up,
                 joint: Joint::Rollable,
-                name: ResourceLocation::minecraft("a"),
-                pool: ResourceLocation::minecraft("b"),
-                target: ResourceLocation::minecraft("c"),
+                name: rl!("minecraft:a").to_arc(),
+                pool: rl!("minecraft:b").to_arc(),
+                target: rl!("minecraft:c").to_arc(),
                 placement_priority: 2,
                 selection_priority: 3,
                 final_state: Some(
@@ -1129,10 +1129,10 @@ mod tests {
         );
         assert_eq!(
             what(&jigsaw(
-                Some(jigsaw_nbt(&[("pool", s("nocolon"))])),
+                Some(jigsaw_nbt(&[("pool", s("Pool"))])),
                 &[("orientation", "north_up")]
             )),
-            "pool: missing ':' separator in ResourceLocation: \"nocolon\""
+            "pool: Not a valid resource location: Pool Non [a-z0-9/._-] character in path of location: minecraft:Pool"
         );
         assert_eq!(
             what(&jigsaw(
@@ -1276,8 +1276,8 @@ mod tests {
                     rotation: [90.0, -5.0],
                     kind: EntityKind::Villager {
                         data: VillagerData {
-                            kind: ResourceLocation::minecraft("plains"),
-                            profession: ResourceLocation::minecraft("cleric"),
+                            kind: rl!("minecraft:plains").to_arc(),
+                            profession: rl!("minecraft:cleric").to_arc(),
                             level: 2,
                         },
                     },
@@ -1313,13 +1313,17 @@ mod tests {
         assert_eq!(
             "minecraft:stone[]".parse::<PaletteState>().unwrap(),
             PaletteState {
-                id: ResourceLocation::minecraft("stone"),
+                id: rl!("minecraft:stone").to_arc(),
                 properties: Some(BTreeMap::new())
             }
         );
         assert!("minecraft:stone[a=1,a=2]".parse::<PaletteState>().is_err());
         assert!("minecraft:stone[a]".parse::<PaletteState>().is_err());
-        assert!("stone".parse::<PaletteState>().is_err());
+        assert!("Stone".parse::<PaletteState>().is_err());
+        assert_eq!(
+            "stone".parse::<PaletteState>().unwrap().id,
+            rl!("minecraft:stone")
+        );
     }
 
     #[test]
@@ -1524,7 +1528,10 @@ mod tests {
             for (path, bytes) in templates() {
                 let template: Template = from_gzip_bytes(Cursor::new(bytes)).unwrap();
                 let (frozen, _) = template
-                    .freeze(&ResourceLocation::minecraft(&path.to_string_lossy()), &any)
+                    .freeze(
+                        &ResourceLocation::minecraft(&path.to_string_lossy()).unwrap(),
+                        &any,
+                    )
                     .unwrap_or_else(|e| panic!("{e}"));
                 count += frozen.entities.len();
                 found.extend(frozen.entities.iter().map(|e| {

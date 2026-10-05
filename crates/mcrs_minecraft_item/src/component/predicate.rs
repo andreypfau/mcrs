@@ -1,6 +1,6 @@
 use std::fmt;
 
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys::{
     Attribute, Block, Enchantment, Item, JukeboxSong, MobEffect, Potion, TrimMaterial, TrimPattern,
     VillagerType,
@@ -1028,7 +1028,7 @@ fn sample_matchers() -> DataComponentMatchers {
                         contains: Some(vec![
                             AttributeModifierPredicate {
                                 attribute: Some(one_set("attack_damage")),
-                                id: Some(ResourceLocation::minecraft("base_attack_damage")),
+                                id: Some(rl!("minecraft:base_attack_damage").to_arc()),
                                 amount: MinMaxBounds {
                                     min: Some(1.5),
                                     max: None,

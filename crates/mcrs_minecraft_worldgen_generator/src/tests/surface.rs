@@ -10,7 +10,7 @@ use crate::{
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -169,7 +169,7 @@ pub fn overworld_material_router(
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft("overworld"),
+        &rl!("minecraft:overworld").to_arc(),
     );
     let set = corpus_over(ids);
     let rules: BTreeMap<ResourceLocation, MaterialRuleHolder> = registry_in(&set, "material_rule");

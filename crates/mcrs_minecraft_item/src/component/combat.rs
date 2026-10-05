@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_keys::{DamageType, sound_event};
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
@@ -279,7 +279,7 @@ impl Sample for BlocksAttacks {
                 bypassed_by: Some(one_set("in_fire")),
                 block_sound: Some(item_break()),
                 disable_sound: Some(Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "off"),
+                    sound_id: rl!("mcrs:off").to_arc(),
                     range: None,
                 })),
             },
@@ -304,7 +304,7 @@ impl Sample for PiercingWeapon {
                 dismounts: true,
                 sound: Some(item_break()),
                 hit_sound: Some(Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "hit"),
+                    sound_id: rl!("mcrs:hit").to_arc(),
                     range: Some(4.0),
                 })),
             },

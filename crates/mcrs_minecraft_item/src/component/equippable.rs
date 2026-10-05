@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::default_true;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys::{EntityType, sound_event};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registry::HolderSet;
@@ -205,8 +205,8 @@ impl Sample for Equippable {
             Equippable {
                 slot: EquipmentSlot::OffHand,
                 equip_sound: Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_IRON),
-                asset_id: Some(ResourceLocation::minecraft("iron")),
-                camera_overlay: Some(ResourceLocation::minecraft("misc/pumpkinblur")),
+                asset_id: Some(rl!("minecraft:iron").to_arc()),
+                camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_arc()),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),
                 dispensable: false,
                 swappable: false,
@@ -214,7 +214,7 @@ impl Sample for Equippable {
                 equip_on_interact: true,
                 can_be_sheared: true,
                 shearing_sound: Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "snip"),
+                    sound_id: rl!("mcrs:snip").to_arc(),
                     range: Some(3.5),
                 }),
             },
@@ -224,7 +224,7 @@ impl Sample for Equippable {
             },
             Equippable {
                 equip_sound: Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "equip"),
+                    sound_id: rl!("mcrs:equip").to_arc(),
                     range: None,
                 }),
                 allowed_entities: Some(one_set("pig")),

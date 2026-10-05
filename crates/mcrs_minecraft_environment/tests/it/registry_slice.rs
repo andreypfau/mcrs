@@ -99,7 +99,7 @@ fn name_of(dir: &str, file: &Path) -> ResourceLocation<Arc<str>> {
         .strip_prefix(corpus(dir))
         .expect("a corpus file is under its directory")
         .with_extension("");
-    ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
+    ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/")).unwrap()
 }
 
 fn names(dir: &str) -> Vec<ResourceLocation<Arc<str>>> {

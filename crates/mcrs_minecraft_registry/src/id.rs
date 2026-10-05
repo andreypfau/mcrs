@@ -242,7 +242,7 @@ mod tests {
     }
 
     fn names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {
-        (0..len).map(|n| ResourceLocation::<Arc<str>>::parse(&format!("minecraft:n{n}")).unwrap())
+        (0..len).map(|n| ResourceLocation::<Arc<str>>::read(&format!("minecraft:n{n}")).unwrap())
     }
 
     fn registry_of(len: usize) -> Registry<Wide> {

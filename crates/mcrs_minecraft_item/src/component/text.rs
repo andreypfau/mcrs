@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::book::size_limited;
@@ -94,8 +94,8 @@ macro_rules! location_newtype {
 
             fn samples() -> Vec<Self> {
                 vec![
-                    $ty(ResourceLocation::minecraft("stone")),
-                    $ty(ResourceLocation::new("custom", "style/dir")),
+                    $ty(rl!("minecraft:stone").to_arc()),
+                    $ty(rl!("custom:style/dir").to_arc()),
                 ]
             }
         }

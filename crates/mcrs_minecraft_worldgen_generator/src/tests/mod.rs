@@ -144,8 +144,8 @@ pub fn one_step(entries: Vec<Arc<CompiledPlacedFeature>>, biome: &str) -> Featur
             steps: vec![entries],
             per_biome: vec![vec![carried]],
         },
-        biome_order: vec![ResourceLocation::parse(biome).unwrap()],
-        climate: BTreeMap::from([(ResourceLocation::parse(biome).unwrap(), TEMPERATE)]),
+        biome_order: vec![ResourceLocation::read(biome).unwrap()],
+        climate: BTreeMap::from([(ResourceLocation::read(biome).unwrap(), TEMPERATE)]),
     }
 }
 
@@ -285,7 +285,7 @@ pub fn ordered_biome_registry(names: &[&str]) -> Registry<keys::Biome> {
     Registry::new(
         names
             .iter()
-            .map(|name| ResourceLocation::parse(name).expect("a biome name")),
+            .map(|name| ResourceLocation::read(name).expect("a biome name")),
     )
     .expect("a registry of distinct names")
 }
@@ -417,7 +417,7 @@ pub fn beta_carver_table(
 /// The program every biome of a Beta `registry` runs: the shipped populate step,
 /// alone in its one step.
 pub fn beta_populate_program(registry: &Registry<keys::Biome>, seed: i64) -> FeatureProgram {
-    let id = ResourceLocation::parse("minecraft:beta_populate").unwrap();
+    let id = ResourceLocation::read("minecraft:beta_populate").unwrap();
     let entry = Arc::new(CompiledPlacedFeature {
         placed: corpus_features().placed_features[&id].clone(),
         id: Some(id),

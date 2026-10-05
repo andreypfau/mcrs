@@ -109,7 +109,7 @@ mod exhaustive {
         let mut compared = 0;
         let mut pieces = 0;
         for case in &dump {
-            let id = frozen.structure_ids[&ResourceLocation::parse(&case.structure).unwrap()];
+            let id = frozen.structure_ids[&ResourceLocation::read(&case.structure).unwrap()];
             let label = format!(
                 "seed {} {} {} at {:?}",
                 case.seed, case.dimension, case.structure, case.chunk

@@ -1,5 +1,5 @@
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
@@ -44,11 +44,11 @@ pub fn sound_holder_samples() -> Vec<Holder<SoundEvent>> {
     vec![
         Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK),
         Holder::Direct(SoundEvent {
-            sound_id: ResourceLocation::new("mcrs", "custom"),
+            sound_id: rl!("mcrs:custom").to_arc(),
             range: None,
         }),
         Holder::Direct(SoundEvent {
-            sound_id: ResourceLocation::new("mcrs", "custom"),
+            sound_id: rl!("mcrs:custom").to_arc(),
             range: Some(12.5),
         }),
     ]

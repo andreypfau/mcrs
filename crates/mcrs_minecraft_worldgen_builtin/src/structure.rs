@@ -75,7 +75,7 @@ fn listed() -> impl Iterator<Item = &'static Entry> {
 }
 
 pub fn keys() -> impl Iterator<Item = ResourceLocation> {
-    listed().map(|(name, ..)| ResourceLocation::minecraft(name))
+    listed().map(|(name, ..)| ResourceLocation::minecraft(name).expect("a hardcoded name"))
 }
 
 pub fn build(id: &ResourceLocation) -> Option<Template> {

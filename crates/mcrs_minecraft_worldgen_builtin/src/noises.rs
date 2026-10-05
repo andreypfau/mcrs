@@ -75,7 +75,10 @@ pub fn noises() -> BTreeMap<ResourceLocation, NoiseParam> {
         .iter()
         .map(|(name, octave, amplitudes)| {
             let noise = NoiseParam::parity(*octave, amplitudes);
-            (ResourceLocation::minecraft(name), noise)
+            (
+                ResourceLocation::minecraft(name).expect("a hardcoded name"),
+                noise,
+            )
         })
         .collect()
 }

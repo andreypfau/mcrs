@@ -249,7 +249,7 @@ pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
 }
 
 pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
-    ResourceKey::from_location(ResourceLocation::minecraft(path))
+    ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
 /// Vanilla writes a one-entry set as the bare entry unless it is told to
@@ -283,14 +283,14 @@ impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for Folded<'_, R, ALWAYS
 }
 
 pub fn entry<R: RegistryKey>(path: &str) -> Id<R> {
-    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path));
+    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path).unwrap());
     Registry::<R>::in_scope("a sample entry", |registry| registry.require(&key))
         .unwrap_or_else(|error| panic!("{error}"))
         .unwrap_or_else(|error| panic!("{error}"))
 }
 
 pub fn tag_set<R: RegistryKey, const ALWAYS_LIST: bool>(path: &str) -> HolderSet<R, ALWAYS_LIST> {
-    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path));
+    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path).unwrap());
     let tag = Tags::<R>::in_scope("a sample tag", |tags| tags.get(&key))
         .unwrap_or_else(|error| panic!("{error}"))
         .unwrap_or_else(|| panic!("the sample registries hold no tag {path}"));

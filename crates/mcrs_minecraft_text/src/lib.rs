@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::{fmt, ops};
 
 use mcrs_minecraft_core::codec::int_value;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, nbt_flag};
@@ -691,7 +691,7 @@ pub enum ObjectInfo {
 }
 
 fn default_atlas() -> ResourceLocation {
-    ResourceLocation::minecraft("blocks")
+    rl!("minecraft:blocks").to_arc()
 }
 
 fn is_default_atlas(atlas: &ResourceLocation) -> bool {

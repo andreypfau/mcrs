@@ -38,7 +38,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         "minecraft:the_nether",
         "minecraft:the_end",
     ] {
-        let id = ResourceLocation::parse(dimension).unwrap();
+        let id = ResourceLocation::read(dimension).unwrap();
         assert!(
             routers.0.contains_key(&id),
             "no router compiled for {dimension}; have {:?}",
@@ -48,7 +48,7 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     // Each dimension's noise settings name their own terrain block, so a build
     // that resolved them globally would hand every dimension the same pair.
     let block_of = |name: &str| {
-        let id = ResourceLocation::parse(name).unwrap();
+        let id = ResourceLocation::read(name).unwrap();
         let router = &routers.0[&id];
         (
             router.router.default_block_state,

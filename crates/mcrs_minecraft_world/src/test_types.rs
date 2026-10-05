@@ -3,7 +3,7 @@ use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation, rl};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
@@ -178,7 +178,7 @@ type NonNegative = Bounded<0, { i32::MAX }, 0>;
 type Padding = Bounded<0, 128, 0>;
 
 fn overworld() -> ResourceKey<Dimension> {
-    ResourceKey::from_location(ResourceLocation::minecraft("overworld"))
+    ResourceKey::from_location(rl!("minecraft:overworld").to_arc())
 }
 
 fn is_overworld(dimension: &ResourceKey<Dimension>) -> bool {

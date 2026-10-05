@@ -170,7 +170,7 @@ fn material_router(
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft(dimension.settings()),
+        &ResourceLocation::minecraft(dimension.settings()).unwrap(),
     );
     let set = super::registries_over(biomes);
     let rules: std::collections::BTreeMap<ResourceLocation, MaterialRuleHolder> =

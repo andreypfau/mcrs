@@ -106,7 +106,7 @@ fn the_corpus_features_compile_to_their_shapes() {
 }
 
 fn id(name: &str) -> ResourceLocation {
-    ResourceLocation::parse(name).unwrap()
+    ResourceLocation::read(name).unwrap()
 }
 
 /// Which of the corpus's features still have no generator, read off the
@@ -369,7 +369,7 @@ fn simple_block_states(to_place: &serde_json::Value, out: &mut BTreeSet<String>)
         serde_json::Value::String(name) => {
             if blocks().0.block(name).is_some() {
                 out.insert(name.clone());
-            } else if let Ok(provider) = ResourceLocation::parse(name)
+            } else if let Ok(provider) = ResourceLocation::read(name)
                 && let Some(provider) =
                     registry::<serde_json::Value>("block_state_provider").get(&provider)
             {

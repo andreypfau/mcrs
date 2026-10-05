@@ -34,7 +34,7 @@ fn keys(compound: &NbtCompound) -> Vec<&str> {
 }
 
 fn clock(id: &str) -> ResourceLocation<Arc<str>> {
-    ResourceLocation::parse(id).unwrap()
+    ResourceLocation::read(id).unwrap()
 }
 
 fn spawn_compound() -> NbtCompound {

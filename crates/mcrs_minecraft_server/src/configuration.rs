@@ -235,7 +235,7 @@ fn on_known_packs_response(
                 let skip_nbt = should_skip_nbt(e.data.is_some(), pack, &client_known);
 
                 Entry {
-                    id: ResourceLocation::parse_cow(e.location.as_str()).unwrap(),
+                    id: ResourceLocation::read_cow(e.location.as_str()).unwrap(),
                     data: if skip_nbt {
                         None
                     } else {
@@ -246,7 +246,7 @@ fn on_known_packs_response(
             .collect();
 
         con.write_packet(&ClientboundRegistryData {
-            registry: ResourceLocation::parse_cow(registry.registry_key()).unwrap(),
+            registry: ResourceLocation::read_cow(registry.registry_key()).unwrap(),
             entries,
         });
     }
@@ -265,7 +265,7 @@ fn on_known_packs_response(
             let entries: Vec<Entry> = attr_keys
                 .iter()
                 .map(|key| Entry {
-                    id: ResourceLocation::parse_cow(*key).unwrap(),
+                    id: ResourceLocation::read_cow(*key).unwrap(),
                     data: None,
                 })
                 .collect();

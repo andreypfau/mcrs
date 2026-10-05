@@ -295,7 +295,7 @@ mod tests {
     use bevy::ecs::system::Command;
     use bevy::ecs::world::World;
     use mcrs_minecraft_core::codec::Bounded;
-    use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+    use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
     use mcrs_minecraft_item::SlotTable;
     use mcrs_minecraft_protocol::item::{
@@ -321,7 +321,7 @@ mod tests {
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
         ItemStackValue {
-            item: ResourceKey::from_location(ResourceLocation::minecraft(path)),
+            item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
             count: Bounded(count),
             components,
         }
@@ -646,7 +646,7 @@ mod tests {
             1,
             patch(|p| {
                 p.set(Enchantments(vec![(
-                    ResourceKey::from_location(ResourceLocation::minecraft("sharpness")),
+                    ResourceKey::from_location(rl!("minecraft:sharpness").to_arc()),
                     1,
                 )]))
             }),
@@ -701,7 +701,7 @@ mod tests {
         );
 
         let world = app.world_mut();
-        set(world, held, ItemModel(ResourceLocation::minecraft("stone")));
+        set(world, held, ItemModel(rl!("minecraft:stone").to_arc()));
         app.update();
         let after = app
             .world()

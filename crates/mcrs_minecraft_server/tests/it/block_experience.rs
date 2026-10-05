@@ -44,7 +44,7 @@ fn enchanted_pickaxe(app: &mut App, enchantment: &str, level: i32) -> Entity {
     let items = app.world().resource::<Items>().clone();
     let mut pickaxe = value("diamond_pickaxe", 1);
     pickaxe.components.set(Enchantments(vec![(
-        ResourceKey::from_location(ResourceLocation::parse(enchantment).unwrap()),
+        ResourceKey::from_location(ResourceLocation::read(enchantment).unwrap()),
         level,
     )]));
     mcrs_minecraft_inventory::value::spawn_stack(app.world_mut(), &pickaxe, &items).unwrap()

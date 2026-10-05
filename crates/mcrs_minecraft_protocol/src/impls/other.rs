@@ -90,13 +90,13 @@ impl<S: AsRef<str>> Encode for ResourceLocation<S> {
 
 impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(ResourceLocation::parse_cow(<Cow<'a, str>>::decode(r)?)?)
+        Ok(ResourceLocation::read_cow(<Cow<'a, str>>::decode(r)?)?)
     }
 }
 
 impl Decode<'_> for ResourceLocation<Arc<str>> {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(ResourceLocation::parse(<&str>::decode(r)?)?)
+        Ok(ResourceLocation::read(<&str>::decode(r)?)?)
     }
 }
 

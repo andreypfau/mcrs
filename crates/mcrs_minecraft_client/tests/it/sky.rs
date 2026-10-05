@@ -26,7 +26,7 @@ fn join(app: &mut App, connection: Entity, dimension: &str, dimension_type: u16)
     *app.world_mut().get_mut::<JoinedGame>(connection).unwrap() = JoinedGame {
         player_id: 1,
         dimensions: Vec::new(),
-        dimension: ResourceKey::from_location(ResourceLocation::parse(dimension).unwrap()),
+        dimension: ResourceKey::from_location(ResourceLocation::read(dimension).unwrap()),
         dimension_type_id: dimension_type,
     };
     app.update();

@@ -18,9 +18,9 @@ use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_assets::RegistrySnapshotErased;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_core::ColumnPos;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_core::{ColumnPos, rl};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
@@ -640,7 +640,7 @@ fn a_relog_keeps_a_stack_whose_component_names_a_block_tag() {
         .tags::<Block>()
         .unwrap()
         .get(&TagKey::<Block, _>::from_location(
-            ResourceLocation::minecraft("mineable/pickaxe"),
+            rl!("minecraft:mineable/pickaxe").to_arc(),
         ))
         .unwrap();
     let mut stack = value("stick", 1);

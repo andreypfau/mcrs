@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -39,7 +39,7 @@ fn parameter_lists() -> (
     Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
     let names =
-        Registry::new(Preset::ALL.map(|preset| ResourceLocation::parse(preset.name()).unwrap()))
+        Registry::new(Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()))
             .unwrap();
     let lists = Entries::new(
         &names,
@@ -96,7 +96,7 @@ fn overworld_subset(names: &[String]) -> Vec<(usize, String)> {
 fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
-        &ResourceLocation::minecraft("overworld"),
+        &rl!("minecraft:overworld").to_arc(),
     );
     let qualified: Vec<String> = names
         .iter()
@@ -151,7 +151,7 @@ fn surface_ids(biomes: &Registry<keys::Biome>) -> SurfaceIds {
 fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
     Registry::new(
         names.iter().map(|name| {
-            ResourceLocation::parse(&format!("minecraft:{name}")).expect("a biome name")
+            ResourceLocation::read(&format!("minecraft:{name}")).expect("a biome name")
         }),
     )
     .expect("the corpus names distinct biomes")

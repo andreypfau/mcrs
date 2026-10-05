@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{is_default, long_value};
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -112,7 +112,7 @@ impl Sample for MapDecorations {
             MapDecorations(BTreeMap::from([(
                 "m1".to_string(),
                 MapDecoration {
-                    kind: ResourceKey::from_location(ResourceLocation::minecraft("player")),
+                    kind: ResourceKey::from_location(rl!("minecraft:player").to_arc()),
                     x: 1.5,
                     z: -2.5,
                     rotation: 90.0,
@@ -142,7 +142,7 @@ impl Sample for DebugStickState {
         vec![
             DebugStickState::default(),
             DebugStickState(BTreeMap::from([(
-                ResourceKey::from_location(ResourceLocation::minecraft("oak_log")),
+                ResourceKey::from_location(rl!("minecraft:oak_log").to_arc()),
                 "axis".to_string(),
             )])),
         ]
@@ -162,8 +162,8 @@ impl Sample for Recipes {
         vec![
             Recipes::default(),
             Recipes(vec![
-                ResourceKey::from_location(ResourceLocation::minecraft("stone")),
-                ResourceKey::from_location(ResourceLocation::minecraft("oak_planks")),
+                ResourceKey::from_location(rl!("minecraft:stone").to_arc()),
+                ResourceKey::from_location(rl!("minecraft:oak_planks").to_arc()),
             ]),
         ]
     }
@@ -192,7 +192,7 @@ impl Sample for ContainerLoot {
 
     fn samples() -> Vec<Self> {
         let loot_table =
-            ResourceKey::from_location(ResourceLocation::minecraft("chests/simple_dungeon"));
+            ResourceKey::from_location(rl!("minecraft:chests/simple_dungeon").to_arc());
         vec![
             ContainerLoot {
                 loot_table: loot_table.clone(),

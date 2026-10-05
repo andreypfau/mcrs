@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
 use mcrs_minecraft_worldgen_density::compile::build_router;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
@@ -114,7 +114,7 @@ fn fixtures_dir() -> PathBuf {
 
 fn overworld_router(seed: u64) -> NoiseRouter {
     let settings: NoiseGeneratorSettings =
-        corpus::read("noise_settings", &ResourceLocation::minecraft("overworld"));
+        corpus::read("noise_settings", &rl!("minecraft:overworld").to_arc());
     let registry: BTreeMap<ResourceLocation, DensityFunctionHolder> =
         corpus::registry("density_function");
     let noises: BTreeMap<ResourceLocation, NoiseParam> = corpus::registry("noise");

@@ -10,7 +10,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, VERSION, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{RegistrySet, Tags};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
@@ -114,13 +114,13 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let plain = BlockState::minecraft;
-    let stone = plain("stone");
+    let plain = |name: StaticResourceLocation| BlockState::bare(name.to_arc());
+    let stone = plain(rl!("minecraft:stone"));
     let blocks = RouterBlocks {
         default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
         default_fluid: resolve(&settings.settings.default_fluid)?,
-        water: resolve(&plain("water"))?,
-        lava: resolve(&plain("lava"))?,
+        water: resolve(&plain(rl!("minecraft:water")))?,
+        lava: resolve(&plain(rl!("minecraft:lava")))?,
     };
 
     let material = MaterialInputs {
@@ -367,7 +367,7 @@ impl WorldgenAsset for StructureAsset {
             structure
                 .templates()
                 .iter()
-                .map(|path| ResourceLocation::minecraft(path)),
+                .map(|path| ResourceLocation::minecraft(path).expect("a hardcoded template name")),
         );
         refs
     }
@@ -519,8 +519,7 @@ impl References {
             }
         }
         refs.rules.insert(settings.material_rule.clone());
-        refs.noises
-            .extend(SURFACE_NOISE_NAMES.map(ResourceLocation::minecraft));
+        refs.noises.extend(SURFACE_NOISE_NAMES.map(Into::into));
         refs
     }
 
@@ -837,7 +836,7 @@ mod tests {
         );
         for hardcoded in SURFACE_NOISE_NAMES {
             assert!(
-                ids.contains(&format!("minecraft:{hardcoded}")),
+                ids.contains(&hardcoded.to_string()),
                 "the walk misses the hardcoded surface noise {hardcoded}"
             );
         }
@@ -936,7 +935,7 @@ mod tests {
                 collected.collect(&asset.deps, &registries);
 
                 for name in SURFACE_NOISE_NAMES {
-                    let id = format!("minecraft:{name}");
+                    let id = name.to_string();
                     assert!(
                         collected.noises.contains_key(id.as_str()),
                         "the hardcoded surface noise {name} did not arrive"

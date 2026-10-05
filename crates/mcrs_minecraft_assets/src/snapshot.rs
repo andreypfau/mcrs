@@ -161,7 +161,7 @@ pub fn rl_from_asset_path(
     let (namespace, rest) = path.to_str()?.split_once('/')?;
     let under = rest.strip_prefix(registry)?.strip_prefix('/')?;
     let name = under.strip_suffix(".json").unwrap_or(under);
-    ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
+    ResourceLocation::read(&format!("{namespace}:{name}")).ok()
 }
 
 pub fn assert_listing_matches<'a>(
@@ -260,16 +260,16 @@ mod tests {
         assets: &mut Assets<TestBiome>,
     ) -> (ResourceLocation<Arc<str>>, AssetId<TestBiome>) {
         let handle = assets.add(TestBiome);
-        (ResourceLocation::parse(rl).unwrap(), handle.id())
+        (ResourceLocation::read(rl).unwrap(), handle.id())
     }
 
     fn table(names: &[&str]) -> Arc<NameTable> {
         Arc::new(
             NameTable::new(
-                ResourceLocation::parse("minecraft:worldgen/biome").unwrap(),
+                ResourceLocation::read("minecraft:worldgen/biome").unwrap(),
                 names
                     .iter()
-                    .map(|name| ResourceLocation::parse(name).unwrap()),
+                    .map(|name| ResourceLocation::read(name).unwrap()),
             )
             .unwrap(),
         )

@@ -61,7 +61,7 @@ fn tables_of(feature_json: &str, placement_json: &str) -> FeatureTables {
 
 fn test_entry(feature: Feature, placement: Vec<PlacementModifier>) -> Arc<CompiledPlacedFeature> {
     Arc::new(CompiledPlacedFeature {
-        id: Some(ResourceLocation::parse("minecraft:ore_coal_test").unwrap()),
+        id: Some(ResourceLocation::read("minecraft:ore_coal_test").unwrap()),
         placed: PlacedFeature {
             feature: Holder::Inline(Box::new(feature)),
             placement,
@@ -260,12 +260,12 @@ fn a_biome_carries_a_feature_it_names_at_any_step() {
             token: vec![vec![0], vec![0]],
         },
         biome_order: vec![
-            ResourceLocation::parse(BIOME).unwrap(),
-            ResourceLocation::parse(OTHER).unwrap(),
+            ResourceLocation::read(BIOME).unwrap(),
+            ResourceLocation::read(OTHER).unwrap(),
         ],
         climate: [BIOME, OTHER]
             .into_iter()
-            .map(|id| (ResourceLocation::parse(id).unwrap(), TEMPERATE))
+            .map(|id| (ResourceLocation::read(id).unwrap(), TEMPERATE))
             .collect(),
     };
     let program = program_of(&tables, &registry);

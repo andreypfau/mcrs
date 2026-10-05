@@ -16,7 +16,7 @@ const GROUND: &str = "ground";
 
 pub fn block(path: &str) -> PaletteState {
     PaletteState {
-        id: ResourceLocation::minecraft(path),
+        id: ResourceLocation::minecraft(path).expect("a hardcoded block name"),
         properties: None,
     }
 }
@@ -491,7 +491,7 @@ pub fn snow_supports(world: &World) -> Vec<(Pos, String)> {
 
 pub fn stairs(block: &str, facing: Direction) -> PaletteState {
     let stairs = PaletteState {
-        id: ResourceLocation::parse(block).expect("a block id"),
+        id: ResourceLocation::read(block).expect("a block id"),
         properties: None,
     };
     let stairs = with(&stairs, "facing", facing.name());

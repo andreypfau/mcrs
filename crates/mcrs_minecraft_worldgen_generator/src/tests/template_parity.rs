@@ -6,9 +6,9 @@ use std::sync::{Arc, LazyLock};
 use bevy_math::IVec3;
 use bytes::Buf;
 use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -607,15 +607,15 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
     let flag = |name: &str| fields[name] == "true";
     let (cold, air_pocket, blackstone) = (flag("cold"), flag("air_pocket"), flag("blackstone"));
     let mossiness: f32 = fields["mossiness"].parse().unwrap();
-    let state = BlockState::minecraft;
+    let state = |name: &str| BlockState::minecraft(name).unwrap();
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
-                block: ResourceLocation::minecraft(source),
+                block: ResourceLocation::minecraft(source).unwrap(),
                 probability,
             },
             None => RuleTest::BlockMatch {
-                block: ResourceLocation::minecraft(source),
+                block: ResourceLocation::minecraft(source).unwrap(),
             },
         },
         location_predicate: RuleTest::AlwaysTrue,
@@ -651,7 +651,7 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
                     .tags::<mcrs_minecraft_keys::Block>()
                     .expect("the corpus holds the block tags")
                     .get(&mcrs_minecraft_core::TagKey::from_location(
-                        ResourceLocation::minecraft("features_cannot_replace"),
+                        rl!("minecraft:features_cannot_replace").to_arc(),
                     ))
                     .expect("the corpus names the features_cannot_replace tag"),
             ),
@@ -847,7 +847,7 @@ mod exhaustive {
     /// three draws before the corner check still happen.
     #[test]
     fn a_fossil_with_too_many_empty_corners_places_nothing() {
-        let node = &corpus_features().features[&ResourceLocation::minecraft("fossil_coal")];
+        let node = &corpus_features().features[&rl!("minecraft:fossil_coal").to_arc()];
         let program = feature_program(node);
         let generator = program.generator_at(0, 0).expect("a fossil compiles");
         let mut region = region(BlockPos::new(-16, 60, -16), BlockPos::new(31, 99, 31), 0);

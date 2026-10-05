@@ -67,9 +67,9 @@ impl Sample for LodestoneTracker {
             LodestoneTracker::default(),
             LodestoneTracker {
                 target: Some(GlobalPos {
-                    dimension: ResourceKey::from_location(ResourceLocation::minecraft(
-                        "the_nether",
-                    )),
+                    dimension: ResourceKey::from_location(
+                        ResourceLocation::minecraft("the_nether").unwrap(),
+                    ),
                     pos: BlockPos::new(1, -2, 3),
                 }),
                 tracked: false,

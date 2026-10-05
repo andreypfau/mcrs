@@ -87,7 +87,7 @@ mod tests {
         Registry::new(
             names
                 .iter()
-                .map(|text| ResourceLocation::parse(text).unwrap()),
+                .map(|text| ResourceLocation::read(text).unwrap()),
         )
         .unwrap()
     }

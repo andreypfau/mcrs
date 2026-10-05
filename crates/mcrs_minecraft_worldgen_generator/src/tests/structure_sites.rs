@@ -305,7 +305,7 @@ mod exhaustive {
             let index = build_index(&dimension("minecraft:overworld"), entry.seed);
             assert_eq!(entry.rings.len(), 1);
             for (set_id, positions) in &entry.rings {
-                let set = frozen.set_ids[&ResourceLocation::parse(set_id).unwrap()];
+                let set = frozen.set_ids[&ResourceLocation::read(set_id).unwrap()];
                 let ours = index.rings(set).unwrap();
                 assert_eq!(ours.len(), positions.len(), "seed {}: {set_id}", entry.seed);
                 for (i, (&ColumnPos { x, z }, &(ox, oz))) in ours.iter().zip(positions).enumerate()
@@ -344,8 +344,8 @@ mod exhaustive {
             for (dimension_id, structures) in &entry.sites {
                 let index = build_index(&dimension(dimension_id), seed);
                 for structure in structures {
-                    let set = frozen.set_ids[&ResourceLocation::parse(&structure.set).unwrap()];
-                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    let set = frozen.set_ids[&ResourceLocation::read(&structure.set).unwrap()];
+                    let id = frozen.structure_ids[&ResourceLocation::read(&structure.id).unwrap()];
                     assert_eq!(structure.cases.len(), 16, "{}: cases", structure.id);
                     for case in &structure.cases {
                         let ColumnPos { x, z } = case.chunk;
@@ -380,7 +380,7 @@ mod exhaustive {
             for (dimension_id, structures) in &entry.hardcoded {
                 let index = build_index(&dimension(dimension_id), seed);
                 for structure in structures {
-                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    let id = frozen.structure_ids[&ResourceLocation::read(&structure.id).unwrap()];
                     assert!(!matches!(
                         frozen.structures[id.0 as usize].kind,
                         StructureKind::Jigsaw { .. } | StructureKind::Mineshaft { .. }
@@ -419,7 +419,7 @@ mod exhaustive {
             for (dimension_id, sets) in &entry.selection {
                 let index = build_index(&dimension(dimension_id), seed);
                 for dumped in sets {
-                    let set = frozen.set_ids[&ResourceLocation::parse(&dumped.set).unwrap()];
+                    let set = frozen.set_ids[&ResourceLocation::read(&dumped.set).unwrap()];
                     assert_eq!(dumped.cases.len(), 16, "{}: cases", dumped.set);
                     for (chunk, expected) in &dumped.cases {
                         let ColumnPos { x, z } = *chunk;
@@ -454,7 +454,7 @@ mod exhaustive {
                     .map(|(_, structures)| structures.as_slice())
                     .unwrap_or_default();
                 for structure in structures.iter().chain(hardcoded) {
-                    let id = frozen.structure_ids[&ResourceLocation::parse(&structure.id).unwrap()];
+                    let id = frozen.structure_ids[&ResourceLocation::read(&structure.id).unwrap()];
                     let reads_a_height = match &frozen.structures[id.0 as usize].kind {
                         StructureKind::Jigsaw { config, .. } => {
                             config.project_start_to_heightmap.is_some()

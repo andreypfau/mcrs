@@ -55,48 +55,114 @@ impl<S: AsRef<str>> ResourceLocation<S> {
     }
 }
 
+// ─── Validation ──────────────────────────────────────────────────────────────
+
+const DEFAULT_NAMESPACE: &str = "minecraft";
+
+const fn valid_namespace(bytes: &[u8]) -> bool {
+    if bytes.len() == 2 && bytes[0] == b'.' && bytes[1] == b'.' {
+        return false;
+    }
+    let mut i = 0;
+    while i < bytes.len() {
+        if !matches!(bytes[i], b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-') {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+const fn valid_path(bytes: &[u8]) -> bool {
+    let mut i = 0;
+    while i < bytes.len() {
+        if !matches!(bytes[i], b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' | b'/') {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+fn check(namespace: &str, path: &str) -> Result<(), String> {
+    if !valid_namespace(namespace.as_bytes()) {
+        return Err(format!(
+            "Non [a-z0-9_.-] character in namespace of identifier: {namespace}:{path}"
+        ));
+    }
+    if namespace.len() > u16::MAX as usize {
+        return Err(format!(
+            "Namespace longer than {} bytes in identifier",
+            u16::MAX
+        ));
+    }
+    if !valid_path(path.as_bytes()) {
+        return Err(format!(
+            "Non [a-z0-9/._-] character in path of location: {namespace}:{path}"
+        ));
+    }
+    Ok(())
+}
+
+struct Split<'t> {
+    namespace: &'t str,
+    path: &'t str,
+    canonical: bool,
+}
+
+fn split(text: &str) -> Result<Split<'_>, InvalidResourceLocation> {
+    let (namespace, path, canonical) = match text.split_once(':') {
+        Some(("", path)) => (DEFAULT_NAMESPACE, path, false),
+        Some((namespace, path)) => (namespace, path, true),
+        None => (DEFAULT_NAMESPACE, text, false),
+    };
+    check(namespace, path).map_err(|reason| InvalidResourceLocation {
+        input: text.to_owned(),
+        reason,
+    })?;
+    Ok(Split {
+        namespace,
+        path,
+        canonical,
+    })
+}
+
 // ─── &'static str constructors ───────────────────────────────────────────────
 
 impl ResourceLocation<&'static str> {
-    /// Const constructor; panics unless `s` is `namespace:path` with a
-    /// non-empty namespace in `[a-z0-9_.-]` and a non-empty path in
-    /// `[a-z0-9_.-/]`. Inside `rl!` the panic is a compile error.
+    /// Const constructor for a literal that is already in canonical form:
+    /// panics unless `s` is `namespace:path` with a non-empty namespace in
+    /// `[a-z0-9_.-]` (not `..`) and a path in `[a-z0-9_.-/]`. Inside `rl!` the
+    /// panic is a compile error.
     #[track_caller]
     pub const fn new_static(s: &'static str) -> Self {
         let bytes = s.as_bytes();
-        let mut colon = None;
-        let mut i = 0;
-        while i < bytes.len() {
-            let c = bytes[i];
-            match colon {
-                None if c == b':' => colon = Some(i),
-                None => {
-                    if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-') {
-                        panic!(
-                            "invalid character in resource location namespace (allowed: a-z 0-9 _ . -)"
-                        );
-                    }
-                }
-                Some(_) => {
-                    if !matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' | b'/') {
-                        panic!(
-                            "invalid character in resource location path (allowed: a-z 0-9 _ . - /)"
-                        );
-                    }
-                }
-            }
-            i += 1;
+        let mut colon = 0;
+        while colon < bytes.len() && bytes[colon] != b':' {
+            colon += 1;
         }
-        match colon {
-            Some(0) => panic!("resource location namespace must not be empty"),
-            Some(pos) if pos + 1 == bytes.len() => {
-                panic!("resource location path must not be empty")
-            }
-            Some(pos) => ResourceLocation {
-                string: s,
-                colon_pos: pos as u16,
-            },
-            None => panic!("ResourceLocation must contain ':'"),
+        if colon == bytes.len() {
+            panic!("ResourceLocation must contain ':'");
+        }
+        if colon == 0 {
+            panic!("resource location namespace must not be empty");
+        }
+        if colon > u16::MAX as usize {
+            panic!("resource location namespace is too long");
+        }
+        let (namespace, rest) = bytes.split_at(colon);
+        let (_, path) = rest.split_at(1);
+        if !valid_namespace(namespace) {
+            panic!(
+                "invalid character in resource location namespace (allowed: a-z 0-9 _ . -, not \"..\")"
+            );
+        }
+        if !valid_path(path) {
+            panic!("invalid character in resource location path (allowed: a-z 0-9 _ . - /)");
+        }
+        ResourceLocation {
+            string: s,
+            colon_pos: colon as u16,
         }
     }
 }
@@ -104,78 +170,55 @@ impl ResourceLocation<&'static str> {
 // ─── Arc<str> constructors ───────────────────────────────────────────────────
 
 impl ResourceLocation<Arc<str>> {
-    /// Create a new `ResourceLocation` from a namespace and path.
-    pub fn new(namespace: &str, path: &str) -> Self {
-        let full = format!("{namespace}:{path}");
-        let colon_pos = namespace.len() as u16;
-        ResourceLocation {
-            string: Arc::from(full.as_str()),
-            colon_pos,
-        }
-    }
-
-    /// Shortcut for `ResourceLocation::new("minecraft", path)`.
-    pub fn minecraft(path: &str) -> Self {
-        ResourceLocation::new("minecraft", path)
-    }
-
-    /// Parse a `namespace:path` string. Returns an error if `:` is missing.
-    pub fn parse(s: &str) -> Result<Self, ResourceLocationError> {
-        match s.find(':') {
-            Some(pos) => Ok(ResourceLocation {
-                string: Arc::from(s),
-                colon_pos: pos as u16,
-            }),
-            None => Err(ResourceLocationError(s.to_owned())),
-        }
-    }
-
-    /// `Identifier.read`: a missing or empty namespace is `minecraft`, and
-    /// both halves are checked against vanilla's character sets.
-    pub fn read(s: &str) -> Result<Self, InvalidResourceLocation> {
-        let (namespace, path) = match s.split_once(':') {
-            Some(("", path)) => ("minecraft", path),
-            Some((namespace, path)) => (namespace, path),
-            None => ("minecraft", s),
-        };
-        let invalid = |reason: String| InvalidResourceLocation {
-            input: s.to_owned(),
+    /// Both halves are checked and nothing is defaulted, so an empty namespace stays empty.
+    pub fn new(namespace: &str, path: &str) -> Result<Self, InvalidResourceLocation> {
+        check(namespace, path).map_err(|reason| InvalidResourceLocation {
+            input: format!("{namespace}:{path}"),
             reason,
+        })?;
+        Ok(ResourceLocation {
+            string: Arc::from(format!("{namespace}:{path}")),
+            colon_pos: namespace.len() as u16,
+        })
+    }
+
+    pub fn minecraft(path: &str) -> Result<Self, InvalidResourceLocation> {
+        Self::new(DEFAULT_NAMESPACE, path)
+    }
+
+    /// A missing or empty namespace is `minecraft`; the namespace is the text
+    /// before the first `:` and the path everything after it.
+    pub fn read(text: &str) -> Result<Self, InvalidResourceLocation> {
+        let parts = split(text)?;
+        let string = if parts.canonical {
+            Arc::from(text)
+        } else {
+            Arc::from(format!("{}:{}", parts.namespace, parts.path))
         };
-        if namespace == ".."
-            || !namespace
-                .chars()
-                .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-' | '.'))
-        {
-            return Err(invalid(format!(
-                "Non [a-z0-9_.-] character in namespace of identifier: {namespace}:{path}"
-            )));
-        }
-        if !path
-            .chars()
-            .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-' | '.' | '/'))
-        {
-            return Err(invalid(format!(
-                "Non [a-z0-9/._-] character in path of location: {namespace}:{path}"
-            )));
-        }
-        Ok(ResourceLocation::new(namespace, path))
+        Ok(ResourceLocation {
+            string,
+            colon_pos: parts.namespace.len() as u16,
+        })
     }
 }
 
 // ─── Cow<str> constructors ───────────────────────────────────────────────────
 
 impl<'a> ResourceLocation<Cow<'a, str>> {
-    /// Parse a `namespace:path` string. Returns an error if `:` is missing.
-    pub fn parse_cow(s: impl Into<Cow<'a, str>>) -> Result<Self, ResourceLocationError> {
-        let string = s.into();
-        match string.find(':') {
-            Some(pos) => Ok(ResourceLocation {
-                string,
-                colon_pos: pos as u16,
-            }),
-            None => Err(ResourceLocationError(string.into_owned())),
-        }
+    /// `read` that keeps a borrowed canonical text borrowed.
+    pub fn read_cow(text: impl Into<Cow<'a, str>>) -> Result<Self, InvalidResourceLocation> {
+        let text = text.into();
+        let (colon_pos, defaulted) = {
+            let parts = split(&text)?;
+            (
+                parts.namespace.len() as u16,
+                (!parts.canonical).then(|| format!("{}:{}", parts.namespace, parts.path)),
+            )
+        };
+        Ok(ResourceLocation {
+            string: defaulted.map_or(text, Cow::Owned),
+            colon_pos,
+        })
     }
 }
 
@@ -274,10 +317,6 @@ impl<S: AsRef<str>> fmt::Debug for ResourceLocation<S> {
 // ─── FromStr ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]
-#[error("missing ':' separator in ResourceLocation: {0:?}")]
-pub struct ResourceLocationError(pub String);
-
-#[derive(Debug, thiserror::Error)]
 #[error("Not a valid resource location: {input} {reason}")]
 pub struct InvalidResourceLocation {
     pub input: String,
@@ -285,10 +324,10 @@ pub struct InvalidResourceLocation {
 }
 
 impl std::str::FromStr for ResourceLocation<Arc<str>> {
-    type Err = ResourceLocationError;
+    type Err = InvalidResourceLocation;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ResourceLocation::parse(s)
+        ResourceLocation::read(s)
     }
 }
 
@@ -309,17 +348,6 @@ impl<'de> Deserialize<'de> for ResourceLocation<Arc<str>> {
 impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         ResourceLocation::<Arc<str>>::deserialize(d).map(Into::into)
-    }
-}
-
-// ─── Backwards compat ────────────────────────────────────────────────────────
-
-impl ResourceLocation<Arc<str>> {
-    /// Const-compatible constructor — panics at compile time if `:` is absent.
-    /// Prefer the `rl!` macro for ergonomics.
-    #[track_caller]
-    pub fn from_str_const(s: &'static str) -> Self {
-        ResourceLocation::new_static(s).to_arc()
     }
 }
 
@@ -345,7 +373,6 @@ mod tests {
         assert_eq!(read(r#""block/stone""#).as_str(), "minecraft:block/stone");
         assert_eq!(read(r#""mcrs:alt""#).as_str(), "mcrs:alt");
         assert_eq!(read(r#"":alt""#).as_str(), "minecraft:alt");
-        assert!(ResourceLocation::parse("alt").is_err());
     }
 
     #[test]
@@ -374,16 +401,27 @@ mod tests {
         for bad in [
             "alt",
             ":alt",
-            "minecraft:",
             "MC:alt",
             "minecraft:Alt",
             "a:b:c",
             "a/b:c",
+            "..:alt",
         ] {
             assert!(
                 std::panic::catch_unwind(|| ResourceLocation::new_static(bad)).is_err(),
                 "{bad}"
             );
         }
+        assert_eq!(crate::rl!("minecraft:").path(), "");
+    }
+
+    #[test]
+    fn a_namespace_longer_than_the_offset_type_is_refused() {
+        let namespace = "a".repeat(u16::MAX as usize + 1);
+        assert!(ResourceLocation::read(&format!("{namespace}:x")).is_err());
+        assert!(ResourceLocation::new(&namespace, "x").is_err());
+        let longest = "a".repeat(u16::MAX as usize);
+        let kept = ResourceLocation::read(&format!("{longest}:x")).unwrap();
+        assert_eq!((kept.namespace().len(), kept.path()), (longest.len(), "x"));
     }
 }

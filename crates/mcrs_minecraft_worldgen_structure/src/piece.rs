@@ -2051,7 +2051,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 ..
             } => {
                 let location =
-                    ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{template}"));
+                    ResourceLocation::minecraft(&format!("{END_CITY_TEMPLATE_PREFIX}{template}"))
+                        .map_err(D::Error::custom)?;
                 let template = *self.0.frozen.template_ids.get(&location).ok_or_else(|| {
                     D::Error::custom(format!("the end city template {location} is not loaded"))
                 })?;
@@ -2077,7 +2078,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 let name = ResourceLocation::minecraft(&format!(
                     "{}{template}",
                     WoodlandMansionPiece::TEMPLATE_PREFIX
-                ));
+                ))
+                .map_err(D::Error::custom)?;
                 let template = *self.0.frozen.template_ids.get(&name).ok_or_else(|| {
                     D::Error::custom(format!("the mansion template {name} is not loaded"))
                 })?;
@@ -2185,18 +2187,18 @@ mod tests {
     use super::*;
     use crate::frozen::{FrozenStructure, PoolId};
     use crate::{DecorationStep, Structure};
-    use mcrs_minecraft_core::BlockPos;
+    use mcrs_minecraft_core::{BlockPos, rl};
     use mcrs_minecraft_nbt::deserializer::Deserializer as NbtDeserializer;
     use mcrs_minecraft_nbt::{to_bytes, to_nbt_compound};
     use mcrs_minecraft_worldgen_feature::proto::Holder;
 
     fn frozen(liquid_settings: LiquidSettings) -> FrozenStructures {
         let mut frozen = FrozenStructures::default();
-        let house = ResourceLocation::parse("minecraft:village/plains/houses/house_1").unwrap();
-        let empty = ResourceLocation::parse("minecraft:empty").unwrap();
+        let house = ResourceLocation::read("minecraft:village/plains/houses/house_1").unwrap();
+        let empty = ResourceLocation::read("minecraft:empty").unwrap();
         frozen.template_ids.insert(house, TemplateId(0));
         frozen.template_ids.insert(
-            ResourceLocation::minecraft("end_city/second_floor_1"),
+            rl!("minecraft:end_city/second_floor_1").to_arc(),
             TemplateId(1),
         );
         let single = |legacy: bool| FrozenElement::Single {
@@ -2232,7 +2234,7 @@ mod tests {
             unreachable!()
         };
         frozen.structures.push(FrozenStructure {
-            id: ResourceLocation::parse("minecraft:village_plains").unwrap(),
+            id: ResourceLocation::read("minecraft:village_plains").unwrap(),
             step: DecorationStep::SurfaceStructures,
             step_index: 0,
             adaptation: TerrainAdaptation::BeardThin,
@@ -2243,7 +2245,7 @@ mod tests {
             },
         });
         frozen.structures.push(FrozenStructure {
-            id: ResourceLocation::parse("minecraft:mineshaft_mesa").unwrap(),
+            id: ResourceLocation::read("minecraft:mineshaft_mesa").unwrap(),
             step: DecorationStep::UndergroundStructures,
             step_index: 0,
             adaptation: TerrainAdaptation::None,

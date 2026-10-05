@@ -3,8 +3,8 @@ use crate::proto::{
 };
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_core::{ResourceLocation, StaticResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registry::{HolderSet, Id, Tags};
@@ -30,16 +30,16 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// The nine noises the stage samples outside the density graph. The reference
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
-pub const SURFACE_NOISE_NAMES: [&str; 9] = [
-    "surface",
-    "surface_secondary",
-    "clay_bands_offset",
-    "badlands_pillar",
-    "badlands_pillar_roof",
-    "badlands_surface",
-    "iceberg_pillar",
-    "iceberg_pillar_roof",
-    "iceberg_surface",
+pub const SURFACE_NOISE_NAMES: [StaticResourceLocation; 9] = [
+    rl!("minecraft:surface"),
+    rl!("minecraft:surface_secondary"),
+    rl!("minecraft:clay_bands_offset"),
+    rl!("minecraft:badlands_pillar"),
+    rl!("minecraft:badlands_pillar_roof"),
+    rl!("minecraft:badlands_surface"),
+    rl!("minecraft:iceberg_pillar"),
+    rl!("minecraft:iceberg_pillar_roof"),
+    rl!("minecraft:iceberg_surface"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,7 +354,7 @@ fn compile_material<'a>(
 
     let mut surface_noises = [0; 9];
     for (slot, name) in surface_noises.iter_mut().zip(SURFACE_NOISE_NAMES) {
-        *slot = builder.noise(&ResourceLocation::minecraft(name), false)?;
+        *slot = builder.noise(&name.into(), false)?;
     }
     let clay_bands = builder.clay_bands()?;
 
@@ -441,7 +441,7 @@ impl<'r> Builder<'_, '_, 'r> {
                     density: self.density_root(density)?,
                     richness: self.density_root(richness)?,
                     filler_gap: self.density_root(filler_gap)?,
-                    random: self.random(&ResourceLocation::minecraft("ore")),
+                    random: self.random(&rl!("minecraft:ore").to_arc()),
                 };
                 let id = self.veins.len() as VeinId;
                 self.veins.push(vein);
@@ -666,7 +666,9 @@ impl<'r> Builder<'_, '_, 'r> {
     }
 
     fn named_block(&mut self, name: &str) -> Result<VoxelId, CompileError> {
-        self.block(&BlockState::minecraft(name))
+        let state = BlockState::minecraft(name)
+            .map_err(|error| CompileError::UnknownBlockState(error.to_string()))?;
+        self.block(&state)
     }
 }
 
@@ -770,7 +772,10 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn settings(name: &str) -> NoiseGeneratorSettings {
-        mcrs_minecraft_worldgen_testing::read("noise_settings", &ResourceLocation::minecraft(name))
+        mcrs_minecraft_worldgen_testing::read(
+            "noise_settings",
+            &ResourceLocation::minecraft(name).unwrap(),
+        )
     }
 
     pub(crate) fn build(
@@ -1026,7 +1031,7 @@ pub(crate) mod tests {
     ) -> Result<(), CompileError> {
         let (mut rules, conditions) = material_corpus();
         rules.insert(
-            ResourceLocation::minecraft("overworld"),
+            rl!("minecraft:overworld").to_arc(),
             serde_json::from_str(rule).unwrap(),
         );
         let biomes = biome_tags();

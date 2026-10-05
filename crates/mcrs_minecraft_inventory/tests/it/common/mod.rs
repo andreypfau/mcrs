@@ -28,7 +28,7 @@ pub fn item_tags() -> ShulkerBoxes {
 
 pub fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
     ItemStackValue {
-        item: ResourceKey::from_location(ResourceLocation::minecraft(path)),
+        item: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
         count: Bounded(count),
         components,
     }

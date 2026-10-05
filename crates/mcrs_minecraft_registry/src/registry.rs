@@ -198,7 +198,7 @@ mod tests {
     }
 
     fn name(text: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::parse(text).unwrap()
+        ResourceLocation::read(text).unwrap()
     }
 
     fn registry(names: &[&str]) -> Registry<TestRegistry> {

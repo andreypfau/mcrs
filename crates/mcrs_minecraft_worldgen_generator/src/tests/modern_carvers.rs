@@ -28,12 +28,12 @@ fn y_sections() -> Vec<i32> {
 
 /// The carver list a biome actually ships, read the way the loader would.
 pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
-    let id = mcrs_minecraft_core::ResourceLocation::parse(biome).expect("a biome id");
+    let id = mcrs_minecraft_core::ResourceLocation::read(biome).expect("a biome id");
     let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
     mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
         .iter()
         .map(|name| {
-            let id = mcrs_minecraft_core::ResourceLocation::parse(name).expect("a carver id");
+            let id = mcrs_minecraft_core::ResourceLocation::read(name).expect("a carver id");
             mcrs_minecraft_worldgen_testing::read("carver", &id)
         })
         .collect()
@@ -165,7 +165,7 @@ fn carvers_by_biome() -> (
     let lists = registry
         .ids()
         .map(|id| {
-            let name = mcrs_minecraft_core::ResourceLocation::parse(
+            let name = mcrs_minecraft_core::ResourceLocation::read(
                 registry
                     .name(id)
                     .expect("an id of the registry has a name")
@@ -175,8 +175,8 @@ fn carvers_by_biome() -> (
             mcrs_minecraft_worldgen_testing::names_of(&biomes[&name].carvers)
                 .iter()
                 .map(|carver| {
-                    configs[&mcrs_minecraft_core::ResourceLocation::parse(carver)
-                        .expect("a carver id")]
+                    configs
+                        [&mcrs_minecraft_core::ResourceLocation::read(carver).expect("a carver id")]
                         .clone()
                 })
                 .collect()

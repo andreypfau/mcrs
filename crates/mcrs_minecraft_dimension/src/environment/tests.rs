@@ -461,7 +461,7 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     }
 
     fn rl(id: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::parse(id).unwrap()
+        ResourceLocation::read(id).unwrap()
     }
 
     let alpha = overriding(0.25);

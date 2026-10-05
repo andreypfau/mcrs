@@ -221,7 +221,7 @@ fn attributes_round_trip_with_modifiers() {
                 attribute: RegistryId(20),
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
-                    id: ResourceLocation::parse_cow("minecraft:random_spawn_bonus").unwrap(),
+                    id: ResourceLocation::read_cow("minecraft:random_spawn_bonus").unwrap(),
                     amount: 0.025,
                     operation: AttributeOperation::AddValue,
                 }],

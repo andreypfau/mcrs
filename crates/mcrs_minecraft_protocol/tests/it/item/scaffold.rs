@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::item::component::common::{Folded, entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
@@ -275,7 +275,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
 }
 
 fn stone() -> ResourceKey<mcrs_minecraft_keys::Item> {
-    ResourceKey::from_location(ResourceLocation::minecraft("stone"))
+    ResourceKey::from_location(rl!("minecraft:stone").to_arc())
 }
 
 #[test]
@@ -561,9 +561,7 @@ fn identifiers_read_with_the_default_namespace_everywhere() {
     let layers: ResolvableInt = serde_json::from_str(r#""foo""#).unwrap();
     assert_eq!(
         layers,
-        ResolvableInt::Reference(ResourceKey::from_location(ResourceLocation::minecraft(
-            "foo"
-        )))
+        ResolvableInt::Reference(ResourceKey::from_location(rl!("minecraft:foo").to_arc()))
     );
     assert!(serde_json::from_str::<ResolvableInt>(r#""Foo""#).is_err());
 

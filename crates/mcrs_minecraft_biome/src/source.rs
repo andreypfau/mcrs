@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn two_biomes_no_climate_can_tell_apart_are_a_load_error() {
         let names = ["minecraft:plains", "minecraft:desert"]
-            .map(|name| ResourceLocation::<Arc<str>>::parse(name).unwrap());
+            .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         let set = RegistrySet::new()
             .with(Registry::<keys::Biome>::new(names).unwrap())
             .unwrap();

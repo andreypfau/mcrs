@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::ops::Not;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true};
+use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -255,7 +255,7 @@ impl Sample for UseCooldown {
             },
             UseCooldown {
                 seconds: 0.5,
-                cooldown_group: Some(ResourceLocation::minecraft("ender_pearl")),
+                cooldown_group: Some(rl!("minecraft:ender_pearl").to_arc()),
             },
         ]
     }

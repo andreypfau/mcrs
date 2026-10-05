@@ -1,5 +1,5 @@
 use mcrs_minecraft_core::codec::default_true;
-use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys::{MobEffect, sound_event};
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
@@ -221,7 +221,7 @@ pub struct DeathProtection {
 
 pub fn every_consume_effect() -> Vec<ConsumeEffect> {
     let effect = |path: &str, details: MobEffectDetails| MobEffectInstance {
-        id: ResourceKey::from_location(ResourceLocation::minecraft(path)),
+        id: ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap()),
         details,
     };
     vec![
@@ -268,7 +268,7 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
         },
         ConsumeEffect::PlaySound {
             sound: Holder::Direct(SoundEvent {
-                sound_id: ResourceLocation::new("mcrs", "ding"),
+                sound_id: rl!("mcrs:ding").to_arc(),
                 range: None,
             }),
         },
@@ -301,7 +301,7 @@ impl Sample for Consumable {
                 consume_seconds: 2.5,
                 animation: ItemUseAnimation::Drink,
                 sound: Holder::Direct(SoundEvent {
-                    sound_id: ResourceLocation::new("mcrs", "sip"),
+                    sound_id: rl!("mcrs:sip").to_arc(),
                     range: Some(8.0),
                 }),
                 has_consume_particles: false,

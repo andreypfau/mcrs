@@ -29,7 +29,7 @@ fn read_dump() -> Vec<Source> {
         .map(|_| {
             let id = dump_string(&mut r);
             let biomes: Vec<ResourceLocation> = (0..r.get_u32_le())
-                .map(|_| ResourceLocation::parse(&dump_string(&mut r)).unwrap())
+                .map(|_| ResourceLocation::read(&dump_string(&mut r)).unwrap())
                 .collect();
             let steps: Vec<Vec<String>> = (0..r.get_u32_le())
                 .map(|_| (0..r.get_u32_le()).map(|_| dump_string(&mut r)).collect())

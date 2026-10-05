@@ -654,7 +654,7 @@ mod tests {
     }
 
     fn name(text: &str) -> Name {
-        ResourceLocation::parse(text).unwrap()
+        ResourceLocation::read(text).unwrap()
     }
 
     fn registry(entries: &[&str]) -> Registry<TestRegistry> {

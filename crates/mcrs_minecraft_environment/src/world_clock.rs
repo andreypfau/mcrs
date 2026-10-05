@@ -304,7 +304,7 @@ mod tests {
     const OVERWORLD: &str = "minecraft:overworld";
 
     fn rl(id: &str) -> ResourceLocation<Arc<str>> {
-        ResourceLocation::parse(id).unwrap()
+        ResourceLocation::read(id).unwrap()
     }
 
     fn clocks(ids: &[&str]) -> WorldClocks {

@@ -1,12 +1,12 @@
 use std::io::Cursor;
 
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, ResourceKey, rl};
 use mcrs_minecraft_item::component::GlobalPos;
 use mcrs_minecraft_protocol::{Decode, Encode};
 
 fn far_corner() -> GlobalPos {
     GlobalPos {
-        dimension: ResourceKey::from_location(ResourceLocation::minecraft("the_nether")),
+        dimension: ResourceKey::from_location(rl!("minecraft:the_nether").to_arc()),
         pos: BlockPos::new(-30_000_000, -64, 29_999_999),
     }
 }
