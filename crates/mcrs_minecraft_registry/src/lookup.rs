@@ -48,7 +48,9 @@ impl RegistryLookup for ChainLookup<'_> {
 // chisle: string lookups by bare path stay while the item wire codecs take names, not typed ids; they go when the codecs take typed ids.
 impl RegistryLookup for RegistrySet {
     fn id(&self, registry: &str, name: &ResourceLocation) -> Option<u32> {
-        self.table_at_path(registry)?.number(name.as_str())
+        self.table_at_path(registry)?
+            .number(name.as_str())
+            .map(u32::from)
     }
 
     fn name(&self, registry: &str, id: u32) -> Option<&ResourceLocation> {

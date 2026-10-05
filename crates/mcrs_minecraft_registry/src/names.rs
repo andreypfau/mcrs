@@ -8,7 +8,7 @@ use std::sync::Arc;
 pub struct NameTable {
     registry: ResourceLocation<Arc<str>>,
     names: Vec<ResourceLocation<Arc<str>>>,
-    numbers: HashMap<ResourceLocation<Arc<str>>, u32>,
+    numbers: HashMap<ResourceLocation<Arc<str>>, u16>,
     tags: HashSet<ResourceLocation<Arc<str>>>,
 }
 
@@ -62,7 +62,7 @@ impl NameTable {
         self.names.get(index)
     }
 
-    pub fn number(&self, name: &str) -> Option<u32> {
+    pub fn number(&self, name: &str) -> Option<u16> {
         self.numbers.get(name).copied()
     }
 

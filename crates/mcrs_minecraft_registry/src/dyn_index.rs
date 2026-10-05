@@ -21,7 +21,7 @@ impl<T: TaggedRegistry> DynRegistryIndex<T> {
     }
 
     pub fn get(&self, rl: &str) -> Option<u32> {
-        self.table.number(rl)
+        self.table.number(rl).map(u32::from)
     }
 
     pub fn location(&self, id: u32) -> Option<&ResourceLocation<Arc<str>>> {

@@ -25,12 +25,12 @@ impl TagId for u32 {
 impl<R: 'static> TagId for Id<R> {
     #[inline]
     fn raw(self) -> u32 {
-        self.number()
+        u32::from(self.number())
     }
 
     #[inline]
     fn from_raw(raw: u32) -> Self {
-        Id::from_number(raw)
+        Id::from_number(u16::try_from(raw).expect("a bitset over ids holds only ids"))
     }
 }
 

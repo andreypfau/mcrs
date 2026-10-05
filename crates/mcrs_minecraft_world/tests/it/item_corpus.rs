@@ -93,12 +93,7 @@ fn ids_are_dense_and_named() {
     for (index, entry) in items.iter().enumerate() {
         let reported = registry.require(entry.identifier.as_str()).unwrap();
         assert_eq!(reported.index(), index, "{}", entry.identifier);
-        assert_eq!(
-            Some(entry.id),
-            reported.narrow::<u16>().ok().map(ItemId),
-            "{}",
-            entry.identifier
-        );
+        assert_eq!(entry.id, ItemId(reported.number()), "{}", entry.identifier);
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));
         assert!(std::ptr::eq(items.get(entry.id).unwrap(), entry));
     }

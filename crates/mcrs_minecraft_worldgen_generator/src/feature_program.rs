@@ -1290,10 +1290,12 @@ fn compile_generator(
             // anything else survives, which is the default `canSurvive`.
             let hanging_survive = match &hanging {
                 StateProvider::Simple(state) => {
-                    let index = resolver
-                        .blocks
-                        .block_index(mcrs_minecraft_registry::BlockStateId(state.0))
-                        .number();
+                    let index = u32::from(
+                        resolver
+                            .blocks
+                            .block_index(mcrs_minecraft_registry::BlockStateId(state.0))
+                            .number(),
+                    );
                     trees.survive.get(&index).cloned()
                 }
                 _ => None,
@@ -2713,7 +2715,7 @@ impl<'a> Resolver<'a> {
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: (0..self.blocks.state_count())
-                .map(|id| self.blocks.block_index(BlockStateId(id as u16)).number())
+                .map(|id| u32::from(self.blocks.block_index(BlockStateId(id as u16)).number()))
                 .collect(),
             layouts: self.blocks.blocks().iter().map(block_layout).collect(),
         }
@@ -2794,7 +2796,7 @@ impl<'a> Resolver<'a> {
     /// `would_survive` naming it unanswerable.
     pub fn without_survive_rule(&self, trees: &TreeTables, state: VoxelId) -> Option<String> {
         let block = self.blocks.block_index(BlockStateId(state.0));
-        if trees.survive.contains_key(&(block.number())) {
+        if trees.survive.contains_key(&u32::from(block.number())) {
             return None;
         }
         Some(self.blocks[block].identifier.as_str().to_owned())

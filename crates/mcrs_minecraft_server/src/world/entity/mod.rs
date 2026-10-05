@@ -50,7 +50,7 @@ pub(crate) fn report_registries() -> &'static (
 }
 
 pub fn registry_varint<R>(id: Id<R>) -> VarInt {
-    VarInt(i32::try_from(id.number()).expect("a registry id fits the 32 bits of the wire"))
+    VarInt(i32::from(id.number()))
 }
 
 pub struct MinecraftEntityPlugin;
