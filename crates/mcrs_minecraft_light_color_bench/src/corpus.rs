@@ -8,7 +8,8 @@ use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
 use mcrs_minecraft_block::light::block_light_registry;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, TaggedRegistry};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_light::block::LightRegistry;
 use mcrs_minecraft_light_color::asset::{BlockStateRef, StateTarget};
 use mcrs_minecraft_light_color::colors::{LightColors, LightType};
@@ -133,7 +134,7 @@ fn block_tags(blocks: &Blocks) -> DynTagRegistry<Block> {
     let mut loader = TagLoader::<Block, u32>::default();
     for namespace in std::fs::read_dir(assets_dir()).expect("the assets directory exists") {
         let namespace = namespace.expect("the assets directory lists").path();
-        let dir = namespace.join("tags").join(Block::REGISTRY_PATH);
+        let dir = namespace.join("tags").join(Block::KEY.path());
         if !dir.is_dir() {
             continue;
         }
@@ -158,7 +159,7 @@ fn collect(blocks: &Blocks, name: &str, into: &mut HashSet<u32>) {
     let path = assets_dir()
         .join(location.namespace())
         .join("tags")
-        .join(Block::REGISTRY_PATH)
+        .join(Block::KEY.path())
         .join(format!("{}.json", location.path()));
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let file: SerializedTagFile =

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::Id;
 use serde::de::Error as _;
@@ -40,10 +39,6 @@ pub struct Timeline {
 
 fn no_tracks(tracks: &Tracks) -> bool {
     tracks.is_empty()
-}
-
-impl TaggedRegistry for Timeline {
-    const REGISTRY_PATH: &'static str = "timeline";
 }
 
 impl RegistryKey for Timeline {

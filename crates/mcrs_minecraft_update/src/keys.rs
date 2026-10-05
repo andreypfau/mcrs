@@ -19,7 +19,11 @@ pub fn generate(
     datapack: &names::Datapack,
     names: &names::Names,
 ) -> Result<Files, String> {
-    for registry in registries.keys().chain(names.entries.keys()) {
+    let named = registries
+        .keys()
+        .chain(names.entries.keys())
+        .chain(names.tags.keys());
+    for registry in named {
         if !datapack.registries.contains_key(registry) {
             return Err(format!("{registry}: not a registry of datapack.json"));
         }
@@ -34,7 +38,12 @@ pub fn generate(
         .collect();
     for (registry, flags) in &datapack.registries {
         let (module, marker) = identity(registry)?;
-        for claim in [&module, &marker] {
+        let tags = names.tags.get(registry).filter(|tags| !tags.is_empty());
+        let tag_module = tags.map(|_| format!("{module}_tags"));
+        for claim in [Some(&module), Some(&marker), tag_module.as_ref()]
+            .into_iter()
+            .flatten()
+        {
             if let Some(other) = claimed.insert(claim.clone(), registry) {
                 return Err(format!("{other} and {registry} are both named {claim}"));
             }
@@ -66,6 +75,13 @@ pub fn generate(
         if let Some(text) = text {
             files.insert(format!("src/{module}.rs"), text);
             modules.push(module);
+        }
+        if let (Some(tags), Some(tag_module)) = (tags, tag_module) {
+            files.insert(
+                format!("src/{tag_module}.rs"),
+                tag_module_text(registry, &marker, tags)?,
+            );
+            modules.push(tag_module);
         }
     }
 
@@ -261,6 +277,20 @@ fn data_module(registry: &str, marker: &str, entries: &BTreeSet<String>) -> Resu
     for (constant, name) in constants(registry, entries.iter().map(String::as_str), &[])? {
         out.push_str(&format!(
             "pub const {constant}: ResourceKey<crate::{marker}, &'static str> = ResourceKey::new(rl!(\"{name}\"));\n"
+        ));
+    }
+    Ok(out)
+}
+
+fn tag_module_text(
+    registry: &str,
+    marker: &str,
+    tags: &BTreeSet<String>,
+) -> Result<String, String> {
+    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{TagKey, rl}};\n\n");
+    for (constant, name) in constants(registry, tags.iter().map(String::as_str), &[])? {
+        out.push_str(&format!(
+            "pub const {constant}: TagKey<crate::{marker}, &'static str> = TagKey::new(rl!(\"{name}\"));\n"
         ));
     }
     Ok(out)
@@ -560,6 +590,117 @@ mod tests {
         assert!(!files.contains_key("src/item_modifier.rs"));
         assert!(!files["src/lib.rs"].contains("item_modifier"));
         assert!(files.contains_key("src/biome.rs"));
+    }
+
+    fn generated_with_tags(
+        statics: Statics,
+        data: Data,
+        tags: &[(&str, &[&str])],
+    ) -> Result<Files, String> {
+        let (registries, datapack, mut names) = reports(statics, data);
+        names.tags = tags
+            .iter()
+            .map(|(registry, tags)| {
+                (
+                    (*registry).to_owned(),
+                    tags.iter().map(|tag| (*tag).to_owned()).collect(),
+                )
+            })
+            .collect();
+        generate(&registries, &datapack, &names)
+    }
+
+    #[test]
+    fn a_registry_without_tags_gets_no_tag_module() {
+        let files = generated_with_tags(
+            &[("minecraft:block", BLOCK)],
+            &[("minecraft:worldgen/biome", &["minecraft:plains"])],
+            &[
+                ("minecraft:block", &["minecraft:logs"]),
+                ("minecraft:worldgen/biome", &[]),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            files.keys().map(String::as_str).collect::<Vec<_>>(),
+            [
+                "src/biome.rs",
+                "src/block.rs",
+                "src/block_tags.rs",
+                "src/lib.rs",
+                "src/registry.rs"
+            ]
+        );
+        assert!(files["src/lib.rs"].contains("pub mod block_tags;"));
+        assert_eq!(
+            files["src/block_tags.rs"],
+            "// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.\n\
+             \n\
+             use mcrs_minecraft_core::{TagKey, rl};\n\
+             \n\
+             pub const LOGS: TagKey<crate::Block, &'static str> = TagKey::new(rl!(\"minecraft:logs\"));\n"
+        );
+    }
+
+    #[test]
+    fn tag_constants_sort_by_name() {
+        let files = generated_with_tags(
+            &[],
+            &[("minecraft:worldgen/biome", &["minecraft:plains"])],
+            &[(
+                "minecraft:worldgen/biome",
+                &[
+                    "minecraft:is_ocean",
+                    "minecraft:has_structure/village",
+                    "minecraft:allows_surface_slime_spawns",
+                ],
+            )],
+        )
+        .unwrap();
+
+        assert_eq!(
+            constants(&files, "src/biome_tags.rs"),
+            [
+                "ALLOWS_SURFACE_SLIME_SPAWNS",
+                "HAS_STRUCTURE_VILLAGE",
+                "IS_OCEAN"
+            ]
+        );
+        assert!(files["src/biome_tags.rs"].contains(
+            "pub const HAS_STRUCTURE_VILLAGE: TagKey<crate::Biome, &'static str> = TagKey::new(rl!(\"minecraft:has_structure/village\"));"
+        ));
+    }
+
+    #[test]
+    fn tags_that_cannot_be_named_stop_generation() {
+        let biome: Data = &[("minecraft:worldgen/biome", &["minecraft:plains"])];
+        assert_refused(
+            generated_with_tags(&[], biome, &[("minecraft:item", &["minecraft:logs"])]),
+            &["minecraft:item"],
+        );
+        assert_refused(
+            generated_with_tags(
+                &[],
+                biome,
+                &[(
+                    "minecraft:worldgen/biome",
+                    &["minecraft:a/b", "minecraft:a_b"],
+                )],
+            ),
+            &["minecraft:a/b", "minecraft:a_b"],
+        );
+        assert_refused(
+            generated_with_tags(
+                &[],
+                &[
+                    ("minecraft:biome", &["minecraft:x"]),
+                    ("minecraft:biome_tags", &["minecraft:x"]),
+                ],
+                &[("minecraft:biome", &["minecraft:logs"])],
+            ),
+            &["minecraft:biome", "minecraft:biome_tags", "biome_tags"],
+        );
     }
 
     #[test]

@@ -1,18 +1,18 @@
 use crate::NameTable;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 /// A dense `ResourceLocation`-to-id index for dynamic registry types,
 /// numbered by the registry loader's table.
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
-pub struct DynRegistryIndex<T: TaggedRegistry> {
+pub struct DynRegistryIndex<T: RegistryKey> {
     table: Arc<NameTable>,
     _marker: PhantomData<fn() -> T>,
 }
 
-impl<T: TaggedRegistry> DynRegistryIndex<T> {
+impl<T: RegistryKey> DynRegistryIndex<T> {
     pub fn from_table(table: &Arc<NameTable>) -> Self {
         Self {
             table: Arc::clone(table),
@@ -42,8 +42,9 @@ mod tests {
     use super::*;
 
     struct TestBiome;
-    impl TaggedRegistry for TestBiome {
-        const REGISTRY_PATH: &'static str = "worldgen/biome";
+    impl RegistryKey for TestBiome {
+        const KEY: ResourceLocation<&'static str> =
+            mcrs_minecraft_core::rl!("minecraft:worldgen/biome");
     }
 
     fn rl_arc(s: &str) -> ResourceLocation<Arc<str>> {

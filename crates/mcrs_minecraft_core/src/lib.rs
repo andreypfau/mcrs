@@ -35,5 +35,5 @@ pub use resource_key::ResourceKey;
 pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;
 pub use section_pos::SectionPos;
-pub use tag_key::{TagKey, TaggedRegistry};
+pub use tag_key::TagKey;
 pub use version::{PackVersion, VERSION, VERSION_JSON, Version, check_corpus_version};

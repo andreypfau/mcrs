@@ -9,9 +9,13 @@ pub mod attribute_type;
 #[rustfmt::skip]
 pub mod banner_pattern;
 #[rustfmt::skip]
+pub mod banner_pattern_tags;
+#[rustfmt::skip]
 pub mod biome;
 #[rustfmt::skip]
 pub mod biome_source;
+#[rustfmt::skip]
+pub mod biome_tags;
 #[rustfmt::skip]
 pub mod block;
 #[rustfmt::skip]
@@ -22,6 +26,8 @@ pub mod block_predicate_type;
 pub mod block_state_provider;
 #[rustfmt::skip]
 pub mod block_state_provider_type;
+#[rustfmt::skip]
+pub mod block_tags;
 #[rustfmt::skip]
 pub mod block_transformer;
 #[rustfmt::skip]
@@ -67,6 +73,8 @@ pub mod custom_stat;
 #[rustfmt::skip]
 pub mod damage_type;
 #[rustfmt::skip]
+pub mod damage_type_tags;
+#[rustfmt::skip]
 pub mod data_component_predicate_type;
 #[rustfmt::skip]
 pub mod data_component_type;
@@ -84,6 +92,8 @@ pub mod dialog;
 pub mod dialog_action_type;
 #[rustfmt::skip]
 pub mod dialog_body_type;
+#[rustfmt::skip]
+pub mod dialog_tags;
 #[rustfmt::skip]
 pub mod dialog_type;
 #[rustfmt::skip]
@@ -105,11 +115,15 @@ pub mod enchantment_provider;
 #[rustfmt::skip]
 pub mod enchantment_provider_type;
 #[rustfmt::skip]
+pub mod enchantment_tags;
+#[rustfmt::skip]
 pub mod enchantment_value_effect_type;
 #[rustfmt::skip]
 pub mod entity_sub_predicate_type;
 #[rustfmt::skip]
 pub mod entity_type;
+#[rustfmt::skip]
+pub mod entity_type_tags;
 #[rustfmt::skip]
 pub mod environment_attribute;
 #[rustfmt::skip]
@@ -117,19 +131,27 @@ pub mod feature;
 #[rustfmt::skip]
 pub mod feature_size_type;
 #[rustfmt::skip]
+pub mod feature_tags;
+#[rustfmt::skip]
 pub mod feature_type;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset;
 #[rustfmt::skip]
+pub mod flat_level_generator_preset_tags;
+#[rustfmt::skip]
 pub mod float_provider_type;
 #[rustfmt::skip]
 pub mod fluid;
+#[rustfmt::skip]
+pub mod fluid_tags;
 #[rustfmt::skip]
 pub mod foliage_placer_type;
 #[rustfmt::skip]
 pub mod frog_variant;
 #[rustfmt::skip]
 pub mod game_event;
+#[rustfmt::skip]
+pub mod game_event_tags;
 #[rustfmt::skip]
 pub mod game_rule;
 #[rustfmt::skip]
@@ -141,9 +163,13 @@ pub mod input_control_type;
 #[rustfmt::skip]
 pub mod instrument;
 #[rustfmt::skip]
+pub mod instrument_tags;
+#[rustfmt::skip]
 pub mod int_provider_type;
 #[rustfmt::skip]
 pub mod item;
+#[rustfmt::skip]
+pub mod item_tags;
 #[rustfmt::skip]
 pub mod jukebox_song;
 #[rustfmt::skip]
@@ -187,6 +213,8 @@ pub mod outgoing_rpc_methods;
 #[rustfmt::skip]
 pub mod painting_variant;
 #[rustfmt::skip]
+pub mod painting_variant_tags;
+#[rustfmt::skip]
 pub mod particle_type;
 #[rustfmt::skip]
 pub mod permission_check_type;
@@ -203,6 +231,8 @@ pub mod placement_modifier_type;
 #[rustfmt::skip]
 pub mod point_of_interest_type;
 #[rustfmt::skip]
+pub mod point_of_interest_type_tags;
+#[rustfmt::skip]
 pub mod pool_alias_binding;
 #[rustfmt::skip]
 pub mod pos_rule_test;
@@ -210,6 +240,8 @@ pub mod pos_rule_test;
 pub mod position_source_type;
 #[rustfmt::skip]
 pub mod potion;
+#[rustfmt::skip]
+pub mod potion_tags;
 #[rustfmt::skip]
 pub mod predicate;
 #[rustfmt::skip]
@@ -255,6 +287,8 @@ pub mod structure_processor;
 #[rustfmt::skip]
 pub mod structure_set;
 #[rustfmt::skip]
+pub mod structure_tags;
+#[rustfmt::skip]
 pub mod structure_type;
 #[rustfmt::skip]
 pub mod sulfur_cube_archetype;
@@ -275,6 +309,8 @@ pub mod ticket_type;
 #[rustfmt::skip]
 pub mod timeline;
 #[rustfmt::skip]
+pub mod timeline_tags;
+#[rustfmt::skip]
 pub mod trade_set;
 #[rustfmt::skip]
 pub mod tree_decorator_type;
@@ -293,6 +329,8 @@ pub mod villager_profession;
 #[rustfmt::skip]
 pub mod villager_trade;
 #[rustfmt::skip]
+pub mod villager_trade_tags;
+#[rustfmt::skip]
 pub mod villager_type;
 #[rustfmt::skip]
 pub mod wolf_sound_variant;
@@ -302,6 +340,8 @@ pub mod wolf_variant;
 pub mod world_clock;
 #[rustfmt::skip]
 pub mod world_preset;
+#[rustfmt::skip]
+pub mod world_preset_tags;
 #[rustfmt::skip]
 pub mod zombie_nautilus_variant;
 

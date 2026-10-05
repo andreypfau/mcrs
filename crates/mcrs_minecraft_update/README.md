@@ -145,6 +145,10 @@ and `minecraft:advancement`. A constant is the entry path in upper case with
 Any other digit-leading name, a namespace without a rule and two names that make
 one constant stop the generator with the name.
 
+A registry with tags in `names.json` also gets a `<module>_tags` module of
+`TagKey` constants named the same way, so `block_tags::LOGS` and
+`item_tags::LOGS` are two constants of two registries.
+
 A test of this crate regenerates the files from the stored reports and fails,
 naming the first file that differs, if the checked-in crate is not what the
 generator writes.

@@ -5,7 +5,7 @@ use bevy_app::{App, Update};
 use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::bitset::TagId;
 
@@ -46,14 +46,14 @@ pub trait TagRegistryAppExt {
     /// consumed into a `TagRegistry<T, S::Id>` in [`TagPhase::Freeze`].
     fn add_tagged_registry<T, S>(&mut self) -> &mut Self
     where
-        T: TaggedRegistry + 'static,
+        T: RegistryKey + 'static,
         S: TagSource + Resource;
 }
 
 impl TagRegistryAppExt for App {
     fn add_tagged_registry<T, S>(&mut self) -> &mut Self
     where
-        T: TaggedRegistry + 'static,
+        T: RegistryKey + 'static,
         S: TagSource + Resource,
     {
         if !self.world().contains_resource::<TagLoadersSettled>() {
@@ -92,7 +92,7 @@ fn reset_settled(mut settled: ResMut<TagLoadersSettled>) {
     settled.0 = true;
 }
 
-fn check_settled<T: TaggedRegistry + 'static, I: TagId>(
+fn check_settled<T: RegistryKey + 'static, I: TagId>(
     loader: Res<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
     mut settled: ResMut<TagLoadersSettled>,
@@ -102,7 +102,7 @@ fn check_settled<T: TaggedRegistry + 'static, I: TagId>(
     }
 }
 
-fn resolve_tags<T: TaggedRegistry + 'static, S: TagSource + Resource>(
+fn resolve_tags<T: RegistryKey + 'static, S: TagSource + Resource>(
     mut loader: ResMut<TagLoader<T, S::Id>>,
     tag_files: Res<Assets<TagFile>>,
     source: Res<S>,
@@ -120,12 +120,12 @@ fn resolve_tags<T: TaggedRegistry + 'static, S: TagSource + Resource>(
     }
     tracing::info!(
         resolved_entries = resolved,
-        registry = T::REGISTRY_PATH,
+        registry = T::KEY.path(),
         "resolved tags"
     );
 }
 
-fn freeze_tags<T: TaggedRegistry + 'static, S: TagSource + Resource>(world: &mut World) {
+fn freeze_tags<T: RegistryKey + 'static, S: TagSource + Resource>(world: &mut World) {
     let loader = world
         .remove_resource::<TagLoader<T, S::Id>>()
         .expect("tagged registry frozen twice");
@@ -134,5 +134,5 @@ fn freeze_tags<T: TaggedRegistry + 'static, S: TagSource + Resource>(world: &mut
         loader.freeze(source)
     };
     world.insert_resource(registry);
-    tracing::info!(registry = T::REGISTRY_PATH, "frozen tag registry");
+    tracing::info!(registry = T::KEY.path(), "frozen tag registry");
 }

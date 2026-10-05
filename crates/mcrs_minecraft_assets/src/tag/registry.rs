@@ -1,8 +1,9 @@
 use crate::tag::file::{TagEntry, TagFile, TagFileSettings};
 use bevy_asset::{AssetServer, Assets, Handle, RecursiveDependencyLoadState};
 use bevy_ecs::resource::Resource;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_registry::bitset::{BitSet, TagId};
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, TagSource};
@@ -81,7 +82,7 @@ fn extend_from_tag_file<S: TagSource>(
 /// [`TagRegistry`] only exists once this has been consumed, so no reader can
 /// ask a membership question against half-loaded data.
 #[derive(Resource)]
-pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
+pub struct TagLoader<T: RegistryKey + 'static, I: TagId = Id<T>> {
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
     resolved: HashMap<ResourceLocation<Arc<str>>, HashSet<I>>,
     _marker: PhantomData<fn() -> T>,
@@ -89,7 +90,7 @@ pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
 
 pub type DynTagLoader<T> = TagLoader<T, u16>;
 
-impl<T: TaggedRegistry + 'static, I: TagId> Default for TagLoader<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> Default for TagLoader<T, I> {
     fn default() -> Self {
         TagLoader {
             handles: HashMap::new(),
@@ -99,7 +100,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> Default for TagLoader<T, I> {
     }
 }
 
-impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> TagLoader<T, I> {
     /// Request a tag file to be loaded. No-op if already requested.
     ///
     /// Loading uses `TagFileSettings` so the loader can resolve nested `#tag`
@@ -111,7 +112,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
         let handle = asset_server
             .load_builder()
             .with_settings(|s: &mut TagFileSettings| {
-                s.registry_segment = T::REGISTRY_PATH.to_string();
+                s.registry_segment = T::KEY.path().to_string();
             })
             .load::<TagFile>(key.asset_path());
         self.handles.insert(key.to_arc().location().clone(), handle);
@@ -174,7 +175,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
 /// Membership is a single bit test instead of a hash probe; the cost is one
 /// `u64` word per 64 registry entries per tag, paid once at freeze.
 #[derive(Resource)]
-pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
+pub struct TagRegistry<T: RegistryKey + 'static, I: TagId = Id<T>> {
     index: Arc<HashMap<ResourceLocation<Arc<str>>, usize>>,
     bitsets: Arc<[BitSet<I>]>,
     _marker: PhantomData<fn() -> T>,
@@ -182,7 +183,7 @@ pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = Id<T>> {
 
 pub type DynTagRegistry<T> = TagRegistry<T, u16>;
 
-impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> Default for TagRegistry<T, I> {
     fn default() -> Self {
         TagRegistry {
             index: Arc::default(),
@@ -192,7 +193,7 @@ impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
     }
 }
 
-impl<T: TaggedRegistry + 'static, I: TagId> Clone for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> Clone for TagRegistry<T, I> {
     fn clone(&self) -> Self {
         TagRegistry {
             index: Arc::clone(&self.index),
@@ -202,13 +203,13 @@ impl<T: TaggedRegistry + 'static, I: TagId> Clone for TagRegistry<T, I> {
     }
 }
 
-impl<T: TaggedRegistry + 'static, I: TagId> SharedResource for TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> SharedResource for TagRegistry<T, I> {
     fn shares_with(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.bitsets, &other.bitsets)
     }
 }
 
-impl<T: TaggedRegistry + 'static, I: TagId> TagRegistry<T, I> {
+impl<T: RegistryKey + 'static, I: TagId> TagRegistry<T, I> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -246,13 +247,14 @@ mod tests {
     use mcrs_minecraft_registry::dyn_index::DynRegistryIndex;
 
     struct TestBlock;
-    impl TaggedRegistry for TestBlock {
-        const REGISTRY_PATH: &'static str = "block";
+    impl RegistryKey for TestBlock {
+        const KEY: ResourceLocation<&'static str> = mcrs_minecraft_core::rl!("minecraft:block");
     }
 
     struct TestBiome;
-    impl TaggedRegistry for TestBiome {
-        const REGISTRY_PATH: &'static str = "worldgen/biome";
+    impl RegistryKey for TestBiome {
+        const KEY: ResourceLocation<&'static str> =
+            mcrs_minecraft_core::rl!("minecraft:worldgen/biome");
     }
 
     /// A source with no entries beyond a fixed id space, so loader tests can

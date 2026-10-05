@@ -2,7 +2,6 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -167,61 +166,6 @@ fn workspace_root() -> PathBuf {
         .join("../..")
         .canonicalize()
         .unwrap()
-}
-
-struct TagMarker {
-    name: &'static str,
-    registry_path: &'static str,
-    key: String,
-}
-
-fn tag_marker<T: RegistryKey + TaggedRegistry>() -> TagMarker {
-    TagMarker {
-        name: std::any::type_name::<T>().rsplit("::").next().unwrap(),
-        registry_path: T::REGISTRY_PATH,
-        key: T::KEY.as_str().to_owned(),
-    }
-}
-
-macro_rules! tag_markers {
-    ($($ty:ty),* $(,)?) => {
-        vec![$(tag_marker::<$ty>()),*]
-    };
-}
-
-fn tag_markers() -> Vec<TagMarker> {
-    tag_markers![
-        mcrs_minecraft_item::Item,
-        mcrs_minecraft_item::enchantment::data::EnchantmentData,
-        mcrs_minecraft_registry::key::Block,
-        mcrs_minecraft_registry::key::Fluid,
-        mcrs_minecraft_entity::EntityType,
-        mcrs_minecraft_registry::key::Dialog,
-        mcrs_minecraft_environment::timeline::Timeline,
-        mcrs_minecraft_registry::key::Biome,
-        mcrs_minecraft_registry::key::Structure,
-    ]
-}
-
-fn registry_path(key: &str) -> &str {
-    key.split_once(':').unwrap().1
-}
-
-#[test]
-fn a_tag_markers_key_has_its_tag_path() {
-    let markers = tag_markers();
-    assert!(!markers.is_empty(), "the list holds no tag marker");
-    let offences: Vec<String> = markers
-        .iter()
-        .filter(|m| registry_path(&m.key) != m.registry_path || !m.key.starts_with("minecraft:"))
-        .map(|m| {
-            format!(
-                "{}: key {} against tag path {}",
-                m.name, m.key, m.registry_path
-            )
-        })
-        .collect();
-    assert!(offences.is_empty(), "{}", offences.join("\n"));
 }
 
 const GRAPH_DOCUMENT: &str = "docs/registry-graph.md";

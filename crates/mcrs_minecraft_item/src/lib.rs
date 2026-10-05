@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 
 pub mod component;
@@ -54,10 +53,6 @@ pub type Text = mcrs_minecraft_text::Text<Template>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Item {}
-
-impl TaggedRegistry for Item {
-    const REGISTRY_PATH: &'static str = "item";
-}
 
 impl RegistryKey for Item {
     const KEY: ResourceLocation<&'static str> = rl!("minecraft:item");

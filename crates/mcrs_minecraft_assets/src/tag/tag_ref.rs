@@ -3,8 +3,9 @@ use std::sync::Arc;
 use bevy_asset::{Handle, LoadContext};
 
 use crate::tag::file::{TagFile, TagFileSettings};
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag_key::TagKey;
 
 /// A loaded reference to a tag in a typed registry.
 ///
@@ -23,13 +24,13 @@ use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
 /// ```rust,ignore
 /// let tag = TagRef::<Block>::load("minecraft:infiniburn_overworld", load_context)?;
 /// ```
-pub struct TagRef<T: TaggedRegistry> {
+pub struct TagRef<T: RegistryKey> {
     key: TagKey<T, Arc<str>>,
     handle: Handle<TagFile>,
 }
 
 // Manual impls so T doesn't need Clone/Debug.
-impl<T: TaggedRegistry> Clone for TagRef<T> {
+impl<T: RegistryKey> Clone for TagRef<T> {
     fn clone(&self) -> Self {
         TagRef {
             key: self.key.clone(),
@@ -38,7 +39,7 @@ impl<T: TaggedRegistry> Clone for TagRef<T> {
     }
 }
 
-impl<T: TaggedRegistry> std::fmt::Debug for TagRef<T> {
+impl<T: RegistryKey> std::fmt::Debug for TagRef<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TagRef")
             .field("key", &self.key)
@@ -47,12 +48,12 @@ impl<T: TaggedRegistry> std::fmt::Debug for TagRef<T> {
     }
 }
 
-impl<T: TaggedRegistry> TagRef<T> {
+impl<T: RegistryKey> TagRef<T> {
     /// Parse a `namespace:path` string (without `#` prefix) and load the
     /// corresponding tag file as a sub-asset.
     ///
     /// The registry path segment (e.g. `"block"`) is derived from
-    /// `T::REGISTRY_PATH`, so the correct `tags/{segment}/…` path is used
+    /// `T::KEY`, so the correct `tags/{segment}/…` path is used
     /// automatically.
     pub fn load(
         rl_str: &str,
@@ -63,7 +64,7 @@ impl<T: TaggedRegistry> TagRef<T> {
         let handle = load_context
             .load_builder()
             .with_settings(move |s: &mut TagFileSettings| {
-                s.registry_segment = T::REGISTRY_PATH.to_string();
+                s.registry_segment = T::KEY.path().to_string();
             })
             .load::<TagFile>(key.asset_path());
         Ok(TagRef { key, handle })

@@ -3,7 +3,6 @@ use crate::dyn_index::DynRegistryIndex;
 use crate::id::Id;
 use crate::registry::Registry;
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 
 /// The registry a tag file's element references are resolved against.
 pub trait TagSource: Send + Sync + 'static {
@@ -27,7 +26,7 @@ impl<R: RegistryKey> TagSource for Registry<R> {
     }
 }
 
-impl<T: TaggedRegistry + Send + Sync + 'static> TagSource for DynRegistryIndex<T> {
+impl<T: RegistryKey + Send + Sync + 'static> TagSource for DynRegistryIndex<T> {
     type Id = u16;
 
     fn id_of(&self, loc: &str) -> Option<u16> {
