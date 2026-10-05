@@ -6,10 +6,11 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_keys::{Block, block_tags, fluid_tags};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
@@ -28,12 +29,7 @@ use mcrs_minecraft_worldgen_feature_place::tree::provider::{
     SharedNoise, StateProvider, int_property_table, rotation_table,
 };
 use mcrs_minecraft_worldgen_feature_place::tree::root::{AboveRootPlacement, MangroveRoots};
-use mcrs_minecraft_worldgen_feature_place::tree::survive::{
-    CANNOT_SUPPORT_SEAGRASS, OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT, SUPPORTS_CACTUS,
-    SUPPORTS_LILY_PAD, SUPPORTS_SMALL_DRIPLEAF, SUPPORTS_SUGAR_CANE,
-    SUPPORTS_SUGAR_CANE_ADJACENTLY, SUPPORTS_VEGETATION, SurviveFamily, SurviveRule,
-    UNSTABLE_BOTTOM_CENTER, family_of,
-};
+use mcrs_minecraft_worldgen_feature_place::tree::survive::{SurviveFamily, SurviveRule, family_of};
 use mcrs_minecraft_worldgen_feature_place::tree::trunk::{TreeStates, Trunk};
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, LeafDistances, TreeTables};
 use mcrs_minecraft_worldgen_noise::normal as normal_noise;
@@ -77,9 +73,9 @@ pub(super) fn state_of(
 pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let blocks = resolver.blocks;
     let air = resolver.block_mask("minecraft:air")?;
-    let logs = resolver.tag_mask("minecraft:logs")?;
-    let leaves = resolver.tag_mask("minecraft:leaves")?;
-    let replaceable_by_trees = resolver.tag_mask("minecraft:replaceable_by_trees")?;
+    let logs = resolver.tag_mask(block_tags::LOGS)?;
+    let leaves = resolver.tag_mask(block_tags::LEAVES)?;
+    let replaceable_by_trees = resolver.tag_mask(block_tags::REPLACEABLE_BY_TREES)?;
 
     let states = TreeStates {
         valid_tree_pos: union_masks(&[&air, &replaceable_by_trees]),
@@ -183,7 +179,7 @@ fn leaf_distances(blocks: &BlockDefinitions, resolver: &Resolver<'_>) -> Compile
         }
     }
     for state in resolver
-        .tag_mask("minecraft:prevents_nearby_leaf_decay")?
+        .tag_mask(block_tags::PREVENTS_NEARBY_LEAF_DECAY)?
         .ones()
     {
         let state = VoxelId(state as u16);
@@ -318,14 +314,16 @@ fn rule_of(
     water: &FixedBitSet,
     not_air: &FixedBitSet,
 ) -> Compiled<SurviveRule> {
-    let tag = |name: &str| resolver.tag_mask(name).map(|mask| mask.as_ref().clone());
+    let tag = |name: TagKey<Block, &'static str>| {
+        resolver.tag_mask(name).map(|mask| mask.as_ref().clone())
+    };
     let below = |supports: FixedBitSet| SurviveRule::SupportedBy {
         offset_y: -1,
         supports,
     };
     Ok(match family {
         SurviveFamily::Mushroom => {
-            let mut supports = tag(OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT)?;
+            let mut supports = tag(block_tags::OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT)?;
             supports.union_with(&resolver.world.solid_render);
             below(supports)
         }
@@ -334,13 +332,13 @@ fn rule_of(
         SurviveFamily::SeaPickle => below(faces.any_up.clone()),
         SurviveFamily::Seagrass => {
             let mut supports = faces.sturdy_up.clone();
-            supports.difference_with(&tag(CANNOT_SUPPORT_SEAGRASS)?);
+            supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SEAGRASS)?);
             below(supports)
         }
         // chisle: `isFull` is not checked; worldgen water is source water.
         SurviveFamily::TallSeagrass => {
             let mut supports = faces.sturdy_up.clone();
-            supports.difference_with(&tag(CANNOT_SUPPORT_SEAGRASS)?);
+            supports.difference_with(&tag(block_tags::CANNOT_SUPPORT_SEAGRASS)?);
             let mut not_water = not_air.clone();
             not_water.union_with(&resolver.world.air_states);
             not_water.difference_with(water);
@@ -351,13 +349,13 @@ fn rule_of(
             }
         }
         SurviveFamily::SmallDripleaf => SurviveRule::SmallDripleaf {
-            supports: tag(SUPPORTS_SMALL_DRIPLEAF)?,
-            wet_supports: tag(SUPPORTS_VEGETATION)?,
+            supports: tag(block_tags::SUPPORTS_SMALL_DRIPLEAF)?,
+            wet_supports: tag(block_tags::SUPPORTS_VEGETATION)?,
             water: water.clone(),
         },
         SurviveFamily::SporeBlossom => {
             let mut supports = faces.center_down.clone();
-            supports.difference_with(&tag(UNSTABLE_BOTTOM_CENTER)?);
+            supports.difference_with(&tag(block_tags::UNSTABLE_BOTTOM_CENTER)?);
             SurviveRule::SupportedByUnless {
                 offset_y: 1,
                 supports,
@@ -365,9 +363,10 @@ fn rule_of(
             }
         }
         SurviveFamily::LilyPad => {
-            let mut supports = tag(SUPPORTS_LILY_PAD)?;
-            let fluids =
-                resolver.mask(StateQuery::Fluids(&resolver.fluid_tag(SUPPORTS_LILY_PAD)?))?;
+            let mut supports = tag(block_tags::SUPPORTS_LILY_PAD)?;
+            let fluids = resolver.mask(StateQuery::Fluids(
+                &resolver.fluid_tag(fluid_tags::SUPPORTS_LILY_PAD)?,
+            ))?;
             supports.union_with(&fluids);
             SurviveRule::SupportedByUnless {
                 offset_y: -1,
@@ -380,9 +379,9 @@ fn rule_of(
                 .block_mask("minecraft:sugar_cane")?
                 .as_ref()
                 .clone(),
-            supports: tag(SUPPORTS_SUGAR_CANE)?,
+            supports: tag(block_tags::SUPPORTS_SUGAR_CANE)?,
             adjacent: {
-                let mut adjacent = tag(SUPPORTS_SUGAR_CANE_ADJACENTLY)?;
+                let mut adjacent = tag(block_tags::SUPPORTS_SUGAR_CANE_ADJACENTLY)?;
                 adjacent.union_with(&resolver.world.water_fluid);
                 adjacent
             },
@@ -390,7 +389,7 @@ fn rule_of(
         SurviveFamily::Cactus => {
             let mut blocked = resolver.world.sturdy_up.as_ref().clone();
             blocked.union_with(&resolver.world.lava_fluid);
-            let mut supports = tag(SUPPORTS_CACTUS)?;
+            let mut supports = tag(block_tags::SUPPORTS_CACTUS)?;
             let cactus = resolver.block_mask("minecraft:cactus")?;
             supports.union_with(&cactus);
             SurviveRule::Cactus {

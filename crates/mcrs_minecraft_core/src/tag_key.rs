@@ -7,11 +7,11 @@ use std::sync::Arc;
 /// A typed reference to a tag in a specific registry.
 ///
 /// Generic over storage `S`:
-/// - `TagKey<R>` = `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible.
-/// - `TagKey<R, Arc<str>>` — heap-allocated, for runtime-parsed tag references.
+/// - `TagKey<R>` = `TagKey<R, Arc<str>>` — heap-allocated, for runtime-parsed tag references.
+/// - `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible; every constant spells it.
 ///
 /// Cross-variant equality and hashing compare by string content (like `ResourceLocation`).
-pub struct TagKey<R: RegistryKey, S = &'static str> {
+pub struct TagKey<R: RegistryKey, S = Arc<str>> {
     rl: ResourceLocation<S>,
     _marker: PhantomData<fn() -> R>,
 }
@@ -52,7 +52,7 @@ impl<R: RegistryKey> TagKey<R, &'static str> {
     ///
     /// ```rust,ignore
     /// use mcrs_minecraft_core::{rl, TagKey};
-    /// const MY_TAG: TagKey<Block> = TagKey::new(rl!("minecraft:mineable/pickaxe"));
+    /// const MY_TAG: TagKey<Block, &'static str> = TagKey::new(rl!("minecraft:mineable/pickaxe"));
     /// ```
     pub const fn new(rl: ResourceLocation<&'static str>) -> Self {
         TagKey {

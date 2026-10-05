@@ -5,24 +5,6 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 
-/// The block tags a rule is built from. The fluid tags of the same name are
-/// separate registries and fold into the same masks: a fluid test is a question
-/// about the block state that carries the fluid.
-///
-/// A block whose `canSurvive` is one tag read below carries that as the
-/// `minecraft:placement_filter` component of its definition instead and has no
-/// family here.
-pub const SUPPORTS_VEGETATION: &str = "minecraft:supports_vegetation";
-pub const OVERRIDES_MUSHROOM_LIGHT_REQUIREMENT: &str =
-    "minecraft:overrides_mushroom_light_requirement";
-pub const SUPPORTS_LILY_PAD: &str = "minecraft:supports_lily_pad";
-pub const UNSTABLE_BOTTOM_CENTER: &str = "minecraft:unstable_bottom_center";
-pub const SUPPORTS_SUGAR_CANE: &str = "minecraft:supports_sugar_cane";
-pub const SUPPORTS_SUGAR_CANE_ADJACENTLY: &str = "minecraft:supports_sugar_cane_adjacently";
-pub const SUPPORTS_CACTUS: &str = "minecraft:supports_cactus";
-pub const CANNOT_SUPPORT_SEAGRASS: &str = "minecraft:cannot_support_seagrass";
-pub const SUPPORTS_SMALL_DRIPLEAF: &str = "minecraft:supports_small_dripleaf";
-
 /// Which shape a state's block takes. A block that answers `None` overrides
 /// nothing and takes the default `canSurvive`, which is true.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +33,9 @@ pub enum SurviveFamily {
     SmallDripleaf,
 }
 
+/// A block whose `canSurvive` is one tag carries that as the
+/// `minecraft:placement_filter` component of its definition instead and has no
+/// family here.
 pub fn family_of(block: &str) -> Option<SurviveFamily> {
     use SurviveFamily::*;
     let name = block.strip_prefix("minecraft:").unwrap_or(block);

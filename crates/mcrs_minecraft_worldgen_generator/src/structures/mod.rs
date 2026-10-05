@@ -188,14 +188,14 @@ fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<keys::Biome>) -> Bio
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
     owner: &dyn std::fmt::Display,
-    tag: &str,
+    key: TagKey<keys::Biome, &'static str>,
 ) -> Result<BiomeMask, String> {
-    let key =
-        TagKey::<keys::Biome, _>::from_location(ResourceLocation::read(tag).expect("a literal id"));
-    let tag = inputs
-        .biome_tags
-        .get(&key)
-        .ok_or_else(|| format!("{owner}: names the biome tag #{tag}, which is not loaded"))?;
+    let tag = inputs.biome_tags.get(&key).ok_or_else(|| {
+        format!(
+            "{owner}: names the biome tag #{}, which is not loaded",
+            key.as_str()
+        )
+    })?;
     Ok(biome_mask(inputs, &HolderSet::Named(tag)))
 }
 
@@ -457,7 +457,7 @@ fn freeze_structures(
             Structure::JungleTemple { .. } => StructureKind::JungleTemple,
             Structure::Mineshaft { mineshaft_type, .. } => StructureKind::Mineshaft {
                 mineshaft_type: *mineshaft_type,
-                blocking: biome_tag_mask(inputs, id, "minecraft:mineshaft_blocking")?,
+                blocking: biome_tag_mask(inputs, id, keys::biome_tags::MINESHAFT_BLOCKING)?,
             },
             Structure::NetherFossil { height, .. } => StructureKind::NetherFossil {
                 height: *height,
@@ -467,7 +467,7 @@ fn freeze_structures(
                 surrounding: biome_tag_mask(
                     inputs,
                     id,
-                    "minecraft:required_ocean_monument_surrounding",
+                    keys::biome_tags::REQUIRED_OCEAN_MONUMENT_SURROUNDING,
                 )?,
             },
             Structure::OceanRuin {
@@ -482,7 +482,7 @@ fn freeze_structures(
                 frequent_drowned: biome_tag_mask(
                     inputs,
                     id,
-                    "minecraft:more_frequent_drowned_spawns",
+                    keys::biome_tags::MORE_FREQUENT_DROWNED_SPAWNS,
                 )?,
             }),
             Structure::RuinedPortal { setups, .. } => {

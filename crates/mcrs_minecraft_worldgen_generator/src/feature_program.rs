@@ -1137,7 +1137,7 @@ fn compile_structures(
                 ))),
                 StructureKind::RuinedPortal { setups, .. } => {
                     let features_cannot_replace = resolver
-                        .block_tag("minecraft:features_cannot_replace")
+                        .block_tag(keys::block_tags::FEATURES_CANNOT_REPLACE)
                         .map_err(|error| error.within(&structure.id))?;
                     Some(CompiledStructure::RuinedPortal(Box::new(
                         RuinedPortalBlocks::compile(
@@ -1506,9 +1506,10 @@ fn compile_generator(
                 snow: VoxelId::from(snow.default_state_id.0),
                 snow_layers_8: VoxelId::from(set(snow, snow.default_state_id, "layers", "8")?.0),
                 snow_states: resolver.block_mask("minecraft:snow")?,
-                cannot_support_snow: resolver.tag_mask("minecraft:cannot_support_snow_layer")?,
+                cannot_support_snow: resolver
+                    .tag_mask(keys::block_tags::CANNOT_SUPPORT_SNOW_LAYER)?,
                 support_override_snow: resolver
-                    .tag_mask("minecraft:support_override_snow_layer")?,
+                    .tag_mask(keys::block_tags::SUPPORT_OVERRIDE_SNOW_LAYER)?,
                 tables: resolver.tables.clone(),
             }))
         }
@@ -1535,7 +1536,7 @@ fn compile_generator(
             )?,
             chest_states: resolver.block_mask("minecraft:chest")?,
             spawner_states: resolver.block_mask("minecraft:spawner")?,
-            cannot_replace: resolver.tag_mask("minecraft:features_cannot_replace")?,
+            cannot_replace: resolver.tag_mask(keys::block_tags::FEATURES_CANNOT_REPLACE)?,
         })),
         Feature::BonusChest => Generator::BonusChest(CompiledBonusChest {
             chest: resolver.default_state_of(keys::block::CHEST),
@@ -1670,7 +1671,7 @@ fn compile_generator(
                     max_distance_from_edge_affecting_chance_of_speleothem.0,
                 max_distance_from_center_affecting_height_bias:
                     max_distance_from_center_affecting_height_bias.0,
-                base_stone_overworld: resolver.tag_mask("minecraft:base_stone_overworld")?,
+                base_stone_overworld: resolver.tag_mask(keys::block_tags::BASE_STONE_OVERWORLD)?,
             }))
         }
         Feature::LargeDripstone {
@@ -1702,7 +1703,7 @@ fn compile_generator(
                 wind_speed: *wind_speed,
                 min_radius_for_wind: min_radius_for_wind.0,
                 min_bluntness_for_wind: min_bluntness_for_wind.0 as f32,
-                base_stone_overworld: resolver.tag_mask("minecraft:base_stone_overworld")?,
+                base_stone_overworld: resolver.tag_mask(keys::block_tags::BASE_STONE_OVERWORLD)?,
             }))
         }
         Feature::Bamboo { probability } => {
@@ -1715,9 +1716,9 @@ fn compile_generator(
             };
             Generator::Bamboo(CompiledBamboo {
                 probability: probability.0 as f32,
-                supports_bamboo: resolver.tag_mask("minecraft:supports_bamboo")?,
+                supports_bamboo: resolver.tag_mask(keys::block_tags::SUPPORTS_BAMBOO)?,
                 beneath_podzol_replaceable: resolver
-                    .tag_mask("minecraft:beneath_bamboo_podzol_replaceable")?,
+                    .tag_mask(keys::block_tags::BENEATH_BAMBOO_PODZOL_REPLACEABLE)?,
                 podzol: resolver.default_state_of(keys::block::PODZOL),
                 trunk: stalk("none", "0")?,
                 final_large: stalk("large", "1")?,
@@ -1736,7 +1737,7 @@ fn compile_generator(
                 *slot = missing(with_bits(plant, &faces, bits), &plant.identifier)?;
             }
             Generator::ChorusPlant(Box::new(CompiledChorusPlant {
-                supports: resolver.tag_mask("minecraft:supports_chorus_plant")?,
+                supports: resolver.tag_mask(keys::block_tags::SUPPORTS_CHORUS_PLANT)?,
                 plant_or_flower: resolver
                     .blocks_mask(&["minecraft:chorus_plant", "minecraft:chorus_flower"])?,
                 plant_by_connections,
@@ -1791,8 +1792,9 @@ fn compile_generator(
             stem_provider: compile_provider(stem_provider, resolver)?,
             foliage_radius: foliage_radius.0,
             can_place_on: compile_predicate(can_place_on, resolver)?,
-            leaves: resolver.tag_mask("minecraft:leaves")?,
-            replaceable_by_mushrooms: resolver.tag_mask("minecraft:replaceable_by_mushrooms")?,
+            leaves: resolver.tag_mask(keys::block_tags::LEAVES)?,
+            replaceable_by_mushrooms: resolver
+                .tag_mask(keys::block_tags::REPLACEABLE_BY_MUSHROOMS)?,
             tables: resolver.tables.clone(),
         })),
         Feature::Iceberg { state } => Generator::Iceberg(CompiledIceberg {
@@ -1967,10 +1969,11 @@ fn compile_generator(
                 "minecraft:sculk_catalyst",
                 "minecraft:moving_piston",
             ])?,
-            fire: resolver.tag_mask("minecraft:fire")?,
-            replaceable_world_gen: resolver.tag_mask("minecraft:sculk_replaceable_world_gen")?,
-            substrate: resolver.tag_mask("minecraft:sculk_replaceable")?,
-            growth_inhibitors: resolver.tag_mask("minecraft:sculk_growth_inhibitors")?,
+            fire: resolver.tag_mask(keys::block_tags::FIRE)?,
+            replaceable_world_gen: resolver
+                .tag_mask(keys::block_tags::SCULK_REPLACEABLE_WORLD_GEN)?,
+            substrate: resolver.tag_mask(keys::block_tags::SCULK_REPLACEABLE)?,
+            growth_inhibitors: resolver.tag_mask(keys::block_tags::SCULK_GROWTH_INHIBITORS)?,
             sensor: waterlogged_pair(resolver, "minecraft:sculk_sensor", &[])?,
             shrieker: waterlogged_pair(
                 resolver,
@@ -2735,8 +2738,8 @@ impl<'a> Resolver<'a> {
         states_of(self, query)
     }
 
-    pub fn tag_mask(&self, tag: &str) -> Compiled<StateMask> {
-        self.mask(StateQuery::BlockTag(&location(tag)))
+    pub fn tag_mask(&self, tag: TagKey<Block, &'static str>) -> Compiled<StateMask> {
+        self.mask(StateQuery::BlockTag(&tag.location().to_arc()))
     }
 
     pub fn blocks_mask(&self, names: &[&str]) -> Compiled<StateMask> {
@@ -2744,11 +2747,11 @@ impl<'a> Resolver<'a> {
         self.mask(StateQuery::Names(&ids))
     }
 
-    pub fn block_tag(&self, tag: &str) -> Compiled<HolderSet<Block>> {
+    pub fn block_tag(&self, tag: TagKey<Block, &'static str>) -> Compiled<HolderSet<Block>> {
         named_tag(&self.tags, tag).map(HolderSet::Named)
     }
 
-    pub fn fluid_tag(&self, tag: &str) -> Compiled<HolderSet<Fluid>> {
+    pub fn fluid_tag(&self, tag: TagKey<Fluid, &'static str>) -> Compiled<HolderSet<Fluid>> {
         named_tag(&self.fluid_tags, tag).map(HolderSet::Named)
     }
 
@@ -2833,10 +2836,10 @@ impl<'a> Resolver<'a> {
 
 fn named_tag<R: mcrs_minecraft_core::RegistryKey>(
     tags: &Tags<R>,
-    tag: &str,
+    tag: TagKey<R, &'static str>,
 ) -> Compiled<mcrs_minecraft_registry::TagId<R>> {
-    tags.get(&TagKey::<R, Arc<str>>::from_location(location(tag)))
-        .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{tag}")))
+    tags.get(&tag)
+        .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))
 }
 
 impl BlockResolver for Resolver<'_> {
