@@ -7,7 +7,7 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_registry::RegistrySet;
 use tracing::{debug, error, info};
@@ -175,7 +175,7 @@ pub(crate) fn enqueue_dim_spawns(
         );
 
         spawn_queue.0.push(DimSpawnRequest {
-            dimension_id: DimensionId::new(dimension_key.as_str()),
+            dimension: dimension_key.clone(),
             type_config: resolved.0,
             has_sky: resolved.1,
         });

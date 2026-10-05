@@ -6,7 +6,7 @@ use crate::world::bus::InboundPlayerSpawn;
 use crate::world::bus::PlayerTransferSnapshot;
 use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::session::HostAnchorRef;
-use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
+use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, Plugin, Update};
 use bevy_asset::{AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::component::Component;
@@ -21,9 +21,9 @@ use mcrs_minecraft_assets::tag::file::{TagEntry, TagFile, TagFileSettings};
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_assets::tag::registry::TagRegistry;
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
-use mcrs_minecraft_core::{ResourceLocation, VERSION, rl};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_keys::{Block, Enchantment, EntityType, Item};
+use mcrs_minecraft_keys::{self as keys, Block, Enchantment, EntityType, Item};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -563,8 +563,8 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
 /// Runs each Update tick. For every connection in the game state whose session
 /// is still unplaced, picks the live `DimSubAppHandle` label entity of the
-/// dimension the player was saved in, or the first live one when the save names
-/// none or a dimension that does not exist, sends
+/// dimension the player was saved in, or the overworld's when the save names
+/// none or a dimension that is not live, sends
 /// one `ToDim::Spawn` into the dimension's control channel and marks the session
 /// as joining that label entity — the key used by `DimChannelsResource`, NOT a
 /// sub-app-internal `Dimension` entity.
@@ -574,7 +574,7 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
-    live_dims: Query<(Entity, Option<&DimLabel>), With<DimSubAppHandle>>,
+    live_dims: Query<(Entity, &ResourceKey<keys::Dimension>), With<DimSubAppHandle>>,
     dim_channels: Res<DimChannelsResource>,
     dimension_list: Option<Res<DimensionList>>,
     save: Option<Res<WorldSave>>,
@@ -584,10 +584,10 @@ pub fn emit_initial_player_spawn(
         return;
     }
 
-    let dimensions: Vec<String> = dimension_list
+    let dimensions: Vec<ResourceKey<keys::Dimension>> = dimension_list
         .iter()
         .flat_map(|list| list.iter())
-        .map(|(key, _)| key.as_str().to_owned())
+        .map(|(key, _)| key.clone())
         .collect();
 
     for (&HostAnchorRef(host_anchor), state, info) in &connections {
@@ -603,11 +603,16 @@ pub fn emit_initial_player_spawn(
         let saved = save
             .as_ref()
             .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
-        let saved_dimension = saved.as_ref().map(|dat| dat.dimension.as_str());
-        let Some((dim_label, _)) = live_dims
-            .iter()
-            .find(|(_, label)| label.map(|label| label.0.as_str()) == saved_dimension)
-            .or_else(|| live_dims.iter().next())
+        let live = |key: &str| {
+            live_dims
+                .iter()
+                .find(|(_, live)| live.as_str() == key)
+                .map(|(label, _)| label)
+        };
+        let Some(dim_label) = saved
+            .as_ref()
+            .and_then(|dat| live(dat.dimension.as_str()))
+            .or_else(|| live(keys::dimension::OVERWORLD.as_str()))
         else {
             continue;
         };

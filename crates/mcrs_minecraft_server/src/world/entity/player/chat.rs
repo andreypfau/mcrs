@@ -8,7 +8,8 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, IVec3};
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
@@ -100,12 +101,16 @@ fn handle_command(
             let Some(raw) = parts.next() else {
                 return;
             };
-            let dim_name = match raw {
-                "nether" | "the_nether" => "minecraft:the_nether".to_string(),
-                "overworld" | "over" => "minecraft:overworld".to_string(),
-                "end" | "the_end" => "minecraft:the_end".to_string(),
-                other if other.contains(':') => other.to_string(),
-                other => format!("minecraft:{other}"),
+            let target = match raw {
+                "nether" | "the_nether" => keys::dimension::THE_NETHER.into(),
+                "overworld" | "over" => keys::dimension::OVERWORLD.into(),
+                "end" | "the_end" => keys::dimension::THE_END.into(),
+                other => {
+                    let Ok(location) = ResourceLocation::read(other) else {
+                        return;
+                    };
+                    ResourceKey::<keys::Dimension>::from_location(location)
+                }
             };
             let Ok((_host_anchor, _transform, profile, owner)) = sender_query.get(event.entity)
             else {
@@ -119,7 +124,7 @@ fn handle_command(
                 uuid: profile.id,
                 username: profile.username.clone(),
             };
-            info!("dim move {:?} -> {}", event.entity, dim_name);
+            info!("dim move {:?} -> {}", event.entity, target);
             // Hide-on-move-out: keep the source entity live but excluded from every
             // source-dim system until the target confirms (despawn) or the move is
             // rolled back (un-hide). The entity is never despawned here.
@@ -128,7 +133,7 @@ fn handle_command(
                 .0
                 .try_send(crate::world::channel_types::FromDim::MoveEntity {
                     move_id,
-                    target: dim_name,
+                    target,
                     cause: ArrivalCause::CommandTeleport {
                         pos: DVec3::new(0.0, 128.0, 0.0),
                     },

@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::{ColumnPos, RegionPos};
+use mcrs_minecraft_core::{ColumnPos, RegionPos, ResourceKey};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -48,6 +48,25 @@ impl PaletteLookup<u8> for RegistryBiomes<'_> {
     }
 }
 
+/// The identifier's own characters allow a `..` path segment, which would leave
+/// the world directory.
+pub fn region_dir(world: &Path, dimension: &ResourceKey<keys::Dimension>) -> Option<PathBuf> {
+    if dimension
+        .path()
+        .split('/')
+        .any(|segment| matches!(segment, "" | "." | ".."))
+    {
+        return None;
+    }
+    Some(
+        world
+            .join("dimensions")
+            .join(dimension.namespace())
+            .join(dimension.path())
+            .join("region"),
+    )
+}
+
 /// The region files of one dimension, kept open for as long as the dimension
 /// runs.
 ///
@@ -67,13 +86,8 @@ pub struct Regions {
 impl SavedColumns {
     /// `<world>/dimensions/<namespace>/<path>/region`, or `None` when this
     /// dimension has never been saved.
-    pub fn open(world: &Path, dimension: &str) -> Option<Self> {
-        let (namespace, path) = dimension.split_once(':')?;
-        let dir = world
-            .join("dimensions")
-            .join(namespace)
-            .join(path)
-            .join("region");
+    pub fn open(world: &Path, dimension: &ResourceKey<keys::Dimension>) -> Option<Self> {
+        let dir = region_dir(world, dimension)?;
         dir.is_dir().then(|| {
             Self(Arc::new(Regions {
                 dir,

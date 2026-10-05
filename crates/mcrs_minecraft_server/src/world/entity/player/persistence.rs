@@ -2,13 +2,14 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, With};
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
-use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_core::{ResourceKey, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
-use mcrs_minecraft_level::world::dimension::{DimensionId, InDimension};
+use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
@@ -118,9 +119,9 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .unwrap_or(Transform::IDENTITY);
     let dimension = world
         .get::<InDimension>(player)
-        .and_then(|dim| world.get::<DimensionId>(dim.0))
-        .map(|id| id.0.clone())
-        .unwrap_or_else(|| "minecraft:overworld".to_owned());
+        .and_then(|dim| world.get::<ResourceKey<keys::Dimension>>(dim.0))
+        .cloned()
+        .unwrap_or_else(|| keys::dimension::OVERWORLD.into());
     PlayerDat {
         data_version: VERSION.world_version,
         pos: transform.translation.to_array(),

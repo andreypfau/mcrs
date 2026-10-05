@@ -17,6 +17,8 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::{Despawned, InTransit};
 use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, SessionPlacement};
@@ -34,10 +36,8 @@ use mcrs_minecraft_server::world::bus::{
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::entity::player::{despawn_on_confirm, unhide_on_rollback};
 use mcrs_minecraft_server::world::session::SessionBundle;
-use mcrs_minecraft_server::world::sub_app_builder::{DimLabel, DimSubAppHandle};
+use mcrs_minecraft_server::world::sub_app_builder::DimSubAppHandle;
 
-const SOURCE_NAME: &str = "minecraft:overworld";
-const DEST_NAME: &str = "minecraft:the_nether";
 const SESSION: PlayerSession = PlayerSession(42);
 const START_POS: DVec3 = DVec3::new(10.0, 64.0, 20.0);
 
@@ -83,11 +83,17 @@ fn build_harness() -> Harness {
 
     let source_label = host
         .world_mut()
-        .spawn((DimSubAppHandle, DimLabel(SOURCE_NAME.to_string())))
+        .spawn((
+            DimSubAppHandle,
+            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+        ))
         .id();
     let dest_label = host
         .world_mut()
-        .spawn((DimSubAppHandle, DimLabel(DEST_NAME.to_string())))
+        .spawn((
+            DimSubAppHandle,
+            ResourceKey::<keys::Dimension>::from(keys::dimension::THE_NETHER),
+        ))
         .id();
 
     // The moving player currently lives in the source dim at epoch 0.
@@ -171,7 +177,7 @@ fn initiate_move(h: &Harness, source_dim: &mut App, move_id: MoveId) -> Entity {
     h.source_from_tx
         .send(FromDim::MoveEntity {
             move_id,
-            target: DEST_NAME.to_string(),
+            target: keys::dimension::THE_NETHER.into(),
             cause: ArrivalCause::CommandTeleport {
                 pos: DVec3::new(0.0, 100.0, 0.0),
             },

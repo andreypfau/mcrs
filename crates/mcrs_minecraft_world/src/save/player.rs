@@ -3,7 +3,8 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_core::{ResourceKey, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
@@ -22,7 +23,7 @@ pub struct PlayerDat {
     pub data_version: i32,
     pub pos: [f64; 3],
     pub rotation: [f32; 2],
-    pub dimension: String,
+    pub dimension: ResourceKey<keys::Dimension>,
     pub inventory: Vec<ItemStackWithSlot>,
     pub selected_item_slot: i32,
     pub equipment: BTreeMap<String, ItemStackValue>,
@@ -35,7 +36,7 @@ impl Default for PlayerDat {
             data_version: VERSION.world_version,
             pos: [0.0; 3],
             rotation: [0.0; 2],
-            dimension: "minecraft:overworld".to_owned(),
+            dimension: keys::dimension::OVERWORLD.into(),
             inventory: Vec::new(),
             selected_item_slot: 0,
             equipment: BTreeMap::new(),
@@ -87,13 +88,12 @@ impl<'de> Deserialize<'de> for PlayerDat {
                 let mut data_version = None;
                 let mut pos = None;
                 let mut rotation = None;
-                let mut dimension = None;
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         DATA_VERSION => data_version = Some(map.next_value()?),
                         POS => pos = Some(map.next_value()?),
                         ROTATION => rotation = Some(map.next_value()?),
-                        DIMENSION => dimension = Some(map.next_value()?),
+                        DIMENSION => dat.dimension = map.next_value()?,
                         INVENTORY => dat.inventory = map.next_value()?,
                         SELECTED_ITEM_SLOT => dat.selected_item_slot = map.next_value()?,
                         EQUIPMENT => dat.equipment = map.next_value()?,
@@ -107,7 +107,6 @@ impl<'de> Deserialize<'de> for PlayerDat {
                     data_version.ok_or_else(|| A::Error::missing_field(DATA_VERSION))?;
                 dat.pos = pos.ok_or_else(|| A::Error::missing_field(POS))?;
                 dat.rotation = rotation.ok_or_else(|| A::Error::missing_field(ROTATION))?;
-                dat.dimension = dimension.ok_or_else(|| A::Error::missing_field(DIMENSION))?;
                 Ok(dat)
             }
         }

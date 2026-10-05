@@ -165,16 +165,13 @@ pub fn spawn_dim_subapp(
         .world()
         .get_resource::<RegistrySet>()
         .and_then(|set| set.registry::<keys::DimensionType>())
-        .and_then(|types| types.get(request.dimension_id.as_str()))
+        .and_then(|types| types.get(request.dimension.as_str()))
         .map(Id::number)
-        .ok_or_else(|| UnknownDimensionType(request.dimension_id.as_str().to_owned()))?;
+        .ok_or_else(|| UnknownDimensionType(request.dimension.as_str().to_owned()))?;
 
     let label_entity = app
         .world_mut()
-        .spawn((
-            DimSubAppHandle,
-            DimLabel(request.dimension_id.as_str().to_string()),
-        ))
+        .spawn((DimSubAppHandle, request.dimension.clone()))
         .id();
 
     let (to_dim_srv_tx, to_dim_srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
@@ -193,7 +190,7 @@ pub fn spawn_dim_subapp(
         .0;
 
     let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
-    let trace_dimension = request.dimension_id.as_str().to_owned();
+    let trace_dimension = request.dimension.as_str().to_owned();
 
     let mut sub_app = SubApp::new();
     if let Some(shared) = app.world().get_resource::<SharedRegistries>() {
@@ -275,9 +272,9 @@ pub fn spawn_dim_subapp(
     sub_app.add_schedule(Schedule::new(PostUpdate));
     sub_app.add_schedule(Schedule::new(Last));
     #[cfg(feature = "telemetry-tracy")]
-    let dim_for_tick = request.dimension_id.0.clone();
+    let dim_for_tick = request.dimension.to_string();
     #[cfg(feature = "telemetry-tracy")]
-    let dim_for_extract = request.dimension_id.0.clone();
+    let dim_for_extract = request.dimension.to_string();
     sub_app.add_systems(
         DimTick,
         move |world: &mut World, mut startup_done: Local<bool>| {
@@ -404,67 +401,60 @@ pub fn spawn_dim_subapp(
     // The router is compiled host-side and arrives here as a read-only
     // snapshot; a dimension the preset drives with no noise generator simply
     // gets none, and `dispatch_column_generation` never runs for it.
-    let dimension = match mcrs_minecraft_core::ResourceLocation::parse(&request.dimension_id.0) {
-        Ok(dimension) => Some(dimension),
-        Err(error) => {
-            error!(%error, "the dimension id is not a resource location; it will generate nothing");
-            None
-        }
-    };
-    if let Some(dimension) = &dimension {
-        match registries.noise_routers.0.get(dimension) {
-            Some(dimension_router) => {
-                let router = &dimension_router.router;
-                let biome_registry = sub_app
-                    .world()
-                    .resource::<RegistrySet>()
-                    .registry::<keys::Biome>()
-                    .expect("the data pack loader parses minecraft:worldgen/biome");
-                let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
-                let blocks = sub_app.world().resource::<Blocks>().0.clone();
-                let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
-                let features = registries
-                    .features
+    let dimension = request.dimension.location();
+    match registries.noise_routers.0.get(dimension) {
+        Some(dimension_router) => {
+            let router = &dimension_router.router;
+            let biome_registry = sub_app
+                .world()
+                .resource::<RegistrySet>()
+                .registry::<keys::Biome>()
+                .expect("the data pack loader parses minecraft:worldgen/biome");
+            let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
+            let blocks = sub_app.world().resource::<Blocks>().0.clone();
+            let block_tags = sub_app.world().resource::<DynTagRegistry<Block>>().clone();
+            let features = registries
+                .features
+                .0
+                .get(dimension)
+                .map(std::sync::Arc::clone);
+            // A dimension with no program decorates nothing, which is silent
+            // in the world and loud only here.
+            if features.is_none() {
+                warn!(%dimension, "no feature program for this dimension; it will place no features");
+            }
+            sub_app.insert_resource(FillContext::build(
+                std::sync::Arc::clone(router),
+                Some(std::sync::Arc::clone(&dimension_router.material)),
+                blocks,
+                dimension_y_sections(
+                    router,
+                    request.type_config.min_y,
+                    request.type_config.section_count,
+                ),
+                registries
+                    .biome_sources
                     .0
                     .get(dimension)
-                    .map(std::sync::Arc::clone);
-                // A dimension with no program decorates nothing, which is silent
-                // in the world and loud only here.
-                if features.is_none() {
-                    warn!(%dimension, "no feature program for this dimension; it will place no features");
-                }
-                sub_app.insert_resource(FillContext::build(
-                    std::sync::Arc::clone(router),
-                    Some(std::sync::Arc::clone(&dimension_router.material)),
-                    blocks,
-                    dimension_y_sections(
-                        router,
-                        request.type_config.min_y,
-                        request.type_config.section_count,
-                    ),
-                    registries
-                        .biome_sources
-                        .0
-                        .get(dimension)
-                        .map(|source| (std::sync::Arc::clone(source), biome_registry)),
-                    &parameter_lists,
-                    registries.heightmap_predicates.clone(),
-                    registries.world_save.as_ref().and_then(|save| {
-                        SavedColumns::open(&save.0, request.dimension_id.as_str())
-                    }),
-                    registries
-                        .modern_carver_biomes
-                        .0
-                        .get(dimension)
-                        .map(std::sync::Arc::clone),
-                    Some(&block_tags),
-                    features,
-                    registries.structures.0.get(dimension).cloned(),
-                ));
-            }
-            None => {
-                warn!(%dimension, "no noise router for this dimension; it will generate nothing")
-            }
+                    .map(|source| (std::sync::Arc::clone(source), biome_registry)),
+                &parameter_lists,
+                registries.heightmap_predicates.clone(),
+                registries
+                    .world_save
+                    .as_ref()
+                    .and_then(|save| SavedColumns::open(&save.0, &request.dimension)),
+                registries
+                    .modern_carver_biomes
+                    .0
+                    .get(dimension)
+                    .map(std::sync::Arc::clone),
+                Some(&block_tags),
+                features,
+                registries.structures.0.get(dimension).cloned(),
+            ));
+        }
+        None => {
+            warn!(%dimension, "no noise router for this dimension; it will generate nothing")
         }
     }
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
@@ -518,7 +508,7 @@ pub fn spawn_dim_subapp(
         });
     } else if lighting == crate::Lighting::Propagated {
         warn!(
-            dim = request.dimension_id.as_str(),
+            dim = request.dimension.as_str(),
             "no block light table; this dimension will publish no light"
         );
     }
@@ -588,7 +578,7 @@ pub fn spawn_dim_subapp(
     let dim_entity = sub_app
         .world_mut()
         .spawn((
-            DimensionBundle::new(request.dimension_id.clone(), request.type_config),
+            DimensionBundle::new(request.dimension.clone(), request.type_config),
             DimTypeIndex(dim_type_index),
         ))
         .id();
@@ -702,12 +692,6 @@ pub struct UnknownDimensionType(pub String);
 /// `ClientLevel` with the correct height (section count).
 #[derive(bevy_ecs::component::Component, Clone, Copy)]
 pub struct DimTypeIndex(pub u16);
-
-/// The dimension resource location (e.g. "minecraft:the_nether") of the
-/// sub-app anchored by this host-world label entity. Lets a name-based
-/// transfer request resolve to the destination sub-app's label entity.
-#[derive(bevy_ecs::component::Component, Clone)]
-pub struct DimLabel(pub String);
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a
 /// sub-app for each request. Called from outside the ECS run loop because

@@ -401,7 +401,7 @@ fn load_save(world: &Path) -> SaveData {
                 DVec3::from_array(player.pos),
                 player.rotation[0],
                 player.rotation[1],
-                player.dimension,
+                player.dimension.as_str().to_owned(),
             ),
             Ok(None) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),

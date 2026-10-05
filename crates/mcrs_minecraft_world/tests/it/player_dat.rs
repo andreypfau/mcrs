@@ -5,6 +5,7 @@
 use std::path::Path;
 
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -56,7 +57,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
     assert_eq!(dat.data_version, VERSION.world_version);
     assert_eq!(dat.pos, [12.5, 64.0, -7.25]);
     assert_eq!(dat.rotation, [90.0, -12.5]);
-    assert_eq!(dat.dimension, "minecraft:overworld");
+    assert_eq!(dat.dimension, keys::dimension::OVERWORLD);
     assert_eq!(dat.selected_item_slot, 3);
     assert_eq!(
         dat.inventory

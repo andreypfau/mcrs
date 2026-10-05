@@ -160,7 +160,7 @@ fn a_save_listing_a_dimension_the_preset_lacks_spawns_it() {
         .resource::<DimSpawnQueue>()
         .0
         .iter()
-        .map(|request| request.dimension_id.as_str())
+        .map(|request| request.dimension.as_str())
         .collect();
     assert_eq!(
         spawned,

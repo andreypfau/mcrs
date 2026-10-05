@@ -71,9 +71,7 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: mcrs_minecraft_level::world::dimension::DimensionId::new(
-                "minecraft:overworld",
-            ),
+            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
             type_config: mcrs_minecraft_level::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

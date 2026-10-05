@@ -172,7 +172,7 @@ fn level_dat_reads_the_fields_we_consume() {
     assert_eq!(
         level.spawn,
         RespawnData {
-            dimension: "minecraft:overworld".to_string(),
+            dimension: keys::dimension::OVERWORLD.into(),
             pos: [0, 70, 64],
             yaw: 0.0,
             pitch: 0.0,
@@ -495,4 +495,60 @@ fn world_gen_settings_keep_their_dimensions() {
     write_world_gen_settings(&world, &settings, set).unwrap();
     assert_eq!(read_world_gen_settings(&world, set).unwrap(), settings);
     let _ = std::fs::remove_dir_all(world);
+}
+
+#[derive(Serialize)]
+struct PlayerFile<'a> {
+    #[serde(rename = "DataVersion")]
+    data_version: i32,
+    #[serde(rename = "Pos")]
+    pos: Vec<f64>,
+    #[serde(rename = "Rotation")]
+    rotation: Vec<f32>,
+    #[serde(rename = "Dimension", skip_serializing_if = "Option::is_none")]
+    dimension: Option<&'a str>,
+    #[serde(rename = "Inventory")]
+    inventory: Vec<i32>,
+    #[serde(rename = "SelectedItemSlot")]
+    selected_item_slot: i32,
+}
+
+fn player_file(dimension: Option<&str>) -> Vec<u8> {
+    mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&PlayerFile {
+        data_version: VERSION.world_version,
+        pos: vec![1.5, 64.0, -2.5],
+        rotation: vec![90.0, 0.0],
+        dimension,
+        inventory: Vec::new(),
+        selected_item_slot: 0,
+    })
+    .unwrap()
+}
+
+#[test]
+fn a_saved_dimension_keeps_its_text() {
+    let written = player_file(Some("minecraft:the_nether"));
+    let dat = player::parse_player_dat(&written, path()).unwrap();
+    assert_eq!(dat.dimension.as_str(), "minecraft:the_nether");
+
+    let rewritten = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
+    assert_eq!(rewritten, written);
+
+    let again = player::parse_player_dat(&rewritten, path()).unwrap();
+    assert_eq!(
+        mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&again).unwrap(),
+        rewritten
+    );
+
+    let error = player::parse_player_dat(&player_file(Some("Not A Dimension")), path())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("Not A Dimension"), "{error}");
+}
+
+#[test]
+fn a_player_save_without_a_dimension_reads_as_the_overworld() {
+    let dat = player::parse_player_dat(&player_file(None), path()).unwrap();
+    assert_eq!(dat.dimension.as_str(), "minecraft:overworld");
+    assert_eq!(dat.pos, [1.5, 64.0, -2.5]);
 }

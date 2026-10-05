@@ -29,7 +29,8 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_inventory::{Op, Slot};
 use mcrs_minecraft_item::{SlotTable, slots};
 use mcrs_minecraft_level::aoi::every_n_ticks;
@@ -38,7 +39,7 @@ use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_level::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_minecraft_level::session::{DimPlayerIndex, Owner};
-use mcrs_minecraft_level::world::dimension::{Dimension, DimensionId, InDimension};
+use mcrs_minecraft_level::world::dimension::{Dimension, InDimension};
 use mcrs_minecraft_level::world::lifecycle::ticket::SimulationDistance;
 use mcrs_minecraft_protocol::ByteAngle;
 use mcrs_minecraft_protocol::GameEventKind;
@@ -165,7 +166,7 @@ fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    dims: Query<(Entity, &DimensionId, &DimTypeIndex), With<Dimension>>,
+    dims: Query<(Entity, &ResourceKey<keys::Dimension>, &DimTypeIndex), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
@@ -174,10 +175,9 @@ fn consume_inbound_player_spawn(
     default_op_level: Res<DefaultOpLevel>,
 ) {
     for spawn in reader.read() {
-        let Some((dim, dim_id, dim_type_index)) = dims.iter().next() else {
+        let Some((dim, dim_key, dim_type_index)) = dims.iter().next() else {
             continue;
         };
-        let dim_name = dim_id.as_str().to_string();
         let dim_type_id = dim_type_index.0;
         let view_distance = PlayerViewDistance {
             distance: spawn.snapshot.view_distance.clamp(2, MAX_VIEW_DISTANCE),
@@ -220,11 +220,11 @@ fn consume_inbound_player_spawn(
         let dimensions = spawn
             .dimensions
             .iter()
-            .filter_map(|s| ResourceLocation::parse_cow(s.clone()).ok())
+            .map(|key| key.location().clone().into())
             .collect();
 
         info!(
-            "{} logged in with entity id {wire_id} in {dim_name} at ({:.2}, {:.2}, {:.2})",
+            "{} logged in with entity id {wire_id} in {dim_key} at ({:.2}, {:.2}, {:.2})",
             spawn.snapshot.username, spawn_pos.x, spawn_pos.y, spawn_pos.z
         );
         debug!(
@@ -249,8 +249,7 @@ fn consume_inbound_player_spawn(
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
                         dimension_type_id: RegistryId(dim_type_id),
-                        dimension: ResourceLocation::parse_cow(dim_name)
-                            .expect("dimension id is a valid resource location"),
+                        dimension: dim_key.location().clone().into(),
                         game_mode: default_game_mode.0,
                         ..Default::default()
                     },

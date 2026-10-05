@@ -3,7 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_minecraft_core::{ResourceLocation, VERSION};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -55,7 +56,7 @@ pub enum SaveError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RespawnData {
-    pub dimension: String,
+    pub dimension: ResourceKey<keys::Dimension>,
     pub pos: [i32; 3],
     pub yaw: f32,
     pub pitch: f32,
@@ -64,7 +65,7 @@ pub struct RespawnData {
 impl Default for RespawnData {
     fn default() -> Self {
         Self {
-            dimension: "minecraft:overworld".to_string(),
+            dimension: keys::dimension::OVERWORLD.into(),
             pos: [0, 0, 0],
             yaw: 0.0,
             pitch: 0.0,
@@ -254,7 +255,7 @@ struct RawLevelData {
 
 #[derive(Deserialize)]
 struct RawRespawnData {
-    dimension: String,
+    dimension: ResourceKey<keys::Dimension>,
     pos: Vec<i32>,
     yaw: f32,
     pitch: f32,

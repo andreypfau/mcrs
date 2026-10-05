@@ -11,8 +11,9 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::{Block, Enchantment, Item};
+use mcrs_minecraft_keys::{self as keys, Block, Enchantment, Item};
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -124,7 +125,13 @@ fn game_transition_emits_initial_spawn() {
 
     // Spawn a fake live DimSubAppHandle label entity on the host and register
     // its channel so emit_initial_player_spawn can look it up.
-    let dim_label = app.world_mut().spawn(DimSubAppHandle).id();
+    let dim_label = app
+        .world_mut()
+        .spawn((
+            DimSubAppHandle,
+            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+        ))
+        .id();
     let ctl_rx = {
         let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
@@ -174,7 +181,6 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
     };
     use mcrs_minecraft_server::WorldSave;
     use mcrs_minecraft_server::world::channel_types::FromDim;
-    use mcrs_minecraft_server::world::sub_app_builder::DimLabel;
     use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
 
     let mut app = build_host_app();
@@ -192,17 +198,17 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
         &save,
         uuid,
         &PlayerDat {
-            dimension: "minecraft:the_nether".to_owned(),
+            dimension: keys::dimension::THE_NETHER.into(),
             ..PlayerDat::default()
         },
     )
     .unwrap();
 
     let mut labels = Vec::new();
-    for name in ["minecraft:overworld", "minecraft:the_nether"] {
+    for name in [keys::dimension::OVERWORLD, keys::dimension::THE_NETHER] {
         let label = app
             .world_mut()
-            .spawn((DimSubAppHandle, DimLabel(name.to_owned())))
+            .spawn((DimSubAppHandle, ResourceKey::<keys::Dimension>::from(name)))
             .id();
         let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
@@ -227,6 +233,86 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
     assert_eq!(nether_rx.try_iter().count(), 1);
     assert_eq!(labels[0].1.try_iter().count(), 0);
     std::fs::remove_dir_all(&save).unwrap();
+}
+
+/// Live dimensions are registered nether first, so a join that takes the first
+/// live one lands in the wrong world.
+fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<keys::Dimension>>) {
+    use mcrs_minecraft_level::world::channels::{
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
+    use mcrs_minecraft_server::WorldSave;
+    use mcrs_minecraft_server::world::channel_types::FromDim;
+    use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
+
+    let mut app = build_host_app();
+    let save = std::env::temp_dir().join(format!("mcrs-join-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&save).unwrap();
+    app.insert_resource(WorldSave(save.clone()));
+
+    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
+    let uuid = app
+        .world()
+        .get::<GameProfile>(connection_entity)
+        .expect("profile")
+        .id;
+    if let Some(dimension) = saved {
+        write_player_dat(
+            &save,
+            uuid,
+            &PlayerDat {
+                dimension,
+                ..PlayerDat::default()
+            },
+        )
+        .unwrap();
+    }
+
+    let mut labels = Vec::new();
+    for name in [
+        keys::dimension::THE_NETHER,
+        keys::dimension::THE_END,
+        keys::dimension::OVERWORLD,
+    ] {
+        let label = app
+            .world_mut()
+            .spawn((DimSubAppHandle, ResourceKey::<keys::Dimension>::from(name)))
+            .id();
+        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        app.world_mut()
+            .resource_mut::<DimChannelsResource>()
+            .insert(label, srv_tx, ctl_tx, from_rx);
+        labels.push((label, ctl_rx));
+    }
+
+    transition_to_game(&mut app, connection_entity);
+    app.update();
+
+    let (overworld, overworld_rx) = &labels[2];
+    assert_eq!(
+        app.world()
+            .get::<SessionPlacement>(host_anchor)
+            .expect("session present")
+            .place(),
+        Place::Joining(*overworld),
+    );
+    assert_eq!(overworld_rx.try_iter().count(), 1);
+    assert_eq!(labels[0].1.try_iter().count(), 0);
+    assert_eq!(labels[1].1.try_iter().count(), 0);
+    std::fs::remove_dir_all(&save).unwrap();
+}
+
+#[test]
+fn a_player_saved_in_a_missing_dimension_joins_the_overworld() {
+    let gone = ResourceKey::from_location(ResourceLocation::read("test:gone").unwrap());
+    join_with_live_nether_end_and_overworld(Some(gone));
+}
+
+#[test]
+fn a_player_without_a_dimension_joins_the_overworld() {
+    join_with_live_nether_end_and_overworld(None);
 }
 
 /// When no live DimSubAppHandle label entity exists yet (dims still loading),
@@ -266,7 +352,7 @@ fn no_live_dim_no_spawn() {
 /// must NOT spawn a second in-dim entity.
 fn no_duplicate_spawn_on_reread() {
     use mcrs_minecraft_level::entity::player::Player;
-    use mcrs_minecraft_level::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_minecraft_level::world::dimension::DimensionTypeConfig;
     use mcrs_minecraft_level::world::sub_app::DimAppLabel;
 
     let mut app = build_host_app();
@@ -279,7 +365,7 @@ fn no_duplicate_spawn_on_reread() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: DimensionId::new("minecraft:overworld"),
+            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
             type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });

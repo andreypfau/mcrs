@@ -2,7 +2,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
-use mcrs_minecraft_core::{BlockPos, ColumnPos};
+use mcrs_minecraft_core::{BlockPos, ColumnPos, ResourceKey};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::VarInt;
@@ -48,11 +49,11 @@ pub struct InboundPlayerSpawn {
     pub host_anchor: Entity,
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
-    /// Dimension resource-location strings forwarded from the host's
+    /// Dimension keys forwarded from the host's
     /// `DimensionList` so the per-dim spawn consumer can fill
     /// `ClientboundLogin.dimensions` without reading the list resource
     /// (which is host-only and absent from any DimWorld).
-    pub dimensions: Vec<String>,
+    pub dimensions: Vec<ResourceKey<keys::Dimension>>,
 }
 
 #[derive(Message, Clone, Debug)]
