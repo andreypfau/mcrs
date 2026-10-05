@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::{DynRegistryIndex, RegistrySet, key};
 use mcrs_minecraft_world::registries::test_registries;
@@ -19,7 +19,7 @@ fn read(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-fn names_in_index<T: TaggedRegistry + 'static>(app: &App) -> Vec<String> {
+fn names_in_index<T: RegistryKey + 'static>(app: &App) -> Vec<String> {
     let index = app.world().resource::<DynRegistryIndex<T>>();
     (0..=u16::MAX)
         .take(usize::try_from(index.len()).unwrap())

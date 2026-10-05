@@ -1,34 +1,24 @@
+use crate::registry_key::RegistryKey;
 use crate::resource_location::ResourceLocation;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// Marker trait for types that have an associated Minecraft registry path segment.
-///
-/// Implement this on your registry element type (e.g. `Block`, `Item`) to enable
-/// `TagKey<T>` path derivation.
-pub trait TaggedRegistry {
-    /// The path segment used in tag asset paths.
-    ///
-    /// e.g. `"block"` → tag files live at `namespace/tags/block/…`
-    const REGISTRY_PATH: &'static str;
-}
-
 /// A typed reference to a tag in a specific registry.
 ///
 /// Generic over storage `S`:
-/// - `TagKey<T>` = `TagKey<T, &'static str>` — `Copy`, zero-alloc, const-constructible.
-/// - `TagKey<T, Arc<str>>` — heap-allocated, for runtime-parsed tag references.
+/// - `TagKey<R>` = `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible.
+/// - `TagKey<R, Arc<str>>` — heap-allocated, for runtime-parsed tag references.
 ///
 /// Cross-variant equality and hashing compare by string content (like `ResourceLocation`).
-pub struct TagKey<T: TaggedRegistry, S = &'static str> {
+pub struct TagKey<R: RegistryKey, S = &'static str> {
     rl: ResourceLocation<S>,
-    _marker: PhantomData<fn() -> T>,
+    _marker: PhantomData<fn() -> R>,
 }
 
 // ── Clone / Copy ──
 
-impl<T: TaggedRegistry, S: Clone> Clone for TagKey<T, S> {
+impl<R: RegistryKey, S: Clone> Clone for TagKey<R, S> {
     fn clone(&self) -> Self {
         TagKey {
             rl: self.rl.clone(),
@@ -37,19 +27,19 @@ impl<T: TaggedRegistry, S: Clone> Clone for TagKey<T, S> {
     }
 }
 
-impl<T: TaggedRegistry> Copy for TagKey<T, &'static str> {}
+impl<R: RegistryKey> Copy for TagKey<R, &'static str> {}
 
 // ── Eq / Hash (cross-variant, by string content) ──
 
-impl<T: TaggedRegistry, S: AsRef<str>, U: AsRef<str>> PartialEq<TagKey<T, U>> for TagKey<T, S> {
-    fn eq(&self, other: &TagKey<T, U>) -> bool {
+impl<R: RegistryKey, S: AsRef<str>, U: AsRef<str>> PartialEq<TagKey<R, U>> for TagKey<R, S> {
+    fn eq(&self, other: &TagKey<R, U>) -> bool {
         self.rl.as_str() == other.rl.as_str()
     }
 }
 
-impl<T: TaggedRegistry, S: AsRef<str>> Eq for TagKey<T, S> {}
+impl<R: RegistryKey, S: AsRef<str>> Eq for TagKey<R, S> {}
 
-impl<T: TaggedRegistry, S: AsRef<str>> Hash for TagKey<T, S> {
+impl<R: RegistryKey, S: AsRef<str>> Hash for TagKey<R, S> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.rl.as_str().hash(state);
     }
@@ -57,7 +47,7 @@ impl<T: TaggedRegistry, S: AsRef<str>> Hash for TagKey<T, S> {
 
 // ── Static variant (`&'static str`) ──
 
-impl<T: TaggedRegistry> TagKey<T, &'static str> {
+impl<R: RegistryKey> TagKey<R, &'static str> {
     /// Create a tag key from a compile-time validated `ResourceLocation<&'static str>`.
     ///
     /// ```rust,ignore
@@ -80,7 +70,7 @@ impl<T: TaggedRegistry> TagKey<T, &'static str> {
 
 // ── Arc variant (runtime-parsed) ──
 
-impl<T: TaggedRegistry> TagKey<T, Arc<str>> {
+impl<R: RegistryKey> TagKey<R, Arc<str>> {
     /// Create a tag key from a runtime-parsed `ResourceLocation<Arc<str>>`.
     pub fn from_location(rl: ResourceLocation<Arc<str>>) -> Self {
         TagKey {
@@ -92,7 +82,7 @@ impl<T: TaggedRegistry> TagKey<T, Arc<str>> {
 
 // ── Generic accessors (any S: AsRef<str>) ──
 
-impl<T: TaggedRegistry, S: AsRef<str>> TagKey<T, S> {
+impl<R: RegistryKey, S: AsRef<str>> TagKey<R, S> {
     /// The full `namespace:path` string of this tag key.
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -107,18 +97,18 @@ impl<T: TaggedRegistry, S: AsRef<str>> TagKey<T, S> {
 
     /// The Bevy asset path for this tag's JSON file.
     ///
-    /// Format: `{namespace}/tags/{REGISTRY_PATH}/{path}.json`
+    /// Format: `{namespace}/tags/{registry path}/{path}.json`
     pub fn asset_path(&self) -> String {
         format!(
             "{}/tags/{}/{}.json",
             self.rl.namespace(),
-            T::REGISTRY_PATH,
+            R::KEY.path(),
             self.rl.path()
         )
     }
 
     /// Convert to the `Arc<str>` variant (heap-allocates if not already `Arc`).
-    pub fn to_arc(&self) -> TagKey<T, Arc<str>> {
+    pub fn to_arc(&self) -> TagKey<R, Arc<str>> {
         TagKey {
             rl: self.rl.to_arc(),
             _marker: PhantomData,
@@ -128,15 +118,15 @@ impl<T: TaggedRegistry, S: AsRef<str>> TagKey<T, S> {
 
 // ── From static → Arc ──
 
-impl<T: TaggedRegistry> From<TagKey<T, &'static str>> for TagKey<T, Arc<str>> {
-    fn from(key: TagKey<T, &'static str>) -> Self {
+impl<R: RegistryKey> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
+    fn from(key: TagKey<R, &'static str>) -> Self {
         key.to_arc()
     }
 }
 
 // ── Debug ──
 
-impl<T: TaggedRegistry, S: AsRef<str>> std::fmt::Debug for TagKey<T, S> {
+impl<R: RegistryKey, S: AsRef<str>> std::fmt::Debug for TagKey<R, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "TagKey({})", self.rl.as_str())
     }

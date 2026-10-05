@@ -10,7 +10,8 @@ use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::{DynTagLoader, DynTagRegistry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::tag_key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
     Menu, Remote, RemoteSlots, SLOT_CLICKED_OUTSIDE, handle_container_clicks, tick_drop_throttles,
@@ -1211,7 +1212,7 @@ fn clicks_that_drop_nothing_do_not_charge_the_drop_throttle() {
     assert_eq!(dropped_items(&mut world), 0);
 }
 
-fn tag_from_assets<T: TaggedRegistry>(
+fn tag_from_assets<T: RegistryKey>(
     source: &impl TagSource<Id = u16>,
     key: TagKey<T>,
 ) -> DynTagRegistry<T> {
@@ -1219,7 +1220,7 @@ fn tag_from_assets<T: TaggedRegistry>(
     let path = std::path::Path::new(&std::env::var("BEVY_ASSET_ROOT").unwrap()).join(format!(
         "assets/{}/tags/{}/{}.json",
         location.namespace(),
-        T::REGISTRY_PATH,
+        T::KEY.path(),
         location.path()
     ));
     let file: SerializedTagFile = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();

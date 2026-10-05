@@ -353,7 +353,7 @@ mod tests {
             .unwrap();
         let proto: ProtoDimensionType =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-        fn tag<T: mcrs_minecraft_core::tag_key::TaggedRegistry>(raw: &str) -> TagRef<T> {
+        fn tag<T: mcrs_minecraft_core::registry_key::RegistryKey>(raw: &str) -> TagRef<T> {
             TagRef::new(
                 TagKey::from_location(
                     ResourceLocation::parse(raw.trim_start_matches('#')).unwrap(),

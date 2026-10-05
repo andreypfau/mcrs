@@ -9,7 +9,8 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::{DynTagRegistry, TagLoader};
 use mcrs_minecraft_block::definition::{Blocks, Fluids};
-use mcrs_minecraft_core::{ResourceLocation, TaggedRegistry};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_item::{Item, Items};
 use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::key::Block;
@@ -56,11 +57,11 @@ pub fn fluid_tags() -> &'static DynTagRegistry<Fluid> {
 
 /// Every tag of one registry in every namespace, expanded off the files
 /// themselves.
-pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
+pub fn every_tag<T: RegistryKey, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
     let mut loader = TagLoader::<T, u16>::default();
     for namespace in std::fs::read_dir(assets_dir()).unwrap() {
         let namespace = namespace.unwrap().path();
-        let dir = namespace.join("tags").join(T::REGISTRY_PATH);
+        let dir = namespace.join("tags").join(T::KEY.path());
         if !dir.is_dir() {
             continue;
         }
@@ -73,7 +74,7 @@ pub fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTa
             let name = path.strip_prefix(&dir).unwrap().with_extension("");
             let name = format!("{namespace}:{}", name.to_string_lossy().replace('\\', "/"));
             let mut members = HashSet::new();
-            collect(T::REGISTRY_PATH, source, &name, &mut members);
+            collect(T::KEY.path(), source, &name, &mut members);
             loader.insert(ResourceLocation::read(&name).unwrap(), members);
         }
     }

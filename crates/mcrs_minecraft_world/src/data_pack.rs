@@ -11,8 +11,8 @@ use mcrs_minecraft_assets::tag::{DynTagLoader, TagLoader, TagLoadersSettled};
 use mcrs_minecraft_biome as biome;
 use mcrs_minecraft_block as block;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::DynRegistryIndex;
@@ -237,19 +237,19 @@ pub(crate) async fn walk_files(
 }
 
 #[allow(clippy::needless_pass_by_value)]
-pub(crate) fn request_every_tag<T: TaggedRegistry + 'static, I: TagId>(
+pub(crate) fn request_every_tag<T: RegistryKey + 'static, I: TagId>(
     mut loader: ResMut<TagLoader<T, I>>,
     asset_server: Res<AssetServer>,
     set: Res<RegistrySet>,
 ) {
-    let files = list_tag_files(&set, T::REGISTRY_PATH);
+    let files = list_tag_files(&set, T::KEY.path());
     let count = files.len();
     for (location, _) in files {
         loader.request(&TagKey::<T, _>::from_location(location), &asset_server);
     }
     tracing::info!(
         count,
-        registry = T::REGISTRY_PATH,
+        registry = T::KEY.path(),
         "requested every shipped tag"
     );
 }

@@ -10,7 +10,8 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_assets::tag::DynTagRegistry;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{ResourceLocation, TagKey, TaggedRegistry, rl};
+use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::{Item, ItemDefinitions};
 use mcrs_minecraft_registry::key::Fluid;
 use mcrs_minecraft_registry::{BlockStateId, ItemId};
@@ -231,7 +232,7 @@ impl ItemLights {
     }
 }
 
-fn members<T: TaggedRegistry>(
+fn members<T: RegistryKey>(
     tags: &DynTagRegistry<T>,
     tag: &TagKey<T>,
     len: usize,

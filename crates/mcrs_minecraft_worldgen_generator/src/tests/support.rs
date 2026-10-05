@@ -125,7 +125,7 @@ use mcrs_minecraft_assets::tag::file::SerializedTagFile;
 use mcrs_minecraft_assets::tag::registry::DynTagRegistry;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
 use mcrs_minecraft_block::definition::Fluids;
-use mcrs_minecraft_core::tag_key::TaggedRegistry;
+use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_registry::TagSource;
 use mcrs_minecraft_registry::key;
@@ -158,7 +158,7 @@ fn tag_dir(registry: &str) -> PathBuf {
 /// One block tag of the corpus, expanded off the files themselves.
 pub fn tag_members(name: &str) -> HashSet<u16> {
     let mut members = HashSet::new();
-    collect_tag_members(Block::REGISTRY_PATH, blocks(), name, &mut members);
+    collect_tag_members(Block::KEY.path(), blocks(), name, &mut members);
     members
 }
 
@@ -182,8 +182,8 @@ fn collect_tag_members<S: TagSource<Id = u16>>(
 
 /// Every tag file of one registry, subfolders included, expanded off the
 /// files themselves.
-fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
-    let dir = tag_dir(T::REGISTRY_PATH);
+fn every_tag<T: RegistryKey, S: TagSource<Id = u16>>(source: &S) -> DynTagRegistry<T> {
+    let dir = tag_dir(T::KEY.path());
     let mut loader = TagLoader::<T, u16>::default();
     for path in mcrs_minecraft_worldgen_testing::json_files(&dir) {
         let relative = path.strip_prefix(&dir).unwrap().with_extension("");
@@ -192,7 +192,7 @@ fn every_tag<T: TaggedRegistry, S: TagSource<Id = u16>>(source: &S) -> DynTagReg
             relative.to_string_lossy().replace('\\', "/")
         );
         let mut members = HashSet::new();
-        collect_tag_members(T::REGISTRY_PATH, source, &name, &mut members);
+        collect_tag_members(T::KEY.path(), source, &name, &mut members);
         loader.insert(
             ResourceLocation::parse(&name).expect("a tag id").to_arc(),
             members,
