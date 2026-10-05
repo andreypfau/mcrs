@@ -1,4 +1,4 @@
-use crate::registry::Registry;
+use crate::registry::{Registry, UnknownEntry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -37,23 +37,6 @@ impl From<VoxelId> for BlockStateId {
     #[inline]
     fn from(id: VoxelId) -> Self {
         BlockStateId(id.0)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
-pub struct ItemId(pub u16);
-
-impl From<u16> for ItemId {
-    #[inline]
-    fn from(id: u16) -> Self {
-        ItemId(id)
-    }
-}
-
-impl From<ItemId> for u16 {
-    #[inline]
-    fn from(id: ItemId) -> Self {
-        id.0
     }
 }
 
@@ -103,11 +86,11 @@ impl<R> Id<R> {
         }
     }
 
-    pub fn index(self) -> usize {
-        usize::from(self.number)
+    pub const fn index(self) -> usize {
+        self.number as usize
     }
 
-    pub fn number(self) -> u16 {
+    pub const fn number(self) -> u16 {
         self.number
     }
 }
@@ -156,6 +139,18 @@ impl<R: StaticRegistry> Id<R> {
 
     pub const fn name(self) -> &'static str {
         R::NAMES[self.number as usize]
+    }
+
+    pub fn from_name(name: &str) -> Result<Self, UnknownEntry> {
+        R::NAMES
+            .iter()
+            .position(|known| *known == name)
+            .and_then(|position| u16::try_from(position).ok())
+            .map(Id::from_static)
+            .ok_or_else(|| UnknownEntry {
+                registry: R::KEY.into(),
+                name: name.to_owned(),
+            })
     }
 }
 
@@ -232,6 +227,17 @@ mod tests {
         assert_eq!(STONE.number(), 1);
         assert_eq!(STONE.name(), "minecraft:stone");
         assert_eq!(Id::<Fixed>::from_static(0).name(), "minecraft:air");
+    }
+
+    #[test]
+    fn a_static_id_is_found_by_its_name() {
+        assert_eq!(
+            Id::<Fixed>::from_name("minecraft:stone").unwrap().number(),
+            1
+        );
+        let error = Id::<Fixed>::from_name("minecraft:dirt").unwrap_err();
+        assert_eq!(error.registry, Fixed::KEY);
+        assert_eq!(error.name, "minecraft:dirt");
     }
 
     fn names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {

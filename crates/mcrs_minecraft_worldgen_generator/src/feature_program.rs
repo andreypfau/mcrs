@@ -8,7 +8,7 @@ use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{
-    BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags, FluidId,
+    BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags,
 };
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
@@ -2572,9 +2572,6 @@ pub struct Resolver<'a> {
     fluid_tags: Tags<Fluid>,
     biome_tags: Tags<keys::Biome>,
     biomes: Registry<keys::Biome>,
-    /// The registry fluid each interned fluid of the block definitions is, by
-    /// the interned fluid's number.
-    fluid_ids: Vec<Option<Id<Fluid>>>,
     /// The geode's noise and the End's spike ring are drawn from the world seed
     /// rather than from the object's own source, so they belong to the freeze.
     pub world_seed: i64,
@@ -2638,12 +2635,6 @@ impl<'a> Resolver<'a> {
         climate: &'a [BiomeClimate],
         block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
     ) -> Compiled<Self> {
-        let fluids = registries
-            .registry::<Fluid>()
-            .expect("the loaded registries hold the fluid registry");
-        let fluid_ids = (0..blocks.fluid_count())
-            .map(|index| fluids.get(blocks.fluid(FluidId(index as u16)).as_str()))
-            .collect();
         let mut resolver = Resolver {
             block_state_providers,
             blocks,
@@ -2661,7 +2652,6 @@ impl<'a> Resolver<'a> {
             biomes: registries
                 .registry::<keys::Biome>()
                 .expect("the loaded registries hold the biome registry"),
-            fluid_ids,
             world_seed,
             climate,
             shape_masks: ShapeMasks::new(blocks),
@@ -2691,7 +2681,6 @@ impl<'a> Resolver<'a> {
         let water = self.states(StateQuery::Fluids(&HolderSet::One(keys::fluid::WATER)));
         let lava = self.states(StateQuery::Fluids(&HolderSet::One(keys::fluid::LAVA)));
         let block = |name: &str| self.block_mask(name).unwrap_or_default();
-        let water_fluid_id = self.blocks.fluid_id(keys::fluid::WATER.name());
         WorldStates {
             air: self.default_state_of(keys::block::AIR),
             cave_air: self.default_state_of(keys::block::CAVE_AIR),
@@ -2704,7 +2693,7 @@ impl<'a> Resolver<'a> {
             water_source: self.state_mask(|state| {
                 state
                     .fluid
-                    .is_some_and(|f| f.source && Some(f.fluid) == water_fluid_id)
+                    .is_some_and(|f| f.source && f.fluid == keys::fluid::WATER)
             }),
             lava_fluid: lava.clone().unwrap_or_default(),
             any_source_fluid: self.state_mask(|state| state.fluid.is_some_and(|f| f.source)),
@@ -2869,12 +2858,9 @@ impl BlockResolver for Resolver<'_> {
                 // reference's fluid-less states all carry it, so it matches
                 // everything that holds no fluid rather than nothing at all.
                 let empty = set.contains(keys::fluid::EMPTY, &self.fluid_tags);
-                return Some(self.state_mask(|state| {
-                    match state.fluid {
-                        None => empty,
-                        Some(fluid) => self.fluid_ids[usize::from(fluid.fluid.0)]
-                            .is_some_and(|id| set.contains(id, &self.fluid_tags)),
-                    }
+                return Some(self.state_mask(|state| match state.fluid {
+                    None => empty,
+                    Some(fluid) => set.contains(fluid.fluid, &self.fluid_tags),
                 }));
             }
             StateQuery::Solid => return Some(self.world.solid.clone()),

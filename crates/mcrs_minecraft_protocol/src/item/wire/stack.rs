@@ -4,7 +4,8 @@ use std::marker::PhantomData;
 use anyhow::ensure;
 use bytes::Bytes;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_registry::{ItemId, RegistryLookup};
+use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_registry::{Id, RegistryLookup};
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, scoped};
 use crate::item::kind::ItemComponentKind;
@@ -58,7 +59,7 @@ fn decode_with<'a>(
         return Ok(ProtoStack::EMPTY);
     }
     let stack = ProtoStack {
-        id: ItemId::decode(r)?,
+        id: Id::<Item>::decode(r)?,
         count,
         components: patch(ctx, r)?,
     };
@@ -169,9 +170,9 @@ impl Decode<'_> for RawDelimitedStack {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HashedStack {
-    pub id: ItemId,
+    pub id: Id<Item>,
     pub count: i32,
     pub components: HashedPatchMap,
 }
@@ -206,7 +207,7 @@ impl Encode for HashedStack {
 impl Decode<'_> for HashedStack {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         Ok(HashedStack {
-            id: ItemId::decode(r)?,
+            id: Id::<Item>::decode(r)?,
             count: VarInt::decode(r)?.0,
             components: HashedPatchMap::decode(r)?,
         })

@@ -128,7 +128,7 @@ impl Client {
             )
             .unwrap();
         let slot = ProtoStack::new(
-            mcrs_minecraft_registry::ItemId(id as u16),
+            mcrs_minecraft_registry::Id::from_static(id),
             count,
             ComponentPatch::EMPTY,
         );
@@ -534,7 +534,7 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
         .id("item", &ResourceLocation::minecraft("diamond_sword"))
         .unwrap();
     let raw = RawStack::from_stack(
-        &ProtoStack::new(mcrs_minecraft_registry::ItemId(sword as u16), 1, patch),
+        &ProtoStack::new(mcrs_minecraft_registry::Id::from_static(sword), 1, patch),
         &received.over(registries()),
     )
     .unwrap();

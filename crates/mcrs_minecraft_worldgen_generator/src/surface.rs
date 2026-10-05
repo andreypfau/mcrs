@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_surface::compile::MaterialProgram;
@@ -18,9 +18,9 @@ use mcrs_minecraft_worldgen_surface::{
 
 /// The blocks and biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
-    pub eroded_badlands: u16,
-    pub frozen_ocean: u16,
-    pub deep_frozen_ocean: u16,
+    pub eroded_badlands: Id<keys::Biome>,
+    pub frozen_ocean: Id<keys::Biome>,
+    pub deep_frozen_ocean: Id<keys::Biome>,
     pub snow_block: VoxelId,
     pub packed_ice: VoxelId,
     pub dirt: VoxelId,
@@ -29,12 +29,9 @@ pub struct SurfaceIds {
 impl SurfaceIds {
     pub fn resolve(blocks: &BlockDefinitions, biomes: &Registry<keys::Biome>) -> Self {
         let biome = |key: ResourceKey<keys::Biome, &'static str>| {
-            biomes
-                .require(key.as_str())
-                .unwrap_or_else(|error| {
-                    panic!("the surface stage names a biome the registry does not hold: {error}")
-                })
-                .number()
+            biomes.require(key.as_str()).unwrap_or_else(|error| {
+                panic!("the surface stage names a biome the registry does not hold: {error}")
+            })
         };
         Self {
             eroded_badlands: biome(keys::biome::ERODED_BADLANDS),
@@ -128,7 +125,7 @@ pub fn apply_material_surface(
                 starting_height,
                 bz,
             ));
-            if surface_biome == ids.eroded_badlands {
+            if surface_biome == ids.eroded_badlands.number() {
                 eroded_badlands(
                     column,
                     tops,
@@ -227,7 +224,9 @@ pub fn apply_material_surface(
                 },
             );
 
-            if surface_biome == ids.frozen_ocean || surface_biome == ids.deep_frozen_ocean {
+            if surface_biome == ids.frozen_ocean.number()
+                || surface_biome == ids.deep_frozen_ocean.number()
+            {
                 frozen_ocean(
                     column,
                     tops,

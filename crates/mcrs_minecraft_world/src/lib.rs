@@ -38,7 +38,6 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::ClockTimeMarkers;
 use mcrs_minecraft_item::enchantment::data::EnchantmentData;
 use mcrs_minecraft_keys::{Enchantment, EntityType};
-use mcrs_minecraft_registry::DynRegistryIndex;
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
 #[derive(Resource, Default)]
@@ -189,15 +188,14 @@ impl Plugin for MinecraftWorldPlugin {
                 let timelines = registries
                     .column::<Timeline>("minecraft:timeline")
                     .expect("the data pack loader parses minecraft:timeline");
-                let timeline_table = registries
-                    .table("minecraft:timeline")
-                    .expect("the data pack loader parses minecraft:timeline");
                 app.insert_resource(
                     ClockTimeMarkers::derive(timelines, &clocks)
                         .expect("the load refused a time marker defined twice for one clock"),
                 );
                 app.insert_resource(
-                    DynRegistryIndex::<mcrs_minecraft_keys::Timeline>::from_table(timeline_table),
+                    registries
+                        .registry::<mcrs_minecraft_keys::Timeline>()
+                        .expect("the data pack loader parses minecraft:timeline"),
                 );
             }
             app.insert_resource(registries.clone());

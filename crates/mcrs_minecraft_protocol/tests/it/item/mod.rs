@@ -14,3 +14,4 @@ mod scaffold;
 mod slotted;
 mod symmetry;
 mod table;
+mod wire_ids;

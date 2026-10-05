@@ -7,7 +7,7 @@ use mcrs_minecraft_protocol::item::{
     ProtoStack, RawStack, SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::ItemId;
+use mcrs_minecraft_registry::Id;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
 use rand::{RngExt, SeedableRng};
@@ -56,11 +56,16 @@ impl Gen {
         }
     }
 
-    fn item(&mut self) -> (ResourceKey<mcrs_minecraft_keys::Item>, ItemId) {
+    fn item(
+        &mut self,
+    ) -> (
+        ResourceKey<mcrs_minecraft_keys::Item>,
+        Id<mcrs_minecraft_keys::Item>,
+    ) {
         let (name, id) = *ITEMS.choose(&mut self.rng).unwrap();
         (
             ResourceKey::from_location(ResourceLocation::minecraft(name)),
-            ItemId(id),
+            Id::from_static(id),
         )
     }
 

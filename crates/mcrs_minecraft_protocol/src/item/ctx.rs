@@ -7,7 +7,7 @@ use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_registry::{HolderSet, ItemId, RegistryLookup, skip_sets, skipping_sets};
+use mcrs_minecraft_registry::{HolderSet, Id, RegistryLookup, skip_sets, skipping_sets};
 use uuid::Uuid;
 
 use crate::item::component::Holder;
@@ -95,7 +95,7 @@ ctx_free!(
     Text,
     NbtCompound,
     ResourceLocation<Arc<str>>,
-    ItemId,
+    Id<mcrs_minecraft_keys::Item>,
 );
 
 impl<T: EncodeCtx> EncodeCtx for Option<T> {

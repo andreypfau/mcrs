@@ -1,5 +1,4 @@
 pub mod bitset;
-pub mod dyn_index;
 pub mod entries;
 pub mod holder;
 pub mod holder_set;
@@ -15,12 +14,11 @@ pub mod shared;
 pub mod static_report;
 pub mod tags;
 
-pub use bitset::{BitSet, DenseId, RawBitSet};
-pub use dyn_index::DynRegistryIndex;
+pub use bitset::{BitSet, DenseId};
 pub use entries::Entries;
 pub use holder::*;
 pub use holder_set::{HolderSet, skip_sets, skipping_sets};
-pub use id::{BlockStateId, Id, ItemId, NarrowError, StaticRegistry};
+pub use id::{BlockStateId, Id, NarrowError, StaticRegistry};
 pub use load::{Built, Pack, PackFile, WorldRegistries};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;

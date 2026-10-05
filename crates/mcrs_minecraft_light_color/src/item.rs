@@ -7,14 +7,14 @@ use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, FluidId};
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_keys::fluid_tags::WATER;
 use mcrs_minecraft_keys::{Fluid, Item};
-use mcrs_minecraft_registry::{BlockStateId, ItemId, RegistrySet, TagId, Tags};
+use mcrs_minecraft_registry::{BlockStateId, Id, RegistrySet, TagId, Tags};
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::asset::{BlockStateRef, StateTarget};
@@ -153,7 +153,7 @@ impl ItemLights {
                         item: item.to_string(),
                     });
                 };
-                let slot = id.0 as usize;
+                let slot = id.index();
                 if let Some(first) = mapped_in[slot].take() {
                     return Err(ItemLightError::DuplicateItem {
                         item: item.to_string(),
@@ -168,7 +168,7 @@ impl ItemLights {
 
         let missing: Vec<String> = items
             .iter()
-            .filter(|item| mapped[item.id.0 as usize].is_none())
+            .filter(|item| mapped[item.id.index()].is_none())
             .filter(|item| {
                 item.block_placer
                     .is_some_and(|state| emits(blocks, blocks.owner(state)))
@@ -191,19 +191,13 @@ impl ItemLights {
         let water = tag_of(&fluid_tags, &WATER)?;
         Ok(ItemLights {
             mapped: mapped.into(),
-            water_sensitive: (0..items.len())
-                .map(|number| {
-                    items
-                        .item_index(ItemId(number as u16))
-                        .is_some_and(|item| item_tags.contains(water_sensitive, item))
-                })
+            water_sensitive: items
+                .iter()
+                .map(|entry| item_tags.contains(water_sensitive, entry.id))
                 .collect(),
-            water: (0..blocks.fluid_count())
-                .map(|number| {
-                    fluids
-                        .get(blocks.fluid(FluidId(number as u16)).as_str())
-                        .is_some_and(|fluid| fluid_tags.contains(water, fluid))
-                })
+            water: fluids
+                .ids()
+                .map(|fluid| fluid_tags.contains(water, fluid))
                 .collect(),
         })
     }
@@ -219,13 +213,12 @@ impl ItemLights {
         &self,
         blocks: &BlockDefinitions,
         colours: &LightColors,
-        item: ItemId,
+        item: Id<Item>,
         stack_state: impl IntoIterator<Item = (&'a str, &'a str)>,
         origin: BlockStateId,
     ) -> Option<ItemLight> {
-        let mapped = self.mapped.get(item.0 as usize).copied().flatten()?;
-        if self.water_sensitive.get(item.0 as usize) == Some(&true)
-            && self.holds_water(blocks, origin)
+        let mapped = self.mapped.get(item.index()).copied().flatten()?;
+        if self.water_sensitive.get(item.index()) == Some(&true) && self.holds_water(blocks, origin)
         {
             return None;
         }
@@ -248,7 +241,7 @@ impl ItemLights {
             && blocks
                 .state(state)
                 .fluid
-                .is_some_and(|f| self.water.get(f.fluid.0 as usize) == Some(&true))
+                .is_some_and(|f| self.water.get(f.fluid.index()) == Some(&true))
     }
 }
 

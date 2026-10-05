@@ -14,7 +14,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::*;
 use mcrs_minecraft_protocol::packets::game::serverbound::*;
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::{ItemId, RegistryLookup};
+use mcrs_minecraft_registry::{Id, RegistryLookup};
 
 const GOLDEN: &str = include_str!("../fixtures/inventory_packets_golden.txt");
 
@@ -58,8 +58,8 @@ fn fixture() -> Fixture {
     fixture
 }
 
-fn item(fixture: &Fixture, path: &str) -> ItemId {
-    ItemId(
+fn item(fixture: &Fixture, path: &str) -> Id<mcrs_minecraft_keys::Item> {
+    Id::from_static(
         fixture
             .id("item", &ResourceLocation::minecraft(path))
             .unwrap(),

@@ -6,10 +6,10 @@ use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
-use mcrs_minecraft_keys::{Enchantment, EntityType};
+use mcrs_minecraft_keys::{Enchantment, EntityType, Item};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
-use mcrs_minecraft_registry::{Entries, ItemId, Registry, RegistrySet};
+use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use rustc_hash::FxHashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -31,7 +31,7 @@ pub fn stack_in(world: &World, slot: Slot) -> Option<Entity> {
 /// What makes two stacks mergeable: the item and its patch over the prototype.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StackKey {
-    pub item: ItemId,
+    pub item: Id<Item>,
     pub components: ComponentPatch,
 }
 
@@ -75,8 +75,7 @@ impl StackView {
             binding_curse: prevents_armor_change(world, entity.get::<Enchantments>()),
             fits_inside_container_items: !world
                 .get_resource::<ShulkerBoxes>()
-                .zip(items.0.item_index(item.item))
-                .is_some_and(|(boxes, id)| boxes.has_item(id)),
+                .is_some_and(|boxes| boxes.has_item(item.item)),
             wearable: equippable.is_none_or(|equippable| admits_player(world, equippable)),
         })
     }

@@ -105,14 +105,15 @@ mod tests {
     use crate::item::component::predicate::ComponentPredicateType;
     use crate::item::kind::ItemComponentKind;
     use crate::particle::ParticleKind;
-    use mcrs_minecraft_registry::{BlockStateId, ItemId};
+    use mcrs_minecraft_keys::Item;
+    use mcrs_minecraft_registry::{BlockStateId, Id};
 
     type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
 
     const DECODERS: [(&str, Decoder); 8] = [
         ("registry id", |r| RegistryId::decode(r).map(drop)),
         ("block state", |r| BlockStateId::decode(r).map(drop)),
-        ("item", |r| ItemId::decode(r).map(drop)),
+        ("item", |r| Id::<Item>::decode(r).map(drop)),
         ("optional block state", |r| {
             OptionalBlockState::decode(r).map(drop)
         }),

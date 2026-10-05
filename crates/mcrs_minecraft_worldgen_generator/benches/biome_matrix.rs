@@ -129,8 +129,8 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
     .expect("the overworld compiles")
 }
 
-fn surface_ids(names: &[String]) -> SurfaceIds {
-    let id = |name: &str| u16::try_from(names.iter().position(|n| n == name).unwrap()).unwrap();
+fn surface_ids(biomes: &Registry<keys::Biome>) -> SurfaceIds {
+    let id = |name: &str| biomes.require(&format!("minecraft:{name}")).unwrap();
     SurfaceIds {
         eroded_badlands: id("eroded_badlands"),
         frozen_ocean: id("frozen_ocean"),
@@ -173,8 +173,8 @@ fn main() {
 
     let names = corpus_biome_ids();
     let (router, material) = material_router(seed, &names);
-    let ids = surface_ids(&names);
     let registry = biome_registry(&names);
+    let ids = surface_ids(&registry);
     let y_sections: Vec<i32> = (-4..20).collect();
     let cancel = CancellationToken::new();
 

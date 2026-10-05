@@ -9,7 +9,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::{HolderSet, Id, ItemId, NoRegistries};
+use mcrs_minecraft_registry::{HolderSet, Id, NoRegistries};
 
 use crate::item::harness::{TestLookup, custom_data, in_samples};
 
@@ -141,7 +141,7 @@ fn the_wire_patch_counts_then_lists() {
 #[test]
 fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
     let lookup = TestLookup::new();
-    let slot = ProtoStack::new(ItemId(300), 200, patch());
+    let slot = ProtoStack::new(Id::from_static(300), 200, patch());
     let mut wire = Vec::new();
     slot.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(&wire[..4], [0xC8, 0x01, 0xAC, 0x02]);
@@ -169,7 +169,7 @@ fn a_slot_writes_a_var_int_count_and_an_empty_sentinel() {
 #[test]
 fn a_delimited_stack_skips_what_a_value_leaves_unread() {
     let lookup = TestLookup::new();
-    let slot = ProtoStack::new(ItemId(1), 1, patch());
+    let slot = ProtoStack::new(Id::from_static(1), 1, patch());
     let raw = RawDelimitedStack::from_stack(&slot, &lookup).unwrap();
     assert_eq!(raw.resolve(&lookup).unwrap(), slot);
     assert_eq!(RawDelimitedStack::decode(&mut &raw.0[..]).unwrap(), raw);
@@ -215,7 +215,7 @@ fn a_delimited_stack_skips_what_a_value_leaves_unread() {
 #[test]
 fn a_hashed_slot_writes_the_map_then_the_set() {
     let hashed = HashedStack {
-        id: ItemId(1),
+        id: Id::from_static(1),
         count: 3,
         components: HashedPatchMap {
             added: vec![(ItemComponentKind::MaxStackSize, 0x0102_0304)],
@@ -300,7 +300,10 @@ fn a_stack_value_always_writes_its_count_and_rejects_air() {
 
     let lookup = TestLookup::new();
     let slot = ProtoStack::from_value(&value, &lookup).unwrap();
-    assert_eq!(slot, ProtoStack::new(ItemId(1), 1, ComponentPatch::EMPTY));
+    assert_eq!(
+        slot,
+        ProtoStack::new(Id::from_static(1), 1, ComponentPatch::EMPTY)
+    );
     assert_eq!(slot.to_value(&lookup).unwrap(), value);
     assert!(ProtoStack::EMPTY.to_value(&lookup).is_err());
 }
@@ -504,7 +507,7 @@ fn a_wire_amplifier_clamps_to_a_byte() {
 #[test]
 fn an_air_stack_is_empty_whatever_its_count() {
     let lookup = TestLookup::new();
-    let air = ProtoStack::new(ItemId(0), 5, patch());
+    let air = ProtoStack::new(Id::from_static(0), 5, patch());
     assert!(air.is_empty());
     let mut wire = Vec::new();
     air.encode_ctx(&lookup, &mut wire).unwrap();
