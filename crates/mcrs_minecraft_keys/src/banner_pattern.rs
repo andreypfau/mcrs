@@ -1,0 +1,47 @@
+// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
+
+use mcrs_minecraft_core::{ResourceKey, rl};
+
+pub const BASE: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:base"));
+pub const BORDER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:border"));
+pub const BRICKS: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:bricks"));
+pub const CIRCLE: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:circle"));
+pub const CREEPER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:creeper"));
+pub const CROSS: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:cross"));
+pub const CURLY_BORDER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:curly_border"));
+pub const DIAGONAL_LEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:diagonal_left"));
+pub const DIAGONAL_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:diagonal_right"));
+pub const DIAGONAL_UP_LEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:diagonal_up_left"));
+pub const DIAGONAL_UP_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:diagonal_up_right"));
+pub const FLOW: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:flow"));
+pub const FLOWER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:flower"));
+pub const GLOBE: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:globe"));
+pub const GRADIENT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:gradient"));
+pub const GRADIENT_UP: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:gradient_up"));
+pub const GUSTER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:guster"));
+pub const HALF_HORIZONTAL: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:half_horizontal"));
+pub const HALF_HORIZONTAL_BOTTOM: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:half_horizontal_bottom"));
+pub const HALF_VERTICAL: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:half_vertical"));
+pub const HALF_VERTICAL_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:half_vertical_right"));
+pub const MOJANG: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:mojang"));
+pub const PIGLIN: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:piglin"));
+pub const RHOMBUS: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:rhombus"));
+pub const SKULL: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:skull"));
+pub const SMALL_STRIPES: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:small_stripes"));
+pub const SQUARE_BOTTOM_LEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:square_bottom_left"));
+pub const SQUARE_BOTTOM_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:square_bottom_right"));
+pub const SQUARE_TOP_LEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:square_top_left"));
+pub const SQUARE_TOP_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:square_top_right"));
+pub const STRAIGHT_CROSS: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:straight_cross"));
+pub const STRIPE_BOTTOM: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_bottom"));
+pub const STRIPE_CENTER: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_center"));
+pub const STRIPE_DOWNLEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_downleft"));
+pub const STRIPE_DOWNRIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_downright"));
+pub const STRIPE_LEFT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_left"));
+pub const STRIPE_MIDDLE: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_middle"));
+pub const STRIPE_RIGHT: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_right"));
+pub const STRIPE_TOP: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:stripe_top"));
+pub const TRIANGLE_BOTTOM: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:triangle_bottom"));
+pub const TRIANGLE_TOP: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:triangle_top"));
+pub const TRIANGLES_BOTTOM: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:triangles_bottom"));
+pub const TRIANGLES_TOP: ResourceKey<crate::BannerPattern, &'static str> = ResourceKey::new(rl!("minecraft:triangles_top"));

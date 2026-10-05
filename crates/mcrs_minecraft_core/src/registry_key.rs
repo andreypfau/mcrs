@@ -4,6 +4,10 @@ pub trait RegistryKey: 'static {
     const KEY: ResourceLocation<&'static str>;
 }
 
+pub trait RegistryValue {
+    type Registry: RegistryKey;
+}
+
 /// Declares uninhabited registry key types, one `Name = "minecraft:path";` per
 /// line, with `, tags "path"` after the key of a registry that has tags.
 #[macro_export]

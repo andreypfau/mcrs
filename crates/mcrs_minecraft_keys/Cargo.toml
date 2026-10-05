@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_minecraft_keys"
+description = "Registry markers, static ids and data pack keys of the vanilla registries"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_registry.workspace = true

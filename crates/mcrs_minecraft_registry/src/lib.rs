@@ -21,7 +21,7 @@ pub use dyn_index::DynRegistryIndex;
 pub use entries::Entries;
 pub use entry_set::EntrySet;
 pub use holder::*;
-pub use id::{BlockStateId, Id, ItemId, NarrowError};
+pub use id::{BlockStateId, Id, ItemId, NarrowError, StaticRegistry};
 pub use load::{Pack, PackFile, WorldRegistries};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;
