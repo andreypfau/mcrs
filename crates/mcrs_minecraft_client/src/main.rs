@@ -20,7 +20,8 @@ use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_dimension::environment::Weather;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
+use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -230,18 +231,15 @@ fn main() -> AppExit {
     app.add_plugins(gui::game_mode_switcher::GameModeSwitcherPlugin);
     app.insert_resource(ExitOnDisconnect);
 
-    // Inserted after `add_plugins`: `WorldClockPlugin` calls
-    // `init_resource::<WorldClocks>()` during its own build, so an earlier
-    // insert here would be overwritten.
-    let mut world_clocks = WorldClocks::default();
-    for (id, mut state) in save_data.world_clocks {
-        if let Some(ticks) = frozen_at {
+    let mut saved_clocks = save_data.world_clocks;
+    if let Some(ticks) = frozen_at {
+        for state in saved_clocks.values_mut() {
             state.total_ticks = ticks;
             state.partial_tick = 0.0;
         }
-        world_clocks.insert(id, state);
     }
-    app.insert_resource(world_clocks)
+    app.insert_resource(SavedClocks(saved_clocks))
+        .add_systems(Startup, apply_saved_clocks.after(seed_world_clocks))
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
 
@@ -442,6 +440,28 @@ fn fatal(err: SaveError) -> ! {
     std::process::exit(1);
 }
 
+#[derive(Resource)]
+struct SavedClocks(save::WorldClockStates);
+
+fn apply_saved_clocks(
+    saved: Res<SavedClocks>,
+    registries: Res<RegistrySet>,
+    mut clocks: ResMut<WorldClocks>,
+    mut commands: Commands,
+) {
+    if let Some(registry) = registries.registry::<keys::WorldClock>() {
+        for (name, state) in &saved.0 {
+            match registry.by_name(name.as_str()) {
+                Some(id) => clocks.insert(id, *state),
+                None => {
+                    warn!(clock = %name, "discarding saved clock state with no world_clock registry entry")
+                }
+            }
+        }
+    }
+    commands.remove_resource::<SavedClocks>();
+}
+
 fn log_registry_counts(registries: Res<RegistrySet>) {
     let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
     info!(
@@ -469,11 +489,19 @@ fn log_spawned_transforms(
 
 fn log_seeded_resources(
     clocks: Res<WorldClocks>,
+    registries: Res<RegistrySet>,
     advance_time: Res<AdvanceTime>,
     weather: Res<Weather>,
 ) {
+    let names = registries.registry::<keys::WorldClock>();
     info!(
-        clocks = ?clocks.iter().map(|(id, state)| (id.to_string(), state.total_ticks)).collect::<Vec<_>>(),
+        clocks = ?clocks
+            .iter()
+            .map(|(id, state)| {
+                let name = names.as_ref().and_then(|names| names.name(id));
+                (name.map(ToString::to_string), state.total_ticks)
+            })
+            .collect::<Vec<_>>(),
         advance_time = advance_time.0,
         rain = weather.rain,
         thunder = weather.thunder,

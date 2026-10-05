@@ -4,6 +4,7 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::light::BlockLightRegistry;
 use mcrs_minecraft_dimension::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
@@ -44,7 +45,7 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update() {
     let registered = app
         .world()
         .resource::<RegistrySet>()
-        .table("minecraft:world_clock")
+        .registry::<keys::WorldClock>()
         .expect("the world clock registry is loaded");
     assert!(!registered.is_empty());
     assert_eq!(
@@ -52,7 +53,7 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update() {
         registered.len(),
         "the clocks held after the first update differ from the registry's"
     );
-    for name in registered.names() {
-        assert!(clocks.get(name.as_str()).is_some(), "{name} is not seeded");
+    for id in registered.ids() {
+        assert!(clocks.get(id).is_some(), "{id:?} is not seeded");
     }
 }

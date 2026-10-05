@@ -7,10 +7,12 @@ use bevy_time::{Fixed, Time};
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
@@ -115,20 +117,32 @@ fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
 }
 
-const OVERWORLD: &str = "minecraft:overworld";
+fn world_clocks(app: &App) -> Registry<keys::WorldClock> {
+    app.world()
+        .resource::<RegistrySet>()
+        .registry::<keys::WorldClock>()
+        .expect("the world clock registry is loaded")
+}
+
+fn overworld_clock(app: &App) -> Id<keys::WorldClock> {
+    world_clocks(app)
+        .require(&keys::world_clock::OVERWORLD)
+        .expect("the overworld clock is registered")
+}
 
 fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
+    let overworld = overworld_clock(app);
     *app.sub_app_mut(DimAppLabel(dim_label))
         .world()
         .resource::<WorldClocks>()
-        .get(OVERWORLD)
+        .get(overworld)
         .expect("the extract carried the overworld clock into the sub-world")
 }
 
 fn main_clock(app: &App) -> ClockState {
     *app.world()
         .resource::<WorldClocks>()
-        .get(OVERWORLD)
+        .get(overworld_clock(app))
         .unwrap()
 }
 
@@ -143,8 +157,7 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     app.add_message::<InboundPlayerSpawn>();
     app.add_plugins(WorldClockPlugin);
     let mut clocks = WorldClocks::default();
-    clocks
-        .reconcile_with_registry([mcrs_minecraft_core::ResourceLocation::read(OVERWORLD).unwrap()]);
+    clocks.reconcile_with_registry(&world_clocks(&app));
     app.insert_resource(clocks);
     host_app::drive_to_playing(&mut app);
     host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
@@ -171,10 +184,11 @@ fn a_dim_sub_app_runs_the_whole_pipeline_on_the_main_app_time_and_clocks() {
     assert_eq!(host_fixed.elapsed(), sub_fixed.elapsed());
     assert_eq!(host_fixed.delta(), sub_fixed.delta());
 
+    let overworld = overworld_clock(&app);
     app.sub_app_mut(DimAppLabel(dim_label))
         .world_mut()
         .resource_mut::<WorldClocks>()
-        .get_mut(OVERWORLD)
+        .get_mut(overworld)
         .unwrap()
         .total_ticks = 999_999;
     app.update();

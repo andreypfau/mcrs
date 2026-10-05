@@ -6,7 +6,7 @@
 //! stack is derived once from immutable assets and every read composes it
 //! afresh.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
@@ -164,7 +164,7 @@ impl<'a> DimensionEnvironment<'a> {
 #[derive(Resource, Debug, Clone)]
 pub struct EnvironmentAttributes {
     skybox: Skybox,
-    clocks: Vec<ResourceLocation<Arc<str>>>,
+    clocks: Vec<Id<keys::WorldClock>>,
     stacks: Vec<AttributeStack>,
 }
 
@@ -194,15 +194,15 @@ impl EnvironmentAttributes {
             stack.layers.push(Layer::Biome);
         }
 
-        let mut clocks: Vec<ResourceLocation<Arc<str>>> = Vec::new();
+        let mut clocks: Vec<Id<keys::WorldClock>> = Vec::new();
         for timeline in timelines {
-            let name = world_clocks
+            world_clocks
                 .name(timeline.clock)
                 .ok_or(EnvironmentError::UnknownClock)?;
-            let clock = match clocks.iter().position(|known| known == name) {
+            let clock = match clocks.iter().position(|known| *known == timeline.clock) {
                 Some(known) => known,
                 None => {
-                    clocks.push(name.clone());
+                    clocks.push(timeline.clock);
                     clocks.len() - 1
                 }
             };
@@ -245,7 +245,7 @@ impl EnvironmentAttributes {
         self.skybox
     }
 
-    pub fn clocks(&self) -> &[ResourceLocation<Arc<str>>] {
+    pub fn clocks(&self) -> &[Id<keys::WorldClock>] {
         &self.clocks
     }
 
@@ -254,7 +254,7 @@ impl EnvironmentAttributes {
     pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<f64>) {
         out.clear();
         out.extend(self.clocks.iter().map(|id| {
-            clocks.get(id.as_str()).map_or(0.0, |state| {
+            clocks.get(*id).map_or(0.0, |state| {
                 state.total_ticks as f64 + f64::from(state.partial_tick)
             })
         }));

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::mth::wrap_degrees;
 use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use serde_json::json;
 
