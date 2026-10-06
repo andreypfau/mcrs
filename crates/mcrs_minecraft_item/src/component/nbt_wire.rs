@@ -12,7 +12,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
 use crate::keys::MapDecorationType;
-use mcrs_minecraft_keys::{LootTable, Recipe};
+use crate::recipe::Recipe;
+use mcrs_minecraft_keys::LootTable;
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]

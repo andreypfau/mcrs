@@ -1,4 +1,6 @@
 use crate::keys::{RecipeDisplayType, SlotDisplayType};
+use mcrs_minecraft_item::keys::RecipeBookCategory;
+use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
 use anyhow::ensure;
@@ -13,31 +15,6 @@ use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
 use crate::item::{DecodeCtx, EncodeCtx, Holder, ItemComponentKind, Template, TrimPattern};
 use crate::{Decode as _, Encode as _, VarInt};
-
-validated!(Ingredient);
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", transparent)]
-pub struct Ingredient(pub HolderSet<Item>);
-
-const AIR_ITEM_ID: u16 = 0;
-
-impl Validate for Ingredient {
-    fn validate(&self) -> Result<(), String> {
-        let entries = match &self.0 {
-            HolderSet::Named(_) => return Ok(()),
-            HolderSet::One(item) => std::slice::from_ref(item),
-            HolderSet::List(items) => &items[..],
-        };
-        if entries.is_empty() {
-            return Err("Ingredients can't be empty".into());
-        }
-        if entries.iter().any(|item| item.number() == AIR_ITEM_ID) {
-            return Err("Ingredient can't contain air".into());
-        }
-        Ok(())
-    }
-}
 
 impl EncodeCtx for Ingredient {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
@@ -81,7 +58,7 @@ macro_rules! static_registry_wire {
     )*};
 }
 
-static_registry_wire!(SlotDisplayType, RecipeDisplayType);
+static_registry_wire!(SlotDisplayType, RecipeDisplayType, RecipeBookCategory);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -441,24 +418,6 @@ impl DecodeCtx<'_> for RecipeDisplay {
         display.validate().map_err(anyhow::Error::msg)?;
         Ok(display)
     }
-}
-
-/// `minecraft:recipe_book_category`, whose ids are the wire form.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
-pub enum RecipeBookCategory {
-    CraftingBuildingBlocks,
-    CraftingRedstone,
-    CraftingEquipment,
-    CraftingMisc,
-    FurnaceFood,
-    FurnaceBlocks,
-    FurnaceMisc,
-    BlastFurnaceBlocks,
-    BlastFurnaceMisc,
-    SmokerFood,
-    Stonecutter,
-    Smithing,
-    Campfire,
 }
 
 /// One recipe as the client's recipe book shows it; `group` is the index of

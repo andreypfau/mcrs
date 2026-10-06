@@ -1,6 +1,6 @@
 use crate::names::NameTable;
 use crate::report::LoadReport;
-use crate::set::{Column, RegistrySet, Values};
+use crate::set::{Column, RegistrySet};
 use crate::tags::{TagProblem, TagRules, TagSource, build_tags};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::DeserializeOwned;
@@ -215,12 +215,25 @@ impl WorldRegistries {
     }
 
     pub fn from_datapack_report(json: &[u8]) -> Result<Self, serde_json::Error> {
+        Self::from_report_where(json, |flags| flags.elements && !flags.stable)
+    }
+
+    /// The registries a data pack reload reads: recipes, loot tables,
+    /// predicates and the like, loaded over the world registries they name.
+    pub fn reloadable_from_datapack_report(json: &[u8]) -> Result<Self, serde_json::Error> {
+        Self::from_report_where(json, |flags| flags.elements && flags.stable)
+    }
+
+    fn from_report_where(
+        json: &[u8],
+        keep: impl Fn(&Flags) -> bool,
+    ) -> Result<Self, serde_json::Error> {
         let report: DatapackReport = serde_json::from_slice(json)?;
         Ok(Self::new(
             report
                 .registries
                 .into_iter()
-                .filter(|(_, flags)| flags.elements && !flags.stable)
+                .filter(|(_, flags)| keep(flags))
                 .map(|(registry, _)| registry),
         ))
     }
@@ -559,9 +572,10 @@ impl WorldRegistries {
             }
         };
 
-        let mut values = Values::default();
+        let mut values = statics.values().clone();
         let built = statics
             .tables()
+            .filter(|table| statics.tag_table(table.registry().as_str()).is_none())
             .map(|table| (table, TagRules::Static))
             .chain(world.iter().map(|loaded| (&loaded.table, TagRules::World)));
         for (table, rules) in built {

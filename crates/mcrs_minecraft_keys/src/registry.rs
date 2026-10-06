@@ -214,27 +214,6 @@ impl Registered for Predicate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Recipe {}
-pub const RECIPE: RegistryKey<Recipe> = RegistryKey::new(rl!("minecraft:recipe"));
-impl Registered for Recipe {
-    const REGISTRY: RegistryKey<Self> = RECIPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecipeBookCategory {}
-pub const RECIPE_BOOK_CATEGORY: RegistryKey<RecipeBookCategory> = RegistryKey::new(rl!("minecraft:recipe_book_category"));
-impl Registered for RecipeBookCategory {
-    const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecipeSerializer {}
-pub const RECIPE_SERIALIZER: RegistryKey<RecipeSerializer> = RegistryKey::new(rl!("minecraft:recipe_serializer"));
-impl Registered for RecipeSerializer {
-    const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecipeType {}
 pub const RECIPE_TYPE: RegistryKey<RecipeType> = RegistryKey::new(rl!("minecraft:recipe_type"));
 impl Registered for RecipeType {
@@ -339,7 +318,7 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 48] {
+pub fn bindings() -> [TypeBinding; 45] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
@@ -371,9 +350,6 @@ pub fn bindings() -> [TypeBinding; 48] {
         PERMISSION_TYPE.binding(),
         POINT_OF_INTEREST_TYPE.binding(),
         PREDICATE.binding(),
-        RECIPE.binding(),
-        RECIPE_BOOK_CATEGORY.binding(),
-        RECIPE_SERIALIZER.binding(),
         RECIPE_TYPE.binding(),
         SENSOR_TYPE.binding(),
         SLOT_SOURCE.binding(),

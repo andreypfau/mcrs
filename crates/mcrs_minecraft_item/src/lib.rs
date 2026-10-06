@@ -22,6 +22,7 @@ pub mod inventory;
 pub mod item_stack;
 pub mod kind;
 pub mod patch;
+pub mod recipe;
 pub mod stack;
 #[cfg(feature = "bevy")]
 pub mod value;
