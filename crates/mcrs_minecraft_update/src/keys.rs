@@ -291,10 +291,7 @@ fn registry_file(markers: &str, bindings: &[String]) -> String {
     format!(
         "{HEADER}\n\
          use mcrs_minecraft_core::{{RegistryKey, TypeBinding, rl}};\n\
-         \n\
-         pub trait Registered: Sized + 'static {{\n    \
-             const REGISTRY: RegistryKey<Self>;\n\
-         }}\n\
+         use mcrs_minecraft_registry::Registered;\n\
          \n\
          {markers}\n\
          pub fn bindings() -> [TypeBinding; {len}] {{\n    \
@@ -457,10 +454,7 @@ mod tests {
             "// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.\n\
              \n\
              use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};\n\
-             \n\
-             pub trait Registered: Sized + 'static {\n\
-             \x20   const REGISTRY: RegistryKey<Self>;\n\
-             }\n\
+             use mcrs_minecraft_registry::Registered;\n\
              \n\
              #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
              pub enum Block {}\n\

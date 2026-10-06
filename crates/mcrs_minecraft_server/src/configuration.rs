@@ -153,7 +153,9 @@ fn on_configuration_enter(
     }
 }
 
-fn tags_of<R: keys::Registered>(set: &RegistrySet) -> Option<RegistryTags<'static>> {
+fn tags_of<R: mcrs_minecraft_registry::Registered>(
+    set: &RegistrySet,
+) -> Option<RegistryTags<'static>> {
     let payload = tags_payload(&set.tags::<R>()?);
     (!payload.tags.is_empty()).then_some(payload)
 }

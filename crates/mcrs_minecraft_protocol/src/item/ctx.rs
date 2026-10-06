@@ -6,8 +6,8 @@ use std::sync::{Arc, LazyLock};
 use anyhow::{Context, bail, ensure};
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{RegistryValue, ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys::Registered;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{
     DenseId, HolderSet, Id, Registry, RegistryLookup, skip_sets, skipping_sets,
 };

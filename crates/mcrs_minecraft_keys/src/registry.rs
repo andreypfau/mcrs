@@ -1,10 +1,7 @@
 // Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
-
-pub trait Registered: Sized + 'static {
-    const REGISTRY: RegistryKey<Self>;
-}
+use mcrs_minecraft_registry::Registered;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Activity {}

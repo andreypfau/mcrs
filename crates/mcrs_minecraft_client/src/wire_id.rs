@@ -77,20 +77,20 @@ impl WireIds {
         }
     }
 
-    pub fn get<R: mcrs_minecraft_keys::Registered>(&self, wire: WireId<R>) -> Option<Id<R>> {
+    pub fn get<R: mcrs_minecraft_registry::Registered>(&self, wire: WireId<R>) -> Option<Id<R>> {
         self.table::<R>()?.get(usize::from(wire.number)).copied()?
     }
 
-    pub fn sent_len<R: mcrs_minecraft_keys::Registered>(&self) -> Option<usize> {
+    pub fn sent_len<R: mcrs_minecraft_registry::Registered>(&self) -> Option<usize> {
         Some(self.table::<R>()?.len())
     }
 
-    fn table<R: mcrs_minecraft_keys::Registered>(&self) -> Option<&Table<R>> {
+    fn table<R: mcrs_minecraft_registry::Registered>(&self) -> Option<&Table<R>> {
         self.tables.get(&TypeId::of::<R>())?.downcast_ref()
     }
 }
 
-fn insert<R: mcrs_minecraft_keys::Registered>(
+fn insert<R: mcrs_minecraft_registry::Registered>(
     tables: &mut HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     received: &ReceivedRegistries,
     local: &RegistrySet,
