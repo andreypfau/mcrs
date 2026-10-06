@@ -13,6 +13,21 @@ crates=(
     mcrs_minecraft_chunk
     mcrs_minecraft_registry
     mcrs_minecraft_keys
+    mcrs_minecraft_text
+    mcrs_minecraft_profile
+    mcrs_minecraft_block
+    mcrs_minecraft_block_predicate
+    mcrs_minecraft_particle
+    mcrs_minecraft_sound
+    mcrs_minecraft_value_provider
+    mcrs_minecraft_biome
+    mcrs_minecraft_biome_file
+    mcrs_minecraft_dimension
+    mcrs_minecraft_enchantment
+    mcrs_minecraft_predicate
+    mcrs_minecraft_loot
+    mcrs_minecraft_game_rule
+    mcrs_minecraft_registry_catalog
     mcrs_minecraft_protocol
     mcrs_minecraft_anvil
     mcrs_minecraft_worldgen_testing
