@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::{BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos, ResourceLocation};
@@ -11,7 +12,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::to_nbt_compound;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;

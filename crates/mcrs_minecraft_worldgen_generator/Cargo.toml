@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_block_predicate.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_ecs.workspace = true

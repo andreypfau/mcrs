@@ -5,6 +5,9 @@ use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::{Blocks, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
@@ -18,12 +21,10 @@ use mcrs_minecraft_random::block_pos_seed;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::BlockStateId;
-use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
 use mcrs_minecraft_worldgen_feature::proto::{
-    Feature, Holder, PlacedFeature, ProcessorRule, StructureProcessor, processor_list,
+    Feature, PlacedFeature, ProcessorRule, StructureProcessor, processor_list,
 };
 use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;

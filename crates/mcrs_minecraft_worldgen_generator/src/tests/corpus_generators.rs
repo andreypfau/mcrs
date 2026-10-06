@@ -7,9 +7,10 @@ use mcrs_minecraft_worldgen_testing::{corpus_set, registry};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 
 use crate::feature_program::{FeatureProgram, Generator, Nested, RunScratch};
 use crate::features::FeatureTables;
@@ -161,8 +162,8 @@ fn a_simple_random_selector_compiles_to_equal_weights() {
 /// The three flower features whose block comes out of a noise sampler, and
 /// which of the three shapes each takes.
 fn the_noise_state_providers_resolve_to_a_sampler() {
-    use mcrs_minecraft_worldgen_feature::proto::Holder;
-    use mcrs_minecraft_worldgen_feature::tree::{
+    use mcrs_minecraft_block_predicate::provider::Holder;
+    use mcrs_minecraft_block_predicate::provider::{
         DirectBlockStateProvider, TypedBlockStateProvider,
     };
     use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;

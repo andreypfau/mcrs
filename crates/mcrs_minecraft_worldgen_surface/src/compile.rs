@@ -2,6 +2,7 @@ use crate::proto::{
     CaveSurface, MaterialCondition, MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
 };
 use bevy_math::IVec3;
+use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
@@ -12,7 +13,7 @@ use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;
 use mcrs_minecraft_worldgen_density::compile::{CompileError, Compiler};
 use mcrs_minecraft_worldgen_density::program::NodeId;
-use mcrs_minecraft_worldgen_density::proto::{BlockState, DensityFunctionHolder};
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use mcrs_minecraft_worldgen_noise::proto::{HashableF64, NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};

@@ -1,4 +1,3 @@
-pub mod block_predicate;
 pub mod compile;
 pub mod placement;
 pub mod placer;
@@ -12,10 +11,11 @@ pub mod template;
 
 #[cfg(test)]
 mod tests {
-    use crate::block_predicate::BlockPredicate;
     use crate::placement::PlacementModifier;
     use crate::proto::{Feature, PlacedFeature, PlacedFeatureSet, StructureProcessorList};
-    use crate::tree::{BlockStateProvider, FeatureSize, TrunkPlacer};
+    use crate::tree::{FeatureSize, TrunkPlacer};
+    use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+    use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
     use mcrs_minecraft_worldgen_testing::corpus_set;
     use serde::Serialize;
     use serde::de::DeserializeOwned;

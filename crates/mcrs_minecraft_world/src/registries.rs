@@ -21,6 +21,7 @@ use mcrs_minecraft_biome::parameter_list::{
 };
 use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
@@ -38,7 +39,6 @@ use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
 };
-use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};

@@ -40,10 +40,10 @@ pub mod tree;
 pub mod vines;
 
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 
 pub fn holds(mask: &FixedBitSet, state: VoxelId) -> bool {
     mask.contains(state.0 as usize)

@@ -5,13 +5,14 @@ use mcrs_minecraft_core::BlockPos;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{PlacerScratch, decorate};
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
+use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature_place::ore_modern::{OreScratch, place_modern_ore};
 
 use crate::ColumnBlocks;

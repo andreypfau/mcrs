@@ -11,6 +11,11 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags,
 };
+use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::predicate::Direction;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -28,26 +33,22 @@ use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{
     BlockStateId, HolderSet, Id, Registry, RegistrySet, StaticKey, TagId, Tags,
 };
-use mcrs_minecraft_worldgen_density::proto::BlockState;
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
 };
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
     WorldGenVolume, WorldStates, place,
 };
 use mcrs_minecraft_worldgen_feature::proto::{
-    BlockReplacement, Feature, Holder, PlacedFeature, StructureProcessor, StructureProcessorList,
+    BlockReplacement, Feature, PlacedFeature, StructureProcessor, StructureProcessorList,
     WeightedPlacedFeature, processor_list,
 };
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, TemplateManifest, bounding_box, zero_position_with_transform,
 };
-use mcrs_minecraft_worldgen_feature::tree::DirectBlockStateProvider;
 use mcrs_minecraft_worldgen_feature_place::bamboo::{CompiledBamboo, place_bamboo};
 use mcrs_minecraft_worldgen_feature_place::blob::{
     CompiledBlockBlob, CompiledDelta, CompiledReplaceBlobs, place_block_blob, place_delta,

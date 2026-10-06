@@ -3,12 +3,12 @@ use std::collections::{BTreeMap, VecDeque};
 
 use crate::JigsawConfig;
 use bevy_math::IVec3;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{shuffle, shuffled};
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 

@@ -8,6 +8,7 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_keys as keys;
@@ -19,7 +20,6 @@ use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     PlacerScratch, StateMask, WorldGenVolume, WorldStates, decorate,
 };

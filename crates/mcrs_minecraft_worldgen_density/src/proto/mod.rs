@@ -8,7 +8,7 @@ pub use args::{
     IntervalSelectArguments, PowFunctionArguments, RoundFunctionArguments, ScaleValue,
     SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
 };
-pub use settings::{BlockState, Either, ValueRange};
+pub use settings::{Either, ValueRange};
 pub use spline::{ProtoMultipoint, ProtoSpline, SplinePoints};
 
 use crate::node::distance::DistanceMetric;

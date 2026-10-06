@@ -1,7 +1,7 @@
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, BoxVolume, Volume, VoxelId};
 use mcrs_minecraft_core::BlockPos;
 
-use crate::placement::HeightmapName;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::value_provider::HeightContext;
 
 use super::{WorldGenVolume, WorldStates};

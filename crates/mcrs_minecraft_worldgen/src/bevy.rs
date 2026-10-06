@@ -9,18 +9,16 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
+use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{RegistrySet, StaticKey, Tags};
 use mcrs_minecraft_worldgen_density::compile::CompileError;
-use mcrs_minecraft_worldgen_density::proto::{
-    BlockState, DensityFunctionHolder, ProtoDensityFunction,
-};
+use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
-use mcrs_minecraft_worldgen_feature::proto::{
-    Feature, Holder, PlacedFeature, StructureProcessorList,
-};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
@@ -914,8 +912,8 @@ mod tests {
     fn the_loaded_settings_compile_into_a_router() {
         use super::{Loaded, NoiseGeneratorSettingsAsset, build_dimension_router};
         use bevy_asset::Assets;
+        use mcrs_minecraft_block_predicate::block_state::BlockState;
         use mcrs_minecraft_chunk::VoxelId;
-        use mcrs_minecraft_worldgen_density::proto::BlockState;
 
         let biomes = corpus_set()
             .tags::<keys::Biome>()

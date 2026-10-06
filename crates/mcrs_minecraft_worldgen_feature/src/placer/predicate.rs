@@ -8,7 +8,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 
 use super::{BiomeMask, StateMask, WorldGenVolume};
-use crate::placement::HeightmapName;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 
 /// A `BlockPredicate` with every set it names reduced to a mask.
 #[derive(Debug, Clone, PartialEq)]

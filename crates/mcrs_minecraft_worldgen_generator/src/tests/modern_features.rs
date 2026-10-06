@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
@@ -10,7 +11,7 @@ use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
 use mcrs_minecraft_worldgen_feature::placement::PlacementModifier;
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 
 use crate::ColumnBlocks;
 use crate::feature_program::FeatureProgram;

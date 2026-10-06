@@ -1,9 +1,9 @@
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::mth::{lerp, sin_modern};
 use mcrs_minecraft_core::{BlockPos, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{Rule, WorldGenVolume};
 
 #[derive(Clone, Debug)]

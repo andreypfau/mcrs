@@ -1,6 +1,6 @@
 use bevy_math::IVec3;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 
 use super::single_piece_site;
 use crate::orient::{Orientation, orient_box};

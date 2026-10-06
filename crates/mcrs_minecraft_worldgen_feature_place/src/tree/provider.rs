@@ -2,6 +2,7 @@ use crate::random_direction;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
+use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::mth::clamped_map;
@@ -10,7 +11,6 @@ use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::{DenseId, Id};
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 
@@ -364,9 +364,9 @@ pub(crate) mod fake {
     use bevy_math::IVec3;
     use rustc_hash::FxHashMap as HashMap;
 
+    use mcrs_minecraft_block_predicate::predicate::HeightmapName;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume};
     use mcrs_minecraft_core::value_provider::HeightContext;
-    use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
     use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 
     use super::*;

@@ -1,9 +1,9 @@
 use crate::holds;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 
 /// Which shape a state's block takes. A block that answers `None` overrides
 /// nothing and takes the default `canSurvive`, which is true.

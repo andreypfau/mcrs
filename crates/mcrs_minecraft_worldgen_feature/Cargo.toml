@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_block_predicate.workspace = true
 thiserror.workspace = true
 bevy_math.workspace = true
 fixedbitset.workspace = true

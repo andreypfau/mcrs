@@ -14,19 +14,20 @@
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_block_predicate::provider::{
+    BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
+};
 use mcrs_minecraft_chunk::Blocks as _;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BoxRegion, Predicate, StateMask, WorldStates, mask_of,
 };
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder};
-use mcrs_minecraft_worldgen_feature::tree::{
-    BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
-};
+use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{
     CompiledTreeDecorator, EntitiesOnly, TreePalette,
 };
