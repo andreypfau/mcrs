@@ -14,7 +14,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -35,6 +34,7 @@ use mcrs_minecraft_network::client::{
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
 use crate::wire_id::{WireId, WireIds};
+use mcrs_minecraft_biome::Biome;
 
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
@@ -302,7 +302,7 @@ impl Column {
         wire: &WireIds,
     ) -> Result<Column> {
         let biome_registry_len = wire
-            .sent_len::<keys::Biome>()
+            .sent_len::<Biome>()
             .context("the server sent no biome registry the local registries can name")?;
         let sections = data
             .sections(extent.sections, block_state_count, biome_registry_len)?
@@ -423,7 +423,7 @@ fn local_biomes(
 ) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
     let local = |number: u8| -> Result<u8> {
         let id = wire
-            .get(WireId::<keys::Biome>::received(u16::from(number)))
+            .get(WireId::<Biome>::received(u16::from(number)))
             .with_context(|| format!("biome {number} is not one the local registries hold"))?;
         Ok(id.narrow::<u8>()?)
     };
@@ -450,11 +450,16 @@ fn local_biomes(
 
 fn extent_of(
     registries: &[ReceivedRegistry],
-    dimension_type: WireId<keys::DimensionType>,
+    dimension_type: WireId<mcrs_minecraft_dimension::DimensionType>,
 ) -> Option<Extent> {
     let data = registries
         .iter()
-        .find(|registry| registry.registry == keys::DIMENSION_TYPE.location().as_static_str())?
+        .find(|registry| {
+            registry.registry
+                == mcrs_minecraft_dimension::keys::DIMENSION_TYPE
+                    .location()
+                    .as_static_str()
+        })?
         .entries
         .get(usize::from(dimension_type.number()))?
         .data
@@ -1226,7 +1231,7 @@ mod tests {
             },
         ];
 
-        let wire = WireId::<keys::DimensionType>::received;
+        let wire = WireId::<mcrs_minecraft_dimension::DimensionType>::received;
         assert_eq!(
             extent_of(&registries, wire(1)),
             Some(Extent {

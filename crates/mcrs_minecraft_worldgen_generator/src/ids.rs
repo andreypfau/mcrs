@@ -24,7 +24,7 @@ pub struct FillIds {
 
 impl FillIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let biomes = report.registry(set, mcrs_minecraft_keys::BIOME);
+        let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME);
         let end = biomes
             .as_ref()
             .and_then(|biomes| EndBiomes::resolve(biomes, report));

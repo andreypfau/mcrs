@@ -6,7 +6,6 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{
     DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,
@@ -28,19 +27,21 @@ use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
 use crate::host_app;
+use mcrs_minecraft_dimension::Dimension;
 
 fn preset(name: &str) -> Dimensions {
     let set = test_registries();
     let id = set
-        .registry::<keys::WorldPreset>()
+        .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
         .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the preset {name} is loaded"));
-    set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
+    set.entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
+        .unwrap()[id]
         .dimensions
         .clone()
 }
 
-fn baked(dimensions: &Dimensions) -> Vec<(ResourceKey<keys::Dimension>, DimensionEntry)> {
+fn baked(dimensions: &Dimensions) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
     let mut report = mcrs_minecraft_registry::LoadReport::new();
     let list = bake(dimensions, test_registries(), &mut report);
     assert!(report.is_empty(), "{report}");
@@ -63,7 +64,7 @@ fn host_spawning(dimensions: &Dimensions) -> App {
 fn label_of(app: &mut App, dimension: &str) -> Entity {
     let mut handles = app
         .world_mut()
-        .query::<(Entity, &DimSubAppHandle, &ResourceKey<keys::Dimension>)>();
+        .query::<(Entity, &DimSubAppHandle, &ResourceKey<Dimension>)>();
     handles
         .iter(app.world())
         .find(|(_, _, key)| key.as_str() == dimension)
@@ -118,7 +119,7 @@ fn join(app: &mut App, label: Entity) -> ClientboundLogin {
 
 fn type_number(name: &str) -> u16 {
     test_registries()
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
         .number()
@@ -163,9 +164,11 @@ fn a_dimension_named_unlike_its_type_spawns_with_its_entry_type() {
 #[test]
 fn every_shipped_preset_dimension_spawns_with_its_entry_type() {
     let set = test_registries();
-    let presets = set.registry::<keys::WorldPreset>().unwrap();
+    let presets = set
+        .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
+        .unwrap();
     let types = set
-        .entries::<keys::DimensionType, DimensionType>()
+        .entries::<DimensionType, DimensionType>()
         .expect("the dimension types are loaded");
     assert!(presets.len() > 1, "the shipped presets are loaded");
 

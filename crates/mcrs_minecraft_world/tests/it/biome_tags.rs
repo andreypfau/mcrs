@@ -1,18 +1,18 @@
 use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 
 fn members(app: &App, tag: &str) -> Vec<String> {
     let tags = app
         .world()
         .resource::<RegistrySet>()
-        .tags::<keys::Biome>()
+        .tags::<Biome>()
         .expect("the load builds the biome tags");
-    let biomes = app.world().resource::<Registry<keys::Biome>>();
-    let key = TagKey::<keys::Biome, _>::from_location(ResourceLocation::read(tag).unwrap());
+    let biomes = app.world().resource::<Registry<Biome>>();
+    let key = TagKey::<Biome, _>::from_location(ResourceLocation::read(tag).unwrap());
     let mut names: Vec<String> = tags
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {
@@ -43,7 +43,7 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
 }
 
 pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {
-    let biomes = app.world().resource::<Registry<keys::Biome>>();
+    let biomes = app.world().resource::<Registry<Biome>>();
     let synced = app
         .world()
         .resource::<RegistryAccess>()

@@ -9,7 +9,6 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
@@ -28,6 +27,7 @@ use mcrs_minecraft_worldgen_surface::{
 };
 
 use super::{block_tags, blocks, build_program, corpus_features, generate_region, one_step};
+use mcrs_minecraft_biome::Biome;
 
 /// The three biomes of the step-6 checkpoint, each with the tree feature its
 /// own `worldgen/biome` file names and nothing else.
@@ -42,7 +42,7 @@ pub(super) const CHECKPOINT: [(&str, &str); 3] = [
 
 /// The names `SurfaceIds::resolve` asks the registry for, which it refuses
 /// to resolve without, plus the three the tests decorate in.
-pub(super) fn biome_registry() -> Registry<keys::Biome> {
+pub(super) fn biome_registry() -> Registry<Biome> {
     let mut names: Vec<&str> = vec![
         "minecraft:badlands",
         "minecraft:eroded_badlands",
@@ -85,7 +85,7 @@ pub(super) fn tree_tables(biome: &str, placed_id: &str) -> FeatureTables {
 
 /// The overworld router with its material rules compiled against the registry
 /// below, so that the surface a tree grows on is the biome's own.
-fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter, MaterialProgram) {
+fn material_router(registry: &Registry<Biome>, seed: u64) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
         &rl!("minecraft:overworld").to_arc(),
@@ -144,7 +144,7 @@ pub(super) fn dimension_over(
 /// registry the dimension is given.
 pub(super) fn dimension_with(
     biome: &str,
-    program: impl FnOnce(&Registry<keys::Biome>) -> FeatureProgram,
+    program: impl FnOnce(&Registry<Biome>) -> FeatureProgram,
     seed: u64,
 ) -> (FillContext, Arc<[i32]>) {
     let registry = biome_registry();

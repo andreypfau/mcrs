@@ -7,7 +7,6 @@ use bevy::render::render_resource::{
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
@@ -23,6 +22,7 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 use crate::player::PlayerCamera;
 use crate::vanilla::{self, VanillaAssets};
 use crate::wire_id::{WireId, WireIds, rebuild_wire_ids};
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
@@ -200,14 +200,14 @@ fn build_sky_environment(
     mut commands: Commands,
 ) {
     let (Some(types), Some(dimension_types), Some(world_clocks)) = (
-        registries.registry::<keys::DimensionType>(),
-        registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),
+        registries.registry::<DimensionType>(),
+        registries.entries::<DimensionType, DimensionTypeEnvironment>(),
         registries.registry::<mcrs_minecraft_environment::world_clock::WorldClock>(),
     ) else {
         error!("the registry set holds no dimension types to draw a sky from");
         return;
     };
-    let sent = WireId::<keys::DimensionType>::received(joined.dimension_type_id);
+    let sent = WireId::<DimensionType>::received(joined.dimension_type_id);
     let Some(type_id) = wire.and_then(|wire| wire.get(sent)) else {
         error!(
             dimension = %joined.dimension,

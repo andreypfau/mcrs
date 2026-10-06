@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{MoveId, PlayerSession};
 use mcrs_minecraft_level::world::channels::DimChannels;
 
@@ -8,6 +7,7 @@ use crate::world::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload,
     OutboundPlayerPacket,
 };
+use mcrs_minecraft_dimension::Dimension;
 
 /// Host→dim message channel type.
 ///
@@ -49,7 +49,7 @@ pub enum FromDim {
     /// The host resolves the key, inserts into InFlightMoves, and sends SpawnEntity.
     MoveEntity {
         move_id: MoveId,
-        target: ResourceKey<keys::Dimension>,
+        target: ResourceKey<Dimension>,
         cause: ArrivalCause,
         payload: MovePayload,
         player: Option<PlayerSession>,

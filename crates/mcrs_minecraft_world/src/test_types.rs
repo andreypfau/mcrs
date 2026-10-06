@@ -4,10 +4,11 @@ use std::fmt;
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{Dimension, GameRule, TestFunction};
+use mcrs_minecraft_keys::{GameRule, TestFunction};
 use mcrs_minecraft_registry::{Holder, Id, Registry};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -58,7 +59,7 @@ const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
 ));
 
 impl RegistryValue for TestEnvironment {
-    type Registry = keys::TestEnvironment;
+    type Registry = Self;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -230,11 +231,11 @@ type NonNegative = Bounded<0, { i32::MAX }, 0>;
 type Padding = Bounded<0, 128, 0>;
 
 fn overworld() -> ResourceKey<Dimension> {
-    keys::dimension::OVERWORLD.into()
+    mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
 }
 
 fn is_overworld(dimension: &ResourceKey<Dimension>) -> bool {
-    *dimension == keys::dimension::OVERWORLD
+    *dimension == mcrs_minecraft_dimension::keys::dimension::OVERWORLD
 }
 
 fn unrotated() -> Rotation {

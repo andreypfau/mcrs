@@ -5,6 +5,7 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_state::prelude::OnEnter;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
@@ -30,7 +31,7 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
-    biomes: &Registry<keys::Biome>,
+    biomes: &Registry<Biome>,
     lists: &ParameterLists,
     sources: &DimensionBiomeSources,
 ) -> DimensionStructures {
@@ -82,10 +83,10 @@ pub(crate) fn build_dimension_structures(
 ) {
     let Some(sources) = sources else { return };
     let biomes = registries
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let biome_tags = registries
-        .tags::<keys::Biome>()
+        .tags::<Biome>()
         .expect("the data pack loader builds the biome tags");
     let structure_registry = registries
         .registry::<keys::Structure>()

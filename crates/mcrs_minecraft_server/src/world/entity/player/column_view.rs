@@ -13,7 +13,6 @@ use bevy_ecs::system::Commands;
 use bevy_ecs::system::{Res, SystemParam};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::Despawned;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::chunk_view::{ChunkTrackingView, PlayerViewDistance};
@@ -47,6 +46,7 @@ use crate::world::block_entity::{BlockEntity, packet_entry};
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::heightmap::client_heightmaps;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_generator::heightmap::{
     MotionHeightmap, NoLeavesHeightmap, SurfaceHeightmap,
 };
@@ -624,7 +624,7 @@ pub(crate) fn send_column_queue(
     let block_direct_bits = block_direct_bits(block_definitions.state_count());
     let biome_direct_bits = biome_direct_bits(
         registries
-            .registry::<keys::Biome>()
+            .registry::<Biome>()
             .map_or(0, |biomes| biomes.len()),
     );
     players

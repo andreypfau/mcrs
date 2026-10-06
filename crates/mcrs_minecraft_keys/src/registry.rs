@@ -53,13 +53,6 @@ impl Registered for BlockPredicateType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChatType {}
-pub const CHAT_TYPE: RegistryKey<ChatType> = RegistryKey::new(rl!("minecraft:chat_type"));
-impl Registered for ChatType {
-    const REGISTRY: RegistryKey<Self> = CHAT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkStatus {}
 pub const CHUNK_STATUS: RegistryKey<ChunkStatus> = RegistryKey::new(rl!("minecraft:chunk_status"));
 impl Registered for ChunkStatus {
@@ -172,20 +165,6 @@ impl Registered for DialogType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Dimension {}
-pub const DIMENSION: RegistryKey<Dimension> = RegistryKey::new(rl!("minecraft:dimension"));
-impl Registered for Dimension {
-    const REGISTRY: RegistryKey<Self> = DIMENSION;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DimensionType {}
-pub const DIMENSION_TYPE: RegistryKey<DimensionType> = RegistryKey::new(rl!("minecraft:dimension_type"));
-impl Registered for DimensionType {
-    const REGISTRY: RegistryKey<Self> = DIMENSION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnchantmentEffectComponentType {}
 pub const ENCHANTMENT_EFFECT_COMPONENT_TYPE: RegistryKey<EnchantmentEffectComponentType> = RegistryKey::new(rl!("minecraft:enchantment_effect_component_type"));
 impl Registered for EnchantmentEffectComponentType {
@@ -211,13 +190,6 @@ pub enum EnchantmentLocationBasedEffectType {}
 pub const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE: RegistryKey<EnchantmentLocationBasedEffectType> = RegistryKey::new(rl!("minecraft:enchantment_location_based_effect_type"));
 impl Registered for EnchantmentLocationBasedEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentProvider {}
-pub const ENCHANTMENT_PROVIDER: RegistryKey<EnchantmentProvider> = RegistryKey::new(rl!("minecraft:enchantment_provider"));
-impl Registered for EnchantmentProvider {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -557,20 +529,6 @@ impl Registered for StatType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SulfurCubeArchetype {}
-pub const SULFUR_CUBE_ARCHETYPE: RegistryKey<SulfurCubeArchetype> = RegistryKey::new(rl!("minecraft:sulfur_cube_archetype"));
-impl Registered for SulfurCubeArchetype {
-    const REGISTRY: RegistryKey<Self> = SULFUR_CUBE_ARCHETYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TestEnvironment {}
-pub const TEST_ENVIRONMENT: RegistryKey<TestEnvironment> = RegistryKey::new(rl!("minecraft:test_environment"));
-impl Registered for TestEnvironment {
-    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TestEnvironmentDefinitionType {}
 pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<TestEnvironmentDefinitionType> = RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
 impl Registered for TestEnvironmentDefinitionType {
@@ -585,13 +543,6 @@ impl Registered for TestFunction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TestInstance {}
-pub const TEST_INSTANCE: RegistryKey<TestInstance> = RegistryKey::new(rl!("minecraft:test_instance"));
-impl Registered for TestInstance {
-    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TestInstanceType {}
 pub const TEST_INSTANCE_TYPE: RegistryKey<TestInstanceType> = RegistryKey::new(rl!("minecraft:test_instance_type"));
 impl Registered for TestInstanceType {
@@ -603,13 +554,6 @@ pub enum TicketType {}
 pub const TICKET_TYPE: RegistryKey<TicketType> = RegistryKey::new(rl!("minecraft:ticket_type"));
 impl Registered for TicketType {
     const REGISTRY: RegistryKey<Self> = TICKET_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TradeSet {}
-pub const TRADE_SET: RegistryKey<TradeSet> = RegistryKey::new(rl!("minecraft:trade_set"));
-impl Registered for TradeSet {
-    const REGISTRY: RegistryKey<Self> = TRADE_SET;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -634,13 +578,6 @@ impl Registered for VillagerProfession {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum VillagerTrade {}
-pub const VILLAGER_TRADE: RegistryKey<VillagerTrade> = RegistryKey::new(rl!("minecraft:villager_trade"));
-impl Registered for VillagerTrade {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_TRADE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VillagerType {}
 pub const VILLAGER_TYPE: RegistryKey<VillagerType> = RegistryKey::new(rl!("minecraft:villager_type"));
 impl Registered for VillagerType {
@@ -648,24 +585,10 @@ impl Registered for VillagerType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Biome {}
-pub const BIOME: RegistryKey<Biome> = RegistryKey::new(rl!("minecraft:worldgen/biome"));
-impl Registered for Biome {
-    const REGISTRY: RegistryKey<Self> = BIOME;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BiomeSource {}
 pub const BIOME_SOURCE: RegistryKey<BiomeSource> = RegistryKey::new(rl!("minecraft:worldgen/biome_source"));
 impl Registered for BiomeSource {
     const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockStateProvider {}
-pub const BLOCK_STATE_PROVIDER: RegistryKey<BlockStateProvider> = RegistryKey::new(rl!("minecraft:worldgen/block_state_provider"));
-impl Registered for BlockStateProvider {
-    const REGISTRY: RegistryKey<Self> = BLOCK_STATE_PROVIDER;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -771,13 +694,6 @@ pub enum MaterialRuleType {}
 pub const MATERIAL_RULE_TYPE: RegistryKey<MaterialRuleType> = RegistryKey::new(rl!("minecraft:worldgen/material_rule_type"));
 impl Registered for MaterialRuleType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MultiNoiseBiomeSourceParameterList {}
-pub const MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST: RegistryKey<MultiNoiseBiomeSourceParameterList> = RegistryKey::new(rl!("minecraft:worldgen/multi_noise_biome_source_parameter_list"));
-impl Registered for MultiNoiseBiomeSourceParameterList {
-    const REGISTRY: RegistryKey<Self> = MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -899,14 +815,7 @@ impl Registered for TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WorldPreset {}
-pub const WORLD_PRESET: RegistryKey<WorldPreset> = RegistryKey::new(rl!("minecraft:worldgen/world_preset"));
-impl Registered for WorldPreset {
-    const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
-}
-
-pub fn bindings() -> [TypeBinding; 129] {
+pub fn bindings() -> [TypeBinding; 116] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -915,7 +824,6 @@ pub fn bindings() -> [TypeBinding; 129] {
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
         BLOCK_PREDICATE_TYPE.binding(),
-        CHAT_TYPE.binding(),
         CHUNK_STATUS.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
         CONSUME_EFFECT_TYPE.binding(),
@@ -932,13 +840,10 @@ pub fn bindings() -> [TypeBinding; 129] {
         DIALOG_ACTION_TYPE.binding(),
         DIALOG_BODY_TYPE.binding(),
         DIALOG_TYPE.binding(),
-        DIMENSION.binding(),
-        DIMENSION_TYPE.binding(),
         ENCHANTMENT_EFFECT_COMPONENT_TYPE.binding(),
         ENCHANTMENT_ENTITY_EFFECT_TYPE.binding(),
         ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.binding(),
         ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.binding(),
-        ENCHANTMENT_PROVIDER.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
         ENCHANTMENT_VALUE_EFFECT_TYPE.binding(),
         ENTITY_SUB_PREDICATE_TYPE.binding(),
@@ -987,22 +892,15 @@ pub fn bindings() -> [TypeBinding; 129] {
         SLOT_SOURCE_TYPE.binding(),
         SPAWN_CONDITION_TYPE.binding(),
         STAT_TYPE.binding(),
-        SULFUR_CUBE_ARCHETYPE.binding(),
-        TEST_ENVIRONMENT.binding(),
         TEST_ENVIRONMENT_DEFINITION_TYPE.binding(),
         TEST_FUNCTION.binding(),
-        TEST_INSTANCE.binding(),
         TEST_INSTANCE_TYPE.binding(),
         TICKET_TYPE.binding(),
-        TRADE_SET.binding(),
         TRIAL_SPAWNER.binding(),
         TRIGGER_TYPE.binding(),
         VILLAGER_PROFESSION.binding(),
-        VILLAGER_TRADE.binding(),
         VILLAGER_TYPE.binding(),
-        BIOME.binding(),
         BIOME_SOURCE.binding(),
-        BLOCK_STATE_PROVIDER.binding(),
         BLOCK_STATE_PROVIDER_TYPE.binding(),
         CARVER.binding(),
         CARVER_TYPE.binding(),
@@ -1018,7 +916,6 @@ pub fn bindings() -> [TypeBinding; 129] {
         MATERIAL_CONDITION_TYPE.binding(),
         MATERIAL_RULE.binding(),
         MATERIAL_RULE_TYPE.binding(),
-        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.binding(),
         NOISE.binding(),
         NOISE_SETTINGS.binding(),
         PLACED_FEATURE.binding(),
@@ -1036,6 +933,5 @@ pub fn bindings() -> [TypeBinding; 129] {
         TEMPLATE_POOL.binding(),
         TREE_DECORATOR_TYPE.binding(),
         TRUNK_PLACER_TYPE.binding(),
-        WORLD_PRESET.binding(),
     ]
 }

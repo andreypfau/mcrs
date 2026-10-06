@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::IntoScheduleConfigs;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::source::BiomeSource;
@@ -35,12 +36,12 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 /// The carvers every biome runs, in the order its file lists them. A carver a
 /// biome names that did not load is reported and the biome runs without it.
 fn carvers_by_biome(
-    biomes: &Registry<keys::Biome>,
-    values: &Entries<keys::Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
+    biomes: &Registry<Biome>,
+    values: &Entries<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
     carvers: &Registry<keys::Carver>,
     carver_tags: &Tags<keys::Carver>,
     table: &Entries<keys::Carver, Option<CarverConfig>>,
-) -> Entries<keys::Biome, Arc<[CarverConfig]>> {
+) -> Entries<Biome, Arc<[CarverConfig]>> {
     let lists = biomes
         .ids()
         .map(|id| {
@@ -76,10 +77,10 @@ fn build_modern_carver_biomes(
     let Some(sources) = sources else { return };
 
     let biomes = registries
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let values = registries
-        .entries::<keys::Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>()
+        .entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let carver_names = registries
         .registry::<keys::Carver>()

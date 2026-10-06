@@ -282,7 +282,7 @@ pub struct MaterialInputs<'a> {
     pub rules: &'a BTreeMap<ResourceLocation, MaterialRuleHolder>,
     pub conditions: &'a BTreeMap<ResourceLocation, MaterialConditionHolder>,
     pub block: &'a dyn Fn(&BlockState) -> Option<VoxelId>,
-    pub biome_tags: &'a Tags<keys::Biome>,
+    pub biome_tags: &'a Tags<mcrs_minecraft_biome::Biome>,
 }
 
 /// The router and the material program compiled into one graph, which is how
@@ -604,7 +604,7 @@ impl<'r> Builder<'_, '_, 'r> {
             .ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     }
 
-    fn biome_set(&mut self, set: &HolderSet<keys::Biome>) -> BiomeMaskId {
+    fn biome_set(&mut self, set: &HolderSet<mcrs_minecraft_biome::Biome>) -> BiomeMaskId {
         let ids: Vec<u16> = set.ids(self.inputs.biome_tags).map(Id::number).collect();
         let mask = BiomeMask::new(&ids);
         if let Some(&id) = self.biome_set_ids.get(&mask) {
@@ -761,7 +761,7 @@ pub(crate) mod tests {
         Some(VoxelId(hash_id(state.name.as_str()) as u16))
     }
 
-    pub(crate) fn biome_tags() -> Tags<keys::Biome> {
+    pub(crate) fn biome_tags() -> Tags<mcrs_minecraft_biome::Biome> {
         mcrs_minecraft_worldgen_testing::corpus_set()
             .tags()
             .expect("the corpus holds the biome registry")

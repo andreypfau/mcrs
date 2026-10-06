@@ -12,6 +12,7 @@ use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, apply_modern_carvers, climate_target_at,
 };
 use crate::{ColumnBlocks, column_fluid_field};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::Preset;
 
 fn overworld_height() -> HeightContext {
@@ -154,8 +155,8 @@ fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
 /// The carvers every biome runs, built the way the freeze system builds them
 /// from the same files.
 fn carvers_by_biome() -> (
-    &'static mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>,
-    mcrs_minecraft_registry::Entries<mcrs_minecraft_keys::Biome, Arc<[CarverConfig]>>,
+    &'static mcrs_minecraft_registry::Registry<Biome>,
+    mcrs_minecraft_registry::Entries<Biome, Arc<[CarverConfig]>>,
 ) {
     let biomes =
         mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome_file::BiomeFile>("biome");

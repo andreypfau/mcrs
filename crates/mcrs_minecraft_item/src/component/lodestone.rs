@@ -1,7 +1,6 @@
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{BlockPos, ResourceKey};
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Dimension;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, INT_ARRAY_ID, STRING_ID};
 use serde::{Deserialize, Serialize};
 
@@ -68,7 +67,7 @@ impl Sample for LodestoneTracker {
             LodestoneTracker::default(),
             LodestoneTracker {
                 target: Some(GlobalPos {
-                    dimension: keys::dimension::THE_NETHER.into(),
+                    dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
                     pos: BlockPos::new(1, -2, 3),
                 }),
                 tracked: false,

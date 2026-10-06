@@ -21,7 +21,6 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -466,8 +465,12 @@ fn apply_saved_clocks(
 fn log_registry_counts(registries: Res<RegistrySet>) {
     let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
     info!(
-        dimension_types = loaded(keys::DIMENSION_TYPE.location().as_static_str()),
-        biomes = loaded(keys::BIOME.location().as_static_str()),
+        dimension_types = loaded(
+            mcrs_minecraft_dimension::keys::DIMENSION_TYPE
+                .location()
+                .as_static_str()
+        ),
+        biomes = loaded(mcrs_minecraft_biome::keys::BIOME.location().as_static_str()),
         timelines = loaded(
             mcrs_minecraft_environment::keys::TIMELINE
                 .location()

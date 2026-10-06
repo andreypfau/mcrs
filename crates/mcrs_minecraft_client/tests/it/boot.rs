@@ -10,7 +10,6 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_client::asset_corpus;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 
@@ -53,19 +52,19 @@ fn the_client_boots_to_playing_with_its_local_registries() {
 
     let registries = app.world().resource::<RegistrySet>();
     let biomes = registries
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the biome registry is loaded");
     let loaded_biomes = registries
-        .entries::<keys::Biome, Biome>()
+        .entries::<Biome, Biome>()
         .expect("the biome column is loaded");
     assert!(!biomes.is_empty());
     assert_eq!(loaded_biomes.as_slice().len(), biomes.len());
 
     let types = registries
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .expect("the dimension type registry is loaded");
     let loaded_types = registries
-        .entries::<keys::DimensionType, DimensionType>()
+        .entries::<DimensionType, DimensionType>()
         .expect("the dimension type column is loaded");
     assert!(!types.is_empty());
     assert_eq!(loaded_types.as_slice().len(), types.len());

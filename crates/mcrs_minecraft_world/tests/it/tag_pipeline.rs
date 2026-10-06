@@ -1,10 +1,11 @@
 use bevy_app::App;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_keys::block_tags;
-use mcrs_minecraft_keys::{Biome, Block, EntityType};
+use mcrs_minecraft_keys::{Block, EntityType};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registries::test_registries;
 

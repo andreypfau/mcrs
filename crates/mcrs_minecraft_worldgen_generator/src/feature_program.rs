@@ -7,6 +7,7 @@ use crate::trees::{
 };
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags,
@@ -431,7 +432,7 @@ impl FeatureProgram {
         survival: Resolved<SurvivalIds>,
     ) -> Result<Self, FeatureCompileError> {
         let biomes = registries
-            .registry::<keys::Biome>()
+            .registry::<Biome>()
             .expect("the loaded registries hold the biome registry");
         let climate: Vec<BiomeClimate> = biomes
             .ids()
@@ -2591,8 +2592,8 @@ pub struct Resolver<'a> {
     pub tables: Arc<BlockTables>,
     tags: Tags<Block>,
     fluid_tags: Tags<Fluid>,
-    biome_tags: Tags<keys::Biome>,
-    biomes: Registry<keys::Biome>,
+    biome_tags: Tags<Biome>,
+    biomes: Registry<Biome>,
     /// The geode's noise and the End's spike ring are drawn from the world seed
     /// rather than from the object's own source, so they belong to the freeze.
     pub world_seed: i64,
@@ -2671,10 +2672,10 @@ impl<'a> Resolver<'a> {
                 .tags::<Fluid>()
                 .expect("the loaded registries hold the fluid tags"),
             biome_tags: registries
-                .tags::<keys::Biome>()
+                .tags::<Biome>()
                 .expect("the loaded registries hold the biome tags"),
             biomes: registries
-                .registry::<keys::Biome>()
+                .registry::<Biome>()
                 .expect("the loaded registries hold the biome registry"),
             world_seed,
             climate,
@@ -2917,7 +2918,7 @@ impl BlockResolver for Resolver<'_> {
         Some(Arc::new(mask))
     }
 
-    fn biomes(&self, set: &HolderSet<keys::Biome>) -> Option<BiomeMask> {
+    fn biomes(&self, set: &HolderSet<Biome>) -> Option<BiomeMask> {
         let mut mask = FixedBitSet::with_capacity(self.biomes.len());
         mask.extend(set.ids(&self.biome_tags).map(Id::index));
         Some(Arc::new(mask))

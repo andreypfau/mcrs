@@ -6,7 +6,6 @@ use std::sync::Arc;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::{CompiledPlacedFeature, FeatureSteps};
@@ -23,6 +22,7 @@ use super::{
     TEMPERATE, bare_fill_context, biome_registry, blocks, build_beta_router, build_program,
     flat_snapshot, one_step, region_of, registries_over, try_build_program,
 };
+use mcrs_minecraft_biome::Biome;
 
 const ORE: &str = r#"{
   "type": "minecraft:ore",
@@ -70,7 +70,7 @@ fn test_entry(feature: Feature, placement: Vec<PlacementModifier>) -> Arc<Compil
     })
 }
 
-fn program_of(tables: &FeatureTables, registry: &Registry<keys::Biome>) -> FeatureProgram {
+fn program_of(tables: &FeatureTables, registry: &Registry<Biome>) -> FeatureProgram {
     build_program(tables, &Default::default(), registry, 0)
 }
 

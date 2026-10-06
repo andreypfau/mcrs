@@ -104,7 +104,7 @@ pub fn build_dimension_router(
     assets: &WorldgenAssets<'_>,
     seed: u64,
     block: &dyn Fn(&BlockState) -> Option<VoxelId>,
-    biome_tags: &Tags<keys::Biome>,
+    biome_tags: &Tags<mcrs_minecraft_biome::Biome>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
     let mut loaded = Loaded::default();
     loaded.collect(&settings.deps, assets);
@@ -703,7 +703,6 @@ fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
 mod tests {
     use super::References;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
     use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
     use mcrs_minecraft_worldgen_surface::{MaterialConditionHolder, MaterialRuleHolder};
@@ -916,7 +915,7 @@ mod tests {
         use mcrs_minecraft_chunk::VoxelId;
 
         let biomes = corpus_set()
-            .tags::<keys::Biome>()
+            .tags::<mcrs_minecraft_biome::Biome>()
             .expect("the corpus holds the biome registry");
         for name in ["overworld", "nether", "end", "beta"] {
             let mut app = load_settings(name);

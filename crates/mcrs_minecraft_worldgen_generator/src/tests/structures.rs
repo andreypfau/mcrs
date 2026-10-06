@@ -24,6 +24,7 @@ use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files};
 use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
 use crate::features::possible_biomes;
 use crate::structures::{StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenElement, FrozenStructures, StructureKind};
 
 pub(super) fn template_file<'a>(id: &ResourceLocation) -> Option<Cow<'a, Template>> {
@@ -368,7 +369,8 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes = Registry::<keys::Biome>::new(keys::BIOME, []).expect("an empty registry");
+    let biomes =
+        Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, []).expect("an empty registry");
     let tags = no_tags(&biomes);
     let structure_registry =
         Registry::<keys::Structure>::new(keys::STRUCTURE, []).expect("an empty registry");

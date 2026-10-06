@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_biome::Biome;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -147,7 +148,7 @@ pub fn corpus_set() -> &'static RegistrySet {
             .collect::<Vec<_>>();
         let mut set = base_set()
             .clone()
-            .with(numbered::<keys::Biome>("biome", biomes))
+            .with(numbered::<Biome>("biome", biomes))
             .and_then(|set| {
                 set.with(numbered::<keys::Structure>(
                     "structure",
@@ -158,7 +159,7 @@ pub fn corpus_set() -> &'static RegistrySet {
         for (registry, folder) in [
             (keys::BLOCK.location().as_static_str(), "block"),
             (keys::FLUID.location().as_static_str(), "fluid"),
-            (keys::BIOME.location().as_static_str(), "worldgen/biome"),
+            (mcrs_minecraft_biome::keys::BIOME.location().as_static_str(), "worldgen/biome"),
             (
                 keys::STRUCTURE.location().as_static_str(),
                 "worldgen/structure",
@@ -210,7 +211,7 @@ fn numbered<R: mcrs_minecraft_registry::Registered>(
 pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
     let base = corpus_set();
     let all = base
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the corpus set holds the biome registry");
     let mut names: Vec<ResourceLocation<Arc<str>>> = leading
         .iter()
@@ -222,9 +223,9 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
             names.push(name.clone());
         }
     }
-    let biomes = Registry::<keys::Biome>::new(keys::BIOME, names)
+    let biomes = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names)
         .unwrap_or_else(|e| panic!("the biomes do not number: {e}"));
-    let biome_table = keys::BIOME.location().as_static_str();
+    let biome_table = mcrs_minecraft_biome::keys::BIOME.location().as_static_str();
     let mut set = typed(
         RegistrySet::from_tables(
             base.tables()

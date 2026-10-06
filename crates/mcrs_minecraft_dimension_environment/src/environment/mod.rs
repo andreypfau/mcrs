@@ -24,6 +24,7 @@ use mcrs_minecraft_environment::attribute::{
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_dimension::Dimension;
 
 pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
@@ -142,12 +143,12 @@ pub struct DimensionEnvironment<'a> {
 impl<'a> DimensionEnvironment<'a> {
     /// The end has no weather by its key, whatever type it is given.
     pub fn of(
-        dimension: &ResourceKey<keys::Dimension>,
+        dimension: &ResourceKey<Dimension>,
         dimension_type: &DimensionType,
         environment: &'a DimensionTypeEnvironment,
     ) -> Self {
         let mut environment = Self::of_type(dimension_type, environment);
-        environment.can_have_weather &= *dimension != keys::dimension::THE_END;
+        environment.can_have_weather &= *dimension != mcrs_minecraft_dimension::keys::dimension::THE_END;
         environment
     }
 
@@ -283,7 +284,7 @@ impl EnvironmentAttributes {
 pub struct DimensionEnvironments(Vec<Option<EnvironmentAttributes>>);
 
 impl DimensionEnvironments {
-    pub fn get(&self, dimension_type: Id<keys::DimensionType>) -> Option<&EnvironmentAttributes> {
+    pub fn get(&self, dimension_type: Id<DimensionType>) -> Option<&EnvironmentAttributes> {
         self.0.get(dimension_type.index())?.as_ref()
     }
 
@@ -311,9 +312,9 @@ pub fn build_dimension_environments(
         registries.column::<Timeline>(mcrs_minecraft_environment::keys::TIMELINE.location().as_static_str()),
         registries.tags::<Timeline>(),
         registries.registry::<WorldClock>(),
-        registries.registry::<keys::DimensionType>(),
-        registries.entries::<keys::DimensionType, DimensionType>(),
-        registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),
+        registries.registry::<DimensionType>(),
+        registries.entries::<DimensionType, DimensionType>(),
+        registries.entries::<DimensionType, DimensionTypeEnvironment>(),
     )
     else {
         tracing::error!(

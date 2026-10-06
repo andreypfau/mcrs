@@ -9,7 +9,6 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::InTransit;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::session::{Owner, PlayerSession};
@@ -26,6 +25,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 use mcrs_minecraft_protocol::setting::ChatMode;
 
 use crate::client_info::ClientInfo;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use tracing::info;
@@ -102,14 +102,16 @@ fn handle_command(
                 return;
             };
             let target = match raw {
-                "nether" | "the_nether" => keys::dimension::THE_NETHER.into(),
-                "overworld" | "over" => keys::dimension::OVERWORLD.into(),
-                "end" | "the_end" => keys::dimension::THE_END.into(),
+                "nether" | "the_nether" => {
+                    mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into()
+                }
+                "overworld" | "over" => mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+                "end" | "the_end" => mcrs_minecraft_dimension::keys::dimension::THE_END.into(),
                 other => {
                     let Ok(location) = ResourceLocation::read(other) else {
                         return;
                     };
-                    ResourceKey::<keys::Dimension>::from_location(location)
+                    ResourceKey::<Dimension>::from_location(location)
                 }
             };
             let Ok((_host_anchor, _transform, profile, owner)) = sender_query.get(event.entity)

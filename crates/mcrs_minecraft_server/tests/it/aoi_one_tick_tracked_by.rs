@@ -29,7 +29,7 @@ fn tracked_by_observes_position_change_with_one_tick_latency() {
     let dim = app
         .world_mut()
         .spawn(DimensionBundle::new(
-            mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id();

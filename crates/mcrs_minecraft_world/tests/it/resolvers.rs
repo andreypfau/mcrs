@@ -1,13 +1,13 @@
 use bevy_app::App;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
 use mcrs_minecraft_registry::{Id, LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
 
 fn biomes_named(names: &[&str]) -> RegistrySet {
-    let biomes = Registry::<keys::Biome>::new(
-        keys::BIOME,
+    let biomes = Registry::<Biome>::new(
+        mcrs_minecraft_biome::keys::BIOME,
         names
             .iter()
             .map(|name| mcrs_minecraft_core::ResourceLocation::read(name).unwrap()),
@@ -16,13 +16,13 @@ fn biomes_named(names: &[&str]) -> RegistrySet {
     RegistrySet::new().with(biomes).unwrap()
 }
 
-struct Needs<const N: usize>(Vec<Id<keys::Biome>>);
+struct Needs<const N: usize>(Vec<Id<Biome>>);
 
 fn needs<const N: usize>(
-    wanted: [ResourceKey<keys::Biome, &'static str>; N],
+    wanted: [ResourceKey<Biome, &'static str>; N],
 ) -> impl Fn(&RegistrySet, &mut LoadReport) -> Option<Resolved<Needs<N>>> {
     move |set, report| {
-        let biomes = report.registry(set, keys::BIOME)?;
+        let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME)?;
         let found: Vec<_> = wanted
             .iter()
             .map(|key| report.require(&biomes, key))
@@ -35,14 +35,17 @@ fn needs<const N: usize>(
 }
 
 fn first_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Needs<2>>> {
-    needs([keys::biome::ERODED_BADLANDS, keys::biome::FROZEN_OCEAN])(set, report)
+    needs([
+        mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS,
+        mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN,
+    ])(set, report)
 }
 
 fn second_consumer(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Needs<3>>> {
     needs([
-        keys::biome::ERODED_BADLANDS,
-        keys::biome::DEEP_FROZEN_OCEAN,
-        keys::biome::PLAINS,
+        mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS,
+        mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN,
+        mcrs_minecraft_biome::keys::biome::PLAINS,
     ])(set, report)
 }
 
@@ -52,7 +55,7 @@ fn a_biome_named_in_code_and_missing_gives_one_report_line() {
     let mut app = App::new();
     app.add_registry_resolver(first_consumer)
         .add_registry_resolver(|set: &RegistrySet, report: &mut LoadReport| {
-            needs([keys::biome::PLAINS])(set, report)
+            needs([mcrs_minecraft_biome::keys::biome::PLAINS])(set, report)
         });
 
     let report = run_resolvers(app.world_mut(), &set).expect_err("a missing biome refuses");
@@ -109,14 +112,14 @@ fn no_resolver_and_no_miss_lets_the_app_start() {
 
     let mut app = App::new();
     app.add_registry_resolver(|set: &RegistrySet, report: &mut LoadReport| {
-        needs([keys::biome::PLAINS])(set, report)
+        needs([mcrs_minecraft_biome::keys::biome::PLAINS])(set, report)
     });
     run_resolvers(app.world_mut(), &set).expect("every name resolves");
 
     let plains = set
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .unwrap()
-        .require(&keys::biome::PLAINS);
+        .require(&mcrs_minecraft_biome::keys::biome::PLAINS);
     assert_eq!(
         app.world().resource::<Resolved<Needs<1>>>().0,
         [plains.unwrap()]

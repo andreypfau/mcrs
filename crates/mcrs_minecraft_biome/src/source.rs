@@ -93,10 +93,10 @@ pub enum BiomeSource {
     #[serde(rename = "minecraft:the_end")]
     TheEnd,
     #[serde(rename = "minecraft:fixed")]
-    Fixed { biome: Id<keys::Biome> },
+    Fixed { biome: Id<crate::Biome> },
     #[serde(rename = "minecraft:checkerboard")]
     Checkerboard {
-        biomes: Vec<Id<keys::Biome>>,
+        biomes: Vec<Id<crate::Biome>>,
         #[serde(default = "default_scale")]
         scale: u32,
     },
@@ -105,7 +105,7 @@ pub enum BiomeSource {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
         #[serde(rename = "biomes")]
-        land_biomes: [Id<keys::Biome>; 11],
+        land_biomes: [Id<crate::Biome>; 11],
         #[serde(skip, default = "beta_lookup")]
         lookup: Box<[[BetaLandBiome; 64]; 64]>,
     },
@@ -133,7 +133,7 @@ fn beta_lookup() -> Box<[[BetaLandBiome; 64]; 64]> {
 }
 
 impl BiomeSource {
-    pub fn beta_biome(&self, temp: f32, rain: f32) -> Id<keys::Biome> {
+    pub fn beta_biome(&self, temp: f32, rain: f32) -> Id<crate::Biome> {
         match self {
             BiomeSource::Beta {
                 land_biomes,
@@ -148,7 +148,7 @@ impl BiomeSource {
 #[serde(deny_unknown_fields)]
 pub struct MultiNoiseBiomeSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preset: Option<Id<keys::MultiNoiseBiomeSourceParameterList>>,
+    pub preset: Option<Id<crate::parameter_list::MultiNoiseBiomeSourceParameterList>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -161,7 +161,7 @@ pub struct MultiNoiseBiomeSource {
 #[serde(deny_unknown_fields)]
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
-    pub biome: Id<keys::Biome>,
+    pub biome: Id<crate::Biome>,
 }
 
 impl MultiNoiseBiomeSource {
@@ -208,7 +208,7 @@ mod tests {
         let names = ["minecraft:plains", "minecraft:desert"]
             .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         let set = RegistrySet::new()
-            .with(Registry::<keys::Biome>::new(keys::BIOME, names).unwrap())
+            .with(Registry::<crate::Biome>::new(crate::keys::BIOME, names).unwrap())
             .unwrap();
         let entry = |biome: &str, humidity: &str| {
             format!(

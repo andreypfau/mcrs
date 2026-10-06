@@ -12,7 +12,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::Brand;
@@ -195,8 +194,8 @@ pub struct ReceivedTags(pub Vec<ReceivedRegistryTags>);
 #[derive(Component, Clone, Debug)]
 pub struct JoinedGame {
     pub player_id: i32,
-    pub dimensions: Vec<ResourceKey<keys::Dimension>>,
-    pub dimension: ResourceKey<keys::Dimension>,
+    pub dimensions: Vec<ResourceKey<mcrs_minecraft_dimension::Dimension>>,
+    pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
     /// The server's number for the dimension's type, meaningful only against the registries it sent.
     pub dimension_type_id: u16,
 }
@@ -768,7 +767,8 @@ mod tests {
 
         let runtime = Runtime::new().unwrap();
         let (mut app, inbound, entity) = client_app(&runtime);
-        let spawn_in = |dimension: ResourceKey<keys::Dimension>, type_id: u16| PlayerSpawnInfo {
+        let spawn_in = |dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+                        type_id: u16| PlayerSpawnInfo {
             dimension,
             dimension_type_id: RegistryId(type_id),
             ..Default::default()
@@ -780,35 +780,47 @@ mod tests {
             &ClientboundLogin {
                 player_id: 7,
                 hardcore: false,
-                dimensions: vec![keys::dimension::OVERWORLD.into()],
+                dimensions: vec![mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()],
                 max_players: VarInt(1),
                 chunk_radius: VarInt(8),
                 simulation_distance: VarInt(8),
                 reduced_debug_info: false,
                 show_death_screen: true,
                 do_limited_crafting: false,
-                player_spawn_info: spawn_in(keys::dimension::OVERWORLD.into(), 3),
+                player_spawn_info: spawn_in(
+                    mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+                    3,
+                ),
                 online_mode: false,
                 enforces_secure_chat: false,
             },
         );
         app.update();
         let joined = app.world().get::<JoinedGame>(entity).unwrap();
-        assert_eq!(joined.dimension, keys::dimension::OVERWORLD);
+        assert_eq!(
+            joined.dimension,
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+        );
         assert_eq!(joined.dimension_type_id, 3);
 
         deliver(
             &runtime,
             &inbound,
             &ClientboundRespawn {
-                player_spawn_info: spawn_in(keys::dimension::THE_NETHER.into(), 1),
+                player_spawn_info: spawn_in(
+                    mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
+                    1,
+                ),
                 data_to_keep: 0,
             },
         );
         app.update();
         let joined = app.world().get::<JoinedGame>(entity).unwrap();
         assert_eq!(joined.player_id, 7);
-        assert_eq!(joined.dimension, keys::dimension::THE_NETHER);
+        assert_eq!(
+            joined.dimension,
+            mcrs_minecraft_dimension::keys::dimension::THE_NETHER
+        );
         assert_eq!(joined.dimension_type_id, 1);
     }
 

@@ -71,7 +71,9 @@ const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
     #[serde(rename = "minecraft:biome")]
-    Biome { biome_is: HolderSet<keys::Biome> },
+    Biome {
+        biome_is: HolderSet<mcrs_minecraft_biome::Biome>,
+    },
     #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         noise: ResourceLocation,

@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_core::{ResourceKey, VERSION};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{ItemStackValue, ItemStackWithSlot};
@@ -23,7 +22,7 @@ pub struct PlayerDat {
     pub data_version: i32,
     pub pos: [f64; 3],
     pub rotation: [f32; 2],
-    pub dimension: ResourceKey<keys::Dimension>,
+    pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
     pub inventory: Vec<ItemStackWithSlot>,
     pub selected_item_slot: i32,
     pub equipment: BTreeMap<String, ItemStackValue>,
@@ -36,7 +35,7 @@ impl Default for PlayerDat {
             data_version: VERSION.world_version,
             pos: [0.0; 3],
             rotation: [0.0; 2],
-            dimension: keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             inventory: Vec::new(),
             selected_item_slot: 0,
             equipment: BTreeMap::new(),

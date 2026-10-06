@@ -9,6 +9,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_dimension.workspace = true
 anyhow.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }

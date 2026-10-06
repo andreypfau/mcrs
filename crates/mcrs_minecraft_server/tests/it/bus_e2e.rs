@@ -72,9 +72,9 @@ fn enqueue_overworld(app: &mut App) {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_keys::dimension_type::OVERWORLD.as_str(),
+                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),
             ),
         });
 }

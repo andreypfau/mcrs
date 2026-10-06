@@ -6,7 +6,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::climate::ParameterList;
 use crate::overworld_preset::{nether_parameter_list, overworld_parameter_list};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, RegistrySet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,8 +19,10 @@ impl Preset {
 
     pub fn name(self) -> &'static str {
         match self {
-            Preset::Overworld => keys::multi_noise_biome_source_parameter_list::OVERWORLD.as_str(),
-            Preset::Nether => keys::multi_noise_biome_source_parameter_list::NETHER.as_str(),
+            Preset::Overworld => {
+                crate::keys::multi_noise_biome_source_parameter_list::OVERWORLD.as_str()
+            }
+            Preset::Nether => crate::keys::multi_noise_biome_source_parameter_list::NETHER.as_str(),
         }
     }
 
@@ -69,8 +70,10 @@ pub struct MultiNoiseBiomeSourceParameterList {
     pub preset: Preset,
 }
 
-pub type ParameterLists =
-    Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>;
+pub type ParameterLists = Entries<
+    crate::parameter_list::MultiNoiseBiomeSourceParameterList,
+    MultiNoiseBiomeSourceParameterList,
+>;
 
 pub fn parameter_lists_of(set: &RegistrySet) -> ParameterLists {
     set.entries().expect(
@@ -82,7 +85,7 @@ pub fn check_parameter_list_biomes(
     lists: &[MultiNoiseBiomeSourceParameterList],
     set: &RegistrySet,
 ) -> Vec<(usize, String)> {
-    let Some(biomes) = set.registry::<keys::Biome>() else {
+    let Some(biomes) = set.registry::<crate::Biome>() else {
         return Vec::new();
     };
     let mut failures = Vec::new();
@@ -96,7 +99,7 @@ pub fn check_parameter_list_biomes(
                     format!(
                         "the preset {} names the biome {biome}, which {} does not hold",
                         list.preset.name(),
-                        keys::BIOME.location(),
+                        crate::keys::BIOME.location(),
                     ),
                 ));
             }

@@ -5,6 +5,7 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
@@ -27,8 +28,8 @@ pub fn configured_preset(
     name: &str,
     set: &RegistrySet,
     report: &mut LoadReport,
-) -> Option<Id<keys::WorldPreset>> {
-    let registry = report.registry(set, keys::WORLD_PRESET)?;
+) -> Option<Id<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>> {
+    let registry = report.registry(set, mcrs_minecraft_world::keys::WORLD_PRESET)?;
     report.require_by_name(&registry, name)
 }
 
@@ -52,7 +53,7 @@ pub(crate) fn bake_dimensions(
     }
     if base.is_empty() {
         base = set
-            .entries::<keys::WorldPreset, WorldPreset>()
+            .entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
             .expect("the data pack loader parses minecraft:worldgen/world_preset")[preset]
             .dimensions
             .clone();
@@ -105,12 +106,12 @@ pub(crate) fn request_dimension_noise_settings(
 /// Every dimension the world spawns, in spawn order. Written once at `Startup`.
 #[derive(Resource, Clone)]
 pub struct DimensionList {
-    entries: Arc<[(ResourceKey<keys::Dimension>, DimensionEntry)]>,
-    keys: Arc<[ResourceKey<keys::Dimension>]>,
+    entries: Arc<[(ResourceKey<Dimension>, DimensionEntry)]>,
+    keys: Arc<[ResourceKey<Dimension>]>,
 }
 
 impl DimensionList {
-    pub fn new(entries: Vec<(ResourceKey<keys::Dimension>, DimensionEntry)>) -> Self {
+    pub fn new(entries: Vec<(ResourceKey<Dimension>, DimensionEntry)>) -> Self {
         let keys = entries.iter().map(|(key, _)| key.clone()).collect();
         DimensionList {
             entries: entries.into(),
@@ -118,13 +119,13 @@ impl DimensionList {
         }
     }
 
-    pub fn keys(&self) -> &Arc<[ResourceKey<keys::Dimension>]> {
+    pub fn keys(&self) -> &Arc<[ResourceKey<Dimension>]> {
         &self.keys
     }
 }
 
 impl Deref for DimensionList {
-    type Target = [(ResourceKey<keys::Dimension>, DimensionEntry)];
+    type Target = [(ResourceKey<Dimension>, DimensionEntry)];
 
     fn deref(&self) -> &Self::Target {
         &self.entries
@@ -182,7 +183,9 @@ mod tests {
         assert!(text.contains("minecraft:worldgen/world_preset"), "{text}");
         assert!(text.contains("minecraft:nope"), "{text}");
 
-        let presets = set.registry::<keys::WorldPreset>().unwrap();
+        let presets = set
+            .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
+            .unwrap();
         let mut report = LoadReport::new();
         for (name, expected) in [
             ("beta", "minecraft:beta"),

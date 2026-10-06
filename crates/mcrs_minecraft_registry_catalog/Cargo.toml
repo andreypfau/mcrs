@@ -10,6 +10,9 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block_predicate.workspace = true
+mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_item.workspace = true

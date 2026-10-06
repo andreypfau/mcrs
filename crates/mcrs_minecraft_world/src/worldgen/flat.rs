@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::ResourceLocation;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_registry::{Id, Registry};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -15,7 +15,7 @@ pub struct FlatChunkGenerator {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "FlatSettingsFields")]
 pub struct FlatLevelGeneratorSettings {
-    pub biome: Id<keys::Biome>,
+    pub biome: Id<Biome>,
     pub features: bool,
     pub lakes: bool,
     pub layers: Vec<FlatLayerInfo>,
@@ -34,7 +34,7 @@ pub struct FlatLayerInfo {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FlatSettingsFields {
-    biome: Option<Id<keys::Biome>>,
+    biome: Option<Id<Biome>>,
     #[serde(default)]
     features: bool,
     #[serde(default)]
@@ -50,13 +50,11 @@ impl TryFrom<FlatSettingsFields> for FlatLevelGeneratorSettings {
     fn try_from(fields: FlatSettingsFields) -> Result<Self, String> {
         let biome = match fields.biome {
             Some(biome) => biome,
-            None => {
-                Registry::<keys::Biome>::in_scope("the flat generator's default biome", |biomes| {
-                    biomes.require(&keys::biome::PLAINS)
-                })
-                .map_err(|e| e.to_string())?
-                .map_err(|e| e.to_string())?
-            }
+            None => Registry::<Biome>::in_scope("the flat generator's default biome", |biomes| {
+                biomes.require(&mcrs_minecraft_biome::keys::biome::PLAINS)
+            })
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?,
         };
         Ok(FlatLevelGeneratorSettings {
             biome,

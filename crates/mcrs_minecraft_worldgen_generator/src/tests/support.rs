@@ -113,6 +113,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     assert!(seen >= 8, "only {seen} noise settings were checked");
 }
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::TemperatureModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_keys as keys;
@@ -147,8 +148,8 @@ pub fn block_tags() -> &'static Tags<Block> {
 }
 
 /// Every biome of the corpus, numbered in text order.
-pub fn corpus_biomes() -> &'static Registry<keys::Biome> {
-    static REGISTRY: std::sync::OnceLock<Registry<keys::Biome>> = std::sync::OnceLock::new();
+pub fn corpus_biomes() -> &'static Registry<Biome> {
+    static REGISTRY: std::sync::OnceLock<Registry<Biome>> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
         corpus_set()
             .registry()
@@ -179,7 +180,7 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     })
 }
 
-pub fn biome_tags() -> Tags<keys::Biome> {
+pub fn biome_tags() -> Tags<Biome> {
     corpus_set()
         .tags()
         .expect("the corpus set holds the biome tags")

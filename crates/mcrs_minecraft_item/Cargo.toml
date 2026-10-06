@@ -16,6 +16,7 @@ bevy = [
 ]
 
 [dependencies]
+mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_block_predicate.workspace = true

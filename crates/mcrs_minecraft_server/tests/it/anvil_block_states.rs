@@ -1,7 +1,7 @@
 use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::non_air_block_count;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -109,7 +109,10 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     parse_chunk(
         &bytes,
         &CorpusBlockStates(corpus()),
-        &RegistryBiomes(&Registry::<keys::Biome>::new(keys::BIOME, []).expect("an empty registry")),
+        &RegistryBiomes(
+            &Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, [])
+                .expect("an empty registry"),
+        ),
     )
 }
 

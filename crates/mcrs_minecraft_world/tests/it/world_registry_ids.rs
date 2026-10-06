@@ -8,6 +8,7 @@ use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::{declared_world_registries, loaded_names};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_environment::timeline::Timeline;
 
 fn crate_path(relative: &str) -> PathBuf {
@@ -53,10 +54,7 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     assert!(snapshots > 0, "no world registry snapshot was compared");
 
     let indexes = [
-        (
-            "minecraft:worldgen/biome",
-            names_in_registry::<keys::Biome>(app),
-        ),
+        ("minecraft:worldgen/biome", names_in_registry::<Biome>(app)),
         (
             "minecraft:worldgen/structure",
             names_in_registry::<keys::Structure>(app),

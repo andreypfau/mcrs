@@ -5,7 +5,6 @@ use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, Registry};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
@@ -14,6 +13,7 @@ use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable};
 use crate::{multi_noise_grid, multi_noise_palettes};
 use bevy_math::IVec3;
+use mcrs_minecraft_biome::Biome;
 
 /// The preset's biomes numbered in the order the preset names them, which is
 /// all a palette needs of a registry: distinct ids that round-trip.
@@ -27,7 +27,7 @@ pub(super) fn preset_ids() -> HashMap<String, u8> {
 }
 
 /// A registry numbering `ids` the way the map does.
-fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<keys::Biome> {
+fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<Biome> {
     let mut named: Vec<(&u8, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
     named.sort();
     let names: Vec<&str> = named.into_iter().map(|(_, name)| name.as_str()).collect();
@@ -172,7 +172,7 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
 
 fn entry(
     parameters: ClimateParameters,
-    biome: Id<keys::Biome>,
+    biome: Id<Biome>,
 ) -> mcrs_minecraft_biome::source::MultiNoiseBiomeEntry {
     mcrs_minecraft_biome::source::MultiNoiseBiomeEntry { parameters, biome }
 }
@@ -238,19 +238,20 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
 #[test]
 fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
     let (names, lists) = super::parameter_lists();
-    let beyond = Registry::<keys::MultiNoiseBiomeSourceParameterList>::new(
-        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-        names
-            .ids()
-            .map(|id| {
-                names
-                    .name(id)
-                    .expect("an id of the registry has a name")
-                    .clone()
-            })
-            .chain([ResourceLocation::read("test:beyond_the_loaded_lists").unwrap()]),
-    )
-    .expect("a registry of distinct names");
+    let beyond =
+        Registry::<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>::new(
+            mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+            names
+                .ids()
+                .map(|id| {
+                    names
+                        .name(id)
+                        .expect("an id of the registry has a name")
+                        .clone()
+                })
+                .chain([ResourceLocation::read("test:beyond_the_loaded_lists").unwrap()]),
+        )
+        .expect("a registry of distinct names");
     let source = MultiNoiseBiomeSource {
         preset: Some(
             beyond

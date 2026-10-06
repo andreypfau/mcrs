@@ -129,12 +129,12 @@ split_registry_table! {
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join, synced as ZombieNautilusVariantFile::synced;
     mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
-    keys::Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
+    Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join, synced as |biome| NetworkBiome::from(biome);
-    keys::DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
+    DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
         synced as |d| NetworkDimensionType::from(d);
-    keys::Dimension => DimensionEntry as (Dimension, ChunkGenerator),
+    Dimension => DimensionEntry as (Dimension, ChunkGenerator),
         DimensionEntry::split, DimensionEntry::join;
 }
 
@@ -145,9 +145,9 @@ world_registry_table! {
     mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
     mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
     mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
-    keys::ChatType => ChatType, synced as Clone::clone;
-    keys::TestEnvironment => TestEnvironment, synced as Clone::clone;
-    keys::TestInstance => TestInstance, synced as Clone::clone;
+    crate::chat_type::ChatType => ChatType, synced as Clone::clone;
+    crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone;
+    crate::test_types::TestInstance => TestInstance, synced as Clone::clone;
     mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone;
     mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
     mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
@@ -164,13 +164,13 @@ world_registry_table! {
         synced as Clone::clone;
     WorldClock => WorldClock, synced as Clone::clone;
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
-    keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
-    keys::BlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
-    keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
-    keys::WorldPreset => WorldPreset;
-    keys::EnchantmentProvider => EnchantmentProvider;
-    keys::VillagerTrade => VillagerTrade;
-    keys::TradeSet => TradeSet;
+    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
+    mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
+    crate::worldgen::world_preset::WorldPreset => WorldPreset;
+    crate::enchantment_provider::EnchantmentProvider => EnchantmentProvider;
+    crate::villager_trade::VillagerTrade => VillagerTrade;
+    crate::villager_trade::TradeSet => TradeSet;
 }
 
 pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
@@ -190,12 +190,12 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         );
     }
     if world.parses(
-        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
+        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
             .location()
             .as_static_str(),
     ) {
         world.validate::<MultiNoiseBiomeSourceParameterList>(
-            keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
+            mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
             check_parameter_list_biomes,
         );
     }
@@ -427,7 +427,7 @@ pub fn test_registries() -> &'static RegistrySet {
 pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     world.insert_resource(
         registries
-            .registry::<keys::Biome>()
+            .registry::<Biome>()
             .expect("the data pack loader parses minecraft:worldgen/biome"),
     );
     world.insert_resource(
@@ -485,7 +485,7 @@ pub fn share_registries(world: &mut World) {
     share::<Registry<EnchantmentData>>(world);
     share::<Entries<EnchantmentData, EnchantmentData>>(world);
     share::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(world);
-    share::<Registry<keys::Biome>>(world);
+    share::<Registry<Biome>>(world);
     share::<Registry<keys::Structure>>(world);
     share::<Registry<Timeline>>(world);
     share::<Registry<keys::EntityType>>(world);
@@ -495,7 +495,11 @@ pub fn share_registries(world: &mut World) {
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {
     RegistrySet::from_locations(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES)
-        .and_then(|set| set.with_types(mcrs_minecraft_registry_catalog::bindings()))
+        .and_then(|set| {
+            set.with_types(
+                mcrs_minecraft_registry_catalog::bindings().chain(crate::keys::bindings()),
+            )
+        })
         .map_err(LoadReport::invalid)
 }
 

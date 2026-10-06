@@ -9,7 +9,7 @@ use bevy::app::{App, Plugin, Update};
 use bevy::ecs::prelude::{
     Changed, Commands, IntoScheduleConfigs, Query, Res, Resource, resource_exists,
 };
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientNetworkSystems, ReceivedRegistries};
 use mcrs_minecraft_registry::{Id, RegistrySet};
@@ -70,8 +70,8 @@ impl WireIds {
         let mut tables = HashMap::new();
         // chisle: only the registries whose numbers the client reads; one more is a line here
         // when something starts decoding its numbers.
-        insert::<keys::Biome>(&mut tables, received, local);
-        insert::<keys::DimensionType>(&mut tables, received, local);
+        insert::<mcrs_minecraft_biome::Biome>(&mut tables, received, local);
+        insert::<DimensionType>(&mut tables, received, local);
         WireIds {
             tables: Arc::new(tables),
         }
@@ -151,14 +151,23 @@ pub(crate) mod testing {
             .iter()
             .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         RegistrySet::new()
-            .with(Registry::<keys::Biome>::new(keys::BIOME, names).unwrap())
+            .with(
+                Registry::<mcrs_minecraft_biome::Biome>::new(
+                    mcrs_minecraft_biome::keys::BIOME,
+                    names,
+                )
+                .unwrap(),
+            )
             .unwrap()
     }
 
     pub fn received_biomes(names: &[&str]) -> ReceivedRegistries {
         let mut received = ReceivedRegistries::default();
         received.push(ReceivedRegistry {
-            registry: keys::BIOME.location().as_static_str().to_owned(),
+            registry: mcrs_minecraft_biome::keys::BIOME
+                .location()
+                .as_static_str()
+                .to_owned(),
             entries: names
                 .iter()
                 .map(|name| RegistryEntry {
@@ -200,15 +209,15 @@ mod tests {
         let local = local_biomes(&["minecraft:a", "minecraft:b"]);
         let received = received_biomes(&["minecraft:b", "minecraft:a", "minecraft:gone"]);
         let ids = WireIds::build(&received, &local);
-        let biomes = local.registry::<keys::Biome>().unwrap();
-        let wire = WireId::<keys::Biome>::received;
+        let biomes = local.registry::<mcrs_minecraft_biome::Biome>().unwrap();
+        let wire = WireId::<mcrs_minecraft_biome::Biome>::received;
 
         assert!(biomes.by_name("minecraft:b").is_some());
         assert_eq!(ids.get(wire(0)), biomes.by_name("minecraft:b"));
         assert_eq!(ids.get(wire(1)), biomes.by_name("minecraft:a"));
         assert_eq!(ids.get(wire(2)), None, "a name the local set lacks");
         assert_eq!(ids.get(wire(3)), None, "past the list the server sent");
-        assert_eq!(ids.sent_len::<keys::Biome>(), Some(3));
+        assert_eq!(ids.sent_len::<mcrs_minecraft_biome::Biome>(), Some(3));
     }
 
     #[test]
@@ -235,7 +244,10 @@ mod tests {
 
         enter(&mut app, ConnectionState::Game);
         let ids = app.world().resource::<WireIds>();
-        assert!(ids.get(WireId::<keys::Biome>::received(0)).is_some());
+        assert!(
+            ids.get(WireId::<mcrs_minecraft_biome::Biome>::received(0))
+                .is_some()
+        );
 
         enter(&mut app, ConnectionState::Configuration);
         assert!(!app.world().contains_resource::<WireIds>());
@@ -247,7 +259,10 @@ mod tests {
             &ReceivedRegistries::default(),
             &local_biomes(&["minecraft:a"]),
         );
-        assert_eq!(ids.sent_len::<keys::Biome>(), None);
-        assert_eq!(ids.get(WireId::<keys::Biome>::received(0)), None);
+        assert_eq!(ids.sent_len::<mcrs_minecraft_biome::Biome>(), None);
+        assert_eq!(
+            ids.get(WireId::<mcrs_minecraft_biome::Biome>::received(0)),
+            None
+        );
     }
 }

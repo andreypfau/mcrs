@@ -2,6 +2,7 @@ use crate::modern_carvers::TerrainCarving;
 use crate::stored_biomes::{present_biomes, stored_biome, stored_biomes_between};
 use crate::{ColumnBlocks, NO_TOP};
 use bevy_math::IVec3;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys as keys;
@@ -18,17 +19,22 @@ use mcrs_minecraft_worldgen_surface::{
 
 /// The biomes the two hardcoded landforms name, which no rule does.
 pub struct SurfaceIds {
-    pub eroded_badlands: Id<keys::Biome>,
-    pub frozen_ocean: Id<keys::Biome>,
-    pub deep_frozen_ocean: Id<keys::Biome>,
+    pub eroded_badlands: Id<Biome>,
+    pub frozen_ocean: Id<Biome>,
+    pub deep_frozen_ocean: Id<Biome>,
 }
 
 impl SurfaceIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let biomes = report.registry(set, keys::BIOME)?;
-        let eroded_badlands = report.require(&biomes, &keys::biome::ERODED_BADLANDS);
-        let frozen_ocean = report.require(&biomes, &keys::biome::FROZEN_OCEAN);
-        let deep_frozen_ocean = report.require(&biomes, &keys::biome::DEEP_FROZEN_OCEAN);
+        let biomes = report.registry(set, mcrs_minecraft_biome::keys::BIOME)?;
+        let eroded_badlands =
+            report.require(&biomes, &mcrs_minecraft_biome::keys::biome::ERODED_BADLANDS);
+        let frozen_ocean =
+            report.require(&biomes, &mcrs_minecraft_biome::keys::biome::FROZEN_OCEAN);
+        let deep_frozen_ocean = report.require(
+            &biomes,
+            &mcrs_minecraft_biome::keys::biome::DEEP_FROZEN_OCEAN,
+        );
         Some(Resolved::new(Self {
             eroded_badlands: eroded_badlands?,
             frozen_ocean: frozen_ocean?,

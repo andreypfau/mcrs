@@ -26,7 +26,7 @@ use harness::{
 fn dimension(app: &mut App) -> Entity {
     app.world_mut()
         .spawn(DimensionBundle::new(
-            mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             DimensionTypeConfig::new(-64, 384),
         ))
         .id()

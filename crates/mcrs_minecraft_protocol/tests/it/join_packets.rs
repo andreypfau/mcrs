@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::game_mode::OptGameMode;
 use mcrs_minecraft_protocol::handshake::Intent;
@@ -71,8 +71,8 @@ fn check<'a, P: Encode + Decode<'a> + PartialEq + std::fmt::Debug>(
     assert_eq!(encoded(&expected), bytes, "{name}");
 }
 
-fn overworld() -> ResourceKey<keys::Dimension> {
-    keys::dimension::OVERWORLD.into()
+fn overworld() -> ResourceKey<Dimension> {
+    mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into()
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn respawn_equals_the_reference_bytes() {
     let expected = ClientboundRespawn {
         player_spawn_info: PlayerSpawnInfo {
             dimension_type_id: id(&fixture, "dimension_type", "minecraft:the_nether"),
-            dimension: keys::dimension::THE_NETHER.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode(None),
             is_debug: false,

@@ -6,7 +6,6 @@ use mcrs_minecraft_core::{ResourceKey, VERSION};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::inventory::slots;
 use mcrs_minecraft_item::{Items, SelectedHotbarSlot, SlotTable, stack_to_value};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::world::dimension::InDimension;
@@ -18,6 +17,7 @@ use tracing::{error, warn};
 
 use crate::WorldSave;
 use crate::login::GameProfile;
+use mcrs_minecraft_dimension::Dimension;
 
 /// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;
@@ -123,9 +123,9 @@ pub fn save_player(world: &World, player: Entity) -> PlayerDat {
         .unwrap_or(Transform::IDENTITY);
     let dimension = world
         .get::<InDimension>(player)
-        .and_then(|dim| world.get::<ResourceKey<keys::Dimension>>(dim.0))
+        .and_then(|dim| world.get::<ResourceKey<Dimension>>(dim.0))
         .cloned()
-        .unwrap_or_else(|| keys::dimension::OVERWORLD.into());
+        .unwrap_or_else(|| mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into());
     PlayerDat {
         data_version: VERSION.world_version,
         pos: transform.translation.to_array(),
