@@ -5,7 +5,6 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::BiomePalette;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_registry::shared::Resolved;
@@ -52,11 +51,13 @@ pub struct SurfaceStates {
 
 impl SurfaceStates {
     pub fn new(blocks: &BlockDefinitions) -> Self {
-        let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).0.into() };
+        let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
+            blocks.default_state_of(block).0.into()
+        };
         Self {
-            snow_block: state(keys::block::SNOW_BLOCK.id()),
-            packed_ice: state(keys::block::PACKED_ICE.id()),
-            dirt: state(keys::block::DIRT.id()),
+            snow_block: state(mcrs_minecraft_block::keys::Block::SnowBlock.id()),
+            packed_ice: state(mcrs_minecraft_block::keys::Block::PackedIce.id()),
+            dirt: state(mcrs_minecraft_block::keys::Block::Dirt.id()),
         }
     }
 }

@@ -4,12 +4,12 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
     InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
     TooltipDisplay, UseEffects,
 };
-use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
@@ -84,7 +84,7 @@ fn item_registry() -> Registry<Item> {
         "/../../assets/mcrs/reports/registries.json"
     )))
     .unwrap()
-    .registry_of(mcrs_minecraft_keys::ITEM)
+    .registry_of(mcrs_minecraft_item::keys::ITEM)
     .expect("the registries report has no item registry")
 }
 
@@ -100,10 +100,7 @@ fn ids_are_dense_and_named() {
         assert_eq!(items.id_of(entry.identifier.as_str()), Some(entry.id));
         assert!(std::ptr::eq(items.get(entry.id).unwrap(), entry));
     }
-    assert_eq!(
-        items.id_of("minecraft:air"),
-        Some(mcrs_minecraft_keys::item::AIR.id())
-    );
+    assert_eq!(items.id_of("minecraft:air"), Some(Item::Air.id()));
     assert_eq!(items.id_of("minecraft:nothing"), None);
 }
 

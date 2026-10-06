@@ -5,7 +5,7 @@ use mcrs_minecraft_inventory::{
     MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
 };
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, item_of, slots};
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};

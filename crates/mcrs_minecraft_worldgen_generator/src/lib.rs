@@ -10,7 +10,6 @@ use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -27,6 +26,7 @@ use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::keys::Block;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
@@ -959,11 +959,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level;
     let default_fluid = noise_router.default_fluid_state;
     let stone = noise_router.default_block_state;
-    let bedrock = VoxelId::from(blocks.default_state_of(keys::block::BEDROCK.id()).0);
-    let sandstone = VoxelId::from(blocks.default_state_of(keys::block::SANDSTONE.id()).0);
-    let gravel = VoxelId::from(blocks.default_state_of(keys::block::GRAVEL.id()).0);
-    let ice = VoxelId::from(blocks.default_state_of(keys::block::ICE.id()).0);
-    let sand = VoxelId::from(blocks.default_state_of(keys::block::SAND.id()).0);
+    let bedrock = VoxelId::from(blocks.default_state_of(Block::Bedrock.id()).0);
+    let sandstone = VoxelId::from(blocks.default_state_of(Block::Sandstone.id()).0);
+    let gravel = VoxelId::from(blocks.default_state_of(Block::Gravel.id()).0);
+    let ice = VoxelId::from(blocks.default_state_of(Block::Ice.id()).0);
+    let sand = VoxelId::from(blocks.default_state_of(Block::Sand.id()).0);
 
     const D0: f64 = 0.03125;
 

@@ -9,6 +9,7 @@ use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldSt
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{block_mask, state};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct BuriedTreasureBlocks {
@@ -28,15 +29,15 @@ impl BuriedTreasureBlocks {
         open.union_with(&world.water_states);
         open.union_with(&world.lava_states);
         Ok(BuriedTreasureBlocks {
-            sand: state(blocks, keys::block::SAND, &[])?,
+            sand: state(blocks, Block::Sand, &[])?,
             resting: block_mask(
                 blocks,
                 &[
-                    keys::block::SANDSTONE,
-                    keys::block::STONE,
-                    keys::block::ANDESITE,
-                    keys::block::GRANITE,
-                    keys::block::DIORITE,
+                    Block::Sandstone,
+                    Block::Stone,
+                    Block::Andesite,
+                    Block::Granite,
+                    Block::Diorite,
                 ],
             )?,
             open: open.into(),

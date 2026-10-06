@@ -1,12 +1,12 @@
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_structure::piece::JungleTemplePiece;
 
 use crate::canvas::{ChestStates, PieceCanvas};
 use crate::{Oriented, block_mask};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct JungleTempleBlocks {
@@ -47,27 +47,27 @@ impl JungleTempleBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let of = |block: StaticKey<keys::Block>, properties: &[(&str, &str)]| {
+        let of = |block: Block, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let stairs = |facing| of(keys::block::COBBLESTONE_STAIRS, &[("facing", facing)]);
+        let stairs = |facing| of(Block::CobblestoneStairs, &[("facing", facing)]);
         let hook = |facing| {
             of(
-                keys::block::TRIPWIRE_HOOK,
+                Block::TripwireHook,
                 &[("facing", facing), ("attached", "true")],
             )
         };
         let tripwire = |a, b| {
             of(
-                keys::block::TRIPWIRE,
+                Block::Tripwire,
                 &[(a, "true"), (b, "true"), ("attached", "true")],
             )
         };
-        let wire = |sides: &[(&str, &str)]| of(keys::block::REDSTONE_WIRE, sides);
+        let wire = |sides: &[(&str, &str)]| of(Block::RedstoneWire, sides);
         Ok(JungleTempleBlocks {
-            cobblestone: of(keys::block::COBBLESTONE, &[])?,
-            mossy_cobblestone: of(keys::block::MOSSY_COBBLESTONE, &[])?,
-            air: of(keys::block::AIR, &[])?,
+            cobblestone: of(Block::Cobblestone, &[])?,
+            mossy_cobblestone: of(Block::MossyCobblestone, &[])?,
+            air: of(Block::Air, &[])?,
             stairs_north: stairs("north")?,
             stairs_south: stairs("south")?,
             stairs_east: stairs("east")?,
@@ -89,16 +89,16 @@ impl JungleTempleBlocks {
                 ("east", "side"),
                 ("west", "side"),
             ])?,
-            vine_south: of(keys::block::VINE, &[("south", "true")])?,
-            vine_east: of(keys::block::VINE, &[("east", "true")])?,
-            dispenser_north: of(keys::block::DISPENSER, &[("facing", "north")])?,
-            dispenser_west: of(keys::block::DISPENSER, &[("facing", "west")])?,
-            dispenser_states: block_mask(blocks, &[keys::block::DISPENSER])?,
-            chiseled_stone_bricks: of(keys::block::CHISELED_STONE_BRICKS, &[])?,
-            lever: of(keys::block::LEVER, &[("facing", "north"), ("face", "wall")])?,
-            piston_up: of(keys::block::STICKY_PISTON, &[("facing", "up")])?,
-            piston_west: of(keys::block::STICKY_PISTON, &[("facing", "west")])?,
-            repeater_north: of(keys::block::REPEATER, &[("facing", "north")])?,
+            vine_south: of(Block::Vine, &[("south", "true")])?,
+            vine_east: of(Block::Vine, &[("east", "true")])?,
+            dispenser_north: of(Block::Dispenser, &[("facing", "north")])?,
+            dispenser_west: of(Block::Dispenser, &[("facing", "west")])?,
+            dispenser_states: block_mask(blocks, &[Block::Dispenser])?,
+            chiseled_stone_bricks: of(Block::ChiseledStoneBricks, &[])?,
+            lever: of(Block::Lever, &[("facing", "north"), ("face", "wall")])?,
+            piston_up: of(Block::StickyPiston, &[("facing", "up")])?,
+            piston_west: of(Block::StickyPiston, &[("facing", "west")])?,
+            repeater_north: of(Block::Repeater, &[("facing", "north")])?,
             chest: ChestStates::compile(blocks)?,
         })
     }

@@ -2,7 +2,6 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::HolderSet;
@@ -22,6 +21,7 @@ use mcrs_minecraft_worldgen_structure::piece::{PortalProperties, RuinedPortalPie
 use mcrs_minecraft_worldgen_structure::{PortalPlacement, PortalPlacement::OnOceanFloor};
 
 use crate::{block_mask, place_positional, state};
+use mcrs_minecraft_block::keys::Block;
 
 const GOLD_GONE: f32 = 0.3;
 const MAGMA_INSTEAD_OF_NETHERRACK: f32 = 0.07;
@@ -53,7 +53,7 @@ impl RuinedPortalBlocks {
     pub fn compile(
         setups: &[RuinedPortalSetup],
         blocks: &dyn BlockResolver,
-        features_cannot_replace: &HolderSet<keys::Block>,
+        features_cannot_replace: &HolderSet<Block>,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         let mut chains = Vec::with_capacity(setups.len() * 4);
@@ -78,16 +78,16 @@ impl RuinedPortalBlocks {
                 }
             }
         }
-        let vine = |face: Direction| state(blocks, keys::block::VINE, &[(face.name(), "true")]);
+        let vine = |face: Direction| state(blocks, Block::Vine, &[(face.name(), "true")]);
         let full_face = |face: Direction| states_of(blocks, StateQuery::FullCollisionFace(face));
         Ok(RuinedPortalBlocks {
             chains,
-            netherrack: state(blocks, keys::block::NETHERRACK, &[])?,
-            magma: state(blocks, keys::block::MAGMA_BLOCK, &[])?,
-            obsidian: state(blocks, keys::block::OBSIDIAN, &[])?,
+            netherrack: state(blocks, Block::Netherrack, &[])?,
+            magma: state(blocks, Block::MagmaBlock, &[])?,
+            obsidian: state(blocks, Block::Obsidian, &[])?,
             persistent_jungle_leaves: state(
                 blocks,
-                keys::block::JUNGLE_LEAVES,
+                Block::JungleLeaves,
                 &[("persistent", "true")],
             )?,
             vine_facing: [
@@ -96,7 +96,7 @@ impl RuinedPortalBlocks {
                 vine(Direction::North)?,
                 vine(Direction::East)?,
             ],
-            vines: block_mask(blocks, &[keys::block::VINE])?,
+            vines: block_mask(blocks, &[Block::Vine])?,
             features_cannot_replace: states_of(
                 blocks,
                 StateQuery::Blocks(features_cannot_replace),
@@ -124,7 +124,7 @@ impl RuinedPortalBlocks {
 fn processors(
     placement: PortalPlacement,
     p: &PortalProperties,
-    features_cannot_replace: &HolderSet<keys::Block>,
+    features_cannot_replace: &HolderSet<Block>,
 ) -> Vec<StructureProcessor> {
     let block = |name: &str| BlockState::minecraft(name).expect("a hardcoded block name");
     let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {

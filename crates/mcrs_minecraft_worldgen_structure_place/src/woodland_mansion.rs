@@ -14,6 +14,7 @@ use mcrs_minecraft_worldgen_structure::piece::WoodlandMansionPiece;
 
 use crate::canvas::ChestStates;
 use crate::{block_mask, place_positional, state};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone)]
 pub struct WoodlandMansionBlocks {
@@ -29,10 +30,10 @@ impl WoodlandMansionBlocks {
         Ok(WoodlandMansionBlocks {
             chain: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &[keys::block::STRUCTURE_BLOCK],
+                &[Block::StructureBlock],
             )?)],
             chest: ChestStates::compile(blocks)?,
-            cobblestone: state(blocks, keys::block::COBBLESTONE, &[])?,
+            cobblestone: state(blocks, Block::Cobblestone, &[])?,
         })
     }
 }

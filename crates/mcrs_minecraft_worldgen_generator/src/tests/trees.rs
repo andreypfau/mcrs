@@ -28,6 +28,7 @@ use mcrs_minecraft_worldgen_surface::{
 
 use super::{block_tags, blocks, build_program, corpus_features, generate_region, one_step};
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::keys::Block;
 
 /// The three biomes of the step-6 checkpoint, each with the tree feature its
 /// own `worldgen/biome` file names and nothing else.
@@ -184,7 +185,7 @@ pub(super) fn dimension_with(
 
 pub(super) fn tag_states(tag: &str) -> FixedBitSet {
     let mut mask = FixedBitSet::with_capacity(blocks().0.state_count());
-    let key: mcrs_minecraft_core::tag_key::TagKey<mcrs_minecraft_keys::Block, std::sync::Arc<str>> =
+    let key: mcrs_minecraft_core::tag_key::TagKey<Block, std::sync::Arc<str>> =
         mcrs_minecraft_core::tag_key::TagKey::from_location(ResourceLocation::read(tag).unwrap());
     let tags = block_tags();
     for id in tags.members(

@@ -82,10 +82,10 @@ use crate::world::loot::LootPlugin;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{
     DimensionBundle, DimensionPlugin, DimensionTypeConfig, DimensionTypeId, HasSkyLight, HasWeather,

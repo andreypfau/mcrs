@@ -1,18 +1,17 @@
 use super::*;
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Coords, Hinge, Patch};
 
-const STAIRS: &str = keys::block::ACACIA_STAIRS.as_static_str();
-const DOOR: &str = keys::block::ACACIA_DOOR.as_static_str();
-const GATE: &str = keys::block::ACACIA_FENCE_GATE.as_static_str();
-const ORANGE_BED: &str = keys::block::ORANGE_BED.as_static_str();
+const STAIRS: &str = Block::AcaciaStairs.as_static_str();
+const DOOR: &str = Block::AcaciaDoor.as_static_str();
+const GATE: &str = Block::AcaciaFenceGate.as_static_str();
+const ORANGE_BED: &str = Block::OrangeBed.as_static_str();
 
 const STREET: &str = "minecraft:street";
 const ENTRANCE: &str = "minecraft:building_entrance";
-const PLANKS: &str = keys::block::ACACIA_PLANKS.as_static_str();
-const LOG: &str = keys::block::ACACIA_LOG.as_static_str();
-const WOOD: &str = keys::block::ACACIA_WOOD.as_static_str();
+const PLANKS: &str = Block::AcaciaPlanks.as_static_str();
+const LOG: &str = Block::AcaciaLog.as_static_str();
+const WOOD: &str = Block::AcaciaWood.as_static_str();
 const STEP_SOUTH: &str =
     "minecraft:acacia_stairs[facing=south,half=bottom,shape=straight,waterlogged=false]";
 const FENCE: &str =
@@ -37,7 +36,7 @@ kit! {
     wood: log(WOOD, Y),
     wood_x: log(WOOD, X),
     wood_z: log(WOOD, Z),
-    cave_air: block(keys::block::CAVE_AIR.as_static_str()),
+    cave_air: block(Block::CaveAir.as_static_str()),
     fence: settled("minecraft:acacia_fence[waterlogged=false]"),
     dry_farmland: block("minecraft:farmland[moisture=0]"),
     plate: block("minecraft:acacia_pressure_plate[powered=false]"),
@@ -319,11 +318,11 @@ fn terminator_05_of(c: &mut Canvas, v: Village) {
 
 /// A fence joined to `sides` only, whatever stands next to it.
 fn fence(sides: &[Direction]) -> Cell {
-    fence_joined(keys::block::ACACIA_FENCE.as_static_str(), sides)
+    fence_joined(Block::AcaciaFence.as_static_str(), sides)
 }
 
 fn slab(kind: &str) -> Cell {
-    super::slab(keys::block::ACACIA_SLAB.as_static_str(), kind)
+    super::slab(Block::AcaciaSlab.as_static_str(), kind)
 }
 
 fn table(c: &mut Canvas, at: [i32; 3]) {
@@ -420,7 +419,7 @@ fn hut(c: &mut Canvas, v: Village, wall: &str) {
 }
 
 fn small_house_1(c: &mut Canvas, v: Village) {
-    hut(c, v, keys::block::YELLOW_TERRACOTTA.as_static_str());
+    hut(c, v, Block::YellowTerracotta.as_static_str());
     table(c, [2, 1, 2]);
     c.bed(ORANGE_BED, [4, 1, 3], North);
     c.scatter(&S.short_grass, 1, &[[3, 0], [0, 3], [4, 6]]);
@@ -433,7 +432,7 @@ fn small_house_1(c: &mut Canvas, v: Village) {
 }
 
 fn small_house_2(c: &mut Canvas, v: Village) {
-    hut(c, v, keys::block::RED_TERRACOTTA.as_static_str());
+    hut(c, v, Block::RedTerracotta.as_static_str());
     chest(c, [2, 1, 2], South, "village_savanna_house");
     c.bed(RED_BED, [4, 1, 3], North);
     c.place(&S.wall_torch, 3, 3, 6);
@@ -444,8 +443,8 @@ fn small_house_2(c: &mut Canvas, v: Village) {
 }
 
 fn small_house_3(c: &mut Canvas, v: Village) {
-    hut(c, v, keys::block::ORANGE_TERRACOTTA.as_static_str());
-    c.place(&block(keys::block::CRAFTING_TABLE.as_static_str()), 4, 1, 2);
+    hut(c, v, Block::OrangeTerracotta.as_static_str());
+    c.place(&block(Block::CraftingTable.as_static_str()), 4, 1, 2);
     c.scatter(&S.short_grass, 1, &[[0, 6], [4, 6]]);
     if v.zombie {
         c.bed(ORANGE_BED, [2, 1, 3], North);
@@ -509,7 +508,7 @@ fn small_house_4(c: &mut Canvas, v: Village) {
 
 fn small_house_5(c: &mut Canvas, v: Village) {
     let beams = [&K.log_x, &K.log_z];
-    let terracotta = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let terracotta = block(Block::YellowTerracotta.as_static_str());
     let tufts = [3, 0, 6, 0, 6, 2, 6, 4, 5, 5, 0, 6, 2, 6, 4, 6, 6, 6];
     c.solid(&GROUND, [0, 0, 0], [6, 0, 6]);
     c.solid(&K.planks, [2, 0, 2], [4, 0, 4]);
@@ -618,7 +617,7 @@ fn small_house_7(c: &mut Canvas, v: Village) {
 }
 
 fn small_house_8(c: &mut Canvas, v: Village) {
-    let wall = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let wall = block(Block::YellowTerracotta.as_static_str());
     c.void([0, 0, 0], [5, 0, 6]);
     c.fill(&S.dirt, 2..=3, 0, [1, 5]);
     c.fill(&S.dirt, [1, 4], 0, 2..=4);
@@ -706,7 +705,7 @@ fn medium_house_1(c: &mut Canvas, v: Village) {
     for z in [2, 12] {
         c.bed(ORANGE_BED, [3, 1, z], East);
     }
-    c.place(&block(keys::block::CRAFTING_TABLE.as_static_str()), 4, 1, 4);
+    c.place(&block(Block::CraftingTable.as_static_str()), 4, 1, 4);
     c.place(&K.wood, 4, 1, 10);
     c.place(&S.torch, 4, 2, 10);
     c.place(&S.wall_torch, 4, 3, 3);
@@ -748,7 +747,7 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
 
     c.each(&K.wood, &[[1, 0, 3], [6, 0, 9]]);
     c.open_door(
-        keys::block::ACACIA_DOOR.as_static_str(),
+        Block::AcaciaDoor.as_static_str(),
         [1, 1, 3],
         South,
         Hinge::Left,
@@ -766,16 +765,11 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
     c.place(&wheat(1), 3, 1, 7);
     c.place(&S.water, 3, 0, 6);
 
-    c.place(&block(keys::block::CRAFTING_TABLE.as_static_str()), 2, 1, 2);
+    c.place(&block(Block::CraftingTable.as_static_str()), 2, 1, 2);
     c.bed(ORANGE_BED, [3, 1, 2], East);
     c.fill(&stairs(STAIRS, South), 2..=3, 1, 4);
     c.place(&K.planks, 4, 1, 4);
-    c.place(
-        &block(keys::block::POTTED_DANDELION.as_static_str()),
-        4,
-        2,
-        4,
-    );
+    c.place(&block(Block::PottedDandelion.as_static_str()), 4, 2, 4);
     c.bed(ORANGE_BED, [5, 1, 7], North);
     c.place(&stairs(STAIRS, West), 5, 1, 8);
     chest(c, [7, 1, 6], West, "village_savanna_house");
@@ -842,11 +836,7 @@ fn animal_pen_2(c: &mut Canvas, v: Village) {
     c.place(&K.fence, 4, 4, 0);
     c.fill(&S.torch, [3, 5], 5, 0);
     c.each(&S.torch, &[[0, 3, 4], [12, 3, 4], [5, 3, 8]]);
-    c.entrance(
-        [4, 2, 0],
-        EMPTY,
-        keys::block::ACACIA_FENCE_GATE.as_static_str(),
-    );
+    c.entrance([4, 2, 0], EMPTY, Block::AcaciaFenceGate.as_static_str());
     c.scatter(&S.short_grass, 2, tufts.as_chunks().0);
     c.scatter(&S.tall_grass, 2, tall.as_chunks().0);
     spots(c, CATS, GRASS, &[[0, 1, 2], [1, 1, 10]]);
@@ -969,14 +959,14 @@ fn savanna_small_farm(c: &mut Canvas) {
     c.scatter(&wheat(1), 2, &[[3, 0], [2, 1], [3, 4]]);
     c.scatter(&wheat(0), 2, sprouts.as_chunks().0);
     c.place(&block("minecraft:composter[level=0]"), 4, 2, 5);
-    c.place(&block(keys::block::MELON.as_static_str()), 4, 2, 8);
+    c.place(&block(Block::Melon.as_static_str()), 4, 2, 8);
     c.scatter(&S.short_grass, 2, &[[5, 7], [1, 8]]);
     c.scatter(&S.tall_grass, 2, tall.as_chunks().0);
     c.entrance([1, 2, 0], EMPTY, NOTHING);
 }
 
 fn savanna_armorer_1(c: &mut Canvas) {
-    let terracotta = block(keys::block::ORANGE_TERRACOTTA.as_static_str());
+    let terracotta = block(Block::OrangeTerracotta.as_static_str());
     c.solid(&GROUND, [0, 0, 0], [6, 0, 6]);
     c.solid(&K.planks, [2, 0, 2], [2, 0, 4]);
     c.solid(&terracotta, [3, 0, 2], [3, 0, 4]);
@@ -1018,8 +1008,8 @@ fn workshop(c: &mut Canvas, wall: &Cell, turned: &[([i32; 3], Direction)]) {
 }
 
 fn savanna_weaponsmith_1(c: &mut Canvas) {
-    let stripped = log(keys::block::STRIPPED_ACACIA_LOG.as_static_str(), Y);
-    let stripped_x = log(keys::block::STRIPPED_ACACIA_LOG.as_static_str(), X);
+    let stripped = log(Block::StrippedAcaciaLog.as_static_str(), Y);
+    let stripped_x = log(Block::StrippedAcaciaLog.as_static_str(), X);
     c.solid(&GROUND, [0, 0, 0], [7, 0, 8]);
     c.fill(&stripped, 2..=3, 0, [2, 4, 6]);
     c.fill(&stripped_x, 2..=3, 0, [3, 5]);
@@ -1043,7 +1033,7 @@ fn savanna_weaponsmith_1(c: &mut Canvas) {
     c.place(&fence(&[South]), 7, 1, 5);
 
     c.place(&K.fence, 2, 1, 2);
-    c.place(&block(keys::block::WHITE_CARPET.as_static_str()), 2, 2, 2);
+    c.place(&block(Block::WhiteCarpet.as_static_str()), 2, 2, 2);
     c.place(&stairs(STAIRS, North), 3, 1, 2);
     c.place(
         &block("minecraft:grindstone[face=floor,facing=south]"),
@@ -1060,7 +1050,7 @@ fn savanna_weaponsmith_1(c: &mut Canvas) {
 }
 
 fn savanna_tannery_1(c: &mut Canvas) {
-    let wall = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let wall = block(Block::YellowTerracotta.as_static_str());
     let cauldron = block("minecraft:water_cauldron[level=3]");
     let tufts = [
         1, 0, 2, 0, 3, 0, 5, 0, 6, 0, 0, 1, 6, 1, 0, 2, 0, 3, 7, 3, 0, 4, 0, 5, 0, 6, 6, 6, 4, 7,
@@ -1091,14 +1081,14 @@ fn savanna_tannery_1(c: &mut Canvas) {
 
     c.solid(&cauldron, [2, 1, 2], [3, 1, 2]);
     chest(c, [2, 1, 6], North, "village_tannery");
-    c.place(&block(keys::block::SMOOTH_STONE.as_static_str()), 3, 1, 6);
+    c.place(&block(Block::SmoothStone.as_static_str()), 3, 1, 6);
     c.fill(&S.wall_torch, [2, 3, 5], 3, 4);
     c.scatter(&S.short_grass, 1, tufts.as_chunks().0);
 }
 
 fn savanna_temple_2(c: &mut Canvas) {
-    let red = block(keys::block::RED_TERRACOTTA.as_static_str());
-    let yellow = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let red = block(Block::RedTerracotta.as_static_str());
+    let yellow = block(Block::YellowTerracotta.as_static_str());
     c.fill(&S.dirt, 2..=4, 0, [1, 7]);
     c.fill(&S.dirt, [1, 5], 0, 2..=6);
     c.solid(&K.wood, [2, 0, 2], [4, 0, 6]);
@@ -1144,7 +1134,7 @@ fn savanna_temple_2(c: &mut Canvas) {
 }
 
 fn savanna_mason_1(c: &mut Canvas) {
-    let clay = block(keys::block::CLAY.as_static_str());
+    let clay = block(Block::Clay.as_static_str());
     let glazed = |facing: Direction| {
         block(&format!(
             "minecraft:yellow_glazed_terracotta[facing={}]",
@@ -1207,11 +1197,11 @@ fn savanna_mason_1(c: &mut Canvas) {
 }
 
 fn savanna_temple_1(c: &mut Canvas) {
-    let orange = block(keys::block::ORANGE_TERRACOTTA.as_static_str());
-    let yellow = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let orange = block(Block::OrangeTerracotta.as_static_str());
+    let yellow = block(Block::YellowTerracotta.as_static_str());
     let orange_pane = settled("minecraft:orange_stained_glass_pane[waterlogged=false]");
     let yellow_pane = settled("minecraft:yellow_stained_glass_pane[waterlogged=false]");
-    let carpet = block(keys::block::RED_CARPET.as_static_str());
+    let carpet = block(Block::RedCarpet.as_static_str());
     let tufts = [
         1, 0, 3, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 11, 0, 0, 1, 2, 1, 3, 1, 5, 1, 7, 1, 12, 1, 2, 2,
         4, 2, 12, 2, 0, 3, 2, 3, 6, 3, 12, 4, 0, 5, 6, 5, 12, 5, 3, 6, 12, 6, 1, 7, 2, 7, 3, 7, 5,
@@ -1260,11 +1250,11 @@ fn savanna_temple_1(c: &mut Canvas) {
 }
 
 fn savanna_library_1(c: &mut Canvas) {
-    let wall = block(keys::block::ORANGE_TERRACOTTA.as_static_str());
+    let wall = block(Block::OrangeTerracotta.as_static_str());
     let sapling = block("minecraft:acacia_sapling[stage=1]");
-    let poppy = block(keys::block::POPPY.as_static_str());
-    let white = block(keys::block::WHITE_CARPET.as_static_str());
-    let orange = block(keys::block::ORANGE_CARPET.as_static_str());
+    let poppy = block(Block::Poppy.as_static_str());
+    let white = block(Block::WhiteCarpet.as_static_str());
+    let orange = block(Block::OrangeCarpet.as_static_str());
     let tufts = [
         1, 0, 8, 0, 0, 1, 9, 1, 0, 3, 4, 3, 5, 3, 8, 3, 9, 3, 0, 4, 2, 4, 4, 4, 6, 4, 7, 4, 9, 4,
         4, 5, 0, 7, 1, 7, 2, 7,
@@ -1313,12 +1303,12 @@ fn savanna_library_1(c: &mut Canvas) {
     );
 
     c.solid(
-        &block(keys::block::BOOKSHELF.as_static_str()),
+        &block(Block::Bookshelf.as_static_str()),
         [7, 3, 4],
         [7, 6, 4],
     );
     c.solid(
-        &block(keys::block::BOOKSHELF.as_static_str()),
+        &block(Block::Bookshelf.as_static_str()),
         [2, 3, 5],
         [2, 6, 5],
     );
@@ -1330,7 +1320,7 @@ fn savanna_library_1(c: &mut Canvas) {
 }
 
 fn savanna_fletcher_house_1(c: &mut Canvas) {
-    let wall = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let wall = block(Block::YellowTerracotta.as_static_str());
     let tufts = [
         0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 6, 0, 7, 0, 10, 0, 0, 1, 10, 1, 10, 2, 0, 3, 10, 3, 10, 4, 0,
         5, 10, 5, 0, 6, 2, 6, 4, 6, 5, 6, 6, 6, 10, 6, 0, 7, 6, 7, 8, 7, 1, 8, 2, 8, 8, 8, 10, 8,
@@ -1378,14 +1368,9 @@ fn savanna_fletcher_house_1(c: &mut Canvas) {
     }
     c.fill(&K.log_z, [4, 6], 1, 2);
     c.fill(&S.torch, [4, 6], 2, 2);
-    c.place(
-        &block(keys::block::FLETCHING_TABLE.as_static_str()),
-        5,
-        1,
-        2,
-    );
+    c.place(&block(Block::FletchingTable.as_static_str()), 5, 1, 2);
     c.fill(&S.wall_torch, [3, 7], 3, 6);
-    c.place(&block(keys::block::POPPY.as_static_str()), 0, 1, 2);
+    c.place(&block(Block::Poppy.as_static_str()), 0, 1, 2);
     c.scatter(&S.short_grass, 1, tufts.as_chunks().0);
 }
 
@@ -1430,12 +1415,7 @@ fn savanna_cartographer_1(c: &mut Canvas) {
     c.place(&S.wall_torch, 2, 5, 4);
     c.place(&K.wood, 4, 3, 2);
     c.place(&S.torch, 4, 4, 2);
-    c.place(
-        &block(keys::block::CARTOGRAPHY_TABLE.as_static_str()),
-        5,
-        3,
-        2,
-    );
+    c.place(&block(Block::CartographyTable.as_static_str()), 5, 3, 2);
     chest(c, [4, 3, 6], North, "village_cartographer");
     c.place(&K.wood, 5, 3, 6);
     c.place(&S.torch, 5, 4, 6);
@@ -1443,8 +1423,8 @@ fn savanna_cartographer_1(c: &mut Canvas) {
 }
 
 fn savanna_butchers_shop_1(c: &mut Canvas) {
-    let yellow = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
-    let orange = block(keys::block::ORANGE_TERRACOTTA.as_static_str());
+    let yellow = block(Block::YellowTerracotta.as_static_str());
+    let orange = block(Block::OrangeTerracotta.as_static_str());
     let smooth = |kind: &str| {
         block(&format!(
             "minecraft:smooth_stone_slab[type={kind},waterlogged=false]"
@@ -1501,7 +1481,7 @@ fn savanna_butchers_shop_1(c: &mut Canvas) {
     c.each(&K.log_z, &[[1, 3, 4], [6, 3, 5]]);
     c.door(DOOR, [1, 1, 4], West, Hinge::Left);
     c.open_door(
-        keys::block::ACACIA_DOOR.as_static_str(),
+        Block::AcaciaDoor.as_static_str(),
         [6, 1, 5],
         South,
         Hinge::Right,
@@ -1538,7 +1518,7 @@ fn savanna_butchers_shop_1(c: &mut Canvas) {
     c.solid(&chimney("tall", &[North, West]), [4, 2, 2], [4, 4, 2]);
     c.place(&chimney("low", &[East, North, South, West]), 4, 5, 2);
     c.place(&chimney("low", &[]), 4, 6, 2);
-    c.place(&block(keys::block::COBBLESTONE.as_static_str()), 5, 1, 2);
+    c.place(&block(Block::Cobblestone.as_static_str()), 5, 1, 2);
     c.solid(&smooth("double"), [4, 1, 8], [5, 1, 8]);
     c.fill(&S.wall_torch, 0, 2, [3, 5]);
     c.place(&wall_torch(East), 2, 3, 4);
@@ -1641,14 +1621,14 @@ fn savanna_tool_smith_1(c: &mut Canvas) {
     }
 
     c.fill(&stairs(STAIRS, East), 4, 1, [4, 6]);
-    c.place(&block(keys::block::SMITHING_TABLE.as_static_str()), 4, 1, 5);
+    c.place(&block(Block::SmithingTable.as_static_str()), 4, 1, 5);
     c.fill(&S.wall_torch, [0, 4], 3, 5);
     c.solid(&K.cave_air, [4, 1, 0], [5, 1, 0]);
     c.scatter(&S.short_grass, 1, tufts.as_chunks().0);
 }
 
 fn savanna_weaponsmith_2(c: &mut Canvas) {
-    let stone = block(keys::block::SMOOTH_STONE.as_static_str());
+    let stone = block(Block::SmoothStone.as_static_str());
     let rim = block("minecraft:smooth_stone_slab[type=bottom,waterlogged=false]");
     let bars = settled("minecraft:iron_bars[waterlogged=false]");
     let (east, west) = (stairs(STAIRS, East), stairs(STAIRS, West));
@@ -1945,8 +1925,8 @@ fn meeting_point_1(c: &mut Canvas, v: Village) {
 }
 
 fn meeting_point_2(c: &mut Canvas, v: Village) {
-    let orange = block(keys::block::ORANGE_TERRACOTTA.as_static_str());
-    let yellow = block(keys::block::YELLOW_TERRACOTTA.as_static_str());
+    let orange = block(Block::OrangeTerracotta.as_static_str());
+    let yellow = block(Block::YellowTerracotta.as_static_str());
     let path = [
         4, 6, 0, 4, 6, 1, 3, 7, 2, 2, 3, 3, 7, 8, 3, 0, 2, 4, 8, 10, 4, 0, 2, 5, 8, 10, 5, 0, 2, 6,
         8, 10, 6, 2, 3, 7, 7, 8, 7, 3, 7, 8, 4, 6, 9, 4, 6, 10,
@@ -2072,11 +2052,11 @@ fn savanna_lamp_post_01(c: &mut Canvas) {
 #[rustfmt::skip]
 mod data {
     use super::{Fields, Tag};
-    use mcrs_minecraft_keys as keys;
 
-    pub const BANNER_DATA: Fields = &[("patterns", Tag::List(&[])), ("id", Tag::String(keys::block_entity_type::BANNER.as_static_str()))];
+    pub const BANNER_DATA: Fields = &[("patterns", Tag::List(&[])), ("id", Tag::String(mcrs_minecraft_block::keys::BlockEntityType::Banner.as_static_str()))];
 }
 use data::*;
+use mcrs_minecraft_block::keys::Block;
 
 templates! {
     "savanna" Savanna;

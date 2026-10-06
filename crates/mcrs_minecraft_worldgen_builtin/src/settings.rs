@@ -2,9 +2,9 @@ use crate::density::{
     BASE_3D_NOISE_END, END_ISLANDS, OVERWORLD, RIDGES, SLOPED_CHEESE_END, full_noise,
     peaks_and_valleys, slide_end_like, slide_nether_like,
 };
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_density::proto::ValueRange;
 use mcrs_minecraft_worldgen_density::proto::build::Df;
 use mcrs_minecraft_worldgen_density::router::{
@@ -67,7 +67,7 @@ fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
         ],
         ..NoiseGeneratorSettings::new(
             OVERWORLD,
-            BlockState::bare(keys::block::WATER.location().to_arc()),
+            BlockState::bare(Block::Water.location().to_arc()),
             router,
             id("overworld"),
             63,
@@ -91,7 +91,7 @@ fn nether() -> NoiseGeneratorSettings {
         ],
         ..NoiseGeneratorSettings::new(
             bounds,
-            BlockState::bare(keys::block::LAVA.location().to_arc()),
+            BlockState::bare(Block::Lava.location().to_arc()),
             router,
             id("nether"),
             32,
@@ -115,7 +115,7 @@ fn end() -> NoiseGeneratorSettings {
         ],
         ..NoiseGeneratorSettings::new(
             bounds,
-            BlockState::bare(keys::block::AIR.location().to_arc()),
+            BlockState::bare(Block::Air.location().to_arc()),
             router,
             id("end"),
             0,
@@ -137,7 +137,7 @@ fn density_only(
         debug_functions: vec![DebugFunction::new("N", &router.final_density)],
         ..NoiseGeneratorSettings::new(
             bounds,
-            BlockState::bare(keys::block::WATER.location().to_arc()),
+            BlockState::bare(Block::Water.location().to_arc()),
             router,
             id(material_rule),
             sea_level,

@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 
@@ -6,6 +5,8 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::block_tags;
 use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::provider::{
@@ -15,9 +16,8 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
-use mcrs_minecraft_keys::{Block, block_tags};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{HolderSet, Id, StaticKey};
+use mcrs_minecraft_registry::{HolderSet, Id};
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
 };
@@ -75,7 +75,7 @@ pub(super) fn state_of(
 
 pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let blocks = resolver.blocks;
-    let air = resolver.block_mask_of(keys::block::AIR)?;
+    let air = resolver.block_mask_of(Block::Air)?;
     let logs = resolver.tag_mask(block_tags::LOGS)?;
     let leaves = resolver.tag_mask(block_tags::LEAVES)?;
     let replaceable_by_trees = resolver.tag_mask(block_tags::REPLACEABLE_BY_TREES)?;
@@ -92,29 +92,29 @@ pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let vine_side = std::array::from_fn(|index| {
         state_of(
             blocks,
-            keys::block::VINE.id(),
+            Block::Vine.id(),
             &[(Direction::HORIZONTAL[index].name(), "true")],
         )
         .unwrap_or_default()
     });
-    let state = |block: StaticKey<Block>, properties: &[(&str, &str)]| {
+    let state = |block: Block, properties: &[(&str, &str)]| {
         missing(
             state_of(blocks, block.id(), properties),
             block.as_static_str(),
         )
     };
     let palette = TreePalette {
-        vines: resolver.block_mask_of(keys::block::VINE)?,
-        shelf_mushrooms: resolver.block_mask_of(keys::block::SHELF_MUSHROOM)?,
+        vines: resolver.block_mask_of(Block::Vine)?,
+        shelf_mushrooms: resolver.block_mask_of(Block::ShelfMushroom)?,
         vine_side,
-        bee_nest: state(keys::block::BEE_NEST, &[("facing", "south")])?,
-        cocoa: aged_facings(blocks, keys::block::COCOA.id()),
-        shelf_mushroom: aged_facings(blocks, keys::block::SHELF_MUSHROOM.id()),
+        bee_nest: state(Block::BeeNest, &[("facing", "south")])?,
+        cocoa: aged_facings(blocks, Block::Cocoa.id()),
+        shelf_mushroom: aged_facings(blocks, Block::ShelfMushroom.id()),
         pale_hanging_moss: [
-            state(keys::block::PALE_HANGING_MOSS, &[("tip", "false")])?,
-            state(keys::block::PALE_HANGING_MOSS, &[("tip", "true")])?,
+            state(Block::PaleHangingMoss, &[("tip", "false")])?,
+            state(Block::PaleHangingMoss, &[("tip", "true")])?,
         ],
-        creaking_heart: state(keys::block::CREAKING_HEART, &[])?,
+        creaking_heart: state(Block::CreakingHeart, &[])?,
     };
 
     Ok(TreeTables {
@@ -383,10 +383,7 @@ fn rule_of(
             }
         }
         SurviveFamily::SugarCane => SurviveRule::SugarCane {
-            sugar_cane: resolver
-                .block_mask_of(keys::block::SUGAR_CANE)?
-                .as_ref()
-                .clone(),
+            sugar_cane: resolver.block_mask_of(Block::SugarCane)?.as_ref().clone(),
             supports: tag(ids.supports_sugar_cane),
             adjacent: {
                 let mut adjacent = tag(ids.supports_sugar_cane_adjacently);
@@ -398,7 +395,7 @@ fn rule_of(
             let mut blocked = resolver.world.sturdy_up.as_ref().clone();
             blocked.union_with(&resolver.world.lava_fluid);
             let mut supports = tag(ids.supports_cactus);
-            let cactus = resolver.block_mask_of(keys::block::CACTUS)?;
+            let cactus = resolver.block_mask_of(Block::Cactus)?;
             supports.union_with(&cactus);
             SurviveRule::Cactus {
                 supports,

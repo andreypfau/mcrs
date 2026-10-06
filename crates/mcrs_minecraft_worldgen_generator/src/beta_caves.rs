@@ -1,7 +1,6 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_carver::water::WaterMask;
@@ -24,14 +23,16 @@ pub struct BetaCaveBlockIds {
 
 impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
-        let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).0.into() };
+        let state = |block: Id<mcrs_minecraft_block::keys::Block>| -> VoxelId {
+            blocks.default_state_of(block).0.into()
+        };
         BetaCaveBlockIds {
-            air: state(keys::block::AIR.id()),
-            lava: state(keys::block::LAVA.id()),
-            stone: state(keys::block::STONE.id()),
-            dirt: state(keys::block::DIRT.id()),
-            grass: state(keys::block::GRASS_BLOCK.id()),
-            water: state(keys::block::WATER.id()),
+            air: state(mcrs_minecraft_block::keys::Block::Air.id()),
+            lava: state(mcrs_minecraft_block::keys::Block::Lava.id()),
+            stone: state(mcrs_minecraft_block::keys::Block::Stone.id()),
+            dirt: state(mcrs_minecraft_block::keys::Block::Dirt.id()),
+            grass: state(mcrs_minecraft_block::keys::Block::GrassBlock.id()),
+            water: state(mcrs_minecraft_block::keys::Block::Water.id()),
         }
     }
 }
@@ -129,7 +130,10 @@ mod tests {
     #[test]
     fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {
         let ids = BetaCaveBlockIds::resolve(corpus());
-        let sand: VoxelId = corpus().default_state_of(keys::block::SAND.id()).0.into();
+        let sand: VoxelId = corpus()
+            .default_state_of(mcrs_minecraft_block::keys::Block::Sand.id())
+            .0
+            .into();
         let sections: Vec<i32> = (0..8).collect();
         let column = ColumnBlocks::new(&sections);
         let mut mask = CarvingMask::new(1, 120);

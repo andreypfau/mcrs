@@ -36,6 +36,7 @@ use mcrs_minecraft_dimension_environment::environment::{
     DimensionEnvironments, build_dimension_environments,
 };
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -139,7 +140,7 @@ impl Plugin for MinecraftWorldPlugin {
             resolvers::run_resolvers(app.world_mut(), &registries)
                 .unwrap_or_else(|report| registries::refuse(&report));
             let block_registry = registries
-                .registry::<mcrs_minecraft_keys::Block>()
+                .registry::<Block>()
                 .expect("the static registries hold minecraft:block");
             let mut access = app
                 .world_mut()

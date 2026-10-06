@@ -5,8 +5,9 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::value::{Bounds, NumberProvider};
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::component::predicate::ComponentPredicates;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::HolderSet;
 
 /// A map whose key selects both the field and the type of its value, the way
@@ -143,7 +144,7 @@ pub enum LootCondition {
 #[serde(deny_unknown_fields)]
 pub struct ItemPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub items: Option<HolderSet<keys::Item>>,
+    pub items: Option<HolderSet<Item>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count: Option<Bounds<i32>>,
 }
@@ -185,7 +186,7 @@ pub struct LocationPredicate {
 #[serde(deny_unknown_fields)]
 pub struct LocationBlockPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<HolderSet<keys::Block>>,
+    pub blocks: Option<HolderSet<Block>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

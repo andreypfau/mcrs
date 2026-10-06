@@ -7,12 +7,10 @@ use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{Axis, BlockPos, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, Rotation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
 };
@@ -27,6 +25,8 @@ use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, JigsawBlock, tra
 
 use crate::block_entity::GeneratedBlockEntity;
 use crate::entity::GeneratedEntity;
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::BlockEntityType;
 
 fn direction_named(name: &str) -> Option<Direction> {
     Direction::all().into_iter().find(|d| d.name() == name)
@@ -353,81 +353,48 @@ fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &m
     layout.try_set(out, "half", half)
 }
 
-const BLACKSTONE_REPLACEMENTS: [(StaticKey<keys::Block>, StaticKey<keys::Block>); 23] = [
-    (keys::block::COBBLESTONE, keys::block::BLACKSTONE),
-    (keys::block::MOSSY_COBBLESTONE, keys::block::BLACKSTONE),
-    (keys::block::STONE, keys::block::POLISHED_BLACKSTONE),
+const BLACKSTONE_REPLACEMENTS: [(Block, Block); 23] = [
+    (Block::Cobblestone, Block::Blackstone),
+    (Block::MossyCobblestone, Block::Blackstone),
+    (Block::Stone, Block::PolishedBlackstone),
+    (Block::StoneBricks, Block::PolishedBlackstoneBricks),
+    (Block::MossyStoneBricks, Block::PolishedBlackstoneBricks),
+    (Block::CobblestoneStairs, Block::BlackstoneStairs),
+    (Block::MossyCobblestoneStairs, Block::BlackstoneStairs),
+    (Block::StoneStairs, Block::PolishedBlackstoneStairs),
     (
-        keys::block::STONE_BRICKS,
-        keys::block::POLISHED_BLACKSTONE_BRICKS,
+        Block::StoneBrickStairs,
+        Block::PolishedBlackstoneBrickStairs,
     ),
     (
-        keys::block::MOSSY_STONE_BRICKS,
-        keys::block::POLISHED_BLACKSTONE_BRICKS,
+        Block::MossyStoneBrickStairs,
+        Block::PolishedBlackstoneBrickStairs,
+    ),
+    (Block::CobblestoneSlab, Block::BlackstoneSlab),
+    (Block::MossyCobblestoneSlab, Block::BlackstoneSlab),
+    (Block::SmoothStoneSlab, Block::PolishedBlackstoneSlab),
+    (Block::StoneSlab, Block::PolishedBlackstoneSlab),
+    (Block::StoneBrickSlab, Block::PolishedBlackstoneBrickSlab),
+    (
+        Block::MossyStoneBrickSlab,
+        Block::PolishedBlackstoneBrickSlab,
+    ),
+    (Block::StoneBrickWall, Block::PolishedBlackstoneBrickWall),
+    (
+        Block::MossyStoneBrickWall,
+        Block::PolishedBlackstoneBrickWall,
+    ),
+    (Block::CobblestoneWall, Block::BlackstoneWall),
+    (Block::MossyCobblestoneWall, Block::BlackstoneWall),
+    (
+        Block::ChiseledStoneBricks,
+        Block::ChiseledPolishedBlackstone,
     ),
     (
-        keys::block::COBBLESTONE_STAIRS,
-        keys::block::BLACKSTONE_STAIRS,
+        Block::CrackedStoneBricks,
+        Block::CrackedPolishedBlackstoneBricks,
     ),
-    (
-        keys::block::MOSSY_COBBLESTONE_STAIRS,
-        keys::block::BLACKSTONE_STAIRS,
-    ),
-    (
-        keys::block::STONE_STAIRS,
-        keys::block::POLISHED_BLACKSTONE_STAIRS,
-    ),
-    (
-        keys::block::STONE_BRICK_STAIRS,
-        keys::block::POLISHED_BLACKSTONE_BRICK_STAIRS,
-    ),
-    (
-        keys::block::MOSSY_STONE_BRICK_STAIRS,
-        keys::block::POLISHED_BLACKSTONE_BRICK_STAIRS,
-    ),
-    (keys::block::COBBLESTONE_SLAB, keys::block::BLACKSTONE_SLAB),
-    (
-        keys::block::MOSSY_COBBLESTONE_SLAB,
-        keys::block::BLACKSTONE_SLAB,
-    ),
-    (
-        keys::block::SMOOTH_STONE_SLAB,
-        keys::block::POLISHED_BLACKSTONE_SLAB,
-    ),
-    (
-        keys::block::STONE_SLAB,
-        keys::block::POLISHED_BLACKSTONE_SLAB,
-    ),
-    (
-        keys::block::STONE_BRICK_SLAB,
-        keys::block::POLISHED_BLACKSTONE_BRICK_SLAB,
-    ),
-    (
-        keys::block::MOSSY_STONE_BRICK_SLAB,
-        keys::block::POLISHED_BLACKSTONE_BRICK_SLAB,
-    ),
-    (
-        keys::block::STONE_BRICK_WALL,
-        keys::block::POLISHED_BLACKSTONE_BRICK_WALL,
-    ),
-    (
-        keys::block::MOSSY_STONE_BRICK_WALL,
-        keys::block::POLISHED_BLACKSTONE_BRICK_WALL,
-    ),
-    (keys::block::COBBLESTONE_WALL, keys::block::BLACKSTONE_WALL),
-    (
-        keys::block::MOSSY_COBBLESTONE_WALL,
-        keys::block::BLACKSTONE_WALL,
-    ),
-    (
-        keys::block::CHISELED_STONE_BRICKS,
-        keys::block::CHISELED_POLISHED_BLACKSTONE,
-    ),
-    (
-        keys::block::CRACKED_STONE_BRICKS,
-        keys::block::CRACKED_POLISHED_BLACKSTONE_BRICKS,
-    ),
-    (keys::block::IRON_BARS, keys::block::IRON_CHAIN),
+    (Block::IronBars, Block::IronChain),
 ];
 
 pub type CompiledChain = Vec<CompiledProcessor>;
@@ -441,10 +408,7 @@ pub enum ChainKind {
     Feature,
 }
 
-fn block_mask(
-    blocks: &dyn BlockResolver,
-    block: StaticKey<keys::Block>,
-) -> Result<StateMask, FeatureCompileError> {
+fn block_mask(blocks: &dyn BlockResolver, block: Block) -> Result<StateMask, FeatureCompileError> {
     states_of(blocks, StateQuery::Block(&block.location().to_arc()))
 }
 
@@ -459,11 +423,11 @@ pub fn compile_chain(
         if !legacy {
             processors.push(CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                keys::block::STRUCTURE_BLOCK,
+                Block::StructureBlock,
             )?));
         }
         processors.push(CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, keys::block::JIGSAW)?,
+            jigsaw: block_mask(blocks, Block::Jigsaw)?,
         });
     }
     for (index, processor) in list.iter().enumerate() {
@@ -484,8 +448,8 @@ pub fn compile_chain(
             processors.push(CompiledProcessor::BlockIgnore(states_of(
                 blocks,
                 StateQuery::Names(&[
-                    keys::block::AIR.location().to_arc(),
-                    keys::block::STRUCTURE_BLOCK.location().to_arc(),
+                    Block::Air.location().to_arc(),
+                    Block::StructureBlock.location().to_arc(),
                 ]),
             )?));
         }
@@ -511,7 +475,7 @@ fn compile_processor(
             ),
         )?),
         JigsawReplacement => CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, keys::block::JIGSAW)?,
+            jigsaw: block_mask(blocks, Block::Jigsaw)?,
         },
         Rule { rules } => CompiledProcessor::Rule(
             rules
@@ -551,7 +515,7 @@ fn compile_processor(
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
-            let tag = |tag: TagKey<keys::Block, &'static str>| {
+            let tag = |tag: TagKey<Block, &'static str>| {
                 states_of(blocks, StateQuery::BlockTag(&tag.location().to_arc()))
             };
             CompiledProcessor::BlockAge(BlockAgeTables {
@@ -559,27 +523,24 @@ fn compile_processor(
                 full_stone: states_of(
                     blocks,
                     StateQuery::Names(&[
-                        keys::block::STONE_BRICKS.location().to_arc(),
-                        keys::block::STONE.location().to_arc(),
-                        keys::block::CHISELED_STONE_BRICKS.location().to_arc(),
+                        Block::StoneBricks.location().to_arc(),
+                        Block::Stone.location().to_arc(),
+                        Block::ChiseledStoneBricks.location().to_arc(),
                     ]),
                 )?,
-                stairs: tag(keys::block_tags::STAIRS)?,
-                slabs: tag(keys::block_tags::SLABS)?,
-                walls: tag(keys::block_tags::WALLS)?,
-                obsidian: block_mask(blocks, keys::block::OBSIDIAN)?,
-                cracked_stone_bricks: default_state(blocks, keys::block::CRACKED_STONE_BRICKS)?,
-                mossy_stone_bricks: default_state(blocks, keys::block::MOSSY_STONE_BRICKS)?,
-                stone_brick_stairs: default_state(blocks, keys::block::STONE_BRICK_STAIRS)?,
-                mossy_stone_brick_stairs: default_state(
-                    blocks,
-                    keys::block::MOSSY_STONE_BRICK_STAIRS,
-                )?,
-                stone_slab: default_state(blocks, keys::block::STONE_SLAB)?,
-                stone_brick_slab: default_state(blocks, keys::block::STONE_BRICK_SLAB)?,
-                mossy_stone_brick_slab: default_state(blocks, keys::block::MOSSY_STONE_BRICK_SLAB)?,
-                mossy_stone_brick_wall: default_state(blocks, keys::block::MOSSY_STONE_BRICK_WALL)?,
-                crying_obsidian: default_state(blocks, keys::block::CRYING_OBSIDIAN)?,
+                stairs: tag(mcrs_minecraft_block::keys::block_tags::STAIRS)?,
+                slabs: tag(mcrs_minecraft_block::keys::block_tags::SLABS)?,
+                walls: tag(mcrs_minecraft_block::keys::block_tags::WALLS)?,
+                obsidian: block_mask(blocks, Block::Obsidian)?,
+                cracked_stone_bricks: default_state(blocks, Block::CrackedStoneBricks)?,
+                mossy_stone_bricks: default_state(blocks, Block::MossyStoneBricks)?,
+                stone_brick_stairs: default_state(blocks, Block::StoneBrickStairs)?,
+                mossy_stone_brick_stairs: default_state(blocks, Block::MossyStoneBrickStairs)?,
+                stone_slab: default_state(blocks, Block::StoneSlab)?,
+                stone_brick_slab: default_state(blocks, Block::StoneBrickSlab)?,
+                mossy_stone_brick_slab: default_state(blocks, Block::MossyStoneBrickSlab)?,
+                mossy_stone_brick_wall: default_state(blocks, Block::MossyStoneBrickWall)?,
+                crying_obsidian: default_state(blocks, Block::CryingObsidian)?,
             })
         }
         LavaSubmergedBlock => CompiledProcessor::LavaSubmergedBlock {
@@ -588,10 +549,7 @@ fn compile_processor(
     }))
 }
 
-fn default_state(
-    blocks: &dyn BlockResolver,
-    block: StaticKey<keys::Block>,
-) -> Result<VoxelId, FeatureCompileError> {
+fn default_state(blocks: &dyn BlockResolver, block: Block) -> Result<VoxelId, FeatureCompileError> {
     state_of(blocks, &BlockState::bare(block.location().to_arc()))
 }
 
@@ -619,10 +577,10 @@ fn compile_processor_rule(
             // name with their entity; a container output under another name
             // needs a name-to-kind arm.
             let entity_id = match output_name.as_str() {
-                name if name == keys::block::SUSPICIOUS_SAND.as_static_str()
-                    || name == keys::block::SUSPICIOUS_GRAVEL.as_static_str() =>
+                name if name == Block::SuspiciousSand.as_static_str()
+                    || name == Block::SuspiciousGravel.as_static_str() =>
                 {
-                    keys::block_entity_type::BRUSHABLE_BLOCK.as_static_str()
+                    BlockEntityType::BrushableBlock.as_static_str()
                 }
                 name => *GeneratedBlockEntity::IDS
                     .iter()

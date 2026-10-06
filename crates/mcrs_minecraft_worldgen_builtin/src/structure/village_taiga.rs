@@ -1,13 +1,12 @@
 use super::*;
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, top_stairs};
 
-const PURPLE_BED: &str = keys::block::PURPLE_BED.as_static_str();
+const PURPLE_BED: &str = Block::PurpleBed.as_static_str();
 
-const PLANKS: &str = keys::block::SPRUCE_PLANKS.as_static_str();
-const SPRUCE_LOG: &str = keys::block::SPRUCE_LOG.as_static_str();
-const TRAPDOOR: &str = keys::block::SPRUCE_TRAPDOOR.as_static_str();
+const PLANKS: &str = Block::SprucePlanks.as_static_str();
+const SPRUCE_LOG: &str = Block::SpruceLog.as_static_str();
+const TRAPDOOR: &str = Block::SpruceTrapdoor.as_static_str();
 const STEP_SOUTH: &str = "minecraft:cobblestone_stairs[facing=south]";
 const STEP_EAST: &str = "minecraft:cobblestone_stairs[facing=east]";
 
@@ -41,12 +40,12 @@ kit! {
     log: log(SPRUCE_LOG, Y),
     log_x: log(SPRUCE_LOG, X),
     log_z: log(SPRUCE_LOG, Z),
-    fern: block(keys::block::FERN.as_static_str()),
+    fern: block(Block::Fern.as_static_str()),
     large_fern: block("minecraft:large_fern[half=lower]"),
     plate: block("minecraft:spruce_pressure_plate[powered=false]"),
     gate: block("minecraft:spruce_fence_gate[facing=north,in_wall=false,open=false,powered=false]"),
-    pumpkin: block(keys::block::PUMPKIN.as_static_str()),
-    purple_carpet: block(keys::block::PURPLE_CARPET.as_static_str()),
+    pumpkin: block(Block::Pumpkin.as_static_str()),
+    purple_carpet: block(Block::PurpleCarpet.as_static_str()),
     grindstone: block("minecraft:grindstone[face=floor,facing=south]"),
 }
 
@@ -60,7 +59,7 @@ fn shut_trapdoor(facing: Direction, half: &str) -> Cell {
 
 /// A cobblestone wall post joined to the sides in `low` and in `tall`.
 fn wall_post(low: &[Direction], tall: &[Direction]) -> Cell {
-    wall_joined(keys::block::COBBLESTONE_WALL.as_static_str(), low, tall)
+    wall_joined(Block::CobblestoneWall.as_static_str(), low, tall)
 }
 
 fn campfire(c: &mut Canvas, at: [i32; 3], facing: Direction, signal: bool) {
@@ -700,12 +699,7 @@ fn cartographer_house_1(c: &mut Canvas, v: Village) {
     shuttered_window(c, [1, 2, 4], West, "top");
     shuttered_window(c, [5, 2, 4], East, "top");
     shuttered_window(c, [3, 2, 6], South, "top");
-    c.place(
-        &block(keys::block::CARTOGRAPHY_TABLE.as_static_str()),
-        4,
-        1,
-        5,
-    );
+    c.place(&block(Block::CartographyTable.as_static_str()), 4, 1, 5);
     let ladder = block("minecraft:ladder[facing=north,waterlogged=false]");
     c.solid(&ladder, [2, 2, 5], [2, 3, 5]);
     c.place(&wall_torch(East), 2, 2, 3);
@@ -759,17 +753,13 @@ fn fisher_cottage_1(c: &mut Canvas, v: Village) {
     c.solid(&S.dirt, [0, 0, 0], [9, 0, 11]);
     c.runs(&S.grass, 0, shore.as_chunks().0);
     c.runs(
-        &block(keys::block::GRAVEL.as_static_str()),
+        &block(Block::Gravel.as_static_str()),
         0,
         gravel.as_chunks().0,
     );
+    c.scatter(&block(Block::Sand.as_static_str()), 0, sand.as_chunks().0);
     c.scatter(
-        &block(keys::block::SAND.as_static_str()),
-        0,
-        sand.as_chunks().0,
-    );
-    c.scatter(
-        &block(keys::block::CLAY.as_static_str()),
+        &block(Block::Clay.as_static_str()),
         0,
         &[[5, 5], [6, 5], [6, 6], [7, 7]],
     );
@@ -794,7 +784,7 @@ fn fisher_cottage_1(c: &mut Canvas, v: Village) {
     gabled_roof(c, Gable::new(Z, [1, 7], [3, 11], 4, 4), &S.cobble, [5, 9]);
     c.place(&S.spruce_fence, 4, 5, 9);
     c.open_door(
-        keys::block::SPRUCE_DOOR.as_static_str(),
+        Block::SpruceDoor.as_static_str(),
         [4, 2, 5],
         East,
         Hinge::Left,
@@ -854,12 +844,7 @@ fn taiga_fletcher_house_1(c: &mut Canvas) {
     chest(c, [5, 1, 4], East, "village_fletcher");
     c.fill(&S.spruce_fence, 7, 1, [4, 6]);
     c.fill(&K.purple_carpet, 7, 2, [4, 6]);
-    c.place(
-        &block(keys::block::FLETCHING_TABLE.as_static_str()),
-        7,
-        1,
-        5,
-    );
+    c.place(&block(Block::FletchingTable.as_static_str()), 7, 1, 5);
     c.fill(&S.wall_torch, 2, 2, [4, 6]);
     c.place(&wall_torch(East), 4, 3, 5);
     c.entrance([0, 0, 5], EMPTY, NOTHING);
@@ -1005,7 +990,7 @@ fn library_1(c: &mut Canvas, v: Village) {
     c.fill(&S.pane, [1, 9], 2, 4);
     c.fill(&S.pane, [3, 5, 7], 2, 6);
     c.solid(
-        &block(keys::block::RED_CARPET.as_static_str()),
+        &block(Block::RedCarpet.as_static_str()),
         [7, 1, 3],
         [7, 1, 5],
     );
@@ -1077,12 +1062,7 @@ fn taiga_masons_house_1(c: &mut Canvas) {
     c.door(SPRUCE_DOOR, [2, 2, 4], East, Hinge::Right);
     shuttered_window(c, [6, 3, 4], East, "top");
 
-    c.place(
-        &block(keys::block::POTTED_SPRUCE_SAPLING.as_static_str()),
-        3,
-        2,
-        3,
-    );
+    c.place(&block(Block::PottedSpruceSapling.as_static_str()), 3, 2, 3);
     c.place(&block("minecraft:stonecutter[facing=north]"), 5, 2, 4);
     c.place(&stairs(COBBLE_STAIRS, South), 3, 2, 5);
     c.fill(&S.wall_torch, 1, 3, [3, 5]);
@@ -1138,7 +1118,7 @@ fn shepherds_house_1(c: &mut Canvas, v: Village) {
     }
 
     c.solid(&block("minecraft:loom[facing=south]"), [3, 2, 2], [4, 2, 2]);
-    let white = block(keys::block::WHITE_CARPET.as_static_str());
+    let white = block(Block::WhiteCarpet.as_static_str());
     for z in 4..=6 {
         c.place(&K.purple_carpet, 3 + z % 2, 2, z);
         c.place(&white, 4 - z % 2, 2, z);
@@ -1152,7 +1132,7 @@ fn shepherds_house_1(c: &mut Canvas, v: Village) {
     if v.zombie {
         c.each(&S.air, &[[0, 1, 0], [0, 1, 1], [1, 1, 6]]);
         c.open_door(
-            keys::block::SPRUCE_DOOR.as_static_str(),
+            Block::SpruceDoor.as_static_str(),
             [2, 2, 3],
             South,
             Hinge::Right,
@@ -1251,11 +1231,11 @@ fn temple_1(c: &mut Canvas) {
     c.fill(&K.purple_carpet, 8..=9, 1, [3, 5]);
     c.place(&K.purple_carpet, 8, 1, 4);
     c.place(&S.cobble, 9, 1, 4);
-    c.place(&block(keys::block::POTTED_POPPY.as_static_str()), 9, 2, 4);
+    c.place(&block(Block::PottedPoppy.as_static_str()), 9, 2, 4);
     c.place(&wall_torch(East), 7, 3, 5);
     c.fill(&S.wall_torch, [7, 9], 10, 4);
 
-    let wood = |axis| log(keys::block::SPRUCE_WOOD.as_static_str(), axis);
+    let wood = |axis| log(Block::SpruceWood.as_static_str(), axis);
     for z in [1, 7] {
         c.solid(&K.log_x, [7, 11, z], [9, 11, z]);
         c.fill(&wood(X), [6, 10], 11, z);
@@ -1332,7 +1312,7 @@ fn tool_smith_1(c: &mut Canvas, v: Village) {
         shuttered_window(c, [x, 2, 4], South, "top");
     }
 
-    c.place(&block(keys::block::SMITHING_TABLE.as_static_str()), 2, 1, 2);
+    c.place(&block(Block::SmithingTable.as_static_str()), 2, 1, 2);
     c.place(&S.cobble, 2, 1, 3);
     chest(c, [6, 1, 3], North, "village_toolsmith");
     c.fill(&stairs(COBBLE_STAIRS, East), 8, 1, 2..=3);
@@ -1485,12 +1465,12 @@ fn taiga_decoration_5(c: &mut Canvas) {
 
 fn taiga_decoration_6(c: &mut Canvas) {
     trapdoor_ring(c, 0, [1, 1], [1, 1], "bottom");
-    marker(c, [1, 0, 1], keys::block::HAY_BLOCK.as_static_str());
+    marker(c, [1, 0, 1], Block::HayBlock.as_static_str());
     campfire(c, [1, 1, 1], East, true);
 }
 
 pub fn taiga_lamp_post_1(c: &mut Canvas) {
-    marker(c, [0, 0, 0], keys::block::COBBLESTONE_WALL.as_static_str());
+    marker(c, [0, 0, 0], Block::CobblestoneWall.as_static_str());
     c.place(&S.torch, 0, 1, 0);
 }
 
@@ -1583,15 +1563,15 @@ fn meeting_point_2(c: &mut Canvas, v: Village) {
 #[rustfmt::skip]
 mod data {
     use super::{Fields, Tag};
-    use mcrs_minecraft_keys as keys;
 
     pub const ARMOR_STAND: Fields = &[("AbsorptionAmount", Tag::Float(0.0)), ("Air", Tag::Short(300)), ("DeathTime", Tag::Short(0)), ("Dimension", Tag::Int(0)), ("DisabledSlots", Tag::Int(0)), ("FallFlying", Tag::Byte(0)), ("Fire", Tag::Short(-1)), ("HandItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[])])), ("Health", Tag::Float(20.0)), ("HurtByTimestamp", Tag::Int(0)), ("HurtTime", Tag::Short(0)), ("Invisible", Tag::Byte(0)), ("Invulnerable", Tag::Byte(0)), ("Motion", Tag::List(&[Tag::Double(0.0), Tag::Double(-0.0784000015258789), Tag::Double(0.0)])), ("NoBasePlate", Tag::Byte(0)), ("OnGround", Tag::Byte(1)), ("PortalCooldown", Tag::Int(0)), ("ShowArms", Tag::Byte(0)), ("Small", Tag::Byte(0)), ("attributes", Tag::List(&[Tag::Compound(&[("id", Tag::String(mcrs_minecraft_entity::keys::Attribute::MaxHealth.as_static_str())), ("base", Tag::Double(20.0))]), Tag::Compound(&[("id", Tag::String(mcrs_minecraft_entity::keys::Attribute::KnockbackResistance.as_static_str())), ("base", Tag::Double(0.0))]), Tag::Compound(&[("id", Tag::String(mcrs_minecraft_entity::keys::Attribute::MovementSpeed.as_static_str())), ("base", Tag::Double(0.699999988079071))]), Tag::Compound(&[("id", Tag::String(mcrs_minecraft_entity::keys::Attribute::Armor.as_static_str())), ("base", Tag::Double(0.0))]), Tag::Compound(&[("id", Tag::String(mcrs_minecraft_entity::keys::Attribute::ArmorToughness.as_static_str())), ("base", Tag::Double(0.0))])])), ("fall_distance", Tag::Double(0.0)), ("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::ArmorStand.as_static_str()))];
-    pub const ARMOR_STAND_ENTITY: Fields = &[("Pose", Tag::Compound(&[("Head", Tag::List(&[Tag::Float(3.978817), Tag::Float(1.5454245), Tag::Float(0.0)])), ("Body", Tag::List(&[Tag::Float(0.0), Tag::Float(1.4669724), Tag::Float(0.0)]))])), ("UUID", Tag::IntArray(&[1744164673, -892581116, -1275854238, 1984293558])), ("equipment", Tag::Compound(&[("head", Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(keys::item::IRON_HELMET.as_static_str()))]))])), ("Rotation", Tag::List(&[Tag::Float(45.0), Tag::Float(0.0)])), ("Pos", Tag::List(&[Tag::Double(-28.5), Tag::Double(65.0), Tag::Double(30.5)])), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(keys::item::IRON_HELMET.as_static_str()))])]))];
-    pub const ARMOR_STAND_ENTITY_2: Fields = &[("Pose", Tag::Compound(&[("Head", Tag::List(&[Tag::Float(2.951194), Tag::Float(-8.386092), Tag::Float(0.0)])), ("Body", Tag::List(&[Tag::Float(0.0), Tag::Float(3.02534), Tag::Float(0.0)]))])), ("UUID", Tag::IntArray(&[1243514763, -1783870732, -1260393629, 572257545])), ("equipment", Tag::Compound(&[("chest", Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(keys::item::IRON_CHESTPLATE.as_static_str()))]))])), ("Rotation", Tag::List(&[Tag::Float(90.0), Tag::Float(0.0)])), ("Pos", Tag::List(&[Tag::Double(-26.5), Tag::Double(65.0), Tag::Double(34.5)])), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(keys::item::IRON_CHESTPLATE.as_static_str()))]), Tag::Compound(&[])]))];
-    pub const CAMPFIRE_DATA: Fields = &[("Items", Tag::List(&[])), ("CookingTimes", Tag::IntArray(&[0, 0, 0, 0])), ("CookingTotalTimes", Tag::IntArray(&[0, 0, 0, 0])), ("id", Tag::String(keys::block_entity_type::CAMPFIRE.as_static_str()))];
-    pub const SIGN_DATA: Fields = &[("back_text", Tag::Compound(&[("has_glowing_text", Tag::Byte(0)), ("color", Tag::String("black")), ("messages", Tag::List(&[Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))])]))])), ("allow_op_features", Tag::Byte(1)), ("id", Tag::String(keys::block_entity_type::SIGN.as_static_str())), ("front_text", Tag::Compound(&[("has_glowing_text", Tag::Byte(0)), ("color", Tag::String("black")), ("messages", Tag::List(&[Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))])]))]))];
+    pub const ARMOR_STAND_ENTITY: Fields = &[("Pose", Tag::Compound(&[("Head", Tag::List(&[Tag::Float(3.978817), Tag::Float(1.5454245), Tag::Float(0.0)])), ("Body", Tag::List(&[Tag::Float(0.0), Tag::Float(1.4669724), Tag::Float(0.0)]))])), ("UUID", Tag::IntArray(&[1744164673, -892581116, -1275854238, 1984293558])), ("equipment", Tag::Compound(&[("head", Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(mcrs_minecraft_item::keys::Item::IronHelmet.as_static_str()))]))])), ("Rotation", Tag::List(&[Tag::Float(45.0), Tag::Float(0.0)])), ("Pos", Tag::List(&[Tag::Double(-28.5), Tag::Double(65.0), Tag::Double(30.5)])), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(mcrs_minecraft_item::keys::Item::IronHelmet.as_static_str()))])]))];
+    pub const ARMOR_STAND_ENTITY_2: Fields = &[("Pose", Tag::Compound(&[("Head", Tag::List(&[Tag::Float(2.951194), Tag::Float(-8.386092), Tag::Float(0.0)])), ("Body", Tag::List(&[Tag::Float(0.0), Tag::Float(3.02534), Tag::Float(0.0)]))])), ("UUID", Tag::IntArray(&[1243514763, -1783870732, -1260393629, 572257545])), ("equipment", Tag::Compound(&[("chest", Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(mcrs_minecraft_item::keys::Item::IronChestplate.as_static_str()))]))])), ("Rotation", Tag::List(&[Tag::Float(90.0), Tag::Float(0.0)])), ("Pos", Tag::List(&[Tag::Double(-26.5), Tag::Double(65.0), Tag::Double(34.5)])), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[("count", Tag::Int(1)), ("id", Tag::String(mcrs_minecraft_item::keys::Item::IronChestplate.as_static_str()))]), Tag::Compound(&[])]))];
+    pub const CAMPFIRE_DATA: Fields = &[("Items", Tag::List(&[])), ("CookingTimes", Tag::IntArray(&[0, 0, 0, 0])), ("CookingTotalTimes", Tag::IntArray(&[0, 0, 0, 0])), ("id", Tag::String(mcrs_minecraft_block::keys::BlockEntityType::Campfire.as_static_str()))];
+    pub const SIGN_DATA: Fields = &[("back_text", Tag::Compound(&[("has_glowing_text", Tag::Byte(0)), ("color", Tag::String("black")), ("messages", Tag::List(&[Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))])]))])), ("allow_op_features", Tag::Byte(1)), ("id", Tag::String(mcrs_minecraft_block::keys::BlockEntityType::Sign.as_static_str())), ("front_text", Tag::Compound(&[("has_glowing_text", Tag::Byte(0)), ("color", Tag::String("black")), ("messages", Tag::List(&[Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))]), Tag::Compound(&[("text", Tag::String(""))])]))]))];
 }
 use data::*;
+use mcrs_minecraft_block::keys::Block;
 
 templates! {
     "taiga" Taiga;

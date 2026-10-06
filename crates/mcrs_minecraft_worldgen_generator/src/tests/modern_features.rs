@@ -23,6 +23,7 @@ use super::{
     flat_snapshot, one_step, region_of, registries_over, try_build_program,
 };
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::keys::Fluid;
 
 const ORE: &str = r#"{
   "type": "minecraft:ore",
@@ -299,7 +300,7 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         super::survival_ids(&registries),
     )
     .expect("the corpus resolves");
-    let set = HolderSet::One(mcrs_minecraft_keys::fluid::EMPTY.id());
+    let set = HolderSet::One(Fluid::Empty.id());
     let mask = resolver
         .states(StateQuery::Fluids(&set))
         .expect("the empty fluid resolves");

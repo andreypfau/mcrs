@@ -6,6 +6,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -17,7 +18,6 @@ use mcrs_minecraft_inventory::{
     tick_drop_throttles,
 };
 use mcrs_minecraft_item::{DroppedItem, SlotTable, Thrower, slots, stack_to_slot};
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::storage::block_entity::{BlockEntityPos, InSection};
 use mcrs_minecraft_protocol::GameMode;

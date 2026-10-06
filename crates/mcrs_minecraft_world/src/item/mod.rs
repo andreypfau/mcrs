@@ -4,7 +4,7 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_block::keys::Block;
 
 use self::definitions::load_item_definitions;
 use crate::registries::test_registries;

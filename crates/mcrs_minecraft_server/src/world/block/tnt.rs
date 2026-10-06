@@ -10,7 +10,7 @@ use bevy_ecs::system::{Commands, Query, Res};
 use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
-use mcrs_minecraft_keys::block;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
 use mcrs_minecraft_level::explosion::{BlockExplodedEvent, Detonator};
@@ -54,7 +54,7 @@ fn player_will_destroy_tnt(
 }
 
 fn is_tnt(blocks: &Blocks, state: mcrs_minecraft_registry::BlockStateId) -> bool {
-    blocks.block_index(state) == block::TNT.id()
+    blocks.block_index(state) == Block::Tnt.id()
 }
 
 fn is_unstable_tnt(blocks: &Blocks, state: mcrs_minecraft_registry::BlockStateId) -> bool {

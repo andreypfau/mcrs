@@ -7,8 +7,8 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_environment::keys::ACTIVITY.location(), mcrs_minecraft_environment::keys::Activity::ENTRIES),
     (mcrs_minecraft_entity::keys::ATTRIBUTE.location(), mcrs_minecraft_entity::keys::Attribute::ENTRIES),
     (mcrs_minecraft_keys::ATTRIBUTE_TYPE.location(), mcrs_minecraft_keys::attribute_type::ENTRIES),
-    (mcrs_minecraft_keys::BLOCK.location(), mcrs_minecraft_keys::block::ENTRIES),
-    (mcrs_minecraft_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_keys::block_entity_type::ENTRIES),
+    (mcrs_minecraft_block::keys::BLOCK.location(), mcrs_minecraft_block::keys::Block::ENTRIES),
+    (mcrs_minecraft_block::keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_block::keys::BlockEntityType::ENTRIES),
     (mcrs_minecraft_block_predicate::keys::BLOCK_PREDICATE_TYPE.location(), mcrs_minecraft_block_predicate::keys::BlockPredicateType::ENTRIES),
     (mcrs_minecraft_anvil::keys::CHUNK_STATUS.location(), mcrs_minecraft_anvil::keys::ChunkStatus::ENTRIES),
     (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE.location(), mcrs_minecraft_keys::command_argument_type::ENTRIES),
@@ -34,14 +34,14 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_entity::keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::keys::EntityType::ENTRIES),
     (mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::keys::EnvironmentAttribute::ENTRIES),
     (mcrs_minecraft_keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::float_provider_type::ENTRIES),
-    (mcrs_minecraft_keys::FLUID.location(), mcrs_minecraft_keys::fluid::ENTRIES),
+    (mcrs_minecraft_block::keys::FLUID.location(), mcrs_minecraft_block::keys::Fluid::ENTRIES),
     (mcrs_minecraft_keys::GAME_EVENT.location(), mcrs_minecraft_keys::game_event::ENTRIES),
     (mcrs_minecraft_keys::GAME_RULE.location(), mcrs_minecraft_keys::game_rule::ENTRIES),
     (mcrs_minecraft_keys::HEIGHT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::height_provider_type::ENTRIES),
     (mcrs_minecraft_keys::INCOMING_RPC_METHODS.location(), mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES),
     (mcrs_minecraft_item::keys::INPUT_CONTROL_TYPE.location(), mcrs_minecraft_item::keys::InputControlType::ENTRIES),
     (mcrs_minecraft_keys::INT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::int_provider_type::ENTRIES),
-    (mcrs_minecraft_keys::ITEM.location(), mcrs_minecraft_keys::item::ENTRIES),
+    (mcrs_minecraft_item::keys::ITEM.location(), mcrs_minecraft_item::keys::Item::ENTRIES),
     (mcrs_minecraft_enchantment::keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_enchantment::keys::LootConditionType::ENTRIES),
     (mcrs_minecraft_keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_keys::loot_function_type::ENTRIES),
     (mcrs_minecraft_keys::LOOT_NBT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::loot_nbt_provider_type::ENTRIES),
@@ -106,6 +106,7 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
     std::iter::empty()
         .chain(mcrs_minecraft_anvil::keys::bindings())
         .chain(mcrs_minecraft_biome::keys::bindings())
+        .chain(mcrs_minecraft_block::keys::bindings())
         .chain(mcrs_minecraft_block_predicate::keys::bindings())
         .chain(mcrs_minecraft_dimension::keys::bindings())
         .chain(mcrs_minecraft_enchantment::keys::bindings())

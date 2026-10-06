@@ -1,4 +1,4 @@
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_server::configuration::update_tags;
 use mcrs_minecraft_world::registries::test_registries;
 

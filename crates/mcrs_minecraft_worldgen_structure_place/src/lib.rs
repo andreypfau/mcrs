@@ -18,11 +18,9 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, state_of, states_of,
 };
@@ -34,6 +32,7 @@ use mcrs_minecraft_worldgen_feature_place::template::{
     CompiledChain, Placement, SettingsRandom, mirror_state, place_template, rotate_state,
 };
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
+use mcrs_minecraft_block::keys::Block;
 
 /// One block state as `StructurePiece.placeBlock` mirrors and rotates it
 /// under each orientation, resolved once so a painter indexes instead of
@@ -52,7 +51,7 @@ impl Oriented {
     pub fn named(
         world: &WorldStates,
         blocks: &dyn BlockResolver,
-        block: StaticKey<keys::Block>,
+        block: Block,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
         Ok(Self::of(world, state(blocks, block, properties)?))
@@ -70,7 +69,7 @@ impl Oriented {
 
 pub fn state(
     blocks: &dyn BlockResolver,
-    block: StaticKey<keys::Block>,
+    block: Block,
     properties: &[(&str, &str)],
 ) -> Result<VoxelId, FeatureCompileError> {
     state_of(
@@ -89,7 +88,7 @@ pub fn state(
 
 pub fn block_mask(
     blocks: &dyn BlockResolver,
-    names: &[StaticKey<keys::Block>],
+    names: &[Block],
 ) -> Result<StateMask, FeatureCompileError> {
     let ids: Vec<ResourceLocation> = names
         .iter()

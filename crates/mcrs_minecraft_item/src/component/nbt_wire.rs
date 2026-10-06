@@ -1,9 +1,9 @@
 use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{is_default, long_value};
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{COMPOUND_ID, DOUBLE_ID, FLOAT_ID, LIST_ID, LONG_ID, STRING_ID};
@@ -137,7 +137,7 @@ impl Sample for DebugStickState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
         if !self.0.is_empty() {
-            tags.push((keys::block::OAK_LOG.as_static_str(), STRING_ID));
+            tags.push((Block::OakLog.as_static_str(), STRING_ID));
         }
         tags
     }
@@ -146,7 +146,7 @@ impl Sample for DebugStickState {
         vec![
             DebugStickState::default(),
             DebugStickState(BTreeMap::from([(
-                ResourceKey::from_location(keys::block::OAK_LOG.location().to_arc()),
+                ResourceKey::from_location(Block::OakLog.location().to_arc()),
                 "axis".to_string(),
             )])),
         ]

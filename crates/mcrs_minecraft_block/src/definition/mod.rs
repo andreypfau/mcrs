@@ -2,7 +2,6 @@ pub mod molang;
 pub mod schema;
 
 use core::time::Duration;
-use mcrs_minecraft_keys as keys;
 use std::sync::Arc;
 
 #[cfg(feature = "bevy")]
@@ -27,7 +26,8 @@ use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::{Block, Fluid};
+use crate::keys::Fluid;
+use crate::keys::Block;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, RegistryLookup, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
@@ -582,9 +582,9 @@ impl Builder {
         // Bedrock knows its air block by identifier and states no component for
         // it; Java's three air blocks are the same fact.
         let air = [
-            keys::block::AIR,
-            keys::block::CAVE_AIR,
-            keys::block::VOID_AIR,
+            Block::Air,
+            Block::CaveAir,
+            Block::VoidAir,
         ]
         .iter()
         .any(|block| block.as_static_str() == description.identifier.as_str());
@@ -745,9 +745,9 @@ impl Builder {
             .as_ref()
             .map(|fluid| {
                 Ok::<_, BlockError>(FluidState {
-                    fluid: keys::fluid::find(fluid.fluid.as_str())
+                    fluid: Fluid::find(fluid.fluid.as_str())
                         .ok_or_else(|| UnknownEntry {
-                            registry: keys::FLUID.location().into(),
+                            registry: crate::keys::FLUID.location().into(),
                             name: fluid.fluid.as_str().to_owned(),
                         })?
                         .id(),
@@ -923,7 +923,7 @@ mod tests {
 
     fn registry(names: &[&str]) -> Registry<Block> {
         Registry::new(
-            keys::BLOCK,
+            crate::keys::BLOCK,
             names
                 .iter()
                 .map(|name| ResourceLocation::read(name).unwrap()),

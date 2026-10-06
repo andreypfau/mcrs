@@ -3,12 +3,6 @@
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
-pub mod block;
-#[rustfmt::skip]
-pub mod block_entity_type;
-#[rustfmt::skip]
-pub mod block_tags;
-#[rustfmt::skip]
 pub mod chunk_generator;
 #[rustfmt::skip]
 pub mod command_argument_type;
@@ -43,10 +37,6 @@ pub mod flat_level_generator_preset_tags;
 #[rustfmt::skip]
 pub mod float_provider_type;
 #[rustfmt::skip]
-pub mod fluid;
-#[rustfmt::skip]
-pub mod fluid_tags;
-#[rustfmt::skip]
 pub mod game_event;
 #[rustfmt::skip]
 pub mod game_event_tags;
@@ -58,10 +48,6 @@ pub mod height_provider_type;
 pub mod incoming_rpc_methods;
 #[rustfmt::skip]
 pub mod int_provider_type;
-#[rustfmt::skip]
-pub mod item;
-#[rustfmt::skip]
-pub mod item_tags;
 #[rustfmt::skip]
 pub mod loot_function_type;
 #[rustfmt::skip]

@@ -1253,7 +1253,8 @@ mod tests {
     #[test]
     fn generated_tags_name_their_shipped_files() {
         use mcrs_minecraft_biome::keys::{BIOME, biome_tags};
-        use mcrs_minecraft_keys::{BLOCK, ITEM, block_tags, item_tags};
+        use mcrs_minecraft_block::keys::{BLOCK, block_tags};
+        use mcrs_minecraft_item::keys::{ITEM, item_tags};
 
         let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
         let rows = [

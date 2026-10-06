@@ -6,7 +6,7 @@ use crate::{ComponentMap, Template};
 #[cfg(feature = "bevy")]
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::Item;
+use crate::keys::Item;
 use mcrs_minecraft_registry::{BlockStateId, Id, Registry, UnknownEntry};
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/item_definition";
@@ -52,7 +52,7 @@ impl Default for ItemDefinitions {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
-            registry: Registry::new(mcrs_minecraft_keys::ITEM, std::iter::empty())
+            registry: Registry::new(crate::keys::ITEM, std::iter::empty())
                 .expect("a registry without entries builds"),
         }
     }
@@ -158,7 +158,7 @@ mod tests {
 
     fn registry(names: &[&str]) -> Registry<Item> {
         Registry::new(
-            mcrs_minecraft_keys::ITEM,
+            crate::keys::ITEM,
             names
                 .iter()
                 .map(|name| ResourceLocation::minecraft(name).unwrap()),

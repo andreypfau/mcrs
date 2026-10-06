@@ -41,7 +41,8 @@ use super::{
 };
 use crate::feature_program::{FeatureProgram, RunScratch};
 use crate::structures::place::place_element;
-use mcrs_minecraft_keys::block_entity_type;
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_worldgen_structure::frozen::{ElementId, FrozenElement};
 
 const MAGIC: &[u8; 8] = b"MCTMPLP2";
@@ -649,7 +650,7 @@ fn portal_processors(key: &str) -> Vec<StructureProcessor> {
         StructureProcessor::ProtectedBlocks {
             value: mcrs_minecraft_registry::HolderSet::Named(
                 mcrs_minecraft_worldgen_testing::corpus_set()
-                    .tags::<mcrs_minecraft_keys::Block>()
+                    .tags::<Block>()
                     .expect("the corpus holds the block tags")
                     .get(&mcrs_minecraft_core::TagKey::from_location(
                         rl!("minecraft:features_cannot_replace").to_arc(),
@@ -671,7 +672,7 @@ mod exhaustive {
     #[test]
     fn the_block_entity_type_order_is_the_registry_s() {
         assert_eq!(
-            block_entity_type::ENTRIES
+            BlockEntityType::ENTRIES
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),

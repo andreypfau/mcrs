@@ -9,6 +9,7 @@ use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};
 
 use crate::item::harness::{TestLookup, custom_data, hex};
+use mcrs_minecraft_item::keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
 const PATCH_DELIMITED_WIRE: &str = "070201011000170a03000178000186a00800046e616d6500046d637273000b08010800046c696e6506080800056e616d656403010704001400130d";
@@ -102,7 +103,7 @@ fn text_kinds_hash_like_vanilla_and_the_hashed_map_matches_its_wire() {
     );
 }
 
-fn diamond_sword() -> ResourceKey<mcrs_minecraft_keys::Item> {
+fn diamond_sword() -> ResourceKey<Item> {
     ResourceKey::from_location(rl!("minecraft:diamond_sword").to_arc())
 }
 

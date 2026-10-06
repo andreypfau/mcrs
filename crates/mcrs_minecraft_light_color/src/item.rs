@@ -8,11 +8,12 @@ use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
+use mcrs_minecraft_block::keys::Fluid;
+use mcrs_minecraft_block::keys::fluid_tags::WATER;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_item::ItemDefinitions;
-use mcrs_minecraft_keys::fluid_tags::WATER;
-use mcrs_minecraft_keys::{Fluid, Item};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport, RegistrySet, TagId};
 use serde::{Deserialize, Deserializer, Serialize, de};
@@ -31,8 +32,8 @@ pub struct LightColorIds {
 
 impl LightColorIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let items = report.tags(set, mcrs_minecraft_keys::ITEM);
-        let fluids = report.tags(set, mcrs_minecraft_keys::FLUID);
+        let items = report.tags(set, mcrs_minecraft_item::keys::ITEM);
+        let fluids = report.tags(set, mcrs_minecraft_block::keys::FLUID);
         let water_sensitive = items
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &WATER_SENSITIVE));

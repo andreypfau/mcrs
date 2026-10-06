@@ -1,5 +1,5 @@
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::Tool;
-use mcrs_minecraft_keys::{Block, block};
 use mcrs_minecraft_world::item::tool::{is_correct_for_drops, mining_speed};
 use mcrs_minecraft_world::registries::test_registries;
 
@@ -9,8 +9,8 @@ use crate::common::items;
 fn a_pickaxe_rule_matches_stone_by_bit_test() {
     let set = test_registries();
     let tags = set.tags::<Block>().unwrap();
-    let stone = block::STONE;
-    let dirt = block::DIRT;
+    let stone = Block::Stone;
+    let dirt = Block::Dirt;
 
     let items = items();
     let pickaxe = items

@@ -1,8 +1,8 @@
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::BlockStateId;
 
 use mcrs_minecraft_biome::source::BetaLandBiome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::keys::Block;
 
 /// Return the (top_block, filler_block) BlockStateIds for a Beta land biome.
 ///
@@ -16,12 +16,12 @@ pub fn beta_surface_blocks(
 ) -> (BlockStateId, BlockStateId) {
     match biome {
         BetaLandBiome::Desert | BetaLandBiome::IceDesert => {
-            let sand = blocks.default_state_of(keys::block::SAND.id());
+            let sand = blocks.default_state_of(Block::Sand.id());
             (sand, sand)
         }
         _ => {
-            let grass = blocks.default_state_of(keys::block::GRASS_BLOCK.id());
-            let dirt = blocks.default_state_of(keys::block::DIRT.id());
+            let grass = blocks.default_state_of(Block::GrassBlock.id());
+            let dirt = blocks.default_state_of(Block::Dirt.id());
             (grass, dirt)
         }
     }

@@ -13,7 +13,6 @@ use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
@@ -160,17 +159,17 @@ macro_rules! sample_registries_table {
 }
 
 sample_registries_table! {
-    keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
+    crate::keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
     crate::keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
     crate::keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
     crate::keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
-    keys::BLOCK => "block" ["stone", "dirt"]
+    mcrs_minecraft_block::keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];
     mcrs_minecraft_entity::keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
-    keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
+    mcrs_minecraft_block::keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
     crate::keys::POTION => "potion" ["water", "swiftness", "healing"] [];
     mcrs_minecraft_entity::keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
     crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]

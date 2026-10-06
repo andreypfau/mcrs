@@ -4,7 +4,6 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceKey};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::template::{
@@ -17,10 +16,11 @@ use mcrs_minecraft_worldgen_structure::hardcoded::igloo::IglooTemplate;
 use mcrs_minecraft_worldgen_structure::piece::{IglooPiece, ShipwreckPiece};
 
 use crate::{block_mask, place_positional, state};
+use mcrs_minecraft_block::keys::Block;
 
 fn ignore_blocks(
     blocks: &dyn BlockResolver,
-    names: &[StaticKey<keys::Block>],
+    names: &[Block],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
         blocks, names,
@@ -31,7 +31,7 @@ fn ignore_blocks(
 pub fn ignore_structure_and_air(
     blocks: &dyn BlockResolver,
 ) -> Result<CompiledChain, FeatureCompileError> {
-    ignore_blocks(blocks, &[keys::block::STRUCTURE_BLOCK, keys::block::AIR])
+    ignore_blocks(blocks, &[Block::StructureBlock, Block::Air])
 }
 
 /// `RandomizableContainer.setBlockEntityLootTable`: the container this run
@@ -131,10 +131,10 @@ pub struct IglooBlocks {
 impl IglooBlocks {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(IglooBlocks {
-            chain: ignore_blocks(blocks, &[keys::block::STRUCTURE_BLOCK])?,
-            snow_block: state(blocks, keys::block::SNOW_BLOCK, &[])?,
-            air: state(blocks, keys::block::AIR, &[])?,
-            ladder: block_mask(blocks, &[keys::block::LADDER])?,
+            chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
+            snow_block: state(blocks, Block::SnowBlock, &[])?,
+            air: state(blocks, Block::Air, &[])?,
+            ladder: block_mask(blocks, &[Block::Ladder])?,
         })
     }
 }

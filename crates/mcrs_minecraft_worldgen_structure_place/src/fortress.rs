@@ -2,7 +2,6 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -10,6 +9,7 @@ use mcrs_minecraft_worldgen_structure::piece::FortressKind;
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct FortressBlocks {
@@ -43,25 +43,25 @@ impl FortressBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);
         let fence = |sides: &[&str]| {
             let on: Vec<(&str, &str)> = sides.iter().map(|side| (*side, "true")).collect();
-            Oriented::named(world, blocks, keys::block::NETHER_BRICK_FENCE, &on)
+            Oriented::named(world, blocks, Block::NetherBrickFence, &on)
         };
         let stairs = |facing: &str| {
             Oriented::named(
                 world,
                 blocks,
-                keys::block::NETHER_BRICK_STAIRS,
+                Block::NetherBrickStairs,
                 &[("facing", facing)],
             )
         };
         Ok(FortressBlocks {
-            bricks: oriented(keys::block::NETHER_BRICKS)?,
-            air: oriented(keys::block::AIR)?,
-            lava: oriented(keys::block::LAVA)?,
-            soul_sand: oriented(keys::block::SOUL_SAND)?,
-            nether_wart: oriented(keys::block::NETHER_WART)?,
+            bricks: oriented(Block::NetherBricks)?,
+            air: oriented(Block::Air)?,
+            lava: oriented(Block::Lava)?,
+            soul_sand: oriented(Block::SoulSand)?,
+            nether_wart: oriented(Block::NetherWart)?,
             fence: fence(&[])?,
             fence_ns: fence(&["north", "south"])?,
             fence_we: fence(&["west", "east"])?,
@@ -77,7 +77,7 @@ impl FortressBlocks {
             stairs_south: stairs("south")?,
             stairs_east: stairs("east")?,
             stairs_west: stairs("west")?,
-            spawner: state(blocks, keys::block::SPAWNER, &[])?,
+            spawner: state(blocks, Block::Spawner, &[])?,
             chest: ChestStates::compile(blocks)?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
         })

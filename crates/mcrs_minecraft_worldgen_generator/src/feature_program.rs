@@ -12,6 +12,8 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockEntry, BlockStateData, BlockStateFlags,
 };
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
@@ -24,16 +26,11 @@ use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_we
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_keys::Fluid;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{
-    BlockStateId, HolderSet, Id, Registry, RegistrySet, StaticKey, TagId, Tags,
-};
+use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, TagId, Tags};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
@@ -1148,7 +1145,7 @@ fn compile_structures(
                 ))),
                 StructureKind::RuinedPortal { setups, .. } => {
                     let features_cannot_replace = resolver
-                        .block_tag(keys::block_tags::FEATURES_CANNOT_REPLACE)
+                        .block_tag(mcrs_minecraft_block::keys::block_tags::FEATURES_CANNOT_REPLACE)
                         .map_err(|error| error.within(&structure.id))?;
                     Some(CompiledStructure::RuinedPortal(Box::new(
                         RuinedPortalBlocks::compile(
@@ -1389,7 +1386,7 @@ fn compile_generator(
         })),
         Feature::BlockPile { state_provider } => Generator::BlockPile(CompiledBlockPile {
             state_provider: compile_provider(state_provider, resolver)?,
-            dirt_path: resolver.block_mask_of(keys::block::DIRT_PATH)?,
+            dirt_path: resolver.block_mask_of(Block::DirtPath)?,
         }),
         Feature::MultifaceGrowth {
             block,
@@ -1409,10 +1406,9 @@ fn compile_generator(
             chance_of_spreading: chance_of_spreading.0 as f32,
             can_be_placed_on: resolver.mask(StateQuery::Blocks(can_be_placed_on))?,
         })),
-        Feature::Vines => Generator::Vines(missing(
-            resolver.tables.vine,
-            keys::block::VINE.as_static_str(),
-        )?),
+        Feature::Vines => {
+            Generator::Vines(missing(resolver.tables.vine, Block::Vine.as_static_str())?)
+        }
         Feature::RandomNeighborSpread {
             block,
             accepted_neighbors,
@@ -1505,25 +1501,26 @@ fn compile_generator(
             placement_radius_around_floor: placement_radius_around_floor.0,
             placement_probability_per_valid_position: placement_probability_per_valid_position.0
                 as f32,
-            magma: resolver.default_state_of(keys::block::MAGMA_BLOCK.id()),
+            magma: resolver.default_state_of(Block::MagmaBlock.id()),
         }),
         Feature::BlueIce => Generator::BlueIce(CompiledBlueIce {
-            blue_ice: resolver.default_state_of(keys::block::BLUE_ICE.id()),
-            packed_ice: resolver.default_state_of(keys::block::PACKED_ICE.id()),
-            ice: resolver.default_state_of(keys::block::ICE.id()),
+            blue_ice: resolver.default_state_of(Block::BlueIce.id()),
+            packed_ice: resolver.default_state_of(Block::PackedIce.id()),
+            ice: resolver.default_state_of(Block::Ice.id()),
         }),
         Feature::FreezeTopLayer => {
-            let snow = resolver.block_of(keys::block::SNOW.id());
+            let snow = resolver.block_of(Block::Snow.id());
             Generator::FreezeTopLayer(Box::new(CompiledFreezeTopLayer {
                 biomes: resolver.climate.to_vec(),
-                ice: resolver.default_state_of(keys::block::ICE.id()),
+                ice: resolver.default_state_of(Block::Ice.id()),
                 snow: VoxelId::from(snow.default_state_id.0),
                 snow_layers_8: VoxelId::from(set(snow, snow.default_state_id, "layers", "8")?.0),
-                snow_states: resolver.block_mask_of(keys::block::SNOW)?,
+                snow_states: resolver.block_mask_of(Block::Snow)?,
                 cannot_support_snow: resolver
-                    .tag_mask(keys::block_tags::CANNOT_SUPPORT_SNOW_LAYER)?,
-                support_override_snow: resolver
-                    .tag_mask(keys::block_tags::SUPPORT_OVERRIDE_SNOW_LAYER)?,
+                    .tag_mask(mcrs_minecraft_block::keys::block_tags::CANNOT_SUPPORT_SNOW_LAYER)?,
+                support_override_snow: resolver.tag_mask(
+                    mcrs_minecraft_block::keys::block_tags::SUPPORT_OVERRIDE_SNOW_LAYER,
+                )?,
                 tables: resolver.tables.clone(),
             }))
         }
@@ -1541,20 +1538,21 @@ fn compile_generator(
             valid_blocks: resolver.mask(StateQuery::Blocks(valid_blocks))?,
         }),
         Feature::MonsterRoom => Generator::MonsterRoom(Box::new(CompiledMonsterRoom {
-            cobblestone: resolver.default_state_of(keys::block::COBBLESTONE.id()),
-            mossy_cobblestone: resolver.default_state_of(keys::block::MOSSY_COBBLESTONE.id()),
-            spawner: resolver.default_state_of(keys::block::SPAWNER.id()),
+            cobblestone: resolver.default_state_of(Block::Cobblestone.id()),
+            mossy_cobblestone: resolver.default_state_of(Block::MossyCobblestone.id()),
+            spawner: resolver.default_state_of(Block::Spawner.id()),
             chest_facing: missing(
-                horizontal_facings(resolver.blocks, keys::block::CHEST.id()),
-                keys::block::CHEST.as_static_str(),
+                horizontal_facings(resolver.blocks, Block::Chest.id()),
+                Block::Chest.as_static_str(),
             )?,
-            chest_states: resolver.block_mask_of(keys::block::CHEST)?,
-            spawner_states: resolver.block_mask_of(keys::block::SPAWNER)?,
-            cannot_replace: resolver.tag_mask(keys::block_tags::FEATURES_CANNOT_REPLACE)?,
+            chest_states: resolver.block_mask_of(Block::Chest)?,
+            spawner_states: resolver.block_mask_of(Block::Spawner)?,
+            cannot_replace: resolver
+                .tag_mask(mcrs_minecraft_block::keys::block_tags::FEATURES_CANNOT_REPLACE)?,
         })),
         Feature::BonusChest => Generator::BonusChest(CompiledBonusChest {
-            chest: resolver.default_state_of(keys::block::CHEST.id()),
-            torch: resolver.default_state_of(keys::block::TORCH.id()),
+            chest: resolver.default_state_of(Block::Chest.id()),
+            torch: resolver.default_state_of(Block::Torch.id()),
         }),
         Feature::Lake {
             fluid,
@@ -1571,7 +1569,7 @@ fn compile_generator(
                 resolver,
             )?,
             can_replace_with_barrier: compile_predicate(can_replace_with_barrier, resolver)?,
-            ice: resolver.default_state_of(keys::block::ICE.id()),
+            ice: resolver.default_state_of(Block::Ice.id()),
             freezing_biomes: resolver.freezing_biomes(),
         })),
         Feature::Geode {
@@ -1685,7 +1683,8 @@ fn compile_generator(
                     max_distance_from_edge_affecting_chance_of_speleothem.0,
                 max_distance_from_center_affecting_height_bias:
                     max_distance_from_center_affecting_height_bias.0,
-                base_stone_overworld: resolver.tag_mask(keys::block_tags::BASE_STONE_OVERWORLD)?,
+                base_stone_overworld: resolver
+                    .tag_mask(mcrs_minecraft_block::keys::block_tags::BASE_STONE_OVERWORLD)?,
             }))
         }
         Feature::LargeDripstone {
@@ -1701,10 +1700,10 @@ fn compile_generator(
             min_bluntness_for_wind,
         } => {
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
-            let dripstone = resolver.block_mask_of(keys::block::DRIPSTONE_BLOCK)?;
+            let dripstone = resolver.block_mask_of(Block::DripstoneBlock)?;
             let (column_radius_min, column_radius_max) = column_radius.bounds();
             Generator::LargeDripstone(Box::new(CompiledLargeDripstone {
-                dripstone: resolver.default_state_of(keys::block::DRIPSTONE_BLOCK.id()),
+                dripstone: resolver.default_state_of(Block::DripstoneBlock.id()),
                 column_edge: union_masks(&[&dripstone, &replaceable, &resolver.world.lava_states]),
                 floor_to_ceiling_search_range: floor_to_ceiling_search_range.0,
                 column_radius_min,
@@ -1717,11 +1716,12 @@ fn compile_generator(
                 wind_speed: *wind_speed,
                 min_radius_for_wind: min_radius_for_wind.0,
                 min_bluntness_for_wind: min_bluntness_for_wind.0 as f32,
-                base_stone_overworld: resolver.tag_mask(keys::block_tags::BASE_STONE_OVERWORLD)?,
+                base_stone_overworld: resolver
+                    .tag_mask(mcrs_minecraft_block::keys::block_tags::BASE_STONE_OVERWORLD)?,
             }))
         }
         Feature::Bamboo { probability } => {
-            let bamboo = resolver.block_of(keys::block::BAMBOO.id());
+            let bamboo = resolver.block_of(Block::Bamboo.id());
             let stalk = |leaves: &str, stage: &str| -> Compiled<VoxelId> {
                 let id = set(bamboo, bamboo.default_state_id, "age", "1")?;
                 let id = set(bamboo, id, "leaves", leaves)?;
@@ -1730,10 +1730,12 @@ fn compile_generator(
             };
             Generator::Bamboo(CompiledBamboo {
                 probability: probability.0 as f32,
-                supports_bamboo: resolver.tag_mask(keys::block_tags::SUPPORTS_BAMBOO)?,
-                beneath_podzol_replaceable: resolver
-                    .tag_mask(keys::block_tags::BENEATH_BAMBOO_PODZOL_REPLACEABLE)?,
-                podzol: resolver.default_state_of(keys::block::PODZOL.id()),
+                supports_bamboo: resolver
+                    .tag_mask(mcrs_minecraft_block::keys::block_tags::SUPPORTS_BAMBOO)?,
+                beneath_podzol_replaceable: resolver.tag_mask(
+                    mcrs_minecraft_block::keys::block_tags::BENEATH_BAMBOO_PODZOL_REPLACEABLE,
+                )?,
+                podzol: resolver.default_state_of(Block::Podzol.id()),
                 trunk: stalk("none", "0")?,
                 final_large: stalk("large", "1")?,
                 top_large: stalk("large", "0")?,
@@ -1741,8 +1743,8 @@ fn compile_generator(
             })
         }
         Feature::ChorusPlant => {
-            let plant = resolver.block_of(keys::block::CHORUS_PLANT.id());
-            let flower = resolver.block_of(keys::block::CHORUS_FLOWER.id());
+            let plant = resolver.block_of(Block::ChorusPlant.id());
+            let flower = resolver.block_of(Block::ChorusFlower.id());
             // The index is the six faces as bits, `down` highest, in
             // `connection_index` order.
             let mut plant_by_connections = [VoxelId(0); 64];
@@ -1751,9 +1753,10 @@ fn compile_generator(
                 *slot = missing(with_bits(plant, &faces, bits), &plant.identifier)?;
             }
             Generator::ChorusPlant(Box::new(CompiledChorusPlant {
-                supports: resolver.tag_mask(keys::block_tags::SUPPORTS_CHORUS_PLANT)?,
+                supports: resolver
+                    .tag_mask(mcrs_minecraft_block::keys::block_tags::SUPPORTS_CHORUS_PLANT)?,
                 plant_or_flower: resolver
-                    .blocks_mask(&[keys::block::CHORUS_PLANT, keys::block::CHORUS_FLOWER])?,
+                    .blocks_mask(&[Block::ChorusPlant, Block::ChorusFlower])?,
                 plant_by_connections,
                 flower_age5: VoxelId::from(set(flower, flower.default_state_id, "age", "5")?.0),
             }))
@@ -1766,19 +1769,18 @@ fn compile_generator(
             replaceable_blocks,
             planted,
         } => {
-            let weeping = resolver.block_of(keys::block::WEEPING_VINES.id());
+            let weeping = resolver.block_of(Block::WeepingVines.id());
             Generator::HugeFungus(Box::new(CompiledHugeFungus {
                 valid_base: resolver.block_mask(valid_base_block.name.as_str())?,
                 stem_state: resolver.resolve(stem_state)?,
                 hat_block: resolver.block_mask(hat_state.name.as_str())?,
                 place_vines: resolver.blocks.id_of(hat_state.name.as_str())
-                    == Some(keys::block::NETHER_WART_BLOCK.id()),
+                    == Some(Block::NetherWartBlock.id()),
                 hat_state: resolver.resolve(hat_state)?,
                 decor_state: resolver.resolve(decor_state)?,
                 replaceable_blocks: compile_predicate(replaceable_blocks, resolver)?,
                 planted: *planted,
-                weeping_vines_plant: resolver
-                    .default_state_of(keys::block::WEEPING_VINES_PLANT.id()),
+                weeping_vines_plant: resolver.default_state_of(Block::WeepingVinesPlant.id()),
                 weeping_vines_by_age: [
                     VoxelId::from(set(weeping, weeping.default_state_id, "age", "23")?.0),
                     VoxelId::from(set(weeping, weeping.default_state_id, "age", "24")?.0),
@@ -1807,21 +1809,21 @@ fn compile_generator(
             stem_provider: compile_provider(stem_provider, resolver)?,
             foliage_radius: foliage_radius.0,
             can_place_on: compile_predicate(can_place_on, resolver)?,
-            leaves: resolver.tag_mask(keys::block_tags::LEAVES)?,
+            leaves: resolver.tag_mask(mcrs_minecraft_block::keys::block_tags::LEAVES)?,
             replaceable_by_mushrooms: resolver
-                .tag_mask(keys::block_tags::REPLACEABLE_BY_MUSHROOMS)?,
+                .tag_mask(mcrs_minecraft_block::keys::block_tags::REPLACEABLE_BY_MUSHROOMS)?,
             tables: resolver.tables.clone(),
         })),
         Feature::Iceberg { state } => Generator::Iceberg(CompiledIceberg {
             state: resolver.resolve(state)?,
-            ice_mask: resolver.block_mask_of(keys::block::ICE)?,
-            snow_block: resolver.default_state_of(keys::block::SNOW_BLOCK.id()),
-            snow_block_mask: resolver.block_mask_of(keys::block::SNOW_BLOCK)?,
-            snow_layer_mask: resolver.block_mask_of(keys::block::SNOW)?,
+            ice_mask: resolver.block_mask_of(Block::Ice)?,
+            snow_block: resolver.default_state_of(Block::SnowBlock.id()),
+            snow_block_mask: resolver.block_mask_of(Block::SnowBlock)?,
+            snow_layer_mask: resolver.block_mask_of(Block::Snow)?,
             iceberg_mask: resolver.blocks_mask(&[
-                keys::block::PACKED_ICE,
-                keys::block::SNOW_BLOCK,
-                keys::block::BLUE_ICE,
+                Block::PackedIce,
+                Block::SnowBlock,
+                Block::BlueIce,
             ])?,
         }),
         Feature::Spike {
@@ -1834,33 +1836,33 @@ fn compile_generator(
             can_replace: compile_predicate(can_replace, resolver)?,
         }),
         Feature::EndPlatform => Generator::EndPlatform(CompiledEndPlatform {
-            obsidian: resolver.default_state_of(keys::block::OBSIDIAN.id()),
+            obsidian: resolver.default_state_of(Block::Obsidian.id()),
         }),
         Feature::VoidStartPlatform => Generator::VoidStartPlatform(CompiledVoidStartPlatform {
-            stone: resolver.default_state_of(keys::block::STONE.id()),
-            cobblestone: resolver.default_state_of(keys::block::COBBLESTONE.id()),
+            stone: resolver.default_state_of(Block::Stone.id()),
+            cobblestone: resolver.default_state_of(Block::Cobblestone.id()),
         }),
         Feature::EndPodium { active } => Generator::EndPodium(CompiledEndPodium {
             active: *active,
-            bedrock: resolver.default_state_of(keys::block::BEDROCK.id()),
-            end_stone: resolver.default_state_of(keys::block::END_STONE.id()),
-            end_portal: resolver.default_state_of(keys::block::END_PORTAL.id()),
+            bedrock: resolver.default_state_of(Block::Bedrock.id()),
+            end_stone: resolver.default_state_of(Block::EndStone.id()),
+            end_portal: resolver.default_state_of(Block::EndPortal.id()),
             wall_torch: missing(
-                horizontal_facings(resolver.blocks, keys::block::WALL_TORCH.id()),
-                keys::block::WALL_TORCH.as_static_str(),
+                horizontal_facings(resolver.blocks, Block::WallTorch.id()),
+                Block::WallTorch.as_static_str(),
             )?,
         }),
         Feature::EndGateway { exit, exact } => Generator::EndGateway(CompiledEndGateway {
             exit: *exit,
             exact: *exact,
-            gateway: resolver.default_state_of(keys::block::END_GATEWAY.id()),
-            bedrock: resolver.default_state_of(keys::block::BEDROCK.id()),
+            gateway: resolver.default_state_of(Block::EndGateway.id()),
+            bedrock: resolver.default_state_of(Block::Bedrock.id()),
         }),
         Feature::EndIsland => Generator::EndIsland(CompiledEndIsland {
-            end_stone: resolver.default_state_of(keys::block::END_STONE.id()),
+            end_stone: resolver.default_state_of(Block::EndStone.id()),
         }),
         Feature::EndSpikes { spikes, .. } => {
-            let bars = resolver.block_of(keys::block::IRON_BARS.id());
+            let bars = resolver.block_of(Block::IronBars.id());
             // The index is the four sides as bits, `north` highest, in
             // `iron_bars_index` order.
             let mut iron_bars = [VoxelId(0); 16];
@@ -1874,9 +1876,9 @@ fn compile_generator(
                 } else {
                     spikes.clone()
                 },
-                obsidian: resolver.default_state_of(keys::block::OBSIDIAN.id()),
-                bedrock: resolver.default_state_of(keys::block::BEDROCK.id()),
-                fire: resolver.default_state_of(keys::block::FIRE.id()),
+                obsidian: resolver.default_state_of(Block::Obsidian.id()),
+                bedrock: resolver.default_state_of(Block::Bedrock.id()),
+                fire: resolver.default_state_of(Block::Fire.id()),
                 iron_bars,
             }))
         }
@@ -1974,27 +1976,25 @@ fn compile_generator(
             growth_rounds: growth_rounds.0,
             spread_rounds: spread_rounds.0,
             vein: missing(
-                multiface_states(resolver.blocks, keys::block::SCULK_VEIN.as_static_str()),
-                keys::block::SCULK_VEIN.as_static_str(),
+                multiface_states(resolver.blocks, Block::SculkVein.as_static_str()),
+                Block::SculkVein.as_static_str(),
             )?,
-            sculk: resolver.default_state_of(keys::block::SCULK.id()),
-            sculk_states: resolver.block_mask_of(keys::block::SCULK)?,
+            sculk: resolver.default_state_of(Block::Sculk.id()),
+            sculk_states: resolver.block_mask_of(Block::Sculk)?,
             blocks_vein: resolver.blocks_mask(&[
-                keys::block::SCULK,
-                keys::block::SCULK_CATALYST,
-                keys::block::MOVING_PISTON,
+                Block::Sculk,
+                Block::SculkCatalyst,
+                Block::MovingPiston,
             ])?,
-            fire: resolver.tag_mask(keys::block_tags::FIRE)?,
+            fire: resolver.tag_mask(mcrs_minecraft_block::keys::block_tags::FIRE)?,
             replaceable_world_gen: resolver
-                .tag_mask(keys::block_tags::SCULK_REPLACEABLE_WORLD_GEN)?,
-            substrate: resolver.tag_mask(keys::block_tags::SCULK_REPLACEABLE)?,
-            growth_inhibitors: resolver.tag_mask(keys::block_tags::SCULK_GROWTH_INHIBITORS)?,
-            sensor: waterlogged_pair(resolver, keys::block::SCULK_SENSOR, &[])?,
-            shrieker: waterlogged_pair(
-                resolver,
-                keys::block::SCULK_SHRIEKER,
-                &[("can_summon", "true")],
-            )?,
+                .tag_mask(mcrs_minecraft_block::keys::block_tags::SCULK_REPLACEABLE_WORLD_GEN)?,
+            substrate: resolver
+                .tag_mask(mcrs_minecraft_block::keys::block_tags::SCULK_REPLACEABLE)?,
+            growth_inhibitors: resolver
+                .tag_mask(mcrs_minecraft_block::keys::block_tags::SCULK_GROWTH_INHIBITORS)?,
+            sensor: waterlogged_pair(resolver, Block::SculkSensor, &[])?,
+            shrieker: waterlogged_pair(resolver, Block::SculkShrieker, &[("can_summon", "true")])?,
         })),
         Feature::NoOp => Generator::NoOp,
         Feature::BetaPopulate => Generator::BetaPopulate(Box::new(BetaPopulate {
@@ -2144,7 +2144,7 @@ pub(super) fn missing<T>(value: Option<T>, what: impl std::fmt::Display) -> Comp
 /// One block's state under the given properties, dry and waterlogged.
 fn waterlogged_pair(
     resolver: &Resolver<'_>,
-    block: StaticKey<Block>,
+    block: Block,
     properties: &[(&str, &str)],
 ) -> Compiled<[VoxelId; 2]> {
     let dry = missing(
@@ -2195,14 +2195,14 @@ fn with_bits_from(
     Some(VoxelId::from(id.0))
 }
 
-const DELTA_CANNOT_REPLACE: &[StaticKey<Block>] = &[
-    keys::block::BEDROCK,
-    keys::block::NETHER_BRICKS,
-    keys::block::NETHER_BRICK_FENCE,
-    keys::block::NETHER_BRICK_STAIRS,
-    keys::block::NETHER_WART,
-    keys::block::CHEST,
-    keys::block::SPAWNER,
+const DELTA_CANNOT_REPLACE: &[Block] = &[
+    Block::Bedrock,
+    Block::NetherBricks,
+    Block::NetherBrickFence,
+    Block::NetherBrickStairs,
+    Block::NetherWart,
+    Block::Chest,
+    Block::Spawner,
 ];
 
 fn location(id: &str) -> ResourceLocation {
@@ -2224,7 +2224,7 @@ pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {
 /// asks of the block it would climb. `None` where the corpus has no such
 /// block, which is what a datapack that drops it leaves behind.
 fn mossy_carpet_states(resolver: &Resolver<'_>) -> Compiled<Option<MossyCarpetStates>> {
-    const BLOCK: StaticKey<Block> = keys::block::PALE_MOSS_CARPET;
+    const BLOCK: Block = Block::PaleMossCarpet;
     const SIDES: [WallSide; 3] = [WallSide::None, WallSide::Low, WallSide::Tall];
     const FACES: [&str; 4] = ["north", "east", "south", "west"];
 
@@ -2342,15 +2342,11 @@ fn horizontal_facings(blocks: &BlockDefinitions, block: Id<Block>) -> Option<[Vo
 
 /// `minecraft:vine` attached on each single face, in `Direction::all()` order.
 fn vine_states(blocks: &BlockDefinitions) -> Option<[VoxelId; 6]> {
-    let default = state_of(blocks, keys::block::VINE.id(), &[])?;
+    let default = state_of(blocks, Block::Vine.id(), &[])?;
     let mut states = [default; 6];
     for (index, direction) in Direction::all().into_iter().enumerate() {
         if direction != Direction::Down {
-            states[index] = state_of(
-                blocks,
-                keys::block::VINE.id(),
-                &[(direction.name(), "true")],
-            )?;
+            states[index] = state_of(blocks, Block::Vine.id(), &[(direction.name(), "true")])?;
         }
     }
     Some(states)
@@ -2692,7 +2688,7 @@ impl<'a> Resolver<'a> {
     /// here so the corpus's seventy-five `simple_block` entries share one copy
     /// rather than each compiling its own.
     fn block_tables(&self) -> Compiled<BlockTables> {
-        let water = self.blocks.default_state_of(keys::block::WATER.id());
+        let water = self.blocks.default_state_of(Block::Water.id());
         Ok(BlockTables {
             double_plants: double_plant_table(self.blocks),
             mossy_carpet: mossy_carpet_states(self)?,
@@ -2705,22 +2701,22 @@ impl<'a> Resolver<'a> {
 
     /// The world-wide state sets, resolved once for every feature to share.
     fn world_states(&self) -> WorldStates {
-        let water = self.states(StateQuery::Fluids(&HolderSet::One(keys::fluid::WATER.id())));
-        let lava = self.states(StateQuery::Fluids(&HolderSet::One(keys::fluid::LAVA.id())));
-        let block = |block: StaticKey<Block>| self.block_mask_of(block).unwrap_or_default();
+        let water = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Water.id())));
+        let lava = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Lava.id())));
+        let block = |block: Block| self.block_mask_of(block).unwrap_or_default();
         WorldStates {
-            air: self.default_state_of(keys::block::AIR.id()),
-            cave_air: self.default_state_of(keys::block::CAVE_AIR.id()),
-            water: self.default_state_of(keys::block::WATER.id()),
-            lava: self.default_state_of(keys::block::LAVA.id()),
+            air: self.default_state_of(Block::Air.id()),
+            cave_air: self.default_state_of(Block::CaveAir.id()),
+            water: self.default_state_of(Block::Water.id()),
+            lava: self.default_state_of(Block::Lava.id()),
             air_states: self.flag_mask(BlockStateFlags::IS_AIR),
-            water_states: block(keys::block::WATER),
-            lava_states: block(keys::block::LAVA),
+            water_states: block(Block::Water),
+            lava_states: block(Block::Lava),
             water_fluid: water.clone().unwrap_or_default(),
             water_source: self.state_mask(|state| {
                 state
                     .fluid
-                    .is_some_and(|f| f.source && f.fluid == keys::fluid::WATER.id())
+                    .is_some_and(|f| f.source && f.fluid == Fluid::Water.id())
             }),
             lava_fluid: lava.clone().unwrap_or_default(),
             any_source_fluid: self.state_mask(|state| state.fluid.is_some_and(|f| f.source)),
@@ -2732,14 +2728,14 @@ impl<'a> Resolver<'a> {
             center_down: Arc::new(crate::trees::face_support(self.blocks).center_down),
             empty_collision: self
                 .state_mask(|state| self.blocks.shape(state.collision_shape).is_empty()),
-            bedrock: block(keys::block::BEDROCK),
-            unrotated: union_masks(&[&block(keys::block::FIRE), &block(keys::block::CHORUS_PLANT)]),
+            bedrock: block(Block::Bedrock),
+            unrotated: union_masks(&[&block(Block::Fire), &block(Block::ChorusPlant)]),
             unmirrored: union_masks(&[
-                &block(keys::block::FIRE),
-                &block(keys::block::CHORUS_PLANT),
-                &block(keys::block::ANVIL),
-                &block(keys::block::CHIPPED_ANVIL),
-                &block(keys::block::DAMAGED_ANVIL),
+                &block(Block::Fire),
+                &block(Block::ChorusPlant),
+                &block(Block::Anvil),
+                &block(Block::ChippedAnvil),
+                &block(Block::DamagedAnvil),
             ]),
             has_block_entity: self.flag_mask(BlockStateFlags::HAS_BLOCK_ENTITY),
             block_of_state: (0..=u16::MAX)
@@ -2774,7 +2770,7 @@ impl<'a> Resolver<'a> {
         mask
     }
 
-    pub fn blocks_mask(&self, blocks: &[StaticKey<Block>]) -> Compiled<StateMask> {
+    pub fn blocks_mask(&self, blocks: &[Block]) -> Compiled<StateMask> {
         let ids: Vec<ResourceLocation> = blocks
             .iter()
             .map(|block| location(block.as_static_str()))
@@ -2827,7 +2823,7 @@ impl<'a> Resolver<'a> {
         self.mask(StateQuery::Block(&location(block)))
     }
 
-    pub fn block_mask_of(&self, block: StaticKey<Block>) -> Compiled<StateMask> {
+    pub fn block_mask_of(&self, block: Block) -> Compiled<StateMask> {
         self.block_mask(block.as_static_str())
     }
 
@@ -2901,7 +2897,7 @@ impl BlockResolver for Resolver<'_> {
                 // No block definition interns `minecraft:empty`, but the
                 // reference's fluid-less states all carry it, so it matches
                 // everything that holds no fluid rather than nothing at all.
-                let empty = set.contains(keys::fluid::EMPTY.id(), &self.fluid_tags);
+                let empty = set.contains(Fluid::Empty.id(), &self.fluid_tags);
                 return Some(self.state_mask(|state| match state.fluid {
                     None => empty,
                     Some(fluid) => set.contains(fluid.fluid, &self.fluid_tags),

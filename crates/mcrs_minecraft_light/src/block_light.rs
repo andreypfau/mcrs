@@ -89,7 +89,7 @@ mod tests {
             });
             let asset_server = app.world().resource::<AssetServer>().clone();
             let blocks = shipped_report()
-                .registry_of(mcrs_minecraft_keys::BLOCK)
+                .registry_of(mcrs_minecraft_block::keys::BLOCK)
                 .expect("the registries report has blocks");
             let (definitions, _) = load_block_definitions(&asset_server, &blocks)
                 .expect("the block definition corpus loads");

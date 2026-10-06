@@ -18,20 +18,6 @@ impl Registered for AttributeType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Block {}
-pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!("minecraft:block"));
-impl Registered for Block {
-    const REGISTRY: RegistryKey<Self> = BLOCK;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockEntityType {}
-pub const BLOCK_ENTITY_TYPE: RegistryKey<BlockEntityType> = RegistryKey::new(rl!("minecraft:block_entity_type"));
-impl Registered for BlockEntityType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_ENTITY_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CommandArgumentType {}
 pub const COMMAND_ARGUMENT_TYPE: RegistryKey<CommandArgumentType> = RegistryKey::new(rl!("minecraft:command_argument_type"));
 impl Registered for CommandArgumentType {
@@ -123,13 +109,6 @@ impl Registered for FloatProviderType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Fluid {}
-pub const FLUID: RegistryKey<Fluid> = RegistryKey::new(rl!("minecraft:fluid"));
-impl Registered for Fluid {
-    const REGISTRY: RegistryKey<Self> = FLUID;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameEvent {}
 pub const GAME_EVENT: RegistryKey<GameEvent> = RegistryKey::new(rl!("minecraft:game_event"));
 impl Registered for GameEvent {
@@ -162,13 +141,6 @@ pub enum IntProviderType {}
 pub const INT_PROVIDER_TYPE: RegistryKey<IntProviderType> = RegistryKey::new(rl!("minecraft:int_provider_type"));
 impl Registered for IntProviderType {
     const REGISTRY: RegistryKey<Self> = INT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Item {}
-pub const ITEM: RegistryKey<Item> = RegistryKey::new(rl!("minecraft:item"));
-impl Registered for Item {
-    const REGISTRY: RegistryKey<Self> = ITEM;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -388,12 +360,10 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 55] {
+pub fn bindings() -> [TypeBinding; 51] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
-        BLOCK.binding(),
-        BLOCK_ENTITY_TYPE.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
         CONTEXT_FLOAT_PROVIDER.binding(),
         CONTEXT_FLOAT_PROVIDER_TYPE.binding(),
@@ -407,13 +377,11 @@ pub fn bindings() -> [TypeBinding; 55] {
         ENCHANTMENT_PROVIDER_TYPE.binding(),
         ENTITY_SUB_PREDICATE_TYPE.binding(),
         FLOAT_PROVIDER_TYPE.binding(),
-        FLUID.binding(),
         GAME_EVENT.binding(),
         GAME_RULE.binding(),
         HEIGHT_PROVIDER_TYPE.binding(),
         INCOMING_RPC_METHODS.binding(),
         INT_PROVIDER_TYPE.binding(),
-        ITEM.binding(),
         ITEM_MODIFIER.binding(),
         LOOT_FUNCTION_TYPE.binding(),
         LOOT_NBT_PROVIDER_TYPE.binding(),

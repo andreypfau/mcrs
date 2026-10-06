@@ -1,6 +1,7 @@
 #[rustfmt::skip]
 pub mod keys;
 
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_registry::{HolderSet, Id};
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ pub struct DimensionType {
     pub min_y: i32,
     pub height: u32,
     pub logical_height: u32,
-    pub infiniburn: HolderSet<mcrs_minecraft_keys::Block>,
+    pub infiniburn: HolderSet<Block>,
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntProvider,

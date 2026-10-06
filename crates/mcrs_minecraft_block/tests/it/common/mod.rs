@@ -19,7 +19,7 @@ pub fn corpus() -> &'static BlockDefinitions {
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
         let blocks = shipped_report()
-            .registry_of(mcrs_minecraft_keys::BLOCK)
+            .registry_of(mcrs_minecraft_block::keys::BLOCK)
             .expect("the registries report has blocks");
         load_block_definitions(&asset_server, &blocks)
             .expect("the corpus loads")

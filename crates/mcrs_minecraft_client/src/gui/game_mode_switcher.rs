@@ -6,7 +6,6 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::WritePacket;
@@ -21,6 +20,7 @@ use super::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::inventory::{Screen, grab};
 use crate::player::Player;
+use mcrs_minecraft_item::keys::Item;
 
 const MODIFIER: KeyCode = KeyCode::F3;
 const SWITCH: KeyCode = KeyCode::F4;
@@ -49,10 +49,10 @@ fn name_key(mode: GameMode) -> &'static str {
 
 fn icon_item(mode: GameMode) -> StaticResourceLocation {
     match mode {
-        GameMode::Creative => keys::item::GRASS_BLOCK.location(),
-        GameMode::Survival => keys::item::IRON_SWORD.location(),
-        GameMode::Adventure => keys::item::BURIED_TREASURE_MAP.location(),
-        GameMode::Spectator => keys::item::ENDER_EYE.location(),
+        GameMode::Creative => Item::GrassBlock.location(),
+        GameMode::Survival => Item::IronSword.location(),
+        GameMode::Adventure => Item::BuriedTreasureMap.location(),
+        GameMode::Spectator => Item::EnderEye.location(),
     }
 }
 

@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::ops::Not;
 
@@ -14,6 +13,7 @@ use crate::component::consume::{
     unit_float, zero,
 };
 use crate::harness::Sample;
+use crate::keys::Item;
 use crate::kind::ItemComponentKind;
 
 float_default! {
@@ -256,7 +256,7 @@ impl Sample for UseCooldown {
             },
             UseCooldown {
                 seconds: 0.5,
-                cooldown_group: Some(keys::item::ENDER_PEARL.location().to_arc()),
+                cooldown_group: Some(Item::EnderPearl.location().to_arc()),
             },
         ]
     }

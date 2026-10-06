@@ -1,5 +1,4 @@
 use super::*;
-use mcrs_minecraft_keys as keys;
 
 /// A marker that turns into `floor`, with the `animals` of one `kind` standing on it.
 fn animals(c: &mut Canvas, floor: &str, kind: Fields, animals: &[([f64; 3], [i32; 3], Fields)]) {
@@ -10,9 +9,9 @@ fn animals(c: &mut Canvas, floor: &str, kind: Fields, animals: &[([f64; 3], [i32
 }
 
 pub fn well_bottom(c: &mut Canvas) {
-    let cobblestone = block(keys::block::COBBLESTONE.as_static_str());
+    let cobblestone = block(mcrs_minecraft_block::keys::Block::Cobblestone.as_static_str());
     let water = block("minecraft:water[level=0]");
-    let jigsaw = settled(keys::block::JIGSAW.as_static_str());
+    let jigsaw = settled(mcrs_minecraft_block::keys::Block::Jigsaw.as_static_str());
     c.solid(&cobblestone, [0, 0, 0], [3, 2, 3]);
     c.solid(&water, [1, 1, 1], [2, 2, 2]);
     c.place(&jigsaw, 3, 2, 0);
@@ -21,7 +20,7 @@ pub fn well_bottom(c: &mut Canvas) {
         [3, 2, 0],
         "minecraft:bottom",
         mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_WELL_BOTTOMS.as_str(),
-        keys::block::COBBLESTONE.as_static_str(),
+        mcrs_minecraft_block::keys::Block::Cobblestone.as_static_str(),
     );
 }
 
@@ -237,7 +236,7 @@ pub const TEMPLATES: &[Entry] = &[
     ("village/common/animals/horses_4", [1, 3, 1], |c| {
         animals(
             c,
-            keys::block::HAY_BLOCK.as_static_str(),
+            mcrs_minecraft_block::keys::Block::HayBlock.as_static_str(),
             HORSE_MOB,
             &[([0.3232421875, 1.0, 0.6767578125], [0, 1, 0], HORSE_ENTITY_6)],
         )

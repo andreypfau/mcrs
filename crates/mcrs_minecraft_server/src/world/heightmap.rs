@@ -4,7 +4,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{ColumnHeights, VoxelId};
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_level::block_update::BlockPlaced;
 use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::{DimensionTypeConfig, InDimension};

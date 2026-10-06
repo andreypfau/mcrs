@@ -1,4 +1,4 @@
-use mcrs_minecraft_keys::{Item, item};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::item::{HashedPatchMap, HashedStack};
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::DenseId;
@@ -6,8 +6,8 @@ use mcrs_minecraft_registry::Id;
 
 #[test]
 fn the_first_and_last_item_cross_the_wire_by_protocol_id() {
-    let last = u16::try_from(mcrs_minecraft_keys::item::ENTRIES.len() - 1).unwrap();
-    for (id, number) in [(item::AIR.id(), 0), (Id::<Item>::from_raw(last), last)] {
+    let last = u16::try_from(Item::ENTRIES.len() - 1).unwrap();
+    for (id, number) in [(Item::Air.id(), 0), (Id::<Item>::from_raw(last), last)] {
         assert_eq!(id.number(), number);
         let stack = HashedStack {
             id,

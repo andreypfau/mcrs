@@ -1,4 +1,5 @@
 use crate::component::*;
+use crate::keys::Item;
 use crate::{
     ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent, ItemStackValue,
     ProtoStack, Template, for_each_data_component,
@@ -8,7 +9,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::{EntityRef, EntityWorldMut, World};
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::Id;
 
 use crate::definition::{ItemEntry, Items};

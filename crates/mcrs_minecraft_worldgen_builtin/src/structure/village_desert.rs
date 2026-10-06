@@ -1,18 +1,17 @@
 use super::*;
 use mcrs_minecraft_core::{Axis, Direction};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, top_stairs};
 
-const SAND: &str = keys::block::SAND.as_static_str();
-const SMOOTH: &str = keys::block::SMOOTH_SANDSTONE.as_static_str();
-const CUT: &str = keys::block::CUT_SANDSTONE.as_static_str();
-const SMOOTH_STAIRS: &str = keys::block::SMOOTH_SANDSTONE_STAIRS.as_static_str();
-const SMOOTH_SLAB: &str = keys::block::SMOOTH_SANDSTONE_SLAB.as_static_str();
-const SANDSTONE_STAIRS: &str = keys::block::SANDSTONE_STAIRS.as_static_str();
-const JUNGLE_DOOR: &str = keys::block::JUNGLE_DOOR.as_static_str();
-const CYAN_BED: &str = keys::block::CYAN_BED.as_static_str();
-const GREEN_BED: &str = keys::block::GREEN_BED.as_static_str();
-const LIME_BED: &str = keys::block::LIME_BED.as_static_str();
+const SAND: &str = Block::Sand.as_static_str();
+const SMOOTH: &str = Block::SmoothSandstone.as_static_str();
+const CUT: &str = Block::CutSandstone.as_static_str();
+const SMOOTH_STAIRS: &str = Block::SmoothSandstoneStairs.as_static_str();
+const SMOOTH_SLAB: &str = Block::SmoothSandstoneSlab.as_static_str();
+const SANDSTONE_STAIRS: &str = Block::SandstoneStairs.as_static_str();
+const JUNGLE_DOOR: &str = Block::JungleDoor.as_static_str();
+const CYAN_BED: &str = Block::CyanBed.as_static_str();
+const GREEN_BED: &str = Block::GreenBed.as_static_str();
+const LIME_BED: &str = Block::LimeBed.as_static_str();
 
 const HOUSE_LOOT: &str = "village_desert_house";
 
@@ -25,20 +24,20 @@ kit! {
     K;
     smooth: block(SMOOTH),
     cut: block(CUT),
-    terracotta: block(keys::block::TERRACOTTA.as_static_str()),
+    terracotta: block(Block::Terracotta.as_static_str()),
     sand: block(SAND),
-    sandstone: block(keys::block::SANDSTONE.as_static_str()),
+    sandstone: block(Block::Sandstone.as_static_str()),
     slab: slab(SMOOTH_SLAB, "bottom"),
     slab_top: slab(SMOOTH_SLAB, "top"),
     slab_double: slab(SMOOTH_SLAB, "double"),
     stone_wall: settled("minecraft:sandstone_wall[waterlogged=false]"),
-    potted_cactus: block(keys::block::POTTED_CACTUS.as_static_str()),
-    potted_bush: block(keys::block::POTTED_DEAD_BUSH.as_static_str()),
+    potted_cactus: block(Block::PottedCactus.as_static_str()),
+    potted_bush: block(Block::PottedDeadBush.as_static_str()),
     fence: settled("minecraft:jungle_fence[waterlogged=false]"),
 }
 
 fn sandstone_slab(kind: &str) -> Cell {
-    slab(keys::block::SANDSTONE_SLAB.as_static_str(), kind)
+    slab(Block::SandstoneSlab.as_static_str(), kind)
 }
 
 fn button(facing: Direction) -> Cell {
@@ -51,7 +50,7 @@ fn button(facing: Direction) -> Cell {
 /// A sandstone wall standing free of the block above it: a post joined low
 /// to `sides`.
 fn low_wall(sides: &[Direction]) -> Cell {
-    wall_joined(keys::block::SANDSTONE_WALL.as_static_str(), sides, &[])
+    wall_joined(Block::SandstoneWall.as_static_str(), sides, &[])
 }
 
 /// A smooth sandstone floor inside a ring of sand.
@@ -89,7 +88,7 @@ fn niches(c: &mut Canvas, lintel: &Cell, cells: &[[i32; 2]]) {
 }
 
 fn hay(axis: Axis) -> Cell {
-    log(keys::block::HAY_BLOCK.as_static_str(), axis)
+    log(Block::HayBlock.as_static_str(), axis)
 }
 
 /// A step under water, its shape left to the neighbours.
@@ -236,7 +235,7 @@ fn straight_with_houses(c: &mut Canvas, v: Village, middle: i32, side: Direction
 fn straight_01(c: &mut Canvas, v: Village) {
     straight_with_houses(c, v, 2, South, [2, 7, 12]);
     c.place(&S.air, 1, 1, 0);
-    c.place(&block(keys::block::DEAD_BUSH.as_static_str()), 13, 0, 6);
+    c.place(&block(Block::DeadBush.as_static_str()), 13, 0, 6);
     decorations(c, v, SAND, &[[1, 0], [13, 0]]);
 }
 
@@ -319,18 +318,8 @@ fn small_house_2(c: &mut Canvas, v: Village) {
     c.entrance([0, 1, 2], EMPTY, NOTHING);
     c.place(&S.wall_torch, 1, 3, 2);
 
-    c.fill(
-        &block(keys::block::GREEN_CARPET.as_static_str()),
-        3,
-        1,
-        [1, 3],
-    );
-    c.place(
-        &block(keys::block::CHISELED_SANDSTONE.as_static_str()),
-        5,
-        1,
-        1,
-    );
+    c.fill(&block(Block::GreenCarpet.as_static_str()), 3, 1, [1, 3]);
+    c.place(&block(Block::ChiseledSandstone.as_static_str()), 5, 1, 1);
     c.place(&S.torch, 5, 2, 1);
     c.bed(GREEN_BED, [5, 1, 2], South);
     villagers(c, v, SAND, &[[1, 0, 1]]);
@@ -612,7 +601,7 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
 }
 
 fn desert_armorer_1(c: &mut Canvas) {
-    let granite = block(keys::block::GRANITE.as_static_str());
+    let granite = block(Block::Granite.as_static_str());
     let granite_wall = settled("minecraft:granite_wall[waterlogged=false]");
     let button = block("minecraft:stone_button[face=wall,facing=west,powered=false]");
     c.void([0, 0, 0], [0, 0, 0]);
@@ -647,13 +636,13 @@ fn desert_armorer_1(c: &mut Canvas) {
     c.furnace([5, 1, 3], "blast_furnace", West);
     c.solid(&button, [4, 2, 2], [4, 2, 4]);
     c.place(
-        &stairs(keys::block::GRANITE_STAIRS.as_static_str(), South),
+        &stairs(Block::GraniteStairs.as_static_str(), South),
         5,
         3,
         2,
     );
     c.place(
-        &stairs(keys::block::GRANITE_STAIRS.as_static_str(), North),
+        &stairs(Block::GraniteStairs.as_static_str(), North),
         5,
         3,
         4,
@@ -717,12 +706,7 @@ fn desert_cartographer_house_1(c: &mut Canvas) {
     c.solid(&K.slab, [1, 5, 1], [4, 5, 1]);
     c.fill(&K.slab, 2..=3, 5, [0, 2]);
     c.door(JUNGLE_DOOR, [1, 2, 1], West, Hinge::Right);
-    c.place(
-        &block(keys::block::CARTOGRAPHY_TABLE.as_static_str()),
-        3,
-        2,
-        2,
-    );
+    c.place(&block(Block::CartographyTable.as_static_str()), 3, 2, 2);
     c.place(&wall_torch(North), 3, 3, 2);
 
     c.solid(&K.smooth, [1, 0, 3], [6, 2, 6]);
@@ -760,15 +744,10 @@ fn desert_library_1(c: &mut Canvas) {
 
     c.fill(&stairs(SMOOTH_STAIRS, West), 1, 1, [1, 3]);
     c.lectern([1, 1, 2], East);
-    c.fill(
-        &block(keys::block::WHITE_CARPET.as_static_str()),
-        [3, 5],
-        1,
-        2,
-    );
-    c.place(&block(keys::block::LIME_CARPET.as_static_str()), 4, 1, 2);
+    c.fill(&block(Block::WhiteCarpet.as_static_str()), [3, 5], 1, 2);
+    c.place(&block(Block::LimeCarpet.as_static_str()), 4, 1, 2);
     c.solid(
-        &block(keys::block::BOOKSHELF.as_static_str()),
+        &block(Block::Bookshelf.as_static_str()),
         [7, 1, 1],
         [7, 3, 3],
     );
@@ -777,7 +756,7 @@ fn desert_library_1(c: &mut Canvas) {
 }
 
 fn desert_mason_1(c: &mut Canvas) {
-    let lime = block(keys::block::LIME_TERRACOTTA.as_static_str());
+    let lime = block(Block::LimeTerracotta.as_static_str());
     floor(c, [2, 0], [6, 7]);
     c.void([0, 0, 0], [1, 0, 7]);
     c.place(&S.air, 1, 0, 1);
@@ -800,7 +779,7 @@ fn desert_mason_1(c: &mut Canvas) {
 
     c.solid(&lime, [3, 1, 1], [4, 1, 1]);
     c.place(&lime, 3, 2, 1);
-    c.place(&block(keys::block::CLAY.as_static_str()), 5, 1, 1);
+    c.place(&block(Block::Clay.as_static_str()), 5, 1, 1);
     c.place(&glazed("white", South), 3, 1, 2);
     c.place(&block("minecraft:stonecutter[facing=north]"), 4, 1, 6);
     c.each(&S.wall_torch, &[[4, 3, 1], [4, 3, 6]]);
@@ -847,7 +826,7 @@ fn desert_shepherd_house_1(c: &mut Canvas) {
 }
 
 fn desert_weaponsmith_1(c: &mut Canvas) {
-    let cobble = block(keys::block::COBBLESTONE.as_static_str());
+    let cobble = block(Block::Cobblestone.as_static_str());
     let bars = settled("minecraft:iron_bars[waterlogged=false]");
     let end_bars = block(
         "minecraft:iron_bars[east=false,north=false,south=true,waterlogged=false,west=false]",
@@ -987,7 +966,7 @@ fn desert_tannery_1(c: &mut Canvas) {
     c.walls(&K.smooth, &K.terracotta, [1, 9, 2], [5, 9, 5]);
     c.fill(&K.terracotta, 3, 9, [2, 5]);
     c.open_door(
-        keys::block::JUNGLE_DOOR.as_static_str(),
+        Block::JungleDoor.as_static_str(),
         [2, 5, 2],
         West,
         Hinge::Left,
@@ -1158,7 +1137,7 @@ fn desert_tool_smith_1(c: &mut Canvas) {
     c.place(&K.smooth, 2, 4, 2);
     c.place(&stairs(SMOOTH_STAIRS, North), 2, 4, 3);
     c.door(JUNGLE_DOOR, [3, 5, 2], West, Hinge::Right);
-    c.place(&block(keys::block::SMITHING_TABLE.as_static_str()), 6, 5, 1);
+    c.place(&block(Block::SmithingTable.as_static_str()), 6, 5, 1);
     chest(c, [7, 5, 1], South, "village_toolsmith");
     c.fill(&S.wall_torch, 2, 6, [1, 3]);
     c.place(&S.wall_torch, 7, 6, 2);
@@ -1185,12 +1164,7 @@ fn desert_fletcher_house_1(c: &mut Canvas) {
     c.door(JUNGLE_DOOR, [1, 1, 3], West, Hinge::Right);
     c.entrance([0, 1, 4], EMPTY, NOTHING);
     c.fill(&K.smooth, [2, 4], 1, 1);
-    c.place(
-        &block(keys::block::FLETCHING_TABLE.as_static_str()),
-        3,
-        1,
-        1,
-    );
+    c.place(&block(Block::FletchingTable.as_static_str()), 3, 1, 1);
     c.each(&S.wall_torch, &[[0, 2, 2], [4, 2, 2], [4, 2, 6]]);
 
     c.walls(&K.smooth, &K.cut, [2, 1, 9], [4, 8, 11]);
@@ -1524,6 +1498,7 @@ mod data {
     pub const CAMEL_ENTITY: Fields = &[("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::Camel.as_static_str()))];
 }
 use data::*;
+use mcrs_minecraft_block::keys::Block;
 
 templates! {
     "desert" Desert;

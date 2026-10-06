@@ -12,6 +12,7 @@ doctest = false
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_enchantment.workspace = true
