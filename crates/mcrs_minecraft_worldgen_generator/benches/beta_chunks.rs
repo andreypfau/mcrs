@@ -47,8 +47,8 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
 }
 
 /// Beta's carver in every land biome, as the shipped Beta biomes carry it.
-fn beta_carvers(source: &BiomeSource, biomes: &Registry<Biome>) -> CarverBiomeTable {
-    CarverBiomeTable::beta(source, biomes, |_| Arc::from([CarverConfig::BetaCave]))
+fn beta_carvers(source: &BiomeSource) -> CarverBiomeTable {
+    CarverBiomeTable::beta(source, |_| Arc::from([CarverConfig::BetaCave]))
         .expect("a Beta source")
 }
 
@@ -145,8 +145,8 @@ fn generate_range(
     start: Option<&Barrier>,
 ) -> (Vec<f64>, Stages, f64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, registry) = build_beta_biome_source();
-    let carvers = beta_carvers(&biome_source, &registry);
+    let (biome_source, _) = build_beta_biome_source();
+    let carvers = beta_carvers(&biome_source);
     let cancel = CancellationToken::new();
     let mut times = Vec::with_capacity((to - from).max(0) as usize * side.max(0) as usize);
     let mut stages = Stages::default();
@@ -179,7 +179,7 @@ fn generate_range(
 /// Non-air blocks in one column, to confirm a section span actually carries terrain.
 fn report_content(y_sections: &[i32], seed: u64) {
     let router = build_settings_router("beta", seed);
-    let (biome_source, registry) = build_beta_biome_source();
+    let (biome_source, _) = build_beta_biome_source();
     let cancel = CancellationToken::new();
     let mut column = ColumnBlocks::new(y_sections);
     let _ = fill_column_dense_any(
@@ -204,7 +204,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         world_seed,
         &router,
         &mut Workspace::new(),
-        &beta_carvers(&biome_source, &registry),
+        &beta_carvers(&biome_source),
         extent(&router),
         &BetaCaveBlockIds::resolve(corpus()),
     );

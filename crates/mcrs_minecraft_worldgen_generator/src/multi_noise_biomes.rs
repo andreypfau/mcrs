@@ -139,6 +139,10 @@ impl MultiNoiseBiomeTable {
         })
     }
 
+    pub fn climate(&self) -> &ParameterList<u8> {
+        &self.table
+    }
+
     #[inline]
     pub fn biome_at(&self, target: TargetPoint) -> u8 {
         *self.table.find_value(target)
