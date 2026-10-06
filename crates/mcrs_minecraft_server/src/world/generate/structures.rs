@@ -10,18 +10,18 @@ use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_VARIANT};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
 use mcrs_minecraft_worldgen_generator::features::possible_biomes;
 use mcrs_minecraft_worldgen_generator::structures::{
     StructureInputs, VariantInputs, freeze, live_sets, resolve_palette_state,
 };
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, FrozenStructures};
-use mcrs_minecraft_worldgen_structure::{Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -89,10 +89,10 @@ pub(crate) fn build_dimension_structures(
         .tags::<Biome>()
         .expect("the data pack loader builds the biome tags");
     let structure_registry = registries
-        .registry::<keys::Structure>()
+        .registry::<Structure>()
         .expect("the data pack declares minecraft:worldgen/structure");
     let structure_tags = registries
-        .tags::<keys::Structure>()
+        .tags::<Structure>()
         .expect("the data pack loader builds the structure tags");
 
     let sets: BTreeMap<ResourceLocation, StructureSet> =

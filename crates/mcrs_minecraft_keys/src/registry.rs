@@ -599,13 +599,6 @@ impl Registered for BlockStateProviderType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Carver {}
-pub const CARVER: RegistryKey<Carver> = RegistryKey::new(rl!("minecraft:worldgen/carver"));
-impl Registered for Carver {
-    const REGISTRY: RegistryKey<Self> = CARVER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CarverType {}
 pub const CARVER_TYPE: RegistryKey<CarverType> = RegistryKey::new(rl!("minecraft:worldgen/carver_type"));
 impl Registered for CarverType {
@@ -631,13 +624,6 @@ pub enum DensityFunctionType {}
 pub const DENSITY_FUNCTION_TYPE: RegistryKey<DensityFunctionType> = RegistryKey::new(rl!("minecraft:worldgen/density_function_type"));
 impl Registered for DensityFunctionType {
     const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Feature {}
-pub const FEATURE: RegistryKey<Feature> = RegistryKey::new(rl!("minecraft:worldgen/feature"));
-impl Registered for Feature {
-    const REGISTRY: RegistryKey<Self> = FEATURE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -683,38 +669,10 @@ impl Registered for MaterialConditionType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MaterialRule {}
-pub const MATERIAL_RULE: RegistryKey<MaterialRule> = RegistryKey::new(rl!("minecraft:worldgen/material_rule"));
-impl Registered for MaterialRule {
-    const REGISTRY: RegistryKey<Self> = MATERIAL_RULE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MaterialRuleType {}
 pub const MATERIAL_RULE_TYPE: RegistryKey<MaterialRuleType> = RegistryKey::new(rl!("minecraft:worldgen/material_rule_type"));
 impl Registered for MaterialRuleType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Noise {}
-pub const NOISE: RegistryKey<Noise> = RegistryKey::new(rl!("minecraft:worldgen/noise"));
-impl Registered for Noise {
-    const REGISTRY: RegistryKey<Self> = NOISE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NoiseSettings {}
-pub const NOISE_SETTINGS: RegistryKey<NoiseSettings> = RegistryKey::new(rl!("minecraft:worldgen/noise_settings"));
-impl Registered for NoiseSettings {
-    const REGISTRY: RegistryKey<Self> = NOISE_SETTINGS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PlacedFeature {}
-pub const PLACED_FEATURE: RegistryKey<PlacedFeature> = RegistryKey::new(rl!("minecraft:worldgen/placed_feature"));
-impl Registered for PlacedFeature {
-    const REGISTRY: RegistryKey<Self> = PLACED_FEATURE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -732,24 +690,10 @@ impl Registered for PoolAliasBinding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ProcessorList {}
-pub const PROCESSOR_LIST: RegistryKey<ProcessorList> = RegistryKey::new(rl!("minecraft:worldgen/processor_list"));
-impl Registered for ProcessorList {
-    const REGISTRY: RegistryKey<Self> = PROCESSOR_LIST;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RootPlacerType {}
 pub const ROOT_PLACER_TYPE: RegistryKey<RootPlacerType> = RegistryKey::new(rl!("minecraft:worldgen/root_placer_type"));
 impl Registered for RootPlacerType {
     const REGISTRY: RegistryKey<Self> = ROOT_PLACER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Structure {}
-pub const STRUCTURE: RegistryKey<Structure> = RegistryKey::new(rl!("minecraft:worldgen/structure"));
-impl Registered for Structure {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -781,24 +725,10 @@ impl Registered for StructureProcessor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructureSet {}
-pub const STRUCTURE_SET: RegistryKey<StructureSet> = RegistryKey::new(rl!("minecraft:worldgen/structure_set"));
-impl Registered for StructureSet {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_SET;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StructureType {}
 pub const STRUCTURE_TYPE: RegistryKey<StructureType> = RegistryKey::new(rl!("minecraft:worldgen/structure_type"));
 impl Registered for StructureType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TemplatePool {}
-pub const TEMPLATE_POOL: RegistryKey<TemplatePool> = RegistryKey::new(rl!("minecraft:worldgen/template_pool"));
-impl Registered for TemplatePool {
-    const REGISTRY: RegistryKey<Self> = TEMPLATE_POOL;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -815,7 +745,7 @@ impl Registered for TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
 }
 
-pub fn bindings() -> [TypeBinding; 116] {
+pub fn bindings() -> [TypeBinding; 106] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -902,35 +832,25 @@ pub fn bindings() -> [TypeBinding; 116] {
         VILLAGER_TYPE.binding(),
         BIOME_SOURCE.binding(),
         BLOCK_STATE_PROVIDER_TYPE.binding(),
-        CARVER.binding(),
         CARVER_TYPE.binding(),
         CHUNK_GENERATOR.binding(),
         DENSITY_FUNCTION.binding(),
         DENSITY_FUNCTION_TYPE.binding(),
-        FEATURE.binding(),
         FEATURE_SIZE_TYPE.binding(),
         FEATURE_TYPE.binding(),
         FLAT_LEVEL_GENERATOR_PRESET.binding(),
         FOLIAGE_PLACER_TYPE.binding(),
         MATERIAL_CONDITION.binding(),
         MATERIAL_CONDITION_TYPE.binding(),
-        MATERIAL_RULE.binding(),
         MATERIAL_RULE_TYPE.binding(),
-        NOISE.binding(),
-        NOISE_SETTINGS.binding(),
-        PLACED_FEATURE.binding(),
         PLACEMENT_MODIFIER_TYPE.binding(),
         POOL_ALIAS_BINDING.binding(),
-        PROCESSOR_LIST.binding(),
         ROOT_PLACER_TYPE.binding(),
-        STRUCTURE.binding(),
         STRUCTURE_PIECE.binding(),
         STRUCTURE_PLACEMENT.binding(),
         STRUCTURE_POOL_ELEMENT.binding(),
         STRUCTURE_PROCESSOR.binding(),
-        STRUCTURE_SET.binding(),
         STRUCTURE_TYPE.binding(),
-        TEMPLATE_POOL.binding(),
         TREE_DECORATOR_TYPE.binding(),
         TRUNK_PLACER_TYPE.binding(),
     ]

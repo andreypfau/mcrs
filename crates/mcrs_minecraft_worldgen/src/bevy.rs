@@ -15,13 +15,15 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{RegistrySet, StaticKey, Tags};
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
-use mcrs_minecraft_worldgen_structure::{PoolElement, Structure, StructureSet, TemplatePool};
+use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
 use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
 use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
 use mcrs_minecraft_worldgen_surface::proto::{MaterialCondition, MaterialRule};
@@ -340,7 +342,7 @@ pub struct NoiseParamAsset {
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
 #[serde(transparent)]
 pub struct CarverConfigAsset {
-    pub config: mcrs_minecraft_worldgen_carver::config::CarverConfig,
+    pub config: CarverConfig,
 }
 
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]

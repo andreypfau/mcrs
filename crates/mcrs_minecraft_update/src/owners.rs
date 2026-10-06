@@ -196,4 +196,54 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_block_predicate",
         value: "crate::provider::DirectBlockStateProvider",
     },
+    Owner {
+        registry: "minecraft:worldgen/carver",
+        krate: "mcrs_minecraft_worldgen_carver",
+        value: "crate::config::CarverConfig",
+    },
+    Owner {
+        registry: "minecraft:worldgen/placed_feature",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: "crate::proto::PlacedFeature",
+    },
+    Owner {
+        registry: "minecraft:worldgen/feature",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: "crate::proto::Feature",
+    },
+    Owner {
+        registry: "minecraft:worldgen/processor_list",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: "crate::proto::StructureProcessorList",
+    },
+    Owner {
+        registry: "minecraft:worldgen/template_pool",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: "crate::pool::TemplatePool",
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: "crate::Structure",
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_set",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: "crate::StructureSet",
+    },
+    Owner {
+        registry: "minecraft:worldgen/noise_settings",
+        krate: "mcrs_minecraft_worldgen_density",
+        value: "crate::router::NoiseGeneratorSettings",
+    },
+    Owner {
+        registry: "minecraft:worldgen/noise",
+        krate: "mcrs_minecraft_worldgen_noise",
+        value: "crate::proto::NoiseParam",
+    },
+    Owner {
+        registry: "minecraft:worldgen/material_rule",
+        krate: "mcrs_minecraft_worldgen_surface",
+        value: "crate::proto::MaterialRule",
+    },
 ];

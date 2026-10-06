@@ -1,6 +1,9 @@
+#[rustfmt::skip]
+pub mod keys;
 pub mod compile;
 pub mod placement;
 pub mod placer;
+pub mod pool;
 pub mod proto;
 pub mod rule_test;
 pub mod sort;

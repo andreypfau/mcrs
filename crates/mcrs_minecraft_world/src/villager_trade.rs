@@ -8,9 +8,10 @@ use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_keys::{
     self as keys, ContextFloatProvider, ContextIntProvider, Item, MapDecorationType, MobEffect,
-    Potion, Structure,
+    Potion,
 };
 use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

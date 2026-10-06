@@ -1,6 +1,7 @@
 use super::Piece::*;
 use super::{Pool, pool, single};
-use mcrs_minecraft_keys::{placed_feature, processor_list};
+use mcrs_minecraft_worldgen_feature::keys::placed_feature;
+use mcrs_minecraft_worldgen_feature::keys::processor_list;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[

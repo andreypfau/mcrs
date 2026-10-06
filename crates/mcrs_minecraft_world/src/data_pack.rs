@@ -5,7 +5,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -112,42 +111,54 @@ pub(crate) fn request_data_pack_assets(
         &asset_server,
         &set,
         &mut loaded,
-        keys::CARVER.location().as_static_str(),
+        mcrs_minecraft_worldgen_carver::keys::CARVER
+            .location()
+            .as_static_str(),
         "json",
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
         &asset_server,
         &set,
         &mut loaded,
-        keys::FEATURE.location().as_static_str(),
+        mcrs_minecraft_worldgen_feature::keys::FEATURE
+            .location()
+            .as_static_str(),
         "json",
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
         &asset_server,
         &set,
         &mut loaded,
-        keys::PLACED_FEATURE.location().as_static_str(),
+        mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE
+            .location()
+            .as_static_str(),
         "json",
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::StructureSetAsset>(
         &asset_server,
         &set,
         &mut loaded,
-        keys::STRUCTURE_SET.location().as_static_str(),
+        mcrs_minecraft_worldgen_structure::keys::STRUCTURE_SET
+            .location()
+            .as_static_str(),
         "json",
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::StructureAsset>(
         &asset_server,
         &set,
         &mut loaded,
-        keys::STRUCTURE.location().as_static_str(),
+        mcrs_minecraft_worldgen_structure::keys::STRUCTURE
+            .location()
+            .as_static_str(),
         "json",
     );
     request_registry::<mcrs_minecraft_worldgen::bevy::TemplatePoolAsset>(
         &asset_server,
         &set,
         &mut loaded,
-        keys::TEMPLATE_POOL.location().as_static_str(),
+        mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL
+            .location()
+            .as_static_str(),
         "json",
     );
     request_templates(&asset_server, &mut loaded);

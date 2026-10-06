@@ -53,6 +53,7 @@ use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Parts, Registry, RegistrySet, WorldRegistries,
 };
+use mcrs_minecraft_worldgen_structure::Structure;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
@@ -432,7 +433,7 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     );
     world.insert_resource(
         registries
-            .registry::<keys::Structure>()
+            .registry::<Structure>()
             .expect("the data pack declares minecraft:worldgen/structure"),
     );
     world.insert_resource(
@@ -486,7 +487,7 @@ pub fn share_registries(world: &mut World) {
     share::<Entries<EnchantmentData, EnchantmentData>>(world);
     share::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(world);
     share::<Registry<Biome>>(world);
-    share::<Registry<keys::Structure>>(world);
+    share::<Registry<Structure>>(world);
     share::<Registry<Timeline>>(world);
     share::<Registry<keys::EntityType>>(world);
     share::<ClockTimeMarkers>(world);

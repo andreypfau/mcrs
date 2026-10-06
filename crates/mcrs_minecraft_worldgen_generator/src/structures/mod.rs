@@ -24,10 +24,8 @@ use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
 use mcrs_minecraft_worldgen_structure::spawn_condition::{
     IdSet, SpawnSelector, VariantTable, VariantTables,
 };
-use mcrs_minecraft_worldgen_structure::{
-    PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet, TemplatePool,
-    TerrainAdaptation,
-};
+use mcrs_minecraft_worldgen_structure::{PoolAlias, Structure, StructurePlacement, StructureSet, TerrainAdaptation};
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -95,8 +93,8 @@ pub struct StructureInputs<'a> {
     pub biomes: &'a Registry<Biome>,
     pub biome_tags: &'a Tags<Biome>,
     /// The structure ids the tags are resolved against, and those tags.
-    pub structure_registry: &'a Registry<keys::Structure>,
-    pub structure_tags: &'a Tags<keys::Structure>,
+    pub structure_registry: &'a Registry<Structure>,
+    pub structure_tags: &'a Tags<Structure>,
     pub variants: &'a VariantInputs<'a>,
 }
 
@@ -131,7 +129,7 @@ pub fn freeze(inputs: &StructureInputs<'_>) -> Result<FrozenStructures, String> 
 fn structure_id_set(
     inputs: &StructureInputs<'_>,
     frozen: &FrozenStructures,
-    set: &HolderSet<keys::Structure>,
+    set: &HolderSet<Structure>,
 ) -> Result<IdSet, String> {
     let mut mask = FixedBitSet::with_capacity(frozen.structures.len());
     for id in set.ids(inputs.structure_tags) {

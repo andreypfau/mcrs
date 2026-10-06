@@ -91,21 +91,21 @@ pub fn build(id: &ResourceLocation) -> Option<Template> {
 
 const AIR: &str = keys::block::AIR.as_static_str();
 const NOTHING: &str = keys::block::STRUCTURE_VOID.as_static_str();
-const EMPTY: &str = keys::template_pool::EMPTY.as_static_str();
+const EMPTY: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_static_str();
 const BOTTOM: &str = "minecraft:bottom";
 
-const ANIMALS: &str = keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
+const ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
 const BLUE_BED: &str = keys::block::BLUE_BED.as_static_str();
-const BUTCHER_ANIMALS: &str = keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_static_str();
-const CATS: &str = keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
+const BUTCHER_ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_static_str();
+const CATS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
 const COBBLE: &str = keys::block::COBBLESTONE.as_static_str();
 const COBBLE_STAIRS: &str = keys::block::COBBLESTONE_STAIRS.as_static_str();
 const DIRT: &str = keys::block::DIRT.as_static_str();
 const GRASS: &str = keys::block::GRASS_BLOCK.as_static_str();
-const IRON_GOLEM: &str = keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
+const IRON_GOLEM: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
 const PATH: &str = keys::block::DIRT_PATH.as_static_str();
 const RED_BED: &str = keys::block::RED_BED.as_static_str();
-const SHEEP: &str = keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
+const SHEEP: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
 const SPRUCE_DOOR: &str = keys::block::SPRUCE_DOOR.as_static_str();
 const SPRUCE_STAIRS: &str = keys::block::SPRUCE_STAIRS.as_static_str();
 const WHITE_BED: &str = keys::block::WHITE_BED.as_static_str();

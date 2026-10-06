@@ -25,7 +25,9 @@ fn empty_id() -> String {
 }
 
 fn empty_pool() -> String {
-    keys::template_pool::EMPTY.as_str().to_owned()
+    mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY
+        .as_str()
+        .to_owned()
 }
 
 fn air_id() -> String {

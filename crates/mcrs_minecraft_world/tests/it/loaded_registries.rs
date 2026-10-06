@@ -39,6 +39,7 @@ use std::sync::LazyLock;
 use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
 
@@ -2016,7 +2017,7 @@ fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
     let app = crate::common::run_to_playing();
     let set = app.world().resource::<RegistrySet>();
     let carvers = set
-        .registry::<mcrs_minecraft_keys::Carver>()
+        .registry::<CarverConfig>()
         .expect("the carver registry is declared");
     let tables = app
         .world()

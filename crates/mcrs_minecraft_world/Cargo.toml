@@ -8,6 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_worldgen_density.workspace = true
+mcrs_minecraft_worldgen_carver.workspace = true
 mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_dimension.workspace = true

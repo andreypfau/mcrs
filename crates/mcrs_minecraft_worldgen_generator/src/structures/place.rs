@@ -5,8 +5,8 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
+use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature_place::template::{Placement, SettingsRandom, place_template};
-use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_structure::hardcoded::mineshaft::decorates_first;
 
 use crate::feature_program::{CompiledElement, CompiledStructure, FeatureProgram, Run};

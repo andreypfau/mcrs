@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -141,7 +140,9 @@ static FEATURE_JIGSAW: LazyLock<JigsawBlock> = LazyLock::new(|| {
         top: Direction::South,
         joint: Joint::Rollable,
         name: label.clone(),
-        pool: keys::template_pool::EMPTY.location().to_arc(),
+        pool: mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY
+            .location()
+            .to_arc(),
         target: label,
         placement_priority: 0,
         selection_priority: 0,

@@ -20,7 +20,7 @@ use mcrs_minecraft_worldgen_density::proto::build::Functions;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
-use mcrs_minecraft_worldgen_structure::TemplatePool;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use serde::Serialize;
 use std::collections::BTreeMap;
 

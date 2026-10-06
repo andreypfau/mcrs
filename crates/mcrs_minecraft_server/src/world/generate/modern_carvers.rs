@@ -3,7 +3,6 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -38,9 +37,9 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 fn carvers_by_biome(
     biomes: &Registry<Biome>,
     values: &Entries<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
-    carvers: &Registry<keys::Carver>,
-    carver_tags: &Tags<keys::Carver>,
-    table: &Entries<keys::Carver, Option<CarverConfig>>,
+    carvers: &Registry<CarverConfig>,
+    carver_tags: &Tags<CarverConfig>,
+    table: &Entries<CarverConfig, Option<CarverConfig>>,
 ) -> Entries<Biome, Arc<[CarverConfig]>> {
     let lists = biomes
         .ids()
@@ -83,10 +82,10 @@ fn build_modern_carver_biomes(
         .entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let carver_names = registries
-        .registry::<keys::Carver>()
+        .registry::<CarverConfig>()
         .expect("the data pack declares minecraft:worldgen/carver");
     let carver_tags = registries
-        .tags::<keys::Carver>()
+        .tags::<CarverConfig>()
         .expect("the data pack loader builds the carver tags");
     let carvers = carvers_by_biome(
         &biomes,

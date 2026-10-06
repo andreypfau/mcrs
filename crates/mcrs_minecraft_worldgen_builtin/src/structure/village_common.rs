@@ -20,7 +20,7 @@ pub fn well_bottom(c: &mut Canvas) {
     c.jigsaw(
         [3, 2, 0],
         "minecraft:bottom",
-        keys::template_pool::VILLAGE_COMMON_WELL_BOTTOMS.as_str(),
+        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_WELL_BOTTOMS.as_str(),
         keys::block::COBBLESTONE.as_static_str(),
     );
 }

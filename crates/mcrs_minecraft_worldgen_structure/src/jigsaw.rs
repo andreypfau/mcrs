@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::JigsawConfig;
@@ -141,7 +140,9 @@ impl Assembly<'_> {
 
     fn pool_is_usable(&self, pool: PoolId) -> bool {
         let pool = &self.frozen.pools[usize::from(pool.0)];
-        !pool.expanded.is_empty() || pool.id.as_str() == keys::template_pool::EMPTY.as_str()
+        !pool.expanded.is_empty()
+            || pool.id.as_str()
+                == mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_str()
     }
 
     fn expansion_of(

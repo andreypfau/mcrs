@@ -116,10 +116,10 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::TemperatureModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
+use mcrs_minecraft_worldgen_structure::Structure;
 
 pub fn text_ordered_table(
     registry: &str,
@@ -186,8 +186,8 @@ pub fn biome_tags() -> Tags<Biome> {
         .expect("the corpus set holds the biome tags")
 }
 
-pub fn structure_registry() -> &'static Registry<keys::Structure> {
-    static REGISTRY: std::sync::OnceLock<Registry<keys::Structure>> = std::sync::OnceLock::new();
+pub fn structure_registry() -> &'static Registry<Structure> {
+    static REGISTRY: std::sync::OnceLock<Registry<Structure>> = std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| {
         corpus_set()
             .registry()
@@ -195,7 +195,7 @@ pub fn structure_registry() -> &'static Registry<keys::Structure> {
     })
 }
 
-pub fn structure_tags() -> Tags<keys::Structure> {
+pub fn structure_tags() -> Tags<Structure> {
     corpus_set()
         .tags()
         .expect("the corpus set holds the structure tags")

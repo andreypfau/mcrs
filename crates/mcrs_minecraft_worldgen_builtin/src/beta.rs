@@ -119,7 +119,9 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
             NoiseSettings::new(0, 128),
             BlockState::bare(keys::block::WATER.location().to_arc()).with("level", "0"),
             router,
-            keys::material_rule::OVERWORLD.location().to_arc(),
+            mcrs_minecraft_worldgen_surface::keys::material_rule::OVERWORLD
+                .location()
+                .to_arc(),
             64,
         )
     };

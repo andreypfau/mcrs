@@ -1,3 +1,5 @@
+#[rustfmt::skip]
+pub mod keys;
 pub mod compile;
 pub mod eval;
 #[cfg(test)]
