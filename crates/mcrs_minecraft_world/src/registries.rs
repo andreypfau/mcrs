@@ -42,7 +42,6 @@ use mcrs_minecraft_item::{
     TrimPattern,
 };
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Parts, Registry, RegistrySet, WorldRegistries,
@@ -106,7 +105,7 @@ macro_rules! split_registry_table {
 }
 
 split_registry_table! {
-    keys::Enchantment => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
+    mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
     keys::Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join, synced as |biome| NetworkBiome::from(biome);
@@ -118,19 +117,19 @@ split_registry_table! {
 }
 
 world_registry_table! {
-    keys::BannerPattern => BannerPattern, synced as Clone::clone;
-    keys::Instrument => InstrumentValue, synced as Clone::clone;
-    keys::JukeboxSong => JukeboxSong, synced as Clone::clone;
-    keys::PaintingVariant => PaintingVariantValue [non_empty], synced as Clone::clone;
-    keys::TrimMaterial => TrimMaterial, synced as Clone::clone;
-    keys::TrimPattern => TrimPattern, synced as Clone::clone;
+    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone;
+    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone;
+    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone;
+    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
+    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
+    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
     keys::ChatType => ChatType, synced as Clone::clone;
     keys::TestEnvironment => TestEnvironment, synced as Clone::clone;
     keys::TestInstance => TestInstance, synced as Clone::clone;
-    keys::Dialog => Dialog, synced as Clone::clone;
-    keys::DamageType => DamageType, synced as Clone::clone;
-    keys::BlockTransformer => BlockTransformer, synced as Clone::clone;
-    keys::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
+    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone;
+    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
+    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
+    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
     keys::WolfVariant => variant::WolfVariant [non_empty],
         synced as |v| variant::NetworkWolfVariant::from(v);
     keys::WolfSoundVariant => variant::WolfSoundVariant [non_empty],
@@ -430,17 +429,17 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     );
     world.insert_resource(
         registries
-            .registry::<Enchantment>()
+            .registry::<EnchantmentData>()
             .expect("the data pack loader parses minecraft:enchantment"),
     );
     world.insert_resource(
         registries
-            .entries::<Enchantment, EnchantmentData>()
+            .entries::<EnchantmentData, EnchantmentData>()
             .expect("the data pack loader parses minecraft:enchantment"),
     );
     world.insert_resource(
         registries
-            .entries::<Enchantment, Option<EnchantmentEffects>>()
+            .entries::<EnchantmentData, Option<EnchantmentEffects>>()
             .expect("the data pack loader splits minecraft:enchantment"),
     );
     let clocks = registries
@@ -475,9 +474,9 @@ pub fn share_registries(world: &mut World) {
     share::<RegistryAccess>(world);
     share::<Blocks>(world);
     share::<Items>(world);
-    share::<Registry<Enchantment>>(world);
-    share::<Entries<Enchantment, EnchantmentData>>(world);
-    share::<Entries<Enchantment, Option<EnchantmentEffects>>>(world);
+    share::<Registry<EnchantmentData>>(world);
+    share::<Entries<EnchantmentData, EnchantmentData>>(world);
+    share::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(world);
     share::<Registry<keys::Biome>>(world);
     share::<Registry<keys::Structure>>(world);
     share::<Registry<Timeline>>(world);

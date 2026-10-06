@@ -1,7 +1,8 @@
 use crate::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys::{Block, Enchantment, Item};
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_keys::{Block, Item};
 use mcrs_minecraft_registry::{HolderSet, Registry};
 use rustc_hash::FxHashMap;
 use serde::de::{IgnoredAny, MapAccess, Visitor, value};
@@ -250,7 +251,7 @@ impl Condition {
 
     /// A tool predicate naming an enchantment the registry lacks is dropped, so
     /// the condition always holds.
-    pub fn drop_unknown_enchantments(&mut self, registry: &Registry<Enchantment>) {
+    pub fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
         let Condition::Inline(condition) = self else {
             return;
         };

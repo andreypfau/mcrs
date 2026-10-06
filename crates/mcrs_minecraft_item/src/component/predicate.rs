@@ -1,10 +1,11 @@
 use std::fmt;
 
+use crate::JukeboxSong;
+use crate::TrimMaterial;
+use crate::TrimPattern;
+use crate::enchantment::EnchantmentData;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys::{
-    Attribute, Block, Enchantment, Item, JukeboxSong, MobEffect, Potion, TrimMaterial, TrimPattern,
-    VillagerType,
-};
+use mcrs_minecraft_keys::{Attribute, Block, Item, MobEffect, Potion, VillagerType};
 use mcrs_minecraft_registry::HolderSet;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
@@ -492,7 +493,7 @@ pub struct EnchantmentPredicate {
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_optional_set"
     )]
-    pub enchantments: Option<HolderSet<Enchantment>>,
+    pub enchantments: Option<HolderSet<EnchantmentData>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
 }

@@ -1,7 +1,7 @@
 use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys::sound_event;
+use mcrs_minecraft_item::keys::sound_event;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Consumable, Holder, ItemStackValue, ItemUseAnimation, ProtoStack, RawStack,
 };

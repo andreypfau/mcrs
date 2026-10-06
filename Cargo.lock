@@ -4002,6 +4002,7 @@ version = "0.4.6"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
 ]
 
@@ -4220,6 +4221,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",

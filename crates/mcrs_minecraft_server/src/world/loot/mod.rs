@@ -19,7 +19,7 @@ use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::read_all;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys::Enchantment;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::de::IgnoredAny;
@@ -80,7 +80,7 @@ impl LootTable {
         }
     }
 
-    fn drop_unknown_enchantments(&mut self, registry: &Registry<Enchantment>) {
+    fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
         self.conditions_mut(|condition| condition.drop_unknown_enchantments(registry));
     }
 
@@ -271,7 +271,7 @@ fn request_loot_tables_for_corpus(
 fn process_loaded_loot_tables(
     mut events: MessageReader<AssetEvent<LootTableAsset>>,
     assets: Res<Assets<LootTableAsset>>,
-    enchantment_registry: Res<Registry<Enchantment>>,
+    enchantment_registry: Res<Registry<EnchantmentData>>,
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
     for event in events.read() {

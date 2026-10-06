@@ -14,7 +14,7 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::{self as keys, Enchantment};
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -492,9 +492,9 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<RegistryAccess>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
-        type_name::<Registry<Enchantment>>(),
-        type_name::<Entries<Enchantment, EnchantmentData>>(),
-        type_name::<Entries<Enchantment, Option<EnchantmentEffects>>>(),
+        type_name::<Registry<EnchantmentData>>(),
+        type_name::<Entries<EnchantmentData, EnchantmentData>>(),
+        type_name::<Entries<EnchantmentData, Option<EnchantmentEffects>>>(),
         type_name::<WorldgenTables>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),
@@ -688,12 +688,12 @@ fn an_id_names_the_same_entry_in_every_dimension() {
                 .clone()
         })
         .collect();
-    let enchantments: Vec<Registry<Enchantment>> = labels
+    let enchantments: Vec<Registry<EnchantmentData>> = labels
         .iter()
         .map(|(label, _)| {
             app.sub_app(DimAppLabel(*label))
                 .world()
-                .resource::<Registry<Enchantment>>()
+                .resource::<Registry<EnchantmentData>>()
                 .clone()
         })
         .collect();

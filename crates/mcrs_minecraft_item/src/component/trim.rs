@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -15,7 +14,7 @@ pub struct TrimMaterial {
 }
 
 impl RegistryValue for TrimMaterial {
-    type Registry = keys::TrimMaterial;
+    type Registry = Self;
 }
 
 /// `decal`: absent reads as false, always written.
@@ -29,7 +28,7 @@ pub struct TrimPattern {
 }
 
 impl RegistryValue for TrimPattern {
-    type Registry = keys::TrimPattern;
+    type Registry = Self;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -1,7 +1,8 @@
+use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{MobEffect, sound_event};
+use mcrs_minecraft_keys::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
 use serde::ser::SerializeMap;

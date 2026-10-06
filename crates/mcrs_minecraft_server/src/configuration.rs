@@ -19,10 +19,16 @@ use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_keys::{
-    self as keys, BannerPattern, Block, CatVariant, DamageType, Dialog, Enchantment, EntityType,
-    Instrument, Item, JukeboxSong, PaintingVariant, TrimMaterial, TrimPattern, WolfVariant,
-};
+use mcrs_minecraft_item::BannerPattern;
+use mcrs_minecraft_item::InstrumentValue;
+use mcrs_minecraft_item::JukeboxSong;
+use mcrs_minecraft_item::PaintingVariantValue;
+use mcrs_minecraft_item::TrimMaterial;
+use mcrs_minecraft_item::TrimPattern;
+use mcrs_minecraft_item::damage_type::DamageType;
+use mcrs_minecraft_item::dialog::Dialog;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_keys::{self as keys, Block, CatVariant, EntityType, Item, WolfVariant};
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -164,14 +170,14 @@ pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
     let registries = [
         tags_of::<Block>(set),
         tags_of::<Item>(set),
-        tags_of::<Enchantment>(set),
+        tags_of::<EnchantmentData>(set),
         tags_of::<EntityType>(set),
         tags_of::<DamageType>(set),
         tags_of::<Dialog>(set),
         tags_of::<Timeline>(set),
         tags_of::<BannerPattern>(set),
-        tags_of::<Instrument>(set),
-        tags_of::<PaintingVariant>(set),
+        tags_of::<InstrumentValue>(set),
+        tags_of::<PaintingVariantValue>(set),
         tags_of::<CatVariant>(set),
         tags_of::<WolfVariant>(set),
         tags_of::<TrimMaterial>(set),

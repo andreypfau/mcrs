@@ -117,7 +117,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         "jukebox_playable_direct",
         JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
             sound_event: Holder::Reference(
-                mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK.id(),
+                mcrs_minecraft_item::keys::sound_event::ENTITY_ITEM_BREAK.id(),
             ),
             description: Text::text("Song"),
             length_in_seconds: 12.5,

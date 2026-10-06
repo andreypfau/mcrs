@@ -181,7 +181,7 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(
         map.get::<BreakSound>(),
         Some(&BreakSound(Holder::Reference(
-            mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK.id()
+            mcrs_minecraft_item::keys::sound_event::ENTITY_ITEM_BREAK.id()
         )))
     );
     assert_eq!(

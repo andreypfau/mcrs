@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_keys::Enchantment;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::{HolderSet, Id};
 use serde::{Deserialize, Serialize};
 
@@ -9,18 +9,18 @@ use serde::{Deserialize, Serialize};
 pub enum EnchantmentProvider {
     #[serde(rename = "minecraft:by_cost")]
     ByCost {
-        enchantments: HolderSet<Enchantment>,
+        enchantments: HolderSet<EnchantmentData>,
         cost: IntProvider,
     },
     #[serde(rename = "minecraft:by_cost_with_difficulty")]
     ByCostWithDifficulty {
-        enchantments: HolderSet<Enchantment>,
+        enchantments: HolderSet<EnchantmentData>,
         min_cost: Bounded<1, 10000>,
         max_cost_span: Bounded<0, 10000>,
     },
     #[serde(rename = "minecraft:single")]
     Single {
-        enchantment: Id<Enchantment>,
+        enchantment: Id<EnchantmentData>,
         level: IntProvider,
     },
 }

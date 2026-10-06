@@ -1,12 +1,13 @@
-use mcrs_minecraft_keys as keys;
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::BannerPattern;
+use crate::block_transformer::BlockTransformer;
+use crate::damage_type::DamageType;
+use crate::enchantment::EnchantmentData;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, validated};
-use mcrs_minecraft_keys::{
-    BannerPattern, Block, BlockTransformer, DamageType, Enchantment, EntityType, Item, MobEffect,
-};
+use mcrs_minecraft_keys::{Block, EntityType, Item, MobEffect};
 use mcrs_minecraft_nbt::{COMPOUND_ID, FLOAT_ID, INT_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_registry::HolderSet;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
@@ -56,10 +57,10 @@ macro_rules! null_as_default {
 }
 pub(crate) use null_as_default;
 
-/// Enchantment id to level in 1..=255, kept in read order because vanilla's
+/// EnchantmentData id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
-pub struct Enchantments(pub Vec<(ResourceKey<Enchantment>, i32)>);
+pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentData>, i32)>);
 
 impl Enchantments {
     /// Zero when absent.
@@ -118,7 +119,7 @@ impl<'de> Deserialize<'de> for Enchantments {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut entries: Vec<(Cow<'de, str>, ResourceKey<Enchantment>, i32)> =
+                let mut entries: Vec<(Cow<'de, str>, ResourceKey<EnchantmentData>, i32)> =
                     Vec::with_capacity(map.size_hint().unwrap_or(0));
                 while let Some((raw, Level(level))) = map.next_entry::<Cow<'de, str>, Level>()? {
                     if let Some(entry) = entries.iter_mut().find(|(r, _, _)| *r == raw) {
@@ -152,7 +153,7 @@ impl Sample for Enchantments {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
         if !self.0.is_empty() {
-            tags.push((keys::enchantment::SHARPNESS.as_static_str(), INT_ID));
+            tags.push((crate::keys::enchantment::SHARPNESS.as_static_str(), INT_ID));
         }
         tags
     }
