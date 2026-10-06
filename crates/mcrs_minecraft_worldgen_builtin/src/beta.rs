@@ -1,6 +1,6 @@
+use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_density::proto::build::{Df, Functions};
 use mcrs_minecraft_worldgen_density::router::{
     NoiseGeneratorSettings, NoiseSettings, RouterFunctions,

@@ -89,8 +89,9 @@ use crate::heightmap::TerrainHeightmaps;
 use crate::stages::{FillContext, fill_column, merge_column, run_region};
 use crate::staging::{FilledSnapshot, RegionSnapshots, Stage, StagingStore, region_column};
 use crate::task::{CancellationToken, ColumnSource};
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_worldgen_feature::compile::{FeatureSteps, LoadedFeatures};
-use mcrs_minecraft_worldgen_feature::proto::{Feature, Holder, PlacedFeature};
+use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature};
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_testing::registry;
 

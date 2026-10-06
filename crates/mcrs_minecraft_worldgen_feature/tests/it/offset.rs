@@ -1,6 +1,6 @@
+use mcrs_minecraft_block_predicate::predicate::Offset;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_tag};
-use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
 
 #[test]
 fn an_offset_is_an_int_array_in_nbt_and_a_list_in_json() {

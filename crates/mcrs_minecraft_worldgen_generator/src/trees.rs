@@ -6,6 +6,11 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block_predicate::predicate::Direction;
+use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_block_predicate::provider::{
+    BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
+};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
@@ -13,15 +18,13 @@ use mcrs_minecraft_core::voxel_shape::{
 use mcrs_minecraft_keys::{Block, block_tags};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::{HolderSet, Id, StaticKey};
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
 };
 use mcrs_minecraft_worldgen_feature::placer::StateMask;
-use mcrs_minecraft_worldgen_feature::proto::Holder;
 use mcrs_minecraft_worldgen_feature::tree::{
-    BlockStateProvider, DirectBlockStateProvider, RootPlacer as ProtoRootPlacer, TreeConfig,
-    TreeDecorator as ProtoDecorator, TrunkPlacer as ProtoTrunk, TypedBlockStateProvider,
+    RootPlacer as ProtoRootPlacer, TreeConfig, TreeDecorator as ProtoDecorator,
+    TrunkPlacer as ProtoTrunk,
 };
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{CompiledTreeDecorator, TreePalette};
 use mcrs_minecraft_worldgen_feature_place::tree::foliage::Foliage;
@@ -577,7 +580,7 @@ fn compile_root_placer(placer: &ProtoRootPlacer, r: &Resolver<'_>) -> Compiled<M
 }
 
 fn block_states_of(
-    states: &[mcrs_minecraft_worldgen_density::proto::BlockState],
+    states: &[mcrs_minecraft_block_predicate::block_state::BlockState],
     r: &Resolver<'_>,
 ) -> Compiled<Vec<VoxelId>> {
     states.iter().map(|state| r.resolve(state)).collect()

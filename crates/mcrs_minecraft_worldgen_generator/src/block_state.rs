@@ -1,5 +1,5 @@
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 
 pub fn try_resolve_state(
     blocks: &BlockDefinitions,

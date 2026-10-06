@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use bevy_math::IVec3;
 use bytes::Buf;
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_worldgen_feature::proto::Holder;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 

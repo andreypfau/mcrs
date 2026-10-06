@@ -7,7 +7,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
-use super::placement::HeightmapName;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_core::value_provider::HeightContext;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -174,8 +174,8 @@ pub fn decorate<'a, W: WorldGenVolume>(
 mod tests {
     use super::*;
     use crate::placement::VerticalDirection;
-    use crate::tree::UnitFloat;
     use bevy_math::IVec3;
+    use mcrs_minecraft_block_predicate::provider::UnitFloat;
     use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 

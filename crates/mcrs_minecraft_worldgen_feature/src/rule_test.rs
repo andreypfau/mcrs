@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen_density::proto::BlockState;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "predicate_type", deny_unknown_fields)]

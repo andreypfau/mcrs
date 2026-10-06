@@ -7,6 +7,7 @@ use crate::PoolAlias;
 use crate::hardcoded;
 use crate::piece::Piece;
 use bevy_math::IVec3;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
@@ -15,7 +16,6 @@ use mcrs_minecraft_core::value_provider::{HeightContext, pick_weighted_by};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::{
     EMPTY_LABEL, JigsawBlock, Joint, bounding_box, transform,

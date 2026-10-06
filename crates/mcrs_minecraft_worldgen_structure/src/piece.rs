@@ -2255,11 +2255,11 @@ mod tests {
     use super::*;
     use crate::Structure;
     use crate::frozen::{FrozenStructure, PoolId};
+    use mcrs_minecraft_block_predicate::provider::Holder;
     use mcrs_minecraft_core::{BlockPos, rl};
     use mcrs_minecraft_nbt::deserializer::Deserializer as NbtDeserializer;
     use mcrs_minecraft_nbt::{to_bytes, to_nbt_compound};
     use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
-    use mcrs_minecraft_worldgen_feature::proto::Holder;
 
     fn frozen(liquid_settings: LiquidSettings) -> FrozenStructures {
         let mut frozen = FrozenStructures::default();

@@ -1,18 +1,21 @@
+use mcrs_minecraft_block_predicate::provider::Holder;
 use std::fmt;
-use std::marker::PhantomData;
-use std::str::FromStr;
 
 use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::block_predicate::{BlockPredicate, Direction};
 use super::placement::IntOr;
-use super::placement::{HeightmapName, PlacementModifier, VerticalDirection};
+use super::placement::{PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
-use super::tree::{BlockSet, BlockStateProvider, TreeConfig, UnitFloat, non_empty};
+use super::tree::TreeConfig;
+use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
+use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Direction};
+use mcrs_minecraft_block_predicate::provider::{
+    BlockSet, BlockStateProvider, UnitFloat, non_empty,
+};
 use mcrs_minecraft_core::Axis;
-use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
@@ -22,56 +25,8 @@ use mcrs_minecraft_core::value_provider::{
 };
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_rows::names_cover;
-use mcrs_minecraft_worldgen_density::proto::{BlockState, Either};
+use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
-
-/// `RegistryCodecs.holder(registry, direct, allowInline = true)`: an id naming a
-/// registry entry, or the entry itself written out in place.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Holder<T> {
-    Reference(ResourceLocation),
-    Inline(Box<T>),
-}
-
-impl<V: RegistryValue> From<ResourceKey<V::Registry, &'static str>> for Holder<V> {
-    fn from(key: ResourceKey<V::Registry, &'static str>) -> Self {
-        Holder::Reference((*key.location()).into())
-    }
-}
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for Holder<T> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct HolderVisitor<T>(PhantomData<T>);
-
-        impl<'de, T: Deserialize<'de>> Visitor<'de> for HolderVisitor<T> {
-            type Value = Holder<T>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a registry id or an inline entry")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<Self::Value, E> {
-                Ok(Holder::Reference(resource_location(id)?))
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                T::deserialize(value::MapAccessDeserializer::new(map))
-                    .map(|entry| Holder::Inline(Box::new(entry)))
-            }
-        }
-
-        deserializer.deserialize_any(HolderVisitor(PhantomData))
-    }
-}
-
-impl<T: Serialize> Serialize for Holder<T> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Holder::Reference(id) => id.serialize(serializer),
-            Holder::Inline(entry) => entry.serialize(serializer),
-        }
-    }
-}
 
 /// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: one entry or a list of them,
 /// each a registry id or an inline placed feature. A `#tag` is refused, since
@@ -1007,10 +962,6 @@ defaults! {
     d_layer_2_2 / is_layer_2_2 -> LayerThickness = LayerThickness(2.2);
     d_layer_3_2 / is_layer_3_2 -> LayerThickness = LayerThickness(3.2);
     d_layer_4_2 / is_layer_4_2 -> LayerThickness = LayerThickness(4.2);
-}
-
-fn resource_location<E: serde::de::Error>(id: &str) -> Result<ResourceLocation, E> {
-    ResourceLocation::from_str(id).map_err(|_| E::custom(format!("Not a valid id: {id}")))
 }
 
 fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFeatureSet, D::Error> {

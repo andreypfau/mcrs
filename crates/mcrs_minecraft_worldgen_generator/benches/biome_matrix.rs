@@ -31,7 +31,7 @@ use mcrs_minecraft_worldgen_surface::{
 #[path = "../src/tests/support.rs"]
 mod support;
 
-use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
+use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in};
 use support::{corpus, router_blocks};
 
 fn parameter_lists() -> (

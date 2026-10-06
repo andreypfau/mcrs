@@ -8,17 +8,18 @@ use mcrs_minecraft_chunk::VoxelId;
 
 use bevy_math::IVec3;
 
-use super::block_predicate::{BlockPredicate, Direction, Offset};
 use super::placement::PlacementModifier;
 use super::placer::{BiomeMask, Modifier, Predicate, Rule, StateMask, single_state};
-use super::proto::{Feature, FeatureStepList, Holder, PlacedFeature, StructureProcessorList};
+use super::proto::{Feature, FeatureStepList, PlacedFeature, StructureProcessorList};
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
-use crate::tree::DirectBlockStateProvider;
+use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Direction, Offset};
+use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
+use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
-use mcrs_minecraft_worldgen_density::proto::BlockState;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FeatureCompileError {
@@ -442,7 +443,7 @@ pub fn compile_placement(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::UnitFloat;
+    use mcrs_minecraft_block_predicate::provider::UnitFloat;
 
     fn id(name: &str) -> ResourceLocation {
         ResourceLocation::read(name).unwrap()

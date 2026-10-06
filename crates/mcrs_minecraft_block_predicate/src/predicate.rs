@@ -1,6 +1,7 @@
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
@@ -8,9 +9,6 @@ use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
-use mcrs_minecraft_worldgen_density::proto::BlockState;
-
-use crate::placement::HeightmapName;
 
 /// `Vec3i.offsetCodec(16)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -160,6 +158,22 @@ impl Validate for VolumeMatch {
 }
 
 validated!(VolumeMatch);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum HeightmapName {
+    #[serde(rename = "WORLD_SURFACE_WG")]
+    WorldSurfaceWg,
+    #[serde(rename = "WORLD_SURFACE")]
+    WorldSurface,
+    #[serde(rename = "OCEAN_FLOOR_WG")]
+    OceanFloorWg,
+    #[serde(rename = "OCEAN_FLOOR")]
+    OceanFloor,
+    #[serde(rename = "MOTION_BLOCKING")]
+    MotionBlocking,
+    #[serde(rename = "MOTION_BLOCKING_NO_LEAVES")]
+    MotionBlockingNoLeaves,
+}
 
 #[cfg(test)]
 mod tests {

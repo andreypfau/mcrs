@@ -1,8 +1,8 @@
+use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
 use mcrs_minecraft_core::codec::{NonNegativeInt, default_true, is_default, is_true};
 use mcrs_minecraft_core::{Direction, ResourceLocation};
 use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::Holder;
-use mcrs_minecraft_worldgen_feature::tree::BlockStateProvider;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 

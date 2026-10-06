@@ -1,28 +1,13 @@
+use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use serde::{Deserialize, Serialize};
 
-use super::block_predicate::BlockPredicate;
-use super::tree::{UnitFloat, non_empty};
+use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+use mcrs_minecraft_block_predicate::provider::{UnitFloat, non_empty};
 use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, HeightProvider};
 
 /// `Codec.INT.optionalFieldOf(name, DEFAULT)`.
 pub type IntOr<const DEFAULT: i32> = Bounded<{ i32::MIN }, { i32::MAX }, DEFAULT>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum HeightmapName {
-    #[serde(rename = "WORLD_SURFACE_WG")]
-    WorldSurfaceWg,
-    #[serde(rename = "WORLD_SURFACE")]
-    WorldSurface,
-    #[serde(rename = "OCEAN_FLOOR_WG")]
-    OceanFloorWg,
-    #[serde(rename = "OCEAN_FLOOR")]
-    OceanFloor,
-    #[serde(rename = "MOTION_BLOCKING")]
-    MotionBlocking,
-    #[serde(rename = "MOTION_BLOCKING_NO_LEAVES")]
-    MotionBlockingNoLeaves,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

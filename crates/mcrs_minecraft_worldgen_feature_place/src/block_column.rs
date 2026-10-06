@@ -1,7 +1,7 @@
+use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};
 
 use crate::tree::provider::StateProvider;
