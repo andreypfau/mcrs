@@ -1,3 +1,4 @@
+pub mod block_transformer;
 pub mod component;
 pub mod damage_type;
 pub mod decorated_pot_pattern;
