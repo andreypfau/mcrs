@@ -14,11 +14,11 @@ mod village_taiga;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::ProcessorList;
+use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_feature::template::Projection;
-use mcrs_minecraft_worldgen_structure::{PoolElement, PoolEntry, SingleElement, TemplatePool};
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, PoolEntry, SingleElement, TemplatePool};
 
-type ProcessorListKey = ResourceKey<ProcessorList, &'static str>;
+type ProcessorListKey = ResourceKey<StructureProcessorList, &'static str>;
 
 /// A template named relative to its pool's directory. `numbers` makes one row
 /// stand for the templates `name<lo>` to `name<hi>`, zero-padded to a width.

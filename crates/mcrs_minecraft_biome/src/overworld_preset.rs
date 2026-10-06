@@ -1381,7 +1381,7 @@ mod tests {
         .filter(|(_, biome)| {
             mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
                 .iter()
-                .any(|carver| carver == mcrs_minecraft_keys::carver::CAVE.as_str())
+                .any(|carver| carver == mcrs_minecraft_worldgen_carver::keys::carver::CAVE.as_str())
         })
         .map(|(id, _)| id.as_str().to_owned())
         .collect();

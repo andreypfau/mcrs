@@ -13,13 +13,13 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
 use mcrs_minecraft_worldgen_feature::proto::FeatureStepList;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
@@ -52,9 +52,9 @@ impl Plugin for FeaturePlugin {
 
 /// A biome's decoration steps in the form the feature compiler reads.
 fn decoration_steps(
-    steps: &[HolderSet<keys::PlacedFeature>],
-    placed: &Registry<keys::PlacedFeature>,
-    tags: &Tags<keys::PlacedFeature>,
+    steps: &[HolderSet<PlacedFeature>],
+    placed: &Registry<PlacedFeature>,
+    tags: &Tags<PlacedFeature>,
 ) -> Vec<FeatureStepList> {
     steps
         .iter()
@@ -146,10 +146,10 @@ fn build_dimension_features(
     };
 
     let placed_names = registries
-        .registry::<keys::PlacedFeature>()
+        .registry::<PlacedFeature>()
         .expect("the data pack loader declares minecraft:worldgen/placed_feature");
     let placed_tags = registries
-        .tags::<keys::PlacedFeature>()
+        .tags::<PlacedFeature>()
         .expect("the data pack loader builds the placed feature tags");
     let biome_registry = registries
         .registry::<Biome>()

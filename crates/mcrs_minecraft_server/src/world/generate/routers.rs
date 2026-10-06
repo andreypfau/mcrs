@@ -4,7 +4,6 @@ use std::sync::Arc;
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::WorldgenAssets;
@@ -17,6 +16,7 @@ use tracing::{error, info};
 use crate::world::generate::structures::DimensionStructures;
 use crate::world_options::{DimensionList, WorldSeed};
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///
@@ -64,7 +64,7 @@ pub(crate) fn build_dimension_routers(
         .tags::<Biome>()
         .expect("the data pack loader builds the biome tags");
     let noise_settings = registries
-        .registry::<keys::NoiseSettings>()
+        .registry::<NoiseGeneratorSettings>()
         .expect("the data pack declares minecraft:worldgen/noise_settings");
 
     let mut routers = DimensionRouters::default();

@@ -23,6 +23,7 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, WorldStates};
+use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature::proto::{
     Feature, PlacedFeature, ProcessorRule, StructureProcessor, processor_list,
 };
@@ -31,7 +32,6 @@ use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::template::{
     ChainKind, Placement, SettingsRandom, compile_chain, mirror_state, place_template, rotate_state,
 };
-use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 
 use super::structures::frozen_shared;

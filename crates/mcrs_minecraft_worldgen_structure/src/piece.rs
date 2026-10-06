@@ -14,10 +14,8 @@ use crate::frozen::{
 };
 use crate::hardcoded::igloo::IglooTemplate;
 use crate::orient::{Orientation, union_of};
-use crate::{
-    LiquidSettings, MineshaftType, OceanTemperature, PoolElement, PortalPlacement, SingleElement,
-    TerrainAdaptation,
-};
+use crate::{MineshaftType, OceanTemperature, PortalPlacement, TerrainAdaptation};
+use mcrs_minecraft_worldgen_feature::pool::{LiquidSettings, PoolElement, SingleElement};
 
 pub const TERRAIN_MARGIN: i32 = 12;
 

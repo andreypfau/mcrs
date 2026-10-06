@@ -16,6 +16,9 @@ use std::sync::{Arc, LazyLock};
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_worldgen_structure::Structure;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -118,8 +121,8 @@ fn id_of(base: &Path, path: &Path) -> ResourceLocation {
 fn base_set() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let tables = shipped_report().tables().cloned().chain([
-            Arc::clone(shipped_names::<keys::Carver>("carver").table()),
-            Arc::clone(shipped_names::<keys::PlacedFeature>("placed_feature").table()),
+            Arc::clone(shipped_names::<CarverConfig>("carver").table()),
+            Arc::clone(shipped_names::<PlacedFeature>("placed_feature").table()),
         ]);
         typed(
             RegistrySet::from_tables(tables)
@@ -150,7 +153,7 @@ pub fn corpus_set() -> &'static RegistrySet {
             .clone()
             .with(numbered::<Biome>("biome", biomes))
             .and_then(|set| {
-                set.with(numbered::<keys::Structure>(
+                set.with(numbered::<Structure>(
                     "structure",
                     shipped_name_list("structure"),
                 ))
@@ -161,7 +164,7 @@ pub fn corpus_set() -> &'static RegistrySet {
             (keys::FLUID.location().as_static_str(), "fluid"),
             (mcrs_minecraft_biome::keys::BIOME.location().as_static_str(), "worldgen/biome"),
             (
-                keys::STRUCTURE.location().as_static_str(),
+                mcrs_minecraft_worldgen_structure::keys::STRUCTURE.location().as_static_str(),
                 "worldgen/structure",
             ),
         ] {

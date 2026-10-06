@@ -1,6 +1,7 @@
 use super::Piece::*;
 use super::{Piece, Pool, legacy, pool};
-use mcrs_minecraft_keys::{placed_feature, processor_list};
+use mcrs_minecraft_worldgen_feature::keys::placed_feature;
+use mcrs_minecraft_worldgen_feature::keys::processor_list;
 
 const STREETS: &[(Piece, i32)] = &[
     (legacy("corner_").padded(1, 3, 2), 2),

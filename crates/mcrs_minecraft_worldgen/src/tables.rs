@@ -6,11 +6,15 @@ use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, UnknownEntry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
+use mcrs_minecraft_worldgen_feature::proto::Feature;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
+use mcrs_minecraft_worldgen_structure::Structure;
 use mcrs_minecraft_worldgen_structure::StructureSet;
 use std::any::type_name;
 use std::collections::BTreeMap;
@@ -18,14 +22,14 @@ use thiserror::Error;
 
 #[derive(Resource, Clone)]
 pub struct WorldgenTables {
-    pub carvers: Entries<keys::Carver, Option<CarverConfig>>,
-    pub features: Entries<keys::Feature, Option<FeatureAsset>>,
-    pub placed_features: Entries<keys::PlacedFeature, Option<PlacedFeatureAsset>>,
-    pub processor_lists: Entries<keys::ProcessorList, Option<StructureProcessorList>>,
-    pub structures: Entries<keys::Structure, Option<StructureAsset>>,
-    pub structure_sets: Entries<keys::StructureSet, Option<StructureSet>>,
-    pub template_pools: Entries<keys::TemplatePool, Option<TemplatePoolAsset>>,
-    pub noise_settings: Entries<keys::NoiseSettings, Option<NoiseGeneratorSettingsAsset>>,
+    pub carvers: Entries<CarverConfig, Option<CarverConfig>>,
+    pub features: Entries<Feature, Option<FeatureAsset>>,
+    pub placed_features: Entries<PlacedFeature, Option<PlacedFeatureAsset>>,
+    pub processor_lists: Entries<StructureProcessorList, Option<StructureProcessorList>>,
+    pub structures: Entries<Structure, Option<StructureAsset>>,
+    pub structure_sets: Entries<StructureSet, Option<StructureSet>>,
+    pub template_pools: Entries<TemplatePool, Option<TemplatePoolAsset>>,
+    pub noise_settings: Entries<NoiseGeneratorSettings, Option<NoiseGeneratorSettingsAsset>>,
 }
 
 impl SharedResource for WorldgenTables {
@@ -49,14 +53,14 @@ fn empty<R, T>(key: RegistryKey<R>) -> Entries<R, Option<T>> {
 impl Default for WorldgenTables {
     fn default() -> Self {
         WorldgenTables {
-            carvers: empty(keys::CARVER),
-            features: empty(keys::FEATURE),
-            placed_features: empty(keys::PLACED_FEATURE),
-            processor_lists: empty(keys::PROCESSOR_LIST),
-            structures: empty(keys::STRUCTURE),
-            structure_sets: empty(keys::STRUCTURE_SET),
-            template_pools: empty(keys::TEMPLATE_POOL),
-            noise_settings: empty(keys::NOISE_SETTINGS),
+            carvers: empty(mcrs_minecraft_worldgen_carver::keys::CARVER),
+            features: empty(mcrs_minecraft_worldgen_feature::keys::FEATURE),
+            placed_features: empty(mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE),
+            processor_lists: empty(mcrs_minecraft_worldgen_feature::keys::PROCESSOR_LIST),
+            structures: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE),
+            structure_sets: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE_SET),
+            template_pools: empty(mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL),
+            noise_settings: empty(mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS),
         }
     }
 }

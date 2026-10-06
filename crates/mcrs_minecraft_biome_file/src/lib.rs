@@ -7,11 +7,12 @@ use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
     AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
 };
-use mcrs_minecraft_keys::{Carver, PlacedFeature};
 use mcrs_minecraft_registry::{HolderSet, Id, RegistrySet};
+use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
-pub type CarverSet = HolderSet<Carver>;
+pub type CarverSet = HolderSet<CarverConfig>;
 pub type FeatureSteps = Vec<HolderSet<PlacedFeature>>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,7 +86,7 @@ pub struct BiomeGeneration {
 }
 
 impl BiomeGeneration {
-    pub fn carver(&mut self, key: ResourceKey<Carver, &'static str>) -> &mut Self {
+    pub fn carver(&mut self, key: ResourceKey<CarverConfig, &'static str>) -> &mut Self {
         self.carvers.push(*key.location());
         self
     }
@@ -138,7 +139,7 @@ impl BiomeDraft {
     /// biome that cannot be built says everything wrong with it at once.
     pub fn resolve(self, set: &RegistrySet) -> Result<BiomeFile, Vec<String>> {
         let mut failures = Vec::new();
-        let carvers = match ids::<Carver>(set, &self.carvers, &mut failures)[..] {
+        let carvers = match ids::<CarverConfig>(set, &self.carvers, &mut failures)[..] {
             [only] => HolderSet::One(only),
             ref listed => HolderSet::List(listed.into()),
         };

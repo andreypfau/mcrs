@@ -6,7 +6,6 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
@@ -16,6 +15,7 @@ use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 use mcrs_minecraft_worldgen::tables::asset_path;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use std::env;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -85,7 +85,7 @@ pub(crate) fn request_dimension_noise_settings(
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
     let settings = set
-        .registry::<keys::NoiseSettings>()
+        .registry::<NoiseGeneratorSettings>()
         .expect("the data pack declares minecraft:worldgen/noise_settings");
     for (_, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
@@ -96,7 +96,7 @@ pub(crate) fn request_dimension_noise_settings(
             continue;
         };
         let handle = asset_server.load::<NoiseGeneratorSettingsAsset>(asset_path(
-            &keys::NOISE_SETTINGS.location(),
+            &mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS.location(),
             name,
         ));
         loaded.push(handle.untyped());

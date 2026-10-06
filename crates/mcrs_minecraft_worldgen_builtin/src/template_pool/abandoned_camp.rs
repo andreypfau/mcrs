@@ -1,8 +1,8 @@
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys::placed_feature;
+use mcrs_minecraft_worldgen_feature::keys::placed_feature;
+use mcrs_minecraft_worldgen_feature::pool::{PoolElement, SingleElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;
-use mcrs_minecraft_worldgen_structure::{PoolElement, SingleElement, TemplatePool};
 
 const BIOME_VARIANTS: [&str; 18] = [
     "savanna",

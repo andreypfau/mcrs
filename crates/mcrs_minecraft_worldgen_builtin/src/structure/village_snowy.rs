@@ -1011,7 +1011,7 @@ fn snowy_shepherds_house_1(c: &mut Canvas) {
     c.place(&K.lantern, 0, 2, 0);
     c.spot(
         [1, 0, 2],
-        keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
+        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
         GRASS,
     );
 

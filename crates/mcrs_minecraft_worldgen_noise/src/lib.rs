@@ -1,3 +1,5 @@
+#[rustfmt::skip]
+pub mod keys;
 pub mod blended;
 pub mod gradient;
 pub mod interval;

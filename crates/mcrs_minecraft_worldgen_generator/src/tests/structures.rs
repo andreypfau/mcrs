@@ -7,18 +7,16 @@ use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::{Registry, TagRules, Tags, build_tags};
+use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, ResolvedState, Template, TemplateBlock,
 };
 use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
-use mcrs_minecraft_worldgen_structure::{
-    MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
-};
+use mcrs_minecraft_worldgen_structure::{MineshaftType, OceanTemperature, Structure, StructureSet};
 use mcrs_minecraft_worldgen_testing::{assets_dir, corpus_set, json_files};
 
 use super::{biome_tags, corpus, corpus_biomes, structure_registry, structure_tags};
@@ -373,7 +371,8 @@ fn try_freeze_with(
         Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, []).expect("an empty registry");
     let tags = no_tags(&biomes);
     let structure_registry =
-        Registry::<keys::Structure>::new(keys::STRUCTURE, []).expect("an empty registry");
+        Registry::<Structure>::new(mcrs_minecraft_worldgen_structure::keys::STRUCTURE, [])
+            .expect("an empty registry");
     let structure_tags = no_tags(&structure_registry);
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {

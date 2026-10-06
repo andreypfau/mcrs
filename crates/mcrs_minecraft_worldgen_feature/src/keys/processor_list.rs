@@ -1,0 +1,44 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+use mcrs_minecraft_core::{ResourceKey, rl};
+
+pub const ANCIENT_CITY_GENERIC_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:ancient_city_generic_degradation"));
+pub const ANCIENT_CITY_START_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:ancient_city_start_degradation"));
+pub const ANCIENT_CITY_WALLS_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:ancient_city_walls_degradation"));
+pub const BASTION_GENERIC_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:bastion_generic_degradation"));
+pub const BOTTOM_RAMPART: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:bottom_rampart"));
+pub const BRIDGE: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:bridge"));
+pub const EMPTY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:empty"));
+pub const ENTRANCE_REPLACEMENT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:entrance_replacement"));
+pub const FARM_DESERT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:farm_desert"));
+pub const FARM_PLAINS: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:farm_plains"));
+pub const FARM_SAVANNA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:farm_savanna"));
+pub const FARM_SNOWY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:farm_snowy"));
+pub const FARM_TAIGA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:farm_taiga"));
+pub const FOSSIL_COAL: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:fossil_coal"));
+pub const FOSSIL_DIAMONDS: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:fossil_diamonds"));
+pub const FOSSIL_ROT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:fossil_rot"));
+pub const HIGH_RAMPART: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:high_rampart"));
+pub const HIGH_WALL: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:high_wall"));
+pub const HOUSING: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:housing"));
+pub const MOSSIFY_10_PERCENT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:mossify_10_percent"));
+pub const MOSSIFY_20_PERCENT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:mossify_20_percent"));
+pub const MOSSIFY_70_PERCENT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:mossify_70_percent"));
+pub const OUTPOST_ROT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:outpost_rot"));
+pub const RAMPART_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:rampart_degradation"));
+pub const ROOF: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:roof"));
+pub const SIDE_WALL_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:side_wall_degradation"));
+pub const STABLE_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:stable_degradation"));
+pub const STREET_PLAINS: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:street_plains"));
+pub const STREET_SAVANNA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:street_savanna"));
+pub const STREET_SNOWY_OR_TAIGA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:street_snowy_or_taiga"));
+pub const TRAIL_RUINS_HOUSES_ARCHAEOLOGY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:trail_ruins_houses_archaeology"));
+pub const TRAIL_RUINS_ROADS_ARCHAEOLOGY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:trail_ruins_roads_archaeology"));
+pub const TRAIL_RUINS_TOWER_TOP_ARCHAEOLOGY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:trail_ruins_tower_top_archaeology"));
+pub const TREASURE_ROOMS: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:treasure_rooms"));
+pub const TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:trial_chambers_copper_bulb_degradation"));
+pub const ZOMBIE_DESERT: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:zombie_desert"));
+pub const ZOMBIE_PLAINS: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:zombie_plains"));
+pub const ZOMBIE_SAVANNA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:zombie_savanna"));
+pub const ZOMBIE_SNOWY: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:zombie_snowy"));
+pub const ZOMBIE_TAIGA: ResourceKey<crate::proto::StructureProcessorList, &'static str> = ResourceKey::new(rl!("minecraft:zombie_taiga"));

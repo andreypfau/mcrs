@@ -4,6 +4,7 @@ use super::flat::FlatChunkGenerator;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -29,7 +30,7 @@ const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
 #[serde(deny_unknown_fields)]
 pub struct NoiseChunkGenerator {
     pub biome_source: BiomeSource,
-    pub settings: Id<keys::NoiseSettings>,
+    pub settings: Id<NoiseGeneratorSettings>,
 }
 
 #[cfg(test)]

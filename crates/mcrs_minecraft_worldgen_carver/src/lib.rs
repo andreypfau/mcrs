@@ -1,3 +1,5 @@
+#[rustfmt::skip]
+pub mod keys;
 pub mod beta;
 pub mod canyon;
 pub mod config;

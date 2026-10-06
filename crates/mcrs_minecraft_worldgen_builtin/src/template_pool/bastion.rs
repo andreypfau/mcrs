@@ -1,5 +1,5 @@
 use super::{Pool, pool, single};
-use mcrs_minecraft_keys::processor_list;
+use mcrs_minecraft_worldgen_feature::keys::processor_list;
 
 #[rustfmt::skip]
 pub const POOLS: &[Pool] = &[

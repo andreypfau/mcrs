@@ -43,6 +43,7 @@ use mcrs_minecraft_worldgen_feature::placer::{
     BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
     WorldGenVolume, WorldStates, place,
 };
+use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_worldgen_feature::proto::{
     BlockReplacement, Feature, PlacedFeature, StructureProcessor, StructureProcessorList,
     WeightedPlacedFeature, processor_list,
@@ -136,7 +137,6 @@ use mcrs_minecraft_worldgen_feature_place::tree::decorator::TreeSink;
 use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, TreeTables, place_tree};
 use mcrs_minecraft_worldgen_feature_place::vines::place_vines;
-use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId, StructureKind,
 };
@@ -506,7 +506,9 @@ impl FeatureProgram {
             })
             .collect();
 
-        let moss_id = keys::feature::PALE_MOSS_PATCH.location().to_arc();
+        let moss_id = mcrs_minecraft_worldgen_feature::keys::feature::PALE_MOSS_PATCH
+            .location()
+            .to_arc();
         let moss_patch = corpus
             .features
             .get(&moss_id)

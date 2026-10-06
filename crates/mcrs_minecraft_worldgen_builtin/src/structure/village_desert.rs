@@ -18,7 +18,8 @@ const HOUSE_LOOT: &str = "village_desert_house";
 
 const STEP_SOUTH: &str = "minecraft:smooth_sandstone_stairs[facing=south]";
 
-const CAMEL: &str = keys::template_pool::VILLAGE_DESERT_CAMEL.as_static_str();
+const CAMEL: &str =
+    mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_DESERT_CAMEL.as_static_str();
 
 kit! {
     K;

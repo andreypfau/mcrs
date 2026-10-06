@@ -398,7 +398,7 @@ impl Canvas {
             at,
             "east_up",
             "minecraft:street",
-            keys::template_pool::EMPTY.as_str(),
+            mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_str(),
             keys::block::STRUCTURE_VOID.as_static_str(),
         );
     }

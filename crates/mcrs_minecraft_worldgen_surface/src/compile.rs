@@ -6,7 +6,6 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registry::{HolderSet, Id, Tags};
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
@@ -31,16 +30,16 @@ pub const CLAY_BAND_COUNT: usize = 192;
 /// The nine noises the stage samples outside the density graph. The reference
 /// hardcodes them, so no datapack file names them and nothing else would load
 /// them.
-pub const SURFACE_NOISE_NAMES: [ResourceKey<keys::Noise, &'static str>; 9] = [
-    keys::noise::SURFACE,
-    keys::noise::SURFACE_SECONDARY,
-    keys::noise::CLAY_BANDS_OFFSET,
-    keys::noise::BADLANDS_PILLAR,
-    keys::noise::BADLANDS_PILLAR_ROOF,
-    keys::noise::BADLANDS_SURFACE,
-    keys::noise::ICEBERG_PILLAR,
-    keys::noise::ICEBERG_PILLAR_ROOF,
-    keys::noise::ICEBERG_SURFACE,
+pub const SURFACE_NOISE_NAMES: [ResourceKey<NoiseParam, &'static str>; 9] = [
+    mcrs_minecraft_worldgen_noise::keys::noise::SURFACE,
+    mcrs_minecraft_worldgen_noise::keys::noise::SURFACE_SECONDARY,
+    mcrs_minecraft_worldgen_noise::keys::noise::CLAY_BANDS_OFFSET,
+    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_PILLAR,
+    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_PILLAR_ROOF,
+    mcrs_minecraft_worldgen_noise::keys::noise::BADLANDS_SURFACE,
+    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_PILLAR,
+    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_PILLAR_ROOF,
+    mcrs_minecraft_worldgen_noise::keys::noise::ICEBERG_SURFACE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

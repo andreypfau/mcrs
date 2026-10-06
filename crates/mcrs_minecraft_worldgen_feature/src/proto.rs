@@ -204,7 +204,7 @@ pub struct PlacedFeature {
 }
 
 impl RegistryValue for PlacedFeature {
-    type Registry = keys::PlacedFeature;
+    type Registry = Self;
 }
 
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
@@ -658,7 +658,7 @@ const _: () = assert!(names_cover(
 ));
 
 impl RegistryValue for Feature {
-    type Registry = keys::Feature;
+    type Registry = Self;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -769,7 +769,7 @@ pub struct GeodeCrackSettings {
 pub struct StructureProcessorList(pub Either<WrappedProcessors, Vec<StructureProcessor>>);
 
 impl RegistryValue for StructureProcessorList {
-    type Registry = keys::ProcessorList;
+    type Registry = Self;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

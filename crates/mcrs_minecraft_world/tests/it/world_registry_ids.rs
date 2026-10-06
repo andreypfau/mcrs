@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::{declared_world_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_worldgen_structure::Structure;
 
 fn crate_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
@@ -57,7 +57,7 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
         ("minecraft:worldgen/biome", names_in_registry::<Biome>(app)),
         (
             "minecraft:worldgen/structure",
-            names_in_registry::<keys::Structure>(app),
+            names_in_registry::<Structure>(app),
         ),
         ("minecraft:timeline", names_in_registry::<Timeline>(app)),
     ];

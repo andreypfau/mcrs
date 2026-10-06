@@ -19,8 +19,6 @@ pub mod block_state_provider_type;
 #[rustfmt::skip]
 pub mod block_tags;
 #[rustfmt::skip]
-pub mod carver;
-#[rustfmt::skip]
 pub mod carver_type;
 #[rustfmt::skip]
 pub mod chunk_generator;
@@ -81,11 +79,7 @@ pub mod entity_type_tags;
 #[rustfmt::skip]
 pub mod environment_attribute;
 #[rustfmt::skip]
-pub mod feature;
-#[rustfmt::skip]
 pub mod feature_size_type;
-#[rustfmt::skip]
-pub mod feature_tags;
 #[rustfmt::skip]
 pub mod feature_type;
 #[rustfmt::skip]
@@ -137,8 +131,6 @@ pub mod material_condition;
 #[rustfmt::skip]
 pub mod material_condition_type;
 #[rustfmt::skip]
-pub mod material_rule;
-#[rustfmt::skip]
 pub mod material_rule_type;
 #[rustfmt::skip]
 pub mod memory_module_type;
@@ -146,10 +138,6 @@ pub mod memory_module_type;
 pub mod menu;
 #[rustfmt::skip]
 pub mod mob_effect;
-#[rustfmt::skip]
-pub mod noise;
-#[rustfmt::skip]
-pub mod noise_settings;
 #[rustfmt::skip]
 pub mod number_format_type;
 #[rustfmt::skip]
@@ -160,8 +148,6 @@ pub mod particle_type;
 pub mod permission_check_type;
 #[rustfmt::skip]
 pub mod permission_type;
-#[rustfmt::skip]
-pub mod placed_feature;
 #[rustfmt::skip]
 pub mod placement_modifier_type;
 #[rustfmt::skip]
@@ -180,8 +166,6 @@ pub mod potion;
 pub mod potion_tags;
 #[rustfmt::skip]
 pub mod predicate;
-#[rustfmt::skip]
-pub mod processor_list;
 #[rustfmt::skip]
 pub mod recipe_book_category;
 #[rustfmt::skip]
@@ -209,8 +193,6 @@ pub mod spawn_condition_type;
 #[rustfmt::skip]
 pub mod stat_type;
 #[rustfmt::skip]
-pub mod structure;
-#[rustfmt::skip]
 pub mod structure_piece;
 #[rustfmt::skip]
 pub mod structure_placement;
@@ -219,13 +201,7 @@ pub mod structure_pool_element;
 #[rustfmt::skip]
 pub mod structure_processor;
 #[rustfmt::skip]
-pub mod structure_set;
-#[rustfmt::skip]
-pub mod structure_tags;
-#[rustfmt::skip]
 pub mod structure_type;
-#[rustfmt::skip]
-pub mod template_pool;
 #[rustfmt::skip]
 pub mod test_environment_definition_type;
 #[rustfmt::skip]

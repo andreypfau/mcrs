@@ -112,4 +112,10 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
         .chain(mcrs_minecraft_item::keys::bindings())
         .chain(mcrs_minecraft_keys::bindings())
         .chain(mcrs_minecraft_sound::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_carver::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_density::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_feature::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_noise::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_structure::keys::bindings())
+        .chain(mcrs_minecraft_worldgen_surface::keys::bindings())
 }

@@ -607,7 +607,7 @@ impl Template {
                     top,
                     joint,
                     name: id_or(nbt, "name", EMPTY_LABEL).map_err(&jigsaw)?,
-                    pool: id_or(nbt, "pool", *keys::template_pool::EMPTY.location())
+                    pool: id_or(nbt, "pool", *crate::keys::template_pool::EMPTY.location())
                         .map_err(&jigsaw)?,
                     target: id_or(nbt, "target", EMPTY_LABEL).map_err(&jigsaw)?,
                     placement_priority: int_or_zero(nbt, "placement_priority").map_err(&jigsaw)?,

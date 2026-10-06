@@ -677,7 +677,8 @@ fn taiga_butcher_shop_1(c: &mut Canvas) {
     );
     c.spot(
         [7, 0, 6],
-        keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_str(),
+        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS
+            .as_str(),
         GRASS,
     );
 }
@@ -1113,7 +1114,7 @@ fn shepherds_house_1(c: &mut Canvas, v: Village) {
     c.fill(&S.torch, 9, 3, [2, 8]);
     c.spot(
         [8, 1, 6],
-        keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
+        mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_str(),
         GRASS,
     );
 
