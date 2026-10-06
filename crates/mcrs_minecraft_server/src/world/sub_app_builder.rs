@@ -117,7 +117,7 @@ pub struct DimRegistryBundle {
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
         light_registry: world
-            .get_resource::<mcrs_minecraft_block::light::BlockLightRegistry>()
+            .get_resource::<mcrs_minecraft_light::block_light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
         biome_sources: world

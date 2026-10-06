@@ -366,11 +366,11 @@ fn cut(world: &Path, dimension: &str, centre: SectionPos, out: &Path) {
 }
 
 const OVERLAP_LIGHTS: [&str; 5] = [
-    keys::block::TORCH.name(),
-    keys::block::SOUL_LANTERN.name(),
-    keys::block::REDSTONE_TORCH.name(),
-    keys::block::AMETHYST_CLUSTER.name(),
-    keys::block::COPPER_LANTERN.name(),
+    keys::block::TORCH.as_static_str(),
+    keys::block::SOUL_LANTERN.as_static_str(),
+    keys::block::REDSTONE_TORCH.as_static_str(),
+    keys::block::AMETHYST_CLUSTER.as_static_str(),
+    keys::block::COPPER_LANTERN.as_static_str(),
 ];
 
 /// Five differently coloured lights on a ring of radius 4 on a stone floor
@@ -380,8 +380,8 @@ fn overlap(out: &Path) {
     let corpus = Corpus::get();
     let state = |name: &str| corpus.resolve(&name.parse().expect("a well-formed state"));
     let mut used = vec![
-        state(keys::block::AIR.name()),
-        state(keys::block::STONE.name()),
+        state(keys::block::AIR.as_static_str()),
+        state(keys::block::STONE.as_static_str()),
     ];
     used.extend(OVERLAP_LIGHTS.map(state));
     let (colours, palette) = corpus.bake(&used);

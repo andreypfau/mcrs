@@ -1,27 +1,27 @@
 use std::sync::{Arc, OnceLock};
 
-use bevy_ecs::resource::Resource;
+use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, ShapeId};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::voxel_shape::{ShapeRegistry, VoxelShape};
-use mcrs_minecraft_light::block::{LightProperties, LightRegistry, SpecialBlocks};
-use mcrs_minecraft_light::level::LightLevel;
 use mcrs_minecraft_registry::BlockStateId;
 use rustc_hash::FxHashMap;
 
-use crate::definition::{BlockStateFlags, Blocks, ShapeId};
+use crate::block::{LightProperties, LightRegistry, SpecialBlocks};
+use crate::level::LightLevel;
 
-#[derive(Resource, Clone)]
+#[cfg(feature = "bevy")]
+#[derive(bevy_ecs::resource::Resource, Clone)]
 pub struct BlockLightRegistry(pub Arc<LightRegistry>);
 
 /// Interning a shape leaks it, so the table is built once and every app in the
 /// process shares it. There is one asset corpus per process, so a second app
 /// would derive the same rows anyway.
-pub fn block_light_registry(blocks: &Blocks) -> Arc<LightRegistry> {
+pub fn block_light_registry(blocks: &BlockDefinitions) -> Arc<LightRegistry> {
     static REGISTRY: OnceLock<Arc<LightRegistry>> = OnceLock::new();
     REGISTRY.get_or_init(|| Arc::new(build(blocks))).clone()
 }
 
-fn build(blocks: &Blocks) -> LightRegistry {
+fn build(blocks: &BlockDefinitions) -> LightRegistry {
     let state_count = blocks.state_count();
     assert!(
         state_count + 2 <= u16::MAX as usize,
@@ -72,10 +72,10 @@ fn build(blocks: &Blocks) -> LightRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definition::load_block_definitions;
     use bevy_app::App;
     use bevy_app::TaskPoolPlugin;
     use bevy_asset::{AssetPlugin, AssetServer};
+    use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
     use mcrs_minecraft_registry::static_report::shipped_report;
 
     fn corpus() -> &'static Blocks {
@@ -89,7 +89,7 @@ mod tests {
             });
             let asset_server = app.world().resource::<AssetServer>().clone();
             let blocks = shipped_report()
-            .registry_of(mcrs_minecraft_keys::BLOCK)
+                .registry_of(mcrs_minecraft_keys::BLOCK)
                 .expect("the registries report has blocks");
             let (definitions, _) = load_block_definitions(&asset_server, &blocks)
                 .expect("the block definition corpus loads");
