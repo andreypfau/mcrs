@@ -1,6 +1,7 @@
+use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys::{EntityType, sound_event};
+use mcrs_minecraft_keys::EntityType;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};

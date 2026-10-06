@@ -4,10 +4,11 @@ use mcrs_minecraft_core::codec::{Bounded, default_true, is_default, is_true};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_enchantment::predicate::LootCondition;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_keys::{
-    self as keys, ContextFloatProvider, ContextIntProvider, Enchantment, Item, MapDecorationType,
-    MobEffect, Potion, Structure,
+    self as keys, ContextFloatProvider, ContextIntProvider, Item, MapDecorationType, MobEffect,
+    Potion, Structure,
 };
 use mcrs_minecraft_registry::{HolderSet, Id};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -45,7 +46,7 @@ pub struct VillagerTrade {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub given_item_modifier: Option<ItemModifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub double_trade_price_enchantments: Option<HolderSet<Enchantment>>,
+    pub double_trade_price_enchantments: Option<HolderSet<EnchantmentData>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -371,7 +372,7 @@ pub enum LootFunction {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         condition: Option<LootCondition>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        options: Option<HolderSet<Enchantment>>,
+        options: Option<HolderSet<EnchantmentData>>,
         #[serde(default = "default_true", skip_serializing_if = "is_true")]
         only_compatible: bool,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -383,7 +384,7 @@ pub enum LootFunction {
         condition: Option<LootCondition>,
         levels: ContextInt,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        options: Option<HolderSet<Enchantment>>,
+        options: Option<HolderSet<EnchantmentData>>,
         #[serde(default, skip_serializing_if = "is_default")]
         include_additional_cost_component: bool,
     },

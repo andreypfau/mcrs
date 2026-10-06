@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{Holder, entry};
@@ -15,7 +14,7 @@ pub struct BannerPattern {
 }
 
 impl RegistryValue for BannerPattern {
-    type Registry = keys::BannerPattern;
+    type Registry = Self;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

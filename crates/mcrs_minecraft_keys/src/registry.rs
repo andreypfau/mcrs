@@ -32,13 +32,6 @@ impl Registered for AttributeType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BannerPattern {}
-pub const BANNER_PATTERN: RegistryKey<BannerPattern> = RegistryKey::new(rl!("minecraft:banner_pattern"));
-impl Registered for BannerPattern {
-    const REGISTRY: RegistryKey<Self> = BANNER_PATTERN;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Block {}
 pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!("minecraft:block"));
 impl Registered for Block {
@@ -57,13 +50,6 @@ pub enum BlockPredicateType {}
 pub const BLOCK_PREDICATE_TYPE: RegistryKey<BlockPredicateType> = RegistryKey::new(rl!("minecraft:block_predicate_type"));
 impl Registered for BlockPredicateType {
     const REGISTRY: RegistryKey<Self> = BLOCK_PREDICATE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockTransformer {}
-pub const BLOCK_TRANSFORMER: RegistryKey<BlockTransformer> = RegistryKey::new(rl!("minecraft:block_transformer"));
-impl Registered for BlockTransformer {
-    const REGISTRY: RegistryKey<Self> = BLOCK_TRANSFORMER;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -186,13 +172,6 @@ impl Registered for CustomStat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DamageType {}
-pub const DAMAGE_TYPE: RegistryKey<DamageType> = RegistryKey::new(rl!("minecraft:damage_type"));
-impl Registered for DamageType {
-    const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataComponentPredicateType {}
 pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<DataComponentPredicateType> = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
 impl Registered for DataComponentPredicateType {
@@ -211,20 +190,6 @@ pub enum DebugSubscription {}
 pub const DEBUG_SUBSCRIPTION: RegistryKey<DebugSubscription> = RegistryKey::new(rl!("minecraft:debug_subscription"));
 impl Registered for DebugSubscription {
     const REGISTRY: RegistryKey<Self> = DEBUG_SUBSCRIPTION;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DecoratedPotPattern {}
-pub const DECORATED_POT_PATTERN: RegistryKey<DecoratedPotPattern> = RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
-impl Registered for DecoratedPotPattern {
-    const REGISTRY: RegistryKey<Self> = DECORATED_POT_PATTERN;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Dialog {}
-pub const DIALOG: RegistryKey<Dialog> = RegistryKey::new(rl!("minecraft:dialog"));
-impl Registered for Dialog {
-    const REGISTRY: RegistryKey<Self> = DIALOG;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -260,13 +225,6 @@ pub enum DimensionType {}
 pub const DIMENSION_TYPE: RegistryKey<DimensionType> = RegistryKey::new(rl!("minecraft:dimension_type"));
 impl Registered for DimensionType {
     const REGISTRY: RegistryKey<Self> = DIMENSION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Enchantment {}
-pub const ENCHANTMENT: RegistryKey<Enchantment> = RegistryKey::new(rl!("minecraft:enchantment"));
-impl Registered for Enchantment {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -396,13 +354,6 @@ impl Registered for InputControlType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Instrument {}
-pub const INSTRUMENT: RegistryKey<Instrument> = RegistryKey::new(rl!("minecraft:instrument"));
-impl Registered for Instrument {
-    const REGISTRY: RegistryKey<Self> = INSTRUMENT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IntProviderType {}
 pub const INT_PROVIDER_TYPE: RegistryKey<IntProviderType> = RegistryKey::new(rl!("minecraft:int_provider_type"));
 impl Registered for IntProviderType {
@@ -421,13 +372,6 @@ pub enum ItemModifier {}
 pub const ITEM_MODIFIER: RegistryKey<ItemModifier> = RegistryKey::new(rl!("minecraft:item_modifier"));
 impl Registered for ItemModifier {
     const REGISTRY: RegistryKey<Self> = ITEM_MODIFIER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum JukeboxSong {}
-pub const JUKEBOX_SONG: RegistryKey<JukeboxSong> = RegistryKey::new(rl!("minecraft:jukebox_song"));
-impl Registered for JukeboxSong {
-    const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -512,13 +456,6 @@ pub enum OutgoingRpcMethods {}
 pub const OUTGOING_RPC_METHODS: RegistryKey<OutgoingRpcMethods> = RegistryKey::new(rl!("minecraft:outgoing_rpc_methods"));
 impl Registered for OutgoingRpcMethods {
     const REGISTRY: RegistryKey<Self> = OUTGOING_RPC_METHODS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PaintingVariant {}
-pub const PAINTING_VARIANT: RegistryKey<PaintingVariant> = RegistryKey::new(rl!("minecraft:painting_variant"));
-impl Registered for PaintingVariant {
-    const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -669,13 +606,6 @@ impl Registered for SlotSourceType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SoundEvent {}
-pub const SOUND_EVENT: RegistryKey<SoundEvent> = RegistryKey::new(rl!("minecraft:sound_event"));
-impl Registered for SoundEvent {
-    const REGISTRY: RegistryKey<Self> = SOUND_EVENT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpawnConditionType {}
 pub const SPAWN_CONDITION_TYPE: RegistryKey<SpawnConditionType> = RegistryKey::new(rl!("minecraft:spawn_condition_type"));
 impl Registered for SpawnConditionType {
@@ -757,20 +687,6 @@ pub enum TriggerType {}
 pub const TRIGGER_TYPE: RegistryKey<TriggerType> = RegistryKey::new(rl!("minecraft:trigger_type"));
 impl Registered for TriggerType {
     const REGISTRY: RegistryKey<Self> = TRIGGER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TrimMaterial {}
-pub const TRIM_MATERIAL: RegistryKey<TrimMaterial> = RegistryKey::new(rl!("minecraft:trim_material"));
-impl Registered for TrimMaterial {
-    const REGISTRY: RegistryKey<Self> = TRIM_MATERIAL;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TrimPattern {}
-pub const TRIM_PATTERN: RegistryKey<TrimPattern> = RegistryKey::new(rl!("minecraft:trim_pattern"));
-impl Registered for TrimPattern {
-    const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1074,17 +990,15 @@ impl Registered for ZombieNautilusVariant {
     const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
 }
 
-pub fn bindings() -> [TypeBinding; 153] {
+pub fn bindings() -> [TypeBinding; 141] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
         ATTRIBUTE.binding(),
         ATTRIBUTE_TYPE.binding(),
-        BANNER_PATTERN.binding(),
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
         BLOCK_PREDICATE_TYPE.binding(),
-        BLOCK_TRANSFORMER.binding(),
         CAT_SOUND_VARIANT.binding(),
         CAT_VARIANT.binding(),
         CHAT_TYPE.binding(),
@@ -1102,18 +1016,14 @@ pub fn bindings() -> [TypeBinding; 153] {
         COW_VARIANT.binding(),
         CREATIVE_MODE_TAB.binding(),
         CUSTOM_STAT.binding(),
-        DAMAGE_TYPE.binding(),
         DATA_COMPONENT_PREDICATE_TYPE.binding(),
         DATA_COMPONENT_TYPE.binding(),
         DEBUG_SUBSCRIPTION.binding(),
-        DECORATED_POT_PATTERN.binding(),
-        DIALOG.binding(),
         DIALOG_ACTION_TYPE.binding(),
         DIALOG_BODY_TYPE.binding(),
         DIALOG_TYPE.binding(),
         DIMENSION.binding(),
         DIMENSION_TYPE.binding(),
-        ENCHANTMENT.binding(),
         ENCHANTMENT_EFFECT_COMPONENT_TYPE.binding(),
         ENCHANTMENT_ENTITY_EFFECT_TYPE.binding(),
         ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.binding(),
@@ -1132,11 +1042,9 @@ pub fn bindings() -> [TypeBinding; 153] {
         HEIGHT_PROVIDER_TYPE.binding(),
         INCOMING_RPC_METHODS.binding(),
         INPUT_CONTROL_TYPE.binding(),
-        INSTRUMENT.binding(),
         INT_PROVIDER_TYPE.binding(),
         ITEM.binding(),
         ITEM_MODIFIER.binding(),
-        JUKEBOX_SONG.binding(),
         LOOT_CONDITION_TYPE.binding(),
         LOOT_FUNCTION_TYPE.binding(),
         LOOT_NBT_PROVIDER_TYPE.binding(),
@@ -1149,7 +1057,6 @@ pub fn bindings() -> [TypeBinding; 153] {
         MOB_EFFECT.binding(),
         NUMBER_FORMAT_TYPE.binding(),
         OUTGOING_RPC_METHODS.binding(),
-        PAINTING_VARIANT.binding(),
         PARTICLE_TYPE.binding(),
         PERMISSION_CHECK_TYPE.binding(),
         PERMISSION_TYPE.binding(),
@@ -1171,7 +1078,6 @@ pub fn bindings() -> [TypeBinding; 153] {
         SLOT_DISPLAY.binding(),
         SLOT_SOURCE.binding(),
         SLOT_SOURCE_TYPE.binding(),
-        SOUND_EVENT.binding(),
         SPAWN_CONDITION_TYPE.binding(),
         STAT_TYPE.binding(),
         SULFUR_CUBE_ARCHETYPE.binding(),
@@ -1184,8 +1090,6 @@ pub fn bindings() -> [TypeBinding; 153] {
         TRADE_SET.binding(),
         TRIAL_SPAWNER.binding(),
         TRIGGER_TYPE.binding(),
-        TRIM_MATERIAL.binding(),
-        TRIM_PATTERN.binding(),
         VILLAGER_PROFESSION.binding(),
         VILLAGER_TRADE.binding(),
         VILLAGER_TYPE.binding(),

@@ -11,4 +11,64 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_environment",
         value: "crate::world_clock::WorldClock",
     },
+    Owner {
+        registry: "minecraft:banner_pattern",
+        krate: "mcrs_minecraft_item",
+        value: "crate::BannerPattern",
+    },
+    Owner {
+        registry: "minecraft:instrument",
+        krate: "mcrs_minecraft_item",
+        value: "crate::InstrumentValue",
+    },
+    Owner {
+        registry: "minecraft:jukebox_song",
+        krate: "mcrs_minecraft_item",
+        value: "crate::JukeboxSong",
+    },
+    Owner {
+        registry: "minecraft:painting_variant",
+        krate: "mcrs_minecraft_item",
+        value: "crate::PaintingVariantValue",
+    },
+    Owner {
+        registry: "minecraft:trim_material",
+        krate: "mcrs_minecraft_item",
+        value: "crate::TrimMaterial",
+    },
+    Owner {
+        registry: "minecraft:trim_pattern",
+        krate: "mcrs_minecraft_item",
+        value: "crate::TrimPattern",
+    },
+    Owner {
+        registry: "minecraft:sound_event",
+        krate: "mcrs_minecraft_item",
+        value: "crate::SoundEvent",
+    },
+    Owner {
+        registry: "minecraft:damage_type",
+        krate: "mcrs_minecraft_item",
+        value: "crate::damage_type::DamageType",
+    },
+    Owner {
+        registry: "minecraft:decorated_pot_pattern",
+        krate: "mcrs_minecraft_item",
+        value: "crate::decorated_pot_pattern::DecoratedPotPattern",
+    },
+    Owner {
+        registry: "minecraft:dialog",
+        krate: "mcrs_minecraft_item",
+        value: "crate::dialog::Dialog",
+    },
+    Owner {
+        registry: "minecraft:block_transformer",
+        krate: "mcrs_minecraft_item",
+        value: "crate::block_transformer::BlockTransformer",
+    },
+    Owner {
+        registry: "minecraft:enchantment",
+        krate: "mcrs_minecraft_item",
+        value: "crate::enchantment::EnchantmentData",
+    },
 ];

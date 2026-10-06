@@ -2,11 +2,12 @@ use crate::shulker_boxes::ShulkerBoxes;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
-use mcrs_minecraft_keys::{Enchantment, EntityType, Item, entity_type};
+use mcrs_minecraft_keys::{EntityType, Item, entity_type};
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
@@ -96,8 +97,8 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
     let Some(enchantments) = enchantments.filter(|enchantments| !enchantments.0.is_empty()) else {
         return false;
     };
-    let registry = world.resource::<Registry<Enchantment>>();
-    let effects = world.resource::<Entries<Enchantment, Option<EnchantmentEffects>>>();
+    let registry = world.resource::<Registry<EnchantmentData>>();
+    let effects = world.resource::<Entries<EnchantmentData, Option<EnchantmentEffects>>>();
     enchantments.0.iter().any(|(id, _)| {
         registry
             .get(id)

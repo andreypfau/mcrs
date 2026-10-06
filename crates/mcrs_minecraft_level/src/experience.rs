@@ -4,7 +4,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_keys::Enchantment;
+use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -76,8 +76,8 @@ fn remove_binomial(random: &mut XoroshiroRandom, n: f32, p: f32) -> f32 {
 fn process_block_experience(
     amount: i32,
     enchantments: Option<&Enchantments>,
-    registry: &Registry<Enchantment>,
-    values: &Entries<Enchantment, Option<EnchantmentEffects>>,
+    registry: &Registry<EnchantmentData>,
+    values: &Entries<EnchantmentData, Option<EnchantmentEffects>>,
     random: &mut XoroshiroRandom,
 ) -> i32 {
     let Some(enchantments) = enchantments else {
@@ -112,8 +112,8 @@ fn award_block_experience(
     mut destroyed: MessageReader<BlockDestroyed>,
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,
-    registry: Res<Registry<Enchantment>>,
-    values: Res<Entries<Enchantment, Option<EnchantmentEffects>>>,
+    registry: Res<Registry<EnchantmentData>>,
+    values: Res<Entries<EnchantmentData, Option<EnchantmentEffects>>>,
     tools: Query<Option<&Enchantments>, With<ItemStack>>,
     mut random: ResMut<DimensionRandom>,
 ) {

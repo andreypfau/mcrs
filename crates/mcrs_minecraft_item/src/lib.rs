@@ -9,6 +9,8 @@ pub mod dropped;
 #[cfg(feature = "bevy")]
 pub mod effective;
 pub mod enchantment;
+#[rustfmt::skip]
+pub mod keys;
 #[doc(hidden)]
 pub mod harness;
 pub mod hash_ops;

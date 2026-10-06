@@ -12,7 +12,9 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_keys::{EntityType, SoundEvent, biome, carver, placed_feature, sound_event};
+use mcrs_minecraft_keys::{EntityType, biome, carver, placed_feature};
+use mcrs_minecraft_item::SoundEvent;
+use mcrs_minecraft_item::keys::sound_event;
 use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
 use serde::Serialize;
 

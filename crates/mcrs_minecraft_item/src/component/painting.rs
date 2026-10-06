@@ -1,7 +1,6 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -21,7 +20,7 @@ pub struct PaintingVariantValue {
 }
 
 impl RegistryValue for PaintingVariantValue {
-    type Registry = keys::PaintingVariant;
+    type Registry = Self;
 }
 
 /// The persistent form is the registry id alone; the wire form carries the

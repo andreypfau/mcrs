@@ -2,4 +2,4 @@
 
 use mcrs_minecraft_core::{TagKey, rl};
 
-pub const PLACEABLE: TagKey<crate::PaintingVariant, &'static str> = TagKey::new(rl!("minecraft:placeable"));
+pub const PLACEABLE: TagKey<crate::PaintingVariantValue, &'static str> = TagKey::new(rl!("minecraft:placeable"));

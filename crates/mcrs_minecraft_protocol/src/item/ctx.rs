@@ -493,7 +493,7 @@ pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> 
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_keys::{self as keys, Item};
+    use mcrs_minecraft_keys::Item;
     use mcrs_minecraft_registry::{LookupIndex, NoRegistries, Registry, RegistrySet};
 
     use super::*;
@@ -558,11 +558,14 @@ mod tests {
 
     #[test]
     fn a_holder_reference_crosses_the_wire_by_name_between_two_numberings() {
-        let lookup = with_local::<keys::SoundEvent>(
+        let lookup = with_local::<mcrs_minecraft_item::SoundEvent>(
             lookup("sound_event", &["a", "b", "c"]),
             &["c", "a", "b"],
         );
-        let local = lookup.local.registry::<keys::SoundEvent>().unwrap();
+        let local = lookup
+            .local
+            .registry::<mcrs_minecraft_item::SoundEvent>()
+            .unwrap();
         let holder = Holder::<SoundEvent>::Reference(local.by_name("minecraft:b").unwrap());
         assert_eq!(local.by_name("minecraft:b").unwrap().number(), 2);
 
@@ -575,8 +578,10 @@ mod tests {
 
     #[test]
     fn a_wire_number_the_local_registry_cannot_name_does_not_decode() {
-        let lookup =
-            with_local::<keys::SoundEvent>(lookup("sound_event", &["a", "b", "c"]), &["a", "b"]);
+        let lookup = with_local::<mcrs_minecraft_item::SoundEvent>(
+            lookup("sound_event", &["a", "b", "c"]),
+            &["a", "b"],
+        );
         let mut bytes = Vec::new();
         encode_holder_id(Some(2), &mut bytes).unwrap();
         let error = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &bytes[..]).unwrap_err();

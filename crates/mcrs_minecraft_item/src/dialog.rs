@@ -612,7 +612,7 @@ impl Specific for ServerLinks {}
 // written inline in the list, which is refused here until a holder set that holds inline entries
 // exists.
 dialog_type!(DialogList {
-    pub dialogs: HolderSet<keys::Dialog>,
+    pub dialogs: HolderSet<crate::dialog::Dialog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_action: Option<ActionButton>,
     #[serde(default, skip_serializing_if = "is_default")]

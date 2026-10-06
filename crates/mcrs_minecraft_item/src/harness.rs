@@ -163,8 +163,8 @@ sample_registries_table! {
     keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
     keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
-    keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
-    keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
+    crate::keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
+    crate::keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
     keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];
@@ -173,9 +173,9 @@ sample_registries_table! {
     keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
     keys::POTION => "potion" ["water", "swiftness", "healing"] [];
     keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
-    keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
+    crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
-    keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
+    crate::keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
     keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
     keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
     keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];
@@ -189,20 +189,22 @@ sample_registries_table! {
     keys::FROG_VARIANT => "frog_variant" ["temperate", "warm"] [];
     keys::CAT_VARIANT => "cat_variant" ["tabby", "jellie"] [];
     keys::CAT_SOUND_VARIANT => "cat_sound_variant" ["classic", "royal"] [];
-    keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
-    keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
-    keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
-    keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];
-    keys::JUKEBOX_SONG => "jukebox_song" ["pigstep", "cat"] [];
-    keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
+    crate::keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
+    crate::keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
+    crate::keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
+    crate::keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];
+    crate::keys::JUKEBOX_SONG => "jukebox_song" ["pigstep", "cat"] [];
+    crate::keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
 }
 
 /// A static registry numbers its entries as the generated constants do, so a
 /// constant names the same entry in the samples as in the game.
 fn build_sample_registries() -> RegistrySet {
-    let sounds = Registry::<keys::SoundEvent>::new(
-        keys::SOUND_EVENT,
-        keys::sound_event::ENTRIES.iter().map(|&name| name.into()),
+    let sounds = Registry::<crate::SoundEvent>::new(
+        crate::keys::SOUND_EVENT,
+        crate::keys::sound_event::ENTRIES
+            .iter()
+            .map(|&name| name.into()),
     )
     .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"));
     build_listed_registries(RegistrySet::new())

@@ -1,7 +1,6 @@
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_keys as keys;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
@@ -24,7 +23,7 @@ pub struct InstrumentValue {
 }
 
 impl RegistryValue for InstrumentValue {
-    type Registry = keys::Instrument;
+    type Registry = Self;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -42,7 +41,7 @@ pub struct JukeboxSong {
 }
 
 impl RegistryValue for JukeboxSong {
-    type Registry = keys::JukeboxSong;
+    type Registry = Self;
 }
 
 /// The persistent form is the registry id alone; the wire form carries the
@@ -74,7 +73,7 @@ impl Sample for Instrument {
         vec![
             Instrument(Holder::Reference(entry("ponder_goat_horn"))),
             Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK.id()),
+                sound_event: Holder::Reference(crate::keys::sound_event::ENTITY_ITEM_BREAK.id()),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),

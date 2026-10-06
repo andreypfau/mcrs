@@ -1,6 +1,7 @@
+use crate::damage_type::DamageType;
+use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::rl;
-use mcrs_minecraft_keys::{DamageType, sound_event};
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 

@@ -1,7 +1,7 @@
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_item::component::EquipmentSlotGroup;
 use mcrs_minecraft_item::enchantment::{EnchantmentCost, EnchantmentData};
-use mcrs_minecraft_keys::{Enchantment, Item};
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::HolderSet;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ pub struct EnchantmentFile {
     pub weight: u32,
     pub max_level: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclusive_set: Option<HolderSet<Enchantment>>,
+    pub exclusive_set: Option<HolderSet<EnchantmentData>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<EnchantmentEffects>,
 }

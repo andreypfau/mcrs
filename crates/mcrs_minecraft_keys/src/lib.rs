@@ -7,10 +7,6 @@ pub mod attribute;
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
-pub mod banner_pattern;
-#[rustfmt::skip]
-pub mod banner_pattern_tags;
-#[rustfmt::skip]
 pub mod biome;
 #[rustfmt::skip]
 pub mod biome_source;
@@ -28,8 +24,6 @@ pub mod block_state_provider;
 pub mod block_state_provider_type;
 #[rustfmt::skip]
 pub mod block_tags;
-#[rustfmt::skip]
-pub mod block_transformer;
 #[rustfmt::skip]
 pub mod carver;
 #[rustfmt::skip]
@@ -71,37 +65,25 @@ pub mod creative_mode_tab;
 #[rustfmt::skip]
 pub mod custom_stat;
 #[rustfmt::skip]
-pub mod damage_type;
-#[rustfmt::skip]
-pub mod damage_type_tags;
-#[rustfmt::skip]
 pub mod data_component_predicate_type;
 #[rustfmt::skip]
 pub mod data_component_type;
 #[rustfmt::skip]
 pub mod debug_subscription;
 #[rustfmt::skip]
-pub mod decorated_pot_pattern;
-#[rustfmt::skip]
 pub mod density_function;
 #[rustfmt::skip]
 pub mod density_function_type;
 #[rustfmt::skip]
-pub mod dialog;
-#[rustfmt::skip]
 pub mod dialog_action_type;
 #[rustfmt::skip]
 pub mod dialog_body_type;
-#[rustfmt::skip]
-pub mod dialog_tags;
 #[rustfmt::skip]
 pub mod dialog_type;
 #[rustfmt::skip]
 pub mod dimension;
 #[rustfmt::skip]
 pub mod dimension_type;
-#[rustfmt::skip]
-pub mod enchantment;
 #[rustfmt::skip]
 pub mod enchantment_effect_component_type;
 #[rustfmt::skip]
@@ -114,8 +96,6 @@ pub mod enchantment_location_based_effect_type;
 pub mod enchantment_provider;
 #[rustfmt::skip]
 pub mod enchantment_provider_type;
-#[rustfmt::skip]
-pub mod enchantment_tags;
 #[rustfmt::skip]
 pub mod enchantment_value_effect_type;
 #[rustfmt::skip]
@@ -161,17 +141,11 @@ pub mod incoming_rpc_methods;
 #[rustfmt::skip]
 pub mod input_control_type;
 #[rustfmt::skip]
-pub mod instrument;
-#[rustfmt::skip]
-pub mod instrument_tags;
-#[rustfmt::skip]
 pub mod int_provider_type;
 #[rustfmt::skip]
 pub mod item;
 #[rustfmt::skip]
 pub mod item_tags;
-#[rustfmt::skip]
-pub mod jukebox_song;
 #[rustfmt::skip]
 pub mod loot_condition_type;
 #[rustfmt::skip]
@@ -210,10 +184,6 @@ pub mod noise_settings;
 pub mod number_format_type;
 #[rustfmt::skip]
 pub mod outgoing_rpc_methods;
-#[rustfmt::skip]
-pub mod painting_variant;
-#[rustfmt::skip]
-pub mod painting_variant_tags;
 #[rustfmt::skip]
 pub mod particle_type;
 #[rustfmt::skip]
@@ -269,8 +239,6 @@ pub mod slot_display;
 #[rustfmt::skip]
 pub mod slot_source_type;
 #[rustfmt::skip]
-pub mod sound_event;
-#[rustfmt::skip]
 pub mod spawn_condition_type;
 #[rustfmt::skip]
 pub mod stat_type;
@@ -314,10 +282,6 @@ pub mod tree_decorator_type;
 pub mod trial_spawner;
 #[rustfmt::skip]
 pub mod trigger_type;
-#[rustfmt::skip]
-pub mod trim_material;
-#[rustfmt::skip]
-pub mod trim_pattern;
 #[rustfmt::skip]
 pub mod trunk_placer_type;
 #[rustfmt::skip]

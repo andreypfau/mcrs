@@ -3,7 +3,6 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
@@ -47,7 +46,7 @@ impl TestLookup {
             lookup.registry(registry, names);
         }
         let sounds: Vec<(&str, u16)> = (0u16..)
-            .zip(keys::sound_event::ENTRIES)
+            .zip(mcrs_minecraft_item::keys::sound_event::ENTRIES)
             .map(|(number, name)| {
                 let name = name.as_static_str();
                 (name.strip_prefix("minecraft:").unwrap_or(name), number)

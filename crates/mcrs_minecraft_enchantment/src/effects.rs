@@ -364,7 +364,7 @@ pub enum EnchantmentEntityEffect {
     ApplyExhaustion { amount: LevelBasedValue },
     #[serde(rename = "minecraft:play_sound")]
     PlaySound {
-        sound: HolderSet<keys::SoundEvent>,
+        sound: HolderSet<mcrs_minecraft_item::SoundEvent>,
         volume: FloatProvider,
         pitch: FloatProvider,
     },
