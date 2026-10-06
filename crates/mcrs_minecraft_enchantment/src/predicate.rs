@@ -180,7 +180,7 @@ pub struct LocationPredicate {
 }
 
 /// The block half of a `LocationPredicate`, which names blocks rather than
-/// testing a position the way the worldgen [`BlockPredicate`] does.
+/// testing a position the way a block predicate does.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocationBlockPredicate {
@@ -262,38 +262,4 @@ dispatched_map! {
         "minecraft:vehicle" => vehicle: Box<EntityPredicate>,
         "minecraft:type_specific/player" => player: PlayerPredicate,
     }
-}
-
-/// Java's worldgen `BlockPredicate`, which tests a position rather than naming
-/// a block the way [`LocationBlockPredicate`] does.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "type", deny_unknown_fields)]
-pub enum BlockPredicate {
-    #[serde(rename = "minecraft:all_of")]
-    AllOf { predicates: Vec<BlockPredicate> },
-    #[serde(rename = "minecraft:any_of")]
-    AnyOf { predicates: Vec<BlockPredicate> },
-    #[serde(rename = "minecraft:matching_blocks")]
-    MatchingBlocks {
-        blocks: HolderSet<keys::Block>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[i32; 3]>,
-    },
-    #[serde(rename = "minecraft:matching_block_tag")]
-    MatchingBlockTag {
-        tag: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[i32; 3]>,
-    },
-    #[serde(rename = "minecraft:matching_fluids")]
-    MatchingFluids {
-        fluids: HolderSet<keys::Fluid>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[i32; 3]>,
-    },
-    #[serde(rename = "minecraft:unobstructed")]
-    Unobstructed {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[i32; 3]>,
-    },
 }
