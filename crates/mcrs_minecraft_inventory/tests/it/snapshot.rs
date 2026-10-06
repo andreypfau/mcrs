@@ -12,7 +12,7 @@ use mcrs_minecraft_keys::{entity_type, menu};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
 use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{HolderSet, Id};
-use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
+use mcrs_minecraft_world::item::{test_enchantment_effects, test_enchantment_registry};
 use mcrs_minecraft_world::registries::test_registries;
 
 fn enchanted_chestplate(world: &mut World, enchantment: &str) -> Entity {
@@ -34,7 +34,7 @@ fn menu_snapshots_read_what_the_player_may_do() {
 fn only_an_enchantment_preventing_armour_change_marks_the_stack_binding() {
     let mut world = world();
     world.insert_resource(test_enchantment_registry());
-    world.insert_resource(test_enchantments());
+    world.insert_resource(test_enchantment_effects());
     let player = holder(&mut world, slots::COUNT);
     let cursed = enchanted_chestplate(&mut world, "minecraft:binding_curse");
     let unbreaking = enchanted_chestplate(&mut world, "minecraft:unbreaking");

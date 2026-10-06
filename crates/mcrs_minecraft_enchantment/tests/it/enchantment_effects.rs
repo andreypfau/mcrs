@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use mcrs_minecraft_item::enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_worldgen_testing::tagged_report;
 
 fn assets() -> PathBuf {

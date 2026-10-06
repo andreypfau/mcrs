@@ -2,8 +2,8 @@ use std::fmt;
 
 use mcrs_minecraft_core::codec::{Bounded, default_true, is_default, is_true};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_enchantment::predicate::LootCondition;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
-use mcrs_minecraft_item::enchantment::predicate::LootCondition;
 use mcrs_minecraft_item::{ComponentMap, ComponentPatch};
 use mcrs_minecraft_keys::{
     self as keys, ContextFloatProvider, ContextIntProvider, Enchantment, Item, MapDecorationType,

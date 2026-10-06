@@ -12,6 +12,7 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_keys::{self as keys, Enchantment};
 use mcrs_minecraft_level::session::PlayerSession;
@@ -493,6 +494,7 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<Items>(),
         type_name::<Registry<Enchantment>>(),
         type_name::<Entries<Enchantment, EnchantmentData>>(),
+        type_name::<Entries<Enchantment, Option<EnchantmentEffects>>>(),
         type_name::<WorldgenTables>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),

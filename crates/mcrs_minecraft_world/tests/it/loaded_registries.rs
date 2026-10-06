@@ -1478,7 +1478,7 @@ fn a_block_state_provider_reference_is_checked() {
         assert!(text.contains(part), "{part} missing from:\n{text}");
     }
 
-    use mcrs_minecraft_item::enchantment::effects::{BlockState, BlockStateProvider};
+    use mcrs_minecraft_enchantment::effects::{BlockState, BlockStateProvider};
     let set = test_registries();
     let provider = set
         .table("minecraft:worldgen/block_state_provider")
