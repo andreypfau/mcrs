@@ -77,11 +77,6 @@ impl Lighting {
     }
 }
 
-/// `MCRS_LAN_ANNOUNCE=off` turns the LAN announcement off.
-fn lan_announce_from_env() -> bool {
-    mcrs_minecraft_network::lan::enabled(std::env::var("MCRS_LAN_ANNOUNCE").ok().as_deref())
-}
-
 /// The world folder the server reads its saved chunks from.
 #[derive(Resource, Clone)]
 pub struct WorldSave(pub PathBuf);
@@ -96,7 +91,7 @@ impl Default for MinecraftServerPlugin {
             column_traces: None,
             lighting: Lighting::from_env(),
             default_op_level: 0,
-            announce_on_lan: lan_announce_from_env(),
+            announce_on_lan: true,
             singleplayer_profile: None,
         }
     }

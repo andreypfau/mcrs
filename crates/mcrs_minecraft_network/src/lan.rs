@@ -45,24 +45,6 @@ pub(crate) fn source_address(bound: SocketAddr) -> SocketAddr {
     }
 }
 
-fn setting(value: &str) -> Option<bool> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "off" | "0" | "false" | "no" => Some(false),
-        "on" | "1" | "true" | "yes" => Some(true),
-        _ => None,
-    }
-}
-
-pub fn enabled(value: Option<&str>) -> bool {
-    match value.map(str::trim) {
-        None | Some("") => true,
-        Some(value) => setting(value).unwrap_or_else(|| {
-            warn!("MCRS_LAN_ANNOUNCE={value} is neither on nor off; announcing");
-            true
-        }),
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SendLog {
     Failed,
@@ -237,23 +219,6 @@ mod tests {
             source_address(addr("[::ffff:192.168.1.20]:25565")),
             addr("192.168.1.20:0")
         );
-    }
-
-    #[test]
-    fn the_setting_reads_its_spellings_in_any_case() {
-        for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
-            assert_eq!(setting(off), Some(false), "{off:?}");
-            assert!(!enabled(Some(off)), "{off:?}");
-        }
-        for on in ["ON", "On", " TRUE ", "Yes", "1"] {
-            assert_eq!(setting(on), Some(true), "{on:?}");
-            assert!(enabled(Some(on)), "{on:?}");
-        }
-        for unknown in ["disabled", "none", "of f", "offf", "2", ""] {
-            assert_eq!(setting(unknown), None, "{unknown:?}");
-            assert!(enabled(Some(unknown)), "{unknown:?}");
-        }
-        assert!(enabled(None));
     }
 
     #[test]
