@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_block"
-description = "Block and fluid definitions, block tags, map colours and light properties"
+description = "Block and fluid definitions, block tags and map colours"
 version.workspace = true
 edition.workspace = true
 
@@ -8,23 +8,34 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_registry.workspace = true
 mcrs_minecraft_keys.workspace = true
-bevy_app.workspace = true
-bevy_asset.workspace = true
-bevy_ecs.workspace = true
+bevy_asset = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
-bevy_platform.workspace = true
+bevy_platform = { workspace = true, optional = true }
 bitflags = "2"
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_light.workspace = true
+mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_core.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[features]
+default = []
+bevy = [
+    "dep:bevy_asset",
+    "dep:bevy_ecs",
+    "dep:bevy_platform",
+    "dep:mcrs_minecraft_assets",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dev-dependencies]
+bevy_app.workspace = true
+bevy_asset.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }

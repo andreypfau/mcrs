@@ -5,11 +5,13 @@ use core::time::Duration;
 use mcrs_minecraft_keys as keys;
 use std::sync::Arc;
 
+#[cfg(feature = "bevy")]
 use bevy_platform::time::Instant;
 
+#[cfg(feature = "bevy")]
 use bevy_asset::AssetServer;
+#[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
-use bevy_ecs::resource::Resource;
 use bevy_math::Vec3;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
@@ -20,6 +22,7 @@ use self::schema::{
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
@@ -325,9 +328,11 @@ impl RegistryLookup for BlockDefinitions {
 
 /// The corpus as every world sees it. A dimension sub-app is handed a clone at
 /// spawn, so the table is shared rather than rebuilt or copied per dimension.
-#[derive(Debug, Clone, Resource)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct Blocks(pub Arc<BlockDefinitions>);
 
+#[cfg(feature = "bevy")]
 impl mcrs_minecraft_registry::shared::SharedResource for Blocks {
     fn shares_with(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -354,8 +359,10 @@ pub struct LoadReport {
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
+    #[cfg(feature = "bevy")]
     #[error("the default asset source is missing")]
     NoAssetSource,
+    #[cfg(feature = "bevy")]
     #[error(transparent)]
     Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
@@ -400,6 +407,7 @@ pub enum BlockError {
     MissingComponent { state: u16, component: &'static str },
 }
 
+#[cfg(feature = "bevy")]
 pub fn load_block_definitions(
     asset_server: &AssetServer,
     blocks: &Registry<Block>,

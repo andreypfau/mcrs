@@ -1,10 +1,10 @@
 use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_block::light::BlockLightRegistry;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_light::block_light::BlockLightRegistry;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;

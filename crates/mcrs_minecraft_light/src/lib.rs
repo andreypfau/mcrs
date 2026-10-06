@@ -15,6 +15,7 @@
 //!   box and fills it again rather than running a second, opposite algorithm.
 
 pub mod block;
+pub mod block_light;
 pub mod epoch;
 pub mod field;
 pub mod level;

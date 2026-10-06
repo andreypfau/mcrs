@@ -20,7 +20,7 @@ bitflags = "2.10.0"
 fixedbitset.workspace = true
 mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_biome.workspace = true
-mcrs_minecraft_block.workspace = true
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_level.workspace = true

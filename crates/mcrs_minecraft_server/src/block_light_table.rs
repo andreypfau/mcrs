@@ -1,7 +1,7 @@
 use bevy_app::{App, Plugin, Startup};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
 
 pub struct BlockLightTablePlugin;
 

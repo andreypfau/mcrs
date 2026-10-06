@@ -5,10 +5,10 @@ use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block::light::block_light_registry;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ColumnPos, SectionPos};
 use mcrs_minecraft_light::block::LightRegistry;
+use mcrs_minecraft_light::block_light::block_light_registry;
 use mcrs_minecraft_light::level::LightBounds;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::layout::{
