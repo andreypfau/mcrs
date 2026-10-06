@@ -7,7 +7,6 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::proto::{
@@ -24,6 +23,7 @@ use mcrs_minecraft_worldgen_structure::piece::OceanRuinPiece;
 use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
 
 use crate::{place_positional, state};
+use mcrs_minecraft_block::keys::Block;
 
 /// The integrities `OceanRuinPieces.addPieces` hands its pieces: the large
 /// and small base ruins, then the cracked and mossy overlays.
@@ -47,17 +47,17 @@ impl OceanRuinBlocks {
     ) -> Result<Self, FeatureCompileError> {
         let (candidate, replacement, loot) = match temp {
             OceanTemperature::Warm => (
-                keys::block::SAND,
-                keys::block::SUSPICIOUS_SAND,
+                Block::Sand,
+                Block::SuspiciousSand,
                 keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_WARM,
             ),
             OceanTemperature::Cold => (
-                keys::block::GRAVEL,
-                keys::block::SUSPICIOUS_GRAVEL,
+                Block::Gravel,
+                Block::SuspiciousGravel,
                 keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
-        let bare = |block: StaticKey<keys::Block>| BlockState::bare(block.location().to_arc());
+        let bare = |block: Block| BlockState::bare(block.location().to_arc());
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {
@@ -67,7 +67,7 @@ impl OceanRuinBlocks {
                         integrity: UnitFloat(f64::from(integrity)),
                     },
                     StructureProcessor::BlockIgnore {
-                        blocks: vec![bare(keys::block::STRUCTURE_BLOCK), bare(keys::block::AIR)],
+                        blocks: vec![bare(Block::StructureBlock), bare(Block::Air)],
                     },
                     StructureProcessor::Capped {
                         delegate: Box::new(StructureProcessor::Rule {
@@ -94,8 +94,8 @@ impl OceanRuinBlocks {
             .collect::<Result<_, FeatureCompileError>>()?;
         Ok(OceanRuinBlocks {
             chains,
-            chest: state(blocks, keys::block::CHEST, &[])?,
-            chest_waterlogged: state(blocks, keys::block::CHEST, &[("waterlogged", "true")])?,
+            chest: state(blocks, Block::Chest, &[])?,
+            chest_waterlogged: state(blocks, Block::Chest, &[("waterlogged", "true")])?,
         })
     }
 

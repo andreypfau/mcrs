@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
@@ -11,6 +10,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, from_bytes_unnamed};
 use serde::{Deserialize, Serialize};
 
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{Mirror, Rotation, VERSION};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -542,7 +542,7 @@ impl Template {
             let mut palette_jigsaws = Vec::new();
             let mut palette_markers = Vec::new();
             for &(pos, state, nbt) in &ordered {
-                if palette[state].id.as_str() == keys::block::STRUCTURE_BLOCK.as_static_str() {
+                if palette[state].id.as_str() == Block::StructureBlock.as_static_str() {
                     let Some(nbt) = nbt else { continue };
                     match nbt.get_string("mode") {
                         Some("DATA") => palette_markers.push(DataMarker {
@@ -562,7 +562,7 @@ impl Template {
                         }
                     }
                 }
-                if palette[state].id.as_str() != keys::block::JIGSAW.as_static_str() {
+                if palette[state].id.as_str() != Block::Jigsaw.as_static_str() {
                     continue;
                 }
                 let jigsaw = |what: String| TemplateError::Jigsaw {
@@ -591,11 +591,10 @@ impl Template {
                 };
                 let final_state = nbt
                     .get_string("final_state")
-                    .unwrap_or(keys::block::AIR.as_static_str())
+                    .unwrap_or(Block::Air.as_static_str())
                     .parse::<PaletteState>()
                     .map_err(|e| jigsaw(format!("final_state {e}")))?;
-                let final_state = if final_state.id.as_str()
-                    == keys::block::STRUCTURE_VOID.as_static_str()
+                let final_state = if final_state.id.as_str() == Block::StructureVoid.as_static_str()
                 {
                     None
                 } else {

@@ -16,6 +16,7 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_entity::keys::EntityType;
@@ -31,7 +32,8 @@ use mcrs_minecraft_item::TrimPattern;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::{self as keys, Block, Item};
+use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -65,7 +67,7 @@ use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noi
 
 /// Registries the client expects in `ClientboundUpdateTags` whose tags the server does not send.
 const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
-    keys::FLUID.location(),
+    mcrs_minecraft_block::keys::FLUID.location(),
     keys::GAME_EVENT.location(),
     mcrs_minecraft_biome::keys::BIOME.location(),
 ];

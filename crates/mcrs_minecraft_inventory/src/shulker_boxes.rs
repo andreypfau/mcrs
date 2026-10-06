@@ -1,6 +1,9 @@
 use bevy_app::{App, Plugin};
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_keys::{Block, Item, block_tags, item_tags};
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::block_tags;
+use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::keys::item_tags;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet, TagId, Tags};
 use mcrs_minecraft_world::resolvers::AddRegistryResolver;
@@ -24,8 +27,8 @@ pub struct ShulkerBoxes {
 
 impl ShulkerBoxes {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let items = report.tags(set, mcrs_minecraft_keys::ITEM);
-        let blocks = report.tags(set, mcrs_minecraft_keys::BLOCK);
+        let items = report.tags(set, mcrs_minecraft_item::keys::ITEM);
+        let blocks = report.tags(set, mcrs_minecraft_block::keys::BLOCK);
         let item_tag = items
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &item_tags::SHULKER_BOXES));

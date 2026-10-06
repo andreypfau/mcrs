@@ -1,6 +1,6 @@
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::item::component::common::{Folded, entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
@@ -275,7 +275,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     assert_eq!(HashedStack::create(&ProtoStack::EMPTY).unwrap(), None);
 }
 
-fn stone() -> ResourceKey<mcrs_minecraft_keys::Item> {
+fn stone() -> ResourceKey<mcrs_minecraft_item::keys::Item> {
     ResourceKey::from_location(rl!("minecraft:stone").to_arc())
 }
 

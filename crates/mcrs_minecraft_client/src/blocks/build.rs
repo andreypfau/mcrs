@@ -5,8 +5,8 @@ use crate::bake::{self, Dir};
 use crate::model::Pack;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::definition::{BlockStateData, BlockStateFlags};
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_mesh::ambient::Neighbour;
 use mcrs_minecraft_mesh::block::{
     BlockInfo, CORNER_UV, CubeFace, FACE_AXES, FaceShapes, Fluid, ModelQuad, Pass, SideCells,
@@ -15,11 +15,11 @@ use mcrs_minecraft_mesh::pack::MODEL_STEPS;
 use mcrs_minecraft_mesh::tint::Tint;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
-    keys::block::BUBBLE_COLUMN.as_static_str(),
-    keys::block::KELP.as_static_str(),
-    keys::block::KELP_PLANT.as_static_str(),
-    keys::block::SEAGRASS.as_static_str(),
-    keys::block::TALL_SEAGRASS.as_static_str(),
+    Block::BubbleColumn.as_static_str(),
+    Block::Kelp.as_static_str(),
+    Block::KelpPlant.as_static_str(),
+    Block::Seagrass.as_static_str(),
+    Block::TallSeagrass.as_static_str(),
 ];
 
 fn fluid_of(
@@ -36,13 +36,11 @@ fn fluid_of(
             .map(|(_, value)| value.as_str())
     };
     let (lava, amount) = match state.name.as_str() {
-        name if name == keys::block::WATER.as_static_str()
-            || name == keys::block::LAVA.as_static_str() =>
-        {
+        name if name == Block::Water.as_static_str() || name == Block::Lava.as_static_str() => {
             let fluid = data
                 .fluid
                 .ok_or_else(|| format!("{} states no fluid", state.name))?;
-            (name == keys::block::LAVA.as_static_str(), fluid.level)
+            (name == Block::Lava.as_static_str(), fluid.level)
         }
         name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
         _ if prop("waterlogged") == Some("true") => (false, 8),
@@ -73,9 +71,9 @@ pub(super) fn build_one(
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
-    if state.name == keys::block::AIR.as_static_str()
-        || state.name == keys::block::CAVE_AIR.as_static_str()
-        || state.name == keys::block::VOID_AIR.as_static_str()
+    if state.name == Block::Air.as_static_str()
+        || state.name == Block::CaveAir.as_static_str()
+        || state.name == Block::VoidAir.as_static_str()
     {
         return Ok(BlockInfo::default());
     }

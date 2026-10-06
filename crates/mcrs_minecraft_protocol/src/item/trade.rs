@@ -3,7 +3,7 @@ use std::io::Write;
 use anyhow::ensure;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_item::ProtoStack;
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw};

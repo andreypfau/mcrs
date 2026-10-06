@@ -16,6 +16,7 @@ use rand::{RngExt, SeedableRng};
 use crate::item::harness::{
     TestLookup, decode, from_json, from_nbt, in_samples, persistent_json, wire,
 };
+use mcrs_minecraft_item::keys::Item;
 
 const ITERATIONS: usize = 256;
 const ITEMS: [(&str, u16); 4] = [
@@ -57,12 +58,7 @@ impl Gen {
         }
     }
 
-    fn item(
-        &mut self,
-    ) -> (
-        ResourceKey<mcrs_minecraft_keys::Item>,
-        Id<mcrs_minecraft_keys::Item>,
-    ) {
+    fn item(&mut self) -> (ResourceKey<Item>, Id<Item>) {
         let (name, id) = *ITEMS.choose(&mut self.rng).unwrap();
         (
             ResourceKey::from_location(ResourceLocation::minecraft(name).unwrap()),

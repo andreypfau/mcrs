@@ -13,6 +13,7 @@ use mcrs_minecraft_worldgen_structure::piece::EndCityPiece;
 
 use crate::template_piece::seed_container_loot;
 use crate::{block_mask, place_positional};
+use mcrs_minecraft_block::keys::Block;
 
 /// `EndCityPiece.makeSettings`: the two processor chains its pieces place
 /// with, by whether the template's air overwrites what stands there.
@@ -27,11 +28,11 @@ impl EndCityChains {
         Ok(EndCityChains {
             overwrite: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &[keys::block::STRUCTURE_BLOCK],
+                &[Block::StructureBlock],
             )?)],
             keep_air: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &[keys::block::AIR, keys::block::STRUCTURE_BLOCK],
+                &[Block::Air, Block::StructureBlock],
             )?)],
         })
     }

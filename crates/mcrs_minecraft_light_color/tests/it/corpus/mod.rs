@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{RegistrySet, Tags};
 use mcrs_minecraft_world::registries::test_registries;
 

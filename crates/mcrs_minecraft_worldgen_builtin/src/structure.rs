@@ -51,7 +51,6 @@ mod village_taiga;
 use mcrs_minecraft_core::Axis::{X, Y, Z};
 use mcrs_minecraft_core::Direction::{East, North, South, West};
 use mcrs_minecraft_core::{Axis, Direction, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_feature::template::Template;
 use mcrs_minecraft_worldgen_structure::blueprint::{
     Canvas, Cell, Fields, GROUND, Gable, Tag, Turn, VOID, block, corner_stairs, fence_joined, log,
@@ -89,48 +88,48 @@ pub fn build(id: &ResourceLocation) -> Option<Template> {
     Some(canvas.template())
 }
 
-const AIR: &str = keys::block::AIR.as_static_str();
-const NOTHING: &str = keys::block::STRUCTURE_VOID.as_static_str();
+const AIR: &str = Block::Air.as_static_str();
+const NOTHING: &str = Block::StructureVoid.as_static_str();
 const EMPTY: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::EMPTY.as_static_str();
 const BOTTOM: &str = "minecraft:bottom";
 
 const ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
-const BLUE_BED: &str = keys::block::BLUE_BED.as_static_str();
+const BLUE_BED: &str = Block::BlueBed.as_static_str();
 const BUTCHER_ANIMALS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_static_str();
 const CATS: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
-const COBBLE: &str = keys::block::COBBLESTONE.as_static_str();
-const COBBLE_STAIRS: &str = keys::block::COBBLESTONE_STAIRS.as_static_str();
-const DIRT: &str = keys::block::DIRT.as_static_str();
-const GRASS: &str = keys::block::GRASS_BLOCK.as_static_str();
+const COBBLE: &str = Block::Cobblestone.as_static_str();
+const COBBLE_STAIRS: &str = Block::CobblestoneStairs.as_static_str();
+const DIRT: &str = Block::Dirt.as_static_str();
+const GRASS: &str = Block::GrassBlock.as_static_str();
 const IRON_GOLEM: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
-const PATH: &str = keys::block::DIRT_PATH.as_static_str();
-const RED_BED: &str = keys::block::RED_BED.as_static_str();
+const PATH: &str = Block::DirtPath.as_static_str();
+const RED_BED: &str = Block::RedBed.as_static_str();
 const SHEEP: &str = mcrs_minecraft_worldgen_feature::keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
-const SPRUCE_DOOR: &str = keys::block::SPRUCE_DOOR.as_static_str();
-const SPRUCE_STAIRS: &str = keys::block::SPRUCE_STAIRS.as_static_str();
-const WHITE_BED: &str = keys::block::WHITE_BED.as_static_str();
+const SPRUCE_DOOR: &str = Block::SpruceDoor.as_static_str();
+const SPRUCE_STAIRS: &str = Block::SpruceStairs.as_static_str();
+const WHITE_BED: &str = Block::WhiteBed.as_static_str();
 
 kit! {
     S;
     air: block(AIR),
     cobble: block(COBBLE),
-    mossy: block(keys::block::MOSSY_COBBLESTONE.as_static_str()),
+    mossy: block(Block::MossyCobblestone.as_static_str()),
     pane: settled("minecraft:glass_pane[waterlogged=false]"),
     cobble_wall: settled("minecraft:cobblestone_wall[waterlogged=false]"),
-    torch: block(keys::block::TORCH.as_static_str()),
-    wall_torch: settled(keys::block::WALL_TORCH.as_static_str()),
+    torch: block(Block::Torch.as_static_str()),
+    wall_torch: settled(Block::WallTorch.as_static_str()),
     dirt: block(DIRT),
     grass: settled(GRASS),
     path: block(PATH),
     water: block("minecraft:water[level=0]"),
     farmland: block("minecraft:farmland[moisture=7]"),
-    short_grass: block(keys::block::SHORT_GRASS.as_static_str()),
+    short_grass: block(Block::ShortGrass.as_static_str()),
     tall_grass: block("minecraft:tall_grass[half=lower]"),
-    poppy: block(keys::block::POPPY.as_static_str()),
-    bookshelf: block(keys::block::BOOKSHELF.as_static_str()),
+    poppy: block(Block::Poppy.as_static_str()),
+    bookshelf: block(Block::Bookshelf.as_static_str()),
     composter: block("minecraft:composter[level=0]"),
-    crafting_table: block(keys::block::CRAFTING_TABLE.as_static_str()),
-    spruce_planks: block(keys::block::SPRUCE_PLANKS.as_static_str()),
+    crafting_table: block(Block::CraftingTable.as_static_str()),
+    spruce_planks: block(Block::SprucePlanks.as_static_str()),
     spruce_slab_top: block("minecraft:spruce_slab[type=top,waterlogged=false]"),
     spruce_fence: settled("minecraft:spruce_fence[waterlogged=false]"),
 }
@@ -144,7 +143,7 @@ fn slab(id: &str, kind: &str) -> Cell {
 }
 
 fn smooth_slab(kind: &str) -> Cell {
-    slab(keys::block::SMOOTH_STONE_SLAB.as_static_str(), kind)
+    slab(Block::SmoothStoneSlab.as_static_str(), kind)
 }
 
 fn trapdoor(id: &str, facing: Direction, half: &str, open: bool) -> Cell {
@@ -325,3 +324,4 @@ mod mob {
     pub const BABY: Fields = &[("FoodLevel", Tag::Byte(0)), ("LastRestock", Tag::Long(0)), ("UUID", Tag::IntArray(&[895037032, -995736946, -1319125422, -1224629455])), ("Age", Tag::Int(-21359)), ("Rotation", Tag::List(&[Tag::Float(0.0), Tag::Float(-25.827711)])), ("Pos", Tag::List(&[Tag::Double(-1740.6339469144218), Tag::Double(5.0), Tag::Double(496.0697962117287)]))];
 }
 use mob::*;
+use mcrs_minecraft_block::keys::Block;

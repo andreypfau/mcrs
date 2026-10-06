@@ -512,7 +512,6 @@ pub fn refuse(report: &LoadReport) -> ! {
 mod tests {
     use super::*;
     use mcrs_minecraft_core::registry_key::RegistryKey;
-    use mcrs_minecraft_keys as keys;
 
     #[derive(serde::Deserialize, Serialize)]
     struct Probe {
@@ -573,16 +572,19 @@ mod tests {
                 "minecraft:attribute",
                 mcrs_minecraft_entity::keys::Attribute::ENTRIES,
             ),
-            ("minecraft:block", keys::block::ENTRIES),
+            (
+                "minecraft:block",
+                mcrs_minecraft_block::keys::Block::ENTRIES,
+            ),
             (
                 "minecraft:block_entity_type",
-                keys::block_entity_type::ENTRIES,
+                mcrs_minecraft_block::keys::BlockEntityType::ENTRIES,
             ),
             (
                 "minecraft:entity_type",
                 mcrs_minecraft_entity::keys::EntityType::ENTRIES,
             ),
-            ("minecraft:item", keys::item::ENTRIES),
+            ("minecraft:item", mcrs_minecraft_item::keys::Item::ENTRIES),
             (
                 "minecraft:menu",
                 mcrs_minecraft_item::keys::MenuType::ENTRIES,
@@ -622,10 +624,14 @@ mod tests {
             assert_eq!(key.as_static_str(), format!("minecraft:{name}"));
             assert_eq!(EntityType::ENTRIES[key.id().index()], key.location());
         }
-        assert_eq!(keys::block::TNT.as_static_str(), "minecraft:tnt");
         assert_eq!(
-            keys::block::ENTRIES[keys::block::TNT.id().index()],
-            keys::block::TNT.location()
+            mcrs_minecraft_block::keys::Block::Tnt.as_static_str(),
+            "minecraft:tnt"
+        );
+        assert_eq!(
+            mcrs_minecraft_block::keys::Block::ENTRIES
+                [mcrs_minecraft_block::keys::Block::Tnt.id().index()],
+            mcrs_minecraft_block::keys::Block::Tnt.location()
         );
         assert_eq!(
             mcrs_minecraft_entity::keys::Attribute::MaxHealth.as_static_str(),

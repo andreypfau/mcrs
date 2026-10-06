@@ -1,7 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
@@ -17,6 +16,7 @@ use mcrs_minecraft_worldgen_structure::orient::random_rotation;
 use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
 
 use crate::{block_mask, place_positional, state};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct NetherFossilBlocks {
@@ -33,9 +33,9 @@ impl NetherFossilBlocks {
         Ok(NetherFossilBlocks {
             chain: vec![CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                &[keys::block::AIR, keys::block::STRUCTURE_BLOCK],
+                &[Block::Air, Block::StructureBlock],
             )?)],
-            dried_ghast: state(blocks, keys::block::DRIED_GHAST, &[])?,
+            dried_ghast: state(blocks, Block::DriedGhast, &[])?,
             world_seed,
         })
     }

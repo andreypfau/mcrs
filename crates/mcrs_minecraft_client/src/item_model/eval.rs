@@ -10,12 +10,12 @@ use mcrs_minecraft_item::{
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
 };
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Registry;
 
 use super::asset::{
     Case, ChargeType, ConditionProperty, DisplayContext, RangeProperty, SelectSwitch, TintSource,
 };
+use mcrs_minecraft_item::keys::Item;
 
 /// A stack entity and the corpus that names its item, as the model selectors see it: its
 /// effective components and its child stacks.
@@ -28,7 +28,7 @@ pub struct EntityStack<'w, 'l, L> {
 impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
     fn item(&self) -> &ResourceLocation {
         static AIR: std::sync::LazyLock<ResourceLocation> =
-            std::sync::LazyLock::new(|| keys::item::AIR.location().to_arc());
+            std::sync::LazyLock::new(|| Item::Air.location().to_arc());
         self.entity
             .get::<ItemStack>()
             .and_then(|stack| self.items.get(stack.item))
@@ -109,7 +109,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         }
         // chisle: the only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
-        if self.item().as_str() == keys::item::COMPASS.as_static_str()
+        if self.item().as_str() == Item::Compass.as_static_str()
             && self.has(ItemComponentKind::LodestoneTracker)
         {
             return true;
@@ -244,7 +244,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
             ChargeType::None
         } else if projectiles
             .iter()
-            .any(|c| c.item().as_str() == keys::item::FIREWORK_ROCKET.as_static_str())
+            .any(|c| c.item().as_str() == Item::FireworkRocket.as_static_str())
         {
             ChargeType::Rocket
         } else {

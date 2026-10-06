@@ -2,7 +2,7 @@ use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mcrs_minecraft_keys::Block as BlockKey;
+use mcrs_minecraft_block::keys::Block as BlockKey;
 use mcrs_minecraft_registry::Id;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
@@ -98,7 +98,7 @@ fn default_state_by_id_equals_by_name_for_every_block() {
     let blocks = crate::common::corpus();
     let mismatches: Vec<String> = (0..blocks.blocks().len())
         .map(|number| {
-            mcrs_minecraft_keys::block::at(Id::<BlockKey>::from_raw(number as u16))
+            mcrs_minecraft_block::keys::Block::from_id(Id::<BlockKey>::from_raw(number as u16))
                 .expect("every block of the corpus has a generated key")
         })
         .filter(|key| {

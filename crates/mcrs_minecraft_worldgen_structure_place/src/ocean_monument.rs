@@ -1,8 +1,6 @@
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::entity::elder_guardian;
@@ -12,6 +10,7 @@ use mcrs_minecraft_worldgen_structure::piece::{
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask};
+use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
 pub struct OceanMonumentBlocks {
@@ -34,24 +33,19 @@ impl OceanMonumentBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: Block| Oriented::named(world, blocks, block, &[]);
         Ok(OceanMonumentBlocks {
-            gray: oriented(keys::block::PRISMARINE)?,
-            light: oriented(keys::block::PRISMARINE_BRICKS)?,
-            black: oriented(keys::block::DARK_PRISMARINE)?,
-            lamp: oriented(keys::block::SEA_LANTERN)?,
-            gold: oriented(keys::block::GOLD_BLOCK)?,
-            wet_sponge: oriented(keys::block::WET_SPONGE)?,
-            air: oriented(keys::block::AIR)?,
-            water: oriented(keys::block::WATER)?,
+            gray: oriented(Block::Prismarine)?,
+            light: oriented(Block::PrismarineBricks)?,
+            black: oriented(Block::DarkPrismarine)?,
+            lamp: oriented(Block::SeaLantern)?,
+            gold: oriented(Block::GoldBlock)?,
+            wet_sponge: oriented(Block::WetSponge)?,
+            air: oriented(Block::Air)?,
+            water: oriented(Block::Water)?,
             fill_keep: block_mask(
                 blocks,
-                &[
-                    keys::block::ICE,
-                    keys::block::PACKED_ICE,
-                    keys::block::BLUE_ICE,
-                    keys::block::WATER,
-                ],
+                &[Block::Ice, Block::PackedIce, Block::BlueIce, Block::Water],
             )?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
         })

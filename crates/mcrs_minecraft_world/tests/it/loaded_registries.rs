@@ -11,14 +11,13 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
@@ -39,6 +38,7 @@ use std::sync::LazyLock;
 use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
@@ -497,8 +497,8 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
     let archetypes = set
         .column::<SulfurCubeArchetype>("minecraft:sulfur_cube_archetype")
         .expect("the archetypes are parsed by the loader");
-    let items = set.registry::<keys::Item>().unwrap();
-    let tags = set.tags::<keys::Item>().unwrap();
+    let items = set.registry::<Item>().unwrap();
+    let tags = set.tags::<Item>().unwrap();
     assert!(!archetypes.is_empty());
     for archetype in archetypes {
         let first = archetype
@@ -518,10 +518,10 @@ fn a_loaded_holder_set_answers_membership_through_the_tags() {
 #[test]
 fn the_local_light_tag_reaches_the_loaded_item_tags() {
     let set = test_registries();
-    let items = set.registry::<keys::Item>().unwrap();
-    let tags = set.tags::<keys::Item>().unwrap();
+    let items = set.registry::<Item>().unwrap();
+    let tags = set.tags::<Item>().unwrap();
     let tag = tags
-        .get(&TagKey::<keys::Item, _>::from_location(
+        .get(&TagKey::<Item, _>::from_location(
             ResourceLocation::read("mcrs:water_sensitive_light").unwrap(),
         ))
         .expect("the local light tag is loaded");
@@ -2347,16 +2347,10 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
 #[test]
 fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
     let set = test_registries();
-    let items = set.registry::<keys::Item>().unwrap();
-    let blocks = set.registry::<keys::Block>().unwrap();
-    assert_eq!(
-        items.by_name("minecraft:stone"),
-        Some(keys::item::STONE.id())
-    );
-    assert_eq!(
-        blocks.by_name("minecraft:stone"),
-        Some(keys::block::STONE.id())
-    );
+    let items = set.registry::<Item>().unwrap();
+    let blocks = set.registry::<Block>().unwrap();
+    assert_eq!(items.by_name("minecraft:stone"), Some(Item::Stone.id()));
+    assert_eq!(blocks.by_name("minecraft:stone"), Some(Block::Stone.id()));
 
     let mut differing = 0;
     for item in items.ids() {
@@ -2364,8 +2358,8 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
         let Some(block) = blocks.by_name(name) else {
             continue;
         };
-        assert_eq!(keys::item::find(name).unwrap().id(), item, "{name}");
-        assert_eq!(keys::block::find(name).unwrap().id(), block, "{name}");
+        assert_eq!(Item::find(name).unwrap().id(), item, "{name}");
+        assert_eq!(Block::find(name).unwrap().id(), block, "{name}");
         differing += usize::from(item.number() != block.number());
     }
     assert!(differing > 0, "no shared name is numbered differently");

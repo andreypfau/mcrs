@@ -2,8 +2,8 @@ use mcrs_minecraft_core::BlockPos;
 
 use crate::beta_chunk_seed;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::BlocksMut;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::BlockStateId;
@@ -27,19 +27,19 @@ pub struct BetaOreBlockIds {
 impl BetaOreBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
         BetaOreBlockIds {
-            stone: blocks.default_state_of(keys::block::STONE.id()),
-            sand: blocks.default_state_of(keys::block::SAND.id()),
-            clay: blocks.default_state_of(keys::block::CLAY.id()),
-            dirt: blocks.default_state_of(keys::block::DIRT.id()),
-            gravel: blocks.default_state_of(keys::block::GRAVEL.id()),
-            coal: blocks.default_state_of(keys::block::COAL_ORE.id()),
-            iron: blocks.default_state_of(keys::block::IRON_ORE.id()),
-            gold: blocks.default_state_of(keys::block::GOLD_ORE.id()),
+            stone: blocks.default_state_of(Block::Stone.id()),
+            sand: blocks.default_state_of(Block::Sand.id()),
+            clay: blocks.default_state_of(Block::Clay.id()),
+            dirt: blocks.default_state_of(Block::Dirt.id()),
+            gravel: blocks.default_state_of(Block::Gravel.id()),
+            coal: blocks.default_state_of(Block::CoalOre.id()),
+            iron: blocks.default_state_of(Block::IronOre.id()),
+            gold: blocks.default_state_of(Block::GoldOre.id()),
             // REDSTONE_ORE default state carries lit=false, matching Beta placement
-            redstone: blocks.default_state_of(keys::block::REDSTONE_ORE.id()),
-            diamond: blocks.default_state_of(keys::block::DIAMOND_ORE.id()),
-            lapis: blocks.default_state_of(keys::block::LAPIS_ORE.id()),
-            water: blocks.default_state_of(keys::block::WATER.id()),
+            redstone: blocks.default_state_of(Block::RedstoneOre.id()),
+            diamond: blocks.default_state_of(Block::DiamondOre.id()),
+            lapis: blocks.default_state_of(Block::LapisOre.id()),
+            water: blocks.default_state_of(Block::Water.id()),
         }
     }
 }

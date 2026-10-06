@@ -9,12 +9,12 @@ use bevy_ecs::prelude::Res;
 use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::{RegistrySet, StaticKey, Tags};
+use mcrs_minecraft_registry::{RegistrySet, Tags};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::compile::CompileError;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
@@ -114,13 +114,13 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let plain = |block: StaticKey<keys::Block>| BlockState::bare(block.location().to_arc());
-    let stone = plain(keys::block::STONE);
+    let plain = |block: Block| BlockState::bare(block.location().to_arc());
+    let stone = plain(Block::Stone);
     let blocks = RouterBlocks {
         default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
         default_fluid: resolve(&settings.settings.default_fluid)?,
-        water: resolve(&plain(keys::block::WATER))?,
-        lava: resolve(&plain(keys::block::LAVA))?,
+        water: resolve(&plain(Block::Water))?,
+        lava: resolve(&plain(Block::Lava))?,
     };
 
     let material = MaterialInputs {

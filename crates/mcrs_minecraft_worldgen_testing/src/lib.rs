@@ -2,7 +2,6 @@
 //! engine against every file the game ships rather than against a fixture.
 
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::tags::TagSource;
 use mcrs_minecraft_registry::{
@@ -19,6 +18,7 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::Structure;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_block::keys::Block;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -160,8 +160,8 @@ pub fn corpus_set() -> &'static RegistrySet {
             })
             .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
         for (registry, folder) in [
-            (keys::BLOCK.location().as_static_str(), "block"),
-            (keys::FLUID.location().as_static_str(), "fluid"),
+            (mcrs_minecraft_block::keys::BLOCK.location().as_static_str(), "block"),
+            (mcrs_minecraft_block::keys::FLUID.location().as_static_str(), "fluid"),
             (mcrs_minecraft_biome::keys::BIOME.location().as_static_str(), "worldgen/biome"),
             (
                 mcrs_minecraft_worldgen_structure::keys::STRUCTURE.location().as_static_str(),
@@ -352,13 +352,13 @@ pub fn dimension_type_set() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let report = corpus_set();
         let blocks = report
-            .registry::<keys::Block>()
+            .registry::<Block>()
             .expect("the report holds the block registry");
         let block_names: Vec<_> = blocks
             .ids()
             .map(|id| blocks.name(id).expect("a block id has a name").clone())
             .collect();
-        let blocks = Registry::<keys::Block>::new(keys::BLOCK, block_names)
+        let blocks = Registry::<Block>::new(mcrs_minecraft_block::keys::BLOCK, block_names)
             .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
         let timelines = Registry::<Timeline>::new(mcrs_minecraft_environment::keys::TIMELINE, shipped_ids("timeline"))
             .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
@@ -367,7 +367,7 @@ pub fn dimension_type_set() -> &'static RegistrySet {
                 .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
         let tables = report
             .tables()
-            .filter(|table| table.registry().as_str() != keys::BLOCK.location().as_static_str())
+            .filter(|table| table.registry().as_str() != mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
             .cloned()
             .chain([
                 Arc::clone(blocks.table()),

@@ -1,7 +1,7 @@
 use mcrs_minecraft_registry::DenseId;
 use std::sync::OnceLock;
 
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
 use mcrs_minecraft_light_color::item::{

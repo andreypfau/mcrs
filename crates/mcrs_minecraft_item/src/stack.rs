@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::fmt;
 
 use anyhow::{Context, ensure};
@@ -10,9 +9,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::map_only;
 use crate::hash_ops;
+use crate::keys::Item;
 use crate::kind::ItemComponentKind;
 use crate::patch::ComponentPatch;
-use mcrs_minecraft_keys::{Item, item};
 
 validated!(ItemStackValue);
 
@@ -30,7 +29,7 @@ pub struct ItemStackValue {
 
 impl Validate for ItemStackValue {
     fn validate(&self) -> Result<(), String> {
-        if self.item.as_str() == keys::item::AIR.as_static_str() {
+        if self.item.as_str() == Item::Air.as_static_str() {
             return Err("Item must not be minecraft:air".into());
         }
         Ok(())
@@ -167,7 +166,7 @@ impl Default for ProtoStack {
 
 impl ProtoStack {
     pub const EMPTY: ProtoStack = ProtoStack {
-        id: item::AIR.id(),
+        id: Item::Air.id(),
         count: 0,
         components: ComponentPatch::EMPTY,
     };
@@ -188,10 +187,7 @@ impl ProtoStack {
 
     pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let id = ctx
-            .id(
-                mcrs_minecraft_keys::ITEM.location().path(),
-                value.item.location(),
-            )
+            .id(crate::keys::ITEM.location().path(), value.item.location())
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
             id: Id::from_raw(id),
@@ -203,10 +199,7 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(
-                mcrs_minecraft_keys::ITEM.location().path(),
-                self.id.number(),
-            )
+            .name(crate::keys::ITEM.location().path(), self.id.number())
             .with_context(|| format!("registry item has no id {}", self.id.number()))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),

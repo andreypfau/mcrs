@@ -2,10 +2,10 @@ use bevy_ecs::prelude::{Commands, Component};
 use bevy_ecs::system::Command;
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
 use mcrs_minecraft_item::{Items, SlotTable};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::block_entity::BlockEntityPos;
 use mcrs_minecraft_nbt::to_nbt_compound;
@@ -45,11 +45,9 @@ fn fill_container(mut entity: EntityWorldMut) {
     let (block, items) = {
         let mut block_entity = entity.get_mut::<BlockEntity>().unwrap();
         match &mut block_entity.0 {
-            GeneratedBlockEntity::Chest(data) => {
-                (keys::block::CHEST, std::mem::take(&mut data.items))
-            }
+            GeneratedBlockEntity::Chest(data) => (Block::Chest, std::mem::take(&mut data.items)),
             GeneratedBlockEntity::TrappedChest(data) => {
-                (keys::block::TRAPPED_CHEST, std::mem::take(&mut data.items))
+                (Block::TrappedChest, std::mem::take(&mut data.items))
             }
             _ => return,
         }

@@ -1,5 +1,5 @@
+use crate::keys::Item;
 use bevy_ecs::prelude::Component;
-use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_registry::Id;
 
 /// On a stack entity only a stack transaction assigns the fields; the

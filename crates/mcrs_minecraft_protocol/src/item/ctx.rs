@@ -98,7 +98,7 @@ ctx_free!(
     Text,
     NbtCompound,
     ResourceLocation<Arc<str>>,
-    Id<mcrs_minecraft_keys::Item>,
+    Id<mcrs_minecraft_item::keys::Item>,
 );
 
 impl<T: EncodeCtx> EncodeCtx for Option<T> {
@@ -493,7 +493,7 @@ pub(crate) fn decode_nbt_wire<T: serde::de::DeserializeOwned>(r: &mut &[u8]) -> 
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_keys::Item;
+    use mcrs_minecraft_item::keys::Item;
     use mcrs_minecraft_registry::{LookupIndex, NoRegistries, Registry, RegistrySet};
 
     use super::*;

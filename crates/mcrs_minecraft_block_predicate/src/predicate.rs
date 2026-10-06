@@ -3,12 +3,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::block_state::BlockState;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 
 /// `Vec3i.offsetCodec(16)`.
@@ -47,7 +47,7 @@ pub enum BlockPredicate {
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        blocks: HolderSet<keys::Block>,
+        blocks: HolderSet<mcrs_minecraft_block::keys::Block>,
     },
     #[serde(rename = "minecraft:matching_block_tag")]
     MatchingBlockTag {
@@ -59,7 +59,7 @@ pub enum BlockPredicate {
     MatchingFluids {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
-        fluids: HolderSet<keys::Fluid>,
+        fluids: HolderSet<Fluid>,
     },
     #[serde(rename = "minecraft:matching_biomes")]
     MatchingBiomes { biomes: HolderSet<Biome> },
@@ -188,15 +188,15 @@ mod tests {
         assert!(serde_json::from_str::<BlockPredicate>(text).is_err());
 
         let set = corpus_set();
-        let tags = set.tags::<keys::Block>().unwrap();
+        let tags = set.tags::<mcrs_minecraft_block::keys::Block>().unwrap();
         let BlockPredicate::MatchingBlocks {
             blocks: matching, ..
         } = set.scope(|| serde_json::from_str(text).unwrap())
         else {
             panic!("a matching_blocks predicate parses to its own variant");
         };
-        assert!(matching.contains(keys::block::STONE.id(), &tags));
-        assert!(!matching.contains(keys::block::DIRT.id(), &tags));
+        assert!(matching.contains(mcrs_minecraft_block::keys::Block::Stone.id(), &tags));
+        assert!(!matching.contains(mcrs_minecraft_block::keys::Block::Dirt.id(), &tags));
     }
 
     #[test]

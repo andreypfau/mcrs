@@ -31,7 +31,7 @@ use crate::world::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::world::entity::player::HostAnchor;
 use crate::world::inventory::held_stack;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_block::keys::Block;
 use std::time::Duration;
 use tracing::{debug, trace};
 

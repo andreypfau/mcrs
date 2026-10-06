@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::{DenseId, Id};
 
 impl<T: Encode> Encode for Option<T> {

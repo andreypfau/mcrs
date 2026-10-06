@@ -9,7 +9,6 @@ use super::predicate::{LootCondition, dispatched_map};
 use super::value::LevelBasedValue;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_core::value_provider::FloatProvider;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::{HolderSet, Id};
 
@@ -156,14 +155,14 @@ pub enum BlockStateProvider {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FullBlockState {
-    pub id: Id<keys::Block>,
+    pub id: Id<mcrs_minecraft_block::keys::Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockState {
-    Block(Id<keys::Block>),
+    Block(Id<mcrs_minecraft_block::keys::Block>),
     Full(FullBlockState),
 }
 
@@ -179,7 +178,7 @@ pub enum TypedBlockStateProvider {
 struct ProviderObject {
     #[serde(rename = "type")]
     kind: Option<String>,
-    id: Option<Id<keys::Block>>,
+    id: Option<Id<mcrs_minecraft_block::keys::Block>>,
     properties: Option<BTreeMap<String, String>>,
     state: Option<BlockState>,
 }
@@ -341,7 +340,7 @@ pub enum EnchantmentEntityEffect {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         knockback_multiplier: Option<LevelBasedValue>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        immune_blocks: Option<HolderSet<keys::Block>>,
+        immune_blocks: Option<HolderSet<mcrs_minecraft_block::keys::Block>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         offset: Option<[f64; 3]>,
         radius: LevelBasedValue,

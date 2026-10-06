@@ -104,7 +104,7 @@ mod tests {
     use crate::entity::OptionalBlockState;
     use crate::item::component::predicate::ComponentPredicateType;
     use crate::item::kind::ItemComponentKind;
-    use mcrs_minecraft_keys::Item;
+    use mcrs_minecraft_item::keys::Item;
     use mcrs_minecraft_particle::ParticleKind;
     use mcrs_minecraft_registry::{BlockStateId, Id};
 

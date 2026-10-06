@@ -7,10 +7,11 @@ use mcrs_minecraft_block::definition::schema::{NoteBlockInstrument, PropertyValu
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
 };
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::section::block_direct_bits;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{BlockStateId, Registry};
@@ -23,7 +24,7 @@ fn report_blocks() -> Registry<Block> {
     .expect("the registries report reads");
     from_report(&report)
         .expect("the registries report parses")
-        .registry_of(mcrs_minecraft_keys::BLOCK)
+        .registry_of(mcrs_minecraft_block::keys::BLOCK)
         .expect("the registries report has blocks")
 }
 
@@ -191,9 +192,7 @@ fn water_carries_its_fluid_state_per_level() {
 
     let source = definitions.state(water.default_state_id).fluid.unwrap();
     assert_eq!(
-        mcrs_minecraft_keys::fluid::at(source.fluid)
-            .unwrap()
-            .as_static_str(),
+        Fluid::from_id(source.fluid).unwrap().as_static_str(),
         "minecraft:water"
     );
     assert_eq!(source.level, 8);
@@ -204,9 +203,7 @@ fn water_carries_its_fluid_state_per_level() {
         .fluid
         .unwrap();
     assert_eq!(
-        mcrs_minecraft_keys::fluid::at(falling.fluid)
-            .unwrap()
-            .as_static_str(),
+        Fluid::from_id(falling.fluid).unwrap().as_static_str(),
         "minecraft:flowing_water"
     );
     assert_eq!(falling.level, 7);

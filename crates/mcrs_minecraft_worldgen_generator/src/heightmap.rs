@@ -1,12 +1,12 @@
 use crate::ColumnBlocks;
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
-use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
-use mcrs_minecraft_core::SectionPos;
-use mcrs_minecraft_keys::Block;
-use mcrs_minecraft_keys::block_tags::{
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::block_tags::{
     BLOCKS_MOTION_IN_HEIGHTMAP, BLOCKS_MOTION_IN_HEIGHTMAP_NO_LEAVES,
 };
+use mcrs_minecraft_chunk::{ColumnHeights, PalettedContainer, VoxelId};
+use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registry::{BlockStateId, Tags};
 use std::cell::Cell;

@@ -1,5 +1,5 @@
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::Tool;
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{Id, Tags};
 
 pub fn mining_speed(tool: &Tool, block: Id<Block>, tags: &Tags<Block>) -> f32 {

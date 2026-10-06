@@ -31,6 +31,7 @@ derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mu
 flate2.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_block.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 criterion = { version = "0.7", features = ["html_reports"] }

@@ -1,5 +1,4 @@
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::StaticKey;
 use std::cmp::Ordering;
 
 use bevy_math::IVec3;
@@ -20,35 +19,36 @@ use mcrs_minecraft_worldgen_structure::piece::{MineshaftKind, MineshaftPiece};
 
 use crate::canvas::{PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, block_mask, state};
+use mcrs_minecraft_block::keys::Block;
 
 const MAX_PILLAR_HEIGHT: i32 = 20;
 const MAX_CHAIN_HEIGHT: i32 = 50;
 
 /// The blocks whose class is `FallingBlock`, which a chain never hangs from.
-const FALLING_BLOCKS: [StaticKey<keys::Block>; 23] = [
-    keys::block::SAND,
-    keys::block::RED_SAND,
-    keys::block::GRAVEL,
-    keys::block::ANVIL,
-    keys::block::CHIPPED_ANVIL,
-    keys::block::DAMAGED_ANVIL,
-    keys::block::DRAGON_EGG,
-    keys::block::WHITE_CONCRETE_POWDER,
-    keys::block::ORANGE_CONCRETE_POWDER,
-    keys::block::MAGENTA_CONCRETE_POWDER,
-    keys::block::LIGHT_BLUE_CONCRETE_POWDER,
-    keys::block::YELLOW_CONCRETE_POWDER,
-    keys::block::LIME_CONCRETE_POWDER,
-    keys::block::PINK_CONCRETE_POWDER,
-    keys::block::GRAY_CONCRETE_POWDER,
-    keys::block::LIGHT_GRAY_CONCRETE_POWDER,
-    keys::block::CYAN_CONCRETE_POWDER,
-    keys::block::PURPLE_CONCRETE_POWDER,
-    keys::block::BLUE_CONCRETE_POWDER,
-    keys::block::BROWN_CONCRETE_POWDER,
-    keys::block::GREEN_CONCRETE_POWDER,
-    keys::block::RED_CONCRETE_POWDER,
-    keys::block::BLACK_CONCRETE_POWDER,
+const FALLING_BLOCKS: [Block; 23] = [
+    Block::Sand,
+    Block::RedSand,
+    Block::Gravel,
+    Block::Anvil,
+    Block::ChippedAnvil,
+    Block::DamagedAnvil,
+    Block::DragonEgg,
+    Block::WhiteConcretePowder,
+    Block::OrangeConcretePowder,
+    Block::MagentaConcretePowder,
+    Block::LightBlueConcretePowder,
+    Block::YellowConcretePowder,
+    Block::LimeConcretePowder,
+    Block::PinkConcretePowder,
+    Block::GrayConcretePowder,
+    Block::LightGrayConcretePowder,
+    Block::CyanConcretePowder,
+    Block::PurpleConcretePowder,
+    Block::BlueConcretePowder,
+    Block::BrownConcretePowder,
+    Block::GreenConcretePowder,
+    Block::RedConcretePowder,
+    Block::BlackConcretePowder,
 ];
 
 #[derive(Clone, Debug)]
@@ -82,40 +82,34 @@ impl MineshaftBlocks {
         blocking: BiomeMask,
     ) -> Result<Self, FeatureCompileError> {
         let (log, planks, fence) = match mineshaft_type {
-            MineshaftType::Normal => (
-                keys::block::OAK_LOG,
-                keys::block::OAK_PLANKS,
-                keys::block::OAK_FENCE,
-            ),
-            MineshaftType::Mesa => (
-                keys::block::DARK_OAK_LOG,
-                keys::block::DARK_OAK_PLANKS,
-                keys::block::DARK_OAK_FENCE,
-            ),
+            MineshaftType::Normal => (Block::OakLog, Block::OakPlanks, Block::OakFence),
+            MineshaftType::Mesa => (Block::DarkOakLog, Block::DarkOakPlanks, Block::DarkOakFence),
         };
-        let oriented = |block: StaticKey<keys::Block>, properties: &[(&str, &str)]| {
+        let oriented = |block: Block, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let unstable = keys::block_tags::UNSTABLE_BOTTOM_CENTER.location().to_arc();
+        let unstable = mcrs_minecraft_block::keys::block_tags::UNSTABLE_BOTTOM_CENTER
+            .location()
+            .to_arc();
         let unstable = states_of(blocks, StateQuery::BlockTag(&unstable))?;
         let mut chain_support = FixedBitSet::clone(&world.center_down);
         chain_support.difference_with(&unstable);
         chain_support.difference_with(&*block_mask(blocks, &FALLING_BLOCKS)?);
         Ok(MineshaftBlocks {
-            cave_air: oriented(keys::block::CAVE_AIR, &[])?,
+            cave_air: oriented(Block::CaveAir, &[])?,
             planks: oriented(planks, &[])?,
             wood: state(blocks, log, &[])?,
             fence: state(blocks, fence, &[])?,
             fence_west: oriented(fence, &[("west", "true")])?,
             fence_east: oriented(fence, &[("east", "true")])?,
-            chain: state(blocks, keys::block::IRON_CHAIN, &[])?,
-            cobweb: oriented(keys::block::COBWEB, &[])?,
-            rail_ns: oriented(keys::block::RAIL, &[("shape", "north_south")])?,
-            rail_ew: oriented(keys::block::RAIL, &[("shape", "east_west")])?,
-            torch_south: oriented(keys::block::WALL_TORCH, &[("facing", "south")])?,
-            torch_north: oriented(keys::block::WALL_TORCH, &[("facing", "north")])?,
-            spawner: state(blocks, keys::block::SPAWNER, &[])?,
-            timber: block_mask(blocks, &[planks, log, fence, keys::block::IRON_CHAIN])?,
+            chain: state(blocks, Block::IronChain, &[])?,
+            cobweb: oriented(Block::Cobweb, &[])?,
+            rail_ns: oriented(Block::Rail, &[("shape", "north_south")])?,
+            rail_ew: oriented(Block::Rail, &[("shape", "east_west")])?,
+            torch_south: oriented(Block::WallTorch, &[("facing", "south")])?,
+            torch_north: oriented(Block::WallTorch, &[("facing", "north")])?,
+            spawner: state(blocks, Block::Spawner, &[])?,
+            timber: block_mask(blocks, &[planks, log, fence, Block::IronChain])?,
             replaceable_by_structures: replaceable_by_structures(blocks, world)?,
             chain_support: chain_support.into(),
             blocking,

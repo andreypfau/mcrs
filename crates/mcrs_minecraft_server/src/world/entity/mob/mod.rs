@@ -16,7 +16,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
 use mcrs_minecraft_entity::keys::VillagerProfession;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::aoi::PlayerObservers;
 use mcrs_minecraft_level::entity::mob::{
     Baby, CatVariant, ChickenVariant, EntityInSection, EntityKind, EntityUuid, Equipment, Health,
@@ -325,11 +324,11 @@ fn registered_profession(name: &str) -> VillagerProfession {
 
 fn stack(stack: GeneratedStack) -> ItemStack {
     let item = match stack.id {
-        GeneratedItem::Trident => keys::item::TRIDENT,
-        GeneratedItem::FishingRod => keys::item::FISHING_ROD,
-        GeneratedItem::NautilusShell => keys::item::NAUTILUS_SHELL,
-        GeneratedItem::IronAxe => keys::item::IRON_AXE,
-        GeneratedItem::Elytra => keys::item::ELYTRA,
+        GeneratedItem::Trident => mcrs_minecraft_item::keys::Item::Trident,
+        GeneratedItem::FishingRod => mcrs_minecraft_item::keys::Item::FishingRod,
+        GeneratedItem::NautilusShell => mcrs_minecraft_item::keys::Item::NautilusShell,
+        GeneratedItem::IronAxe => mcrs_minecraft_item::keys::Item::IronAxe,
+        GeneratedItem::Elytra => mcrs_minecraft_item::keys::Item::Elytra,
     };
     ItemStack::new(item.id(), stack.count as u8)
 }

@@ -6,7 +6,6 @@ use mcrs_minecraft_block_predicate::block_state::BlockState as ProtoBlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
@@ -31,6 +30,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::BlockEntityType;
 
 pub mod index;
 
@@ -39,29 +40,29 @@ pub mod place;
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.
 pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
-    keys::block::MOVING_PISTON.as_static_str(),
-    keys::block::SHULKER_BOX.as_static_str(),
-    keys::block::WHITE_SHULKER_BOX.as_static_str(),
-    keys::block::ORANGE_SHULKER_BOX.as_static_str(),
-    keys::block::MAGENTA_SHULKER_BOX.as_static_str(),
-    keys::block::LIGHT_BLUE_SHULKER_BOX.as_static_str(),
-    keys::block::YELLOW_SHULKER_BOX.as_static_str(),
-    keys::block::LIME_SHULKER_BOX.as_static_str(),
-    keys::block::PINK_SHULKER_BOX.as_static_str(),
-    keys::block::GRAY_SHULKER_BOX.as_static_str(),
-    keys::block::LIGHT_GRAY_SHULKER_BOX.as_static_str(),
-    keys::block::CYAN_SHULKER_BOX.as_static_str(),
-    keys::block::PURPLE_SHULKER_BOX.as_static_str(),
-    keys::block::BLUE_SHULKER_BOX.as_static_str(),
-    keys::block::BROWN_SHULKER_BOX.as_static_str(),
-    keys::block::GREEN_SHULKER_BOX.as_static_str(),
-    keys::block::RED_SHULKER_BOX.as_static_str(),
-    keys::block::BLACK_SHULKER_BOX.as_static_str(),
-    keys::block::BAMBOO.as_static_str(),
-    keys::block::SCAFFOLDING.as_static_str(),
-    keys::block::POWDER_SNOW.as_static_str(),
-    keys::block::POINTED_DRIPSTONE.as_static_str(),
-    keys::block::SULFUR_SPIKE.as_static_str(),
+    Block::MovingPiston.as_static_str(),
+    Block::ShulkerBox.as_static_str(),
+    Block::WhiteShulkerBox.as_static_str(),
+    Block::OrangeShulkerBox.as_static_str(),
+    Block::MagentaShulkerBox.as_static_str(),
+    Block::LightBlueShulkerBox.as_static_str(),
+    Block::YellowShulkerBox.as_static_str(),
+    Block::LimeShulkerBox.as_static_str(),
+    Block::PinkShulkerBox.as_static_str(),
+    Block::GrayShulkerBox.as_static_str(),
+    Block::LightGrayShulkerBox.as_static_str(),
+    Block::CyanShulkerBox.as_static_str(),
+    Block::PurpleShulkerBox.as_static_str(),
+    Block::BlueShulkerBox.as_static_str(),
+    Block::BrownShulkerBox.as_static_str(),
+    Block::GreenShulkerBox.as_static_str(),
+    Block::RedShulkerBox.as_static_str(),
+    Block::BlackShulkerBox.as_static_str(),
+    Block::Bamboo.as_static_str(),
+    Block::Scaffolding.as_static_str(),
+    Block::PowderSnow.as_static_str(),
+    Block::PointedDripstone.as_static_str(),
+    Block::SulfurSpike.as_static_str(),
 ];
 
 pub fn resolve_palette_state(
@@ -388,8 +389,8 @@ pub(crate) fn check_block_entity_ids(
         let id = nbt.get_string("id");
         if id.is_some_and(|id| {
             GeneratedBlockEntity::IDS.contains(&id)
-                || id == keys::block_entity_type::JIGSAW.as_static_str()
-                || id == keys::block_entity_type::STRUCTURE_BLOCK.as_static_str()
+                || id == BlockEntityType::Jigsaw.as_static_str()
+                || id == BlockEntityType::StructureBlock.as_static_str()
         }) {
             continue;
         }

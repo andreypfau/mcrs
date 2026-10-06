@@ -6,7 +6,6 @@ use std::str::FromStr;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use serde::de::Error as _;
@@ -15,6 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::block_state::BlockState;
 use crate::predicate::BlockPredicate;
+use mcrs_minecraft_block::keys::Block;
 
 mcrs_minecraft_worldgen_noise::bounded_float! {
     /// `Codec.floatRange(0.0F, 1.0F)`.
@@ -53,7 +53,7 @@ where
 }
 
 /// `RegistryCodecs.holderSet(Registries.BLOCK)`.
-pub type BlockSet = HolderSet<keys::Block>;
+pub type BlockSet = HolderSet<Block>;
 
 /// `ExtraCodecs.intervalCodec`: one point, a two-element array, or the named
 /// pair. Vanilla re-encodes all three as the shortest form that fits, so the

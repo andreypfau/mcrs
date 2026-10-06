@@ -25,7 +25,7 @@ pub fn blocks() -> &'static Blocks {
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
         let blocks = shipped_report()
-            .registry_of(mcrs_minecraft_keys::BLOCK)
+            .registry_of(mcrs_minecraft_block::keys::BLOCK)
             .expect("the registries report has blocks");
         Blocks(std::sync::Arc::new(
             load_block_definitions(&asset_server, &blocks)
@@ -116,7 +116,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::TemperatureModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_keys::Block;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_structure::Structure;

@@ -12,6 +12,7 @@ use mcrs_minecraft_worldgen_feature_place::room::reorient;
 use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 
 use crate::{Oriented, block_mask, state};
+use mcrs_minecraft_block::keys::Block;
 
 /// The chest as `StructurePiece.createChest` reorients it, world-facing.
 #[derive(Clone, Debug)]
@@ -23,7 +24,7 @@ pub struct ChestStates {
 
 impl ChestStates {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
-        let facing = |name| state(blocks, keys::block::CHEST, &[("facing", name)]);
+        let facing = |name| state(blocks, Block::Chest, &[("facing", name)]);
         Ok(ChestStates {
             facing: [
                 facing("north")?,
@@ -31,7 +32,7 @@ impl ChestStates {
                 facing("south")?,
                 facing("west")?,
             ],
-            states: block_mask(blocks, &[keys::block::CHEST])?,
+            states: block_mask(blocks, &[Block::Chest])?,
         })
     }
 }
@@ -46,11 +47,7 @@ pub fn replaceable_by_structures(
     mask.union_with(&world.lava_states);
     let plants = block_mask(
         blocks,
-        &[
-            keys::block::GLOW_LICHEN,
-            keys::block::SEAGRASS,
-            keys::block::TALL_SEAGRASS,
-        ],
+        &[Block::GlowLichen, Block::Seagrass, Block::TallSeagrass],
     )?;
     mask.union_with(&plants);
     Ok(mask.into())

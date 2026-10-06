@@ -4,7 +4,7 @@ use std::io::Write;
 use anyhow::ensure;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registry::{HolderSet, RegistryLookup, skipping_sets};
 use serde::{Deserialize, Serialize};

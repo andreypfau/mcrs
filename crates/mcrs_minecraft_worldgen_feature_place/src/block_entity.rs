@@ -6,12 +6,13 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
+use mcrs_minecraft_block::keys::Block;
+use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::value_provider::Weighted;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::BlockEntityType;
-use mcrs_minecraft_keys::block_entity_type;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
@@ -31,7 +32,7 @@ fn empty_pool() -> String {
 }
 
 fn air_id() -> String {
-    keys::block::AIR.as_static_str().to_owned()
+    Block::Air.as_static_str().to_owned()
 }
 
 /// A block entity a generator produced, in the compound the save, the chunk
@@ -606,7 +607,7 @@ impl Default for VaultConfig {
             activation_range: VAULT_ACTIVATION_RANGE,
             deactivation_range: VAULT_DEACTIVATION_RANGE,
             key_item: SavedItem {
-                id: keys::item::TRIAL_KEY.as_static_str().to_owned(),
+                id: Item::TrialKey.as_static_str().to_owned(),
                 count: 1,
                 components: None,
             },
@@ -641,45 +642,45 @@ impl GeneratedBlockEntity {
     /// The `id` each variant is tagged with; a save entry naming any other kind
     /// is one this type does not describe.
     pub const IDS: [&'static str; 28] = [
-        keys::block_entity_type::BEEHIVE.as_static_str(),
-        keys::block_entity_type::CHEST.as_static_str(),
-        keys::block_entity_type::TRAPPED_CHEST.as_static_str(),
-        keys::block_entity_type::ENDER_CHEST.as_static_str(),
-        keys::block_entity_type::MOB_SPAWNER.as_static_str(),
-        keys::block_entity_type::END_GATEWAY.as_static_str(),
-        keys::block_entity_type::BARREL.as_static_str(),
-        keys::block_entity_type::DISPENSER.as_static_str(),
-        keys::block_entity_type::HOPPER.as_static_str(),
-        keys::block_entity_type::FURNACE.as_static_str(),
-        keys::block_entity_type::BLAST_FURNACE.as_static_str(),
-        keys::block_entity_type::SMOKER.as_static_str(),
-        keys::block_entity_type::BREWING_STAND.as_static_str(),
-        keys::block_entity_type::CAMPFIRE.as_static_str(),
-        keys::block_entity_type::COMPARATOR.as_static_str(),
-        keys::block_entity_type::BELL.as_static_str(),
-        keys::block_entity_type::COPPER_GOLEM_STATUE.as_static_str(),
-        keys::block_entity_type::LECTERN.as_static_str(),
-        keys::block_entity_type::JIGSAW.as_static_str(),
-        keys::block_entity_type::CREAKING_HEART.as_static_str(),
-        keys::block_entity_type::DECORATED_POT.as_static_str(),
-        keys::block_entity_type::BRUSHABLE_BLOCK.as_static_str(),
-        keys::block_entity_type::BANNER.as_static_str(),
-        keys::block_entity_type::SIGN.as_static_str(),
-        keys::block_entity_type::SKULL.as_static_str(),
-        keys::block_entity_type::SCULK_SENSOR.as_static_str(),
-        keys::block_entity_type::TRIAL_SPAWNER.as_static_str(),
-        keys::block_entity_type::VAULT.as_static_str(),
+        BlockEntityType::Beehive.as_static_str(),
+        BlockEntityType::Chest.as_static_str(),
+        BlockEntityType::TrappedChest.as_static_str(),
+        BlockEntityType::EnderChest.as_static_str(),
+        BlockEntityType::MobSpawner.as_static_str(),
+        BlockEntityType::EndGateway.as_static_str(),
+        BlockEntityType::Barrel.as_static_str(),
+        BlockEntityType::Dispenser.as_static_str(),
+        BlockEntityType::Hopper.as_static_str(),
+        BlockEntityType::Furnace.as_static_str(),
+        BlockEntityType::BlastFurnace.as_static_str(),
+        BlockEntityType::Smoker.as_static_str(),
+        BlockEntityType::BrewingStand.as_static_str(),
+        BlockEntityType::Campfire.as_static_str(),
+        BlockEntityType::Comparator.as_static_str(),
+        BlockEntityType::Bell.as_static_str(),
+        BlockEntityType::CopperGolemStatue.as_static_str(),
+        BlockEntityType::Lectern.as_static_str(),
+        BlockEntityType::Jigsaw.as_static_str(),
+        BlockEntityType::CreakingHeart.as_static_str(),
+        BlockEntityType::DecoratedPot.as_static_str(),
+        BlockEntityType::BrushableBlock.as_static_str(),
+        BlockEntityType::Banner.as_static_str(),
+        BlockEntityType::Sign.as_static_str(),
+        BlockEntityType::Skull.as_static_str(),
+        BlockEntityType::SculkSensor.as_static_str(),
+        BlockEntityType::TrialSpawner.as_static_str(),
+        BlockEntityType::Vault.as_static_str(),
     ];
 
     /// The kinds that are a `RandomizableContainer`: a template placing one
     /// draws its `LootTableSeed` from the placement random.
     pub const LOOT_SEEDED_IDS: [&'static str; 6] = [
-        keys::block_entity_type::CHEST.as_static_str(),
-        keys::block_entity_type::TRAPPED_CHEST.as_static_str(),
-        keys::block_entity_type::BARREL.as_static_str(),
-        keys::block_entity_type::DISPENSER.as_static_str(),
-        keys::block_entity_type::HOPPER.as_static_str(),
-        keys::block_entity_type::DECORATED_POT.as_static_str(),
+        BlockEntityType::Chest.as_static_str(),
+        BlockEntityType::TrappedChest.as_static_str(),
+        BlockEntityType::Barrel.as_static_str(),
+        BlockEntityType::Dispenser.as_static_str(),
+        BlockEntityType::Hopper.as_static_str(),
+        BlockEntityType::DecoratedPot.as_static_str(),
     ];
 
     /// Which block the entity belongs to, which is what routes it to a column.
@@ -720,36 +721,36 @@ impl GeneratedBlockEntity {
 
     pub fn kind(&self) -> Id<BlockEntityType> {
         match self {
-            GeneratedBlockEntity::Beehive { .. } => block_entity_type::BEEHIVE.id(),
-            GeneratedBlockEntity::Chest(_) => block_entity_type::CHEST.id(),
-            GeneratedBlockEntity::TrappedChest(_) => block_entity_type::TRAPPED_CHEST.id(),
-            GeneratedBlockEntity::EnderChest { .. } => block_entity_type::ENDER_CHEST.id(),
-            GeneratedBlockEntity::Barrel(_) => block_entity_type::BARREL.id(),
-            GeneratedBlockEntity::Dispenser(_) => block_entity_type::DISPENSER.id(),
-            GeneratedBlockEntity::Hopper { .. } => block_entity_type::HOPPER.id(),
-            GeneratedBlockEntity::Furnace(_) => block_entity_type::FURNACE.id(),
-            GeneratedBlockEntity::BlastFurnace(_) => block_entity_type::BLAST_FURNACE.id(),
-            GeneratedBlockEntity::Smoker(_) => block_entity_type::SMOKER.id(),
-            GeneratedBlockEntity::BrewingStand { .. } => block_entity_type::BREWING_STAND.id(),
-            GeneratedBlockEntity::Campfire { .. } => block_entity_type::CAMPFIRE.id(),
-            GeneratedBlockEntity::Comparator { .. } => block_entity_type::COMPARATOR.id(),
-            GeneratedBlockEntity::Bell { .. } => block_entity_type::BELL.id(),
+            GeneratedBlockEntity::Beehive { .. } => BlockEntityType::Beehive.id(),
+            GeneratedBlockEntity::Chest(_) => BlockEntityType::Chest.id(),
+            GeneratedBlockEntity::TrappedChest(_) => BlockEntityType::TrappedChest.id(),
+            GeneratedBlockEntity::EnderChest { .. } => BlockEntityType::EnderChest.id(),
+            GeneratedBlockEntity::Barrel(_) => BlockEntityType::Barrel.id(),
+            GeneratedBlockEntity::Dispenser(_) => BlockEntityType::Dispenser.id(),
+            GeneratedBlockEntity::Hopper { .. } => BlockEntityType::Hopper.id(),
+            GeneratedBlockEntity::Furnace(_) => BlockEntityType::Furnace.id(),
+            GeneratedBlockEntity::BlastFurnace(_) => BlockEntityType::BlastFurnace.id(),
+            GeneratedBlockEntity::Smoker(_) => BlockEntityType::Smoker.id(),
+            GeneratedBlockEntity::BrewingStand { .. } => BlockEntityType::BrewingStand.id(),
+            GeneratedBlockEntity::Campfire { .. } => BlockEntityType::Campfire.id(),
+            GeneratedBlockEntity::Comparator { .. } => BlockEntityType::Comparator.id(),
+            GeneratedBlockEntity::Bell { .. } => BlockEntityType::Bell.id(),
             GeneratedBlockEntity::CopperGolemStatue { .. } => {
-                block_entity_type::COPPER_GOLEM_STATUE.id()
+                BlockEntityType::CopperGolemStatue.id()
             }
-            GeneratedBlockEntity::Lectern { .. } => block_entity_type::LECTERN.id(),
-            GeneratedBlockEntity::Jigsaw { .. } => block_entity_type::JIGSAW.id(),
-            GeneratedBlockEntity::CreakingHeart { .. } => block_entity_type::CREAKING_HEART.id(),
-            GeneratedBlockEntity::DecoratedPot { .. } => block_entity_type::DECORATED_POT.id(),
-            GeneratedBlockEntity::BrushableBlock { .. } => block_entity_type::BRUSHABLE_BLOCK.id(),
-            GeneratedBlockEntity::Banner { .. } => block_entity_type::BANNER.id(),
-            GeneratedBlockEntity::Sign { .. } => block_entity_type::SIGN.id(),
-            GeneratedBlockEntity::Skull { .. } => block_entity_type::SKULL.id(),
-            GeneratedBlockEntity::SculkSensor { .. } => block_entity_type::SCULK_SENSOR.id(),
-            GeneratedBlockEntity::MobSpawner { .. } => block_entity_type::MOB_SPAWNER.id(),
-            GeneratedBlockEntity::TrialSpawner { .. } => block_entity_type::TRIAL_SPAWNER.id(),
-            GeneratedBlockEntity::Vault { .. } => block_entity_type::VAULT.id(),
-            GeneratedBlockEntity::EndGateway(_) => block_entity_type::END_GATEWAY.id(),
+            GeneratedBlockEntity::Lectern { .. } => BlockEntityType::Lectern.id(),
+            GeneratedBlockEntity::Jigsaw { .. } => BlockEntityType::Jigsaw.id(),
+            GeneratedBlockEntity::CreakingHeart { .. } => BlockEntityType::CreakingHeart.id(),
+            GeneratedBlockEntity::DecoratedPot { .. } => BlockEntityType::DecoratedPot.id(),
+            GeneratedBlockEntity::BrushableBlock { .. } => BlockEntityType::BrushableBlock.id(),
+            GeneratedBlockEntity::Banner { .. } => BlockEntityType::Banner.id(),
+            GeneratedBlockEntity::Sign { .. } => BlockEntityType::Sign.id(),
+            GeneratedBlockEntity::Skull { .. } => BlockEntityType::Skull.id(),
+            GeneratedBlockEntity::SculkSensor { .. } => BlockEntityType::SculkSensor.id(),
+            GeneratedBlockEntity::MobSpawner { .. } => BlockEntityType::MobSpawner.id(),
+            GeneratedBlockEntity::TrialSpawner { .. } => BlockEntityType::TrialSpawner.id(),
+            GeneratedBlockEntity::Vault { .. } => BlockEntityType::Vault.id(),
+            GeneratedBlockEntity::EndGateway(_) => BlockEntityType::EndGateway.id(),
         }
     }
 
@@ -1148,7 +1149,7 @@ mod tests {
             assert!(GeneratedBlockEntity::IDS.contains(&id), "{id}");
             assert_eq!(entity.position(), POS);
             assert_eq!(
-                block_entity_type::ENTRIES[entity.kind().index()].as_static_str(),
+                BlockEntityType::ENTRIES[entity.kind().index()].as_static_str(),
                 id
             );
             assert_eq!(

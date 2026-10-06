@@ -18,6 +18,8 @@ pub mod enchantment_tags;
 pub mod input_control_type;
 pub mod instrument;
 pub mod instrument_tags;
+pub mod item;
+pub mod item_tags;
 pub mod jukebox_song;
 pub mod map_decoration_type;
 pub mod menu;
@@ -35,6 +37,7 @@ pub use data_component_type::DataComponentType;
 pub use dialog_body_type::DialogBodyType;
 pub use dialog_type::DialogType;
 pub use input_control_type::InputControlType;
+pub use item::Item;
 pub use map_decoration_type::MapDecorationType;
 pub use menu::MenuType;
 pub use mob_effect::MobEffect;
@@ -108,6 +111,11 @@ impl Registered for crate::InstrumentValue {
     const REGISTRY: RegistryKey<Self> = INSTRUMENT;
 }
 
+pub const ITEM: RegistryKey<crate::keys::Item> = RegistryKey::new(rl!("minecraft:item"));
+impl Registered for crate::keys::Item {
+    const REGISTRY: RegistryKey<Self> = ITEM;
+}
+
 pub const JUKEBOX_SONG: RegistryKey<crate::JukeboxSong> = RegistryKey::new(rl!("minecraft:jukebox_song"));
 impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
@@ -148,7 +156,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 21] {
+pub fn bindings() -> [TypeBinding; 22] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -163,6 +171,7 @@ pub fn bindings() -> [TypeBinding; 21] {
         ENCHANTMENT.binding(),
         INPUT_CONTROL_TYPE.binding(),
         INSTRUMENT.binding(),
+        ITEM.binding(),
         JUKEBOX_SONG.binding(),
         MAP_DECORATION_TYPE.binding(),
         MENU.binding(),

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, ContainerInput, CustomName, Damage, HashedStack, ItemCost,
     MaxStackSize, MerchantOffer, QuickCraftButton, QuickCraftKind, QuickCraftStage,
@@ -58,7 +59,7 @@ fn fixture() -> Fixture {
     fixture
 }
 
-fn item(fixture: &Fixture, path: &str) -> Id<mcrs_minecraft_keys::Item> {
+fn item(fixture: &Fixture, path: &str) -> Id<Item> {
     Id::from_raw(
         fixture
             .id("item", &ResourceLocation::minecraft(path).unwrap())
@@ -303,7 +304,7 @@ fn container_packets_are_the_games_bytes() {
     );
 }
 
-fn key(path: &str) -> ResourceKey<mcrs_minecraft_keys::Item> {
+fn key(path: &str) -> ResourceKey<Item> {
     ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 

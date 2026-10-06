@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bevy_math::IVec3;
@@ -10,6 +9,7 @@ use mcrs_minecraft_worldgen_feature::template::{
 use super::data::{BlockData, chest, compound, layered};
 use super::rules::{self, Settle, World, axis_index};
 use super::{Cell, Fields, Pos, Turn, block, state};
+use mcrs_minecraft_block::keys::Block;
 
 /// The box a template fills, painted in order: a later call overwrites an
 /// earlier one, and the rule layer runs once when the template is built.
@@ -66,7 +66,7 @@ fn moved(pos: Pos, turn: Turn, shift: [i32; 3]) -> Pos {
 impl Canvas {
     /// A box of air.
     pub fn new(size: [i32; 3]) -> Self {
-        let air = block(keys::block::AIR.as_static_str());
+        let air = block(Block::Air.as_static_str());
         let last = [size[0] - 1, size[1] - 1, size[2] - 1];
         Canvas {
             size: (size[0], size[1], size[2]),

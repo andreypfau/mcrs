@@ -4,11 +4,11 @@ pub mod keys;
 use std::collections::BTreeMap;
 use std::fmt;
 
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
 use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
-use mcrs_minecraft_keys::Block;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

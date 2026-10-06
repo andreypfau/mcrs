@@ -1,7 +1,7 @@
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState};
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceKey, rl};
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_server::world::loot::condition::LootCondition;
 use mcrs_minecraft_server::world::loot::context::BlockBreakContext;

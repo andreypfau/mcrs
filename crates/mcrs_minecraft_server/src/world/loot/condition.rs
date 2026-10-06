@@ -1,8 +1,9 @@
 use crate::world::loot::context::BlockBreakContext;
 use mcrs_minecraft_block::definition::BlockEntry;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys::{Block, Item};
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::{HolderSet, Registry};
 use rustc_hash::FxHashMap;
 use serde::de::{IgnoredAny, MapAccess, Visitor, value};

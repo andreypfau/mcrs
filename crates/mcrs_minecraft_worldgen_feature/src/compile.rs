@@ -14,11 +14,11 @@ use super::proto::{Feature, FeatureStepList, PlacedFeature, StructureProcessorLi
 use super::rule_test::RuleTest;
 use super::sort::build_features_per_step;
 use crate::template::Template;
+use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Direction, Offset};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -220,12 +220,12 @@ impl<'a> Interner<'a> {
 /// function of the state, so each of these collapses to one mask at freeze and
 /// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
-    Blocks(&'a HolderSet<keys::Block>),
+    Blocks(&'a HolderSet<mcrs_minecraft_block::keys::Block>),
     /// The blocks a program names itself, by id, rather than a datapack value's set.
     Names(&'a [ResourceLocation]),
     Block(&'a ResourceLocation),
     BlockTag(&'a ResourceLocation),
-    Fluids(&'a HolderSet<keys::Fluid>),
+    Fluids(&'a HolderSet<Fluid>),
     SturdyFace(Direction),
     /// `Block.isFaceFull(state.getCollisionShape(), direction)`.
     FullCollisionFace(Direction),

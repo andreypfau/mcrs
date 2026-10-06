@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::item::component::common::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
