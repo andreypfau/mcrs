@@ -28,6 +28,7 @@ async fn main() {
     ));
     app.add_plugins(MinecraftServerPlugin {
         world: world_folder(),
+        announce_on_lan: lan_announce(std::env::var("MCRS_LAN_ANNOUNCE").ok().as_deref()),
         ..Default::default()
     });
     mcrs_minecraft_server::run_server_loop(app);
@@ -42,4 +43,38 @@ fn world_folder() -> Option<PathBuf> {
         std::process::exit(1);
     }
     Some(path)
+}
+
+/// `MCRS_LAN_ANNOUNCE=off` turns the LAN announcement off; `0`, `false` and `no` do the same, in
+/// any case. Any other value leaves it on and is logged when it is neither on nor off.
+fn lan_announce(value: Option<&str>) -> bool {
+    match value
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        None | Some("" | "on" | "1" | "true" | "yes") => true,
+        Some("off" | "0" | "false" | "no") => false,
+        Some(other) => {
+            eprintln!("MCRS_LAN_ANNOUNCE={other} is neither on nor off; announcing");
+            true
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lan_announce;
+
+    #[test]
+    fn the_lan_setting_reads_its_spellings_in_any_case() {
+        for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
+            assert!(!lan_announce(Some(off)), "{off:?}");
+        }
+        for on in [
+            "ON", "On", " TRUE ", "Yes", "1", "disabled", "of f", "2", "",
+        ] {
+            assert!(lan_announce(Some(on)), "{on:?}");
+        }
+        assert!(lan_announce(None));
+    }
 }
