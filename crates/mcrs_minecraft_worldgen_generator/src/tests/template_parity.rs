@@ -304,7 +304,7 @@ fn region(min: BlockPos, max: BlockPos, floor: u8) -> BoxRegion {
     let world = WorldStates::clone(&program().world);
     let air = world.air_states.clone();
     let fluid = world.any_fluid.clone();
-    let state = |block: &str| VoxelId::from(corpus().default_state(block));
+    let state = |block: &str| VoxelId::from(corpus().default_state(block).0);
     let region = BoxRegion::new(min, max, world.air);
     let mut region = match floor {
         0 => region.floor(63, state("minecraft:dirt")),

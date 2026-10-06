@@ -89,7 +89,7 @@ fn is_shulker_box(world: &World, container: Entity) -> bool {
     let Some(palette) = world.get::<ChunkBlocks>(section.0) else {
         return false;
     };
-    let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)));
+    let state = BlockStateId::from(palette.get(LocalPos::from(pos.0)).0);
     let block = world.resource::<Blocks>().block_index(state);
     world.resource::<ShulkerBoxes>().has_block(block)
 }

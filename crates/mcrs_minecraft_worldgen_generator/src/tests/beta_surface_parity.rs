@@ -362,6 +362,7 @@ mod exhaustive {
                             if world_y < 128 {
                                 generated[world_y as usize] = blocks
                                     .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)))
+                                    .0
                                     .into();
                             }
                         }

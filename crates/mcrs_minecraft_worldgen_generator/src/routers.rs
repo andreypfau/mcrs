@@ -22,7 +22,7 @@ pub fn build_router(
     blocks: &BlockDefinitions,
     biome_tags: &Tags<keys::Biome>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
-    let block = |state: &_| try_resolve_state(blocks, state).map(Into::into);
+    let block = |state: &_| try_resolve_state(blocks, state).map(|state| state.0.into());
     build_dimension_router(settings, assets, seed, &block, biome_tags)
 }
 

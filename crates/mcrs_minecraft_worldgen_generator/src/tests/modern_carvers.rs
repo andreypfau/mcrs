@@ -42,8 +42,8 @@ pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
 fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
     let sections = y_sections();
     let column = ColumnBlocks::new(&sections);
-    let stone: VoxelId = corpus().default_state("minecraft:stone").into();
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").into();
+    let stone: VoxelId = corpus().default_state("minecraft:stone").0.into();
+    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").0.into();
     for (index, &section_y) in sections.iter().enumerate() {
         for y in 0..16 {
             for z in 0..16 {
@@ -61,7 +61,7 @@ fn stone_column() -> (ColumnBlocks, VoxelId, VoxelId) {
 fn ids() -> ModernCarverBlockIds {
     // No tag registry in a unit test, so the uncarvable set is supplied the
     // way the tag would: bedrock's states.
-    ModernCarverBlockIds::for_test(vec![corpus().default_state("minecraft:bedrock").into()])
+    ModernCarverBlockIds::for_test(vec![corpus().default_state("minecraft:bedrock").0.into()])
 }
 
 /// A tile of sources is filled in one pass over a strided volume; every

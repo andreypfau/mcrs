@@ -114,7 +114,7 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|b| b.default_state_id.into())
+                .map(|b| b.default_state_id.0.into())
         },
         biome_tags: &biome_tags,
     };
@@ -147,9 +147,9 @@ fn surface_ids(biomes: &Registry<keys::Biome>) -> Ids {
             deep_frozen_ocean: id("deep_frozen_ocean"),
         },
         states: SurfaceStates {
-            snow_block: corpus().default_state("minecraft:snow_block").into(),
-            packed_ice: corpus().default_state("minecraft:packed_ice").into(),
-            dirt: corpus().default_state("minecraft:dirt").into(),
+            snow_block: corpus().default_state("minecraft:snow_block").0.into(),
+            packed_ice: corpus().default_state("minecraft:packed_ice").0.into(),
+            dirt: corpus().default_state("minecraft:dirt").0.into(),
         },
     }
 }

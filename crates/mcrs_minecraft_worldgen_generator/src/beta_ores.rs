@@ -46,8 +46,8 @@ impl BetaOreBlockIds {
 
 fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
     OreConfig {
-        target: stone.into(),
-        state: state.into(),
+        target: stone.0.into(),
+        state: state.0.into(),
         size,
     }
 }
@@ -93,7 +93,7 @@ fn place_clay_vein<R: Random>(
     volume: &mut impl BlocksMut,
     rng: &mut R,
 ) {
-    if BlockStateId::from(volume.get(origin)) != ids.water {
+    if BlockStateId::from(volume.get(origin).0) != ids.water {
         return;
     }
     place_beta_ore(&ore_config(ids.sand, ids.clay, 32), origin, volume, rng);
@@ -173,7 +173,7 @@ mod tests {
         BoxVolume::filled(
             BlockPos::new(-8, 40, -8),
             BlockPos::new(40, 100, 40),
-            state.into(),
+            state.0.into(),
         )
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let ids = BetaOreBlockIds::resolve(corpus());
         let origin = BlockPos::new(8, 64, 8);
         let (sand, clay, water): (VoxelId, VoxelId, VoxelId) =
-            (ids.sand.into(), ids.clay.into(), ids.water.into());
+            (ids.sand.0.into(), ids.clay.0.into(), ids.water.0.into());
 
         let mut shore = filled(ids.sand);
         shore.set(origin, water);

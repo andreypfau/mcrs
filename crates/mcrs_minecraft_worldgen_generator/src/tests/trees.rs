@@ -103,7 +103,7 @@ fn material_router(registry: &Registry<keys::Biome>, seed: u64) -> (NoiseRouter,
             blocks()
                 .0
                 .block(state.name.as_str())
-                .map(|entry| entry.default_state_id.into())
+                .map(|entry| entry.default_state_id.0.into())
         },
         biome_tags: &biome_tags,
     };

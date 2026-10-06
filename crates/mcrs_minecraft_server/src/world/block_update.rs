@@ -101,7 +101,7 @@ pub fn update_client_blocks_per_dim(
         }
 
         for position in positions {
-            let new_state = palette.get(LocalPos::from(position)).into();
+            let new_state = palette.get(LocalPos::from(position)).0.into();
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(targets.clone()),
                 priority: PacketPriority::Normal,

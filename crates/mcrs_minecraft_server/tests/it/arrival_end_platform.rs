@@ -258,6 +258,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 .get::<ChunkBlocks>()
                 .expect("BlockPalette")
                 .get(LocalPos::from(pos))
+                .0
                 .into();
             if state != OBSIDIAN_STATE {
                 obsidian_floor_ok = false;
@@ -285,6 +286,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     .get::<ChunkBlocks>()
                     .expect("BlockPalette")
                     .get(LocalPos::from(pos))
+                    .0
                     .into();
                 assert_eq!(
                     state,

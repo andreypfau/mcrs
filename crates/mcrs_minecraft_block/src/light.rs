@@ -99,11 +99,13 @@ mod tests {
     }
 
     fn default_state(block: &str) -> VoxelId {
-        corpus()
-            .block(block)
-            .expect("the block is declared")
-            .default_state_id
-            .into()
+        VoxelId(
+            corpus()
+                .block(block)
+                .expect("the block is declared")
+                .default_state_id
+                .0,
+        )
     }
 
     fn shaped_states_are_exactly_the_states_the_corpus_flags(
@@ -114,7 +116,7 @@ mod tests {
         for index in 0..blocks.state_count() {
             let id = VoxelId(index as u16);
             let expected = blocks
-                .state(id.into())
+                .state(id.0.into())
                 .flags
                 .contains(BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION);
             assert_eq!(
@@ -130,10 +132,11 @@ mod tests {
 
     fn a_slab_is_shaped_and_a_full_block_is_not(blocks: &Blocks, registry: &LightRegistry) {
         let slab = blocks.block("minecraft:oak_slab").expect("oak slab");
-        let bottom: VoxelId = slab
-            .with_text(slab.default_state_id, "type", "bottom")
-            .expect("a bottom slab")
-            .into();
+        let bottom = VoxelId(
+            slab.with_text(slab.default_state_id, "type", "bottom")
+                .expect("a bottom slab")
+                .0,
+        );
         assert!(registry.get(bottom).occlusion.is_some());
 
         let stone = default_state("minecraft:stone");
@@ -144,7 +147,7 @@ mod tests {
 
     fn emission_comes_from_the_corpus(blocks: &Blocks, registry: &LightRegistry) {
         let torch = default_state("minecraft:torch");
-        let expected = blocks.state(torch.into()).light_emission;
+        let expected = blocks.state(torch.0.into()).light_emission;
         assert!(expected > 0, "a torch emits light");
         assert_eq!(registry.get(torch).emission.get(), expected);
         assert_eq!(

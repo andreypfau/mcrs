@@ -182,7 +182,7 @@ pub fn overworld_material_router(
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|b| b.default_state_id.into())
+                .map(|b| b.default_state_id.0.into())
         },
         biome_tags: &biome_tags,
     };
@@ -282,8 +282,8 @@ fn an_overworld_column_gets_grass_over_dirt_over_stone() {
     let y_sections: Vec<i32> = (-4..8).collect();
     let column = surfaced_column(&router, &material, &ids, 3, -7, &y_sections, false);
 
-    let grass = VoxelId::from(corpus().default_state("minecraft:grass_block"));
-    let dirt = VoxelId::from(corpus().default_state("minecraft:dirt"));
+    let grass = VoxelId::from(corpus().default_state("minecraft:grass_block").0);
+    let dirt = VoxelId::from(corpus().default_state("minecraft:dirt").0);
     let stone = router.default_block_state;
 
     let mut grassed = 0;
@@ -338,8 +338,8 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             false,
         );
 
-        let grass = VoxelId::from(corpus().default_state("minecraft:grass_block"));
-        let dirt = VoxelId::from(corpus().default_state("minecraft:dirt"));
+        let grass = VoxelId::from(corpus().default_state("minecraft:grass_block").0);
+        let dirt = VoxelId::from(corpus().default_state("minecraft:dirt").0);
         let fluid = router.default_fluid_state;
         let top_of = |column: &ColumnBlocks, x: i32, z: i32| {
             (-64..320)
@@ -446,8 +446,8 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
 fn bypassing_every_shortcut_writes_the_same_blocks() {
     let ids = biome_ids();
     let (router, material) = overworld_material_router(2, &ids);
-    let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur"));
-    let cinnabar = VoxelId::from(corpus().default_state("minecraft:cinnabar"));
+    let sulfur = VoxelId::from(corpus().default_state("minecraft:sulfur").0);
+    let cinnabar = VoxelId::from(corpus().default_state("minecraft:cinnabar").0);
     let mut banded = 0;
     let mut multi_biome = 0;
 
@@ -648,8 +648,8 @@ fn a_fixed_biome_source_drives_that_biome_s_material_rules() {
         "a fixed source must answer one biome at every cell"
     );
 
-    let terracotta = VoxelId::from(corpus().default_state("minecraft:terracotta"));
-    let orange = VoxelId::from(corpus().default_state("minecraft:orange_terracotta"));
+    let terracotta = VoxelId::from(corpus().default_state("minecraft:terracotta").0);
+    let orange = VoxelId::from(corpus().default_state("minecraft:orange_terracotta").0);
     assert!(
         badlands_blocks
             .iter()

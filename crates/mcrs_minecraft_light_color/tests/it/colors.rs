@@ -2,6 +2,7 @@ use mcrs_minecraft_block::definition::BlockEntry;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
+use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
 use crate::corpus::{asset_server, block_tags, blocks};
@@ -48,7 +49,7 @@ fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {
     let mut coloured = 0;
     for block in blocks().blocks() {
         let id = block.identifier.as_str();
-        let first = colours.rgb(colours.light_type(block.base_state_id.into()));
+        let first = colours.rgb(colours.light_type(VoxelId(block.base_state_id.0)));
         let mut emits = false;
         for state in states(block) {
             assert_eq!(
@@ -57,7 +58,7 @@ fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {
                 "{id} state {}",
                 state.0
             );
-            emits |= blocks().state(state.into()).light_emission > 0;
+            emits |= blocks().state(BlockStateId(state.0)).light_emission > 0;
         }
         if first.is_some() {
             assert!(emits, "{id} is coloured but emits no light");
@@ -82,7 +83,7 @@ fn a_candle_predicate_colours_only_the_lit_states() {
     let candle = block("minecraft:candle");
     for state in states(candle) {
         let lit = candle
-            .value_of(state.into(), "lit")
+            .value_of(BlockStateId(state.0), "lit")
             .unwrap()
             .renders_to("true");
         assert_eq!(

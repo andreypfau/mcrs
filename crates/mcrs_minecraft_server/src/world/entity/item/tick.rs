@@ -199,7 +199,7 @@ fn state_at(world: &World, dim: Entity, pos: BlockPos) -> BlockStateId {
         .and_then(|index| index.get(pos))
         .and_then(|section| world.get::<ChunkBlocks>(section))
         .map_or(BlockStateId::default(), |blocks| {
-            BlockStateId::from(blocks.get(LocalPos::from(pos)))
+            BlockStateId::from(blocks.get(LocalPos::from(pos)).0)
         })
 }
 

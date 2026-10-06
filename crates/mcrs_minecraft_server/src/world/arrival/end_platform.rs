@@ -29,7 +29,7 @@ pub fn place_end_platform(
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: BlockPos::new(center_x + dx, floor_y, center_z + dz),
-                new_state: OBSIDIAN.into(),
+                new_state: OBSIDIAN.0.into(),
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 512,
             });

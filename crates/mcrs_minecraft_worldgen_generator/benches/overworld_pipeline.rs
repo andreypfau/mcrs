@@ -84,7 +84,7 @@ fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, Mater
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|b| b.default_state_id.into())
+                .map(|b| b.default_state_id.0.into())
         },
         biome_tags: &biome_tags,
     };
@@ -166,9 +166,9 @@ fn main() {
         deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
     };
     let surface_states = SurfaceStates {
-        snow_block: corpus().default_state("minecraft:snow_block").into(),
-        packed_ice: corpus().default_state("minecraft:packed_ice").into(),
-        dirt: corpus().default_state("minecraft:dirt").into(),
+        snow_block: corpus().default_state("minecraft:snow_block").0.into(),
+        packed_ice: corpus().default_state("minecraft:packed_ice").0.into(),
+        dirt: corpus().default_state("minecraft:dirt").0.into(),
     };
     let height = HeightContext {
         min_y: router.noise.min_y,

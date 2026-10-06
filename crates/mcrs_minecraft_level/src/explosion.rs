@@ -93,7 +93,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 let item = (|| {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
-                    let block_state = BlockStateId::from(palette.get(LocalPos::from(pos)));
+                    let block_state = BlockStateId(palette.get(LocalPos::from(pos)).0);
                     let data = blocks.state(block_state);
                     let resistance = (data.explosion_resistance + 0.3) * 0.3;
                     Some(BlockCacheItem {

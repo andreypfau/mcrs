@@ -43,10 +43,10 @@ use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRoute
 
 pub fn router_blocks(blocks: &BlockDefinitions) -> RouterBlocks {
     RouterBlocks {
-        default_block: blocks.default_state("minecraft:stone").into(),
-        default_fluid: blocks.default_state("minecraft:water").into(),
-        water: blocks.default_state("minecraft:water").into(),
-        lava: blocks.default_state("minecraft:lava").into(),
+        default_block: blocks.default_state("minecraft:stone").0.into(),
+        default_fluid: blocks.default_state("minecraft:water").0.into(),
+        water: blocks.default_state("minecraft:water").0.into(),
+        lava: blocks.default_state("minecraft:lava").0.into(),
     }
 }
 
@@ -96,7 +96,7 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
         let inputs = MaterialInputs {
             rules: &rules,
             conditions: &conditions,
-            block: &|state| try_resolve_state(corpus(), state).map(Into::into),
+            block: &|state| try_resolve_state(corpus(), state).map(|state| state.0.into()),
             biome_tags: &biome_tags,
         };
         build_router_and_material(
