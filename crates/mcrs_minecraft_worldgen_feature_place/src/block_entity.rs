@@ -853,7 +853,12 @@ impl BeeOccupant {
     /// in a nest.
     pub fn bee(ticks_in_hive: i32) -> Self {
         let mut entity_data = NbtCompound::new();
-        entity_data.put_string("id", keys::entity_type::BEE.as_static_str().to_owned());
+        entity_data.put_string(
+            "id",
+            mcrs_minecraft_entity::keys::EntityType::Bee
+                .as_static_str()
+                .to_owned(),
+        );
         BeeOccupant {
             entity_data,
             ticks_in_hive,

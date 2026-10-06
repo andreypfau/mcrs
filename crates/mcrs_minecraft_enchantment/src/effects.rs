@@ -391,7 +391,7 @@ pub enum EnchantmentEntityEffect {
     },
     #[serde(rename = "minecraft:summon_entity")]
     SummonEntity {
-        entity: HolderSet<keys::EntityType>,
+        entity: HolderSet<mcrs_minecraft_entity::keys::EntityType>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         join_team: Option<bool>,
     },

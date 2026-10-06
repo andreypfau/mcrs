@@ -545,7 +545,7 @@ fn a_patch_compares_as_a_map() {
 
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
-    use mcrs_minecraft_keys::EntityType;
+    use mcrs_minecraft_entity::keys::EntityType;
     use mcrs_minecraft_protocol::item::{Holder, ResolvableFloat, ResolvableInt, TypedEntityData};
     use mcrs_minecraft_sound::SoundEvent;
     in_samples(|| {

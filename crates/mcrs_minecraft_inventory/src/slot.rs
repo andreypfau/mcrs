@@ -2,12 +2,13 @@ use crate::shulker_boxes::ShulkerBoxes;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
 };
-use mcrs_minecraft_keys::{EntityType, Item, entity_type};
+use mcrs_minecraft_keys::Item;
 use mcrs_minecraft_protocol::entity::EquipmentSlot;
 use mcrs_minecraft_protocol::item::{ComponentPatch, Enchantments, Equippable};
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
@@ -118,7 +119,7 @@ fn admits_player(world: &World, equippable: &Equippable) -> bool {
     let Some(tags) = registries.tags::<EntityType>() else {
         return false;
     };
-    allowed.contains(entity_type::PLAYER.id(), &tags)
+    allowed.contains(EntityType::Player.id(), &tags)
 }
 
 /// A stack the planners move that sits in no slot: a dropped item.

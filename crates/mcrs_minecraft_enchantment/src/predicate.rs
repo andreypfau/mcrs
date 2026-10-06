@@ -252,7 +252,7 @@ dispatched_map! {
     /// Java's component-keyed `EntityPredicate`: the key names the sub-predicate
     /// and so chooses the type of its value.
     EntityPredicate {
-        "minecraft:entity_type" => entity_type: HolderSet<keys::EntityType>,
+        "minecraft:entity_type" => entity_type: HolderSet<mcrs_minecraft_entity::keys::EntityType>,
         "minecraft:flags" => flags: EntityFlagsPredicate,
         "minecraft:movement" => movement: MovementPredicate,
         "minecraft:movement_affected_by" => movement_affected_by: LocationPredicate,

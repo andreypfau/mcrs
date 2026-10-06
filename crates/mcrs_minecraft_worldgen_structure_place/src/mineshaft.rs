@@ -383,7 +383,7 @@ fn corridor<W: WorldGenVolume>(
                 c.volume.set(pos, b.spawner);
                 c.entities.push(GeneratedBlockEntity::mob_spawner(
                     pos,
-                    keys::entity_type::CAVE_SPIDER.as_static_str(),
+                    mcrs_minecraft_entity::keys::EntityType::CaveSpider.as_static_str(),
                 ));
             }
         }

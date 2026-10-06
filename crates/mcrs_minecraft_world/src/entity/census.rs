@@ -70,7 +70,11 @@ fn entity_types_follow_the_registry_order() {
     let attributes = set.table("minecraft:attribute").unwrap();
     assert_eq!(
         attributes
-            .name(mcrs_minecraft_keys::attribute::MAX_HEALTH.id().index())
+            .name(
+                mcrs_minecraft_entity::keys::Attribute::MaxHealth
+                    .id()
+                    .index()
+            )
             .map(|name| name.as_str()),
         Some(attribute::MAX_HEALTH.identifier.as_str())
     );

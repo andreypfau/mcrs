@@ -1,8 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
 #[rustfmt::skip]
-pub mod attribute;
-#[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
 pub mod block;
@@ -38,10 +36,6 @@ pub mod dialog_action_type;
 pub mod enchantment_provider_type;
 #[rustfmt::skip]
 pub mod entity_sub_predicate_type;
-#[rustfmt::skip]
-pub mod entity_type;
-#[rustfmt::skip]
-pub mod entity_type_tags;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset;
 #[rustfmt::skip]

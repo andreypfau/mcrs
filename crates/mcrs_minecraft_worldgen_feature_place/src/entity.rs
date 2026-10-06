@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::io::Cursor;
 
 use bevy_math::{DVec3, IVec3};
@@ -131,20 +130,20 @@ pub enum GeneratedKind {
 
 impl GeneratedKind {
     pub const IDS: [&'static str; 14] = [
-        keys::entity_type::WITCH.as_static_str(),
-        keys::entity_type::CAT.as_static_str(),
-        keys::entity_type::ELDER_GUARDIAN.as_static_str(),
-        keys::entity_type::DROWNED.as_static_str(),
-        keys::entity_type::CHICKEN.as_static_str(),
-        keys::entity_type::ZOMBIE_NAUTILUS.as_static_str(),
-        keys::entity_type::SHULKER.as_static_str(),
-        keys::entity_type::ITEM_FRAME.as_static_str(),
-        keys::entity_type::EVOKER.as_static_str(),
-        keys::entity_type::VINDICATOR.as_static_str(),
-        keys::entity_type::ALLAY.as_static_str(),
-        keys::entity_type::VILLAGER.as_static_str(),
-        keys::entity_type::ZOMBIE_VILLAGER.as_static_str(),
-        keys::entity_type::CHEST_MINECART.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Witch.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Cat.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ElderGuardian.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Drowned.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Chicken.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ZombieNautilus.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Shulker.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ItemFrame.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Evoker.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Vindicator.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Allay.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Villager.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ZombieVillager.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ChestMinecart.as_static_str(),
     ];
 
     pub fn id(&self) -> &'static str {

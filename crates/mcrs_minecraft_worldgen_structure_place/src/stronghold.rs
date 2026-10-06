@@ -742,7 +742,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
         c.volume.set(pos, b.spawner);
         c.entities.push(GeneratedBlockEntity::mob_spawner(
             pos,
-            keys::entity_type::SILVERFISH.as_static_str(),
+            mcrs_minecraft_entity::keys::EntityType::Silverfish.as_static_str(),
         ));
     }
 }

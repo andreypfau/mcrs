@@ -42,7 +42,7 @@ impl Validate for ItemStackValue {
 pub struct Template(pub ItemStackValue);
 
 impl mcrs_minecraft_text::TextTypes for Template {
-    type EntityKey = ResourceKey<keys::EntityType>;
+    type EntityKey = ResourceKey<mcrs_minecraft_entity::keys::EntityType>;
     type DialogKey = ResourceKey<crate::dialog::Dialog>;
 }
 

@@ -2,13 +2,14 @@ use crate::common::{holder, items, place, value, world};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     Click, MenuSnapshot, Planner, Slot, StackView, container_menu_layout, menu_slots,
     player_menu_layout,
 };
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_keys::{entity_type, menu};
+use mcrs_minecraft_keys::menu;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
 use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{HolderSet, Id};
@@ -60,7 +61,7 @@ fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     let mut world = world();
     let registries = test_registries();
     world.insert_resource(registries.clone());
-    let zombie = entity_type::ZOMBIE;
+    let zombie = EntityType::Zombie;
     let player = holder(&mut world, slots::COUNT);
     let zombie_only = crate::common::spawn(&mut world, "iron_helmet", 1);
     world

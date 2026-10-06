@@ -1520,9 +1520,8 @@ fn meeting_point_3(c: &mut Canvas, v: Village) {
 #[rustfmt::skip]
 mod data {
     use super::{Fields, Tag};
-    use mcrs_minecraft_keys as keys;
 
-    pub const CAMEL_ENTITY: Fields = &[("id", Tag::String(keys::entity_type::CAMEL.as_static_str()))];
+    pub const CAMEL_ENTITY: Fields = &[("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::Camel.as_static_str()))];
 }
 use data::*;
 
