@@ -4,8 +4,11 @@ use crate::JukeboxSong;
 use crate::TrimMaterial;
 use crate::TrimPattern;
 use crate::enchantment::EnchantmentData;
+use crate::keys::MobEffect;
+use crate::keys::Potion;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys::{Attribute, Block, Item, MobEffect, Potion, VillagerType};
+use mcrs_minecraft_entity::keys::VillagerType;
+use mcrs_minecraft_keys::{Attribute, Block, Item};
 use mcrs_minecraft_registry::HolderSet;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
@@ -413,7 +416,7 @@ macro_rules! predicate_types {
         const _: () = assert!(
             mcrs_minecraft_registry::static_rows::rows_match(
                 &[$((concat!("minecraft:", $name), $id)),*],
-                mcrs_minecraft_keys::data_component_predicate_type::ENTRIES,
+                crate::keys::DataComponentPredicateType::ENTRIES,
                 true,
             ),
             "the predicate type table must equal the generated data_component_predicate_type names row by row",

@@ -5,7 +5,7 @@ pub mod biome_source;
 pub mod biome_tags;
 pub mod multi_noise_biome_source_parameter_list;
 
-pub use biome_source::BiomeSource;
+pub use biome_source::BiomeSourceType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
@@ -15,8 +15,8 @@ impl Registered for crate::Biome {
     const REGISTRY: RegistryKey<Self> = BIOME;
 }
 
-pub const BIOME_SOURCE: RegistryKey<crate::keys::BiomeSource> = RegistryKey::new(rl!("minecraft:worldgen/biome_source"));
-impl Registered for crate::keys::BiomeSource {
+pub const BIOME_SOURCE: RegistryKey<crate::keys::BiomeSourceType> = RegistryKey::new(rl!("minecraft:worldgen/biome_source"));
+impl Registered for crate::keys::BiomeSourceType {
     const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
 }
 

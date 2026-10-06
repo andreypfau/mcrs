@@ -11,7 +11,6 @@ use std::sync::LazyLock;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
 use crate::dimension_type::DimensionTypeEnvironment;
@@ -390,42 +389,42 @@ static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
         EnvironmentAttributeMap(
             [
                 (
-                    keys::environment_attribute::VISUAL_SKY_COLOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyColor.as_static_str(),
                     blend_to_gray(sky_gray),
                 ),
                 (
-                    keys::environment_attribute::VISUAL_FOG_COLOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualFogColor.as_static_str(),
                     multiply(0xFF00_0000 | tint),
                 ),
                 (
-                    keys::environment_attribute::VISUAL_CLOUD_COLOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualCloudColor.as_static_str(),
                     blend_to_gray(cloud_gray),
                 ),
                 (
-                    keys::environment_attribute::GAMEPLAY_SKY_LIGHT_LEVEL.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::GameplaySkyLightLevel.as_static_str(),
                     alpha_blend(4.0),
                 ),
                 (
-                    keys::environment_attribute::VISUAL_SKY_LIGHT_COLOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightColor.as_static_str(),
                     AttributeEntry {
                         argument: AttributeValue::Color(sky_light_alpha << 24 | 0x7a_7aff),
                         modifier: Operation::AlphaBlend,
                     },
                 ),
                 (
-                    keys::environment_attribute::VISUAL_SKY_LIGHT_FACTOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightFactor.as_static_str(),
                     alpha_blend(0.24),
                 ),
                 (
-                    keys::environment_attribute::VISUAL_STAR_BRIGHTNESS.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualStarBrightness.as_static_str(),
                     AttributeEntry::override_value(AttributeValue::Float(0.0)),
                 ),
                 (
-                    keys::environment_attribute::VISUAL_SUNRISE_SUNSET_COLOR.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSunriseSunsetColor.as_static_str(),
                     multiply(0xFF00_0000 | tint),
                 ),
                 (
-                    keys::environment_attribute::GAMEPLAY_BEES_STAY_IN_HIVE.as_static_str(),
+                    mcrs_minecraft_environment::keys::EnvironmentAttribute::GameplayBeesStayInHive.as_static_str(),
                     AttributeEntry::override_value(AttributeValue::Bool(true)),
                 ),
             ]

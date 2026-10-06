@@ -120,7 +120,7 @@ const BIOME_SOURCE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BIOME_SOURCE_ROWS,
     &[],
-    crate::keys::BiomeSource::ENTRIES
+    crate::keys::BiomeSourceType::ENTRIES
 ));
 
 fn default_scale() -> u32 {
@@ -330,7 +330,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<BiomeSource>(
             BIOME_SOURCE_ROWS,
             &[],
-            crate::keys::BiomeSource::ENTRIES,
+            crate::keys::BiomeSourceType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

@@ -11,7 +11,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
-use mcrs_minecraft_keys::{LootTable, MapDecorationType, Recipe};
+use crate::keys::MapDecorationType;
+use mcrs_minecraft_keys::{LootTable, Recipe};
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
@@ -114,7 +115,7 @@ impl Sample for MapDecorations {
                 "m1".to_string(),
                 MapDecoration {
                     kind: ResourceKey::from_location(
-                        keys::map_decoration_type::PLAYER.location().to_arc(),
+                        crate::keys::MapDecorationType::Player.location().to_arc(),
                     ),
                     x: 1.5,
                     z: -2.5,

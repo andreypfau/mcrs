@@ -4,13 +4,6 @@ use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Activity {}
-pub const ACTIVITY: RegistryKey<Activity> = RegistryKey::new(rl!("minecraft:activity"));
-impl Registered for Activity {
-    const REGISTRY: RegistryKey<Self> = ACTIVITY;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Advancement {}
 pub const ADVANCEMENT: RegistryKey<Advancement> = RegistryKey::new(rl!("minecraft:advancement"));
 impl Registered for Advancement {
@@ -50,13 +43,6 @@ pub enum CommandArgumentType {}
 pub const COMMAND_ARGUMENT_TYPE: RegistryKey<CommandArgumentType> = RegistryKey::new(rl!("minecraft:command_argument_type"));
 impl Registered for CommandArgumentType {
     const REGISTRY: RegistryKey<Self> = COMMAND_ARGUMENT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ConsumeEffectType {}
-pub const CONSUME_EFFECT_TYPE: RegistryKey<ConsumeEffectType> = RegistryKey::new(rl!("minecraft:consume_effect_type"));
-impl Registered for ConsumeEffectType {
-    const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -109,20 +95,6 @@ impl Registered for CustomStat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DataComponentPredicateType {}
-pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<DataComponentPredicateType> = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
-impl Registered for DataComponentPredicateType {
-    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_PREDICATE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DataComponentType {}
-pub const DATA_COMPONENT_TYPE: RegistryKey<DataComponentType> = RegistryKey::new(rl!("minecraft:data_component_type"));
-impl Registered for DataComponentType {
-    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DebugSubscription {}
 pub const DEBUG_SUBSCRIPTION: RegistryKey<DebugSubscription> = RegistryKey::new(rl!("minecraft:debug_subscription"));
 impl Registered for DebugSubscription {
@@ -137,59 +109,10 @@ impl Registered for DialogActionType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DialogBodyType {}
-pub const DIALOG_BODY_TYPE: RegistryKey<DialogBodyType> = RegistryKey::new(rl!("minecraft:dialog_body_type"));
-impl Registered for DialogBodyType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_BODY_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DialogType {}
-pub const DIALOG_TYPE: RegistryKey<DialogType> = RegistryKey::new(rl!("minecraft:dialog_type"));
-impl Registered for DialogType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentEffectComponentType {}
-pub const ENCHANTMENT_EFFECT_COMPONENT_TYPE: RegistryKey<EnchantmentEffectComponentType> = RegistryKey::new(rl!("minecraft:enchantment_effect_component_type"));
-impl Registered for EnchantmentEffectComponentType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_EFFECT_COMPONENT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentEntityEffectType {}
-pub const ENCHANTMENT_ENTITY_EFFECT_TYPE: RegistryKey<EnchantmentEntityEffectType> = RegistryKey::new(rl!("minecraft:enchantment_entity_effect_type"));
-impl Registered for EnchantmentEntityEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_ENTITY_EFFECT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentLevelBasedValueType {}
-pub const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE: RegistryKey<EnchantmentLevelBasedValueType> = RegistryKey::new(rl!("minecraft:enchantment_level_based_value_type"));
-impl Registered for EnchantmentLevelBasedValueType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LEVEL_BASED_VALUE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentLocationBasedEffectType {}
-pub const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE: RegistryKey<EnchantmentLocationBasedEffectType> = RegistryKey::new(rl!("minecraft:enchantment_location_based_effect_type"));
-impl Registered for EnchantmentLocationBasedEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnchantmentProviderType {}
 pub const ENCHANTMENT_PROVIDER_TYPE: RegistryKey<EnchantmentProviderType> = RegistryKey::new(rl!("minecraft:enchantment_provider_type"));
 impl Registered for EnchantmentProviderType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnchantmentValueEffectType {}
-pub const ENCHANTMENT_VALUE_EFFECT_TYPE: RegistryKey<EnchantmentValueEffectType> = RegistryKey::new(rl!("minecraft:enchantment_value_effect_type"));
-impl Registered for EnchantmentValueEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_VALUE_EFFECT_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -204,13 +127,6 @@ pub enum EntityType {}
 pub const ENTITY_TYPE: RegistryKey<EntityType> = RegistryKey::new(rl!("minecraft:entity_type"));
 impl Registered for EntityType {
     const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EnvironmentAttribute {}
-pub const ENVIRONMENT_ATTRIBUTE: RegistryKey<EnvironmentAttribute> = RegistryKey::new(rl!("minecraft:environment_attribute"));
-impl Registered for EnvironmentAttribute {
-    const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -256,13 +172,6 @@ impl Registered for IncomingRpcMethods {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum InputControlType {}
-pub const INPUT_CONTROL_TYPE: RegistryKey<InputControlType> = RegistryKey::new(rl!("minecraft:input_control_type"));
-impl Registered for InputControlType {
-    const REGISTRY: RegistryKey<Self> = INPUT_CONTROL_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IntProviderType {}
 pub const INT_PROVIDER_TYPE: RegistryKey<IntProviderType> = RegistryKey::new(rl!("minecraft:int_provider_type"));
 impl Registered for IntProviderType {
@@ -281,13 +190,6 @@ pub enum ItemModifier {}
 pub const ITEM_MODIFIER: RegistryKey<ItemModifier> = RegistryKey::new(rl!("minecraft:item_modifier"));
 impl Registered for ItemModifier {
     const REGISTRY: RegistryKey<Self> = ITEM_MODIFIER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootConditionType {}
-pub const LOOT_CONDITION_TYPE: RegistryKey<LootConditionType> = RegistryKey::new(rl!("minecraft:loot_condition_type"));
-impl Registered for LootConditionType {
-    const REGISTRY: RegistryKey<Self> = LOOT_CONDITION_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -326,13 +228,6 @@ impl Registered for LootTable {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MapDecorationType {}
-pub const MAP_DECORATION_TYPE: RegistryKey<MapDecorationType> = RegistryKey::new(rl!("minecraft:map_decoration_type"));
-impl Registered for MapDecorationType {
-    const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryModuleType {}
 pub const MEMORY_MODULE_TYPE: RegistryKey<MemoryModuleType> = RegistryKey::new(rl!("minecraft:memory_module_type"));
 impl Registered for MemoryModuleType {
@@ -347,13 +242,6 @@ impl Registered for Menu {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MobEffect {}
-pub const MOB_EFFECT: RegistryKey<MobEffect> = RegistryKey::new(rl!("minecraft:mob_effect"));
-impl Registered for MobEffect {
-    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumberFormatType {}
 pub const NUMBER_FORMAT_TYPE: RegistryKey<NumberFormatType> = RegistryKey::new(rl!("minecraft:number_format_type"));
 impl Registered for NumberFormatType {
@@ -365,13 +253,6 @@ pub enum OutgoingRpcMethods {}
 pub const OUTGOING_RPC_METHODS: RegistryKey<OutgoingRpcMethods> = RegistryKey::new(rl!("minecraft:outgoing_rpc_methods"));
 impl Registered for OutgoingRpcMethods {
     const REGISTRY: RegistryKey<Self> = OUTGOING_RPC_METHODS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ParticleType {}
-pub const PARTICLE_TYPE: RegistryKey<ParticleType> = RegistryKey::new(rl!("minecraft:particle_type"));
-impl Registered for ParticleType {
-    const REGISTRY: RegistryKey<Self> = PARTICLE_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -396,20 +277,6 @@ impl Registered for PointOfInterestType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PositionSourceType {}
-pub const POSITION_SOURCE_TYPE: RegistryKey<PositionSourceType> = RegistryKey::new(rl!("minecraft:position_source_type"));
-impl Registered for PositionSourceType {
-    const REGISTRY: RegistryKey<Self> = POSITION_SOURCE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Potion {}
-pub const POTION: RegistryKey<Potion> = RegistryKey::new(rl!("minecraft:potion"));
-impl Registered for Potion {
-    const REGISTRY: RegistryKey<Self> = POTION;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Predicate {}
 pub const PREDICATE: RegistryKey<Predicate> = RegistryKey::new(rl!("minecraft:predicate"));
 impl Registered for Predicate {
@@ -431,13 +298,6 @@ impl Registered for RecipeBookCategory {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecipeDisplay {}
-pub const RECIPE_DISPLAY: RegistryKey<RecipeDisplay> = RegistryKey::new(rl!("minecraft:recipe_display"));
-impl Registered for RecipeDisplay {
-    const REGISTRY: RegistryKey<Self> = RECIPE_DISPLAY;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecipeSerializer {}
 pub const RECIPE_SERIALIZER: RegistryKey<RecipeSerializer> = RegistryKey::new(rl!("minecraft:recipe_serializer"));
 impl Registered for RecipeSerializer {
@@ -456,13 +316,6 @@ pub enum SensorType {}
 pub const SENSOR_TYPE: RegistryKey<SensorType> = RegistryKey::new(rl!("minecraft:sensor_type"));
 impl Registered for SensorType {
     const REGISTRY: RegistryKey<Self> = SENSOR_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SlotDisplay {}
-pub const SLOT_DISPLAY: RegistryKey<SlotDisplay> = RegistryKey::new(rl!("minecraft:slot_display"));
-impl Registered for SlotDisplay {
-    const REGISTRY: RegistryKey<Self> = SLOT_DISPLAY;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -529,20 +382,6 @@ impl Registered for TriggerType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum VillagerProfession {}
-pub const VILLAGER_PROFESSION: RegistryKey<VillagerProfession> = RegistryKey::new(rl!("minecraft:villager_profession"));
-impl Registered for VillagerProfession {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_PROFESSION;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum VillagerType {}
-pub const VILLAGER_TYPE: RegistryKey<VillagerType> = RegistryKey::new(rl!("minecraft:villager_type"));
-impl Registered for VillagerType {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkGenerator {}
 pub const CHUNK_GENERATOR: RegistryKey<ChunkGenerator> = RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 impl Registered for ChunkGenerator {
@@ -570,16 +409,14 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 81] {
+pub fn bindings() -> [TypeBinding; 58] {
     [
-        ACTIVITY.binding(),
         ADVANCEMENT.binding(),
         ATTRIBUTE.binding(),
         ATTRIBUTE_TYPE.binding(),
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
-        CONSUME_EFFECT_TYPE.binding(),
         CONTEXT_FLOAT_PROVIDER.binding(),
         CONTEXT_FLOAT_PROVIDER_TYPE.binding(),
         CONTEXT_INT_PROVIDER.binding(),
@@ -587,57 +424,38 @@ pub fn bindings() -> [TypeBinding; 81] {
         CONTEXT_KEY_SET.binding(),
         CREATIVE_MODE_TAB.binding(),
         CUSTOM_STAT.binding(),
-        DATA_COMPONENT_PREDICATE_TYPE.binding(),
-        DATA_COMPONENT_TYPE.binding(),
         DEBUG_SUBSCRIPTION.binding(),
         DIALOG_ACTION_TYPE.binding(),
-        DIALOG_BODY_TYPE.binding(),
-        DIALOG_TYPE.binding(),
-        ENCHANTMENT_EFFECT_COMPONENT_TYPE.binding(),
-        ENCHANTMENT_ENTITY_EFFECT_TYPE.binding(),
-        ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.binding(),
-        ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
-        ENCHANTMENT_VALUE_EFFECT_TYPE.binding(),
         ENTITY_SUB_PREDICATE_TYPE.binding(),
         ENTITY_TYPE.binding(),
-        ENVIRONMENT_ATTRIBUTE.binding(),
         FLOAT_PROVIDER_TYPE.binding(),
         FLUID.binding(),
         GAME_EVENT.binding(),
         GAME_RULE.binding(),
         HEIGHT_PROVIDER_TYPE.binding(),
         INCOMING_RPC_METHODS.binding(),
-        INPUT_CONTROL_TYPE.binding(),
         INT_PROVIDER_TYPE.binding(),
         ITEM.binding(),
         ITEM_MODIFIER.binding(),
-        LOOT_CONDITION_TYPE.binding(),
         LOOT_FUNCTION_TYPE.binding(),
         LOOT_NBT_PROVIDER_TYPE.binding(),
         LOOT_POOL_ENTRY_TYPE.binding(),
         LOOT_SCORE_PROVIDER_TYPE.binding(),
         LOOT_TABLE.binding(),
-        MAP_DECORATION_TYPE.binding(),
         MEMORY_MODULE_TYPE.binding(),
         MENU.binding(),
-        MOB_EFFECT.binding(),
         NUMBER_FORMAT_TYPE.binding(),
         OUTGOING_RPC_METHODS.binding(),
-        PARTICLE_TYPE.binding(),
         PERMISSION_CHECK_TYPE.binding(),
         PERMISSION_TYPE.binding(),
         POINT_OF_INTEREST_TYPE.binding(),
-        POSITION_SOURCE_TYPE.binding(),
-        POTION.binding(),
         PREDICATE.binding(),
         RECIPE.binding(),
         RECIPE_BOOK_CATEGORY.binding(),
-        RECIPE_DISPLAY.binding(),
         RECIPE_SERIALIZER.binding(),
         RECIPE_TYPE.binding(),
         SENSOR_TYPE.binding(),
-        SLOT_DISPLAY.binding(),
         SLOT_SOURCE.binding(),
         SLOT_SOURCE_TYPE.binding(),
         STAT_TYPE.binding(),
@@ -647,8 +465,6 @@ pub fn bindings() -> [TypeBinding; 81] {
         TICKET_TYPE.binding(),
         TRIAL_SPAWNER.binding(),
         TRIGGER_TYPE.binding(),
-        VILLAGER_PROFESSION.binding(),
-        VILLAGER_TYPE.binding(),
         CHUNK_GENERATOR.binding(),
         DENSITY_FUNCTION.binding(),
         FLAT_LEVEL_GENERATOR_PRESET.binding(),

@@ -61,7 +61,7 @@ const STRUCTURE_POOL_ELEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_POOL_ELEMENT_ROWS,
     &[],
-    crate::keys::StructurePoolElement::ENTRIES
+    crate::keys::StructurePoolElementType::ENTRIES
 ));
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.
@@ -106,7 +106,7 @@ mod tests {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolElement>(
             STRUCTURE_POOL_ELEMENT_ROWS,
             &[],
-            crate::keys::StructurePoolElement::ENTRIES,
+            crate::keys::StructurePoolElementType::ENTRIES,
             |name| serde_json::json!({ "element_type": name }),
         );
     }

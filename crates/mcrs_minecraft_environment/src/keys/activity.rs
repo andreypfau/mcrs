@@ -1,0 +1,31 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+mcrs_minecraft_registry::static_registry! {
+    pub enum Activity;
+    Core = "minecraft:core",
+    Idle = "minecraft:idle",
+    Work = "minecraft:work",
+    Play = "minecraft:play",
+    Rest = "minecraft:rest",
+    Meet = "minecraft:meet",
+    Panic = "minecraft:panic",
+    Raid = "minecraft:raid",
+    PreRaid = "minecraft:pre_raid",
+    Hide = "minecraft:hide",
+    Fight = "minecraft:fight",
+    Celebrate = "minecraft:celebrate",
+    AdmireItem = "minecraft:admire_item",
+    Avoid = "minecraft:avoid",
+    Ride = "minecraft:ride",
+    PlayDead = "minecraft:play_dead",
+    LongJump = "minecraft:long_jump",
+    Ram = "minecraft:ram",
+    Tongue = "minecraft:tongue",
+    Swim = "minecraft:swim",
+    LaySpawn = "minecraft:lay_spawn",
+    Sniff = "minecraft:sniff",
+    Investigate = "minecraft:investigate",
+    Roar = "minecraft:roar",
+    Emerge = "minecraft:emerge",
+    Dig = "minecraft:dig",
+}

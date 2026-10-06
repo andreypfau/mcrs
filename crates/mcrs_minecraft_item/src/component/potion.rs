@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::component::common::{MobEffectDetails, MobEffectInstance, key};
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
-use mcrs_minecraft_keys::Potion;
+use crate::keys::Potion;
 
 /// The full map, or on read a bare potion id. Custom effects never carry a
 /// hidden effect: vanilla hands out copies that leave it behind, so no encoder

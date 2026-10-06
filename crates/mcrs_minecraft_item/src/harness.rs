@@ -162,7 +162,7 @@ macro_rules! sample_registries_table {
 sample_registries_table! {
     keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
+    crate::keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
     crate::keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
     crate::keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
@@ -171,12 +171,12 @@ sample_registries_table! {
     keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
     keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
-    keys::POTION => "potion" ["water", "swiftness", "healing"] [];
+    crate::keys::POTION => "potion" ["water", "swiftness", "healing"] [];
     keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
     crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
     crate::keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
-    keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
+    mcrs_minecraft_entity::keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
     mcrs_minecraft_entity::keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
     mcrs_minecraft_entity::keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];
     mcrs_minecraft_entity::keys::PIG_VARIANT => "pig_variant" ["temperate", "cold"] [];

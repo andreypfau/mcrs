@@ -1947,7 +1947,7 @@ fn meeting_point_3(c: &mut Canvas, v: Village) {
 }
 
 templates! {
-    "plains" PLAINS;
+    "plains" Plains;
     both {
         "houses/plains_animal_pen_3" [8, 6, 11] animal_pen_3;
         "houses/plains_big_house_1" [7, 11, 11] big_house_1;

@@ -9,9 +9,14 @@ pub mod cow_variant;
 pub mod frog_variant;
 pub mod pig_sound_variant;
 pub mod pig_variant;
+pub mod villager_profession;
+pub mod villager_type;
 pub mod wolf_sound_variant;
 pub mod wolf_variant;
 pub mod zombie_nautilus_variant;
+
+pub use villager_profession::VillagerProfession;
+pub use villager_type::VillagerType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
@@ -61,6 +66,16 @@ impl Registered for crate::variant::PigVariant {
     const REGISTRY: RegistryKey<Self> = PIG_VARIANT;
 }
 
+pub const VILLAGER_PROFESSION: RegistryKey<crate::keys::VillagerProfession> = RegistryKey::new(rl!("minecraft:villager_profession"));
+impl Registered for crate::keys::VillagerProfession {
+    const REGISTRY: RegistryKey<Self> = VILLAGER_PROFESSION;
+}
+
+pub const VILLAGER_TYPE: RegistryKey<crate::keys::VillagerType> = RegistryKey::new(rl!("minecraft:villager_type"));
+impl Registered for crate::keys::VillagerType {
+    const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
+}
+
 pub const WOLF_SOUND_VARIANT: RegistryKey<crate::variant::WolfSoundVariant> = RegistryKey::new(rl!("minecraft:wolf_sound_variant"));
 impl Registered for crate::variant::WolfSoundVariant {
     const REGISTRY: RegistryKey<Self> = WOLF_SOUND_VARIANT;
@@ -76,7 +91,7 @@ impl Registered for crate::variant::ZombieNautilusVariant {
     const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
 }
 
-pub fn bindings() -> [TypeBinding; 12] {
+pub fn bindings() -> [TypeBinding; 14] {
     [
         CAT_SOUND_VARIANT.binding(),
         CAT_VARIANT.binding(),
@@ -87,6 +102,8 @@ pub fn bindings() -> [TypeBinding; 12] {
         FROG_VARIANT.binding(),
         PIG_SOUND_VARIANT.binding(),
         PIG_VARIANT.binding(),
+        VILLAGER_PROFESSION.binding(),
+        VILLAGER_TYPE.binding(),
         WOLF_SOUND_VARIANT.binding(),
         WOLF_VARIANT.binding(),
         ZOMBIE_NAUTILUS_VARIANT.binding(),

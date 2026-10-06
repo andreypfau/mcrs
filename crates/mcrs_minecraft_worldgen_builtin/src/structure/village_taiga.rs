@@ -1594,7 +1594,7 @@ mod data {
 use data::*;
 
 templates! {
-    "taiga" TAIGA;
+    "taiga" Taiga;
     both {
         "houses/taiga_cartographer_house_1" [7, 10, 8] cartographer_house_1;
         "houses/taiga_fisher_cottage_1" [10, 8, 12] fisher_cottage_1;

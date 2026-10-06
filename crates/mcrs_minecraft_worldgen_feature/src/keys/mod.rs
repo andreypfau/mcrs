@@ -18,29 +18,29 @@ pub mod template_pool;
 pub mod tree_decorator_type;
 pub mod trunk_placer_type;
 
-pub use pos_rule_test::PosRuleTest;
-pub use rule_block_entity_modifier::RuleBlockEntityModifier;
+pub use pos_rule_test::PosRuleTestType;
+pub use rule_block_entity_modifier::RuleBlockEntityModifierType;
 pub use rule_test_type::RuleTestType;
 pub use feature_size_type::FeatureSizeType;
 pub use feature_type::FeatureType;
 pub use foliage_placer_type::FoliagePlacerType;
 pub use placement_modifier_type::PlacementModifierType;
 pub use root_placer_type::RootPlacerType;
-pub use structure_pool_element::StructurePoolElement;
-pub use structure_processor::StructureProcessor;
+pub use structure_pool_element::StructurePoolElementType;
+pub use structure_processor::StructureProcessorType;
 pub use tree_decorator_type::TreeDecoratorType;
 pub use trunk_placer_type::TrunkPlacerType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
 
-pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTest> = RegistryKey::new(rl!("minecraft:pos_rule_test"));
-impl Registered for crate::keys::PosRuleTest {
+pub const POS_RULE_TEST: RegistryKey<crate::keys::PosRuleTestType> = RegistryKey::new(rl!("minecraft:pos_rule_test"));
+impl Registered for crate::keys::PosRuleTestType {
     const REGISTRY: RegistryKey<Self> = POS_RULE_TEST;
 }
 
-pub const RULE_BLOCK_ENTITY_MODIFIER: RegistryKey<crate::keys::RuleBlockEntityModifier> = RegistryKey::new(rl!("minecraft:rule_block_entity_modifier"));
-impl Registered for crate::keys::RuleBlockEntityModifier {
+pub const RULE_BLOCK_ENTITY_MODIFIER: RegistryKey<crate::keys::RuleBlockEntityModifierType> = RegistryKey::new(rl!("minecraft:rule_block_entity_modifier"));
+impl Registered for crate::keys::RuleBlockEntityModifierType {
     const REGISTRY: RegistryKey<Self> = RULE_BLOCK_ENTITY_MODIFIER;
 }
 
@@ -89,13 +89,13 @@ impl Registered for crate::keys::RootPlacerType {
     const REGISTRY: RegistryKey<Self> = ROOT_PLACER_TYPE;
 }
 
-pub const STRUCTURE_POOL_ELEMENT: RegistryKey<crate::keys::StructurePoolElement> = RegistryKey::new(rl!("minecraft:worldgen/structure_pool_element"));
-impl Registered for crate::keys::StructurePoolElement {
+pub const STRUCTURE_POOL_ELEMENT: RegistryKey<crate::keys::StructurePoolElementType> = RegistryKey::new(rl!("minecraft:worldgen/structure_pool_element"));
+impl Registered for crate::keys::StructurePoolElementType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_POOL_ELEMENT;
 }
 
-pub const STRUCTURE_PROCESSOR: RegistryKey<crate::keys::StructureProcessor> = RegistryKey::new(rl!("minecraft:worldgen/structure_processor"));
-impl Registered for crate::keys::StructureProcessor {
+pub const STRUCTURE_PROCESSOR: RegistryKey<crate::keys::StructureProcessorType> = RegistryKey::new(rl!("minecraft:worldgen/structure_processor"));
+impl Registered for crate::keys::StructureProcessorType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PROCESSOR;
 }
 

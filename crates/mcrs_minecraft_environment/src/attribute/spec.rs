@@ -4,7 +4,6 @@
 //! Immutable data, built once. Nothing here holds an effective value — that is
 //! composed from the layers on demand.
 
-use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
@@ -702,7 +701,7 @@ fn flag(value: bool) -> AttributeValue {
 }
 
 fn activity() -> AttributeValue {
-    AttributeValue::Activity(keys::activity::IDLE.location().to_arc())
+    AttributeValue::Activity(crate::keys::Activity::Idle.location().to_arc())
 }
 
 fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> AttributeValue {
@@ -722,7 +721,7 @@ macro_rules! table {
         const _: () = assert!(
             rows_match(
                 &numbered(IDS),
-                keys::environment_attribute::ENTRIES,
+                crate::keys::EnvironmentAttribute::ENTRIES,
                 true,
             ),
             "the attribute table must equal the generated environment_attribute names row by row",

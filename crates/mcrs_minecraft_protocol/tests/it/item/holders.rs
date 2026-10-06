@@ -4,16 +4,15 @@ use mcrs_minecraft_sound::SoundEvent;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, ConsumeEffectType, DecodeCtx, Holder, HolderWireOnly,
-    ItemComponentKind, ItemComponentValue, JukeboxPlayable, JukeboxSong, PaintingVariant,
-    PaintingVariantValue, hash_ops,
+    Consumable, ConsumeEffect, DecodeCtx, Holder, HolderWireOnly, ItemComponentKind,
+    ItemComponentValue, JukeboxPlayable, JukeboxSong, PaintingVariant, PaintingVariantValue,
+    hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::harness::{TestLookup, from_json, hex, in_samples, nbt_tree, persistent_json};
 
@@ -160,24 +159,6 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
     let inline =
         serde_json::from_str::<PaintingVariant>(r#"{"width":1,"height":1,"asset_id":"mcrs:a"}"#);
     assert!(inline.is_err(), "inline painting variant is not persistent");
-}
-
-#[test]
-fn consume_effect_ids_are_the_registry_protocol_ids() {
-    let set = mcrs_minecraft_registry::static_report::shipped_report();
-    let registry = set.table("minecraft:consume_effect_type").unwrap();
-    assert_eq!(registry.len(), ConsumeEffectType::ALL.len());
-    for kind in ConsumeEffectType::ALL {
-        assert_eq!(
-            set.id(
-                "consume_effect_type",
-                &ResourceLocation::read(kind.id()).unwrap()
-            ),
-            Some(kind as u16),
-            "{}",
-            kind.id()
-        );
-    }
 }
 
 #[test]

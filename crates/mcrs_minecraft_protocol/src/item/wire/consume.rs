@@ -6,6 +6,7 @@ use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
 use crate::item::component::common::Holder;
 use crate::item::component::consume::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
+use crate::item::keys::ConsumeEffectType;
 use crate::item::wire::record_ctx_wire;
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
@@ -38,7 +39,7 @@ impl EncodeCtx for ConsumeEffect {
 impl DecodeCtx<'_> for ConsumeEffect {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = decode_registry_id(r)?;
-        let Some(kind) = ConsumeEffectType::from_wire_id(id) else {
+        let Some(kind) = ConsumeEffectType::from_protocol_id(id) else {
             bail!("unknown consume effect type {id}");
         };
         Ok(match kind {
