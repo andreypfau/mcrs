@@ -253,9 +253,9 @@ mod tests {
     use crate::modern::carve_source_into;
     use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_core::value_provider::HeightContext;
     use mcrs_minecraft_random::Random;
     use mcrs_minecraft_random::legacy::LegacyRandom;
+    use mcrs_minecraft_value_provider::HeightContext;
     use mcrs_minecraft_worldgen_testing::read;
 
     fn overworld() -> HeightContext {

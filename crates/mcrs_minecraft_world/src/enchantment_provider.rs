@@ -1,7 +1,7 @@
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

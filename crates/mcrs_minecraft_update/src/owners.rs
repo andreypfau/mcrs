@@ -521,4 +521,19 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_item",
         value: ValueType::Enum("Item"),
     },
+    Owner {
+        registry: "minecraft:int_provider_type",
+        krate: "mcrs_minecraft_value_provider",
+        value: ValueType::Enum("IntProviderType"),
+    },
+    Owner {
+        registry: "minecraft:float_provider_type",
+        krate: "mcrs_minecraft_value_provider",
+        value: ValueType::Enum("FloatProviderType"),
+    },
+    Owner {
+        registry: "minecraft:height_provider_type",
+        krate: "mcrs_minecraft_value_provider",
+        value: ValueType::Enum("HeightProviderType"),
+    },
 ];

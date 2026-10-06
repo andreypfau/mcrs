@@ -7,7 +7,7 @@ use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
-use mcrs_minecraft_core::value_provider::IntProvider;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;

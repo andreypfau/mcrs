@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::NonNegativeInt;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
+use mcrs_minecraft_value_provider::IntProvider;
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 

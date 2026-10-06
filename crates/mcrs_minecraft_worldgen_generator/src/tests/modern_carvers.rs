@@ -2,7 +2,7 @@ use mcrs_minecraft_worldgen_testing::worldgen_dir;
 use std::sync::Arc;
 
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::aquifer::point_barrier;
 use mcrs_minecraft_worldgen_density::program::Workspace;

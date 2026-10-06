@@ -22,7 +22,6 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_core::{Mirror, Rotation};
@@ -31,6 +30,7 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, TagId, Tags};
+use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,

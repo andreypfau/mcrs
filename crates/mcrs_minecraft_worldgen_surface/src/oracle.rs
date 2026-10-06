@@ -7,8 +7,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::mth::map;
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::Random;
+use mcrs_minecraft_value_provider::HeightContext;
 use std::collections::BTreeSet;
 
 /// What each node the walk visited answered, so a differential run can prove it

@@ -35,19 +35,13 @@ pub mod flat_level_generator_preset;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset_tags;
 #[rustfmt::skip]
-pub mod float_provider_type;
-#[rustfmt::skip]
 pub mod game_event;
 #[rustfmt::skip]
 pub mod game_event_tags;
 #[rustfmt::skip]
 pub mod game_rule;
 #[rustfmt::skip]
-pub mod height_provider_type;
-#[rustfmt::skip]
 pub mod incoming_rpc_methods;
-#[rustfmt::skip]
-pub mod int_provider_type;
 #[rustfmt::skip]
 pub mod loot_function_type;
 #[rustfmt::skip]

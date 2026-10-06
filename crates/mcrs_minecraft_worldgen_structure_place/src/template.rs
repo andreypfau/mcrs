@@ -2,11 +2,11 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::proto::{

@@ -7,9 +7,9 @@ use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_value_provider::VerticalAnchor;
 
 /// `Vec3i.offsetCodec(16)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

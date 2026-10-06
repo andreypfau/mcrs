@@ -23,7 +23,7 @@ use crate::material::PushReaction;
 use crate::material::map::MapColor;
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
-use mcrs_minecraft_core::value_provider::IntProvider;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_core::voxel_shape::Aabb;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use crate::keys::Fluid;

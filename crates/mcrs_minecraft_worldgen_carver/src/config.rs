@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use mcrs_minecraft_core::value_provider::{FloatProvider, HeightProvider, IntProvider};
+use mcrs_minecraft_value_provider::{FloatProvider, HeightProvider, IntProvider};
 
 fn one() -> FloatProvider {
     FloatProvider::Constant(1.0)

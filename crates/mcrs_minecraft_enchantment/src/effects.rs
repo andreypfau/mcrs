@@ -8,9 +8,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use super::predicate::{LootCondition, dispatched_map};
 use super::value::LevelBasedValue;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
-use mcrs_minecraft_core::value_provider::FloatProvider;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_value_provider::FloatProvider;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

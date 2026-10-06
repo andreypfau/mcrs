@@ -5,9 +5,9 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::mth::clamped_map;
-use mcrs_minecraft_core::value_provider::{FloatProvider, IntProvider};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::{FloatProvider, IntProvider};
 use mcrs_minecraft_worldgen_feature::compile::BlockResolver;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
@@ -608,8 +608,8 @@ fn place_dripstone<W: WorldGenVolume>(
 pub(crate) mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_core::value_provider::DispatchedFloatProvider;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_value_provider::DispatchedFloatProvider;
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;

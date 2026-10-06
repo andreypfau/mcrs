@@ -33,14 +33,14 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_keys::entity_sub_predicate_type::ENTRIES),
     (mcrs_minecraft_entity::keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::keys::EntityType::ENTRIES),
     (mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::keys::EnvironmentAttribute::ENTRIES),
-    (mcrs_minecraft_keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::float_provider_type::ENTRIES),
+    (mcrs_minecraft_value_provider::keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::FloatProviderType::ENTRIES),
     (mcrs_minecraft_block::keys::FLUID.location(), mcrs_minecraft_block::keys::Fluid::ENTRIES),
     (mcrs_minecraft_keys::GAME_EVENT.location(), mcrs_minecraft_keys::game_event::ENTRIES),
     (mcrs_minecraft_keys::GAME_RULE.location(), mcrs_minecraft_keys::game_rule::ENTRIES),
-    (mcrs_minecraft_keys::HEIGHT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::height_provider_type::ENTRIES),
+    (mcrs_minecraft_value_provider::keys::HEIGHT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::HeightProviderType::ENTRIES),
     (mcrs_minecraft_keys::INCOMING_RPC_METHODS.location(), mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES),
     (mcrs_minecraft_item::keys::INPUT_CONTROL_TYPE.location(), mcrs_minecraft_item::keys::InputControlType::ENTRIES),
-    (mcrs_minecraft_keys::INT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::int_provider_type::ENTRIES),
+    (mcrs_minecraft_value_provider::keys::INT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::IntProviderType::ENTRIES),
     (mcrs_minecraft_item::keys::ITEM.location(), mcrs_minecraft_item::keys::Item::ENTRIES),
     (mcrs_minecraft_enchantment::keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_enchantment::keys::LootConditionType::ENTRIES),
     (mcrs_minecraft_keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_keys::loot_function_type::ENTRIES),
@@ -117,6 +117,7 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
         .chain(mcrs_minecraft_particle::keys::bindings())
         .chain(mcrs_minecraft_protocol::keys::bindings())
         .chain(mcrs_minecraft_sound::keys::bindings())
+        .chain(mcrs_minecraft_value_provider::keys::bindings())
         .chain(mcrs_minecraft_worldgen_carver::keys::bindings())
         .chain(mcrs_minecraft_worldgen_density::keys::bindings())
         .chain(mcrs_minecraft_worldgen_feature::keys::bindings())

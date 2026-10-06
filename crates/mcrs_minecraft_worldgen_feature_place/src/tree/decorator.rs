@@ -5,9 +5,9 @@ use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-pub use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+pub use mcrs_minecraft_value_provider::Weighted;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::tree::TreeDecorator;
 

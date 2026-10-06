@@ -11,12 +11,12 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Registry, Tags};
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
 use mcrs_minecraft_worldgen_feature::placer::{

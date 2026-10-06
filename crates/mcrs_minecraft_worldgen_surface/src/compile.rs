@@ -4,10 +4,10 @@ use crate::proto::{
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_minecraft_registry::{HolderSet, Id, Tags};
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::cell::CellBounds;
 use mcrs_minecraft_worldgen_density::compile::build_router_with;
 use mcrs_minecraft_worldgen_density::compile::{CompileError, Compiler};
