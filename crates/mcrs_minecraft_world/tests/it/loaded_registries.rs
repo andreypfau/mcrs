@@ -12,7 +12,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};

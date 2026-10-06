@@ -30,7 +30,9 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_dimension::environment::{DimensionEnvironments, build_dimension_environments};
+use mcrs_minecraft_dimension_environment::environment::{
+    DimensionEnvironments, build_dimension_environments,
+};
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 
 #[derive(Resource, Default)]

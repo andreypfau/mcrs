@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::light::BlockLightRegistry;
-use mcrs_minecraft_dimension::environment::DimensionEnvironments;
+use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;

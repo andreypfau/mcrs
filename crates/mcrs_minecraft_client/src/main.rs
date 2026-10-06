@@ -19,7 +19,7 @@ use bevy::window::{
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_file_source;
-use mcrs_minecraft_dimension::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;

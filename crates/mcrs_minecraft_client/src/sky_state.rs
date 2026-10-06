@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use mcrs_minecraft_keys as keys;
 
-use mcrs_minecraft_dimension::dimension_type::Skybox;
-use mcrs_minecraft_dimension::environment::{EnvironmentAttributes, EnvironmentContext};
+use mcrs_minecraft_dimension_environment::dimension_type::Skybox;
+use mcrs_minecraft_dimension_environment::environment::{
+    EnvironmentAttributes, EnvironmentContext,
+};
 use mcrs_minecraft_environment::attribute::AttributeValue;
 
 use mcrs_minecraft_render::sky::SkyEffects;
@@ -306,7 +308,7 @@ mod tests {
     use bevy::math::DVec3;
     use serde_json::json;
 
-    use mcrs_minecraft_dimension::environment::{
+    use mcrs_minecraft_dimension_environment::environment::{
         DimensionEnvironment, EnvironmentAttributes, EnvironmentContext, Weather,
     };
     use mcrs_minecraft_environment::attribute::{AttributeValue, EnvironmentAttributeMap};

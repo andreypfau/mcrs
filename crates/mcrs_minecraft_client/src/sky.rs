@@ -12,8 +12,8 @@ use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
-use mcrs_minecraft_dimension::environment::{
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
@@ -651,8 +651,10 @@ mod reference {
 
 #[cfg(test)]
 mod sky_regression {
-    use mcrs_minecraft_dimension::dimension_type::Skybox;
-    use mcrs_minecraft_dimension::environment::{DimensionEnvironment, EnvironmentAttributes};
+    use mcrs_minecraft_dimension_environment::dimension_type::Skybox;
+    use mcrs_minecraft_dimension_environment::environment::{
+        DimensionEnvironment, EnvironmentAttributes,
+    };
     use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
     use mcrs_minecraft_environment::timeline::Timeline;
     use mcrs_minecraft_environment::world_clock::ClockState;
