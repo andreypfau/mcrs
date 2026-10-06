@@ -71,7 +71,7 @@ fn ids() -> ModernCarverBlockIds {
 #[test]
 fn the_tiled_sources_match_point_sampling() {
     let router = build_settings_router("overworld", 12345);
-    let table = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
+    let table = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);
     let mut ws = Workspace::new();
     for (chunk_x, chunk_z) in [(0, 0), (-13, 7)] {
         for source_x in (chunk_x - 8)..=(chunk_x + 8) {
@@ -91,7 +91,7 @@ fn the_tiled_sources_match_point_sampling() {
 #[test]
 fn carving_an_overworld_column_frees_space_and_spares_bedrock() {
     let router = build_settings_router("overworld", 12345);
-    let table = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
+    let table = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);
     let block_ids = ids();
     let sections = y_sections();
     let mut ws = Workspace::new();

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::structures::{frozen_shared, preset};
@@ -30,12 +30,7 @@ fn overworld() -> StructureIndex {
         frozen: Arc::clone(frozen),
         live: live_sets(frozen, &mask),
     };
-    let BiomeSource::MultiNoise(multi) = source else {
-        unreachable!()
-    };
-    let biomes =
-        MultiNoiseBiomeTable::resolve(&multi, corpus_biomes(), &crate::tests::parameter_lists().1)
-            .unwrap();
+    let biomes = MultiNoiseBiomeTable::of_preset(Preset::Overworld, corpus_biomes()).unwrap();
     StructureIndex::new(
         Arc::new(tables),
         SEED as i64,

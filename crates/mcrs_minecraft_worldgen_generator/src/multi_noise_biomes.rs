@@ -78,21 +78,6 @@ impl MultiNoiseBiomeTable {
     /// byte: a substituted or truncated id would alias a different biome
     /// everywhere, in the grid the surface stage folds over as much as in the
     /// palette the client is sent.
-    pub fn resolve(
-        source: &MultiNoiseBiomeSource,
-        biomes: &Registry<Biome>,
-        lists: &ParameterLists,
-    ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
-        match (&source.preset, &source.biomes) {
-            (Some(list), _) => {
-                let list = lists.get(*list).ok_or_else(|| no_such_list(*list))?;
-                Self::of_preset(list.preset, biomes)
-            }
-            (None, Some(entries)) => Self::from_entries(biomes, entries),
-            (None, None) => Err(names_nothing()),
-        }
-    }
-
     pub fn of_preset(
         preset: Preset,
         biomes: &Registry<Biome>,

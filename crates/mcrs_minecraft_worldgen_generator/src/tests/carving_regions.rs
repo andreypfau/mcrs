@@ -25,7 +25,7 @@ use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
 
 fn table(preset: Preset, width: i32, capacity: usize) -> CarverBiomeTable {
-    CarverBiomeTable::resolve(preset, carvers_of).with_region(width, capacity)
+    CarverBiomeTable::from_climate(preset.parameter_list(), carvers_of).with_region(width, capacity)
 }
 
 fn per_column(

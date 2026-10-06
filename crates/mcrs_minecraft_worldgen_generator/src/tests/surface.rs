@@ -9,7 +9,7 @@ use crate::{
 };
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
-use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::{Registry, RegistrySet};
@@ -152,15 +152,8 @@ fn registry_of(ids: &HashMap<String, u16>) -> Registry<Biome> {
 
 /// The overworld preset's climate table over the biomes `ids` numbers.
 fn table_over(ids: &HashMap<String, u16>) -> MultiNoiseBiomeTable {
-    MultiNoiseBiomeTable::resolve(
-        &MultiNoiseBiomeSource {
-            preset: Some(crate::tests::parameter_list_id("minecraft:overworld")),
-            biomes: None,
-        },
-        &registry_of(ids),
-        &crate::tests::parameter_lists().1,
-    )
-    .expect("the overworld preset resolves")
+    MultiNoiseBiomeTable::of_preset(Preset::Overworld, &registry_of(ids))
+        .expect("the overworld preset resolves")
 }
 
 pub fn overworld_material_router(
@@ -559,10 +552,23 @@ pub fn fill_context(
         SurfaceStates::new(&blocks().0),
     );
     let multi_noise = match &source {
-        BiomeSource::MultiNoise(multi) => Some(std::sync::Arc::new(
-            MultiNoiseBiomeTable::resolve(multi, &registry, &crate::tests::parameter_lists().1)
-                .expect("the source resolves a table"),
-        )),
+        BiomeSource::MultiNoise(multi) => {
+            let table = match (&multi.preset, &multi.biomes) {
+                (Some(list), _) => {
+                    let preset = crate::tests::parameter_lists()
+                        .1
+                        .get(*list)
+                        .expect("the source names a shipped list")
+                        .preset;
+                    MultiNoiseBiomeTable::of_preset(preset, &registry)
+                }
+                (None, Some(entries)) => MultiNoiseBiomeTable::from_entries(&registry, entries),
+                (None, None) => panic!("a multi-noise source names neither biomes nor a preset"),
+            };
+            Some(std::sync::Arc::new(
+                table.expect("the source resolves a table"),
+            ))
+        }
         _ => None,
     };
     crate::stages::FillContext {

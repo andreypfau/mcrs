@@ -79,7 +79,7 @@ impl Dimension {
 fn world(dimension: Dimension, seed: u64) -> (NoiseRouter, CarverBiomeTable) {
     (
         build_settings_router(dimension.settings(), seed),
-        CarverBiomeTable::resolve(dimension.preset(), carvers_of),
+        CarverBiomeTable::from_climate(dimension.preset().parameter_list(), carvers_of),
     )
 }
 
