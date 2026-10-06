@@ -40,29 +40,29 @@ struct Particle {
 }
 
 fn ambient_sounds(
-    looped: Id<SoundEvent>,
-    mood: Id<SoundEvent>,
-    additions: Id<SoundEvent>,
+    looped: StaticKey<SoundEvent>,
+    mood: StaticKey<SoundEvent>,
+    additions: StaticKey<SoundEvent>,
 ) -> AmbientSounds {
     AmbientSounds {
-        looped: looped.name(),
+        looped: looped.as_static_str(),
         mood: AmbientMood {
-            sound: mood.name(),
+            sound: mood.as_static_str(),
             tick_delay: 6000,
             block_search_extent: 8,
             offset: 2.0,
         },
         additions: AmbientAdditions {
-            sound: additions.name(),
+            sound: additions.as_static_str(),
             tick_chance: 0.0111,
         },
     }
 }
 
-fn ambient_particle(particle: Id<ParticleType>, probability: f32) -> AmbientParticle {
+fn ambient_particle(particle: StaticKey<ParticleType>, probability: f32) -> AmbientParticle {
     AmbientParticle {
         particle: Particle {
-            kind: particle.name(),
+            kind: particle.as_static_str(),
         },
         probability,
     }

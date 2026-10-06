@@ -1,7 +1,7 @@
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -71,11 +71,11 @@ impl StrongholdBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let of = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
+        let of = |block: StaticKey<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
-        let plain = |block: Id<keys::Block>| of(block, &[]);
-        let sides = |block: Id<keys::Block>, on: &[&str]| {
+        let plain = |block: StaticKey<keys::Block>| of(block, &[]);
+        let sides = |block: StaticKey<keys::Block>, on: &[&str]| {
             let on: Vec<(&str, &str)> = on.iter().map(|side| (*side, "true")).collect();
             of(block, &on)
         };
@@ -742,7 +742,7 @@ fn portal_room<W: WorldGenVolume, R: Random>(
         c.volume.set(pos, b.spawner);
         c.entities.push(GeneratedBlockEntity::mob_spawner(
             pos,
-            keys::entity_type::SILVERFISH.name(),
+            keys::entity_type::SILVERFISH.as_static_str(),
         ));
     }
 }

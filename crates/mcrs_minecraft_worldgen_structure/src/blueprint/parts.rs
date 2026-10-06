@@ -252,7 +252,7 @@ impl Canvas {
     pub fn torch_post(&mut self, post: &Cell, at: [i32; 3], height: i32) {
         let [x, y, z] = at;
         self.solid(post, [x, y, z], [x, y + height - 1, z]);
-        self.place(&block(keys::block::TORCH.name()), x, y + height, z);
+        self.place(&block(keys::block::TORCH.as_static_str()), x, y + height, z);
     }
 
     /// A fence round a rectangle, with a gate in place of the fence at each of `gates`.
@@ -359,7 +359,12 @@ impl Canvas {
 
     /// A jigsaw whose orientation follows from the face it stands on.
     pub fn socket(&mut self, at: [i32; 3], name: &str, pool: &str, final_state: &str) {
-        self.place(&settled(keys::block::JIGSAW.name()), at[0], at[1], at[2]);
+        self.place(
+            &settled(keys::block::JIGSAW.as_static_str()),
+            at[0],
+            at[1],
+            at[2],
+        );
         self.jigsaw(at, name, pool, final_state);
     }
 
@@ -394,7 +399,7 @@ impl Canvas {
             "east_up",
             "minecraft:street",
             keys::template_pool::EMPTY.as_str(),
-            keys::block::STRUCTURE_VOID.name(),
+            keys::block::STRUCTURE_VOID.as_static_str(),
         );
     }
 

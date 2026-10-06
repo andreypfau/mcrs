@@ -3,9 +3,9 @@ use mcrs_minecraft_core::{Axis, Direction};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, Slopes, top_stairs};
 
-const OAK_STAIRS: &str = keys::block::OAK_STAIRS.name();
-const OAK_DOOR: &str = keys::block::OAK_DOOR.name();
-const YELLOW_BED: &str = keys::block::YELLOW_BED.name();
+const OAK_STAIRS: &str = keys::block::OAK_STAIRS.as_static_str();
+const OAK_DOOR: &str = keys::block::OAK_DOOR.as_static_str();
+const YELLOW_BED: &str = keys::block::YELLOW_BED.as_static_str();
 
 const OAK_STEP: &str =
     "minecraft:oak_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]";
@@ -13,10 +13,10 @@ const COBBLE_STEP: &str =
     "minecraft:cobblestone_stairs[facing=east,half=bottom,shape=straight,waterlogged=false]";
 const GATE_EAST: &str =
     "minecraft:oak_fence_gate[facing=east,in_wall=false,open=false,powered=false]";
-const PLANKS: &str = keys::block::OAK_PLANKS.name();
-const FENCE: &str = keys::block::OAK_FENCE.name();
-const OAK_LOG: &str = keys::block::OAK_LOG.name();
-const STRIPPED_LOG: &str = keys::block::STRIPPED_OAK_LOG.name();
+const PLANKS: &str = keys::block::OAK_PLANKS.as_static_str();
+const FENCE: &str = keys::block::OAK_FENCE.as_static_str();
+const OAK_LOG: &str = keys::block::OAK_LOG.as_static_str();
+const STRIPPED_LOG: &str = keys::block::STRIPPED_OAK_LOG.as_static_str();
 
 const TREES: &str = keys::template_pool::VILLAGE_PLAINS_TREES.as_static_str();
 
@@ -41,20 +41,20 @@ kit! {
     log_x: log(OAK_LOG, X),
     log_z: log(OAK_LOG, Z),
     stripped: log(STRIPPED_LOG, Y),
-    terracotta: block(keys::block::WHITE_TERRACOTTA.name()),
+    terracotta: block(keys::block::WHITE_TERRACOTTA.as_static_str()),
     yellow_pane: settled("minecraft:yellow_stained_glass_pane[waterlogged=false]"),
     white_pane: settled("minecraft:white_stained_glass_pane[waterlogged=false]"),
     fence: settled("minecraft:oak_fence[waterlogged=false]"),
     gate: block("minecraft:oak_fence_gate[facing=north,in_wall=false,open=false,powered=false]"),
-    hay: log(keys::block::HAY_BLOCK.name(), Y),
+    hay: log(keys::block::HAY_BLOCK.as_static_str(), Y),
     slab: block("minecraft:oak_slab[type=bottom,waterlogged=false]"),
     slab_top: block("minecraft:oak_slab[type=top,waterlogged=false]"),
     slab_double: block("minecraft:oak_slab[type=double,waterlogged=false]"),
     plate: block("minecraft:oak_pressure_plate[powered=false]"),
-    dandelion: block(keys::block::DANDELION.name()),
-    daisy: block(keys::block::OXEYE_DAISY.name()),
-    white_wool: block(keys::block::WHITE_WOOL.name()),
-    yellow_wool: block(keys::block::YELLOW_WOOL.name()),
+    dandelion: block(keys::block::DANDELION.as_static_str()),
+    daisy: block(keys::block::OXEYE_DAISY.as_static_str()),
+    white_wool: block(keys::block::WHITE_WOOL.as_static_str()),
+    yellow_wool: block(keys::block::YELLOW_WOOL.as_static_str()),
 }
 
 fn boards(first: bool, last: bool) -> Slopes {
@@ -72,7 +72,7 @@ fn ridged_roof(c: &mut Canvas, gable: Gable, slopes: Slopes) {
 /// A cobblestone wall standing free of the block above it: a post joined low
 /// to `sides`.
 fn low_wall(sides: &[Direction]) -> Cell {
-    wall_joined(keys::block::COBBLESTONE_WALL.name(), sides, &[])
+    wall_joined(keys::block::COBBLESTONE_WALL.as_static_str(), sides, &[])
 }
 
 fn table(c: &mut Canvas, at: [i32; 3]) {
@@ -401,7 +401,12 @@ fn terminator_04(c: &mut Canvas) {
 pub fn plains_lamp_1(c: &mut Canvas) {
     c.socket_facing([1, 0, 1], "down_south", BOTTOM, EMPTY, FENCE);
     c.solid(&K.fence, [1, 1, 1], [1, 2, 1]);
-    c.place(&log(keys::block::STRIPPED_OAK_WOOD.name(), Y), 1, 3, 1);
+    c.place(
+        &log(keys::block::STRIPPED_OAK_WOOD.as_static_str(), Y),
+        1,
+        3,
+        1,
+    );
     c.scatter(&S.wall_torch, 3, &[[0, 1], [2, 1], [1, 0], [1, 2]]);
 }
 
@@ -439,7 +444,12 @@ fn plains_large_farm_1(c: &mut Canvas) {
 }
 
 fn trapdoor(facing: Direction, half: &str) -> Cell {
-    super::trapdoor(keys::block::OAK_TRAPDOOR.name(), facing, half, true)
+    super::trapdoor(
+        keys::block::OAK_TRAPDOOR.as_static_str(),
+        facing,
+        half,
+        true,
+    )
 }
 
 /// A cobblestone step whose corner turns towards a neighbour that is not
@@ -669,8 +679,8 @@ fn medium_house_2(c: &mut Canvas, v: Village) {
 
 fn plains_armorer_house_1(c: &mut Canvas) {
     let (wall, post) = (&S.cobble, &K.log);
-    let smooth = block(keys::block::SMOOTH_STONE.name());
-    let bricks = block(keys::block::BRICKS.name());
+    let smooth = block(keys::block::SMOOTH_STONE.as_static_str());
+    let bricks = block(keys::block::BRICKS.as_static_str());
     c.solid(wall, [1, 0, 1], [7, 0, 6]);
     c.walls(wall, post, [1, 0, 1], [7, 3, 6]);
     c.fill(wall, [1, 7], 4, 2..=5);
@@ -714,8 +724,8 @@ fn plains_armorer_house_1(c: &mut Canvas) {
 
 fn plains_cartographer_1(c: &mut Canvas) {
     let (wall, post) = (&S.cobble, &K.log);
-    let white = block(keys::block::WHITE_CARPET.name());
-    let yellow = block(keys::block::YELLOW_CARPET.name());
+    let white = block(keys::block::WHITE_CARPET.as_static_str());
+    let yellow = block(keys::block::YELLOW_CARPET.as_static_str());
     c.solid(&GROUND, [1, 0, 1], [8, 0, 5]);
     c.solid(&K.planks, [3, 0, 2], [7, 0, 4]);
     c.place(wall, 2, 0, 3);
@@ -739,7 +749,12 @@ fn plains_cartographer_1(c: &mut Canvas) {
     }
 
     checker(c, [&white, &yellow], 1, [5, 2], [7, 4]);
-    c.place(&block(keys::block::CARTOGRAPHY_TABLE.name()), 6, 1, 3);
+    c.place(
+        &block(keys::block::CARTOGRAPHY_TABLE.as_static_str()),
+        6,
+        1,
+        3,
+    );
     table(c, [3, 1, 2]);
     chest(c, [3, 1, 4], North, "village_cartographer");
     c.fill(&S.wall_torch, [1, 3, 7], 4, 3);
@@ -748,8 +763,8 @@ fn plains_cartographer_1(c: &mut Canvas) {
 
 fn plains_masons_house_1(c: &mut Canvas) {
     let (wall, post) = (&K.terracotta, &K.log);
-    let clay = block(keys::block::CLAY.name());
-    let fired = block(keys::block::TERRACOTTA.name());
+    let clay = block(keys::block::CLAY.as_static_str());
+    let fired = block(keys::block::TERRACOTTA.as_static_str());
     c.boxes(&S.cobble, &[([2, 0, 1], [6, 0, 7]), ([0, 0, 4], [1, 0, 7])]);
     c.place(&S.cobble, 1, 0, 3);
     c.solid(&K.planks, [4, 0, 3], [4, 0, 5]);
@@ -854,7 +869,7 @@ fn plains_temple_3(c: &mut Canvas) {
 fn small_house_5(c: &mut Canvas, v: Village) {
     let post = &K.log;
     let ladder = block("minecraft:ladder[facing=south,waterlogged=false]");
-    let carpet = block(keys::block::GREEN_CARPET.name());
+    let carpet = block(keys::block::GREEN_CARPET.as_static_str());
     for reach in 0..=3 {
         c.fill(&S.dirt, reach..=7, 0, [4 - reach, 4 + reach]);
     }
@@ -882,7 +897,12 @@ fn small_house_5(c: &mut Canvas, v: Village) {
 
     c.door(OAK_DOOR, [1, 2, 4], East, Hinge::Left);
     entrance(c, v, [0, 1, 4], COBBLE_STEP);
-    c.open_door(keys::block::OAK_DOOR.name(), [3, 5, 3], South, Hinge::Right);
+    c.open_door(
+        keys::block::OAK_DOOR.as_static_str(),
+        [3, 5, 3],
+        South,
+        Hinge::Right,
+    );
     c.door(OAK_DOOR, [3, 5, 5], East, Hinge::Right);
     c.solid(&K.fence, [1, 5, 3], [1, 5, 5]);
     c.fill(&K.fence, 2, 5, [2, 6]);
@@ -1041,7 +1061,12 @@ fn plains_butcher_shop_1(c: &mut Canvas) {
     c.place(&stairs(OAK_STAIRS, East), 4, 1, 2);
     c.solid(&smooth_slab("double"), [7, 1, 2], [7, 1, 3]);
     c.place(&K.planks, 2, 1, 5);
-    c.place(&block(keys::block::POTTED_DANDELION.name()), 2, 2, 5);
+    c.place(
+        &block(keys::block::POTTED_DANDELION.as_static_str()),
+        2,
+        2,
+        5,
+    );
     c.furnace([8, 1, 5], "smoker", West);
     c.solid(&low_wall(&[East, South]), [8, 2, 5], [8, 3, 5]);
     c.place(&low_wall(&[East, South, West]), 8, 4, 5);
@@ -1213,7 +1238,7 @@ fn plains_stable_2(c: &mut Canvas) {
     c.place(&K.hay, 2, 1, 6);
     c.fill(&K.hay, 4, 1, [7, 8]);
     c.place(&K.hay, 4, 2, 8);
-    c.place(&log(keys::block::HAY_BLOCK.name(), Z), 4, 1, 9);
+    c.place(&log(keys::block::HAY_BLOCK.as_static_str(), Z), 4, 1, 9);
     c.fill(&S.wall_torch, 3, 3, [4, 6]);
     c.place(&S.wall_torch, 2, 3, 10);
 
@@ -1270,14 +1295,24 @@ fn fletcher_house_1(c: &mut Canvas, v: Village) {
     c.place(&K.white_wool, 1, 4, middle);
     c.entrance([0, 1, 6], EMPTY, FENCE);
 
-    c.place(&block(keys::block::FLETCHING_TABLE.name()), 6, 1, 2);
+    c.place(
+        &block(keys::block::FLETCHING_TABLE.as_static_str()),
+        6,
+        1,
+        2,
+    );
     c.solid(
-        &block(keys::block::YELLOW_CARPET.name()),
+        &block(keys::block::YELLOW_CARPET.as_static_str()),
         [5, 1, 4],
         [5, 1, 6],
     );
     c.solid(&K.planks, [5, 1, 8], [6, 1, 8]);
-    c.place(&block(keys::block::POTTED_DANDELION.name()), 6, 2, 8);
+    c.place(
+        &block(keys::block::POTTED_DANDELION.as_static_str()),
+        6,
+        2,
+        8,
+    );
     c.scatter(&S.short_grass, 1, &[[0, 8], [1, 8], [1, 10]]);
     c.scatter(&S.tall_grass, 1, &[[0, 9], [0, 10]]);
     c.fill(&S.wall_torch, [1, 3], 3, middle);
@@ -1369,7 +1404,7 @@ fn plains_tool_smith_1(c: &mut Canvas) {
     c.door(OAK_DOOR, [2, 1, 9], East, Hinge::Right);
     c.entrance([0, 0, 8], EMPTY, NOTHING);
     c.place(wall, 5, 1, 2);
-    c.place(&block(keys::block::SMITHING_TABLE.name()), 6, 1, 2);
+    c.place(&block(keys::block::SMITHING_TABLE.as_static_str()), 6, 1, 2);
     c.fill(&S.wall_torch, [4, 7], 2, 0);
     c.fill(&S.wall_torch, 1, 2, [7, 10]);
     c.fill(&S.wall_torch, 6, 3, [4, 7]);
@@ -1417,7 +1452,7 @@ fn plains_tannery_1(c: &mut Canvas) {
     entrance(c, LIVING, [0, 0, 7], NOTHING);
     c.solid(&cauldron, [2, 0, 2], [2, 0, 4]);
     c.place(&cauldron, 5, 1, 2);
-    c.place(&block(keys::block::SMOOTH_STONE.name()), 4, 1, 2);
+    c.place(&block(keys::block::SMOOTH_STONE.as_static_str()), 4, 1, 2);
     chest(c, [5, 1, 7], North, "village_tannery");
     c.solid(&wall_torch(South), [4, 3, 2], [5, 3, 2]);
     c.place(&wall_torch(East), 3, 3, 7);

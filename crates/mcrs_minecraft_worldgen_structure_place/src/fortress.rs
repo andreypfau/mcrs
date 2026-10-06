@@ -2,7 +2,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -43,7 +43,7 @@ impl FortressBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let fence = |sides: &[&str]| {
             let on: Vec<(&str, &str)> = sides.iter().map(|side| (*side, "true")).collect();
             Oriented::named(world, blocks, keys::block::NETHER_BRICK_FENCE, &on)
@@ -512,7 +512,7 @@ fn monster_throne<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_,
         c.volume.set(pos, b.spawner);
         c.entities.push(GeneratedBlockEntity::mob_spawner(
             pos,
-            keys::entity_type::BLAZE.name(),
+            keys::entity_type::BLAZE.as_static_str(),
         ));
     }
     for x in 0..=6 {

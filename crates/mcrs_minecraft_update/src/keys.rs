@@ -62,7 +62,7 @@ pub fn generate(
             return Err(format!("{registry}: names.json lists no entries for it"));
         }
 
-        marker_text(&mut markers, registry, &marker, &module, statics);
+        marker_text(&mut markers, registry, &marker, &module);
         bindings.push(module.to_ascii_uppercase());
         if let Some(report) = statics {
             static_names.push((registry.clone(), module.clone(), report.entries.is_empty()));
@@ -214,13 +214,7 @@ fn constants<'n>(
     Ok(constants)
 }
 
-fn marker_text(
-    out: &mut String,
-    registry: &str,
-    marker: &str,
-    module: &str,
-    statics: Option<&registries::Registry>,
-) {
+fn marker_text(out: &mut String, registry: &str, marker: &str, module: &str) {
     if !out.is_empty() {
         out.push('\n');
     }
@@ -233,19 +227,6 @@ fn marker_text(
              const REGISTRY: RegistryKey<Self> = {key};\n\
          }}\n"
     ));
-    if let Some(report) = statics {
-        let names = if report.entries.is_empty() {
-            "&[]".to_owned()
-        } else {
-            format!("crate::{module}::NAMES")
-        };
-        out.push_str(&format!(
-            "impl StaticRegistry for {marker} {{\n    \
-                 const REGISTRY: RegistryKey<Self> = {key};\n    \
-                 const NAMES: &'static [&'static str] = {names};\n\
-             }}\n"
-        ));
-    }
 }
 
 fn static_module(
@@ -268,19 +249,13 @@ fn static_module(
         }
     }
 
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_registry::Id;\n\n");
-    let names = report.entries.keys().map(String::as_str);
-    for (constant, name) in constants(registry, names, &["NAMES"])? {
-        let id = report.entries[name].protocol_id;
-        out.push_str(&format!(
-            "pub const {constant}: Id<crate::{marker}> = Id::from_static({id});\n"
-        ));
+    let mut out =
+        format!("{HEADER}\nmcrs_minecraft_registry::static_keys! {{\n    crate::{marker};\n");
+    let names = by_id.into_iter().flatten();
+    for (constant, name) in constants(registry, names, &["ENTRIES"])? {
+        out.push_str(&format!("    {constant} = \"{name}\",\n"));
     }
-    out.push_str("\npub const NAMES: &[&str] = &[\n");
-    for name in by_id.into_iter().flatten() {
-        out.push_str(&format!("    \"{name}\",\n"));
-    }
-    out.push_str("];\n");
+    out.push_str("}\n");
     Ok(out)
 }
 
@@ -316,7 +291,6 @@ fn registry_file(markers: &str, bindings: &[String]) -> String {
     format!(
         "{HEADER}\n\
          use mcrs_minecraft_core::{{RegistryKey, TypeBinding, rl}};\n\
-         use mcrs_minecraft_registry::StaticRegistry;\n\
          \n\
          pub trait Registered: Sized + 'static {{\n    \
              const REGISTRY: RegistryKey<Self>;\n\
@@ -337,15 +311,19 @@ fn lib_file(modules: &[String], statics: &[(String, String, bool)]) -> String {
     for module in modules {
         out.push_str(&format!("#[rustfmt::skip]\npub mod {module};\n"));
     }
-    out.push_str("\npub use registry::*;\n");
-    out.push_str("\n#[rustfmt::skip]\npub const STATIC_REGISTRIES: &[(&str, &[&str])] = &[\n");
-    for (registry, module, empty) in statics {
-        let names = if *empty {
+    out.push_str("\npub use registry::*;\n\nuse mcrs_minecraft_core::StaticResourceLocation;\n");
+    out.push_str(
+        "\n#[rustfmt::skip]\n\
+         pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n",
+    );
+    for (_, module, empty) in statics {
+        let entries = if *empty {
             "&[]".to_owned()
         } else {
-            format!("{module}::NAMES")
+            format!("{module}::ENTRIES")
         };
-        out.push_str(&format!("    (\"{registry}\", {names}),\n"));
+        let key = module.to_ascii_uppercase();
+        out.push_str(&format!("    ({key}.location(), {entries}),\n"));
     }
     out.push_str("];\n");
     out
@@ -421,10 +399,12 @@ mod tests {
     fn constants(files: &Files, path: &str) -> Vec<String> {
         files[path]
             .lines()
-            .filter_map(|line| line.strip_prefix("pub const "))
-            .filter_map(|line| line.split_once(':'))
+            .filter_map(|line| {
+                line.strip_prefix("pub const ")
+                    .and_then(|line| line.split_once(':'))
+                    .or_else(|| line.strip_prefix("    ")?.split_once(" = \""))
+            })
             .map(|(name, _)| name.to_owned())
-            .filter(|name| name != "NAMES")
             .collect()
     }
 
@@ -465,9 +445,11 @@ mod tests {
              \n\
              pub use registry::*;\n\
              \n\
+             use mcrs_minecraft_core::StaticResourceLocation;\n\
+             \n\
              #[rustfmt::skip]\n\
-             pub const STATIC_REGISTRIES: &[(&str, &[&str])] = &[\n\
-             \x20   (\"minecraft:block\", block::NAMES),\n\
+             pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n\
+             \x20   (BLOCK.location(), block::ENTRIES),\n\
              ];\n"
         );
         assert_eq!(
@@ -475,7 +457,6 @@ mod tests {
             "// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.\n\
              \n\
              use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};\n\
-             use mcrs_minecraft_registry::StaticRegistry;\n\
              \n\
              pub trait Registered: Sized + 'static {\n\
              \x20   const REGISTRY: RegistryKey<Self>;\n\
@@ -486,10 +467,6 @@ mod tests {
              pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!(\"minecraft:block\"));\n\
              impl Registered for Block {\n\
              \x20   const REGISTRY: RegistryKey<Self> = BLOCK;\n\
-             }\n\
-             impl StaticRegistry for Block {\n\
-             \x20   const REGISTRY: RegistryKey<Self> = BLOCK;\n\
-             \x20   const NAMES: &'static [&'static str] = crate::block::NAMES;\n\
              }\n\
              \n\
              #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
@@ -510,15 +487,11 @@ mod tests {
             files["src/block.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.\n\
              \n\
-             use mcrs_minecraft_registry::Id;\n\
-             \n\
-             pub const AIR: Id<crate::Block> = Id::from_static(0);\n\
-             pub const STONE: Id<crate::Block> = Id::from_static(1);\n\
-             \n\
-             pub const NAMES: &[&str] = &[\n\
-             \x20   \"minecraft:air\",\n\
-             \x20   \"minecraft:stone\",\n\
-             ];\n"
+             mcrs_minecraft_registry::static_keys! {\n\
+             \x20   crate::Block;\n\
+             \x20   AIR = \"minecraft:air\",\n\
+             \x20   STONE = \"minecraft:stone\",\n\
+             }\n"
         );
         assert_eq!(
             files["src/biome.rs"],
@@ -595,9 +568,9 @@ mod tests {
                 &["minecraft:a/b", "minecraft:a_b"],
             ),
             (
-                &[("minecraft:block", &[("minecraft:names", 0)])],
+                &[("minecraft:block", &[("minecraft:entries", 0)])],
                 &[],
-                &["minecraft:names", "NAMES"],
+                &["minecraft:entries", "ENTRIES"],
             ),
         ];
         for (statics, data, expected) in cases {
@@ -634,8 +607,8 @@ mod tests {
     fn a_static_registry_without_entries_is_listed_and_has_no_module() {
         let files = generated(&[("minecraft:none", &[]), ("minecraft:block", BLOCK)], &[]).unwrap();
 
-        assert!(files["src/lib.rs"].contains("    (\"minecraft:none\", &[]),\n"));
-        assert!(files["src/lib.rs"].contains("    (\"minecraft:block\", block::NAMES),\n"));
+        assert!(files["src/lib.rs"].contains("    (NONE.location(), &[]),\n"));
+        assert!(files["src/lib.rs"].contains("    (BLOCK.location(), block::ENTRIES),\n"));
         assert!(!files.contains_key("src/none.rs"));
     }
 
@@ -785,17 +758,16 @@ mod tests {
         )
         .unwrap();
 
-        assert!(
-            files["src/block.rs"]
-                .contains("pub const STONE: Id<crate::Block> = Id::from_static(1);")
-        );
-        assert!(
-            files["src/item.rs"].contains("pub const STONE: Id<crate::Item> = Id::from_static(2);")
-        );
+        assert!(files["src/block.rs"].contains(
+            "    crate::Block;\n    AIR = \"minecraft:air\",\n    STONE = \"minecraft:stone\",\n"
+        ));
+        assert!(files["src/item.rs"].contains(
+            "    crate::Item;\n    AIR = \"minecraft:air\",\n    APPLE = \"minecraft:apple\",\n    STONE = \"minecraft:stone\",\n"
+        ));
     }
 
     #[test]
-    fn static_names_follow_protocol_ids_and_constants_sort() {
+    fn static_constants_follow_protocol_ids() {
         let files = generated(
             &[(
                 "minecraft:fruit",
@@ -811,14 +783,7 @@ mod tests {
 
         assert_eq!(
             constants(&files, "src/fruit.rs"),
-            ["APPLE", "MANGO", "ZEBRA"]
-        );
-        assert!(files["src/fruit.rs"].contains(
-            "pub const NAMES: &[&str] = &[\n    \"minecraft:zebra\",\n    \"minecraft:apple\",\n    \"minecraft:mango\",\n];\n"
-        ));
-        assert!(
-            files["src/fruit.rs"]
-                .contains("pub const ZEBRA: Id<crate::Fruit> = Id::from_static(0);")
+            ["ZEBRA", "APPLE", "MANGO"]
         );
     }
 

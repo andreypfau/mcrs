@@ -175,21 +175,21 @@ pub enum EntityKind {
 
 impl EntityKind {
     pub const IDS: [&'static str; 15] = [
-        keys::entity_type::ALLAY.name(),
-        keys::entity_type::ARMOR_STAND.name(),
-        keys::entity_type::CAMEL.name(),
-        keys::entity_type::CAT.name(),
-        keys::entity_type::COW.name(),
-        keys::entity_type::CUSHION.name(),
-        keys::entity_type::HOGLIN.name(),
-        keys::entity_type::HORSE.name(),
-        keys::entity_type::IRON_GOLEM.name(),
-        keys::entity_type::PIG.name(),
-        keys::entity_type::PIGLIN.name(),
-        keys::entity_type::PIGLIN_BRUTE.name(),
-        keys::entity_type::SHEEP.name(),
-        keys::entity_type::VILLAGER.name(),
-        keys::entity_type::ZOMBIE_VILLAGER.name(),
+        keys::entity_type::ALLAY.as_static_str(),
+        keys::entity_type::ARMOR_STAND.as_static_str(),
+        keys::entity_type::CAMEL.as_static_str(),
+        keys::entity_type::CAT.as_static_str(),
+        keys::entity_type::COW.as_static_str(),
+        keys::entity_type::CUSHION.as_static_str(),
+        keys::entity_type::HOGLIN.as_static_str(),
+        keys::entity_type::HORSE.as_static_str(),
+        keys::entity_type::IRON_GOLEM.as_static_str(),
+        keys::entity_type::PIG.as_static_str(),
+        keys::entity_type::PIGLIN.as_static_str(),
+        keys::entity_type::PIGLIN_BRUTE.as_static_str(),
+        keys::entity_type::SHEEP.as_static_str(),
+        keys::entity_type::VILLAGER.as_static_str(),
+        keys::entity_type::ZOMBIE_VILLAGER.as_static_str(),
     ];
 }
 
@@ -538,7 +538,7 @@ impl Template {
             let mut palette_jigsaws = Vec::new();
             let mut palette_markers = Vec::new();
             for &(pos, state, nbt) in &ordered {
-                if palette[state].id.as_str() == keys::block::STRUCTURE_BLOCK.name() {
+                if palette[state].id.as_str() == keys::block::STRUCTURE_BLOCK.as_static_str() {
                     let Some(nbt) = nbt else { continue };
                     match nbt.get_string("mode") {
                         Some("DATA") => palette_markers.push(DataMarker {
@@ -558,7 +558,7 @@ impl Template {
                         }
                     }
                 }
-                if palette[state].id.as_str() != keys::block::JIGSAW.name() {
+                if palette[state].id.as_str() != keys::block::JIGSAW.as_static_str() {
                     continue;
                 }
                 let jigsaw = |what: String| TemplateError::Jigsaw {
@@ -587,10 +587,12 @@ impl Template {
                 };
                 let final_state = nbt
                     .get_string("final_state")
-                    .unwrap_or(keys::block::AIR.name())
+                    .unwrap_or(keys::block::AIR.as_static_str())
                     .parse::<PaletteState>()
                     .map_err(|e| jigsaw(format!("final_state {e}")))?;
-                let final_state = if final_state.id.as_str() == keys::block::STRUCTURE_VOID.name() {
+                let final_state = if final_state.id.as_str()
+                    == keys::block::STRUCTURE_VOID.as_static_str()
+                {
                     None
                 } else {
                     Some(

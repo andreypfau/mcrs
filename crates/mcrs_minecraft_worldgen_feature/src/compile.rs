@@ -362,7 +362,9 @@ pub fn compile_predicate(
         }
         BlockPredicate::Unobstructed { .. } => {
             return Err(FeatureCompileError::Unsupported(
-                keys::block_predicate_type::UNOBSTRUCTED.name().to_owned(),
+                keys::block_predicate_type::UNOBSTRUCTED
+                    .as_static_str()
+                    .to_owned(),
             ));
         }
     })

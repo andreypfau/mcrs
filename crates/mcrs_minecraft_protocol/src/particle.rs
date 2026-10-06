@@ -38,7 +38,7 @@ macro_rules! particle_types {
         const _: () = assert!(
             mcrs_minecraft_registry::static_rows::rows_match(
                 &[$(($full, $id)),*],
-                mcrs_minecraft_keys::particle_type::NAMES,
+                mcrs_minecraft_keys::particle_type::ENTRIES,
                 true,
             ),
             "the particle table must equal the generated particle_type names row by row",
@@ -597,7 +597,7 @@ const POSITION_SOURCE_TYPE_ROWS: &[&str] = &["minecraft:block", "minecraft:entit
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     POSITION_SOURCE_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::position_source_type::NAMES
+    mcrs_minecraft_keys::position_source_type::ENTRIES
 ));
 
 impl Serialize for PositionSource {
@@ -691,7 +691,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PositionSourceRepr>(
             POSITION_SOURCE_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::position_source_type::NAMES,
+            mcrs_minecraft_keys::position_source_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

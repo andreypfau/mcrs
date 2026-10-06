@@ -27,10 +27,6 @@ pub enum RegistryError {
     DuplicateRegistry {
         registry: ResourceLocation<Arc<str>>,
     },
-    InvalidName {
-        registry: String,
-        name: String,
-    },
     TypeBoundTwice {
         type_name: &'static str,
         first: ResourceLocation<Arc<str>>,
@@ -65,9 +61,6 @@ impl fmt::Display for RegistryError {
             }
             RegistryError::DuplicateRegistry { registry } => {
                 write!(f, "a registry set already holds the registry {registry}")
-            }
-            RegistryError::InvalidName { registry, name } => {
-                write!(f, "{name} is not a resource location, in {registry}")
             }
             RegistryError::TypeBoundTwice {
                 type_name,

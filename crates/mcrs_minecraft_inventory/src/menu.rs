@@ -98,41 +98,41 @@ const fn own(own: u16) -> MenuSlots {
     }
 }
 
-const MENU_SLOTS: [Option<MenuSlots>; keys::menu::NAMES.len()] = {
-    let mut table = [None; keys::menu::NAMES.len()];
-    table[keys::menu::GENERIC_9X1.index()] = Some(own(9));
-    table[keys::menu::GENERIC_9X2.index()] = Some(own(18));
-    table[keys::menu::GENERIC_9X3.index()] = Some(own(27));
-    table[keys::menu::GENERIC_9X4.index()] = Some(own(36));
-    table[keys::menu::GENERIC_9X5.index()] = Some(own(45));
-    table[keys::menu::GENERIC_9X6.index()] = Some(own(54));
-    table[keys::menu::GENERIC_3X3.index()] = Some(own(9));
-    table[keys::menu::CRAFTER_3X3.index()] = Some(MenuSlots {
+const MENU_SLOTS: [Option<MenuSlots>; keys::menu::ENTRIES.len()] = {
+    let mut table = [None; keys::menu::ENTRIES.len()];
+    table[keys::menu::GENERIC_9X1.id().index()] = Some(own(9));
+    table[keys::menu::GENERIC_9X2.id().index()] = Some(own(18));
+    table[keys::menu::GENERIC_9X3.id().index()] = Some(own(27));
+    table[keys::menu::GENERIC_9X4.id().index()] = Some(own(36));
+    table[keys::menu::GENERIC_9X5.id().index()] = Some(own(45));
+    table[keys::menu::GENERIC_9X6.id().index()] = Some(own(54));
+    table[keys::menu::GENERIC_3X3.id().index()] = Some(own(9));
+    table[keys::menu::CRAFTER_3X3.id().index()] = Some(MenuSlots {
         own: 9,
         player_slots: true,
         trailing_result: true,
     });
-    table[keys::menu::ANVIL.index()] = Some(own(3));
-    table[keys::menu::BEACON.index()] = Some(own(1));
-    table[keys::menu::BLAST_FURNACE.index()] = Some(own(3));
-    table[keys::menu::BREWING_STAND.index()] = Some(own(5));
-    table[keys::menu::CRAFTING.index()] = Some(own(10));
-    table[keys::menu::ENCHANTMENT.index()] = Some(own(2));
-    table[keys::menu::FURNACE.index()] = Some(own(3));
-    table[keys::menu::GRINDSTONE.index()] = Some(own(3));
-    table[keys::menu::HOPPER.index()] = Some(own(5));
-    table[keys::menu::LECTERN.index()] = Some(MenuSlots {
+    table[keys::menu::ANVIL.id().index()] = Some(own(3));
+    table[keys::menu::BEACON.id().index()] = Some(own(1));
+    table[keys::menu::BLAST_FURNACE.id().index()] = Some(own(3));
+    table[keys::menu::BREWING_STAND.id().index()] = Some(own(5));
+    table[keys::menu::CRAFTING.id().index()] = Some(own(10));
+    table[keys::menu::ENCHANTMENT.id().index()] = Some(own(2));
+    table[keys::menu::FURNACE.id().index()] = Some(own(3));
+    table[keys::menu::GRINDSTONE.id().index()] = Some(own(3));
+    table[keys::menu::HOPPER.id().index()] = Some(own(5));
+    table[keys::menu::LECTERN.id().index()] = Some(MenuSlots {
         own: 1,
         player_slots: false,
         trailing_result: false,
     });
-    table[keys::menu::LOOM.index()] = Some(own(4));
-    table[keys::menu::MERCHANT.index()] = Some(own(3));
-    table[keys::menu::SHULKER_BOX.index()] = Some(own(27));
-    table[keys::menu::SMITHING.index()] = Some(own(4));
-    table[keys::menu::SMOKER.index()] = Some(own(3));
-    table[keys::menu::CARTOGRAPHY_TABLE.index()] = Some(own(3));
-    table[keys::menu::STONECUTTER.index()] = Some(own(2));
+    table[keys::menu::LOOM.id().index()] = Some(own(4));
+    table[keys::menu::MERCHANT.id().index()] = Some(own(3));
+    table[keys::menu::SHULKER_BOX.id().index()] = Some(own(27));
+    table[keys::menu::SMITHING.id().index()] = Some(own(4));
+    table[keys::menu::SMOKER.id().index()] = Some(own(3));
+    table[keys::menu::CARTOGRAPHY_TABLE.id().index()] = Some(own(3));
+    table[keys::menu::STONECUTTER.id().index()] = Some(own(2));
     table
 };
 

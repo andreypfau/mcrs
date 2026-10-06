@@ -27,11 +27,14 @@ fn a_pickaxe_rule_matches_stone_by_bit_test() {
                 .is_some_and(|tag| tags.name(tag).as_str() == "minecraft:mineable/pickaxe")
         })
         .expect("the iron pickaxe has a rule for the pickaxe tag");
-    assert!(rule.blocks.contains(stone, &tags));
-    assert!(!rule.blocks.contains(dirt, &tags));
+    assert!(rule.blocks.contains(stone.id(), &tags));
+    assert!(!rule.blocks.contains(dirt.id(), &tags));
 
-    assert_eq!(mining_speed(tool, stone, &tags), 6.0);
-    assert_eq!(mining_speed(tool, dirt, &tags), tool.default_mining_speed);
-    assert!(is_correct_for_drops(tool, stone, &tags));
-    assert!(!is_correct_for_drops(tool, dirt, &tags));
+    assert_eq!(mining_speed(tool, stone.id(), &tags), 6.0);
+    assert_eq!(
+        mining_speed(tool, dirt.id(), &tags),
+        tool.default_mining_speed
+    );
+    assert!(is_correct_for_drops(tool, stone.id(), &tags));
+    assert!(!is_correct_for_drops(tool, dirt.id(), &tags));
 }

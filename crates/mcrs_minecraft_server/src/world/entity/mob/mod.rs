@@ -126,7 +126,7 @@ fn spawn_one(
     match entity.kind {
         GeneratedKind::Witch { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::WITCH),
+                EntityKind(keys::entity_type::WITCH.id()),
                 Health::full(26.0),
                 left_handed(left),
             ));
@@ -137,7 +137,7 @@ fn spawn_one(
             sound_variant,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CAT),
+                EntityKind(keys::entity_type::CAT.id()),
                 Health::full(10.0),
                 left_handed(left),
             ));
@@ -149,7 +149,7 @@ fn spawn_one(
         }
         GeneratedKind::ElderGuardian { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ELDER_GUARDIAN),
+                EntityKind(keys::entity_type::ELDER_GUARDIAN.id()),
                 Health::full(80.0),
                 left_handed(left),
             ));
@@ -160,7 +160,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::DROWNED),
+                EntityKind(keys::entity_type::DROWNED.id()),
                 Health::full(20.0),
                 left_handed(left),
             ));
@@ -178,7 +178,7 @@ fn spawn_one(
             ..
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CHICKEN),
+                EntityKind(keys::entity_type::CHICKEN.id()),
                 Health::full(4.0),
                 left_handed(left),
             ));
@@ -193,7 +193,7 @@ fn spawn_one(
             variant,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ZOMBIE_NAUTILUS),
+                EntityKind(keys::entity_type::ZOMBIE_NAUTILUS.id()),
                 Health::full(15.0),
                 left_handed(left),
             ));
@@ -203,14 +203,14 @@ fn spawn_one(
         }
         GeneratedKind::Shulker { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::SHULKER),
+                EntityKind(keys::entity_type::SHULKER.id()),
                 Health::full(30.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::ItemFrame { item, facing } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ITEM_FRAME),
+                EntityKind(keys::entity_type::ITEM_FRAME.id()),
                 ItemFrame {
                     item: Some(stack(item)),
                     facing,
@@ -219,7 +219,7 @@ fn spawn_one(
         }
         GeneratedKind::Evoker { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::EVOKER),
+                EntityKind(keys::entity_type::EVOKER.id()),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -229,7 +229,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::VINDICATOR),
+                EntityKind(keys::entity_type::VINDICATOR.id()),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -239,14 +239,14 @@ fn spawn_one(
         }
         GeneratedKind::Allay { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ALLAY),
+                EntityKind(keys::entity_type::ALLAY.id()),
                 Health::full(20.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::Villager { data } => {
             spawned.insert((
-                EntityKind(keys::entity_type::VILLAGER),
+                EntityKind(keys::entity_type::VILLAGER.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -254,7 +254,7 @@ fn spawn_one(
         }
         GeneratedKind::ZombieVillager { data } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ZOMBIE_VILLAGER),
+                EntityKind(keys::entity_type::ZOMBIE_VILLAGER.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -265,7 +265,7 @@ fn spawn_one(
             loot_table_seed,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CHEST_MINECART),
+                EntityKind(keys::entity_type::CHEST_MINECART.id()),
                 mcrs_minecraft_level::entity::mob::ContainerLoot {
                     table: loot_table,
                     seed: loot_table_seed,
@@ -306,10 +306,12 @@ fn villager_data(data: &mcrs_minecraft_worldgen_feature::template::VillagerData)
 }
 
 fn registered_type(name: &str) -> Id<keys::VillagerType> {
-    Id::from_name(name).unwrap_or_else(|_| {
-        tracing::warn!(name, "a template villager names a type the registry lacks");
-        keys::villager_type::PLAINS
-    })
+    keys::villager_type::find(name)
+        .unwrap_or_else(|| {
+            tracing::warn!(name, "a template villager names a type the registry lacks");
+            keys::villager_type::PLAINS
+        })
+        .id()
 }
 
 /// A villager profession by its id, the kind's default when the
@@ -330,7 +332,7 @@ fn stack(stack: GeneratedStack) -> ItemStack {
         GeneratedItem::IronAxe => keys::item::IRON_AXE,
         GeneratedItem::Elytra => keys::item::ELYTRA,
     };
-    ItemStack::new(item, stack.count as u8)
+    ItemStack::new(item.id(), stack.count as u8)
 }
 
 fn carried(equipment: GeneratedEquipment) -> Equipment {
@@ -427,7 +429,7 @@ impl PairingItem<'_, '_> {
                 ClientboundUpdateAttributes {
                     entity_id: id,
                     attributes: vec![AttributeSnapshot {
-                        attribute: RegistryId::from(keys::attribute::MAX_HEALTH),
+                        attribute: RegistryId::from(keys::attribute::MAX_HEALTH.id()),
                         base: f64::from(health.max),
                         modifiers: Vec::new(),
                     }],
@@ -522,7 +524,7 @@ impl PairingItem<'_, '_> {
             );
         }
         if let Some(villager) = self.villager {
-            let zombie = self.kind.0 == keys::entity_type::ZOMBIE_VILLAGER;
+            let zombie = self.kind.0 == keys::entity_type::ZOMBIE_VILLAGER.id();
             if zombie || villager.0 != VillagerData::default() {
                 put(
                     if zombie {

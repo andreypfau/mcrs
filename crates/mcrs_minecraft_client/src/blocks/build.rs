@@ -15,11 +15,11 @@ use mcrs_minecraft_mesh::pack::MODEL_STEPS;
 use mcrs_minecraft_mesh::tint::Tint;
 
 const IMPLICITLY_WATERLOGGED: [&str; 5] = [
-    keys::block::BUBBLE_COLUMN.name(),
-    keys::block::KELP.name(),
-    keys::block::KELP_PLANT.name(),
-    keys::block::SEAGRASS.name(),
-    keys::block::TALL_SEAGRASS.name(),
+    keys::block::BUBBLE_COLUMN.as_static_str(),
+    keys::block::KELP.as_static_str(),
+    keys::block::KELP_PLANT.as_static_str(),
+    keys::block::SEAGRASS.as_static_str(),
+    keys::block::TALL_SEAGRASS.as_static_str(),
 ];
 
 fn fluid_of(
@@ -36,11 +36,13 @@ fn fluid_of(
             .map(|(_, value)| value.as_str())
     };
     let (lava, amount) = match state.name.as_str() {
-        name if name == keys::block::WATER.name() || name == keys::block::LAVA.name() => {
+        name if name == keys::block::WATER.as_static_str()
+            || name == keys::block::LAVA.as_static_str() =>
+        {
             let fluid = data
                 .fluid
                 .ok_or_else(|| format!("{} states no fluid", state.name))?;
-            (name == keys::block::LAVA.name(), fluid.level)
+            (name == keys::block::LAVA.as_static_str(), fluid.level)
         }
         name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
         _ if prop("waterlogged") == Some("true") => (false, 8),
@@ -71,9 +73,9 @@ pub(super) fn build_one(
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
-    if state.name == keys::block::AIR.name()
-        || state.name == keys::block::CAVE_AIR.name()
-        || state.name == keys::block::VOID_AIR.name()
+    if state.name == keys::block::AIR.as_static_str()
+        || state.name == keys::block::CAVE_AIR.as_static_str()
+        || state.name == keys::block::VOID_AIR.as_static_str()
     {
         return Ok(BlockInfo::default());
     }

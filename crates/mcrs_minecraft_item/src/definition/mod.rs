@@ -143,11 +143,12 @@ mod tests {
     use super::*;
     use crate::ComponentMap;
     use mcrs_minecraft_core::rl;
+    use mcrs_minecraft_registry::DenseId;
 
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {
             identifier: ResourceLocation::minecraft(name).unwrap(),
-            id: Id::from_static(u16::MAX),
+            id: Id::from_raw(u16::MAX),
             prototype: ComponentMap::default(),
             block_placer: None,
             container_slots: None,

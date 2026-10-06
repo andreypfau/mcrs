@@ -21,7 +21,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, state_of, states_of,
@@ -52,7 +52,7 @@ impl Oriented {
     pub fn named(
         world: &WorldStates,
         blocks: &dyn BlockResolver,
-        block: Id<keys::Block>,
+        block: StaticKey<keys::Block>,
         properties: &[(&str, &str)],
     ) -> Result<Self, FeatureCompileError> {
         Ok(Self::of(world, state(blocks, block, properties)?))
@@ -70,7 +70,7 @@ impl Oriented {
 
 pub fn state(
     blocks: &dyn BlockResolver,
-    block: Id<keys::Block>,
+    block: StaticKey<keys::Block>,
     properties: &[(&str, &str)],
 ) -> Result<VoxelId, FeatureCompileError> {
     state_of(
@@ -89,7 +89,7 @@ pub fn state(
 
 pub fn block_mask(
     blocks: &dyn BlockResolver,
-    names: &[Id<keys::Block>],
+    names: &[StaticKey<keys::Block>],
 ) -> Result<StateMask, FeatureCompileError> {
     let ids: Vec<ResourceLocation> = names
         .iter()

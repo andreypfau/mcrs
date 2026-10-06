@@ -1,3 +1,4 @@
+use mcrs_minecraft_registry::DenseId;
 use std::sync::OnceLock;
 
 use mcrs_minecraft_keys::Item;
@@ -317,7 +318,7 @@ mod exhaustive {
             let light = shipped().light(
                 blocks(),
                 colours(),
-                Id::from_static(item),
+                Id::from_raw(item),
                 stack.iter().map(|(k, v)| (k.as_str(), v.as_str())),
                 BlockStateId(origin),
             );

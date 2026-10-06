@@ -102,7 +102,7 @@ fn ids_are_dense_and_named() {
     }
     assert_eq!(
         items.id_of("minecraft:air"),
-        Some(mcrs_minecraft_keys::item::AIR)
+        Some(mcrs_minecraft_keys::item::AIR.id())
     );
     assert_eq!(items.id_of("minecraft:nothing"), None);
 }
@@ -181,7 +181,7 @@ fn the_plainest_item_carries_the_common_components() {
     assert_eq!(
         map.get::<BreakSound>(),
         Some(&BreakSound(Holder::Reference(
-            mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK
+            mcrs_minecraft_keys::sound_event::ENTITY_ITEM_BREAK.id()
         )))
     );
     assert_eq!(

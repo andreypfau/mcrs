@@ -68,7 +68,7 @@ pub fn place_dropped(world: &mut World, stack: Entity, dim: Entity, pos: DVec3, 
         },
         Velocity(velocity),
         EntityUuid::default(),
-        EntityKind(mcrs_minecraft_keys::entity_type::ITEM),
+        EntityKind(mcrs_minecraft_keys::entity_type::ITEM.id()),
         TrackedBy::default(),
     ));
     if let Some(section) = section {

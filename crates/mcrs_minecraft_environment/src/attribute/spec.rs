@@ -722,7 +722,7 @@ macro_rules! table {
         const _: () = assert!(
             rows_match(
                 &numbered(IDS),
-                keys::environment_attribute::NAMES,
+                keys::environment_attribute::ENTRIES,
                 true,
             ),
             "the attribute table must equal the generated environment_attribute names row by row",

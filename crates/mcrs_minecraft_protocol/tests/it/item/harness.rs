@@ -13,7 +13,7 @@ use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent,
 };
-use mcrs_minecraft_registry::{RegistryLookup, RegistrySet, StaticRegistry};
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
     sample_registries().scope(run)
@@ -47,8 +47,11 @@ impl TestLookup {
             lookup.registry(registry, names);
         }
         let sounds: Vec<(&str, u16)> = (0u16..)
-            .zip(keys::SoundEvent::NAMES)
-            .map(|(number, name)| (name.strip_prefix("minecraft:").unwrap_or(name), number))
+            .zip(keys::sound_event::ENTRIES)
+            .map(|(number, name)| {
+                let name = name.as_static_str();
+                (name.strip_prefix("minecraft:").unwrap_or(name), number)
+            })
             .collect();
         lookup.registry_with_ids("sound_event", &sounds);
         lookup

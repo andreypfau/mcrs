@@ -54,7 +54,7 @@ const TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
     &[],
-    keys::test_environment_definition_type::NAMES
+    keys::test_environment_definition_type::ENTRIES
 ));
 
 impl RegistryValue for TestEnvironment {
@@ -97,37 +97,57 @@ impl Serialize for GameRuleValue {
 // registers is refused until it is added; listing it lifts that.
 pub const INTEGER_GAME_RULES: [(&str, i32, i32); 12] = [
     (
-        keys::game_rule::FIRE_SPREAD_RADIUS_AROUND_PLAYER.name(),
+        keys::game_rule::FIRE_SPREAD_RADIUS_AROUND_PLAYER.as_static_str(),
         -1,
         i32::MAX,
     ),
-    (keys::game_rule::MAX_BLOCK_MODIFICATIONS.name(), 1, i32::MAX),
-    (keys::game_rule::MAX_COMMAND_FORKS.name(), 0, i32::MAX),
     (
-        keys::game_rule::MAX_COMMAND_SEQUENCE_LENGTH.name(),
-        0,
+        keys::game_rule::MAX_BLOCK_MODIFICATIONS.as_static_str(),
+        1,
         i32::MAX,
     ),
-    (keys::game_rule::MAX_ENTITY_CRAMMING.name(), 0, i32::MAX),
-    (keys::game_rule::MAX_MINECART_SPEED.name(), 1, 1000),
-    (keys::game_rule::MAX_SNOW_ACCUMULATION_HEIGHT.name(), 0, 8),
     (
-        keys::game_rule::PLAYERS_NETHER_PORTAL_CREATIVE_DELAY.name(),
+        keys::game_rule::MAX_COMMAND_FORKS.as_static_str(),
         0,
         i32::MAX,
     ),
     (
-        keys::game_rule::PLAYERS_NETHER_PORTAL_DEFAULT_DELAY.name(),
+        keys::game_rule::MAX_COMMAND_SEQUENCE_LENGTH.as_static_str(),
         0,
         i32::MAX,
     ),
     (
-        keys::game_rule::PLAYERS_SLEEPING_PERCENTAGE.name(),
+        keys::game_rule::MAX_ENTITY_CRAMMING.as_static_str(),
         0,
         i32::MAX,
     ),
-    (keys::game_rule::RANDOM_TICK_SPEED.name(), 0, i32::MAX),
-    (keys::game_rule::RESPAWN_RADIUS.name(), 0, i32::MAX),
+    (keys::game_rule::MAX_MINECART_SPEED.as_static_str(), 1, 1000),
+    (
+        keys::game_rule::MAX_SNOW_ACCUMULATION_HEIGHT.as_static_str(),
+        0,
+        8,
+    ),
+    (
+        keys::game_rule::PLAYERS_NETHER_PORTAL_CREATIVE_DELAY.as_static_str(),
+        0,
+        i32::MAX,
+    ),
+    (
+        keys::game_rule::PLAYERS_NETHER_PORTAL_DEFAULT_DELAY.as_static_str(),
+        0,
+        i32::MAX,
+    ),
+    (
+        keys::game_rule::PLAYERS_SLEEPING_PERCENTAGE.as_static_str(),
+        0,
+        i32::MAX,
+    ),
+    (
+        keys::game_rule::RANDOM_TICK_SPEED.as_static_str(),
+        0,
+        i32::MAX,
+    ),
+    (keys::game_rule::RESPAWN_RADIUS.as_static_str(), 0, i32::MAX),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -275,7 +295,7 @@ const TEST_INSTANCE_TYPE_ROWS: &[&str] = &["minecraft:block_based", "minecraft:f
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     TEST_INSTANCE_TYPE_ROWS,
     &[],
-    keys::test_instance_type::NAMES
+    keys::test_instance_type::ENTRIES
 ));
 
 #[cfg(test)]
@@ -287,7 +307,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TestEnvironment>(
             TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
             &[],
-            keys::test_environment_definition_type::NAMES,
+            keys::test_environment_definition_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -297,7 +317,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TestInstance>(
             TEST_INSTANCE_TYPE_ROWS,
             &[],
-            keys::test_instance_type::NAMES,
+            keys::test_instance_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

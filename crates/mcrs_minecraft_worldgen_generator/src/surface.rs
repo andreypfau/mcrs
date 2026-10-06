@@ -48,9 +48,9 @@ impl SurfaceStates {
     pub fn new(blocks: &BlockDefinitions) -> Self {
         let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).0.into() };
         Self {
-            snow_block: state(keys::block::SNOW_BLOCK),
-            packed_ice: state(keys::block::PACKED_ICE),
-            dirt: state(keys::block::DIRT),
+            snow_block: state(keys::block::SNOW_BLOCK.id()),
+            packed_ice: state(keys::block::PACKED_ICE.id()),
+            dirt: state(keys::block::DIRT.id()),
         }
     }
 }

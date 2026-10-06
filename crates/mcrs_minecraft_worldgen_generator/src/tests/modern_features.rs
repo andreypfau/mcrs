@@ -298,7 +298,7 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         super::survival_ids(&registries),
     )
     .expect("the corpus resolves");
-    let set = HolderSet::One(mcrs_minecraft_keys::fluid::EMPTY);
+    let set = HolderSet::One(mcrs_minecraft_keys::fluid::EMPTY.id());
     let mask = resolver
         .states(StateQuery::Fluids(&set))
         .expect("the empty fluid resolves");

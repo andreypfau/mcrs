@@ -182,7 +182,7 @@ macro_rules! data_components {
         const _: () = assert!(
             mcrs_minecraft_registry::static_rows::rows_match(
                 &[$((concat!("minecraft:", $name), $id)),*],
-                mcrs_minecraft_keys::data_component_type::NAMES,
+                mcrs_minecraft_keys::data_component_type::ENTRIES,
                 true,
             ),
             "the data component table must equal the generated data_component_type names row by row",

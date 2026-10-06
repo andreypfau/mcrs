@@ -47,7 +47,7 @@ fn drinkable() -> ItemStackValue {
     components.set(Consumable {
         consume_seconds: 1.6,
         animation: ItemUseAnimation::Drink,
-        sound: Holder::Reference(sound_event::ENTITY_GENERIC_DRINK),
+        sound: Holder::Reference(sound_event::ENTITY_GENERIC_DRINK.id()),
         has_consume_particles: true,
         on_consume_effects: Vec::new(),
     });
@@ -79,5 +79,8 @@ fn a_sound_in_a_stack_is_sent_with_its_report_id() {
     let sent = RawStack::from_stack(&stack, &chain).unwrap();
     let received = sent.resolve(registry_set()).unwrap();
     let sound = &received.components.get::<Consumable>().unwrap().sound;
-    assert_eq!(sound, &Holder::Reference(sound_event::ENTITY_GENERIC_DRINK));
+    assert_eq!(
+        sound,
+        &Holder::Reference(sound_event::ENTITY_GENERIC_DRINK.id())
+    );
 }

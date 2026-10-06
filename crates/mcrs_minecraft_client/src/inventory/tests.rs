@@ -1,3 +1,4 @@
+use mcrs_minecraft_registry::DenseId;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
@@ -138,7 +139,7 @@ impl Client {
             )
             .unwrap();
         let slot = ProtoStack::new(
-            mcrs_minecraft_registry::Id::from_static(id),
+            mcrs_minecraft_registry::Id::from_raw(id),
             count,
             ComponentPatch::EMPTY,
         );
@@ -544,7 +545,7 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
         .id("item", &rl!("minecraft:diamond_sword").to_arc())
         .unwrap();
     let raw = RawStack::from_stack(
-        &ProtoStack::new(mcrs_minecraft_registry::Id::from_static(sword), 1, patch),
+        &ProtoStack::new(mcrs_minecraft_registry::Id::from_raw(sword), 1, patch),
         &received.over(registries()),
     )
     .unwrap();

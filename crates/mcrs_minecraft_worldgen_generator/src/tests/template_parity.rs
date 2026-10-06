@@ -669,7 +669,13 @@ mod exhaustive {
 
     #[test]
     fn the_block_entity_type_order_is_the_registry_s() {
-        assert_eq!(block_entity_type::NAMES.to_vec(), dump().types);
+        assert_eq!(
+            block_entity_type::ENTRIES
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+            dump().types
+        );
     }
 
     #[test]

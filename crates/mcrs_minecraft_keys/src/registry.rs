@@ -1,7 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
-use mcrs_minecraft_registry::StaticRegistry;
 
 pub trait Registered: Sized + 'static {
     const REGISTRY: RegistryKey<Self>;
@@ -12,10 +11,6 @@ pub enum Activity {}
 pub const ACTIVITY: RegistryKey<Activity> = RegistryKey::new(rl!("minecraft:activity"));
 impl Registered for Activity {
     const REGISTRY: RegistryKey<Self> = ACTIVITY;
-}
-impl StaticRegistry for Activity {
-    const REGISTRY: RegistryKey<Self> = ACTIVITY;
-    const NAMES: &'static [&'static str] = crate::activity::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,20 +26,12 @@ pub const ATTRIBUTE: RegistryKey<Attribute> = RegistryKey::new(rl!("minecraft:at
 impl Registered for Attribute {
     const REGISTRY: RegistryKey<Self> = ATTRIBUTE;
 }
-impl StaticRegistry for Attribute {
-    const REGISTRY: RegistryKey<Self> = ATTRIBUTE;
-    const NAMES: &'static [&'static str] = crate::attribute::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeType {}
 pub const ATTRIBUTE_TYPE: RegistryKey<AttributeType> = RegistryKey::new(rl!("minecraft:attribute_type"));
 impl Registered for AttributeType {
     const REGISTRY: RegistryKey<Self> = ATTRIBUTE_TYPE;
-}
-impl StaticRegistry for AttributeType {
-    const REGISTRY: RegistryKey<Self> = ATTRIBUTE_TYPE;
-    const NAMES: &'static [&'static str] = crate::attribute_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,10 +47,6 @@ pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!("minecraft:block"));
 impl Registered for Block {
     const REGISTRY: RegistryKey<Self> = BLOCK;
 }
-impl StaticRegistry for Block {
-    const REGISTRY: RegistryKey<Self> = BLOCK;
-    const NAMES: &'static [&'static str] = crate::block::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockEntityType {}
@@ -71,20 +54,12 @@ pub const BLOCK_ENTITY_TYPE: RegistryKey<BlockEntityType> = RegistryKey::new(rl!
 impl Registered for BlockEntityType {
     const REGISTRY: RegistryKey<Self> = BLOCK_ENTITY_TYPE;
 }
-impl StaticRegistry for BlockEntityType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_ENTITY_TYPE;
-    const NAMES: &'static [&'static str] = crate::block_entity_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockPredicateType {}
 pub const BLOCK_PREDICATE_TYPE: RegistryKey<BlockPredicateType> = RegistryKey::new(rl!("minecraft:block_predicate_type"));
 impl Registered for BlockPredicateType {
     const REGISTRY: RegistryKey<Self> = BLOCK_PREDICATE_TYPE;
-}
-impl StaticRegistry for BlockPredicateType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_PREDICATE_TYPE;
-    const NAMES: &'static [&'static str] = crate::block_predicate_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -135,10 +110,6 @@ pub const CHUNK_STATUS: RegistryKey<ChunkStatus> = RegistryKey::new(rl!("minecra
 impl Registered for ChunkStatus {
     const REGISTRY: RegistryKey<Self> = CHUNK_STATUS;
 }
-impl StaticRegistry for ChunkStatus {
-    const REGISTRY: RegistryKey<Self> = CHUNK_STATUS;
-    const NAMES: &'static [&'static str] = crate::chunk_status::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CommandArgumentType {}
@@ -146,20 +117,12 @@ pub const COMMAND_ARGUMENT_TYPE: RegistryKey<CommandArgumentType> = RegistryKey:
 impl Registered for CommandArgumentType {
     const REGISTRY: RegistryKey<Self> = COMMAND_ARGUMENT_TYPE;
 }
-impl StaticRegistry for CommandArgumentType {
-    const REGISTRY: RegistryKey<Self> = COMMAND_ARGUMENT_TYPE;
-    const NAMES: &'static [&'static str] = crate::command_argument_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConsumeEffectType {}
 pub const CONSUME_EFFECT_TYPE: RegistryKey<ConsumeEffectType> = RegistryKey::new(rl!("minecraft:consume_effect_type"));
 impl Registered for ConsumeEffectType {
     const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
-}
-impl StaticRegistry for ConsumeEffectType {
-    const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
-    const NAMES: &'static [&'static str] = crate::consume_effect_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,10 +138,6 @@ pub const CONTEXT_FLOAT_PROVIDER_TYPE: RegistryKey<ContextFloatProviderType> = R
 impl Registered for ContextFloatProviderType {
     const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
 }
-impl StaticRegistry for ContextFloatProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::context_float_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ContextIntProvider {}
@@ -193,20 +152,12 @@ pub const CONTEXT_INT_PROVIDER_TYPE: RegistryKey<ContextIntProviderType> = Regis
 impl Registered for ContextIntProviderType {
     const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
 }
-impl StaticRegistry for ContextIntProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::context_int_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ContextKeySet {}
 pub const CONTEXT_KEY_SET: RegistryKey<ContextKeySet> = RegistryKey::new(rl!("minecraft:context_key_set"));
 impl Registered for ContextKeySet {
     const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-}
-impl StaticRegistry for ContextKeySet {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-    const NAMES: &'static [&'static str] = crate::context_key_set::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -229,20 +180,12 @@ pub const CREATIVE_MODE_TAB: RegistryKey<CreativeModeTab> = RegistryKey::new(rl!
 impl Registered for CreativeModeTab {
     const REGISTRY: RegistryKey<Self> = CREATIVE_MODE_TAB;
 }
-impl StaticRegistry for CreativeModeTab {
-    const REGISTRY: RegistryKey<Self> = CREATIVE_MODE_TAB;
-    const NAMES: &'static [&'static str] = crate::creative_mode_tab::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CustomStat {}
 pub const CUSTOM_STAT: RegistryKey<CustomStat> = RegistryKey::new(rl!("minecraft:custom_stat"));
 impl Registered for CustomStat {
     const REGISTRY: RegistryKey<Self> = CUSTOM_STAT;
-}
-impl StaticRegistry for CustomStat {
-    const REGISTRY: RegistryKey<Self> = CUSTOM_STAT;
-    const NAMES: &'static [&'static str] = crate::custom_stat::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -258,10 +201,6 @@ pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<DataComponentPredicateType>
 impl Registered for DataComponentPredicateType {
     const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_PREDICATE_TYPE;
 }
-impl StaticRegistry for DataComponentPredicateType {
-    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_PREDICATE_TYPE;
-    const NAMES: &'static [&'static str] = crate::data_component_predicate_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataComponentType {}
@@ -269,20 +208,12 @@ pub const DATA_COMPONENT_TYPE: RegistryKey<DataComponentType> = RegistryKey::new
 impl Registered for DataComponentType {
     const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
 }
-impl StaticRegistry for DataComponentType {
-    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
-    const NAMES: &'static [&'static str] = crate::data_component_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DebugSubscription {}
 pub const DEBUG_SUBSCRIPTION: RegistryKey<DebugSubscription> = RegistryKey::new(rl!("minecraft:debug_subscription"));
 impl Registered for DebugSubscription {
     const REGISTRY: RegistryKey<Self> = DEBUG_SUBSCRIPTION;
-}
-impl StaticRegistry for DebugSubscription {
-    const REGISTRY: RegistryKey<Self> = DEBUG_SUBSCRIPTION;
-    const NAMES: &'static [&'static str] = crate::debug_subscription::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -305,10 +236,6 @@ pub const DIALOG_ACTION_TYPE: RegistryKey<DialogActionType> = RegistryKey::new(r
 impl Registered for DialogActionType {
     const REGISTRY: RegistryKey<Self> = DIALOG_ACTION_TYPE;
 }
-impl StaticRegistry for DialogActionType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_ACTION_TYPE;
-    const NAMES: &'static [&'static str] = crate::dialog_action_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DialogBodyType {}
@@ -316,20 +243,12 @@ pub const DIALOG_BODY_TYPE: RegistryKey<DialogBodyType> = RegistryKey::new(rl!("
 impl Registered for DialogBodyType {
     const REGISTRY: RegistryKey<Self> = DIALOG_BODY_TYPE;
 }
-impl StaticRegistry for DialogBodyType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_BODY_TYPE;
-    const NAMES: &'static [&'static str] = crate::dialog_body_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DialogType {}
 pub const DIALOG_TYPE: RegistryKey<DialogType> = RegistryKey::new(rl!("minecraft:dialog_type"));
 impl Registered for DialogType {
     const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
-}
-impl StaticRegistry for DialogType {
-    const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
-    const NAMES: &'static [&'static str] = crate::dialog_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -359,20 +278,12 @@ pub const ENCHANTMENT_EFFECT_COMPONENT_TYPE: RegistryKey<EnchantmentEffectCompon
 impl Registered for EnchantmentEffectComponentType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_EFFECT_COMPONENT_TYPE;
 }
-impl StaticRegistry for EnchantmentEffectComponentType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_EFFECT_COMPONENT_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_effect_component_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnchantmentEntityEffectType {}
 pub const ENCHANTMENT_ENTITY_EFFECT_TYPE: RegistryKey<EnchantmentEntityEffectType> = RegistryKey::new(rl!("minecraft:enchantment_entity_effect_type"));
 impl Registered for EnchantmentEntityEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_ENTITY_EFFECT_TYPE;
-}
-impl StaticRegistry for EnchantmentEntityEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_ENTITY_EFFECT_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_entity_effect_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -381,20 +292,12 @@ pub const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE: RegistryKey<EnchantmentLevelBasedV
 impl Registered for EnchantmentLevelBasedValueType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LEVEL_BASED_VALUE_TYPE;
 }
-impl StaticRegistry for EnchantmentLevelBasedValueType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LEVEL_BASED_VALUE_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_level_based_value_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnchantmentLocationBasedEffectType {}
 pub const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE: RegistryKey<EnchantmentLocationBasedEffectType> = RegistryKey::new(rl!("minecraft:enchantment_location_based_effect_type"));
 impl Registered for EnchantmentLocationBasedEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE;
-}
-impl StaticRegistry for EnchantmentLocationBasedEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_location_based_effect_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -410,20 +313,12 @@ pub const ENCHANTMENT_PROVIDER_TYPE: RegistryKey<EnchantmentProviderType> = Regi
 impl Registered for EnchantmentProviderType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER_TYPE;
 }
-impl StaticRegistry for EnchantmentProviderType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnchantmentValueEffectType {}
 pub const ENCHANTMENT_VALUE_EFFECT_TYPE: RegistryKey<EnchantmentValueEffectType> = RegistryKey::new(rl!("minecraft:enchantment_value_effect_type"));
 impl Registered for EnchantmentValueEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_VALUE_EFFECT_TYPE;
-}
-impl StaticRegistry for EnchantmentValueEffectType {
-    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_VALUE_EFFECT_TYPE;
-    const NAMES: &'static [&'static str] = crate::enchantment_value_effect_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -432,20 +327,12 @@ pub const ENTITY_SUB_PREDICATE_TYPE: RegistryKey<EntitySubPredicateType> = Regis
 impl Registered for EntitySubPredicateType {
     const REGISTRY: RegistryKey<Self> = ENTITY_SUB_PREDICATE_TYPE;
 }
-impl StaticRegistry for EntitySubPredicateType {
-    const REGISTRY: RegistryKey<Self> = ENTITY_SUB_PREDICATE_TYPE;
-    const NAMES: &'static [&'static str] = crate::entity_sub_predicate_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntityType {}
 pub const ENTITY_TYPE: RegistryKey<EntityType> = RegistryKey::new(rl!("minecraft:entity_type"));
 impl Registered for EntityType {
     const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
-}
-impl StaticRegistry for EntityType {
-    const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
-    const NAMES: &'static [&'static str] = crate::entity_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -454,10 +341,6 @@ pub const ENVIRONMENT_ATTRIBUTE: RegistryKey<EnvironmentAttribute> = RegistryKey
 impl Registered for EnvironmentAttribute {
     const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
 }
-impl StaticRegistry for EnvironmentAttribute {
-    const REGISTRY: RegistryKey<Self> = ENVIRONMENT_ATTRIBUTE;
-    const NAMES: &'static [&'static str] = crate::environment_attribute::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FloatProviderType {}
@@ -465,20 +348,12 @@ pub const FLOAT_PROVIDER_TYPE: RegistryKey<FloatProviderType> = RegistryKey::new
 impl Registered for FloatProviderType {
     const REGISTRY: RegistryKey<Self> = FLOAT_PROVIDER_TYPE;
 }
-impl StaticRegistry for FloatProviderType {
-    const REGISTRY: RegistryKey<Self> = FLOAT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::float_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Fluid {}
 pub const FLUID: RegistryKey<Fluid> = RegistryKey::new(rl!("minecraft:fluid"));
 impl Registered for Fluid {
     const REGISTRY: RegistryKey<Self> = FLUID;
-}
-impl StaticRegistry for Fluid {
-    const REGISTRY: RegistryKey<Self> = FLUID;
-    const NAMES: &'static [&'static str] = crate::fluid::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -494,20 +369,12 @@ pub const GAME_EVENT: RegistryKey<GameEvent> = RegistryKey::new(rl!("minecraft:g
 impl Registered for GameEvent {
     const REGISTRY: RegistryKey<Self> = GAME_EVENT;
 }
-impl StaticRegistry for GameEvent {
-    const REGISTRY: RegistryKey<Self> = GAME_EVENT;
-    const NAMES: &'static [&'static str] = crate::game_event::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameRule {}
 pub const GAME_RULE: RegistryKey<GameRule> = RegistryKey::new(rl!("minecraft:game_rule"));
 impl Registered for GameRule {
     const REGISTRY: RegistryKey<Self> = GAME_RULE;
-}
-impl StaticRegistry for GameRule {
-    const REGISTRY: RegistryKey<Self> = GAME_RULE;
-    const NAMES: &'static [&'static str] = crate::game_rule::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -516,10 +383,6 @@ pub const HEIGHT_PROVIDER_TYPE: RegistryKey<HeightProviderType> = RegistryKey::n
 impl Registered for HeightProviderType {
     const REGISTRY: RegistryKey<Self> = HEIGHT_PROVIDER_TYPE;
 }
-impl StaticRegistry for HeightProviderType {
-    const REGISTRY: RegistryKey<Self> = HEIGHT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::height_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IncomingRpcMethods {}
@@ -527,20 +390,12 @@ pub const INCOMING_RPC_METHODS: RegistryKey<IncomingRpcMethods> = RegistryKey::n
 impl Registered for IncomingRpcMethods {
     const REGISTRY: RegistryKey<Self> = INCOMING_RPC_METHODS;
 }
-impl StaticRegistry for IncomingRpcMethods {
-    const REGISTRY: RegistryKey<Self> = INCOMING_RPC_METHODS;
-    const NAMES: &'static [&'static str] = crate::incoming_rpc_methods::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InputControlType {}
 pub const INPUT_CONTROL_TYPE: RegistryKey<InputControlType> = RegistryKey::new(rl!("minecraft:input_control_type"));
 impl Registered for InputControlType {
     const REGISTRY: RegistryKey<Self> = INPUT_CONTROL_TYPE;
-}
-impl StaticRegistry for InputControlType {
-    const REGISTRY: RegistryKey<Self> = INPUT_CONTROL_TYPE;
-    const NAMES: &'static [&'static str] = crate::input_control_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -556,20 +411,12 @@ pub const INT_PROVIDER_TYPE: RegistryKey<IntProviderType> = RegistryKey::new(rl!
 impl Registered for IntProviderType {
     const REGISTRY: RegistryKey<Self> = INT_PROVIDER_TYPE;
 }
-impl StaticRegistry for IntProviderType {
-    const REGISTRY: RegistryKey<Self> = INT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::int_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Item {}
 pub const ITEM: RegistryKey<Item> = RegistryKey::new(rl!("minecraft:item"));
 impl Registered for Item {
     const REGISTRY: RegistryKey<Self> = ITEM;
-}
-impl StaticRegistry for Item {
-    const REGISTRY: RegistryKey<Self> = ITEM;
-    const NAMES: &'static [&'static str] = crate::item::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -592,20 +439,12 @@ pub const LOOT_CONDITION_TYPE: RegistryKey<LootConditionType> = RegistryKey::new
 impl Registered for LootConditionType {
     const REGISTRY: RegistryKey<Self> = LOOT_CONDITION_TYPE;
 }
-impl StaticRegistry for LootConditionType {
-    const REGISTRY: RegistryKey<Self> = LOOT_CONDITION_TYPE;
-    const NAMES: &'static [&'static str] = crate::loot_condition_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LootFunctionType {}
 pub const LOOT_FUNCTION_TYPE: RegistryKey<LootFunctionType> = RegistryKey::new(rl!("minecraft:loot_function_type"));
 impl Registered for LootFunctionType {
     const REGISTRY: RegistryKey<Self> = LOOT_FUNCTION_TYPE;
-}
-impl StaticRegistry for LootFunctionType {
-    const REGISTRY: RegistryKey<Self> = LOOT_FUNCTION_TYPE;
-    const NAMES: &'static [&'static str] = crate::loot_function_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -614,10 +453,6 @@ pub const LOOT_NBT_PROVIDER_TYPE: RegistryKey<LootNbtProviderType> = RegistryKey
 impl Registered for LootNbtProviderType {
     const REGISTRY: RegistryKey<Self> = LOOT_NBT_PROVIDER_TYPE;
 }
-impl StaticRegistry for LootNbtProviderType {
-    const REGISTRY: RegistryKey<Self> = LOOT_NBT_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::loot_nbt_provider_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LootPoolEntryType {}
@@ -625,20 +460,12 @@ pub const LOOT_POOL_ENTRY_TYPE: RegistryKey<LootPoolEntryType> = RegistryKey::ne
 impl Registered for LootPoolEntryType {
     const REGISTRY: RegistryKey<Self> = LOOT_POOL_ENTRY_TYPE;
 }
-impl StaticRegistry for LootPoolEntryType {
-    const REGISTRY: RegistryKey<Self> = LOOT_POOL_ENTRY_TYPE;
-    const NAMES: &'static [&'static str] = crate::loot_pool_entry_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LootScoreProviderType {}
 pub const LOOT_SCORE_PROVIDER_TYPE: RegistryKey<LootScoreProviderType> = RegistryKey::new(rl!("minecraft:loot_score_provider_type"));
 impl Registered for LootScoreProviderType {
     const REGISTRY: RegistryKey<Self> = LOOT_SCORE_PROVIDER_TYPE;
-}
-impl StaticRegistry for LootScoreProviderType {
-    const REGISTRY: RegistryKey<Self> = LOOT_SCORE_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::loot_score_provider_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -654,20 +481,12 @@ pub const MAP_DECORATION_TYPE: RegistryKey<MapDecorationType> = RegistryKey::new
 impl Registered for MapDecorationType {
     const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
 }
-impl StaticRegistry for MapDecorationType {
-    const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
-    const NAMES: &'static [&'static str] = crate::map_decoration_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryModuleType {}
 pub const MEMORY_MODULE_TYPE: RegistryKey<MemoryModuleType> = RegistryKey::new(rl!("minecraft:memory_module_type"));
 impl Registered for MemoryModuleType {
     const REGISTRY: RegistryKey<Self> = MEMORY_MODULE_TYPE;
-}
-impl StaticRegistry for MemoryModuleType {
-    const REGISTRY: RegistryKey<Self> = MEMORY_MODULE_TYPE;
-    const NAMES: &'static [&'static str] = crate::memory_module_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -676,20 +495,12 @@ pub const MENU: RegistryKey<Menu> = RegistryKey::new(rl!("minecraft:menu"));
 impl Registered for Menu {
     const REGISTRY: RegistryKey<Self> = MENU;
 }
-impl StaticRegistry for Menu {
-    const REGISTRY: RegistryKey<Self> = MENU;
-    const NAMES: &'static [&'static str] = crate::menu::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MobEffect {}
 pub const MOB_EFFECT: RegistryKey<MobEffect> = RegistryKey::new(rl!("minecraft:mob_effect"));
 impl Registered for MobEffect {
     const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
-}
-impl StaticRegistry for MobEffect {
-    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
-    const NAMES: &'static [&'static str] = crate::mob_effect::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -698,20 +509,12 @@ pub const NUMBER_FORMAT_TYPE: RegistryKey<NumberFormatType> = RegistryKey::new(r
 impl Registered for NumberFormatType {
     const REGISTRY: RegistryKey<Self> = NUMBER_FORMAT_TYPE;
 }
-impl StaticRegistry for NumberFormatType {
-    const REGISTRY: RegistryKey<Self> = NUMBER_FORMAT_TYPE;
-    const NAMES: &'static [&'static str] = crate::number_format_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OutgoingRpcMethods {}
 pub const OUTGOING_RPC_METHODS: RegistryKey<OutgoingRpcMethods> = RegistryKey::new(rl!("minecraft:outgoing_rpc_methods"));
 impl Registered for OutgoingRpcMethods {
     const REGISTRY: RegistryKey<Self> = OUTGOING_RPC_METHODS;
-}
-impl StaticRegistry for OutgoingRpcMethods {
-    const REGISTRY: RegistryKey<Self> = OUTGOING_RPC_METHODS;
-    const NAMES: &'static [&'static str] = crate::outgoing_rpc_methods::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -727,10 +530,6 @@ pub const PARTICLE_TYPE: RegistryKey<ParticleType> = RegistryKey::new(rl!("minec
 impl Registered for ParticleType {
     const REGISTRY: RegistryKey<Self> = PARTICLE_TYPE;
 }
-impl StaticRegistry for ParticleType {
-    const REGISTRY: RegistryKey<Self> = PARTICLE_TYPE;
-    const NAMES: &'static [&'static str] = crate::particle_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PermissionCheckType {}
@@ -738,20 +537,12 @@ pub const PERMISSION_CHECK_TYPE: RegistryKey<PermissionCheckType> = RegistryKey:
 impl Registered for PermissionCheckType {
     const REGISTRY: RegistryKey<Self> = PERMISSION_CHECK_TYPE;
 }
-impl StaticRegistry for PermissionCheckType {
-    const REGISTRY: RegistryKey<Self> = PERMISSION_CHECK_TYPE;
-    const NAMES: &'static [&'static str] = crate::permission_check_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PermissionType {}
 pub const PERMISSION_TYPE: RegistryKey<PermissionType> = RegistryKey::new(rl!("minecraft:permission_type"));
 impl Registered for PermissionType {
     const REGISTRY: RegistryKey<Self> = PERMISSION_TYPE;
-}
-impl StaticRegistry for PermissionType {
-    const REGISTRY: RegistryKey<Self> = PERMISSION_TYPE;
-    const NAMES: &'static [&'static str] = crate::permission_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -774,20 +565,12 @@ pub const POINT_OF_INTEREST_TYPE: RegistryKey<PointOfInterestType> = RegistryKey
 impl Registered for PointOfInterestType {
     const REGISTRY: RegistryKey<Self> = POINT_OF_INTEREST_TYPE;
 }
-impl StaticRegistry for PointOfInterestType {
-    const REGISTRY: RegistryKey<Self> = POINT_OF_INTEREST_TYPE;
-    const NAMES: &'static [&'static str] = crate::point_of_interest_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PosRuleTest {}
 pub const POS_RULE_TEST: RegistryKey<PosRuleTest> = RegistryKey::new(rl!("minecraft:pos_rule_test"));
 impl Registered for PosRuleTest {
     const REGISTRY: RegistryKey<Self> = POS_RULE_TEST;
-}
-impl StaticRegistry for PosRuleTest {
-    const REGISTRY: RegistryKey<Self> = POS_RULE_TEST;
-    const NAMES: &'static [&'static str] = crate::pos_rule_test::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -796,20 +579,12 @@ pub const POSITION_SOURCE_TYPE: RegistryKey<PositionSourceType> = RegistryKey::n
 impl Registered for PositionSourceType {
     const REGISTRY: RegistryKey<Self> = POSITION_SOURCE_TYPE;
 }
-impl StaticRegistry for PositionSourceType {
-    const REGISTRY: RegistryKey<Self> = POSITION_SOURCE_TYPE;
-    const NAMES: &'static [&'static str] = crate::position_source_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Potion {}
 pub const POTION: RegistryKey<Potion> = RegistryKey::new(rl!("minecraft:potion"));
 impl Registered for Potion {
     const REGISTRY: RegistryKey<Self> = POTION;
-}
-impl StaticRegistry for Potion {
-    const REGISTRY: RegistryKey<Self> = POTION;
-    const NAMES: &'static [&'static str] = crate::potion::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -832,20 +607,12 @@ pub const RECIPE_BOOK_CATEGORY: RegistryKey<RecipeBookCategory> = RegistryKey::n
 impl Registered for RecipeBookCategory {
     const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
 }
-impl StaticRegistry for RecipeBookCategory {
-    const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
-    const NAMES: &'static [&'static str] = crate::recipe_book_category::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecipeDisplay {}
 pub const RECIPE_DISPLAY: RegistryKey<RecipeDisplay> = RegistryKey::new(rl!("minecraft:recipe_display"));
 impl Registered for RecipeDisplay {
     const REGISTRY: RegistryKey<Self> = RECIPE_DISPLAY;
-}
-impl StaticRegistry for RecipeDisplay {
-    const REGISTRY: RegistryKey<Self> = RECIPE_DISPLAY;
-    const NAMES: &'static [&'static str] = crate::recipe_display::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -854,20 +621,12 @@ pub const RECIPE_SERIALIZER: RegistryKey<RecipeSerializer> = RegistryKey::new(rl
 impl Registered for RecipeSerializer {
     const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
 }
-impl StaticRegistry for RecipeSerializer {
-    const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
-    const NAMES: &'static [&'static str] = crate::recipe_serializer::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecipeType {}
 pub const RECIPE_TYPE: RegistryKey<RecipeType> = RegistryKey::new(rl!("minecraft:recipe_type"));
 impl Registered for RecipeType {
     const REGISTRY: RegistryKey<Self> = RECIPE_TYPE;
-}
-impl StaticRegistry for RecipeType {
-    const REGISTRY: RegistryKey<Self> = RECIPE_TYPE;
-    const NAMES: &'static [&'static str] = crate::recipe_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -876,20 +635,12 @@ pub const RULE_BLOCK_ENTITY_MODIFIER: RegistryKey<RuleBlockEntityModifier> = Reg
 impl Registered for RuleBlockEntityModifier {
     const REGISTRY: RegistryKey<Self> = RULE_BLOCK_ENTITY_MODIFIER;
 }
-impl StaticRegistry for RuleBlockEntityModifier {
-    const REGISTRY: RegistryKey<Self> = RULE_BLOCK_ENTITY_MODIFIER;
-    const NAMES: &'static [&'static str] = crate::rule_block_entity_modifier::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RuleTestType {}
 pub const RULE_TEST_TYPE: RegistryKey<RuleTestType> = RegistryKey::new(rl!("minecraft:rule_test_type"));
 impl Registered for RuleTestType {
     const REGISTRY: RegistryKey<Self> = RULE_TEST_TYPE;
-}
-impl StaticRegistry for RuleTestType {
-    const REGISTRY: RegistryKey<Self> = RULE_TEST_TYPE;
-    const NAMES: &'static [&'static str] = crate::rule_test_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -898,20 +649,12 @@ pub const SENSOR_TYPE: RegistryKey<SensorType> = RegistryKey::new(rl!("minecraft
 impl Registered for SensorType {
     const REGISTRY: RegistryKey<Self> = SENSOR_TYPE;
 }
-impl StaticRegistry for SensorType {
-    const REGISTRY: RegistryKey<Self> = SENSOR_TYPE;
-    const NAMES: &'static [&'static str] = crate::sensor_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SlotDisplay {}
 pub const SLOT_DISPLAY: RegistryKey<SlotDisplay> = RegistryKey::new(rl!("minecraft:slot_display"));
 impl Registered for SlotDisplay {
     const REGISTRY: RegistryKey<Self> = SLOT_DISPLAY;
-}
-impl StaticRegistry for SlotDisplay {
-    const REGISTRY: RegistryKey<Self> = SLOT_DISPLAY;
-    const NAMES: &'static [&'static str] = crate::slot_display::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -927,20 +670,12 @@ pub const SLOT_SOURCE_TYPE: RegistryKey<SlotSourceType> = RegistryKey::new(rl!("
 impl Registered for SlotSourceType {
     const REGISTRY: RegistryKey<Self> = SLOT_SOURCE_TYPE;
 }
-impl StaticRegistry for SlotSourceType {
-    const REGISTRY: RegistryKey<Self> = SLOT_SOURCE_TYPE;
-    const NAMES: &'static [&'static str] = crate::slot_source_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SoundEvent {}
 pub const SOUND_EVENT: RegistryKey<SoundEvent> = RegistryKey::new(rl!("minecraft:sound_event"));
 impl Registered for SoundEvent {
     const REGISTRY: RegistryKey<Self> = SOUND_EVENT;
-}
-impl StaticRegistry for SoundEvent {
-    const REGISTRY: RegistryKey<Self> = SOUND_EVENT;
-    const NAMES: &'static [&'static str] = crate::sound_event::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -949,20 +684,12 @@ pub const SPAWN_CONDITION_TYPE: RegistryKey<SpawnConditionType> = RegistryKey::n
 impl Registered for SpawnConditionType {
     const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
 }
-impl StaticRegistry for SpawnConditionType {
-    const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
-    const NAMES: &'static [&'static str] = crate::spawn_condition_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StatType {}
 pub const STAT_TYPE: RegistryKey<StatType> = RegistryKey::new(rl!("minecraft:stat_type"));
 impl Registered for StatType {
     const REGISTRY: RegistryKey<Self> = STAT_TYPE;
-}
-impl StaticRegistry for StatType {
-    const REGISTRY: RegistryKey<Self> = STAT_TYPE;
-    const NAMES: &'static [&'static str] = crate::stat_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -985,20 +712,12 @@ pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<TestEnvironmentDefinitio
 impl Registered for TestEnvironmentDefinitionType {
     const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
 }
-impl StaticRegistry for TestEnvironmentDefinitionType {
-    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
-    const NAMES: &'static [&'static str] = crate::test_environment_definition_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TestFunction {}
 pub const TEST_FUNCTION: RegistryKey<TestFunction> = RegistryKey::new(rl!("minecraft:test_function"));
 impl Registered for TestFunction {
     const REGISTRY: RegistryKey<Self> = TEST_FUNCTION;
-}
-impl StaticRegistry for TestFunction {
-    const REGISTRY: RegistryKey<Self> = TEST_FUNCTION;
-    const NAMES: &'static [&'static str] = crate::test_function::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1014,20 +733,12 @@ pub const TEST_INSTANCE_TYPE: RegistryKey<TestInstanceType> = RegistryKey::new(r
 impl Registered for TestInstanceType {
     const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
 }
-impl StaticRegistry for TestInstanceType {
-    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
-    const NAMES: &'static [&'static str] = crate::test_instance_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TicketType {}
 pub const TICKET_TYPE: RegistryKey<TicketType> = RegistryKey::new(rl!("minecraft:ticket_type"));
 impl Registered for TicketType {
     const REGISTRY: RegistryKey<Self> = TICKET_TYPE;
-}
-impl StaticRegistry for TicketType {
-    const REGISTRY: RegistryKey<Self> = TICKET_TYPE;
-    const NAMES: &'static [&'static str] = crate::ticket_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1057,10 +768,6 @@ pub const TRIGGER_TYPE: RegistryKey<TriggerType> = RegistryKey::new(rl!("minecra
 impl Registered for TriggerType {
     const REGISTRY: RegistryKey<Self> = TRIGGER_TYPE;
 }
-impl StaticRegistry for TriggerType {
-    const REGISTRY: RegistryKey<Self> = TRIGGER_TYPE;
-    const NAMES: &'static [&'static str] = crate::trigger_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TrimMaterial {}
@@ -1082,10 +789,6 @@ pub const VILLAGER_PROFESSION: RegistryKey<VillagerProfession> = RegistryKey::ne
 impl Registered for VillagerProfession {
     const REGISTRY: RegistryKey<Self> = VILLAGER_PROFESSION;
 }
-impl StaticRegistry for VillagerProfession {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_PROFESSION;
-    const NAMES: &'static [&'static str] = crate::villager_profession::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VillagerTrade {}
@@ -1099,10 +802,6 @@ pub enum VillagerType {}
 pub const VILLAGER_TYPE: RegistryKey<VillagerType> = RegistryKey::new(rl!("minecraft:villager_type"));
 impl Registered for VillagerType {
     const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
-}
-impl StaticRegistry for VillagerType {
-    const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
-    const NAMES: &'static [&'static str] = crate::villager_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1139,10 +838,6 @@ pub const BIOME_SOURCE: RegistryKey<BiomeSource> = RegistryKey::new(rl!("minecra
 impl Registered for BiomeSource {
     const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
 }
-impl StaticRegistry for BiomeSource {
-    const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
-    const NAMES: &'static [&'static str] = crate::biome_source::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockStateProvider {}
@@ -1156,10 +851,6 @@ pub enum BlockStateProviderType {}
 pub const BLOCK_STATE_PROVIDER_TYPE: RegistryKey<BlockStateProviderType> = RegistryKey::new(rl!("minecraft:worldgen/block_state_provider_type"));
 impl Registered for BlockStateProviderType {
     const REGISTRY: RegistryKey<Self> = BLOCK_STATE_PROVIDER_TYPE;
-}
-impl StaticRegistry for BlockStateProviderType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_STATE_PROVIDER_TYPE;
-    const NAMES: &'static [&'static str] = crate::block_state_provider_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1175,20 +866,12 @@ pub const CARVER_TYPE: RegistryKey<CarverType> = RegistryKey::new(rl!("minecraft
 impl Registered for CarverType {
     const REGISTRY: RegistryKey<Self> = CARVER_TYPE;
 }
-impl StaticRegistry for CarverType {
-    const REGISTRY: RegistryKey<Self> = CARVER_TYPE;
-    const NAMES: &'static [&'static str] = crate::carver_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkGenerator {}
 pub const CHUNK_GENERATOR: RegistryKey<ChunkGenerator> = RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 impl Registered for ChunkGenerator {
     const REGISTRY: RegistryKey<Self> = CHUNK_GENERATOR;
-}
-impl StaticRegistry for ChunkGenerator {
-    const REGISTRY: RegistryKey<Self> = CHUNK_GENERATOR;
-    const NAMES: &'static [&'static str] = crate::chunk_generator::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1204,10 +887,6 @@ pub const DENSITY_FUNCTION_TYPE: RegistryKey<DensityFunctionType> = RegistryKey:
 impl Registered for DensityFunctionType {
     const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
 }
-impl StaticRegistry for DensityFunctionType {
-    const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
-    const NAMES: &'static [&'static str] = crate::density_function_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Feature {}
@@ -1222,20 +901,12 @@ pub const FEATURE_SIZE_TYPE: RegistryKey<FeatureSizeType> = RegistryKey::new(rl!
 impl Registered for FeatureSizeType {
     const REGISTRY: RegistryKey<Self> = FEATURE_SIZE_TYPE;
 }
-impl StaticRegistry for FeatureSizeType {
-    const REGISTRY: RegistryKey<Self> = FEATURE_SIZE_TYPE;
-    const NAMES: &'static [&'static str] = crate::feature_size_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FeatureType {}
 pub const FEATURE_TYPE: RegistryKey<FeatureType> = RegistryKey::new(rl!("minecraft:worldgen/feature_type"));
 impl Registered for FeatureType {
     const REGISTRY: RegistryKey<Self> = FEATURE_TYPE;
-}
-impl StaticRegistry for FeatureType {
-    const REGISTRY: RegistryKey<Self> = FEATURE_TYPE;
-    const NAMES: &'static [&'static str] = crate::feature_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1251,10 +922,6 @@ pub const FOLIAGE_PLACER_TYPE: RegistryKey<FoliagePlacerType> = RegistryKey::new
 impl Registered for FoliagePlacerType {
     const REGISTRY: RegistryKey<Self> = FOLIAGE_PLACER_TYPE;
 }
-impl StaticRegistry for FoliagePlacerType {
-    const REGISTRY: RegistryKey<Self> = FOLIAGE_PLACER_TYPE;
-    const NAMES: &'static [&'static str] = crate::foliage_placer_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MaterialCondition {}
@@ -1269,10 +936,6 @@ pub const MATERIAL_CONDITION_TYPE: RegistryKey<MaterialConditionType> = Registry
 impl Registered for MaterialConditionType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION_TYPE;
 }
-impl StaticRegistry for MaterialConditionType {
-    const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION_TYPE;
-    const NAMES: &'static [&'static str] = crate::material_condition_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MaterialRule {}
@@ -1286,10 +949,6 @@ pub enum MaterialRuleType {}
 pub const MATERIAL_RULE_TYPE: RegistryKey<MaterialRuleType> = RegistryKey::new(rl!("minecraft:worldgen/material_rule_type"));
 impl Registered for MaterialRuleType {
     const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-}
-impl StaticRegistry for MaterialRuleType {
-    const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-    const NAMES: &'static [&'static str] = crate::material_rule_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1326,20 +985,12 @@ pub const PLACEMENT_MODIFIER_TYPE: RegistryKey<PlacementModifierType> = Registry
 impl Registered for PlacementModifierType {
     const REGISTRY: RegistryKey<Self> = PLACEMENT_MODIFIER_TYPE;
 }
-impl StaticRegistry for PlacementModifierType {
-    const REGISTRY: RegistryKey<Self> = PLACEMENT_MODIFIER_TYPE;
-    const NAMES: &'static [&'static str] = crate::placement_modifier_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PoolAliasBinding {}
 pub const POOL_ALIAS_BINDING: RegistryKey<PoolAliasBinding> = RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));
 impl Registered for PoolAliasBinding {
     const REGISTRY: RegistryKey<Self> = POOL_ALIAS_BINDING;
-}
-impl StaticRegistry for PoolAliasBinding {
-    const REGISTRY: RegistryKey<Self> = POOL_ALIAS_BINDING;
-    const NAMES: &'static [&'static str] = crate::pool_alias_binding::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1355,10 +1006,6 @@ pub const ROOT_PLACER_TYPE: RegistryKey<RootPlacerType> = RegistryKey::new(rl!("
 impl Registered for RootPlacerType {
     const REGISTRY: RegistryKey<Self> = ROOT_PLACER_TYPE;
 }
-impl StaticRegistry for RootPlacerType {
-    const REGISTRY: RegistryKey<Self> = ROOT_PLACER_TYPE;
-    const NAMES: &'static [&'static str] = crate::root_placer_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Structure {}
@@ -1373,20 +1020,12 @@ pub const STRUCTURE_PIECE: RegistryKey<StructurePiece> = RegistryKey::new(rl!("m
 impl Registered for StructurePiece {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PIECE;
 }
-impl StaticRegistry for StructurePiece {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PIECE;
-    const NAMES: &'static [&'static str] = crate::structure_piece::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StructurePlacement {}
 pub const STRUCTURE_PLACEMENT: RegistryKey<StructurePlacement> = RegistryKey::new(rl!("minecraft:worldgen/structure_placement"));
 impl Registered for StructurePlacement {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PLACEMENT;
-}
-impl StaticRegistry for StructurePlacement {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PLACEMENT;
-    const NAMES: &'static [&'static str] = crate::structure_placement::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1395,20 +1034,12 @@ pub const STRUCTURE_POOL_ELEMENT: RegistryKey<StructurePoolElement> = RegistryKe
 impl Registered for StructurePoolElement {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_POOL_ELEMENT;
 }
-impl StaticRegistry for StructurePoolElement {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_POOL_ELEMENT;
-    const NAMES: &'static [&'static str] = crate::structure_pool_element::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StructureProcessor {}
 pub const STRUCTURE_PROCESSOR: RegistryKey<StructureProcessor> = RegistryKey::new(rl!("minecraft:worldgen/structure_processor"));
 impl Registered for StructureProcessor {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PROCESSOR;
-}
-impl StaticRegistry for StructureProcessor {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PROCESSOR;
-    const NAMES: &'static [&'static str] = crate::structure_processor::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1424,10 +1055,6 @@ pub const STRUCTURE_TYPE: RegistryKey<StructureType> = RegistryKey::new(rl!("min
 impl Registered for StructureType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
 }
-impl StaticRegistry for StructureType {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
-    const NAMES: &'static [&'static str] = crate::structure_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TemplatePool {}
@@ -1442,20 +1069,12 @@ pub const TREE_DECORATOR_TYPE: RegistryKey<TreeDecoratorType> = RegistryKey::new
 impl Registered for TreeDecoratorType {
     const REGISTRY: RegistryKey<Self> = TREE_DECORATOR_TYPE;
 }
-impl StaticRegistry for TreeDecoratorType {
-    const REGISTRY: RegistryKey<Self> = TREE_DECORATOR_TYPE;
-    const NAMES: &'static [&'static str] = crate::tree_decorator_type::NAMES;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TrunkPlacerType {}
 pub const TRUNK_PLACER_TYPE: RegistryKey<TrunkPlacerType> = RegistryKey::new(rl!("minecraft:worldgen/trunk_placer_type"));
 impl Registered for TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
-}
-impl StaticRegistry for TrunkPlacerType {
-    const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
-    const NAMES: &'static [&'static str] = crate::trunk_placer_type::NAMES;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

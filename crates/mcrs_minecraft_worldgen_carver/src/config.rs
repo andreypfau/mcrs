@@ -50,7 +50,7 @@ const CARVER_TYPE_ROWS: &[&str] = &["minecraft:cave", "minecraft:canyon"];
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     CARVER_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::carver_type::NAMES
+    mcrs_minecraft_keys::carver_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -115,7 +115,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<CarverConfig>(
             CARVER_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::carver_type::NAMES,
+            mcrs_minecraft_keys::carver_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

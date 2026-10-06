@@ -1,5 +1,6 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
+use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -255,7 +256,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
     )
     .unwrap();
     let slot = ProtoStack::new(
-        Id::from_static(2),
+        Id::from_raw(2),
         1,
         ComponentPatch {
             added: vec![enchantments],

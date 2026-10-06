@@ -20,7 +20,7 @@ use mcrs_minecraft_profile::{
     ints_uuid,
 };
 use mcrs_minecraft_registry::tags::TagSource;
-use mcrs_minecraft_registry::{Registry, RegistrySet, StaticRegistry, TagRules, build_tags};
+use mcrs_minecraft_registry::{Registry, RegistrySet, TagRules, build_tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -202,9 +202,7 @@ sample_registries_table! {
 fn build_sample_registries() -> RegistrySet {
     let sounds = Registry::<keys::SoundEvent>::new(
         keys::SOUND_EVENT,
-        keys::SoundEvent::NAMES
-            .iter()
-            .map(|name| ResourceLocation::read(name).expect("a generated name parses")),
+        keys::sound_event::ENTRIES.iter().map(|&name| name.into()),
     )
     .unwrap_or_else(|error| panic!("the sample sound_event registry: {error}"));
     build_listed_registries(RegistrySet::new())

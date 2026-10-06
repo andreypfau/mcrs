@@ -150,7 +150,7 @@ const PLACEMENT_MODIFIER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     PLACEMENT_MODIFIER_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::placement_modifier_type::NAMES
+    mcrs_minecraft_keys::placement_modifier_type::ENTRIES
 ));
 
 impl<P> PlacementModifier<P> {
@@ -260,7 +260,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PlacementModifier>(
             PLACEMENT_MODIFIER_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::placement_modifier_type::NAMES,
+            mcrs_minecraft_keys::placement_modifier_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

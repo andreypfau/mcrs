@@ -1,7 +1,7 @@
 use super::villager::VillagerProfession;
 use bytes::Buf;
 use mcrs_minecraft_entity::attribute;
-use mcrs_minecraft_registry::{RegistrySet, StaticRegistry};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -64,7 +64,7 @@ fn loaded_names(registry: &str) -> Vec<String> {
 }
 
 fn report_set() -> RegistrySet {
-    RegistrySet::from_names(mcrs_minecraft_keys::STATIC_REGISTRIES).unwrap()
+    RegistrySet::from_locations(mcrs_minecraft_keys::STATIC_REGISTRIES).unwrap()
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn entity_types_follow_the_registry_order() {
     let attributes = set.table("minecraft:attribute").unwrap();
     assert_eq!(
         attributes
-            .name(mcrs_minecraft_keys::attribute::MAX_HEALTH.index())
+            .name(mcrs_minecraft_keys::attribute::MAX_HEALTH.id().index())
             .map(|name| name.as_str()),
         Some(attribute::MAX_HEALTH.identifier.as_str())
     );
@@ -97,7 +97,10 @@ fn every_template_entity_kind_is_a_registered_entity_type() {
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
     assert_eq!(
-        mcrs_minecraft_keys::VillagerType::NAMES,
+        mcrs_minecraft_keys::villager_type::ENTRIES
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
         census.ids["minecraft:villager_type"]
     );
     let professions: Vec<String> = VillagerProfession::ALL.iter().map(serde_name).collect();

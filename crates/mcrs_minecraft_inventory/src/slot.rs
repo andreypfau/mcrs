@@ -117,7 +117,7 @@ fn admits_player(world: &World, equippable: &Equippable) -> bool {
     let Some(tags) = registries.tags::<EntityType>() else {
         return false;
     };
-    allowed.contains(entity_type::PLAYER, &tags)
+    allowed.contains(entity_type::PLAYER.id(), &tags)
 }
 
 /// A stack the planners move that sits in no slot: a dropped item.

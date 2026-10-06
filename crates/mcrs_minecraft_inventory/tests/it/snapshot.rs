@@ -10,6 +10,7 @@ use mcrs_minecraft_inventory::{
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_keys::{entity_type, menu};
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
+use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{HolderSet, Id};
 use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
 use mcrs_minecraft_world::registries::test_registries;
@@ -65,7 +66,7 @@ fn a_helmet_the_player_may_not_wear_keeps_its_slot_but_is_not_wearable() {
     world
         .get_mut::<Equippable>(zombie_only)
         .unwrap()
-        .allowed_entities = Some(HolderSet::List(Box::new([zombie])));
+        .allowed_entities = Some(HolderSet::List(Box::new([zombie.id()])));
     let plain = crate::common::spawn(&mut world, "iron_helmet", 1);
     place(&mut world, zombie_only, player, slots::MAIN.start).unwrap();
     let mut snapshot = MenuSnapshot::new(&world, items(), player, player_menu_layout(player));
@@ -108,7 +109,11 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
         &world,
         items(),
         player,
-        container_menu_layout(container, player, menu_slots(menu::SHULKER_BOX).unwrap()),
+        container_menu_layout(
+            container,
+            player,
+            menu_slots(menu::SHULKER_BOX.id()).unwrap(),
+        ),
     );
     in_shulker.shulker_box_slots = true;
     assert_eq!(in_shulker.slot_max(Slot::new(container, 13), &nested), None);
@@ -125,7 +130,11 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
         &world,
         items(),
         player,
-        container_menu_layout(container, player, menu_slots(menu::GENERIC_9X3).unwrap()),
+        container_menu_layout(
+            container,
+            player,
+            menu_slots(menu::GENERIC_9X3.id()).unwrap(),
+        ),
     );
     assert_eq!(
         in_chest.slot_max(Slot::new(container, 13), &nested),
@@ -139,8 +148,8 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
 
 #[test]
 fn every_menu_type_has_a_slot_layout_with_its_vanilla_slot_count() {
-    let own: Vec<Option<u16>> = (0..menu::NAMES.len())
-        .map(|number| menu_slots(Id::from_static(number as u16)).map(|slots| slots.own))
+    let own: Vec<Option<u16>> = (0..menu::ENTRIES.len())
+        .map(|number| menu_slots(Id::from_raw(number as u16)).map(|slots| slots.own))
         .collect();
     let expected: Vec<(&str, u16)> = vec![
         ("generic_9x1", 9),
@@ -170,13 +179,13 @@ fn every_menu_type_has_a_slot_layout_with_its_vanilla_slot_count() {
         ("stonecutter", 2),
     ];
     assert_eq!(own.len(), expected.len());
-    for (number, name) in menu::NAMES.iter().enumerate() {
+    for (number, name) in menu::ENTRIES.iter().enumerate() {
         let (short, slots) = expected
             .iter()
-            .find(|(short, _)| format!("minecraft:{short}") == *name)
+            .find(|(short, _)| format!("minecraft:{short}") == name.as_static_str())
             .unwrap_or_else(|| panic!("{name} has no expected layout"));
         assert_eq!(own[number], Some(*slots), "{short}");
     }
-    assert!(menu_slots(menu::LECTERN).is_some_and(|slots| !slots.player_slots));
-    assert!(menu_slots(menu::CRAFTER_3X3).is_some_and(|slots| slots.trailing_result));
+    assert!(menu_slots(menu::LECTERN.id()).is_some_and(|slots| !slots.player_slots));
+    assert!(menu_slots(menu::CRAFTER_3X3.id()).is_some_and(|slots| slots.trailing_result));
 }

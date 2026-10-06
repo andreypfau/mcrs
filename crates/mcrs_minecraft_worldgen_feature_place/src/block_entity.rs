@@ -29,7 +29,7 @@ fn empty_pool() -> String {
 }
 
 fn air_id() -> String {
-    keys::block::AIR.name().to_owned()
+    keys::block::AIR.as_static_str().to_owned()
 }
 
 /// A block entity a generator produced, in the compound the save, the chunk
@@ -604,7 +604,7 @@ impl Default for VaultConfig {
             activation_range: VAULT_ACTIVATION_RANGE,
             deactivation_range: VAULT_DEACTIVATION_RANGE,
             key_item: SavedItem {
-                id: keys::item::TRIAL_KEY.name().to_owned(),
+                id: keys::item::TRIAL_KEY.as_static_str().to_owned(),
                 count: 1,
                 components: None,
             },
@@ -639,45 +639,45 @@ impl GeneratedBlockEntity {
     /// The `id` each variant is tagged with; a save entry naming any other kind
     /// is one this type does not describe.
     pub const IDS: [&'static str; 28] = [
-        keys::block_entity_type::BEEHIVE.name(),
-        keys::block_entity_type::CHEST.name(),
-        keys::block_entity_type::TRAPPED_CHEST.name(),
-        keys::block_entity_type::ENDER_CHEST.name(),
-        keys::block_entity_type::MOB_SPAWNER.name(),
-        keys::block_entity_type::END_GATEWAY.name(),
-        keys::block_entity_type::BARREL.name(),
-        keys::block_entity_type::DISPENSER.name(),
-        keys::block_entity_type::HOPPER.name(),
-        keys::block_entity_type::FURNACE.name(),
-        keys::block_entity_type::BLAST_FURNACE.name(),
-        keys::block_entity_type::SMOKER.name(),
-        keys::block_entity_type::BREWING_STAND.name(),
-        keys::block_entity_type::CAMPFIRE.name(),
-        keys::block_entity_type::COMPARATOR.name(),
-        keys::block_entity_type::BELL.name(),
-        keys::block_entity_type::COPPER_GOLEM_STATUE.name(),
-        keys::block_entity_type::LECTERN.name(),
-        keys::block_entity_type::JIGSAW.name(),
-        keys::block_entity_type::CREAKING_HEART.name(),
-        keys::block_entity_type::DECORATED_POT.name(),
-        keys::block_entity_type::BRUSHABLE_BLOCK.name(),
-        keys::block_entity_type::BANNER.name(),
-        keys::block_entity_type::SIGN.name(),
-        keys::block_entity_type::SKULL.name(),
-        keys::block_entity_type::SCULK_SENSOR.name(),
-        keys::block_entity_type::TRIAL_SPAWNER.name(),
-        keys::block_entity_type::VAULT.name(),
+        keys::block_entity_type::BEEHIVE.as_static_str(),
+        keys::block_entity_type::CHEST.as_static_str(),
+        keys::block_entity_type::TRAPPED_CHEST.as_static_str(),
+        keys::block_entity_type::ENDER_CHEST.as_static_str(),
+        keys::block_entity_type::MOB_SPAWNER.as_static_str(),
+        keys::block_entity_type::END_GATEWAY.as_static_str(),
+        keys::block_entity_type::BARREL.as_static_str(),
+        keys::block_entity_type::DISPENSER.as_static_str(),
+        keys::block_entity_type::HOPPER.as_static_str(),
+        keys::block_entity_type::FURNACE.as_static_str(),
+        keys::block_entity_type::BLAST_FURNACE.as_static_str(),
+        keys::block_entity_type::SMOKER.as_static_str(),
+        keys::block_entity_type::BREWING_STAND.as_static_str(),
+        keys::block_entity_type::CAMPFIRE.as_static_str(),
+        keys::block_entity_type::COMPARATOR.as_static_str(),
+        keys::block_entity_type::BELL.as_static_str(),
+        keys::block_entity_type::COPPER_GOLEM_STATUE.as_static_str(),
+        keys::block_entity_type::LECTERN.as_static_str(),
+        keys::block_entity_type::JIGSAW.as_static_str(),
+        keys::block_entity_type::CREAKING_HEART.as_static_str(),
+        keys::block_entity_type::DECORATED_POT.as_static_str(),
+        keys::block_entity_type::BRUSHABLE_BLOCK.as_static_str(),
+        keys::block_entity_type::BANNER.as_static_str(),
+        keys::block_entity_type::SIGN.as_static_str(),
+        keys::block_entity_type::SKULL.as_static_str(),
+        keys::block_entity_type::SCULK_SENSOR.as_static_str(),
+        keys::block_entity_type::TRIAL_SPAWNER.as_static_str(),
+        keys::block_entity_type::VAULT.as_static_str(),
     ];
 
     /// The kinds that are a `RandomizableContainer`: a template placing one
     /// draws its `LootTableSeed` from the placement random.
     pub const LOOT_SEEDED_IDS: [&'static str; 6] = [
-        keys::block_entity_type::CHEST.name(),
-        keys::block_entity_type::TRAPPED_CHEST.name(),
-        keys::block_entity_type::BARREL.name(),
-        keys::block_entity_type::DISPENSER.name(),
-        keys::block_entity_type::HOPPER.name(),
-        keys::block_entity_type::DECORATED_POT.name(),
+        keys::block_entity_type::CHEST.as_static_str(),
+        keys::block_entity_type::TRAPPED_CHEST.as_static_str(),
+        keys::block_entity_type::BARREL.as_static_str(),
+        keys::block_entity_type::DISPENSER.as_static_str(),
+        keys::block_entity_type::HOPPER.as_static_str(),
+        keys::block_entity_type::DECORATED_POT.as_static_str(),
     ];
 
     /// Which block the entity belongs to, which is what routes it to a column.
@@ -718,36 +718,36 @@ impl GeneratedBlockEntity {
 
     pub fn kind(&self) -> Id<BlockEntityType> {
         match self {
-            GeneratedBlockEntity::Beehive { .. } => block_entity_type::BEEHIVE,
-            GeneratedBlockEntity::Chest(_) => block_entity_type::CHEST,
-            GeneratedBlockEntity::TrappedChest(_) => block_entity_type::TRAPPED_CHEST,
-            GeneratedBlockEntity::EnderChest { .. } => block_entity_type::ENDER_CHEST,
-            GeneratedBlockEntity::Barrel(_) => block_entity_type::BARREL,
-            GeneratedBlockEntity::Dispenser(_) => block_entity_type::DISPENSER,
-            GeneratedBlockEntity::Hopper { .. } => block_entity_type::HOPPER,
-            GeneratedBlockEntity::Furnace(_) => block_entity_type::FURNACE,
-            GeneratedBlockEntity::BlastFurnace(_) => block_entity_type::BLAST_FURNACE,
-            GeneratedBlockEntity::Smoker(_) => block_entity_type::SMOKER,
-            GeneratedBlockEntity::BrewingStand { .. } => block_entity_type::BREWING_STAND,
-            GeneratedBlockEntity::Campfire { .. } => block_entity_type::CAMPFIRE,
-            GeneratedBlockEntity::Comparator { .. } => block_entity_type::COMPARATOR,
-            GeneratedBlockEntity::Bell { .. } => block_entity_type::BELL,
+            GeneratedBlockEntity::Beehive { .. } => block_entity_type::BEEHIVE.id(),
+            GeneratedBlockEntity::Chest(_) => block_entity_type::CHEST.id(),
+            GeneratedBlockEntity::TrappedChest(_) => block_entity_type::TRAPPED_CHEST.id(),
+            GeneratedBlockEntity::EnderChest { .. } => block_entity_type::ENDER_CHEST.id(),
+            GeneratedBlockEntity::Barrel(_) => block_entity_type::BARREL.id(),
+            GeneratedBlockEntity::Dispenser(_) => block_entity_type::DISPENSER.id(),
+            GeneratedBlockEntity::Hopper { .. } => block_entity_type::HOPPER.id(),
+            GeneratedBlockEntity::Furnace(_) => block_entity_type::FURNACE.id(),
+            GeneratedBlockEntity::BlastFurnace(_) => block_entity_type::BLAST_FURNACE.id(),
+            GeneratedBlockEntity::Smoker(_) => block_entity_type::SMOKER.id(),
+            GeneratedBlockEntity::BrewingStand { .. } => block_entity_type::BREWING_STAND.id(),
+            GeneratedBlockEntity::Campfire { .. } => block_entity_type::CAMPFIRE.id(),
+            GeneratedBlockEntity::Comparator { .. } => block_entity_type::COMPARATOR.id(),
+            GeneratedBlockEntity::Bell { .. } => block_entity_type::BELL.id(),
             GeneratedBlockEntity::CopperGolemStatue { .. } => {
-                block_entity_type::COPPER_GOLEM_STATUE
+                block_entity_type::COPPER_GOLEM_STATUE.id()
             }
-            GeneratedBlockEntity::Lectern { .. } => block_entity_type::LECTERN,
-            GeneratedBlockEntity::Jigsaw { .. } => block_entity_type::JIGSAW,
-            GeneratedBlockEntity::CreakingHeart { .. } => block_entity_type::CREAKING_HEART,
-            GeneratedBlockEntity::DecoratedPot { .. } => block_entity_type::DECORATED_POT,
-            GeneratedBlockEntity::BrushableBlock { .. } => block_entity_type::BRUSHABLE_BLOCK,
-            GeneratedBlockEntity::Banner { .. } => block_entity_type::BANNER,
-            GeneratedBlockEntity::Sign { .. } => block_entity_type::SIGN,
-            GeneratedBlockEntity::Skull { .. } => block_entity_type::SKULL,
-            GeneratedBlockEntity::SculkSensor { .. } => block_entity_type::SCULK_SENSOR,
-            GeneratedBlockEntity::MobSpawner { .. } => block_entity_type::MOB_SPAWNER,
-            GeneratedBlockEntity::TrialSpawner { .. } => block_entity_type::TRIAL_SPAWNER,
-            GeneratedBlockEntity::Vault { .. } => block_entity_type::VAULT,
-            GeneratedBlockEntity::EndGateway(_) => block_entity_type::END_GATEWAY,
+            GeneratedBlockEntity::Lectern { .. } => block_entity_type::LECTERN.id(),
+            GeneratedBlockEntity::Jigsaw { .. } => block_entity_type::JIGSAW.id(),
+            GeneratedBlockEntity::CreakingHeart { .. } => block_entity_type::CREAKING_HEART.id(),
+            GeneratedBlockEntity::DecoratedPot { .. } => block_entity_type::DECORATED_POT.id(),
+            GeneratedBlockEntity::BrushableBlock { .. } => block_entity_type::BRUSHABLE_BLOCK.id(),
+            GeneratedBlockEntity::Banner { .. } => block_entity_type::BANNER.id(),
+            GeneratedBlockEntity::Sign { .. } => block_entity_type::SIGN.id(),
+            GeneratedBlockEntity::Skull { .. } => block_entity_type::SKULL.id(),
+            GeneratedBlockEntity::SculkSensor { .. } => block_entity_type::SCULK_SENSOR.id(),
+            GeneratedBlockEntity::MobSpawner { .. } => block_entity_type::MOB_SPAWNER.id(),
+            GeneratedBlockEntity::TrialSpawner { .. } => block_entity_type::TRIAL_SPAWNER.id(),
+            GeneratedBlockEntity::Vault { .. } => block_entity_type::VAULT.id(),
+            GeneratedBlockEntity::EndGateway(_) => block_entity_type::END_GATEWAY.id(),
         }
     }
 
@@ -851,7 +851,7 @@ impl BeeOccupant {
     /// in a nest.
     pub fn bee(ticks_in_hive: i32) -> Self {
         let mut entity_data = NbtCompound::new();
-        entity_data.put_string("id", keys::entity_type::BEE.name().to_owned());
+        entity_data.put_string("id", keys::entity_type::BEE.as_static_str().to_owned());
         BeeOccupant {
             entity_data,
             ticks_in_hive,
@@ -1140,7 +1140,10 @@ mod tests {
             let id = compound.get_string("id").unwrap();
             assert!(GeneratedBlockEntity::IDS.contains(&id), "{id}");
             assert_eq!(entity.position(), POS);
-            assert_eq!(block_entity_type::NAMES[entity.kind().index()], id);
+            assert_eq!(
+                block_entity_type::ENTRIES[entity.kind().index()].as_static_str(),
+                id
+            );
             assert_eq!(
                 GeneratedBlockEntity::from_compound(&compound).unwrap(),
                 entity,

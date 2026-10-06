@@ -62,43 +62,57 @@ impl SkyField {
 
     pub fn attribute(self) -> &'static str {
         match self {
-            SkyField::SkyColor => keys::environment_attribute::VISUAL_SKY_COLOR.name(),
-            SkyField::FogColor => keys::environment_attribute::VISUAL_FOG_COLOR.name(),
-            SkyField::CloudColor => keys::environment_attribute::VISUAL_CLOUD_COLOR.name(),
-            SkyField::SkyLightColor => keys::environment_attribute::VISUAL_SKY_LIGHT_COLOR.name(),
-            SkyField::SkyLightFactor => keys::environment_attribute::VISUAL_SKY_LIGHT_FACTOR.name(),
+            SkyField::SkyColor => keys::environment_attribute::VISUAL_SKY_COLOR.as_static_str(),
+            SkyField::FogColor => keys::environment_attribute::VISUAL_FOG_COLOR.as_static_str(),
+            SkyField::CloudColor => keys::environment_attribute::VISUAL_CLOUD_COLOR.as_static_str(),
+            SkyField::SkyLightColor => {
+                keys::environment_attribute::VISUAL_SKY_LIGHT_COLOR.as_static_str()
+            }
+            SkyField::SkyLightFactor => {
+                keys::environment_attribute::VISUAL_SKY_LIGHT_FACTOR.as_static_str()
+            }
             SkyField::SunriseSunsetColor => {
-                keys::environment_attribute::VISUAL_SUNRISE_SUNSET_COLOR.name()
+                keys::environment_attribute::VISUAL_SUNRISE_SUNSET_COLOR.as_static_str()
             }
-            SkyField::StarBrightness => keys::environment_attribute::VISUAL_STAR_BRIGHTNESS.name(),
-            SkyField::SunAngle => keys::environment_attribute::VISUAL_SUN_ANGLE.name(),
-            SkyField::MoonAngle => keys::environment_attribute::VISUAL_MOON_ANGLE.name(),
-            SkyField::StarAngle => keys::environment_attribute::VISUAL_STAR_ANGLE.name(),
-            SkyField::MoonPhase => keys::environment_attribute::VISUAL_MOON_PHASE.name(),
+            SkyField::StarBrightness => {
+                keys::environment_attribute::VISUAL_STAR_BRIGHTNESS.as_static_str()
+            }
+            SkyField::SunAngle => keys::environment_attribute::VISUAL_SUN_ANGLE.as_static_str(),
+            SkyField::MoonAngle => keys::environment_attribute::VISUAL_MOON_ANGLE.as_static_str(),
+            SkyField::StarAngle => keys::environment_attribute::VISUAL_STAR_ANGLE.as_static_str(),
+            SkyField::MoonPhase => keys::environment_attribute::VISUAL_MOON_PHASE.as_static_str(),
             SkyField::AmbientLightColor => {
-                keys::environment_attribute::VISUAL_AMBIENT_LIGHT_COLOR.name()
+                keys::environment_attribute::VISUAL_AMBIENT_LIGHT_COLOR.as_static_str()
             }
-            SkyField::BlockLightTint => keys::environment_attribute::VISUAL_BLOCK_LIGHT_TINT.name(),
+            SkyField::BlockLightTint => {
+                keys::environment_attribute::VISUAL_BLOCK_LIGHT_TINT.as_static_str()
+            }
             SkyField::NightVisionColor => {
-                keys::environment_attribute::VISUAL_NIGHT_VISION_COLOR.name()
+                keys::environment_attribute::VISUAL_NIGHT_VISION_COLOR.as_static_str()
             }
-            SkyField::WaterFogColor => keys::environment_attribute::VISUAL_WATER_FOG_COLOR.name(),
+            SkyField::WaterFogColor => {
+                keys::environment_attribute::VISUAL_WATER_FOG_COLOR.as_static_str()
+            }
             SkyField::CloudFogEndDistance => {
-                keys::environment_attribute::VISUAL_CLOUD_FOG_END_DISTANCE.name()
+                keys::environment_attribute::VISUAL_CLOUD_FOG_END_DISTANCE.as_static_str()
             }
-            SkyField::CloudHeight => keys::environment_attribute::VISUAL_CLOUD_HEIGHT.name(),
-            SkyField::FogEndDistance => keys::environment_attribute::VISUAL_FOG_END_DISTANCE.name(),
+            SkyField::CloudHeight => {
+                keys::environment_attribute::VISUAL_CLOUD_HEIGHT.as_static_str()
+            }
+            SkyField::FogEndDistance => {
+                keys::environment_attribute::VISUAL_FOG_END_DISTANCE.as_static_str()
+            }
             SkyField::FogStartDistance => {
-                keys::environment_attribute::VISUAL_FOG_START_DISTANCE.name()
+                keys::environment_attribute::VISUAL_FOG_START_DISTANCE.as_static_str()
             }
             SkyField::SkyFogEndDistance => {
-                keys::environment_attribute::VISUAL_SKY_FOG_END_DISTANCE.name()
+                keys::environment_attribute::VISUAL_SKY_FOG_END_DISTANCE.as_static_str()
             }
             SkyField::WaterFogEndDistance => {
-                keys::environment_attribute::VISUAL_WATER_FOG_END_DISTANCE.name()
+                keys::environment_attribute::VISUAL_WATER_FOG_END_DISTANCE.as_static_str()
             }
             SkyField::WaterFogStartDistance => {
-                keys::environment_attribute::VISUAL_WATER_FOG_START_DISTANCE.name()
+                keys::environment_attribute::VISUAL_WATER_FOG_START_DISTANCE.as_static_str()
             }
         }
     }

@@ -1164,7 +1164,7 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         INT_PROVIDER_TYPE_ROWS,
         INT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::int_provider_type::NAMES
+        keys::int_provider_type::ENTRIES
     ));
 
     const FLOAT_PROVIDER_TYPE_ROWS: &[&str] = &[
@@ -1179,7 +1179,7 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         FLOAT_PROVIDER_TYPE_ROWS,
         FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::float_provider_type::NAMES
+        keys::float_provider_type::ENTRIES
     ));
 
     const HEIGHT_PROVIDER_TYPE_ROWS: &[&str] = &[
@@ -1195,13 +1195,13 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         HEIGHT_PROVIDER_TYPE_ROWS,
         HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::height_provider_type::NAMES
+        keys::height_provider_type::ENTRIES
     ));
 
     fn assert_providers<V: DeserializeOwned, D: DeserializeOwned>(
         rows: &[&str],
         unsupported: &[&str],
-        names: &[&str],
+        names: &[impl std::fmt::Display],
     ) {
         let probe = |name: &str| serde_json::json!({ "type": name });
         let dispatched: Vec<&str> = rows.iter().copied().filter(|n| *n != CONSTANT).collect();
@@ -1220,7 +1220,7 @@ mod dispatch_rows {
         assert_providers::<i32, DispatchedIntProvider>(
             INT_PROVIDER_TYPE_ROWS,
             INT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::int_provider_type::NAMES,
+            keys::int_provider_type::ENTRIES,
         );
     }
 
@@ -1229,7 +1229,7 @@ mod dispatch_rows {
         assert_providers::<f32, DispatchedFloatProvider>(
             FLOAT_PROVIDER_TYPE_ROWS,
             FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::float_provider_type::NAMES,
+            keys::float_provider_type::ENTRIES,
         );
     }
 
@@ -1238,7 +1238,7 @@ mod dispatch_rows {
         assert_providers::<VerticalAnchor, DispatchedHeightProvider>(
             HEIGHT_PROVIDER_TYPE_ROWS,
             HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::height_provider_type::NAMES,
+            keys::height_provider_type::ENTRIES,
         );
     }
 }

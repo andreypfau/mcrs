@@ -136,7 +136,7 @@ impl Sample for DebugStickState {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
         let mut tags = vec![("", COMPOUND_ID)];
         if !self.0.is_empty() {
-            tags.push((keys::block::OAK_LOG.name(), STRING_ID));
+            tags.push((keys::block::OAK_LOG.as_static_str(), STRING_ID));
         }
         tags
     }

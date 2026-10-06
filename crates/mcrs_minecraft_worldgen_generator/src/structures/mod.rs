@@ -39,29 +39,29 @@ pub mod place;
 // Vanilla marks these `dynamicShape()` and never files them as full blocks when
 // ordering a template; the block schema carries no such flag, so the set lives here.
 pub(crate) const DYNAMIC_SHAPE_BLOCKS: &[&str] = &[
-    keys::block::MOVING_PISTON.name(),
-    keys::block::SHULKER_BOX.name(),
-    keys::block::WHITE_SHULKER_BOX.name(),
-    keys::block::ORANGE_SHULKER_BOX.name(),
-    keys::block::MAGENTA_SHULKER_BOX.name(),
-    keys::block::LIGHT_BLUE_SHULKER_BOX.name(),
-    keys::block::YELLOW_SHULKER_BOX.name(),
-    keys::block::LIME_SHULKER_BOX.name(),
-    keys::block::PINK_SHULKER_BOX.name(),
-    keys::block::GRAY_SHULKER_BOX.name(),
-    keys::block::LIGHT_GRAY_SHULKER_BOX.name(),
-    keys::block::CYAN_SHULKER_BOX.name(),
-    keys::block::PURPLE_SHULKER_BOX.name(),
-    keys::block::BLUE_SHULKER_BOX.name(),
-    keys::block::BROWN_SHULKER_BOX.name(),
-    keys::block::GREEN_SHULKER_BOX.name(),
-    keys::block::RED_SHULKER_BOX.name(),
-    keys::block::BLACK_SHULKER_BOX.name(),
-    keys::block::BAMBOO.name(),
-    keys::block::SCAFFOLDING.name(),
-    keys::block::POWDER_SNOW.name(),
-    keys::block::POINTED_DRIPSTONE.name(),
-    keys::block::SULFUR_SPIKE.name(),
+    keys::block::MOVING_PISTON.as_static_str(),
+    keys::block::SHULKER_BOX.as_static_str(),
+    keys::block::WHITE_SHULKER_BOX.as_static_str(),
+    keys::block::ORANGE_SHULKER_BOX.as_static_str(),
+    keys::block::MAGENTA_SHULKER_BOX.as_static_str(),
+    keys::block::LIGHT_BLUE_SHULKER_BOX.as_static_str(),
+    keys::block::YELLOW_SHULKER_BOX.as_static_str(),
+    keys::block::LIME_SHULKER_BOX.as_static_str(),
+    keys::block::PINK_SHULKER_BOX.as_static_str(),
+    keys::block::GRAY_SHULKER_BOX.as_static_str(),
+    keys::block::LIGHT_GRAY_SHULKER_BOX.as_static_str(),
+    keys::block::CYAN_SHULKER_BOX.as_static_str(),
+    keys::block::PURPLE_SHULKER_BOX.as_static_str(),
+    keys::block::BLUE_SHULKER_BOX.as_static_str(),
+    keys::block::BROWN_SHULKER_BOX.as_static_str(),
+    keys::block::GREEN_SHULKER_BOX.as_static_str(),
+    keys::block::RED_SHULKER_BOX.as_static_str(),
+    keys::block::BLACK_SHULKER_BOX.as_static_str(),
+    keys::block::BAMBOO.as_static_str(),
+    keys::block::SCAFFOLDING.as_static_str(),
+    keys::block::POWDER_SNOW.as_static_str(),
+    keys::block::POINTED_DRIPSTONE.as_static_str(),
+    keys::block::SULFUR_SPIKE.as_static_str(),
 ];
 
 pub fn resolve_palette_state(
@@ -388,8 +388,8 @@ pub(crate) fn check_block_entity_ids(
         let id = nbt.get_string("id");
         if id.is_some_and(|id| {
             GeneratedBlockEntity::IDS.contains(&id)
-                || id == keys::block_entity_type::JIGSAW.name()
-                || id == keys::block_entity_type::STRUCTURE_BLOCK.name()
+                || id == keys::block_entity_type::JIGSAW.as_static_str()
+                || id == keys::block_entity_type::STRUCTURE_BLOCK.as_static_str()
         }) {
             continue;
         }

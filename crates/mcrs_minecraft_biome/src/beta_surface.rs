@@ -16,12 +16,12 @@ pub fn beta_surface_blocks(
 ) -> (BlockStateId, BlockStateId) {
     match biome {
         BetaLandBiome::Desert | BetaLandBiome::IceDesert => {
-            let sand = blocks.default_state_of(keys::block::SAND);
+            let sand = blocks.default_state_of(keys::block::SAND.id());
             (sand, sand)
         }
         _ => {
-            let grass = blocks.default_state_of(keys::block::GRASS_BLOCK);
-            let dirt = blocks.default_state_of(keys::block::DIRT);
+            let grass = blocks.default_state_of(keys::block::GRASS_BLOCK.id());
+            let dirt = blocks.default_state_of(keys::block::DIRT.id());
             (grass, dirt)
         }
     }

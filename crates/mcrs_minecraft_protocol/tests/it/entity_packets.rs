@@ -11,6 +11,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, RegistryId, VarInt};
+use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries};
 use uuid::Uuid;
 
@@ -60,7 +61,7 @@ fn entity_data_uses_the_registered_serializer_ids() {
         (
             5,
             MetaDataValue::Slot(raw(ProtoStack::new(
-                Id::from_static(974),
+                Id::from_raw(974),
                 1,
                 Default::default(),
             ))),
@@ -157,16 +158,12 @@ fn equipment_chains_slots_with_the_continuation_bit() {
         slots: vec![
             (
                 EquipmentSlot::MainHand,
-                raw(ProtoStack::new(
-                    Id::from_static(1483),
-                    1,
-                    Default::default(),
-                )),
+                raw(ProtoStack::new(Id::from_raw(1483), 1, Default::default())),
             ),
             (EquipmentSlot::OffHand, RawStack::EMPTY),
             (
                 EquipmentSlot::Head,
-                raw(ProtoStack::new(Id::from_static(1), 3, Default::default())),
+                raw(ProtoStack::new(Id::from_raw(1), 3, Default::default())),
             ),
         ],
     };

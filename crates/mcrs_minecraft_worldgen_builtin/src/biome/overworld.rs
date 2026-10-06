@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen_structure::DecorationStep::*;
 const DARK_DRY_FOLIAGE_COLOR: i32 = 8082228;
 const COLD_WATER_COLOR: i32 = 4020182;
 const FROZEN_WATER_COLOR: i32 = 3750089;
-const FOREST_MUSIC: Id<SoundEvent> = sound_event::MUSIC_OVERWORLD_FOREST;
+const FOREST_MUSIC: StaticKey<SoundEvent> = sound_event::MUSIC_OVERWORLD_FOREST;
 const SWAMP_SKELETON_WEIGHT: i32 = 70;
 
 fn sky_color(temperature: f32) -> i32 {
@@ -571,7 +571,7 @@ pub fn dappled_forest() -> Draft {
         .dry_foliage(9189892)
 }
 
-pub fn peaks(sound: Id<SoundEvent>) -> Draft {
+pub fn peaks(sound: StaticKey<SoundEvent>) -> Draft {
     let mut m = Mobs::default();
     m.spawn(GOAT, 5, 1, 3).common_spawns();
     let mut g = overworld_generation();

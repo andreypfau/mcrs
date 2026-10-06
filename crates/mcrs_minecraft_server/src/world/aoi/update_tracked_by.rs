@@ -111,7 +111,7 @@ pub fn update_tracked_by(
                     PacketPayload::PlayerEnteredView(ClientboundAddEntity {
                         id: VarInt(player.index_u32() as i32),
                         uuid,
-                        kind: RegistryId::from(mcrs_minecraft_keys::entity_type::PLAYER),
+                        kind: RegistryId::from(mcrs_minecraft_keys::entity_type::PLAYER.id()),
                         pos,
                         movement: LpVec3(DVec3::ZERO),
                         yaw: ByteAngle::from_degrees(transform.rotation.yaw()),
