@@ -3567,6 +3567,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_inventory",
@@ -3636,6 +3637,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_dimension"
+version = "0.4.6"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_registry",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_dimension_environment"
 version = "0.4.6"
 dependencies = [
@@ -3646,6 +3657,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
@@ -4041,6 +4053,7 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",
@@ -4129,6 +4142,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",

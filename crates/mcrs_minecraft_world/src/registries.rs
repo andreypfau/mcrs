@@ -6,6 +6,7 @@ use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
 use crate::variant;
 use crate::villager_trade::{TradeSet, VillagerTrade};
+use crate::worldgen::chunk_generator::ChunkGenerator;
 use crate::worldgen::world_preset::WorldPreset;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::{AssetSourceId, ErasedAssetReader};
@@ -22,7 +23,10 @@ use mcrs_minecraft_biome::parameter_list::{
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
-use mcrs_minecraft_dimension_environment::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_dimension::{Dimension, DimensionType};
+use mcrs_minecraft_dimension_environment::dimension_type::{
+    DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
+};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
@@ -76,7 +80,7 @@ macro_rules! world_registry_table {
 }
 
 macro_rules! split_registry_table {
-    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr, synced as $project:expr;)*) => {
+    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr $(, synced as $project:expr)?;)*) => {
         fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
                 parse::<$key, $file>(world, report);
@@ -88,7 +92,7 @@ macro_rules! split_registry_table {
         }
 
         pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
-            $(
+            $($(
                 register_joined::<$file, $parts, _>(
                     access,
                     set,
@@ -96,7 +100,7 @@ macro_rules! split_registry_table {
                     $join,
                     $project,
                 );
-            )*
+            )?)*
         }
     };
 }
@@ -106,6 +110,11 @@ split_registry_table! {
         EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
     keys::Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join, synced as |biome| NetworkBiome::from(biome);
+    keys::DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
+        DimensionTypeFile::split, DimensionTypeFile::join,
+        synced as |d| NetworkDimensionType::from(d);
+    keys::Dimension => DimensionEntry as (Dimension, ChunkGenerator),
+        DimensionEntry::split, DimensionEntry::join;
 }
 
 world_registry_table! {
@@ -149,11 +158,9 @@ world_registry_table! {
     keys::WorldClock => WorldClock, synced as Clone::clone;
     keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
-    keys::DimensionType => DimensionType, synced as |d| NetworkDimensionType::from(d);
     keys::BlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
     keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
     keys::WorldPreset => WorldPreset;
-    keys::Dimension => DimensionEntry;
     keys::EnchantmentProvider => EnchantmentProvider;
     keys::VillagerTrade => VillagerTrade;
     keys::TradeSet => TradeSet;

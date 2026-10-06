@@ -12,7 +12,7 @@ use mcrs_minecraft_network::client::JoinedGame;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, Weather,
 };
@@ -201,7 +201,7 @@ fn build_sky_environment(
 ) {
     let (Some(types), Some(dimension_types), Some(world_clocks)) = (
         registries.registry::<keys::DimensionType>(),
-        registries.entries::<keys::DimensionType, DimensionType>(),
+        registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),
         registries.registry::<keys::WorldClock>(),
     ) else {
         error!("the registry set holds no dimension types to draw a sky from");
@@ -651,7 +651,7 @@ mod reference {
 
 #[cfg(test)]
 mod sky_regression {
-    use mcrs_minecraft_dimension_environment::dimension_type::Skybox;
+    use mcrs_minecraft_dimension::Skybox;
     use mcrs_minecraft_dimension_environment::environment::{
         DimensionEnvironment, EnvironmentAttributes,
     };

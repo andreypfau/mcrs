@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 
@@ -13,6 +14,22 @@ pub struct DimensionEntry {
     #[serde(rename = "type")]
     pub dimension_type: Id<keys::DimensionType>,
     pub generator: ChunkGenerator,
+}
+
+impl DimensionEntry {
+    pub fn split(&self) -> (Dimension, ChunkGenerator) {
+        let dimension = Dimension {
+            dimension_type: self.dimension_type,
+        };
+        (dimension, self.generator.clone())
+    }
+
+    pub fn join((dimension, generator): (&Dimension, &ChunkGenerator)) -> Self {
+        DimensionEntry {
+            dimension_type: dimension.dimension_type,
+            generator: generator.clone(),
+        }
+    }
 }
 
 pub type Dimensions = BTreeMap<ResourceKey<keys::Dimension>, DimensionEntry>;
@@ -29,16 +46,19 @@ pub fn bake(
     report: &mut LoadReport,
 ) -> Option<Vec<(ResourceKey<keys::Dimension>, DimensionEntry)>> {
     let registry = report.registry(set, keys::DIMENSION)?;
-    let defined = set
-        .entries::<keys::Dimension, DimensionEntry>()
-        .expect("the data pack loader parses minecraft:dimension");
+    let (Some(dimensions), Some(generators)) = (
+        set.entries::<keys::Dimension, Dimension>(),
+        set.entries::<keys::Dimension, ChunkGenerator>(),
+    ) else {
+        panic!("the data pack loader splits minecraft:dimension");
+    };
 
     let mut merged = base.clone();
     for id in registry.ids() {
         let name = registry.name(id).expect("an id of the registry has a name");
         merged.insert(
             ResourceKey::from_location(name.clone()),
-            defined[id].clone(),
+            DimensionEntry::join((&dimensions[id], &generators[id])),
         );
     }
 

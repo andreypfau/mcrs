@@ -14,8 +14,9 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
-use crate::dimension_type::{DimensionType, Skybox};
+use crate::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_dimension::{DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
     AttributeEntry, AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES,
     EnvironmentAttributeMap, ModifierError, Operation, apply,
@@ -139,17 +140,24 @@ pub struct DimensionEnvironment<'a> {
 
 impl<'a> DimensionEnvironment<'a> {
     /// The end has no weather by its key, whatever type it is given.
-    pub fn of(dimension: &ResourceKey<keys::Dimension>, dimension_type: &'a DimensionType) -> Self {
-        let mut environment = Self::of_type(dimension_type);
+    pub fn of(
+        dimension: &ResourceKey<keys::Dimension>,
+        dimension_type: &DimensionType,
+        environment: &'a DimensionTypeEnvironment,
+    ) -> Self {
+        let mut environment = Self::of_type(dimension_type, environment);
         environment.can_have_weather &= *dimension != keys::dimension::THE_END;
         environment
     }
 
     // chisle: a type table has no dimension key, so it cannot apply the end rule;
     // building environments per dimension lifts it.
-    pub fn of_type(dimension_type: &'a DimensionType) -> Self {
+    pub fn of_type(
+        dimension_type: &DimensionType,
+        environment: &'a DimensionTypeEnvironment,
+    ) -> Self {
         DimensionEnvironment {
-            attributes: &dimension_type.attributes,
+            attributes: &environment.attributes,
             skybox: dimension_type.skybox,
             can_have_weather: dimension_type.has_skylight && !dimension_type.has_ceiling,
         }
@@ -297,12 +305,14 @@ pub fn build_dimension_environments(
         Some(world_clocks),
         Some(types),
         Some(dimension_types),
+        Some(dimension_environments),
     ) = (
         registries.column::<Timeline>(keys::TIMELINE.location().as_static_str()),
         registries.tags::<keys::Timeline>(),
         registries.registry::<keys::WorldClock>(),
         registries.registry::<keys::DimensionType>(),
         registries.entries::<keys::DimensionType, DimensionType>(),
+        registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),
     )
     else {
         tracing::error!(
@@ -315,19 +325,20 @@ pub fn build_dimension_environments(
     environments.0.resize_with(types.len(), || None);
     for id in types.ids() {
         let dimension_type = &dimension_types[id];
+        let environment = &dimension_environments[id];
         let name = types
             .name(id)
             .expect("an id of the registry has a name")
             .as_str();
 
-        let dimension_timelines: Vec<&Timeline> = dimension_type
+        let dimension_timelines: Vec<&Timeline> = environment
             .timelines
             .ids(&timeline_tags)
             .filter_map(|member| timelines.get(member.index()))
             .collect();
 
         match EnvironmentAttributes::build(
-            &DimensionEnvironment::of_type(dimension_type),
+            &DimensionEnvironment::of_type(dimension_type, environment),
             &dimension_timelines,
             &world_clocks,
         ) {

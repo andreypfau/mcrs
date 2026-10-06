@@ -81,7 +81,8 @@ use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
+use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
@@ -173,14 +174,21 @@ pub fn spawn_dim_subapp(
     let (type_config, has_sky, has_weather) = {
         let set = app.world().get_resource::<RegistrySet>();
         let types = set.and_then(|set| set.entries::<keys::DimensionType, DimensionType>());
+        let environments =
+            set.and_then(|set| set.entries::<keys::DimensionType, DimensionTypeEnvironment>());
         let dimension_type = types
             .as_ref()
-            .and_then(|types| types.as_slice().get(request.dimension_type.index()))
+            .and_then(|types| types.get(request.dimension_type))
+            .ok_or_else(unknown)?;
+        let environment = environments
+            .as_ref()
+            .and_then(|environments| environments.get(request.dimension_type))
             .ok_or_else(unknown)?;
         (
             DimensionTypeConfig::new(dimension_type.min_y, dimension_type.height),
             dimension_type.has_skylight,
-            DimensionEnvironment::of(&request.dimension, dimension_type).can_have_weather,
+            DimensionEnvironment::of(&request.dimension, dimension_type, environment)
+                .can_have_weather,
         )
     };
 

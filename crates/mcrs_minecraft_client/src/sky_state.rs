@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_keys as keys;
 
-use mcrs_minecraft_dimension_environment::dimension_type::Skybox;
+use mcrs_minecraft_dimension::Skybox;
 use mcrs_minecraft_dimension_environment::environment::{
     EnvironmentAttributes, EnvironmentContext,
 };
