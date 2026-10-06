@@ -4,7 +4,6 @@
     clippy::too_many_arguments
 )]
 
-pub mod block_transformer;
 pub mod chat_type;
 pub mod data_pack;
 pub mod dimension;
