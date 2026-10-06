@@ -228,10 +228,12 @@ fn every_join_into_a_dimension_sends_the_type_of_its_entry() {
     let mut app = host_spawning(&preset("minecraft:beta"));
     let overworld = label_of(&mut app, "minecraft:overworld");
     host_app::enqueue_spawn(&mut app, "test:nether", "minecraft:the_nether");
+    host_app::enqueue_spawn(&mut app, "minecraft:the_end", "minecraft:the_end");
     drain_dim_spawn_queue(&mut app);
     let nether = label_of(&mut app, "test:nether");
+    let end = label_of(&mut app, "minecraft:the_end");
 
-    let numbers: Vec<u16> = [overworld, nether, overworld]
+    let numbers: Vec<u16> = [overworld, nether, end, overworld]
         .into_iter()
         .map(|label| join(&mut app, label).player_spawn_info.dimension_type_id.0)
         .collect();
@@ -240,6 +242,7 @@ fn every_join_into_a_dimension_sends_the_type_of_its_entry() {
         [
             type_number("minecraft:beta"),
             type_number("minecraft:the_nether"),
+            type_number("minecraft:the_end"),
             type_number("minecraft:beta"),
         ]
     );
@@ -254,13 +257,11 @@ fn a_dimension_has_weather_by_its_key_and_its_type() {
         ("test:end_like", "minecraft:the_end", true),
         ("minecraft:the_nether", "minecraft:the_nether", false),
     ];
-    let mut app = host_app::make_host_app();
-    for (key, dimension_type, _) in cases {
-        host_app::enqueue_spawn(&mut app, key, dimension_type);
-    }
-    drain_dim_spawn_queue(&mut app);
-
     for (key, dimension_type, weather) in cases {
+        let mut app = host_app::make_host_app();
+        host_app::enqueue_spawn(&mut app, key, dimension_type);
+        drain_dim_spawn_queue(&mut app);
+
         let label = label_of(&mut app, key);
         let has_weather = in_world(&mut app, label, |world| {
             world.query::<&HasWeather>().iter(world).count() == 1

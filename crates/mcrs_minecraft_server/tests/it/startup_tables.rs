@@ -1,7 +1,6 @@
 use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_light::block_light::BlockLightRegistry;
@@ -35,11 +34,6 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update() {
     assert!(
         app.world().get_resource::<HeightmapPredicates>().is_some(),
         "no heightmap predicates after the first update"
-    );
-    let environments = app.world().resource::<DimensionEnvironments>();
-    assert!(
-        !environments.is_empty(),
-        "no dimension environments after the first update"
     );
     let clocks = app.world().resource::<WorldClocks>();
     let registered = app

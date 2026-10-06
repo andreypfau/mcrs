@@ -8,8 +8,10 @@ use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_assets::{AppState, MinecraftCorePlugin};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_client::asset_corpus;
+use mcrs_minecraft_core::ResourceKey;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
+use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 
@@ -69,10 +71,12 @@ fn the_client_boots_to_playing_with_its_local_registries() {
     assert!(!types.is_empty());
     assert_eq!(loaded_types.as_slice().len(), types.len());
 
-    let environments = app.world().resource::<DimensionEnvironments>();
-    assert_eq!(
-        environments.len(),
-        types.len(),
-        "every dimension type has the environment its sky is built from"
-    );
+    for id in types.ids() {
+        let name = types.name(id).expect("an id of the registry has a name");
+        let dimension = ResourceKey::<Dimension>::from_location(name.clone());
+        assert!(
+            EnvironmentAttributes::of_dimension(registries, &dimension, id).is_ok(),
+            "every dimension type has the environment its sky is built from: {name}"
+        );
+    }
 }

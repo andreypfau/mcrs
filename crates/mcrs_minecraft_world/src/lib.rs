@@ -26,15 +26,12 @@ pub mod worldgen;
 use crate::data_pack::{
     check_registry_assets_ready, request_data_pack_assets, start_loading_data_pack,
 };
-use bevy_app::{App, Plugin, PostStartup, Startup, Update};
+use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_dimension_environment::environment::{
-    DimensionEnvironments, build_dimension_environments,
-};
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
 use mcrs_minecraft_block::keys::Block;
 
@@ -75,9 +72,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_environment::world_clock::WorldClockPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
-
-        app.init_resource::<DimensionEnvironments>()
-            .add_systems(Startup, build_dimension_environments);
 
         app.init_resource::<mcrs_minecraft_assets::RegistryAccess>();
 
