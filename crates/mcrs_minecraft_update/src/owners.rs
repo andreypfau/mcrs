@@ -71,4 +71,64 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_item",
         value: "crate::enchantment::EnchantmentData",
     },
+    Owner {
+        registry: "minecraft:wolf_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::WolfVariant",
+    },
+    Owner {
+        registry: "minecraft:pig_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::PigVariant",
+    },
+    Owner {
+        registry: "minecraft:cow_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::CowVariant",
+    },
+    Owner {
+        registry: "minecraft:chicken_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::ChickenVariant",
+    },
+    Owner {
+        registry: "minecraft:cat_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::CatVariant",
+    },
+    Owner {
+        registry: "minecraft:frog_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::FrogVariant",
+    },
+    Owner {
+        registry: "minecraft:zombie_nautilus_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::ZombieNautilusVariant",
+    },
+    Owner {
+        registry: "minecraft:wolf_sound_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::WolfSoundVariant",
+    },
+    Owner {
+        registry: "minecraft:pig_sound_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::PigSoundVariant",
+    },
+    Owner {
+        registry: "minecraft:cow_sound_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::CowSoundVariant",
+    },
+    Owner {
+        registry: "minecraft:chicken_sound_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::ChickenSoundVariant",
+    },
+    Owner {
+        registry: "minecraft:cat_sound_variant",
+        krate: "mcrs_minecraft_entity",
+        value: "crate::variant::CatSoundVariant",
+    },
 ];

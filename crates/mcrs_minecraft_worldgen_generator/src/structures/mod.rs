@@ -168,17 +168,17 @@ fn freeze_variants(
     };
     frozen.variants = VariantTables {
         cats: table(
-            keys::CAT_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::CAT_VARIANT.location().as_static_str(),
             inputs.variants.cats,
         )?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
         chickens: table(
-            keys::CHICKEN_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::CHICKEN_VARIANT.location().as_static_str(),
             inputs.variants.chickens,
         )?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
+            mcrs_minecraft_entity::keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
             inputs.variants.zombie_nautiluses,
         )?,
         ..VariantTables::default()

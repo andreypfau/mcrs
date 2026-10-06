@@ -25,12 +25,11 @@ use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId,
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
-    read_packs, register_loaded, static_registries as build_static_registries, test_registries,
-    world_registries,
+    read_packs, register_split_registries, static_registries as build_static_registries,
+    test_registries, world_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
-use mcrs_minecraft_world::variant::{NetworkWolfVariant, WolfVariant};
 use mcrs_minecraft_world::villager_trade::VillagerTrade;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
@@ -765,9 +764,7 @@ fn an_empty_variant_registry_fails_the_load() {
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
     let set = test_registries();
     let mut access = RegistryAccess::default();
-    register_loaded::<WolfVariant, _>(&mut access, set, "minecraft:wolf_variant", |variant| {
-        NetworkWolfVariant::from(variant)
-    });
+    register_split_registries(&mut access, set);
     let synced = access
         .iter()
         .find(|snapshot| snapshot.registry_key() == "minecraft:wolf_variant")
