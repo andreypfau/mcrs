@@ -207,7 +207,7 @@ fn overlay_spawns(first: &MobSpawnSettings, second: &MobSpawnSettings) -> MobSpa
 mod tests {
     use super::*;
     use crate::attribute::spec::attribute;
-    use mcrs_minecraft_protocol::particle::ParticleOptions;
+    use mcrs_minecraft_particle::ParticleOptions;
     use serde::de::DeserializeSeed;
     use serde_json::json;
 

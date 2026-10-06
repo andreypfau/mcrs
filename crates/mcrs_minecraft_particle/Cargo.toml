@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_particle"
+description = "Particle types and their options as data packs and attributes write them"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_registry.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true

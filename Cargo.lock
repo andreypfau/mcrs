@@ -3665,9 +3665,10 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
+ "mcrs_minecraft_particle",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_testing",
  "serde",
@@ -3701,6 +3702,7 @@ dependencies = [
  "anyhow",
  "bevy_ecs",
  "crc32c",
+ "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
@@ -3869,6 +3871,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_particle"
+version = "0.4.6"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_profile"
 version = "0.4.6"
 dependencies = [
@@ -3896,6 +3910,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_macros",
  "mcrs_minecraft_registry",

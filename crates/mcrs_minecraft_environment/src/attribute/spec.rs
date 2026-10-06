@@ -10,8 +10,8 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
-use mcrs_minecraft_protocol::item::Text;
-use mcrs_minecraft_protocol::particle::ParticleOptions;
+use mcrs_minecraft_item::Text;
+use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::static_rows::{numbered, rows_match};
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
