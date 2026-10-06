@@ -1,16 +1,17 @@
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceLocation;
 
 use super::{
-    DecorationStep, JigsawConfig, LiquidSettings, MineshaftType, OceanTemperature,
-    RuinedPortalSetup, StructurePlacement, TerrainAdaptation,
+    JigsawConfig, LiquidSettings, MineshaftType, OceanTemperature, RuinedPortalSetup,
+    StructurePlacement, TerrainAdaptation,
 };
+use crate::spawn_condition::VariantTables;
 use mcrs_minecraft_core::value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::proto::{Holder, PlacedFeature, StructureProcessorList};
-use mcrs_minecraft_worldgen_feature::spawn_condition::VariantTables;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest};
 

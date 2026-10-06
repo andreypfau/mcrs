@@ -277,13 +277,11 @@ mod tests {
 
         // deep_dark defines `monster: []` precisely to suppress the layer below.
         assert_eq!(
-            result.spawns_by_category[&mcrs_minecraft_worldgen_structure::MobCategory::Monster]
-                .len(),
+            result.spawns_by_category[&mcrs_minecraft_entity::spawn::MobCategory::Monster].len(),
             0
         );
         assert_eq!(
-            result.spawns_by_category[&mcrs_minecraft_worldgen_structure::MobCategory::Creature]
-                .len(),
+            result.spawns_by_category[&mcrs_minecraft_entity::spawn::MobCategory::Creature].len(),
             1
         );
         assert_eq!(result.spawn_costs.len(), 2);

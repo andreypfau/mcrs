@@ -5,7 +5,6 @@ pub mod placer;
 pub mod proto;
 pub mod rule_test;
 pub mod sort;
-pub mod spawn_condition;
 pub mod tree;
 
 pub mod column;
@@ -16,7 +15,6 @@ mod tests {
     use crate::block_predicate::BlockPredicate;
     use crate::placement::PlacementModifier;
     use crate::proto::{Feature, PlacedFeature, PlacedFeatureSet, StructureProcessorList};
-    use crate::spawn_condition::{DoubleBounds, SpawnSelector};
     use crate::tree::{BlockStateProvider, FeatureSize, TrunkPlacer};
     use mcrs_minecraft_worldgen_testing::corpus_set;
     use serde::Serialize;
@@ -100,15 +98,6 @@ mod tests {
                 codec::<PlacementModifier>,
                 r#"{"type":"minecraft:fixed_placement","positions":[[1,2,3]]}"#,
             ),
-            (codec::<DoubleBounds>, "0.9"),
-            (codec::<DoubleBounds>, r#"{"min":0.9}"#),
-            (codec::<DoubleBounds>, r#"{"min":0.1,"max":0.5}"#),
-            (codec::<DoubleBounds>, "{}"),
-            (codec::<SpawnSelector>, r#"{"priority":0}"#),
-            (
-                codec::<SpawnSelector>,
-                r##"{"condition":{"type":"minecraft:structure","structures":"#minecraft:cats_spawn_as_black"},"priority":1}"##,
-            ),
         ];
         corpus_set().scope(|| {
             for (codec, json) in cases {
@@ -150,7 +139,6 @@ mod tests {
                 r#"{"type":"minecraft:straight_trunk_placer","base_height":5,"height_rand_a":2,"height_rand_b":0,"trunk_width":0}"#,
                 "",
             ),
-            (codec::<DoubleBounds>, r#"{"min":2,"max":1}"#, ""),
         ];
         corpus_set().scope(|| {
             for (codec, json, message) in cases {

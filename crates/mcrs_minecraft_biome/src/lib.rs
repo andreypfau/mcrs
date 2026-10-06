@@ -15,9 +15,7 @@ use mcrs_minecraft_environment::attribute::{
 };
 use mcrs_minecraft_keys::{Carver, PlacedFeature};
 use mcrs_minecraft_registry::{HolderSet, Id, RegistrySet};
-use mcrs_minecraft_worldgen_structure::DecorationStep;
-
-pub use mcrs_minecraft_worldgen_structure::{MobCategory, SpawnerData};
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

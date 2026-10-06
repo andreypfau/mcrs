@@ -1,7 +1,7 @@
 use super::mob::*;
 use super::{Generation, Mobs, carver, placed_feature};
 use mcrs_minecraft_biome::PlacedFeatureKey;
-use mcrs_minecraft_worldgen_structure::DecorationStep::*;
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 macro_rules! feature_sets {
     ($($name:ident => $($step:ident [$($key:ident),+])+;)*) => {$(

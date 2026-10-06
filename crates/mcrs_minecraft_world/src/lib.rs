@@ -6,10 +6,7 @@
 
 pub mod block_transformer;
 pub mod chat_type;
-pub mod damage_type;
 pub mod data_pack;
-pub mod decorated_pot_pattern;
-pub mod dialog;
 pub mod dimension;
 pub mod enchantment_provider;
 pub mod entity;

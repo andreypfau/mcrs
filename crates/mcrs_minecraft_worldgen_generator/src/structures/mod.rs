@@ -8,10 +8,8 @@ use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 use mcrs_minecraft_worldgen_density::proto::BlockState as ProtoBlockState;
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
-use mcrs_minecraft_worldgen_feature::spawn_condition::{
-    IdSet, SpawnSelector, VariantTable, VariantTables,
-};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     FrozenTemplate, PaletteState, ResolvedState, Template, TemplateManifest, bounding_box,
@@ -23,9 +21,12 @@ use mcrs_minecraft_worldgen_structure::frozen::{
 };
 use mcrs_minecraft_worldgen_structure::hardcoded::{nether_fossil, ruined_portal, shipwreck};
 use mcrs_minecraft_worldgen_structure::piece::TERRAIN_MARGIN;
+use mcrs_minecraft_worldgen_structure::spawn_condition::{
+    IdSet, SpawnSelector, VariantTable, VariantTables,
+};
 use mcrs_minecraft_worldgen_structure::{
-    DecorationStep, PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet,
-    TemplatePool, TerrainAdaptation,
+    PoolAlias, PoolElement, Structure, StructurePlacement, StructureSet, TemplatePool,
+    TerrainAdaptation,
 };
 use std::borrow::Cow;
 use std::cmp::Ordering;

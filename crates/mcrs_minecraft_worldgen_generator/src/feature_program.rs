@@ -34,6 +34,7 @@ use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
     compile_predicate, compile_rule, state_named, state_of as resolve_state, states_of,
 };
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{
     BiomeMask, BlockLayout, Modifier, PlacerScratch, Predicate, PropertyLayout, StateMask,
@@ -133,10 +134,10 @@ use mcrs_minecraft_worldgen_feature_place::tree::decorator::TreeSink;
 use mcrs_minecraft_worldgen_feature_place::tree::provider::StateProvider;
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, TreeTables, place_tree};
 use mcrs_minecraft_worldgen_feature_place::vines::place_vines;
+use mcrs_minecraft_worldgen_structure::LiquidSettings;
 use mcrs_minecraft_worldgen_structure::frozen::{
     ElementId, FrozenElement, FrozenStructure, FrozenStructures, StructureId, StructureKind,
 };
-use mcrs_minecraft_worldgen_structure::{DecorationStep, LiquidSettings};
 use mcrs_minecraft_worldgen_structure_place::buried_treasure::BuriedTreasureBlocks;
 use mcrs_minecraft_worldgen_structure_place::end_city::EndCityChains;
 use mcrs_minecraft_worldgen_structure_place::fortress::FortressBlocks;

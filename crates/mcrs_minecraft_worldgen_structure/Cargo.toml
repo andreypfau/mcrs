@@ -8,6 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+fixedbitset.workspace = true
+mcrs_minecraft_entity.workspace = true
 bevy_math.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true

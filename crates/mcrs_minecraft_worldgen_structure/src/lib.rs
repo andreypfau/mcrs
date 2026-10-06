@@ -9,6 +9,7 @@ pub mod orient;
 pub mod piece;
 pub mod placement;
 pub mod site;
+pub mod spawn_condition;
 
 use serde::{Deserialize, Serialize};
 
@@ -16,12 +17,13 @@ use mcrs_minecraft_worldgen_feature::template::Projection;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
-use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, Weighted};
+use mcrs_minecraft_core::value_provider::{HeightProvider, Weighted};
+use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::block_predicate::Offset;
-use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
+use mcrs_minecraft_worldgen_feature::placement::{DecorationStep, HeightmapName};
 use mcrs_minecraft_worldgen_feature::proto::{
     Holder, PlacedFeature, StructureProcessorList, WrappedProcessors,
 };
@@ -289,31 +291,6 @@ pub struct StructureSettings {
     pub terrain_adaptation: TerrainAdaptation,
 }
 
-macro_rules! mob_categories {
-    ($($category:ident),* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-        #[serde(rename_all = "snake_case")]
-        pub enum MobCategory {
-            $($category),*
-        }
-
-        impl MobCategory {
-            pub const ALL: &[MobCategory] = &[$(MobCategory::$category),*];
-        }
-    };
-}
-
-mob_categories! {
-    Monster,
-    Creature,
-    Ambient,
-    Axolotls,
-    UndergroundWaterCreature,
-    WaterCreature,
-    WaterAmbient,
-    Misc,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpawnOverride {
@@ -326,33 +303,6 @@ pub struct SpawnOverride {
 pub enum SpawnBoundingBox {
     Piece,
     Full,
-}
-
-// The weight sits beside the entry's own fields, not under `data` as in `Weighted<T>`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpawnerData {
-    #[serde(rename = "type")]
-    pub entity: ResourceLocation,
-    pub count: IntProvider,
-    pub weight: NonNegativeInt,
-}
-
-// Declaration order is the step index; keep it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DecorationStep {
-    RawGeneration,
-    Lakes,
-    LocalModifications,
-    UndergroundStructures,
-    SurfaceStructures,
-    Strongholds,
-    UndergroundOres,
-    UndergroundDecoration,
-    FluidSprings,
-    VegetalDecoration,
-    TopLayerModification,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]

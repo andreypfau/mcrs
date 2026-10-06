@@ -265,3 +265,20 @@ mod dispatch_rows {
         );
     }
 }
+
+// Declaration order is the step index; keep it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecorationStep {
+    RawGeneration,
+    Lakes,
+    LocalModifications,
+    UndergroundStructures,
+    SurfaceStructures,
+    Strongholds,
+    UndergroundOres,
+    UndergroundDecoration,
+    FluidSprings,
+    VegetalDecoration,
+    TopLayerModification,
+}

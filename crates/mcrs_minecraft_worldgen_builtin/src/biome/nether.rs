@@ -3,7 +3,7 @@ use super::mob::*;
 use super::*;
 use mcrs_minecraft_biome::PlacedFeatureKey;
 use mcrs_minecraft_keys::{ParticleType, particle_type};
-use mcrs_minecraft_worldgen_structure::DecorationStep::*;
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 #[derive(Serialize)]
 struct AmbientSounds {

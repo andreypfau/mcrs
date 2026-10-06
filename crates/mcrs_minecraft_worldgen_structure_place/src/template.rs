@@ -13,7 +13,6 @@ use mcrs_minecraft_worldgen_feature::proto::{
     ProcessorRule, RuleBlockEntityModifier, StructureProcessor,
 };
 use mcrs_minecraft_worldgen_feature::rule_test::RuleTest;
-use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnContext;
 use mcrs_minecraft_worldgen_feature::template::data_markers;
 use mcrs_minecraft_worldgen_feature::tree::UnitFloat;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
@@ -22,6 +21,7 @@ use mcrs_minecraft_worldgen_feature_place::template::{ChainKind, CompiledChain, 
 use mcrs_minecraft_worldgen_structure::OceanTemperature;
 use mcrs_minecraft_worldgen_structure::frozen::{FrozenStructures, OceanRuinConfig, StructureId};
 use mcrs_minecraft_worldgen_structure::piece::OceanRuinPiece;
+use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
 
 use crate::{place_positional, state};
 

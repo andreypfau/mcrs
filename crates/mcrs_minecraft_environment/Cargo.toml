@@ -8,7 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-mcrs_minecraft_worldgen_structure.workspace = true
+mcrs_minecraft_entity.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true

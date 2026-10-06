@@ -12,13 +12,13 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
-use mcrs_minecraft_world::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
     read_packs, register_loaded, static_registries as build_static_registries, test_registries,
