@@ -27,7 +27,6 @@ use mcrs_minecraft_level::palette::ChunkBlocks;
 use mcrs_minecraft_level::world::dimension::InDimension;
 use mcrs_minecraft_level::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft_level::world::storage::section::SectionIndex;
-use mcrs_minecraft_registry::BlockStateId;
 use mcrs_minecraft_server::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft_server::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft_server::world::entity::player::HostAnchor;
@@ -109,7 +108,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: block_pos,
-                new_state: BlockStateId(1).into(),
+                new_state: mcrs_minecraft_chunk::VoxelId(1),
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 1,
             });

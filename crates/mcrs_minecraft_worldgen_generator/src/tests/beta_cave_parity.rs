@@ -350,7 +350,7 @@ mod exhaustive {
                                 let beta_id = fix_col.pre_cave[world_y as usize];
                                 palette.set(
                                     LocalPos::from(BlockPos::new(local_x, local_y, local_z)),
-                                    modern_id_for_beta(beta_id).into(),
+                                    modern_id_for_beta(beta_id).0.into(),
                                 );
                             }
                         }
@@ -376,7 +376,7 @@ mod exhaustive {
                             if world_y < 128 {
                                 let state = palette
                                     .get(LocalPos::from(BlockPos::new(local_x, local_y, local_z)));
-                                let got = beta_id_for_modern(state.into());
+                                let got = beta_id_for_modern(state.0.into());
                                 let want = fix_col.post_cave[world_y as usize];
                                 if got != want {
                                     col_mismatches.push((world_y, got, want));

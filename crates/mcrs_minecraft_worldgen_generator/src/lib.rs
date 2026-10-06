@@ -958,11 +958,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level;
     let default_fluid = noise_router.default_fluid_state;
     let stone = noise_router.default_block_state;
-    let bedrock = VoxelId::from(blocks.default_state_of(keys::block::BEDROCK));
-    let sandstone = VoxelId::from(blocks.default_state_of(keys::block::SANDSTONE));
-    let gravel = VoxelId::from(blocks.default_state_of(keys::block::GRAVEL));
-    let ice = VoxelId::from(blocks.default_state_of(keys::block::ICE));
-    let sand = VoxelId::from(blocks.default_state_of(keys::block::SAND));
+    let bedrock = VoxelId::from(blocks.default_state_of(keys::block::BEDROCK).0);
+    let sandstone = VoxelId::from(blocks.default_state_of(keys::block::SANDSTONE).0);
+    let gravel = VoxelId::from(blocks.default_state_of(keys::block::GRAVEL).0);
+    let ice = VoxelId::from(blocks.default_state_of(keys::block::ICE).0);
+    let sand = VoxelId::from(blocks.default_state_of(keys::block::SAND).0);
 
     const D0: f64 = 0.03125;
 
@@ -1014,7 +1014,8 @@ pub fn apply_beta_surface(
             let (temp, humidity) = (temperatures[idx], humidities[idx]);
             let biome_land: BetaLandBiome = beta_biome_from_climate(beta_lookup, temp, humidity);
             let (top_block, filler_block) = beta_surface_blocks(biome_land, blocks);
-            let (top_block, filler_block) = (VoxelId::from(top_block), VoxelId::from(filler_block));
+            let (top_block, filler_block) =
+                (VoxelId::from(top_block.0), VoxelId::from(filler_block.0));
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;

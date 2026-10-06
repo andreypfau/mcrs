@@ -1,5 +1,4 @@
 use crate::registry::{Registry, UnknownEntry};
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
@@ -24,20 +23,6 @@ impl From<BlockStateId> for u16 {
     #[inline]
     fn from(id: BlockStateId) -> Self {
         id.0
-    }
-}
-
-impl From<BlockStateId> for VoxelId {
-    #[inline]
-    fn from(id: BlockStateId) -> Self {
-        VoxelId(id.0)
-    }
-}
-
-impl From<VoxelId> for BlockStateId {
-    #[inline]
-    fn from(id: VoxelId) -> Self {
-        BlockStateId(id.0)
     }
 }
 

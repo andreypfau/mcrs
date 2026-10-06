@@ -87,7 +87,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     );
     column.write_back(&mut sections);
 
-    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
+    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock").0);
     let section0 = sections[0].as_ref().expect("section 0 must be present");
     let blocks = &section0.0;
 
@@ -146,9 +146,9 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         failures.join("\n"),
     );
 
-    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
-    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt"));
-    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand"));
+    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block").0);
+    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt").0);
+    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand").0);
 
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
@@ -238,7 +238,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         })
     };
 
-    let stone_id = VoxelId::from(super::corpus().default_state("minecraft:stone"));
+    let stone_id = VoxelId::from(super::corpus().default_state("minecraft:stone").0);
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &Vec<

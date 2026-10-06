@@ -184,7 +184,7 @@ fn material_router(
         block: &|state| {
             corpus()
                 .block(state.name.as_str())
-                .map(|block| block.default_state_id.into())
+                .map(|block| block.default_state_id.0.into())
         },
         biome_tags: &biome_tags,
     };
@@ -226,7 +226,7 @@ fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let mut context = fill_context(router, material, registry, source);
     let (_, table) = world(dimension, seed);
     context.program.carvers = Some(Arc::new(table));
-    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").into();
+    let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").0.into();
     if let ColumnGenerator::Modern { carver_blocks, .. } = &mut context.program.generator {
         *carver_blocks = Arc::new(ModernCarverBlockIds::for_test(vec![bedrock]));
     }

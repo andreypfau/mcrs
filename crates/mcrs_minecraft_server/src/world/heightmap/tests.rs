@@ -15,6 +15,7 @@ fn state_of(block: &str) -> VoxelId {
         .block(block)
         .unwrap_or_else(|| panic!("the corpus declares {block}"))
         .default_state_id
+        .0
         .into()
 }
 
@@ -24,7 +25,7 @@ fn air_never_blocks_motion() {
     for index in 0..blocks.state_count() {
         let id = VoxelId(index as u16);
         if blocks
-            .state(id.into())
+            .state(id.0.into())
             .flags
             .contains(BlockStateFlags::IS_AIR)
         {
@@ -518,7 +519,7 @@ mod exhaustive {
             let solid = table.get(VoxelId(base)) & HeightmapKinds::SOLID;
             // `NO_LEAVES` also answers to the state's own fluid, so its tag half is
             // only comparable among the states that carry none.
-            let dry = |id: VoxelId| blocks.state(id.into()).fluid.is_none();
+            let dry = |id: VoxelId| blocks.state(id.0.into()).fluid.is_none();
             let no_leaves = (0..block.state_count)
                 .map(|offset| VoxelId(base + offset))
                 .find(|&id| dry(id))

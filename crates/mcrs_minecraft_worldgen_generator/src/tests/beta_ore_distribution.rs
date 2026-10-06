@@ -142,7 +142,7 @@ const ORE_BLOCKS_CHUNK_0_0_SEED_12345: (usize, usize) = (964, 2580);
 fn drive(seed: i64, ids: &BetaOreBlockIds) -> (BoxVolume, u64) {
     let draws = Rc::new(Cell::new(0u64));
     let mut rng = CountingRng::new(seed as u64, draws.clone());
-    let mut volume = stone_volume(ids.stone.into());
+    let mut volume = stone_volume(ids.stone.0.into());
     place_all_ores(&mut volume, 0, 0, &mut rng, ids);
     (volume, draws.get())
 }
@@ -152,7 +152,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
     let ids = BetaOreBlockIds::resolve(super::corpus());
     let (volume, draws) = drive(populate_seed(0, 0, 12345), &ids);
     assert_eq!(draws, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);
-    let placed = placed(&volume, ids.stone.into());
+    let placed = placed(&volume, ids.stone.0.into());
 
     let own = placed.iter().filter(|(col, _)| *col == (0, 0)).count();
     let crossed = placed.len() - own;
@@ -180,7 +180,7 @@ fn veins_cross_the_column_border_on_the_pinned_draw_count() {
         ids.lapis,
     ] {
         assert!(
-            placed.iter().any(|(_, got)| *got == state.into()),
+            placed.iter().any(|(_, got)| *got == state.0.into()),
             "no block of {state:?} was placed"
         );
     }
@@ -203,7 +203,7 @@ fn the_populate_feature_is_the_populate_step() {
     let (_, registry) = super::beta_surface::build_beta_biome_source();
     let program = Arc::new(super::beta_populate_program(&registry, seed));
     let ctx = super::fill_context_with(router, Some(program));
-    let stone: VoxelId = super::corpus().default_state("minecraft:stone").into();
+    let stone: VoxelId = super::corpus().default_state("minecraft:stone").0.into();
     let center = ColumnPos::new(3, -2);
     let snapshots = super::region_of(center, |col| {
         super::flat_snapshot(

@@ -311,7 +311,7 @@ fn a_saved_section_decodes_its_blocks_and_nothing_else() {
     let sections = column_sections(chunk.sections, &[0, 1]);
 
     let (blocks, _) = sections[0].as_ref().expect("the saved section");
-    assert_eq!(blocks.0.get(0, 0, 0), stone.default_state_id.into());
+    assert_eq!(blocks.0.get(0, 0, 0), stone.default_state_id.0.into());
 
     let (blocks, _) = sections[1]
         .as_ref()

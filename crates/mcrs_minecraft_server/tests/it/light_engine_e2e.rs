@@ -36,6 +36,7 @@ fn state(blocks: &Blocks, name: &str) -> VoxelId {
         .block(name)
         .unwrap_or_else(|| panic!("{name} is declared"))
         .default_state_id
+        .0
         .into()
 }
 
@@ -144,7 +145,7 @@ fn spawn_dimension(id: &str, dimension_type: &str) -> (App, DimAppLabel) {
 fn place_torch(app: &mut App, label: DimAppLabel, at: BlockPos) -> u8 {
     let blocks = app.world().resource::<Blocks>().clone();
     let torch = state(&blocks, "minecraft:torch");
-    let emission = blocks.state(torch.into()).light_emission;
+    let emission = blocks.state(torch.0.into()).light_emission;
 
     let sub_app = app
         .sub_apps_mut()

@@ -3919,7 +3919,6 @@ version = "0.4.6"
 dependencies = [
  "bevy_ecs",
  "fixedbitset",
- "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "serde",
  "serde_json",
@@ -4038,6 +4037,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_builtin",

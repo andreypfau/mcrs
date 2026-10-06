@@ -58,7 +58,7 @@ fn handle_use_item_on(
     writer.write(BlockSetRequest {
         dimension: dim.entity(),
         pos: clicked + pkt.face.normal(),
-        new_state: state.into(),
+        new_state: state.0.into(),
         flags: BlockUpdateFlags::all(),
         recursion_left: 512,
     });
