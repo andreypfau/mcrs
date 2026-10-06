@@ -109,7 +109,7 @@ fn chunk(sections: Vec<NbtTag>) -> Result<Chunk, ErrorKind> {
     parse_chunk(
         &bytes,
         &CorpusBlockStates(corpus()),
-        &RegistryBiomes(&Registry::<keys::Biome>::new([]).expect("an empty registry")),
+        &RegistryBiomes(&Registry::<keys::Biome>::new(keys::BIOME, []).expect("an empty registry")),
     )
 }
 

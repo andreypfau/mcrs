@@ -4,6 +4,7 @@ use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use std::any::type_name;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -29,6 +30,14 @@ pub enum RegistryError {
     InvalidName {
         registry: String,
         name: String,
+    },
+    TypeBoundTwice {
+        type_name: &'static str,
+        first: ResourceLocation<Arc<str>>,
+        second: ResourceLocation<Arc<str>>,
+    },
+    RegistryBoundTwice {
+        registry: ResourceLocation<Arc<str>>,
     },
 }
 
@@ -59,6 +68,19 @@ impl fmt::Display for RegistryError {
             }
             RegistryError::InvalidName { registry, name } => {
                 write!(f, "{name} is not a resource location, in {registry}")
+            }
+            RegistryError::TypeBoundTwice {
+                type_name,
+                first,
+                second,
+            } => {
+                write!(
+                    f,
+                    "{type_name} is the type of registry {first} and cannot also be the type of {second}"
+                )
+            }
+            RegistryError::RegistryBoundTwice { registry } => {
+                write!(f, "registry {registry} already has a type in this set")
             }
         }
     }
@@ -100,26 +122,27 @@ impl<R> Clone for Registry<R> {
 }
 
 #[cfg(feature = "bevy")]
-impl<R: RegistryKey + Send + Sync + 'static> crate::shared::SharedResource for Registry<R> {
+impl<R: Send + Sync + 'static> crate::shared::SharedResource for Registry<R> {
     fn shares_with(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.table, &other.table)
     }
 }
 
-impl<R: RegistryKey> fmt::Debug for Registry<R> {
+impl<R> fmt::Debug for Registry<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
-            .field("key", &R::KEY)
+            .field("key", self.table.registry())
             .field("len", &self.len())
             .finish()
     }
 }
 
-impl<R: RegistryKey> Registry<R> {
+impl<R> Registry<R> {
     pub fn new(
+        key: RegistryKey<R>,
         names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
     ) -> Result<Self, RegistryError> {
-        let table = NameTable::new(R::KEY.into(), names)?;
+        let table = NameTable::new(key.location().into(), names)?;
         Ok(Self::view(Arc::new(table)))
     }
 
@@ -152,7 +175,7 @@ impl<R: RegistryKey> Registry<R> {
 
     pub fn require<S: AsRef<str>>(&self, key: &ResourceKey<R, S>) -> Result<Id<R>, UnknownEntry> {
         self.get(key).ok_or_else(|| UnknownEntry {
-            registry: R::KEY.into(),
+            registry: self.table.registry().clone(),
             name: key.as_str().to_owned(),
         })
     }
@@ -164,7 +187,7 @@ impl<R: RegistryKey> Registry<R> {
 
     pub fn require_by_name(&self, name: &str) -> Result<Id<R>, UnknownEntry> {
         self.by_name(name).ok_or_else(|| UnknownEntry {
-            registry: R::KEY.into(),
+            registry: self.table.registry().clone(),
             name: name.to_owned(),
         })
     }
@@ -177,17 +200,27 @@ impl<R: RegistryKey> Registry<R> {
         (0..self.len()).filter_map(id_number).map(Id::from_number)
     }
 
+    pub fn narrow<N: TryFrom<u16>>(&self, id: Id<R>) -> Result<N, crate::id::NarrowError> {
+        N::try_from(id.number()).map_err(|_| crate::id::NarrowError {
+            registry: self.table.registry().to_string(),
+            id: id.number(),
+            bits: (std::mem::size_of::<N>() * 8) as u32,
+        })
+    }
+}
+
+impl<R: 'static> Registry<R> {
     pub fn in_scope<T>(
         parsing: &'static str,
         run: impl FnOnce(&Registry<R>) -> T,
     ) -> Result<T, ScopeError> {
         let set = set::current().ok_or(ScopeError::NoScope {
             parsing,
-            registry: R::KEY,
+            registry: type_name::<R>().to_owned(),
         })?;
         let registry = set.registry::<R>().ok_or(ScopeError::MissingRegistry {
             parsing,
-            registry: R::KEY,
+            registry: set::label::<R>(),
         })?;
         Ok(run(&registry))
     }
@@ -200,8 +233,8 @@ mod tests {
 
     struct TestRegistry;
 
-    impl RegistryKey for TestRegistry {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_registry");
+    impl TestRegistry {
+        const KEY: RegistryKey<TestRegistry> = RegistryKey::new(rl!("minecraft:test_registry"));
     }
 
     fn name(text: &str) -> ResourceLocation<Arc<str>> {
@@ -209,7 +242,7 @@ mod tests {
     }
 
     fn registry(names: &[&str]) -> Registry<TestRegistry> {
-        Registry::new(names.iter().map(|text| name(text))).unwrap()
+        Registry::new(TestRegistry::KEY, names.iter().map(|text| name(text))).unwrap()
     }
 
     const UNSORTED: [&str; 3] = ["minecraft:plains", "minecraft:desert", "minecraft:forest"];
@@ -228,7 +261,7 @@ mod tests {
     }
 
     fn build(names: &[&str]) -> Result<Registry<TestRegistry>, RegistryError> {
-        Registry::new(names.iter().map(|text| name(text)))
+        Registry::new(TestRegistry::KEY, names.iter().map(|text| name(text)))
     }
 
     #[test]
@@ -264,7 +297,7 @@ mod tests {
         let message = error.to_string();
         assert!(message.contains("minecraft:test_registry"), "{message}");
         assert!(message.contains("minecraft:absent"), "{message}");
-        assert_eq!(error.registry, TestRegistry::KEY);
+        assert_eq!(error.registry, TestRegistry::KEY.location());
         assert_eq!(error.name, "minecraft:absent");
         assert_eq!(
             registry.require_by_name("minecraft:desert").unwrap(),
@@ -314,7 +347,7 @@ mod tests {
         }
         let error = registry.require_by_name("Plains").unwrap_err();
         assert_eq!(error.name, "Plains");
-        assert_eq!(error.registry, TestRegistry::KEY);
+        assert_eq!(error.registry, TestRegistry::KEY.location());
 
         for id in registry.ids() {
             let name = registry.name(id).unwrap().clone();

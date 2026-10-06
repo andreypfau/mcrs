@@ -8,7 +8,7 @@ use mcrs_minecraft_biome::{
 };
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::value_provider::IntProvider;
-use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_keys::{EntityType, SoundEvent, biome, carver, placed_feature, sound_event};
@@ -104,15 +104,16 @@ pub mod mob {
     mod tests {
         use super::ALL;
         use mcrs_minecraft_core::ResourceKey;
-        use mcrs_minecraft_core::registry_key::RegistryKey;
         use mcrs_minecraft_registry::static_report::shipped_report;
         use std::collections::BTreeSet;
 
         mod report {
             use super::*;
 
-            pub fn missing<T: RegistryKey>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
-                let table = shipped_report().table(T::KEY.as_str());
+            pub fn missing<T: mcrs_minecraft_keys::Registered>(
+                keys: &[ResourceKey<T, &'static str>],
+            ) -> Vec<String> {
+                let table = shipped_report().table(T::REGISTRY.location().as_static_str());
                 keys.iter()
                     .map(|key| key.as_str())
                     .filter(|name| table.is_none_or(|table| table.number(name).is_none()))
@@ -338,5 +339,5 @@ pub fn build(set: &RegistrySet) -> Result<Vec<Biome>, Vec<(usize, String)>> {
 }
 
 pub fn built() -> Built {
-    Built::new(mcrs_minecraft_keys::Biome::KEY, names(), build)
+    Built::new(mcrs_minecraft_keys::BIOME.location(), names(), build)
 }

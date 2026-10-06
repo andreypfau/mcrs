@@ -1,6 +1,5 @@
 use bevy_app::App;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_keys::block_tags;
@@ -99,16 +98,16 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     assert_eq!(members, expected);
 }
 
-fn loaded_members<R: RegistryKey>(tag: &str) -> Vec<String> {
+fn loaded_members<R: mcrs_minecraft_keys::Registered>(tag: &str) -> Vec<String> {
     let set = test_registries();
     let registry = set.registry::<R>().expect("the registry is loaded");
     let tags = set
         .tags::<R>()
-        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::KEY));
+        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::REGISTRY));
     let key = TagKey::<R, _>::from_location(ResourceLocation::read(tag).unwrap());
     let id = tags
         .get(&key)
-        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::KEY));
+        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::REGISTRY));
     tags.members(id)
         .map(|member| registry.name(member).unwrap().as_str().to_owned())
         .collect()

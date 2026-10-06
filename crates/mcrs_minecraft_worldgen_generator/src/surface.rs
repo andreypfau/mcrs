@@ -25,7 +25,7 @@ pub struct SurfaceIds {
 
 impl SurfaceIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let biomes = report.registry::<keys::Biome>(set)?;
+        let biomes = report.registry(set, keys::BIOME)?;
         let eroded_badlands = report.require(&biomes, &keys::biome::ERODED_BADLANDS);
         let frozen_ocean = report.require(&biomes, &keys::biome::FROZEN_OCEAN);
         let deep_frozen_ocean = report.require(&biomes, &keys::biome::DEEP_FROZEN_OCEAN);

@@ -74,7 +74,9 @@ pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, Stri
         .map_err(|error| format!("{}: {registry}: {error}", names.display()))?;
         tables.push(std::sync::Arc::new(table));
     }
-    RegistrySet::from_tables(tables).map_err(|error| format!("{}: {error}", names.display()))
+    RegistrySet::from_tables(tables)
+        .and_then(|set| set.with_types(mcrs_minecraft_keys::bindings()))
+        .map_err(|error| format!("{}: {error}", names.display()))
 }
 
 /// Splits off the jar entries the code builds itself. An entry the code builds

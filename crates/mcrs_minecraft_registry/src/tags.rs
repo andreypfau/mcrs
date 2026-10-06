@@ -3,12 +3,12 @@ use crate::names::NameTable;
 use crate::registry::Registry;
 use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::any::type_name;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::marker::PhantomData;
@@ -98,22 +98,17 @@ impl<R> Clone for Tags<R> {
     }
 }
 
-impl<R: RegistryKey> fmt::Debug for Tags<R> {
+impl<R> fmt::Debug for Tags<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Tags")
-            .field("key", &R::KEY)
+            .field("key", &self.table.registry)
             .field("len", &self.table.len())
             .finish()
     }
 }
 
-impl<R: RegistryKey> Tags<R> {
+impl<R> Tags<R> {
     pub fn new(table: Arc<TagTable>) -> Self {
-        assert_eq!(
-            table.registry,
-            R::KEY,
-            "a tag table of one registry was viewed as another"
-        );
         Tags {
             table,
             _marker: PhantomData,
@@ -141,17 +136,23 @@ impl<R: RegistryKey> Tags<R> {
             .map(TagId::from_number)
     }
 
+    pub fn registry(&self) -> &Name {
+        &self.table.registry
+    }
+}
+
+impl<R: 'static> Tags<R> {
     pub fn in_scope<T>(
         parsing: &'static str,
         run: impl FnOnce(&Tags<R>) -> T,
     ) -> Result<T, ScopeError> {
         let set = set::current().ok_or(ScopeError::NoScope {
             parsing,
-            registry: R::KEY,
+            registry: type_name::<R>().to_owned(),
         })?;
         let tags = set.tags::<R>().ok_or(ScopeError::MissingRegistry {
             parsing,
-            registry: R::KEY,
+            registry: set::label::<R>(),
         })?;
         Ok(run(&tags))
     }
@@ -645,12 +646,13 @@ fn dependency_order(edges: &[Vec<usize>]) -> Vec<(usize, bool)> {
 mod tests {
     use super::*;
     use crate::registry::Registry;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
 
     struct TestRegistry;
 
-    impl RegistryKey for TestRegistry {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_registry");
+    impl TestRegistry {
+        const KEY: RegistryKey<TestRegistry> = RegistryKey::new(rl!("minecraft:test_registry"));
     }
 
     fn name(text: &str) -> Name {
@@ -658,7 +660,7 @@ mod tests {
     }
 
     fn registry(entries: &[&str]) -> Registry<TestRegistry> {
-        Registry::new(entries.iter().map(|text| name(text))).unwrap()
+        Registry::new(TestRegistry::KEY, entries.iter().map(|text| name(text))).unwrap()
     }
 
     type Packs<'a> = &'a [(&'a str, &'a str)];

@@ -1,25 +1,36 @@
 use std::path::Path;
 
-use mcrs_minecraft_keys::{biome_tags, block_tags, item_tags};
+use mcrs_minecraft_core::{RegistryKey, TagKey};
+use mcrs_minecraft_keys::{self as keys, biome_tags, block_tags, item_tags};
+
+fn tag_file<R>(registry: RegistryKey<R>, tag: TagKey<R, &'static str>) -> String {
+    let location = tag.resource_location();
+    format!(
+        "{}/tags/{}/{}.json",
+        location.namespace(),
+        registry.path(),
+        location.path()
+    )
+}
 
 #[test]
 fn generated_tags_name_their_shipped_files() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
     let rows = [
         (
-            block_tags::MINEABLE_PICKAXE.asset_path(),
+            tag_file(keys::BLOCK, block_tags::MINEABLE_PICKAXE),
             "minecraft/tags/block/mineable/pickaxe.json",
         ),
         (
-            block_tags::LOGS.asset_path(),
+            tag_file(keys::BLOCK, block_tags::LOGS),
             "minecraft/tags/block/logs.json",
         ),
         (
-            item_tags::LOGS.asset_path(),
+            tag_file(keys::ITEM, item_tags::LOGS),
             "minecraft/tags/item/logs.json",
         ),
         (
-            biome_tags::IS_OCEAN.asset_path(),
+            tag_file(keys::BIOME, biome_tags::IS_OCEAN),
             "minecraft/tags/worldgen/biome/is_ocean.json",
         ),
     ];

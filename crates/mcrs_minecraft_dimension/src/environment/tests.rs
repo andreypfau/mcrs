@@ -467,7 +467,9 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     let alpha = overriding(0.25);
     let zulu = overriding(0.75);
 
-    let registry = Registry::<keys::Timeline>::new([rl("test:alpha"), rl("test:zulu")]).unwrap();
+    let registry =
+        Registry::<keys::Timeline>::new(keys::TIMELINE, [rl("test:alpha"), rl("test:zulu")])
+            .unwrap();
     let source = |path, bytes| TagSource {
         pack: "test",
         path,

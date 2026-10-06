@@ -31,6 +31,7 @@ pub fn generate(
 
     let mut files = Files::new();
     let mut markers = String::new();
+    let mut bindings = Vec::new();
     let mut modules = Vec::new();
     let mut static_names = Vec::new();
     let mut claimed: BTreeMap<String, &str> = ["registry", "lib"]
@@ -62,6 +63,7 @@ pub fn generate(
         }
 
         marker_text(&mut markers, registry, &marker, &module, statics);
+        bindings.push(module.to_ascii_uppercase());
         if let Some(report) = statics {
             static_names.push((registry.clone(), module.clone(), report.entries.is_empty()));
         }
@@ -89,7 +91,10 @@ pub fn generate(
         }
     }
 
-    files.insert("src/registry.rs".to_owned(), registry_file(&markers));
+    files.insert(
+        "src/registry.rs".to_owned(),
+        registry_file(&markers, &bindings),
+    );
     modules.push("registry".to_owned());
     modules.sort();
     files.insert("src/lib.rs".to_owned(), lib_file(&modules, &static_names));
@@ -219,11 +224,13 @@ fn marker_text(
     if !out.is_empty() {
         out.push('\n');
     }
+    let key = module.to_ascii_uppercase();
     out.push_str(&format!(
         "#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
          pub enum {marker} {{}}\n\
-         impl RegistryKey for {marker} {{\n    \
-             const KEY: StaticResourceLocation = rl!(\"{registry}\");\n\
+         pub const {key}: RegistryKey<{marker}> = RegistryKey::new(rl!(\"{registry}\"));\n\
+         impl Registered for {marker} {{\n    \
+             const REGISTRY: RegistryKey<Self> = {key};\n\
          }}\n"
     ));
     if let Some(report) = statics {
@@ -234,6 +241,7 @@ fn marker_text(
         };
         out.push_str(&format!(
             "impl StaticRegistry for {marker} {{\n    \
+                 const REGISTRY: RegistryKey<Self> = {key};\n    \
                  const NAMES: &'static [&'static str] = {names};\n\
              }}\n"
         ));
@@ -300,13 +308,27 @@ fn tag_module_text(
     Ok(out)
 }
 
-fn registry_file(markers: &str) -> String {
+fn registry_file(markers: &str, bindings: &[String]) -> String {
+    let mut list = String::new();
+    for key in bindings {
+        list.push_str(&format!("        {key}.binding(),\n"));
+    }
     format!(
         "{HEADER}\n\
-         use mcrs_minecraft_core::{{RegistryKey, StaticResourceLocation, rl}};\n\
+         use mcrs_minecraft_core::{{RegistryKey, TypeBinding, rl}};\n\
          use mcrs_minecraft_registry::StaticRegistry;\n\
          \n\
-         {markers}"
+         pub trait Registered: Sized + 'static {{\n    \
+             const REGISTRY: RegistryKey<Self>;\n\
+         }}\n\
+         \n\
+         {markers}\n\
+         pub fn bindings() -> [TypeBinding; {len}] {{\n    \
+             [\n\
+         {list}    \
+             ]\n\
+         }}\n",
+        len = bindings.len()
     )
 }
 
@@ -452,22 +474,36 @@ mod tests {
             files["src/registry.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{RegistryKey, StaticResourceLocation, rl};\n\
+             use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};\n\
              use mcrs_minecraft_registry::StaticRegistry;\n\
+             \n\
+             pub trait Registered: Sized + 'static {\n\
+             \x20   const REGISTRY: RegistryKey<Self>;\n\
+             }\n\
              \n\
              #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
              pub enum Block {}\n\
-             impl RegistryKey for Block {\n\
-             \x20   const KEY: StaticResourceLocation = rl!(\"minecraft:block\");\n\
+             pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!(\"minecraft:block\"));\n\
+             impl Registered for Block {\n\
+             \x20   const REGISTRY: RegistryKey<Self> = BLOCK;\n\
              }\n\
              impl StaticRegistry for Block {\n\
+             \x20   const REGISTRY: RegistryKey<Self> = BLOCK;\n\
              \x20   const NAMES: &'static [&'static str] = crate::block::NAMES;\n\
              }\n\
              \n\
              #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
              pub enum Biome {}\n\
-             impl RegistryKey for Biome {\n\
-             \x20   const KEY: StaticResourceLocation = rl!(\"minecraft:worldgen/biome\");\n\
+             pub const BIOME: RegistryKey<Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
+             impl Registered for Biome {\n\
+             \x20   const REGISTRY: RegistryKey<Self> = BIOME;\n\
+             }\n\
+             \n\
+             pub fn bindings() -> [TypeBinding; 2] {\n\
+             \x20   [\n\
+             \x20       BLOCK.binding(),\n\
+             \x20       BIOME.binding(),\n\
+             \x20   ]\n\
              }\n"
         );
         assert_eq!(

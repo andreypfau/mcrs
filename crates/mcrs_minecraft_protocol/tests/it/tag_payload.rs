@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_keys::Registered;
 use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload};
@@ -10,8 +11,8 @@ use std::sync::Arc;
 
 struct TestRegistry;
 
-impl RegistryKey for TestRegistry {
-    const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_registry");
+impl Registered for TestRegistry {
+    const REGISTRY: RegistryKey<Self> = RegistryKey::new(rl!("minecraft:test_registry"));
 }
 
 type Name = ResourceLocation<Arc<str>>;
@@ -21,7 +22,11 @@ fn name(text: &str) -> Name {
 }
 
 fn registry(count: usize) -> Registry<TestRegistry> {
-    Registry::new((0..count).map(|n| name(&format!("minecraft:e{n}")))).unwrap()
+    Registry::new(
+        TestRegistry::REGISTRY,
+        (0..count).map(|n| name(&format!("minecraft:e{n}"))),
+    )
+    .unwrap()
 }
 
 fn numbers(tags: &Tags<TestRegistry>, tag: &str) -> Vec<u16> {

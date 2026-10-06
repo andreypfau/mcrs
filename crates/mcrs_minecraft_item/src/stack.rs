@@ -3,7 +3,7 @@ use std::fmt;
 
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
-use mcrs_minecraft_core::{RegistryKey, ResourceKey, validated};
+use mcrs_minecraft_core::{ResourceKey, validated};
 use mcrs_minecraft_registry::{Id, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -185,7 +185,10 @@ impl ProtoStack {
 
     pub fn from_value(value: &ItemStackValue, ctx: &dyn RegistryLookup) -> anyhow::Result<Self> {
         let id = ctx
-            .id(Item::KEY.path(), value.item.location())
+            .id(
+                mcrs_minecraft_keys::ITEM.location().path(),
+                value.item.location(),
+            )
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
             id: Id::from_static(id),
@@ -197,7 +200,10 @@ impl ProtoStack {
     pub fn to_value(&self, ctx: &dyn RegistryLookup) -> anyhow::Result<ItemStackValue> {
         ensure!(!self.is_empty(), "an empty stack has no persistent form");
         let name = ctx
-            .name(Item::KEY.path(), self.id.number())
+            .name(
+                mcrs_minecraft_keys::ITEM.location().path(),
+                self.id.number(),
+            )
             .with_context(|| format!("registry item has no id {}", self.id.number()))?;
         let value = ItemStackValue {
             item: ResourceKey::from_location(name.clone()),

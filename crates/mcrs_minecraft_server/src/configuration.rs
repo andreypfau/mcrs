@@ -16,7 +16,6 @@ use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_keys::{
@@ -56,8 +55,11 @@ use tracing::{debug, info};
 use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noise_settings};
 
 /// Registries the client expects in `ClientboundUpdateTags` whose tags the server does not send.
-const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] =
-    [keys::Fluid::KEY, keys::GameEvent::KEY, keys::Biome::KEY];
+const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
+    keys::FLUID.location(),
+    keys::GAME_EVENT.location(),
+    keys::BIOME.location(),
+];
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -151,7 +153,7 @@ fn on_configuration_enter(
     }
 }
 
-fn tags_of<R: RegistryKey>(set: &RegistrySet) -> Option<RegistryTags<'static>> {
+fn tags_of<R: keys::Registered>(set: &RegistrySet) -> Option<RegistryTags<'static>> {
     let payload = tags_payload(&set.tags::<R>()?);
     (!payload.tags.is_empty()).then_some(payload)
 }
@@ -253,7 +255,7 @@ fn on_known_packs_response(
     // dimension types. The vanilla protocol still expects it to be sent.
     {
         let attr_keys: BTreeSet<&str> = set
-            .column::<DimensionType>(keys::DimensionType::KEY.as_str())
+            .column::<DimensionType>(keys::DIMENSION_TYPE.location().as_static_str())
             .unwrap_or_default()
             .iter()
             .flat_map(|dim_type| dim_type.attributes.0.keys().map(|key| key.as_str()))
@@ -267,7 +269,7 @@ fn on_known_packs_response(
                 })
                 .collect();
             con.write_packet(&ClientboundRegistryData {
-                registry: keys::EnvironmentAttribute::KEY.into(),
+                registry: keys::ENVIRONMENT_ATTRIBUTE.location().into(),
                 entries,
             });
         }

@@ -625,7 +625,7 @@ pub fn drowned(
 mod tests {
     use super::*;
     use fixedbitset::FixedBitSet;
-    use mcrs_minecraft_core::{RegistryKey, TagKey, rl};
+    use mcrs_minecraft_core::{TagKey, rl};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_registry::HolderSet;
     use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnCondition, SpawnSelector};
@@ -669,7 +669,7 @@ mod tests {
         spawn_conditions: Vec<SpawnSelector>,
     }
 
-    fn tag_of<R: RegistryKey>(tag: &str) -> Option<mcrs_minecraft_registry::TagId<R>> {
+    fn tag_of<R: 'static>(tag: &str) -> Option<mcrs_minecraft_registry::TagId<R>> {
         corpus_set()
             .tags::<R>()?
             .get(&TagKey::<R, _>::from_location(
@@ -677,7 +677,7 @@ mod tests {
             ))
     }
 
-    fn tagged<R: RegistryKey>(
+    fn tagged<R: 'static>(
         tag: &'static str,
         ids: &'static [usize],
     ) -> impl Fn(&HolderSet<R>) -> Result<IdSet, String> {

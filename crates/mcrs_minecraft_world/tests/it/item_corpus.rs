@@ -84,7 +84,7 @@ fn item_registry() -> Registry<Item> {
         "/../../assets/mcrs/reports/registries.json"
     )))
     .unwrap()
-    .registry::<Item>()
+    .registry_of(mcrs_minecraft_keys::ITEM)
     .expect("the registries report has no item registry")
 }
 

@@ -1,7 +1,6 @@
 //! Reading the shipped asset corpus off disk, for the tests that check the
 //! engine against every file the game ships rather than against a fixture.
 
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_report::shipped_report;
@@ -119,10 +118,17 @@ fn base_set() -> &'static RegistrySet {
             Arc::clone(shipped_names::<keys::Carver>("carver").table()),
             Arc::clone(shipped_names::<keys::PlacedFeature>("placed_feature").table()),
         ]);
-        RegistrySet::from_tables(tables)
-            .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"))
+        typed(
+            RegistrySet::from_tables(tables)
+                .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}")),
+        )
     });
     &SET
+}
+
+fn typed(set: RegistrySet) -> RegistrySet {
+    set.with_types(keys::bindings())
+        .unwrap_or_else(|e| panic!("the generated registry types do not bind: {e}"))
 }
 
 /// The static registries of the shipped report, the carvers and the placed
@@ -148,10 +154,13 @@ pub fn corpus_set() -> &'static RegistrySet {
             })
             .unwrap_or_else(|e| panic!("the corpus names do not join the set: {e}"));
         for (registry, folder) in [
-            (keys::Block::KEY.as_str(), "block"),
-            (keys::Fluid::KEY.as_str(), "fluid"),
-            (keys::Biome::KEY.as_str(), "worldgen/biome"),
-            (keys::Structure::KEY.as_str(), "worldgen/structure"),
+            (keys::BLOCK.location().as_static_str(), "block"),
+            (keys::FLUID.location().as_static_str(), "fluid"),
+            (keys::BIOME.location().as_static_str(), "worldgen/biome"),
+            (
+                keys::STRUCTURE.location().as_static_str(),
+                "worldgen/structure",
+            ),
         ] {
             let names = Arc::clone(
                 set.table(registry)
@@ -164,7 +173,7 @@ pub fn corpus_set() -> &'static RegistrySet {
     &SET
 }
 
-fn shipped_names<R: RegistryKey>(folder: &str) -> Registry<R> {
+fn shipped_names<R: mcrs_minecraft_keys::Registered>(folder: &str) -> Registry<R> {
     numbered(folder, shipped_name_list(folder))
 }
 
@@ -184,12 +193,12 @@ fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
     names
 }
 
-fn numbered<R: RegistryKey>(
+fn numbered<R: mcrs_minecraft_keys::Registered>(
     folder: &str,
     mut names: Vec<ResourceLocation<Arc<str>>>,
 ) -> Registry<R> {
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    Registry::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
+    Registry::new(R::REGISTRY, names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
 /// `corpus_set` with the biomes of `leading` numbered first, in that order, and
@@ -211,16 +220,18 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
             names.push(name.clone());
         }
     }
-    let biomes = Registry::<keys::Biome>::new(names)
+    let biomes = Registry::<keys::Biome>::new(keys::BIOME, names)
         .unwrap_or_else(|e| panic!("the biomes do not number: {e}"));
-    let biome_table = keys::Biome::KEY.as_str();
-    let mut set = RegistrySet::from_tables(
-        base.tables()
-            .filter(|table| table.registry().as_str() != biome_table)
-            .cloned()
-            .chain([Arc::clone(biomes.table())]),
-    )
-    .unwrap_or_else(|e| panic!("the renumbered corpus does not join the set: {e}"));
+    let biome_table = keys::BIOME.location().as_static_str();
+    let mut set = typed(
+        RegistrySet::from_tables(
+            base.tables()
+                .filter(|table| table.registry().as_str() != biome_table)
+                .cloned()
+                .chain([Arc::clone(biomes.table())]),
+        )
+        .unwrap_or_else(|e| panic!("the renumbered corpus does not join the set: {e}")),
+    );
     for table in base.tables() {
         let name = table.registry().as_str();
         if name != biome_table
@@ -234,12 +245,12 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
 
 /// The names `set` holds, as `corpus_set` numbers them. A set that names a tag
 /// is refused.
-pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
+pub fn names_of<R: mcrs_minecraft_keys::Registered>(set: &HolderSet<R>) -> Vec<String> {
     let registry = corpus_set()
         .registry::<R>()
-        .unwrap_or_else(|| panic!("the corpus set holds no {}", R::KEY));
+        .unwrap_or_else(|| panic!("the corpus set holds no {}", R::REGISTRY));
     let ids = match set {
-        HolderSet::Named(_) => panic!("the corpus set holds no {} tags", R::KEY),
+        HolderSet::Named(_) => panic!("the corpus set holds no {} tags", R::REGISTRY),
         HolderSet::One(id) => std::slice::from_ref(id),
         HolderSet::List(ids) => ids,
     };
@@ -247,7 +258,7 @@ pub fn names_of<R: RegistryKey>(set: &HolderSet<R>) -> Vec<String> {
         .map(|&id| {
             registry
                 .name(id)
-                .unwrap_or_else(|| panic!("{id:?} is not in the corpus {}", R::KEY))
+                .unwrap_or_else(|| panic!("{id:?} is not in the corpus {}", R::REGISTRY))
                 .as_str()
                 .to_owned()
         })
@@ -311,7 +322,7 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// A registry set holding the one registry `R`, numbered by the files the
 /// corpus ships under `assets/minecraft/<folder>`, for reading a value that
 /// names an entry of it inside `RegistrySet::scope`.
-pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
+pub fn shipped_registry_set<R: mcrs_minecraft_keys::Registered>(folder: &str) -> RegistrySet {
     let root = assets_dir().join("minecraft").join(folder);
     let names = json_files(&root).into_iter().map(|file| {
         let relative = file
@@ -321,9 +332,9 @@ pub fn shipped_registry_set<R: RegistryKey>(folder: &str) -> RegistrySet {
         ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
             .unwrap_or_else(|e| panic!("{folder} holds a file that is no identifier: {e}"))
     });
-    let registry =
-        Registry::<R>::new(names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
-    RegistrySet::new()
+    let registry = Registry::<R>::new(R::REGISTRY, names)
+        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
+    typed(RegistrySet::new())
         .with(registry)
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
 }
@@ -341,24 +352,28 @@ pub fn dimension_type_set() -> &'static RegistrySet {
             .ids()
             .map(|id| blocks.name(id).expect("a block id has a name").clone())
             .collect();
-        let blocks = Registry::<keys::Block>::new(block_names)
+        let blocks = Registry::<keys::Block>::new(keys::BLOCK, block_names)
             .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
-        let timelines = Registry::<keys::Timeline>::new(shipped_ids("timeline"))
+        let timelines = Registry::<keys::Timeline>::new(keys::TIMELINE, shipped_ids("timeline"))
             .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
-        let clocks = Registry::<keys::WorldClock>::new(shipped_ids("world_clock"))
-            .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
+        let clocks =
+            Registry::<keys::WorldClock>::new(keys::WORLD_CLOCK, shipped_ids("world_clock"))
+                .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
         let tables = report
             .tables()
-            .filter(|table| table.registry().as_str() != keys::Block::KEY.as_str())
+            .filter(|table| table.registry().as_str() != keys::BLOCK.location().as_static_str())
             .cloned()
             .chain([
                 Arc::clone(blocks.table()),
                 Arc::clone(timelines.table()),
                 Arc::clone(clocks.table()),
             ]);
-        RegistrySet::from_tables(tables)
-            .unwrap_or_else(|e| panic!("the dimension type registries do not join the set: {e}"))
-            .with_tags(shipped_tags(blocks.table(), "block"))
+        typed(
+            RegistrySet::from_tables(tables).unwrap_or_else(|e| {
+                panic!("the dimension type registries do not join the set: {e}")
+            }),
+        )
+        .with_tags(shipped_tags(blocks.table(), "block"))
             .with_tags(shipped_tags(timelines.table(), "timeline"))
     });
     &SET
@@ -375,7 +390,7 @@ fn shipped_ids(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
 pub fn tagged_report() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let root = assets_dir().join("minecraft/tags");
-        let mut set = shipped_report().clone();
+        let mut set = typed(shipped_report().clone());
         let mut folders: Vec<_> = std::fs::read_dir(&root)
             .unwrap_or_else(|e| panic!("{}: {e}", root.display()))
             .map(|entry| entry.expect("a tag folder entry").path())

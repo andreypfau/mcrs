@@ -76,7 +76,6 @@ mod tests {
     use bevy_app::App;
     use bevy_app::TaskPoolPlugin;
     use bevy_asset::{AssetPlugin, AssetServer};
-    use mcrs_minecraft_keys::Block;
     use mcrs_minecraft_registry::static_report::shipped_report;
 
     fn corpus() -> &'static Blocks {
@@ -90,7 +89,7 @@ mod tests {
             });
             let asset_server = app.world().resource::<AssetServer>().clone();
             let blocks = shipped_report()
-                .registry::<Block>()
+            .registry_of(mcrs_minecraft_keys::BLOCK)
                 .expect("the registries report has blocks");
             let (definitions, _) = load_block_definitions(&asset_server, &blocks)
                 .expect("the block definition corpus loads");

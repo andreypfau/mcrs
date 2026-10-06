@@ -8,7 +8,7 @@ pub mod zoom;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_core::codec::{HexRgb, is_default};
-use mcrs_minecraft_core::{RegistryKey, ResourceKey, StaticResourceLocation};
+use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{
     AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
@@ -142,14 +142,14 @@ impl BiomeGeneration {
     }
 }
 
-fn ids<R: RegistryKey>(
+fn ids<R: mcrs_minecraft_keys::Registered>(
     set: &RegistrySet,
     names: &[StaticResourceLocation],
     failures: &mut Vec<String>,
 ) -> Vec<Id<R>> {
     let Some(registry) = set.registry::<R>() else {
         if !names.is_empty() {
-            failures.push(format!("the registry {} is not loaded", R::KEY));
+            failures.push(format!("the registry {} is not loaded", R::REGISTRY));
         }
         return Vec::new();
     };
@@ -158,7 +158,7 @@ fn ids<R: RegistryKey>(
         .filter_map(|name| {
             let id = registry.get(&ResourceKey::<R, _>::new(*name));
             if id.is_none() {
-                failures.push(format!("{name} is not an entry of {}", R::KEY));
+                failures.push(format!("{name} is not an entry of {}", R::REGISTRY));
             }
             id
         })

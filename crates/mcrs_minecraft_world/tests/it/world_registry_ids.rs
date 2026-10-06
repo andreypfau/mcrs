@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
@@ -19,7 +18,7 @@ fn read(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-fn names_in_registry<T: RegistryKey + Send + Sync + 'static>(app: &App) -> Vec<String> {
+fn names_in_registry<T: 'static + Send + Sync + 'static>(app: &App) -> Vec<String> {
     let registry = app.world().resource::<Registry<T>>();
     registry
         .ids()

@@ -910,6 +910,7 @@ mod tests {
 
     fn registry(names: &[&str]) -> Registry<Block> {
         Registry::new(
+            keys::BLOCK,
             names
                 .iter()
                 .map(|name| ResourceLocation::read(name).unwrap()),

@@ -101,14 +101,13 @@ impl<'de> Deserialize<'de> for Tables {
 mod tests {
     use super::*;
     use mcrs_minecraft_core::registry_key::RegistryKey;
-    use mcrs_minecraft_core::resource_location::ResourceLocation;
     use mcrs_minecraft_core::rl;
     use std::sync::LazyLock;
 
     struct Item;
 
-    impl RegistryKey for Item {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:item");
+    impl Item {
+        const KEY: RegistryKey<Item> = RegistryKey::new(rl!("minecraft:item"));
     }
 
     static REPORT: LazyLock<Vec<u8>> = LazyLock::new(|| {
@@ -160,7 +159,8 @@ mod tests {
                 "brigadier:float"
             ))
         );
-        let items = SET.registry::<Item>().unwrap();
+        let typed = SET.clone().with_types([Item::KEY.binding()]).unwrap();
+        let items = typed.registry::<Item>().unwrap();
         let untyped = SET.table("minecraft:item").unwrap();
         for name in ["minecraft:air", "minecraft:stone", "minecraft:stick"] {
             assert_eq!(

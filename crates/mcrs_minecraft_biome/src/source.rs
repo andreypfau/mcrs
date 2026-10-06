@@ -208,7 +208,7 @@ mod tests {
         let names = ["minecraft:plains", "minecraft:desert"]
             .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         let set = RegistrySet::new()
-            .with(Registry::<keys::Biome>::new(names).unwrap())
+            .with(Registry::<keys::Biome>::new(keys::BIOME, names).unwrap())
             .unwrap();
         let entry = |biome: &str, humidity: &str| {
             format!(

@@ -1,7 +1,8 @@
 use std::io::Write;
 
 use anyhow::ensure;
-use mcrs_minecraft_core::{RegistryKey, RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{RegistryValue, ResourceKey, ResourceLocation};
+use mcrs_minecraft_keys::Registered;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::{Holder, HolderWireOnly, RegistryLookup};
 
@@ -13,13 +14,19 @@ use crate::{Bounded, Decode, Encode, VarInt};
 newtype_wire!(RgbInt, ArgbInt, NbtPredicate);
 ordinal_enum_wire!(EquipmentSlotGroup, ItemUseAnimation);
 
-impl<V: RegistryValue + EncodeCtx> EncodeCtx for HolderWireOnly<V> {
+impl<V: RegistryValue + EncodeCtx> EncodeCtx for HolderWireOnly<V>
+where
+    V::Registry: Registered,
+{
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
         self.0.encode_ctx(ctx, w)
     }
 }
 
-impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for HolderWireOnly<V> {
+impl<'a, V: RegistryValue + DecodeCtx<'a>> DecodeCtx<'a> for HolderWireOnly<V>
+where
+    V::Registry: Registered,
+{
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         Holder::decode_ctx(ctx, r).map(HolderWireOnly)
     }
@@ -115,14 +122,14 @@ impl DecodeCtx<'_> for MobEffectDetails {
     }
 }
 
-impl<R: RegistryKey> EncodeCtx for TypedEntityData<R> {
+impl<R: Registered> EncodeCtx for TypedEntityData<R> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         self.id.encode_ctx(ctx, &mut w)?;
         self.tag.encode(w)
     }
 }
 
-impl<R: RegistryKey> DecodeCtx<'_> for TypedEntityData<R> {
+impl<R: Registered> DecodeCtx<'_> for TypedEntityData<R> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = ResourceKey::decode_ctx(ctx, r)?;
         ensure!(

@@ -105,14 +105,15 @@ impl Sample for Profile {
 
 type Name = ResourceLocation;
 
-fn registry_with_tags<R: RegistryKey>(
+fn registry_with_tags<R: 'static>(
     set: RegistrySet,
+    key: RegistryKey<R>,
     names: &[&str],
     tags: &[(&str, &[&str])],
 ) -> RegistrySet {
     let name = |path: &str| -> Name { ResourceLocation::minecraft(path).unwrap() };
-    let registry = Registry::<R>::new(names.iter().map(|path| name(path)))
-        .unwrap_or_else(|error| panic!("the sample {} registry: {error}", R::KEY));
+    let registry = Registry::new(key, names.iter().map(|path| name(path)))
+        .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"));
     let files: Vec<(Name, String)> = tags
         .iter()
         .map(|(tag, members)| {
@@ -138,24 +139,20 @@ fn registry_with_tags<R: RegistryKey>(
         })
         .collect();
     let (table, problems) = build_tags(registry.table(), TagRules::World, &sources, None);
-    assert!(
-        problems.is_empty(),
-        "the sample {} tags: {problems:?}",
-        R::KEY
-    );
+    assert!(problems.is_empty(), "the sample {key} tags: {problems:?}");
     set.with(registry)
-        .unwrap_or_else(|error| panic!("the sample {} registry: {error}", R::KEY))
+        .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"))
         .with_tags(Arc::new(table))
 }
 
 macro_rules! sample_registries_table {
-    ($($key:ty => $path:literal [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
+    ($($key:expr => $path:literal [$($name:literal),+] [$(($tag:literal => [$($member:literal),*])),*];)*) => {
         pub const SAMPLE_NAMES: &[(&str, &[&str])] = &[$(($path, &[$($name),+])),*];
 
         fn build_listed_registries(set: RegistrySet) -> RegistrySet {
             $(
                 let tags: &[(&str, &[&str])] = &[$(($tag, &[$($member),*])),*];
-                let set = registry_with_tags::<$key>(set, &[$($name),+], tags);
+                let set = registry_with_tags(set, $key, &[$($name),+], tags);
             )*
             set
         }
@@ -163,47 +160,48 @@ macro_rules! sample_registries_table {
 }
 
 sample_registries_table! {
-    keys::Item => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
+    keys::ITEM => "item" ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    keys::MobEffect => "mob_effect" ["speed", "slowness", "haste"] [];
-    keys::Enchantment => "enchantment" ["sharpness", "unbreaking"] [];
-    keys::DamageType => "damage_type" ["in_fire", "lava"]
+    keys::MOB_EFFECT => "mob_effect" ["speed", "slowness", "haste"] [];
+    keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
+    keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
-    keys::Block => "block" ["stone", "dirt"]
+    keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];
-    keys::EntityType => "entity_type" ["zombie", "pig", "skeleton", "player"]
+    keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
-    keys::BlockEntityType => "block_entity_type" ["chest", "sign"] [];
-    keys::Potion => "potion" ["water", "swiftness", "healing"] [];
-    keys::Attribute => "attribute" ["armor", "attack_damage"] [];
-    keys::BannerPattern => "banner_pattern" ["globe", "creeper"]
+    keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
+    keys::POTION => "potion" ["water", "swiftness", "healing"] [];
+    keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
+    keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
-    keys::BlockTransformer => "block_transformer" ["axe", "shovel"] [];
-    keys::VillagerType => "villager_type" ["plains", "desert"] [];
-    keys::WolfVariant => "wolf_variant" ["pale", "ashen"] [];
-    keys::WolfSoundVariant => "wolf_sound_variant" ["classic", "big"] [];
-    keys::PigVariant => "pig_variant" ["temperate", "cold"] [];
-    keys::PigSoundVariant => "pig_sound_variant" ["classic", "mini"] [];
-    keys::CowVariant => "cow_variant" ["temperate", "warm"] [];
-    keys::CowSoundVariant => "cow_sound_variant" ["classic", "moody"] [];
-    keys::ChickenVariant => "chicken_variant" ["temperate", "cold"] [];
-    keys::ChickenSoundVariant => "chicken_sound_variant" ["classic", "picky"] [];
-    keys::ZombieNautilusVariant => "zombie_nautilus_variant" ["temperate", "warm"] [];
-    keys::FrogVariant => "frog_variant" ["temperate", "warm"] [];
-    keys::CatVariant => "cat_variant" ["tabby", "jellie"] [];
-    keys::CatSoundVariant => "cat_sound_variant" ["classic", "royal"] [];
-    keys::DecoratedPotPattern => "decorated_pot_pattern" ["angler", "skull"] [];
-    keys::TrimMaterial => "trim_material" ["amethyst", "gold"] [];
-    keys::TrimPattern => "trim_pattern" ["coast", "sentry", "vex"] [];
-    keys::Instrument => "instrument" ["ponder_goat_horn"] [];
-    keys::JukeboxSong => "jukebox_song" ["pigstep", "cat"] [];
-    keys::PaintingVariant => "painting_variant" ["kebab"] [];
+    keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
+    keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
+    keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
+    keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];
+    keys::PIG_VARIANT => "pig_variant" ["temperate", "cold"] [];
+    keys::PIG_SOUND_VARIANT => "pig_sound_variant" ["classic", "mini"] [];
+    keys::COW_VARIANT => "cow_variant" ["temperate", "warm"] [];
+    keys::COW_SOUND_VARIANT => "cow_sound_variant" ["classic", "moody"] [];
+    keys::CHICKEN_VARIANT => "chicken_variant" ["temperate", "cold"] [];
+    keys::CHICKEN_SOUND_VARIANT => "chicken_sound_variant" ["classic", "picky"] [];
+    keys::ZOMBIE_NAUTILUS_VARIANT => "zombie_nautilus_variant" ["temperate", "warm"] [];
+    keys::FROG_VARIANT => "frog_variant" ["temperate", "warm"] [];
+    keys::CAT_VARIANT => "cat_variant" ["tabby", "jellie"] [];
+    keys::CAT_SOUND_VARIANT => "cat_sound_variant" ["classic", "royal"] [];
+    keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
+    keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
+    keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
+    keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];
+    keys::JUKEBOX_SONG => "jukebox_song" ["pigstep", "cat"] [];
+    keys::PAINTING_VARIANT => "painting_variant" ["kebab"] [];
 }
 
 /// A static registry numbers its entries as the generated constants do, so a
 /// constant names the same entry in the samples as in the game.
 fn build_sample_registries() -> RegistrySet {
     let sounds = Registry::<keys::SoundEvent>::new(
+        keys::SOUND_EVENT,
         keys::SoundEvent::NAMES
             .iter()
             .map(|name| ResourceLocation::read(name).expect("a generated name parses")),

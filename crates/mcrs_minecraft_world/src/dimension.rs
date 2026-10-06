@@ -28,7 +28,7 @@ pub fn bake(
     set: &RegistrySet,
     report: &mut LoadReport,
 ) -> Option<Vec<(ResourceKey<keys::Dimension>, DimensionEntry)>> {
-    let registry = report.registry::<keys::Dimension>(set)?;
+    let registry = report.registry(set, keys::DIMENSION)?;
     let defined = set
         .entries::<keys::Dimension, DimensionEntry>()
         .expect("the data pack loader parses minecraft:dimension");
@@ -54,7 +54,8 @@ pub fn bake(
         .first()
         .is_some_and(|(key, _)| *key == keys::dimension::OVERWORLD)
     {
-        report.missing::<keys::Dimension>(
+        report.missing(
+            keys::DIMENSION,
             keys::dimension::OVERWORLD.as_str(),
             "the dimension list has no overworld, which every world needs",
         );

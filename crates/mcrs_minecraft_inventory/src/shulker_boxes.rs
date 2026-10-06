@@ -24,8 +24,8 @@ pub struct ShulkerBoxes {
 
 impl ShulkerBoxes {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Self> {
-        let items = report.tags::<Item>(set);
-        let blocks = report.tags::<Block>(set);
+        let items = report.tags(set, mcrs_minecraft_keys::ITEM);
+        let blocks = report.tags(set, mcrs_minecraft_keys::BLOCK);
         let item_tag = items
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &item_tags::SHULKER_BOXES));

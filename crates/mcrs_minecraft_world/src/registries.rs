@@ -24,7 +24,6 @@ use mcrs_minecraft_biome::parameter_list::{
 };
 use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
@@ -52,8 +51,8 @@ macro_rules! world_registry_table {
             $(
                 parse::<$key, $value>(world, report);
                 $(
-                    if world.parses(<$key as RegistryKey>::KEY.as_str()) {
-                        world.$non_empty(<$key as RegistryKey>::KEY);
+                    if world.parses(<$key as keys::Registered>::REGISTRY.location().as_static_str()) {
+                        world.$non_empty(<$key as keys::Registered>::REGISTRY.location());
                     }
                 )?
             )*
@@ -64,7 +63,7 @@ macro_rules! world_registry_table {
                 register_loaded::<$value, _>(
                     access,
                     set,
-                    <$key as RegistryKey>::KEY.as_str(),
+                    <$key as keys::Registered>::REGISTRY.location().as_static_str(),
                     $project,
                 );
             )?)*
@@ -130,12 +129,16 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
     parse_world_registries(&mut world, &mut undeclared);
-    if world.parses(keys::Timeline::KEY.as_str()) {
-        world.validate::<Timeline>(keys::Timeline::KEY, check_time_markers);
+    if world.parses(keys::TIMELINE.location().as_static_str()) {
+        world.validate::<Timeline>(keys::TIMELINE.location(), check_time_markers);
     }
-    if world.parses(keys::MultiNoiseBiomeSourceParameterList::KEY.as_str()) {
+    if world.parses(
+        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
+            .location()
+            .as_static_str(),
+    ) {
         world.validate::<MultiNoiseBiomeSourceParameterList>(
-            keys::MultiNoiseBiomeSourceParameterList::KEY,
+            keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
             check_parameter_list_biomes,
         );
     }
@@ -148,18 +151,18 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
 
 fn parse<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
 where
-    K: RegistryKey,
+    K: keys::Registered,
     T: DeserializeOwned + Serialize + Send + Sync + 'static,
 {
+    let registry = K::REGISTRY.location();
     if world
         .declared()
-        .any(|declared| declared.as_str() == K::KEY.as_str())
+        .any(|declared| declared.as_str() == registry.as_str())
     {
-        world.parse::<T>(K::KEY);
+        world.parse::<T>(registry);
     } else {
         report.invalid_report(format_args!(
-            "{} is not a world registry of the data pack report",
-            K::KEY
+            "{registry} is not a world registry of the data pack report"
         ));
     }
 }
@@ -367,7 +370,7 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
         .registry::<keys::WorldClock>()
         .expect("the data pack loader parses minecraft:world_clock");
     let timelines = registries
-        .column::<Timeline>(keys::Timeline::KEY.as_str())
+        .column::<Timeline>(keys::TIMELINE.location().as_static_str())
         .expect("the data pack loader parses minecraft:timeline");
     world.insert_resource(
         ClockTimeMarkers::derive(timelines, &clocks)
@@ -402,7 +405,9 @@ pub fn share_registries(world: &mut World) {
 }
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {
-    RegistrySet::from_names(keys::STATIC_REGISTRIES).map_err(LoadReport::invalid)
+    RegistrySet::from_names(keys::STATIC_REGISTRIES)
+        .and_then(|set| set.with_types(keys::bindings()))
+        .map_err(LoadReport::invalid)
 }
 
 pub fn refuse(report: &LoadReport) -> ! {
@@ -413,15 +418,16 @@ pub fn refuse(report: &LoadReport) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
 
     #[derive(serde::Deserialize, Serialize)]
     struct Probe {
         asset_id: String,
     }
 
-    impl RegistryKey for Probe {
-        const KEY: mcrs_minecraft_core::ResourceLocation<&'static str> =
-            mcrs_minecraft_core::rl!("minecraft:test_variant");
+    impl Probe {
+        const KEY: RegistryKey<Probe> =
+            RegistryKey::new(mcrs_minecraft_core::rl!("minecraft:test_variant"));
     }
 
     #[test]
@@ -442,13 +448,14 @@ mod tests {
                 built: Vec::new(),
             },
         ];
-        let mut registries =
-            WorldRegistries::new([mcrs_minecraft_core::ResourceLocation::from(Probe::KEY)]);
-        registries.parse::<Probe>(Probe::KEY);
+        let mut registries = WorldRegistries::new([mcrs_minecraft_core::ResourceLocation::from(
+            Probe::KEY.location(),
+        )]);
+        registries.parse::<Probe>(Probe::KEY.location());
         let set = registries.load(&RegistrySet::new(), &packs).unwrap();
 
         let mut access = RegistryAccess::default();
-        register_loaded::<Probe, _>(&mut access, &set, Probe::KEY.as_str(), |probe| {
+        register_loaded::<Probe, _>(&mut access, &set, Probe::KEY.location().as_str(), |probe| {
             probe.asset_id.clone()
         });
         let claimed: Vec<_> = access

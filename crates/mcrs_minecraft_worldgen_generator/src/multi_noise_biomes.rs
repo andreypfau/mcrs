@@ -90,7 +90,7 @@ impl MultiNoiseBiomeTable {
                     match biomes
                         .require_by_name(name)
                         .map_err(BiomeTableError::from)
-                        .and_then(|id| id.narrow::<u8>().map_err(BiomeTableError::from))
+                        .and_then(|id| biomes.narrow::<u8>(id).map_err(BiomeTableError::from))
                     {
                         Ok(id) => Some(id),
                         Err(error) => {
@@ -108,7 +108,7 @@ impl MultiNoiseBiomeTable {
                 .map(|entry| {
                     Ok((
                         ParameterPoint::from(&entry.parameters),
-                        entry.biome.narrow::<u8>()?,
+                        biomes.narrow::<u8>(entry.biome)?,
                     ))
                 })
                 .collect::<Result<_, NarrowError>>()?,

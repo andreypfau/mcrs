@@ -13,7 +13,10 @@ fn biomes_without(skipped: &str) -> RegistrySet {
         .filter(|name| name.as_str() != skipped)
         .cloned();
     RegistrySet::new()
-        .with(Registry::<keys::Biome>::new(names).expect("the corpus names distinct biomes"))
+        .with(
+            Registry::<keys::Biome>::new(keys::BIOME, names)
+                .expect("the corpus names distinct biomes"),
+        )
         .expect("one biome registry")
 }
 

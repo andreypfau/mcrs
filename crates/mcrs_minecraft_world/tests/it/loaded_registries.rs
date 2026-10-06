@@ -9,7 +9,7 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation, TagKey};
+use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
@@ -562,7 +562,8 @@ fn a_parse_without_a_scope_fails_on_another_thread() {
                 .unwrap()
         });
         let message = other.unwrap_err();
-        assert!(message.contains("minecraft:sound_event"), "{message}");
+        assert!(message.contains("no registry scope"), "{message}");
+        assert!(message.contains("SoundEvent"), "{message}");
     });
 }
 
@@ -2043,9 +2044,9 @@ fn overworld_dimension_type_with(
     test_registries().scope(|| serde_json::from_value(file).map_err(|e| e.to_string()))
 }
 
-fn tag_in<R: RegistryKey>(set: &RegistrySet, name: &str) -> TagId<R> {
+fn tag_in<R: mcrs_minecraft_keys::Registered>(set: &RegistrySet, name: &str) -> TagId<R> {
     set.tags::<R>()
-        .unwrap_or_else(|| panic!("{} has loaded tags", R::KEY))
+        .unwrap_or_else(|| panic!("{} has loaded tags", R::REGISTRY))
         .get(&TagKey::<R, _>::from_location(
             ResourceLocation::read(name).unwrap(),
         ))

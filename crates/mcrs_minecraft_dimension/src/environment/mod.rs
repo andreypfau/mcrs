@@ -11,7 +11,6 @@ use std::sync::LazyLock;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
@@ -299,7 +298,7 @@ pub fn build_dimension_environments(
         Some(types),
         Some(dimension_types),
     ) = (
-        registries.column::<Timeline>(keys::Timeline::KEY.as_str()),
+        registries.column::<Timeline>(keys::TIMELINE.location().as_static_str()),
         registries.tags::<keys::Timeline>(),
         registries.registry::<keys::WorldClock>(),
         registries.registry::<keys::DimensionType>(),

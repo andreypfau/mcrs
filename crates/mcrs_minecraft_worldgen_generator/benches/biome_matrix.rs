@@ -38,9 +38,11 @@ fn parameter_lists() -> (
     Registry<keys::MultiNoiseBiomeSourceParameterList>,
     Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
-    let names =
-        Registry::new(Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()))
-            .unwrap();
+    let names = Registry::new(
+        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+        Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
+    )
+    .unwrap();
     let lists = Entries::new(
         &names,
         Preset::ALL
@@ -159,6 +161,7 @@ fn surface_ids(biomes: &Registry<keys::Biome>) -> Ids {
 /// material rules were compiled with.
 fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
     Registry::new(
+        keys::BIOME,
         names.iter().map(|name| {
             ResourceLocation::read(&format!("minecraft:{name}")).expect("a biome name")
         }),

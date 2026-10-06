@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::climate::ParameterList;
 use crate::overworld_preset::{nether_parameter_list, overworld_parameter_list};
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, RegistrySet};
 
@@ -96,7 +96,7 @@ pub fn check_parameter_list_biomes(
                     format!(
                         "the preset {} names the biome {biome}, which {} does not hold",
                         list.preset.name(),
-                        keys::Biome::KEY,
+                        keys::BIOME.location(),
                     ),
                 ));
             }

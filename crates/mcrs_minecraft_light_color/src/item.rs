@@ -31,8 +31,8 @@ pub struct LightColorIds {
 
 impl LightColorIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let items = report.tags::<Item>(set);
-        let fluids = report.tags::<Fluid>(set);
+        let items = report.tags(set, mcrs_minecraft_keys::ITEM);
+        let fluids = report.tags(set, mcrs_minecraft_keys::FLUID);
         let water_sensitive = items
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &WATER_SENSITIVE));

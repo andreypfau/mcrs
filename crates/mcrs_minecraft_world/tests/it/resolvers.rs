@@ -7,6 +7,7 @@ use mcrs_minecraft_world::resolvers::{AddRegistryResolver, run_resolvers};
 
 fn biomes_named(names: &[&str]) -> RegistrySet {
     let biomes = Registry::<keys::Biome>::new(
+        keys::BIOME,
         names
             .iter()
             .map(|name| mcrs_minecraft_core::ResourceLocation::read(name).unwrap()),
@@ -21,7 +22,7 @@ fn needs<const N: usize>(
     wanted: [ResourceKey<keys::Biome, &'static str>; N],
 ) -> impl Fn(&RegistrySet, &mut LoadReport) -> Option<Resolved<Needs<N>>> {
     move |set, report| {
-        let biomes = report.registry::<keys::Biome>(set)?;
+        let biomes = report.registry(set, keys::BIOME)?;
         let found: Vec<_> = wanted
             .iter()
             .map(|key| report.require(&biomes, key))

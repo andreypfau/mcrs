@@ -83,7 +83,7 @@ impl<R> Id<R> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NarrowError {
-    pub registry: ResourceLocation<&'static str>,
+    pub registry: String,
     pub id: u16,
     pub bits: u32,
 }
@@ -100,17 +100,18 @@ impl fmt::Display for NarrowError {
 
 impl std::error::Error for NarrowError {}
 
-impl<R: RegistryKey> Id<R> {
+impl<R: 'static> Id<R> {
     pub fn narrow<N: TryFrom<u16>>(self) -> Result<N, NarrowError> {
         N::try_from(self.number).map_err(|_| NarrowError {
-            registry: R::KEY,
+            registry: crate::set::label::<R>(),
             id: self.number,
             bits: (std::mem::size_of::<N>() * 8) as u32,
         })
     }
 }
 
-pub trait StaticRegistry: RegistryKey {
+pub trait StaticRegistry: Sized + 'static {
+    const REGISTRY: RegistryKey<Self>;
     const NAMES: &'static [&'static str];
 }
 
@@ -138,19 +139,19 @@ impl<R: StaticRegistry> Id<R> {
             .and_then(|position| u16::try_from(position).ok())
             .map(Id::from_static)
             .ok_or_else(|| UnknownEntry {
-                registry: R::KEY.into(),
+                registry: R::REGISTRY.location().into(),
                 name: name.to_owned(),
             })
     }
 }
 
-impl<R: RegistryKey> Serialize for Id<R> {
+impl<R: 'static> Serialize for Id<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         Registry::<R>::in_scope(type_name::<Self>(), |registry| match registry.name(*self) {
             Some(name) => serializer.serialize_str(name.as_str()),
             None => Err(S::Error::custom(format_args!(
                 "registry {} holds no entry numbered {}",
-                R::KEY,
+                registry.table().registry(),
                 self.index()
             ))),
         })
@@ -158,15 +159,19 @@ impl<R: RegistryKey> Serialize for Id<R> {
     }
 }
 
-impl<'de, R: RegistryKey> Deserialize<'de> for Id<R> {
+impl<'de, R: 'static> Deserialize<'de> for Id<R> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct IdVisitor<R>(PhantomData<fn() -> R>);
 
-        impl<R: RegistryKey> Visitor<'_> for IdVisitor<R> {
+        impl<R: 'static> Visitor<'_> for IdVisitor<R> {
             type Value = Id<R>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "the name of an entry of registry {}", R::KEY)
+                write!(
+                    f,
+                    "the name of an entry of registry {}",
+                    crate::set::label::<R>()
+                )
             }
 
             fn visit_str<E: de::Error>(self, text: &str) -> Result<Id<R>, E> {
@@ -196,17 +201,18 @@ mod tests {
 
     struct Wide;
 
-    impl RegistryKey for Wide {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:wide");
+    impl Wide {
+        const KEY: RegistryKey<Wide> = RegistryKey::new(rl!("minecraft:wide"));
     }
 
     struct Fixed;
 
-    impl RegistryKey for Fixed {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:fixed");
+    impl Fixed {
+        const KEY: RegistryKey<Fixed> = RegistryKey::new(rl!("minecraft:fixed"));
     }
 
     impl StaticRegistry for Fixed {
+        const REGISTRY: RegistryKey<Self> = Fixed::KEY;
         const NAMES: &'static [&'static str] = &["minecraft:air", "minecraft:stone"];
     }
 
@@ -227,7 +233,7 @@ mod tests {
             1
         );
         let error = Id::<Fixed>::from_name("minecraft:dirt").unwrap_err();
-        assert_eq!(error.registry, Fixed::KEY);
+        assert_eq!(error.registry, Fixed::KEY.location());
         assert_eq!(error.name, "minecraft:dirt");
     }
 
@@ -236,7 +242,7 @@ mod tests {
     }
 
     fn registry_of(len: usize) -> Registry<Wide> {
-        Registry::new(names(len)).unwrap()
+        Registry::new(Wide::KEY, names(len)).unwrap()
     }
 
     fn id_at(registry: &Registry<Wide>, n: usize) -> Id<Wide> {
@@ -252,13 +258,13 @@ mod tests {
         assert_eq!(
             error,
             NarrowError {
-                registry: Wide::KEY,
+                registry: type_name::<Wide>().to_owned(),
                 id: 256,
                 bits: 8
             }
         );
         let message = error.to_string();
-        assert!(message.contains("minecraft:wide"), "{message}");
+        assert!(message.contains("tests::Wide"), "{message}");
         assert!(message.contains("256"), "{message}");
         assert!(message.contains("8 bits"), "{message}");
     }
@@ -269,11 +275,11 @@ mod tests {
         assert_eq!(id_at(&registry, 65535).number(), u16::MAX);
         assert_eq!(registry.ids().count(), 65536);
 
-        let error = Registry::<Wide>::new(names(65537)).unwrap_err();
+        let error = Registry::<Wide>::new(Wide::KEY, names(65537)).unwrap_err();
         assert_eq!(
             error,
             RegistryError::TooManyEntries {
-                registry: Wide::KEY.into(),
+                registry: Wide::KEY.location().into(),
                 len: 65537
             }
         );

@@ -1,11 +1,11 @@
 use crate::RegistryId;
 use crate::packets::configuration::clientbound::{RegistryTags, TagGroup};
-use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_keys::Registered;
 use mcrs_minecraft_registry::{Registry, Tags};
 
-pub fn tags_payload<R: RegistryKey>(tags: &Tags<R>) -> RegistryTags<'static> {
+pub fn tags_payload<R: Registered>(tags: &Tags<R>) -> RegistryTags<'static> {
     RegistryTags {
-        registry: R::KEY.into(),
+        registry: R::REGISTRY.location().into(),
         tags: tags
             .tag_ids()
             .map(|tag| TagGroup {
@@ -16,7 +16,7 @@ pub fn tags_payload<R: RegistryKey>(tags: &Tags<R>) -> RegistryTags<'static> {
     }
 }
 
-pub fn tags_from_payload<R: RegistryKey>(
+pub fn tags_from_payload<R: 'static>(
     registry: &Registry<R>,
     payload: &RegistryTags<'_>,
 ) -> Tags<R> {
