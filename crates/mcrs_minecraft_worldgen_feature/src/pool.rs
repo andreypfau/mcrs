@@ -1,7 +1,6 @@
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use serde::{Deserialize, Serialize};
 
@@ -62,7 +61,7 @@ const STRUCTURE_POOL_ELEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_POOL_ELEMENT_ROWS,
     &[],
-    keys::structure_pool_element::ENTRIES
+    crate::keys::StructurePoolElement::ENTRIES
 ));
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.
@@ -107,7 +106,7 @@ mod tests {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolElement>(
             STRUCTURE_POOL_ELEMENT_ROWS,
             &[],
-            keys::structure_pool_element::ENTRIES,
+            crate::keys::StructurePoolElement::ENTRIES,
             |name| serde_json::json!({ "element_type": name }),
         );
     }

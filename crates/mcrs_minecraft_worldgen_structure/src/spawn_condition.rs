@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::HolderSet;
@@ -42,7 +41,7 @@ const SPAWN_CONDITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     SPAWN_CONDITION_TYPE_ROWS,
     &[],
-    keys::spawn_condition_type::ENTRIES
+    crate::keys::SpawnConditionType::ENTRIES
 ));
 
 /// `MinMaxBounds.Doubles`: a bare number is a point, an object holds either
@@ -240,7 +239,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<SpawnCondition>(
             SPAWN_CONDITION_TYPE_ROWS,
             &[],
-            keys::spawn_condition_type::ENTRIES,
+            crate::keys::SpawnConditionType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

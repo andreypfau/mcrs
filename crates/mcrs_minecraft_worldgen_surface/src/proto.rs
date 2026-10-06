@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::value_provider::VerticalAnchor;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
@@ -63,7 +62,7 @@ const MATERIAL_RULE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     MATERIAL_RULE_TYPE_ROWS,
     &[],
-    keys::material_rule_type::ENTRIES
+    crate::keys::MaterialRuleType::ENTRIES
 ));
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -136,7 +135,7 @@ const MATERIAL_CONDITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     MATERIAL_CONDITION_TYPE_ROWS,
     &[],
-    keys::material_condition_type::ENTRIES
+    crate::keys::MaterialConditionType::ENTRIES
 ));
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
@@ -188,7 +187,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialCondition>(
             MATERIAL_CONDITION_TYPE_ROWS,
             &[],
-            keys::material_condition_type::ENTRIES,
+            crate::keys::MaterialConditionType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -198,7 +197,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialRule>(
             MATERIAL_RULE_TYPE_ROWS,
             &[],
-            keys::material_rule_type::ENTRIES,
+            crate::keys::MaterialRuleType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

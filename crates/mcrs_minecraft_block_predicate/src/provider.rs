@@ -267,7 +267,7 @@ const BLOCK_STATE_PROVIDER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BLOCK_STATE_PROVIDER_TYPE_ROWS,
     &[],
-    keys::block_state_provider_type::ENTRIES
+    crate::keys::BlockStateProviderType::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -290,7 +290,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TypedBlockStateProvider>(
             BLOCK_STATE_PROVIDER_TYPE_ROWS,
             &[],
-            keys::block_state_provider_type::ENTRIES,
+            crate::keys::BlockStateProviderType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

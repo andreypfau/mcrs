@@ -198,12 +198,12 @@ impl ProviderObject {
                 id: None,
                 properties: None,
                 state: Some(state),
-            } if kind == keys::block_state_provider_type::SIMPLE.as_static_str() => Ok(BlockStateProvider::Typed(
+            } if kind == mcrs_minecraft_block_predicate::keys::BlockStateProviderType::Simple.as_static_str() => Ok(BlockStateProvider::Typed(
                 TypedBlockStateProvider::Simple { state },
             )),
             ProviderObject {
                 kind: Some(kind), ..
-            } if kind != keys::block_state_provider_type::SIMPLE.as_static_str() => {
+            } if kind != mcrs_minecraft_block_predicate::keys::BlockStateProviderType::Simple.as_static_str() => {
                 Err(format!("unknown block state provider type `{kind}`"))
             }
             _ => Err("a block state states an `id` and its `properties`; a provider states a `type` and its fields".to_owned()),

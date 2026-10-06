@@ -251,4 +251,124 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_anvil",
         value: ValueType::Enum,
     },
+    Owner {
+        registry: "minecraft:worldgen/feature_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/placement_modifier_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/foliage_placer_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/trunk_placer_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/root_placer_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/tree_decorator_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/feature_size_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:rule_test_type",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:pos_rule_test",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:rule_block_entity_modifier",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_processor",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_pool_element",
+        krate: "mcrs_minecraft_worldgen_feature",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:block_predicate_type",
+        krate: "mcrs_minecraft_block_predicate",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/block_state_provider_type",
+        krate: "mcrs_minecraft_block_predicate",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_type",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_placement",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/structure_piece",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/pool_alias_binding",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:spawn_condition_type",
+        krate: "mcrs_minecraft_worldgen_structure",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/material_condition_type",
+        krate: "mcrs_minecraft_worldgen_surface",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/material_rule_type",
+        krate: "mcrs_minecraft_worldgen_surface",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/density_function_type",
+        krate: "mcrs_minecraft_worldgen_density",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/carver_type",
+        krate: "mcrs_minecraft_worldgen_carver",
+        value: ValueType::Enum,
+    },
+    Owner {
+        registry: "minecraft:worldgen/biome_source",
+        krate: "mcrs_minecraft_biome",
+        value: ValueType::Enum,
+    },
 ];

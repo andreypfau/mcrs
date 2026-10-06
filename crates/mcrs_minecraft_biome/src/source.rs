@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use super::climate::{ClimateParameters, ParameterPoint};
 use super::parameter_list::{ParameterLists, Preset};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Id;
 
 // ===========================================================================
@@ -121,7 +120,7 @@ const BIOME_SOURCE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BIOME_SOURCE_ROWS,
     &[],
-    keys::biome_source::ENTRIES
+    crate::keys::BiomeSource::ENTRIES
 ));
 
 fn default_scale() -> u32 {
@@ -331,7 +330,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<BiomeSource>(
             BIOME_SOURCE_ROWS,
             &[],
-            keys::biome_source::ENTRIES,
+            crate::keys::BiomeSource::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

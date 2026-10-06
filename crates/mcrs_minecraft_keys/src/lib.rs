@@ -7,19 +7,11 @@ pub mod attribute;
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
-pub mod biome_source;
-#[rustfmt::skip]
 pub mod block;
 #[rustfmt::skip]
 pub mod block_entity_type;
 #[rustfmt::skip]
-pub mod block_predicate_type;
-#[rustfmt::skip]
-pub mod block_state_provider_type;
-#[rustfmt::skip]
 pub mod block_tags;
-#[rustfmt::skip]
-pub mod carver_type;
 #[rustfmt::skip]
 pub mod chunk_generator;
 #[rustfmt::skip]
@@ -49,8 +41,6 @@ pub mod debug_subscription;
 #[rustfmt::skip]
 pub mod density_function;
 #[rustfmt::skip]
-pub mod density_function_type;
-#[rustfmt::skip]
 pub mod dialog_action_type;
 #[rustfmt::skip]
 pub mod dialog_body_type;
@@ -77,10 +67,6 @@ pub mod entity_type_tags;
 #[rustfmt::skip]
 pub mod environment_attribute;
 #[rustfmt::skip]
-pub mod feature_size_type;
-#[rustfmt::skip]
-pub mod feature_type;
-#[rustfmt::skip]
 pub mod flat_level_generator_preset;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset_tags;
@@ -90,8 +76,6 @@ pub mod float_provider_type;
 pub mod fluid;
 #[rustfmt::skip]
 pub mod fluid_tags;
-#[rustfmt::skip]
-pub mod foliage_placer_type;
 #[rustfmt::skip]
 pub mod game_event;
 #[rustfmt::skip]
@@ -127,10 +111,6 @@ pub mod map_decoration_type;
 #[rustfmt::skip]
 pub mod material_condition;
 #[rustfmt::skip]
-pub mod material_condition_type;
-#[rustfmt::skip]
-pub mod material_rule_type;
-#[rustfmt::skip]
 pub mod memory_module_type;
 #[rustfmt::skip]
 pub mod menu;
@@ -147,15 +127,9 @@ pub mod permission_check_type;
 #[rustfmt::skip]
 pub mod permission_type;
 #[rustfmt::skip]
-pub mod placement_modifier_type;
-#[rustfmt::skip]
 pub mod point_of_interest_type;
 #[rustfmt::skip]
 pub mod point_of_interest_type_tags;
-#[rustfmt::skip]
-pub mod pool_alias_binding;
-#[rustfmt::skip]
-pub mod pos_rule_test;
 #[rustfmt::skip]
 pub mod position_source_type;
 #[rustfmt::skip]
@@ -175,31 +149,13 @@ pub mod recipe_type;
 #[rustfmt::skip]
 pub mod registry;
 #[rustfmt::skip]
-pub mod root_placer_type;
-#[rustfmt::skip]
-pub mod rule_block_entity_modifier;
-#[rustfmt::skip]
-pub mod rule_test_type;
-#[rustfmt::skip]
 pub mod sensor_type;
 #[rustfmt::skip]
 pub mod slot_display;
 #[rustfmt::skip]
 pub mod slot_source_type;
 #[rustfmt::skip]
-pub mod spawn_condition_type;
-#[rustfmt::skip]
 pub mod stat_type;
-#[rustfmt::skip]
-pub mod structure_piece;
-#[rustfmt::skip]
-pub mod structure_placement;
-#[rustfmt::skip]
-pub mod structure_pool_element;
-#[rustfmt::skip]
-pub mod structure_processor;
-#[rustfmt::skip]
-pub mod structure_type;
 #[rustfmt::skip]
 pub mod test_environment_definition_type;
 #[rustfmt::skip]
@@ -209,13 +165,9 @@ pub mod test_instance_type;
 #[rustfmt::skip]
 pub mod ticket_type;
 #[rustfmt::skip]
-pub mod tree_decorator_type;
-#[rustfmt::skip]
 pub mod trial_spawner;
 #[rustfmt::skip]
 pub mod trigger_type;
-#[rustfmt::skip]
-pub mod trunk_placer_type;
 #[rustfmt::skip]
 pub mod villager_profession;
 #[rustfmt::skip]

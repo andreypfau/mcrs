@@ -316,7 +316,7 @@ const DENSITY_FUNCTION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     DENSITY_FUNCTION_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::density_function_type::ENTRIES
+    crate::keys::DensityFunctionType::ENTRIES
 ));
 
 fn zero_holder() -> DensityFunctionHolder {
@@ -469,7 +469,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<ProtoDensityFunction>(
             DENSITY_FUNCTION_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::density_function_type::ENTRIES,
+            crate::keys::DensityFunctionType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

@@ -23,7 +23,6 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::value_provider::{
     BoundedIntProvider, FloatProvider, IntProvider, Weighted,
 };
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::static_rows::names_cover;
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
@@ -654,7 +653,7 @@ const FEATURE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     FEATURE_TYPE_ROWS,
     &[],
-    keys::feature_type::ENTRIES
+    crate::keys::FeatureType::ENTRIES
 ));
 
 impl RegistryValue for Feature {
@@ -841,7 +840,7 @@ const STRUCTURE_PROCESSOR_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     STRUCTURE_PROCESSOR_ROWS,
     &[],
-    keys::structure_processor::ENTRIES
+    crate::keys::StructureProcessor::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -881,7 +880,7 @@ const POS_RULE_TEST_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     POS_RULE_TEST_ROWS,
     &[],
-    keys::pos_rule_test::ENTRIES
+    crate::keys::PosRuleTest::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -921,7 +920,7 @@ const RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED: &[&str] = &["minecraft:append_stat
 const _: () = assert!(names_cover(
     RULE_BLOCK_ENTITY_MODIFIER_ROWS,
     RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-    keys::rule_block_entity_modifier::ENTRIES
+    crate::keys::RuleBlockEntityModifier::ENTRIES
 ));
 
 // ---------------------------------------------------------------------------
@@ -990,7 +989,7 @@ mod tests {
         assert_dispatch::<Feature>(
             FEATURE_TYPE_ROWS,
             &[],
-            keys::feature_type::ENTRIES,
+            crate::keys::FeatureType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -1005,7 +1004,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PosRuleTest>(
             POS_RULE_TEST_ROWS,
             &[],
-            keys::pos_rule_test::ENTRIES,
+            crate::keys::PosRuleTest::ENTRIES,
             |name| serde_json::json!({ "predicate_type": name }),
         );
     }
@@ -1015,7 +1014,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<RuleBlockEntityModifier>(
             RULE_BLOCK_ENTITY_MODIFIER_ROWS,
             RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-            keys::rule_block_entity_modifier::ENTRIES,
+            crate::keys::RuleBlockEntityModifier::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -1025,7 +1024,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<StructureProcessor>(
             STRUCTURE_PROCESSOR_ROWS,
             &[],
-            keys::structure_processor::ENTRIES,
+            crate::keys::StructureProcessor::ENTRIES,
             |name| serde_json::json!({ "processor_type": name }),
         );
     }
