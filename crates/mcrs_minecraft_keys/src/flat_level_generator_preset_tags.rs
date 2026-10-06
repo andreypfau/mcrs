@@ -1,5 +1,5 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_core::{TagKey, rl};
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
 
-pub const VISIBLE: TagKey<crate::FlatLevelGeneratorPreset, &'static str> = TagKey::new(rl!("minecraft:visible"));
+pub const VISIBLE: StaticResourceLocation = rl!("minecraft:visible");

@@ -106,8 +106,8 @@ Notes on rows that depart from the plain reading of the table:
 
 The rules below say how code names an entry of a registry and how it looks one up. They are listed in the order a reader applies them.
 
-1. A type is imported under the name it is declared with, so `use mcrs_minecraft_keys::Block` and never an alias such as `Block as VanillaBlock`.
-2. `get`, `require`, `name(id)` and indexing take only a key or an id of the same registry or set: `biomes.require(&keys::biome::PLAINS)` compiles, and the same key against the block registry does not.
+1. A type is imported under the name it is declared with, so `use mcrs_minecraft_block::keys::Block` and never an alias such as `Block as VanillaBlock`.
+2. `get`, `require`, `name(id)` and indexing take only a key or an id of the same registry or set: `biomes.require(&mcrs_minecraft_biome::keys::biome::PLAINS)` compiles, and the same key against the block registry does not.
 3. `by_name` and `require_by_name` read a name that is data, such as the world preset name an operator supplies or a name in a data pack file, and never a name written in code.
 4. The entries and tags of a loaded registry that code names are resolved once after the load, by a resolver the crate registers in its plugin, into one `<Consumer>Ids` value per consumer such as `SurfaceIds`, which every dimension shares; a consumer that names nothing loaded has no such value, and nothing is resolved when a dimension spawns.
 5. A value type that names its registry takes the registry's name when its file is rewritten, as `WolfVariant` holds the values of the `wolf_variant` registry.

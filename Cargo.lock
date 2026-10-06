@@ -3794,7 +3794,6 @@ name = "mcrs_minecraft_keys"
 version = "0.4.6"
 dependencies = [
  "mcrs_minecraft_core",
- "mcrs_minecraft_registry",
 ]
 
 [[package]]

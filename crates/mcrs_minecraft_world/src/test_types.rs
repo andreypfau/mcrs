@@ -9,7 +9,6 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::TestFunction;
 use mcrs_minecraft_registry::Holder;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -208,7 +207,7 @@ macro_rules! test_instance {
 
 test_instance!(BlockBasedTest {});
 test_instance!(FunctionTest {
-    pub function: ResourceKey<TestFunction>,
+    pub function: ResourceLocation,
 });
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

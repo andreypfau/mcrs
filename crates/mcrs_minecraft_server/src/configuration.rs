@@ -68,7 +68,7 @@ use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noi
 /// Registries the client expects in `ClientboundUpdateTags` whose tags the server does not send.
 const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
     mcrs_minecraft_block::keys::FLUID.location(),
-    keys::GAME_EVENT.location(),
+    keys::GAME_EVENT,
     mcrs_minecraft_biome::keys::BIOME.location(),
 ];
 
