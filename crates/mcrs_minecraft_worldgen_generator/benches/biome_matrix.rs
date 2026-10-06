@@ -371,12 +371,12 @@ fn natural(
     side: i32,
     offset: i32,
 ) {
-    let (list_names, lists) = parameter_lists();
+    let (list_names, _) = parameter_lists();
     let multi = MultiNoiseBiomeSource {
         preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
         biomes: None,
     };
-    let table = MultiNoiseBiomeTable::resolve(&multi, registry, &lists)
+    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, registry)
         .expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
 

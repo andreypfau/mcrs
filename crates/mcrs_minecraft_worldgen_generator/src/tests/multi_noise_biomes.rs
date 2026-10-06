@@ -47,16 +47,8 @@ fn registry_numbered_as(ids: &HashMap<String, u8>) -> Registry<Biome> {
 
 pub(super) fn overworld_table() -> (MultiNoiseBiomeTable, HashMap<String, u8>) {
     let ids = preset_ids();
-    let source = MultiNoiseBiomeSource {
-        preset: Some(super::parameter_list_id("minecraft:overworld")),
-        biomes: None,
-    };
-    let table = MultiNoiseBiomeTable::resolve(
-        &source,
-        &registry_numbered_as(&ids),
-        &super::parameter_lists().1,
-    )
-    .expect("the overworld preset resolves");
+    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, &registry_numbered_as(&ids))
+        .expect("the overworld preset resolves");
     (table, ids)
 }
 
@@ -160,12 +152,9 @@ fn an_explicit_entry_list_resolves_to_the_registry_ids() {
     let desert = registry
         .by_name("minecraft:desert")
         .expect("a registry biome");
-    let source = MultiNoiseBiomeSource {
-        preset: None,
-        biomes: Some(vec![entry(flat(-1.0), plains), entry(flat(1.0), desert)]),
-    };
-    let table = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
-        .expect("an explicit list resolves");
+    let entries = [entry(flat(-1.0), plains), entry(flat(1.0), desert)];
+    let table =
+        MultiNoiseBiomeTable::from_entries(&registry, &entries).expect("an explicit list resolves");
     assert_eq!(table.len(), 2);
     assert_eq!(
         table.biome_at(mcrs_minecraft_biome::climate::TargetPoint::new(
@@ -193,16 +182,12 @@ fn entry(
 /// see, so the table refuses to be built at all.
 #[test]
 fn a_biome_whose_id_does_not_fit_a_byte_refuses_the_table() {
-    let source = MultiNoiseBiomeSource {
-        preset: Some(super::parameter_list_id("minecraft:overworld")),
-        biomes: None,
-    };
     let mut names: Vec<String> = (0..256).map(|id| format!("a:filler_{id:03}")).collect();
     names.extend(preset_ids().into_keys());
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let registry = super::biome_registry(&names);
 
-    let error = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
+    let error = MultiNoiseBiomeTable::of_preset(Preset::Overworld, &registry)
         .err()
         .expect("every preset biome sorts past the 256 fillers");
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");
@@ -221,22 +206,19 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     assert_eq!(last.number(), 256);
 
     let point = ParameterRange::Point(0.0);
-    let source = MultiNoiseBiomeSource {
-        preset: None,
-        biomes: Some(vec![entry(
-            ClimateParameters {
-                temperature: point.clone(),
-                humidity: point.clone(),
-                continentalness: point.clone(),
-                erosion: point.clone(),
-                depth: point.clone(),
-                weirdness: point,
-                offset: 0.0,
-            },
-            last,
-        )]),
-    };
-    let error = MultiNoiseBiomeTable::resolve(&source, &registry, &super::parameter_lists().1)
+    let entries = [entry(
+        ClimateParameters {
+            temperature: point.clone(),
+            humidity: point.clone(),
+            continentalness: point.clone(),
+            erosion: point.clone(),
+            depth: point.clone(),
+            weirdness: point,
+            offset: 0.0,
+        },
+        last,
+    )];
+    let error = MultiNoiseBiomeTable::from_entries(&registry, &entries)
         .err()
         .expect("an id of 256 does not fit a byte");
     assert!(matches!(error, BiomeTableError::Narrow(_)), "{error}");

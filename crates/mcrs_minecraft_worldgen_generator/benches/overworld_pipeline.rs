@@ -7,11 +7,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
-use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
-use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
+use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::{Entries, Registry};
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
@@ -37,25 +36,6 @@ use support::{corpus, router_blocks};
 use mcrs_minecraft_biome::Biome;
 
 const ABSENT_BIOME: u16 = 250;
-
-fn parameter_lists() -> (
-    Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
-    Entries<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
-) {
-    let names = Registry::new(
-        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-        Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
-    )
-    .unwrap();
-    let lists = Entries::new(
-        &names,
-        Preset::ALL
-            .map(|preset| MultiNoiseBiomeSourceParameterList { preset })
-            .to_vec(),
-    )
-    .unwrap();
-    (names, lists)
-}
 
 fn biome_ids() -> HashMap<String, u16> {
     let mut ids = HashMap::new();
@@ -147,17 +127,8 @@ fn main() {
             .map(|(_, name)| ResourceLocation::read(name).unwrap()),
     )
     .unwrap();
-    let (list_names, lists) = parameter_lists();
-    let table = MultiNoiseBiomeTable::resolve(
-        &MultiNoiseBiomeSource {
-            preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
-            biomes: None,
-        },
-        &biomes,
-        &lists,
-    )
-    .unwrap();
-    let carvers = CarverBiomeTable::resolve(Preset::Overworld, carvers_of);
+    let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, &biomes).unwrap();
+    let carvers = CarverBiomeTable::from_climate(Preset::Overworld.parameter_list(), carvers_of);
     let carver_ids = ModernCarverBlockIds::resolve(corpus(), []);
     let biome = |name: &str| {
         biomes

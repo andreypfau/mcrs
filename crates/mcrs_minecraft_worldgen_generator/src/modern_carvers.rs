@@ -4,7 +4,6 @@ use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
-use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
@@ -282,15 +281,6 @@ impl CarverBiomeTable {
 }
 
 impl CarverBiomeTable {
-    /// `lookup` answers what carvers a biome runs. It is called once per
-    /// distinct biome in the preset, not once per entry.
-    pub fn resolve(
-        preset: Preset,
-        lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
-    ) -> CarverBiomeTable {
-        Self::from_climate(preset.parameter_list(), |biome| lookup(biome))
-    }
-
     /// `lookup` is called once per distinct biome of `climate`, not once per
     /// entry.
     pub fn from_climate<B: Copy + Eq + Hash>(
