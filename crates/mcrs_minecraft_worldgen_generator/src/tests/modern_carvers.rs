@@ -193,15 +193,20 @@ fn carvers_by_biome() -> (
 #[test]
 fn the_freeze_resolution_builds_the_dimension_tables() {
     use crate::modern_carvers::resolve_carver_biomes;
+    use crate::multi_noise_biomes::MultiNoiseBiomeTable;
     use mcrs_minecraft_biome::climate::{Parameter, ParameterPoint};
 
     let (biomes, carvers) = carvers_by_biome();
 
-    let overworld = resolve_carver_biomes(Some(Preset::Overworld), None, biomes, &carvers)
+    let overworld_climate = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes)
+        .expect("every overworld preset biome is in the corpus");
+    let overworld = resolve_carver_biomes(Some(&overworld_climate), None, &carvers)
         .expect("the overworld preset resolves");
     assert_eq!(overworld.entry_count(), 7594);
 
-    let nether = resolve_carver_biomes(Some(Preset::Nether), None, biomes, &carvers)
+    let nether_climate = MultiNoiseBiomeTable::of_preset(Preset::Nether, biomes)
+        .expect("every nether preset biome is in the corpus");
+    let nether = resolve_carver_biomes(Some(&nether_climate), None, &carvers)
         .expect("the nether preset resolves");
     assert_eq!(nether.entry_count(), 5);
     let wastes = nether.carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
@@ -224,16 +229,15 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
                 weirdness: point,
                 offset: 0,
             },
-            "minecraft:plains".to_owned(),
+            biomes.by_name("minecraft:plains").expect("a corpus biome"),
         )]),
-        biomes,
         &carvers,
     )
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
 
     // A source with neither form.
-    assert!(resolve_carver_biomes(None, None, biomes, &carvers).is_none());
+    assert!(resolve_carver_biomes(None, None, &carvers).is_none());
 
     // A biome with no carvers resolves to an empty list rather than to the
     // wrong one.
@@ -249,9 +253,8 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
                 weirdness: point,
                 offset: 0,
             },
-            "minecraft:the_end".to_owned(),
+            biomes.by_name("minecraft:the_end").expect("a corpus biome"),
         )]),
-        biomes,
         &carvers,
     )
     .unwrap();
@@ -274,7 +277,7 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
     use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
     let router = super::build_beta_router();
-    let (source, registry) = super::beta_surface::build_beta_biome_source();
+    let (source, _) = super::beta_surface::build_beta_biome_source();
     let BiomeSource::Beta { land_biomes, .. } = &source else {
         unreachable!("the helper builds a Beta source");
     };
@@ -282,11 +285,8 @@ fn a_beta_source_runs_the_carvers_of_its_palette_biome() {
         serde_json::from_slice(&std::fs::read(worldgen_dir().join("carver/cave.json")).unwrap())
             .unwrap();
     // A marker per land biome: a cave whose probability is the biome's index.
-    let table = CarverBiomeTable::beta(&source, &registry, |biome| {
-        let index = land_biomes
-            .iter()
-            .position(|id| registry.name(*id).unwrap().as_str() == biome)
-            .unwrap();
+    let table = CarverBiomeTable::beta(&source, |biome| {
+        let index = land_biomes.iter().position(|id| *id == biome).unwrap();
         let mut config = cave.clone();
         config["probability"] = serde_json::json!(index as f32 / 16.0);
         Arc::from([serde_json::from_value::<CarverConfig>(config).unwrap()])

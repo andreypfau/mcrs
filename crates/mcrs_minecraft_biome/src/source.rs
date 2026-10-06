@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::climate::{ClimateParameters, ParameterPoint};
-use super::parameter_list::{ParameterLists, Preset};
 use mcrs_minecraft_registry::Id;
 
 // ===========================================================================
@@ -161,12 +160,6 @@ pub struct MultiNoiseBiomeSource {
 pub struct MultiNoiseBiomeEntry {
     pub parameters: ClimateParameters,
     pub biome: Id<crate::Biome>,
-}
-
-impl MultiNoiseBiomeSource {
-    pub fn preset_in(&self, lists: &ParameterLists) -> Option<Preset> {
-        lists.get(self.preset?).map(|list| list.preset)
-    }
 }
 
 fn distinguishable_entries<'de, D: serde::Deserializer<'de>>(

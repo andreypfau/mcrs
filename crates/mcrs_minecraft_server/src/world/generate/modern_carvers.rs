@@ -1,14 +1,15 @@
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
-use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
     CarverBiomeTable, resolve_beta_carver_biomes, resolve_carver_biomes, whole_climate_space,
 };
+use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use std::sync::Arc;
 
 /// Every dimension's carver table, keyed the way its biome source is: a table
@@ -72,6 +73,7 @@ fn build_modern_carver_biomes(
     sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
     registries: bevy_ecs::prelude::Res<RegistrySet>,
     worldgen: bevy_ecs::prelude::Res<WorldgenTables>,
+    preset_tables: bevy_ecs::prelude::Res<Resolved<PresetBiomeTables>>,
 ) {
     let Some(sources) = sources else { return };
 
@@ -94,19 +96,11 @@ fn build_modern_carver_biomes(
         &carver_tags,
         &worldgen.carvers,
     );
-    let parameter_lists = parameter_lists_of(&registries);
-    let name_of = |id| {
-        biomes
-            .name(id)
-            .expect("an id of the registry has a name")
-            .as_str()
-            .to_owned()
-    };
 
     let mut tables = DimensionCarverBiomes::default();
     for (dimension, source) in &sources.0 {
         if let BiomeSource::Beta { .. } = source.as_ref() {
-            let table = resolve_beta_carver_biomes(source, &biomes, &carvers)
+            let table = resolve_beta_carver_biomes(source, &carvers)
                 .expect("a Beta source resolves to a Beta table");
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
@@ -117,34 +111,26 @@ fn build_modern_carver_biomes(
         // biome's carvers under a point covering the whole climate space: with a
         // single candidate the nearest-entry search returns it whatever the
         // climate.
-        let (preset, fixed_biome) = match source.as_ref() {
-            BiomeSource::MultiNoise(multi) => (Some(multi), None),
-            BiomeSource::Fixed { biome } => (None, Some(name_of(*biome))),
+        let (climate, explicit) = match source.as_ref() {
+            BiomeSource::MultiNoise(multi) => (
+                multi.preset.map(|list| {
+                    preset_tables
+                        .get(list)
+                        .expect("the resolved tables hold every parameter list")
+                        .as_ref()
+                }),
+                multi.biomes.as_ref().map(|entries| {
+                    entries
+                        .iter()
+                        .map(|entry| (ParameterPoint::from(&entry.parameters), entry.biome))
+                        .collect()
+                }),
+            ),
+            BiomeSource::Fixed { biome } => (None, Some(vec![(whole_climate_space(), *biome)])),
             _ => continue,
         };
 
-        let explicit = match (preset, fixed_biome) {
-            (Some(multi), _) => multi.biomes.as_ref().map(|entries| {
-                entries
-                    .iter()
-                    .map(|entry| {
-                        (
-                            ParameterPoint::from(&entry.parameters),
-                            name_of(entry.biome),
-                        )
-                    })
-                    .collect()
-            }),
-            (None, Some(biome)) => Some(vec![(whole_climate_space(), biome)]),
-            (None, None) => None,
-        };
-
-        match resolve_carver_biomes(
-            preset.and_then(|multi| multi.preset_in(&parameter_lists)),
-            explicit,
-            &biomes,
-            &carvers,
-        ) {
+        match resolve_carver_biomes(climate, explicit, &carvers) {
             Some(table) => {
                 // Beta's caves abort on water and leave Beta's substance, which
                 // only the Beta column program answers.

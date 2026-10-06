@@ -441,9 +441,9 @@ pub fn generate_region(
 /// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
-    registry: &Registry<Biome>,
+    _registry: &Registry<Biome>,
 ) -> crate::modern_carvers::CarverBiomeTable {
-    crate::modern_carvers::CarverBiomeTable::beta(source, registry, |_| {
+    crate::modern_carvers::CarverBiomeTable::beta(source, |_| {
         Arc::from([mcrs_minecraft_worldgen_carver::config::CarverConfig::BetaCave])
     })
     .expect("a Beta biome source")

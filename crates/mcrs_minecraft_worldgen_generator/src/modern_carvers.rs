@@ -1,3 +1,4 @@
+use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
@@ -9,7 +10,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{Entries, Id, Registry};
+use mcrs_minecraft_registry::{Entries, Id};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -22,6 +23,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{NoiseRouter, TEMPERATURE, VEGETATION};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -286,17 +288,29 @@ impl CarverBiomeTable {
         preset: Preset,
         lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
     ) -> CarverBiomeTable {
-        Self::with_biomes(SourceBiomes::Climate(Self::map_values(
-            preset.parameter_list(),
-            lookup,
-        )))
-        .with_region(REGION_WIDTH, REGION_CAPACITY)
+        Self::from_climate(preset.parameter_list(), |biome| lookup(biome))
+    }
+
+    /// `lookup` is called once per distinct biome of `climate`, not once per
+    /// entry.
+    pub fn from_climate<B: Copy + Eq + Hash>(
+        climate: &ParameterList<B>,
+        lookup: impl Fn(B) -> Arc<[CarverConfig]>,
+    ) -> CarverBiomeTable {
+        let mut resolved: HashMap<B, Arc<[CarverConfig]>> = HashMap::new();
+        let values = climate.map_values(|&biome| {
+            resolved
+                .entry(biome)
+                .or_insert_with(|| lookup(biome))
+                .clone()
+        });
+        Self::with_biomes(SourceBiomes::Climate(values)).with_region(REGION_WIDTH, REGION_CAPACITY)
     }
 
     /// A source that lists its biomes rather than naming a preset.
-    pub fn from_entries(
-        entries: Vec<(ParameterPoint, String)>,
-        lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
+    pub fn from_entries<B: Clone + Eq + Hash>(
+        entries: Vec<(ParameterPoint, B)>,
+        lookup: impl Fn(&B) -> Arc<[CarverConfig]>,
     ) -> Option<CarverBiomeTable> {
         if entries.is_empty() {
             return None;
@@ -322,8 +336,7 @@ impl CarverBiomeTable {
     /// alone.
     pub fn beta(
         source: &BiomeSource,
-        biomes: &Registry<Biome>,
-        lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
+        lookup: impl Fn(Id<Biome>) -> Arc<[CarverConfig]>,
     ) -> Option<CarverBiomeTable> {
         let BiomeSource::Beta {
             land_biomes,
@@ -334,15 +347,7 @@ impl CarverBiomeTable {
         };
         Some(Self::with_biomes(SourceBiomes::Beta {
             lookup: grid.clone(),
-            land: land_biomes
-                .iter()
-                .map(|id| {
-                    let name = biomes.name(*id).unwrap_or_else(|| {
-                        panic!("the biome registry holds no entry numbered {}", id.index())
-                    });
-                    lookup(name.as_str())
-                })
-                .collect(),
+            land: land_biomes.iter().map(|id| lookup(*id)).collect(),
         }))
     }
 
@@ -380,19 +385,6 @@ impl CarverBiomeTable {
     pub fn region_bytes_bound(&self, height: HeightContext) -> usize {
         self.regions.as_ref().map_or(0, |regions| {
             regions.capacity * (self.width * self.width) as usize * column_mask_bytes(height)
-        })
-    }
-
-    fn map_values(
-        named: &ParameterList<&'static str>,
-        lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
-    ) -> ParameterList<Arc<[CarverConfig]>> {
-        let mut resolved: HashMap<&str, Arc<[CarverConfig]>> = HashMap::new();
-        named.map_values(|biome| {
-            resolved
-                .entry(biome)
-                .or_insert_with(|| lookup(biome))
-                .clone()
         })
     }
 
@@ -824,44 +816,26 @@ pub fn whole_climate_space() -> ParameterPoint {
 }
 
 pub fn resolve_carver_biomes(
-    preset: Option<Preset>,
-    explicit: Option<Vec<(ParameterPoint, String)>>,
-    biomes: &Registry<Biome>,
+    climate: Option<&MultiNoiseBiomeTable>,
+    explicit: Option<Vec<(ParameterPoint, Id<Biome>)>>,
     carvers: &Entries<Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
-    let lookup = biome_carvers(biomes, carvers);
-    match preset {
-        Some(preset) => Some(CarverBiomeTable::resolve(preset, lookup)),
-        None => explicit.and_then(|entries| CarverBiomeTable::from_entries(entries, lookup)),
+    match climate {
+        Some(table) => Some(CarverBiomeTable::from_climate(table.climate(), |biome| {
+            carvers.as_slice()[usize::from(biome)].clone()
+        })),
+        None => explicit.and_then(|entries| {
+            CarverBiomeTable::from_entries(entries, |biome| carvers[*biome].clone())
+        }),
     }
 }
 
 /// [`resolve_carver_biomes`] for a Beta source.
 pub fn resolve_beta_carver_biomes(
     source: &BiomeSource,
-    biomes: &Registry<Biome>,
     carvers: &Entries<Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
-    CarverBiomeTable::beta(source, biomes, biome_carvers(biomes, carvers))
-}
-
-fn biome_carvers<'a>(
-    biomes: &'a Registry<Biome>,
-    carvers: &'a Entries<Biome, Arc<[CarverConfig]>>,
-) -> impl Fn(&str) -> Arc<[CarverConfig]> + 'a {
-    move |name: &str| match biomes.by_name(name) {
-        Some(id) => carvers[id].clone(),
-        None => {
-            // The table still resolves and reports success, so a biome absent
-            // from the registry carves nothing at all with no other symptom,
-            // which for a single-biome source is the whole world.
-            tracing::error!(
-                biome = name,
-                "biome has no loaded definition; it carves nothing"
-            );
-            Arc::from([])
-        }
-    }
+    CarverBiomeTable::beta(source, |biome| carvers[biome].clone())
 }
 
 #[cfg(test)]
