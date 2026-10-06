@@ -49,7 +49,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_keys::LOOT_SCORE_PROVIDER_TYPE.location(), mcrs_minecraft_keys::loot_score_provider_type::ENTRIES),
     (mcrs_minecraft_item::keys::MAP_DECORATION_TYPE.location(), mcrs_minecraft_item::keys::MapDecorationType::ENTRIES),
     (mcrs_minecraft_keys::MEMORY_MODULE_TYPE.location(), mcrs_minecraft_keys::memory_module_type::ENTRIES),
-    (mcrs_minecraft_keys::MENU.location(), mcrs_minecraft_keys::menu::ENTRIES),
+    (mcrs_minecraft_item::keys::MENU.location(), mcrs_minecraft_item::keys::MenuType::ENTRIES),
     (mcrs_minecraft_item::keys::MOB_EFFECT.location(), mcrs_minecraft_item::keys::MobEffect::ENTRIES),
     (mcrs_minecraft_keys::NUMBER_FORMAT_TYPE.location(), mcrs_minecraft_keys::number_format_type::ENTRIES),
     (mcrs_minecraft_keys::OUTGOING_RPC_METHODS.location(), mcrs_minecraft_keys::outgoing_rpc_methods::ENTRIES),

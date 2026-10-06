@@ -221,13 +221,6 @@ impl Registered for MemoryModuleType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Menu {}
-pub const MENU: RegistryKey<Menu> = RegistryKey::new(rl!("minecraft:menu"));
-impl Registered for Menu {
-    const REGISTRY: RegistryKey<Self> = MENU;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumberFormatType {}
 pub const NUMBER_FORMAT_TYPE: RegistryKey<NumberFormatType> = RegistryKey::new(rl!("minecraft:number_format_type"));
 impl Registered for NumberFormatType {
@@ -395,7 +388,7 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 56] {
+pub fn bindings() -> [TypeBinding; 55] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
@@ -428,7 +421,6 @@ pub fn bindings() -> [TypeBinding; 56] {
         LOOT_SCORE_PROVIDER_TYPE.binding(),
         LOOT_TABLE.binding(),
         MEMORY_MODULE_TYPE.binding(),
-        MENU.binding(),
         NUMBER_FORMAT_TYPE.binding(),
         OUTGOING_RPC_METHODS.binding(),
         PERMISSION_CHECK_TYPE.binding(),

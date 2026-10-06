@@ -20,6 +20,7 @@ pub mod instrument;
 pub mod instrument_tags;
 pub mod jukebox_song;
 pub mod map_decoration_type;
+pub mod menu;
 pub mod mob_effect;
 pub mod painting_variant;
 pub mod painting_variant_tags;
@@ -35,6 +36,7 @@ pub use dialog_body_type::DialogBodyType;
 pub use dialog_type::DialogType;
 pub use input_control_type::InputControlType;
 pub use map_decoration_type::MapDecorationType;
+pub use menu::MenuType;
 pub use mob_effect::MobEffect;
 pub use potion::Potion;
 
@@ -116,6 +118,11 @@ impl Registered for crate::keys::MapDecorationType {
     const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
 }
 
+pub const MENU: RegistryKey<crate::keys::MenuType> = RegistryKey::new(rl!("minecraft:menu"));
+impl Registered for crate::keys::MenuType {
+    const REGISTRY: RegistryKey<Self> = MENU;
+}
+
 pub const MOB_EFFECT: RegistryKey<crate::keys::MobEffect> = RegistryKey::new(rl!("minecraft:mob_effect"));
 impl Registered for crate::keys::MobEffect {
     const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
@@ -141,7 +148,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 20] {
+pub fn bindings() -> [TypeBinding; 21] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -158,6 +165,7 @@ pub fn bindings() -> [TypeBinding; 20] {
         INSTRUMENT.binding(),
         JUKEBOX_SONG.binding(),
         MAP_DECORATION_TYPE.binding(),
+        MENU.binding(),
         MOB_EFFECT.binding(),
         PAINTING_VARIANT.binding(),
         POTION.binding(),

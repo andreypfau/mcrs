@@ -496,4 +496,9 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_entity",
         value: ValueType::Enum("Attribute"),
     },
+    Owner {
+        registry: "minecraft:menu",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("MenuType"),
+    },
 ];

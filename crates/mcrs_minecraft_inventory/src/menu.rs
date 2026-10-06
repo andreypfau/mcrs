@@ -1,7 +1,6 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
 use mcrs_minecraft_registry::Id;
 
@@ -98,48 +97,58 @@ const fn own(own: u16) -> MenuSlots {
     }
 }
 
-const MENU_SLOTS: [Option<MenuSlots>; keys::menu::ENTRIES.len()] = {
-    let mut table = [None; keys::menu::ENTRIES.len()];
-    table[keys::menu::GENERIC_9X1.id().index()] = Some(own(9));
-    table[keys::menu::GENERIC_9X2.id().index()] = Some(own(18));
-    table[keys::menu::GENERIC_9X3.id().index()] = Some(own(27));
-    table[keys::menu::GENERIC_9X4.id().index()] = Some(own(36));
-    table[keys::menu::GENERIC_9X5.id().index()] = Some(own(45));
-    table[keys::menu::GENERIC_9X6.id().index()] = Some(own(54));
-    table[keys::menu::GENERIC_3X3.id().index()] = Some(own(9));
-    table[keys::menu::CRAFTER_3X3.id().index()] = Some(MenuSlots {
+const MENU_SLOTS: [Option<MenuSlots>; mcrs_minecraft_item::keys::MenuType::ENTRIES.len()] = {
+    let mut table = [None; mcrs_minecraft_item::keys::MenuType::ENTRIES.len()];
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x1.id().index()] = Some(own(9));
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x2.id().index()] = Some(own(18));
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x3.id().index()] = Some(own(27));
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x4.id().index()] = Some(own(36));
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x5.id().index()] = Some(own(45));
+    table[mcrs_minecraft_item::keys::MenuType::Generic9x6.id().index()] = Some(own(54));
+    table[mcrs_minecraft_item::keys::MenuType::Generic3x3.id().index()] = Some(own(9));
+    table[mcrs_minecraft_item::keys::MenuType::Crafter3x3.id().index()] = Some(MenuSlots {
         own: 9,
         player_slots: true,
         trailing_result: true,
     });
-    table[keys::menu::ANVIL.id().index()] = Some(own(3));
-    table[keys::menu::BEACON.id().index()] = Some(own(1));
-    table[keys::menu::BLAST_FURNACE.id().index()] = Some(own(3));
-    table[keys::menu::BREWING_STAND.id().index()] = Some(own(5));
-    table[keys::menu::CRAFTING.id().index()] = Some(own(10));
-    table[keys::menu::ENCHANTMENT.id().index()] = Some(own(2));
-    table[keys::menu::FURNACE.id().index()] = Some(own(3));
-    table[keys::menu::GRINDSTONE.id().index()] = Some(own(3));
-    table[keys::menu::HOPPER.id().index()] = Some(own(5));
-    table[keys::menu::LECTERN.id().index()] = Some(MenuSlots {
+    table[mcrs_minecraft_item::keys::MenuType::Anvil.id().index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::Beacon.id().index()] = Some(own(1));
+    table[mcrs_minecraft_item::keys::MenuType::BlastFurnace
+        .id()
+        .index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::BrewingStand
+        .id()
+        .index()] = Some(own(5));
+    table[mcrs_minecraft_item::keys::MenuType::Crafting.id().index()] = Some(own(10));
+    table[mcrs_minecraft_item::keys::MenuType::Enchantment
+        .id()
+        .index()] = Some(own(2));
+    table[mcrs_minecraft_item::keys::MenuType::Furnace.id().index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::Grindstone.id().index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::Hopper.id().index()] = Some(own(5));
+    table[mcrs_minecraft_item::keys::MenuType::Lectern.id().index()] = Some(MenuSlots {
         own: 1,
         player_slots: false,
         trailing_result: false,
     });
-    table[keys::menu::LOOM.id().index()] = Some(own(4));
-    table[keys::menu::MERCHANT.id().index()] = Some(own(3));
-    table[keys::menu::SHULKER_BOX.id().index()] = Some(own(27));
-    table[keys::menu::SMITHING.id().index()] = Some(own(4));
-    table[keys::menu::SMOKER.id().index()] = Some(own(3));
-    table[keys::menu::CARTOGRAPHY_TABLE.id().index()] = Some(own(3));
-    table[keys::menu::STONECUTTER.id().index()] = Some(own(2));
+    table[mcrs_minecraft_item::keys::MenuType::Loom.id().index()] = Some(own(4));
+    table[mcrs_minecraft_item::keys::MenuType::Merchant.id().index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::ShulkerBox.id().index()] = Some(own(27));
+    table[mcrs_minecraft_item::keys::MenuType::Smithing.id().index()] = Some(own(4));
+    table[mcrs_minecraft_item::keys::MenuType::Smoker.id().index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::CartographyTable
+        .id()
+        .index()] = Some(own(3));
+    table[mcrs_minecraft_item::keys::MenuType::Stonecutter
+        .id()
+        .index()] = Some(own(2));
     table
 };
 
 /// Vanilla menus add their own slots first, then the player's main and hotbar
 /// rows; the lectern adds none of the player's and the crafter appends a
 /// non-interactive result slot after them.
-pub fn menu_slots(menu: Id<keys::Menu>) -> Option<MenuSlots> {
+pub fn menu_slots(menu: Id<mcrs_minecraft_item::keys::MenuType>) -> Option<MenuSlots> {
     MENU_SLOTS.get(menu.index()).copied().flatten()
 }
 
