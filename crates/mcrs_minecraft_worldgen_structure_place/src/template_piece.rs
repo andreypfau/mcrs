@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceKey};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::template::{
@@ -20,7 +20,7 @@ use crate::{block_mask, place_positional, state};
 
 fn ignore_blocks(
     blocks: &dyn BlockResolver,
-    names: &[Id<keys::Block>],
+    names: &[StaticKey<keys::Block>],
 ) -> Result<CompiledChain, FeatureCompileError> {
     Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
         blocks, names,

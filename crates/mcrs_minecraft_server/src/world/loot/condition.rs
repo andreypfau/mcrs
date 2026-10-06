@@ -120,7 +120,7 @@ const LOOT_CONDITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     LOOT_CONDITION_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::loot_condition_type::NAMES
+    mcrs_minecraft_keys::loot_condition_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, Deserialize)]
@@ -324,7 +324,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<LootCondition>(
             LOOT_CONDITION_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::loot_condition_type::NAMES,
+            mcrs_minecraft_keys::loot_condition_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

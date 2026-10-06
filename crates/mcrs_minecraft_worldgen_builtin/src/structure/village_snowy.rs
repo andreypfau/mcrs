@@ -3,23 +3,23 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_worldgen_structure::blueprint::{Cell, Hinge, Patch, top_stairs};
 
-const DIORITE_STAIRS: &str = keys::block::DIORITE_STAIRS.name();
+const DIORITE_STAIRS: &str = keys::block::DIORITE_STAIRS.as_static_str();
 
 const SPRUCE_STEP: &str = "minecraft:spruce_stairs[facing=east]";
-const SNOW_BLOCK: &str = keys::block::SNOW_BLOCK.name();
-const PLANKS: &str = keys::block::SPRUCE_PLANKS.name();
-const FENCE: &str = keys::block::SPRUCE_FENCE.name();
-const GATE: &str = keys::block::SPRUCE_FENCE_GATE.name();
-const LOG: &str = keys::block::STRIPPED_SPRUCE_LOG.name();
-const WOOD: &str = keys::block::STRIPPED_SPRUCE_WOOD.name();
+const SNOW_BLOCK: &str = keys::block::SNOW_BLOCK.as_static_str();
+const PLANKS: &str = keys::block::SPRUCE_PLANKS.as_static_str();
+const FENCE: &str = keys::block::SPRUCE_FENCE.as_static_str();
+const GATE: &str = keys::block::SPRUCE_FENCE_GATE.as_static_str();
+const LOG: &str = keys::block::STRIPPED_SPRUCE_LOG.as_static_str();
+const WOOD: &str = keys::block::STRIPPED_SPRUCE_WOOD.as_static_str();
 
 kit! {
     K;
     bare_grass: block("minecraft:grass_block[snowy=false]"),
     snow: snow(1),
     snow_block: block(SNOW_BLOCK),
-    ice: block(keys::block::PACKED_ICE.name()),
-    blue_ice: block(keys::block::BLUE_ICE.name()),
+    ice: block(keys::block::PACKED_ICE.as_static_str()),
+    blue_ice: block(keys::block::BLUE_ICE.as_static_str()),
     log: log(LOG, Y),
     log_x: log(LOG, X),
     log_z: log(LOG, Z),
@@ -28,7 +28,7 @@ kit! {
     wood_z: log(WOOD, Z),
     slab: block("minecraft:spruce_slab[type=bottom,waterlogged=false]"),
     slab_double: block("minecraft:spruce_slab[type=double,waterlogged=false]"),
-    diorite: block(keys::block::DIORITE.name()),
+    diorite: block(keys::block::DIORITE.as_static_str()),
     diorite_wall: settled("minecraft:diorite_wall[waterlogged=false]"),
     lantern: block("minecraft:lantern[hanging=false,waterlogged=false]"),
     hanging_lantern: block("minecraft:lantern[hanging=true,waterlogged=false]"),
@@ -94,7 +94,7 @@ fn drifts(c: &mut Canvas, piles: &[[i32; 4]]) {
 
 /// A fence joined to `sides` whatever stands next to it.
 fn fence(sides: &[Direction]) -> Cell {
-    fence_joined(keys::block::SPRUCE_FENCE.name(), sides)
+    fence_joined(keys::block::SPRUCE_FENCE.as_static_str(), sides)
 }
 
 fn farmland(moisture: i32) -> Cell {
@@ -278,7 +278,11 @@ fn small_house_2(c: &mut Canvas, v: Village) {
     if v.zombie {
         c.each(&K.wood_z, &[[1, 2, 3], [1, 2, 4], [5, 2, 4]]);
         c.solid(
-            &wall_joined(keys::block::COBBLESTONE_WALL.name(), &[East, South], &[]),
+            &wall_joined(
+                keys::block::COBBLESTONE_WALL.as_static_str(),
+                &[East, South],
+                &[],
+            ),
             [4, 2, 4],
             [4, 4, 4],
         );
@@ -302,7 +306,7 @@ fn snowy_butchers_shop_1(c: &mut Canvas) {
     c.place(&counter, 3, 0, 3);
     c.place(&S.air, 2, 0, 3);
     c.no_snow([2, 0, 3], [2, 0, 3]);
-    c.place(&block(keys::block::SMOOTH_STONE.name()), 2, 1, 3);
+    c.place(&block(keys::block::SMOOTH_STONE.as_static_str()), 2, 1, 3);
     c.door(SPRUCE_DOOR, [3, 1, 5], North, Hinge::Right);
     c.place(&K.wood, 3, 3, 5);
 
@@ -432,7 +436,7 @@ fn small_house_5(c: &mut Canvas, v: Village) {
     c.fill(&K.snow_block, 2..=3, 4, [1, 3]);
 
     c.door(SPRUCE_DOOR, [0, 1, 2], West, Hinge::Right);
-    c.entrance([0, 1, 3], EMPTY, keys::block::BLUE_ICE.name());
+    c.entrance([0, 1, 3], EMPTY, keys::block::BLUE_ICE.as_static_str());
     c.bed(RED_BED, [3, 1, 1], East);
     chest(c, [4, 1, 3], West, "village_snowy_house");
     c.place(&wall_torch(West), 5, 2, 2);
@@ -467,7 +471,11 @@ fn small_house_6(c: &mut Canvas, v: Village) {
     chest(c, [4, 1, 2], West, "village_snowy_house");
     c.furnace([2, 1, 2], "furnace", South);
     c.solid(
-        &wall_joined(keys::block::COBBLESTONE_WALL.name(), &[North, West], &[]),
+        &wall_joined(
+            keys::block::COBBLESTONE_WALL.as_static_str(),
+            &[North, West],
+            &[],
+        ),
         [2, 2, 2],
         [2, 4, 2],
     );
@@ -526,7 +534,7 @@ fn small_house_8(c: &mut Canvas, v: Village) {
         c.snow_on(&["BOTTOM"]);
         c.no_snow([1, 0, 2], [3, 0, 3]);
     } else {
-        let wool = keys::block::LIGHT_GRAY_WOOL.name();
+        let wool = keys::block::LIGHT_GRAY_WOOL.as_static_str();
         c.door(SPRUCE_DOOR, [0, y, 2], East, Hinge::Right);
         rounded_walls(c, &S.dirt, [0, 0, 0], [4, 0, 4]);
         c.place(&S.dirt, 5, 0, 2);
@@ -731,7 +739,7 @@ fn medium_house_3(c: &mut Canvas, v: Village) {
     c.fill(&K.blue_ice, [1, 3], 4, 3);
     c.place(&K.ice, 2, 4, 3);
     c.door(SPRUCE_DOOR, [0, 1, 3], West, Hinge::Right);
-    c.entrance([0, 1, 2], EMPTY, keys::block::PACKED_ICE.name());
+    c.entrance([0, 1, 2], EMPTY, keys::block::PACKED_ICE.as_static_str());
     c.furnace([3, 1, 3], "furnace", West);
     c.snow_on(&["soil"]);
 }
@@ -843,14 +851,19 @@ fn snowy_cartographer_house_1(c: &mut Canvas) {
     c.place(&corner_step(South, "outer_left"), 0, 0, 3);
     c.place(&corner_step(North, "outer_right"), 0, 0, 7);
     c.entrance([0, 0, 5], EMPTY, SPRUCE_STEP);
-    c.place(&block(keys::block::CARTOGRAPHY_TABLE.name()), 2, 1, 2);
+    c.place(
+        &block(keys::block::CARTOGRAPHY_TABLE.as_static_str()),
+        2,
+        1,
+        2,
+    );
     chest(c, [2, 1, 3], East, "village_cartographer");
     c.solid(&stairs(SPRUCE_STAIRS, West), [2, 1, 7], [2, 1, 8]);
     c.place(&wall_torch(West), 4, 3, 5);
     c.place(&wall_torch(South), 3, 4, 2);
     c.place(&wall_torch(North), 3, 4, 8);
     c.place(&K.snow, 0, 0, 0);
-    c.place(&block(keys::block::CAVE_AIR.name()), 0, 0, 1);
+    c.place(&block(keys::block::CAVE_AIR.as_static_str()), 0, 0, 1);
 }
 
 fn snowy_fisher_cottage(c: &mut Canvas) {
@@ -918,9 +931,14 @@ fn snowy_fletcher_house_1(c: &mut Canvas) {
     stoop(c, [0, 0, 3]);
     c.place(&stairs(SPRUCE_STAIRS, West), 2, 1, 2);
     c.place(&S.spruce_fence, 3, 1, 2);
-    c.place(&block(keys::block::BLUE_CARPET.name()), 3, 2, 2);
+    c.place(&block(keys::block::BLUE_CARPET.as_static_str()), 3, 2, 2);
     c.place(&stairs(SPRUCE_STAIRS, East), 4, 1, 2);
-    c.place(&block(keys::block::FLETCHING_TABLE.name()), 6, 1, 3);
+    c.place(
+        &block(keys::block::FLETCHING_TABLE.as_static_str()),
+        6,
+        1,
+        3,
+    );
     c.place(&wall_torch(East), 2, 4, 3);
     c.place(&wall_torch(West), 6, 4, 3);
     c.snow_on(&["BOTTOM"]);
@@ -930,7 +948,7 @@ fn snowy_fletcher_house_1(c: &mut Canvas) {
 }
 
 fn snowy_library_1(c: &mut Canvas) {
-    let shelf = block(keys::block::BOOKSHELF.name());
+    let shelf = block(keys::block::BOOKSHELF.as_static_str());
     let blocks = [
         6, 6, 0, 1, 1, 1, 11, 11, 1, 1, 1, 2, 11, 11, 2, 11, 11, 3, 1, 1, 5, 4, 6, 6, 9, 9, 6,
     ];
@@ -1138,7 +1156,7 @@ fn snowy_masons_house_2(c: &mut Canvas) {
     c.solid(diorite, [7, 4, 4], [7, 6, 4]);
     c.furnace([6, 1, 4], "furnace", West);
     c.solid(
-        &wall_joined(keys::block::DIORITE_WALL.name(), &[East], &[]),
+        &wall_joined(keys::block::DIORITE_WALL.as_static_str(), &[East], &[]),
         [6, 2, 4],
         [6, 3, 4],
     );
@@ -1188,7 +1206,11 @@ fn snowy_tannery_1(c: &mut Canvas) {
     c.place(&K.diorite, 4, 7, 4);
     c.solid(&K.diorite_wall, [4, 2, 4], [4, 5, 4]);
     c.place(
-        &wall_joined(keys::block::DIORITE_WALL.name(), &[North, South], &[]),
+        &wall_joined(
+            keys::block::DIORITE_WALL.as_static_str(),
+            &[North, South],
+            &[],
+        ),
         4,
         6,
         4,
@@ -1342,7 +1364,7 @@ fn snowy_tool_smith_1(c: &mut Canvas) {
     c.entrance([0, 0, 4], EMPTY, NOTHING);
     c.place(&S.spruce_planks, 4, 1, 4);
     c.place(&K.lantern, 4, 2, 4);
-    c.place(&block(keys::block::SMITHING_TABLE.name()), 5, 1, 4);
+    c.place(&block(keys::block::SMITHING_TABLE.as_static_str()), 5, 1, 4);
     c.place(&K.hanging_lantern, 4, 5, 2);
     c.snow_on(&["BOTTOM"]);
 }
@@ -1403,7 +1425,7 @@ fn snowy_weapon_smith_1(c: &mut Canvas) {
     chest(c, [2, 1, 2], South, "village_weaponsmith");
     c.fill(&K.hanging_lantern, [2, 5], 4, 3);
     c.fill(
-        &wall_joined(keys::block::DIORITE_WALL.name(), &[], &[East]),
+        &wall_joined(keys::block::DIORITE_WALL.as_static_str(), &[], &[East]),
         0,
         0,
         [6, 9],
@@ -1470,7 +1492,7 @@ fn meeting_point_2(c: &mut Canvas, v: Village) {
         c.place(&GROUND, x, 0, z);
         c.place(&stairs(SPRUCE_STAIRS, facing), x, 1, z);
     }
-    c.place(&block(keys::block::STONE_BRICKS.name()), 4, 0, 3);
+    c.place(&block(keys::block::STONE_BRICKS.as_static_str()), 4, 0, 3);
     for y in 1..=2 {
         c.patch(&K.ice, y, &Patch::diamond([5, 4], 1));
     }

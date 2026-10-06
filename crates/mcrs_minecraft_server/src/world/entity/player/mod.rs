@@ -403,7 +403,7 @@ fn network_add(
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: RegistryId::from(keys::entity_type::PLAYER),
+            kind: RegistryId::from(keys::entity_type::PLAYER.id()),
             pos: transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

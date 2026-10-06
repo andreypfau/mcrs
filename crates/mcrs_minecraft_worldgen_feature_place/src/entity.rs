@@ -131,20 +131,20 @@ pub enum GeneratedKind {
 
 impl GeneratedKind {
     pub const IDS: [&'static str; 14] = [
-        keys::entity_type::WITCH.name(),
-        keys::entity_type::CAT.name(),
-        keys::entity_type::ELDER_GUARDIAN.name(),
-        keys::entity_type::DROWNED.name(),
-        keys::entity_type::CHICKEN.name(),
-        keys::entity_type::ZOMBIE_NAUTILUS.name(),
-        keys::entity_type::SHULKER.name(),
-        keys::entity_type::ITEM_FRAME.name(),
-        keys::entity_type::EVOKER.name(),
-        keys::entity_type::VINDICATOR.name(),
-        keys::entity_type::ALLAY.name(),
-        keys::entity_type::VILLAGER.name(),
-        keys::entity_type::ZOMBIE_VILLAGER.name(),
-        keys::entity_type::CHEST_MINECART.name(),
+        keys::entity_type::WITCH.as_static_str(),
+        keys::entity_type::CAT.as_static_str(),
+        keys::entity_type::ELDER_GUARDIAN.as_static_str(),
+        keys::entity_type::DROWNED.as_static_str(),
+        keys::entity_type::CHICKEN.as_static_str(),
+        keys::entity_type::ZOMBIE_NAUTILUS.as_static_str(),
+        keys::entity_type::SHULKER.as_static_str(),
+        keys::entity_type::ITEM_FRAME.as_static_str(),
+        keys::entity_type::EVOKER.as_static_str(),
+        keys::entity_type::VINDICATOR.as_static_str(),
+        keys::entity_type::ALLAY.as_static_str(),
+        keys::entity_type::VILLAGER.as_static_str(),
+        keys::entity_type::ZOMBIE_VILLAGER.as_static_str(),
+        keys::entity_type::CHEST_MINECART.as_static_str(),
     ];
 
     pub fn id(&self) -> &'static str {

@@ -4,7 +4,7 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::placement::HeightmapName;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
@@ -28,7 +28,7 @@ pub struct CompiledMonsterRoom {
 }
 
 /// `MonsterRoomFeature.MOBS`, whose repeat of the zombie is the weighting.
-const MOBS: [Id<keys::EntityType>; 4] = [
+const MOBS: [StaticKey<keys::EntityType>; 4] = [
     keys::entity_type::SKELETON,
     keys::entity_type::ZOMBIE,
     keys::entity_type::ZOMBIE,
@@ -138,7 +138,10 @@ pub fn place_monster_room<W: WorldGenVolume>(
     let placed = volume.set_unless(&config.cannot_replace, origin, config.spawner);
     if placed || volume.holds(&config.spawner_states, origin) {
         let mob = MOBS[rng.next_i32_bound(4) as usize];
-        entities.push(GeneratedBlockEntity::mob_spawner(origin, mob.name()));
+        entities.push(GeneratedBlockEntity::mob_spawner(
+            origin,
+            mob.as_static_str(),
+        ));
     }
     true
 }

@@ -58,7 +58,7 @@ fn fill_container(mut entity: EntityWorldMut) {
     entity.world_scope(|world| {
         let Some(slot_count) = world
             .get_resource::<Blocks>()
-            .and_then(|blocks| blocks[block].container_slots)
+            .and_then(|blocks| blocks[block.id()].container_slots)
         else {
             return;
         };

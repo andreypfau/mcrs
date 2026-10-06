@@ -62,7 +62,7 @@ const MATERIAL_RULE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     MATERIAL_RULE_TYPE_ROWS,
     &[],
-    keys::material_rule_type::NAMES
+    keys::material_rule_type::ENTRIES
 ));
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -133,7 +133,7 @@ const MATERIAL_CONDITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     MATERIAL_CONDITION_TYPE_ROWS,
     &[],
-    keys::material_condition_type::NAMES
+    keys::material_condition_type::ENTRIES
 ));
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
@@ -185,7 +185,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialCondition>(
             MATERIAL_CONDITION_TYPE_ROWS,
             &[],
-            keys::material_condition_type::NAMES,
+            keys::material_condition_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -195,7 +195,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialRule>(
             MATERIAL_RULE_TYPE_ROWS,
             &[],
-            keys::material_rule_type::NAMES,
+            keys::material_rule_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

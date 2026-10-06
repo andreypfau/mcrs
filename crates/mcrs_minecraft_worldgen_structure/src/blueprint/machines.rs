@@ -6,25 +6,25 @@ use mcrs_minecraft_keys as keys;
 use super::{Canvas, Fields, Tag, block};
 
 #[rustfmt::skip]
-const BARREL: Fields = &[("Items", Tag::List(&[])), ("id", Tag::String(keys::block_entity_type::BARREL.name()))];
+const BARREL: Fields = &[("Items", Tag::List(&[])), ("id", Tag::String(keys::block_entity_type::BARREL.as_static_str()))];
 
 #[rustfmt::skip]
-const BELL: Fields = &[("id", Tag::String(keys::block_entity_type::BELL.name()))];
+const BELL: Fields = &[("id", Tag::String(keys::block_entity_type::BELL.as_static_str()))];
 
 #[rustfmt::skip]
-const BLAST_FURNACE: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::BLAST_FURNACE.name())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
+const BLAST_FURNACE: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::BLAST_FURNACE.as_static_str())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
 
 #[rustfmt::skip]
-const BREWING_STAND: Fields = &[("Fuel", Tag::Byte(0)), ("Items", Tag::List(&[])), ("id", Tag::String(keys::block_entity_type::BREWING_STAND.name())), ("BrewTime", Tag::Short(0))];
+const BREWING_STAND: Fields = &[("Fuel", Tag::Byte(0)), ("Items", Tag::List(&[])), ("id", Tag::String(keys::block_entity_type::BREWING_STAND.as_static_str())), ("BrewTime", Tag::Short(0))];
 
 #[rustfmt::skip]
-const FURNACE: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::FURNACE.name())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
+const FURNACE: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::FURNACE.as_static_str())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
 
 #[rustfmt::skip]
-const LECTERN: Fields = &[("id", Tag::String(keys::block_entity_type::LECTERN.name()))];
+const LECTERN: Fields = &[("id", Tag::String(keys::block_entity_type::LECTERN.as_static_str()))];
 
 #[rustfmt::skip]
-const SMOKER: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::SMOKER.name())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
+const SMOKER: Fields = &[("lit_total_time", Tag::Short(0)), ("cooking_time_spent", Tag::Short(0)), ("Items", Tag::List(&[])), ("cooking_total_time", Tag::Short(0)), ("id", Tag::String(keys::block_entity_type::SMOKER.as_static_str())), ("lit_time_remaining", Tag::Short(0)), ("RecipesUsed", Tag::Compound(&[]))];
 
 impl Canvas {
     /// A block and the data it carries.

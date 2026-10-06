@@ -30,40 +30,52 @@ pub enum ChunkStatus {
 
 const _: () = assert!(rows_match(
     &[
-        (keys::chunk_status::EMPTY.name(), ChunkStatus::Empty as u16),
         (
-            keys::chunk_status::STRUCTURE_STARTS.name(),
+            keys::chunk_status::EMPTY.as_static_str(),
+            ChunkStatus::Empty as u16
+        ),
+        (
+            keys::chunk_status::STRUCTURE_STARTS.as_static_str(),
             ChunkStatus::StructureStarts as u16
         ),
         (
-            keys::chunk_status::STRUCTURE_REFERENCES.name(),
+            keys::chunk_status::STRUCTURE_REFERENCES.as_static_str(),
             ChunkStatus::StructureReferences as u16
         ),
         (
-            keys::chunk_status::NOISE_BIOMES.name(),
+            keys::chunk_status::NOISE_BIOMES.as_static_str(),
             ChunkStatus::NoiseBiomes as u16
         ),
         (
-            keys::chunk_status::BIOMES.name(),
+            keys::chunk_status::BIOMES.as_static_str(),
             ChunkStatus::Biomes as u16
         ),
         (
-            keys::chunk_status::TERRAIN.name(),
+            keys::chunk_status::TERRAIN.as_static_str(),
             ChunkStatus::Terrain as u16
         ),
         (
-            keys::chunk_status::FEATURES.name(),
+            keys::chunk_status::FEATURES.as_static_str(),
             ChunkStatus::Features as u16
         ),
         (
-            keys::chunk_status::INITIALIZE_LIGHT.name(),
+            keys::chunk_status::INITIALIZE_LIGHT.as_static_str(),
             ChunkStatus::InitializeLight as u16
         ),
-        (keys::chunk_status::LIGHT.name(), ChunkStatus::Light as u16),
-        (keys::chunk_status::SPAWN.name(), ChunkStatus::Spawn as u16),
-        (keys::chunk_status::FULL.name(), ChunkStatus::Full as u16),
+        (
+            keys::chunk_status::LIGHT.as_static_str(),
+            ChunkStatus::Light as u16
+        ),
+        (
+            keys::chunk_status::SPAWN.as_static_str(),
+            ChunkStatus::Spawn as u16
+        ),
+        (
+            keys::chunk_status::FULL.as_static_str(),
+            ChunkStatus::Full as u16
+        ),
     ],
-    keys::chunk_status::NAMES,
+    keys::chunk_status::ENTRIES,
     true
 ));
 

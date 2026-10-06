@@ -26,12 +26,12 @@ impl BetaCaveBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
         let state = |block: Id<keys::Block>| -> VoxelId { blocks.default_state_of(block).0.into() };
         BetaCaveBlockIds {
-            air: state(keys::block::AIR),
-            lava: state(keys::block::LAVA),
-            stone: state(keys::block::STONE),
-            dirt: state(keys::block::DIRT),
-            grass: state(keys::block::GRASS_BLOCK),
-            water: state(keys::block::WATER),
+            air: state(keys::block::AIR.id()),
+            lava: state(keys::block::LAVA.id()),
+            stone: state(keys::block::STONE.id()),
+            dirt: state(keys::block::DIRT.id()),
+            grass: state(keys::block::GRASS_BLOCK.id()),
+            water: state(keys::block::WATER.id()),
         }
     }
 }
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn the_fill_frees_only_what_beta_carves_and_floors_it_with_lava() {
         let ids = BetaCaveBlockIds::resolve(corpus());
-        let sand: VoxelId = corpus().default_state_of(keys::block::SAND).0.into();
+        let sand: VoxelId = corpus().default_state_of(keys::block::SAND.id()).0.into();
         let sections: Vec<i32> = (0..8).collect();
         let column = ColumnBlocks::new(&sections);
         let mut mask = CarvingMask::new(1, 120);

@@ -1,5 +1,4 @@
-use crate::registry::{Registry, UnknownEntry};
-use mcrs_minecraft_core::registry_key::RegistryKey;
+use crate::registry::Registry;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use serde::de::{self, Visitor};
@@ -65,7 +64,7 @@ impl<R> std::fmt::Debug for Id<R> {
 }
 
 impl<R> Id<R> {
-    pub(crate) fn from_number(number: u16) -> Self {
+    pub(crate) const fn from_number(number: u16) -> Self {
         Id {
             number,
             _marker: PhantomData,
@@ -107,41 +106,6 @@ impl<R: 'static> Id<R> {
             id: self.number,
             bits: (std::mem::size_of::<N>() * 8) as u32,
         })
-    }
-}
-
-pub trait StaticRegistry: Sized + 'static {
-    const REGISTRY: RegistryKey<Self>;
-    const NAMES: &'static [&'static str];
-}
-
-impl<R: StaticRegistry> Id<R> {
-    #[doc(hidden)]
-    pub const fn from_static(number: u16) -> Self {
-        Id {
-            number,
-            _marker: PhantomData,
-        }
-    }
-
-    pub const fn name(self) -> &'static str {
-        R::NAMES[self.number as usize]
-    }
-
-    pub const fn location(self) -> ResourceLocation<&'static str> {
-        ResourceLocation::new_static(self.name())
-    }
-
-    pub fn from_name(name: &str) -> Result<Self, UnknownEntry> {
-        R::NAMES
-            .iter()
-            .position(|known| *known == name)
-            .and_then(|position| u16::try_from(position).ok())
-            .map(Id::from_static)
-            .ok_or_else(|| UnknownEntry {
-                registry: R::REGISTRY.location().into(),
-                name: name.to_owned(),
-            })
     }
 }
 
@@ -196,6 +160,7 @@ pub(crate) fn id_number(position: usize) -> Option<u16> {
 mod tests {
     use super::*;
     use crate::registry::RegistryError;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
     use std::sync::Arc;
 
@@ -203,38 +168,6 @@ mod tests {
 
     impl Wide {
         const KEY: RegistryKey<Wide> = RegistryKey::new(rl!("minecraft:wide"));
-    }
-
-    struct Fixed;
-
-    impl Fixed {
-        const KEY: RegistryKey<Fixed> = RegistryKey::new(rl!("minecraft:fixed"));
-    }
-
-    impl StaticRegistry for Fixed {
-        const REGISTRY: RegistryKey<Self> = Fixed::KEY;
-        const NAMES: &'static [&'static str] = &["minecraft:air", "minecraft:stone"];
-    }
-
-    #[test]
-    fn a_static_id_is_a_constant_that_names_its_entry() {
-        const STONE: Id<Fixed> = Id::from_static(1);
-
-        assert_eq!(STONE.number(), 1);
-        assert_eq!(STONE.name(), "minecraft:stone");
-        assert_eq!(STONE.location(), rl!("minecraft:stone"));
-        assert_eq!(Id::<Fixed>::from_static(0).name(), "minecraft:air");
-    }
-
-    #[test]
-    fn a_static_id_is_found_by_its_name() {
-        assert_eq!(
-            Id::<Fixed>::from_name("minecraft:stone").unwrap().number(),
-            1
-        );
-        let error = Id::<Fixed>::from_name("minecraft:dirt").unwrap_err();
-        assert_eq!(error.registry, Fixed::KEY.location());
-        assert_eq!(error.name, "minecraft:dirt");
     }
 
     fn names(len: usize) -> impl Iterator<Item = ResourceLocation<Arc<str>>> {

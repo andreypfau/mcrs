@@ -1,6 +1,6 @@
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_structure::piece::JungleTemplePiece;
@@ -47,7 +47,7 @@ impl JungleTempleBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let of = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
+        let of = |block: StaticKey<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
         let stairs = |facing| of(keys::block::COBBLESTONE_STAIRS, &[("facing", facing)]);

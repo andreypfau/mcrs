@@ -207,7 +207,7 @@ const _: () = {
     assert!(
         rows_match(
             &numbered(names),
-            mcrs_minecraft_keys::attribute::NAMES,
+            mcrs_minecraft_keys::attribute::ENTRIES,
             true
         ),
         "the attribute statics must equal the generated attribute names row by row",

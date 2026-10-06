@@ -9,7 +9,7 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
-use mcrs_minecraft_core::{ResourceLocation, TagKey};
+use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_dimension::dimension_type::DimensionType;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
@@ -66,9 +66,12 @@ fn the_generated_static_set_equals_the_report() {
         assert_eq!(twin.names(), table.names(), "{}", table.registry());
     }
 
-    let with_empty = RegistrySet::from_names(&[
-        ("minecraft:none", &[]),
-        ("minecraft:some", &["minecraft:a", "minecraft:b"]),
+    let with_empty = RegistrySet::from_locations(&[
+        (rl!("minecraft:none"), &[]),
+        (
+            rl!("minecraft:some"),
+            &[rl!("minecraft:a"), rl!("minecraft:b")],
+        ),
     ])
     .unwrap();
     let none = with_empty.table("minecraft:none").unwrap();
@@ -2339,8 +2342,14 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
     let set = test_registries();
     let items = set.registry::<keys::Item>().unwrap();
     let blocks = set.registry::<keys::Block>().unwrap();
-    assert_eq!(items.by_name("minecraft:stone"), Some(keys::item::STONE));
-    assert_eq!(blocks.by_name("minecraft:stone"), Some(keys::block::STONE));
+    assert_eq!(
+        items.by_name("minecraft:stone"),
+        Some(keys::item::STONE.id())
+    );
+    assert_eq!(
+        blocks.by_name("minecraft:stone"),
+        Some(keys::block::STONE.id())
+    );
 
     let mut differing = 0;
     for item in items.ids() {
@@ -2348,8 +2357,8 @@ fn an_item_and_a_block_of_one_name_keep_their_own_numbers() {
         let Some(block) = blocks.by_name(name) else {
             continue;
         };
-        assert_eq!(Id::<keys::Item>::from_name(name).unwrap(), item, "{name}");
-        assert_eq!(Id::<keys::Block>::from_name(name).unwrap(), block, "{name}");
+        assert_eq!(keys::item::find(name).unwrap().id(), item, "{name}");
+        assert_eq!(keys::block::find(name).unwrap().id(), block, "{name}");
         differing += usize::from(item.number() != block.number());
     }
     assert!(differing > 0, "no shared name is numbered differently");

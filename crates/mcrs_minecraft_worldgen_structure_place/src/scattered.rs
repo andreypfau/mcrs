@@ -4,7 +4,7 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnContext, VariantTables};
@@ -46,7 +46,7 @@ impl DesertPyramidBlocks {
         world: &WorldStates,
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str| {
             Oriented::named(
                 world,
@@ -568,7 +568,7 @@ impl SwampHutBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
         let stairs = |facing: &str, shape: &str| {
             Oriented::named(
                 world,

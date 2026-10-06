@@ -76,7 +76,7 @@ const STRUCTURE_PLACEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_PLACEMENT_ROWS,
     &[],
-    keys::structure_placement::NAMES
+    keys::structure_placement::ENTRIES
 ));
 
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
@@ -238,7 +238,7 @@ const STRUCTURE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_TYPE_ROWS,
     &[],
-    keys::structure_type::NAMES
+    keys::structure_type::ENTRIES
 ));
 
 impl Structure {
@@ -537,7 +537,7 @@ const POOL_ALIAS_BINDING_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     POOL_ALIAS_BINDING_ROWS,
     &[],
-    keys::pool_alias_binding::NAMES
+    keys::pool_alias_binding::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -586,7 +586,7 @@ const STRUCTURE_POOL_ELEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_POOL_ELEMENT_ROWS,
     &[],
-    keys::structure_pool_element::NAMES
+    keys::structure_pool_element::ENTRIES
 ));
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.
@@ -752,7 +752,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolAlias>(
             POOL_ALIAS_BINDING_ROWS,
             &[],
-            keys::pool_alias_binding::NAMES,
+            keys::pool_alias_binding::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -762,7 +762,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<StructurePlacement>(
             STRUCTURE_PLACEMENT_ROWS,
             &[],
-            keys::structure_placement::NAMES,
+            keys::structure_placement::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -772,7 +772,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolElement>(
             STRUCTURE_POOL_ELEMENT_ROWS,
             &[],
-            keys::structure_pool_element::NAMES,
+            keys::structure_pool_element::ENTRIES,
             |name| serde_json::json!({ "element_type": name }),
         );
     }
@@ -782,7 +782,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<Structure>(
             STRUCTURE_TYPE_ROWS,
             &[],
-            keys::structure_type::NAMES,
+            keys::structure_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

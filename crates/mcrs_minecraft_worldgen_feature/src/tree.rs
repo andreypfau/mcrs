@@ -257,7 +257,7 @@ const BLOCK_STATE_PROVIDER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BLOCK_STATE_PROVIDER_TYPE_ROWS,
     &[],
-    keys::block_state_provider_type::NAMES
+    keys::block_state_provider_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -377,7 +377,7 @@ const TRUNK_PLACER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     TRUNK_PLACER_TYPE_ROWS,
     &[],
-    keys::trunk_placer_type::NAMES
+    keys::trunk_placer_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -479,7 +479,7 @@ const FOLIAGE_PLACER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     FOLIAGE_PLACER_TYPE_ROWS,
     &[],
-    keys::foliage_placer_type::NAMES
+    keys::foliage_placer_type::ENTRIES
 ));
 
 /// `P` is the block state provider four decorators carry: the datapack's
@@ -553,7 +553,7 @@ const TREE_DECORATOR_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     TREE_DECORATOR_TYPE_ROWS,
     &[],
-    keys::tree_decorator_type::NAMES
+    keys::tree_decorator_type::ENTRIES
 ));
 
 impl<P> TreeDecorator<P> {
@@ -670,7 +670,7 @@ const FEATURE_SIZE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     FEATURE_SIZE_TYPE_ROWS,
     &[],
-    keys::feature_size_type::NAMES
+    keys::feature_size_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -691,7 +691,7 @@ const ROOT_PLACER_TYPE_ROWS: &[&str] = &["minecraft:mangrove_root_placer"];
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ROOT_PLACER_TYPE_ROWS,
     &[],
-    keys::root_placer_type::NAMES
+    keys::root_placer_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -739,7 +739,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TypedBlockStateProvider>(
             BLOCK_STATE_PROVIDER_TYPE_ROWS,
             &[],
-            keys::block_state_provider_type::NAMES,
+            keys::block_state_provider_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -749,7 +749,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<FeatureSize>(
             FEATURE_SIZE_TYPE_ROWS,
             &[],
-            keys::feature_size_type::NAMES,
+            keys::feature_size_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -759,7 +759,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<FoliagePlacer>(
             FOLIAGE_PLACER_TYPE_ROWS,
             &[],
-            keys::foliage_placer_type::NAMES,
+            keys::foliage_placer_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -769,7 +769,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<RootPlacer>(
             ROOT_PLACER_TYPE_ROWS,
             &[],
-            keys::root_placer_type::NAMES,
+            keys::root_placer_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -779,7 +779,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TreeDecorator>(
             TREE_DECORATOR_TYPE_ROWS,
             &[],
-            keys::tree_decorator_type::NAMES,
+            keys::tree_decorator_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -789,7 +789,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<TrunkPlacer>(
             TRUNK_PLACER_TYPE_ROWS,
             &[],
-            keys::trunk_placer_type::NAMES,
+            keys::trunk_placer_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

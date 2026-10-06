@@ -10,7 +10,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -353,7 +353,7 @@ fn random_facing_stairs<R: Random>(world: &WorldStates, stairs: VoxelId, rng: &m
     layout.try_set(out, "half", half)
 }
 
-const BLACKSTONE_REPLACEMENTS: [(Id<keys::Block>, Id<keys::Block>); 23] = [
+const BLACKSTONE_REPLACEMENTS: [(StaticKey<keys::Block>, StaticKey<keys::Block>); 23] = [
     (keys::block::COBBLESTONE, keys::block::BLACKSTONE),
     (keys::block::MOSSY_COBBLESTONE, keys::block::BLACKSTONE),
     (keys::block::STONE, keys::block::POLISHED_BLACKSTONE),
@@ -443,7 +443,7 @@ pub enum ChainKind {
 
 fn block_mask(
     blocks: &dyn BlockResolver,
-    block: Id<keys::Block>,
+    block: StaticKey<keys::Block>,
 ) -> Result<StateMask, FeatureCompileError> {
     states_of(blocks, StateQuery::Block(&block.location().to_arc()))
 }
@@ -590,7 +590,7 @@ fn compile_processor(
 
 fn default_state(
     blocks: &dyn BlockResolver,
-    block: Id<keys::Block>,
+    block: StaticKey<keys::Block>,
 ) -> Result<VoxelId, FeatureCompileError> {
     state_of(blocks, &BlockState::bare(block.location().to_arc()))
 }
@@ -619,10 +619,10 @@ fn compile_processor_rule(
             // name with their entity; a container output under another name
             // needs a name-to-kind arm.
             let entity_id = match output_name.as_str() {
-                name if name == keys::block::SUSPICIOUS_SAND.name()
-                    || name == keys::block::SUSPICIOUS_GRAVEL.name() =>
+                name if name == keys::block::SUSPICIOUS_SAND.as_static_str()
+                    || name == keys::block::SUSPICIOUS_GRAVEL.as_static_str() =>
                 {
-                    keys::block_entity_type::BRUSHABLE_BLOCK.name()
+                    keys::block_entity_type::BRUSHABLE_BLOCK.as_static_str()
                 }
                 name => *GeneratedBlockEntity::IDS
                     .iter()

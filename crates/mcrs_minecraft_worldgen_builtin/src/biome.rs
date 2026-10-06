@@ -12,7 +12,7 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
 use mcrs_minecraft_keys::{EntityType, SoundEvent, biome, carver, placed_feature, sound_event};
-use mcrs_minecraft_registry::{Built, Id, RegistrySet};
+use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
 use mcrs_minecraft_worldgen_structure::MobCategory;
 use serde::Serialize;
 
@@ -189,9 +189,9 @@ pub struct Music {
 }
 
 impl Music {
-    pub fn game(sound: Id<SoundEvent>) -> Self {
+    pub fn game(sound: StaticKey<SoundEvent>) -> Self {
         Music {
-            sound: sound.name(),
+            sound: sound.as_static_str(),
             min_delay: 12000,
             max_delay: 24000,
         }
@@ -209,7 +209,7 @@ pub struct BackgroundMusic {
 }
 
 impl BackgroundMusic {
-    pub fn of(sound: Id<SoundEvent>) -> Self {
+    pub fn of(sound: StaticKey<SoundEvent>) -> Self {
         BackgroundMusic {
             default: Some(Music::game(sound)),
             ..Default::default()
@@ -228,7 +228,7 @@ impl BackgroundMusic {
 pub trait BiomeMusic: Sized {
     fn background_music(self, music: BackgroundMusic) -> Self;
 
-    fn music(self, sound: Id<SoundEvent>) -> Self {
+    fn music(self, sound: StaticKey<SoundEvent>) -> Self {
         self.background_music(BackgroundMusic::of(sound))
     }
 }

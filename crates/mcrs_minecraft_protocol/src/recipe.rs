@@ -77,51 +77,51 @@ pub enum SlotDisplayType {
 const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
     &[
         (
-            mcrs_minecraft_keys::slot_display::EMPTY.name(),
+            mcrs_minecraft_keys::slot_display::EMPTY.as_static_str(),
             SlotDisplayType::Empty as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::ANY_FUEL.name(),
+            mcrs_minecraft_keys::slot_display::ANY_FUEL.as_static_str(),
             SlotDisplayType::AnyFuel as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::WITH_ANY_POTION.name(),
+            mcrs_minecraft_keys::slot_display::WITH_ANY_POTION.as_static_str(),
             SlotDisplayType::WithAnyPotion as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::ONLY_WITH_COMPONENT.name(),
+            mcrs_minecraft_keys::slot_display::ONLY_WITH_COMPONENT.as_static_str(),
             SlotDisplayType::OnlyWithComponent as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::ITEM.name(),
+            mcrs_minecraft_keys::slot_display::ITEM.as_static_str(),
             SlotDisplayType::Item as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::ITEM_STACK.name(),
+            mcrs_minecraft_keys::slot_display::ITEM_STACK.as_static_str(),
             SlotDisplayType::ItemStack as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::TAG.name(),
+            mcrs_minecraft_keys::slot_display::TAG.as_static_str(),
             SlotDisplayType::Tag as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::DYED.name(),
+            mcrs_minecraft_keys::slot_display::DYED.as_static_str(),
             SlotDisplayType::Dyed as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::SMITHING_TRIM.name(),
+            mcrs_minecraft_keys::slot_display::SMITHING_TRIM.as_static_str(),
             SlotDisplayType::SmithingTrim as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::WITH_REMAINDER.name(),
+            mcrs_minecraft_keys::slot_display::WITH_REMAINDER.as_static_str(),
             SlotDisplayType::WithRemainder as u16
         ),
         (
-            mcrs_minecraft_keys::slot_display::COMPOSITE.name(),
+            mcrs_minecraft_keys::slot_display::COMPOSITE.as_static_str(),
             SlotDisplayType::Composite as u16
         ),
     ],
-    mcrs_minecraft_keys::slot_display::NAMES,
+    mcrs_minecraft_keys::slot_display::ENTRIES,
     true
 ));
 
@@ -185,7 +185,7 @@ const SLOT_DISPLAY_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     SLOT_DISPLAY_ROWS,
     &[],
-    mcrs_minecraft_keys::slot_display::NAMES
+    mcrs_minecraft_keys::slot_display::ENTRIES
 ));
 
 impl SlotDisplay {
@@ -302,27 +302,27 @@ pub enum RecipeDisplayType {
 const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
     &[
         (
-            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPELESS.name(),
+            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPELESS.as_static_str(),
             RecipeDisplayType::CraftingShapeless as u16
         ),
         (
-            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPED.name(),
+            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPED.as_static_str(),
             RecipeDisplayType::CraftingShaped as u16
         ),
         (
-            mcrs_minecraft_keys::recipe_display::FURNACE.name(),
+            mcrs_minecraft_keys::recipe_display::FURNACE.as_static_str(),
             RecipeDisplayType::Furnace as u16
         ),
         (
-            mcrs_minecraft_keys::recipe_display::STONECUTTER.name(),
+            mcrs_minecraft_keys::recipe_display::STONECUTTER.as_static_str(),
             RecipeDisplayType::Stonecutter as u16
         ),
         (
-            mcrs_minecraft_keys::recipe_display::SMITHING.name(),
+            mcrs_minecraft_keys::recipe_display::SMITHING.as_static_str(),
             RecipeDisplayType::Smithing as u16
         ),
     ],
-    mcrs_minecraft_keys::recipe_display::NAMES,
+    mcrs_minecraft_keys::recipe_display::ENTRIES,
     true
 ));
 
@@ -381,7 +381,7 @@ const RECIPE_DISPLAY_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     RECIPE_DISPLAY_ROWS,
     &[],
-    mcrs_minecraft_keys::recipe_display::NAMES
+    mcrs_minecraft_keys::recipe_display::ENTRIES
 ));
 
 impl Validate for RecipeDisplay {
@@ -641,7 +641,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<SlotDisplay>(
             SLOT_DISPLAY_ROWS,
             &[],
-            mcrs_minecraft_keys::slot_display::NAMES,
+            mcrs_minecraft_keys::slot_display::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -651,7 +651,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<RecipeDisplay>(
             RECIPE_DISPLAY_ROWS,
             &[],
-            mcrs_minecraft_keys::recipe_display::NAMES,
+            mcrs_minecraft_keys::recipe_display::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

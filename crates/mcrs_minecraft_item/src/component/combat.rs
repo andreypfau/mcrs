@@ -222,7 +222,7 @@ pub struct KineticCondition {
 }
 
 fn item_break() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ENTITY_ITEM_BREAK)
+    Holder::Reference(sound_event::ENTITY_ITEM_BREAK.id())
 }
 
 impl Sample for BlocksAttacks {
@@ -353,7 +353,9 @@ impl Sample for KineticWeapon {
                 forward_movement: 0.5,
                 damage_multiplier: 2.0,
                 sound: Some(item_break()),
-                hit_sound: Some(Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_GENERIC)),
+                hit_sound: Some(Holder::Reference(
+                    sound_event::ITEM_ARMOR_EQUIP_GENERIC.id(),
+                )),
             },
         ]
     }

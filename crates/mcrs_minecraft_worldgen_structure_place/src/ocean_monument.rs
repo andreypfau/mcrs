@@ -2,7 +2,7 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature_place::entity::elder_guardian;
@@ -34,7 +34,7 @@ impl OceanMonumentBlocks {
         blocks: &dyn BlockResolver,
         world: &WorldStates,
     ) -> Result<Self, FeatureCompileError> {
-        let oriented = |block: Id<keys::Block>| Oriented::named(world, blocks, block, &[]);
+        let oriented = |block: StaticKey<keys::Block>| Oriented::named(world, blocks, block, &[]);
         Ok(OceanMonumentBlocks {
             gray: oriented(keys::block::PRISMARINE)?,
             light: oriented(keys::block::PRISMARINE_BRICKS)?,

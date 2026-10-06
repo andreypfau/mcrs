@@ -21,7 +21,7 @@ macro_rules! professions {
         const _: () = assert!(
             rows_match(
                 &[$(($name, VillagerProfession::$variant as u16)),*],
-                mcrs_minecraft_keys::villager_profession::NAMES,
+                mcrs_minecraft_keys::villager_profession::ENTRIES,
                 true,
             ),
             "the profession table must equal the generated villager_profession names row by row",
@@ -58,7 +58,7 @@ pub struct VillagerData {
 impl Default for VillagerData {
     fn default() -> Self {
         Self {
-            kind: keys::villager_type::PLAINS,
+            kind: keys::villager_type::PLAINS.id(),
             profession: VillagerProfession::None,
             level: 1,
         }

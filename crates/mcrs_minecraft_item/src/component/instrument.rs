@@ -74,7 +74,7 @@ impl Sample for Instrument {
         vec![
             Instrument(Holder::Reference(entry("ponder_goat_horn"))),
             Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK),
+                sound_event: Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK.id()),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),

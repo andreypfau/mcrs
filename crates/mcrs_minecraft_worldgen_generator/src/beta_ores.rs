@@ -27,19 +27,19 @@ pub struct BetaOreBlockIds {
 impl BetaOreBlockIds {
     pub fn resolve(blocks: &BlockDefinitions) -> Self {
         BetaOreBlockIds {
-            stone: blocks.default_state_of(keys::block::STONE),
-            sand: blocks.default_state_of(keys::block::SAND),
-            clay: blocks.default_state_of(keys::block::CLAY),
-            dirt: blocks.default_state_of(keys::block::DIRT),
-            gravel: blocks.default_state_of(keys::block::GRAVEL),
-            coal: blocks.default_state_of(keys::block::COAL_ORE),
-            iron: blocks.default_state_of(keys::block::IRON_ORE),
-            gold: blocks.default_state_of(keys::block::GOLD_ORE),
+            stone: blocks.default_state_of(keys::block::STONE.id()),
+            sand: blocks.default_state_of(keys::block::SAND.id()),
+            clay: blocks.default_state_of(keys::block::CLAY.id()),
+            dirt: blocks.default_state_of(keys::block::DIRT.id()),
+            gravel: blocks.default_state_of(keys::block::GRAVEL.id()),
+            coal: blocks.default_state_of(keys::block::COAL_ORE.id()),
+            iron: blocks.default_state_of(keys::block::IRON_ORE.id()),
+            gold: blocks.default_state_of(keys::block::GOLD_ORE.id()),
             // REDSTONE_ORE default state carries lit=false, matching Beta placement
-            redstone: blocks.default_state_of(keys::block::REDSTONE_ORE),
-            diamond: blocks.default_state_of(keys::block::DIAMOND_ORE),
-            lapis: blocks.default_state_of(keys::block::LAPIS_ORE),
-            water: blocks.default_state_of(keys::block::WATER),
+            redstone: blocks.default_state_of(keys::block::REDSTONE_ORE.id()),
+            diamond: blocks.default_state_of(keys::block::DIAMOND_ORE.id()),
+            lapis: blocks.default_state_of(keys::block::LAPIS_ORE.id()),
+            water: blocks.default_state_of(keys::block::WATER.id()),
         }
     }
 }

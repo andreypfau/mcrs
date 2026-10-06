@@ -23,9 +23,9 @@ macro_rules! templates {
         const LIVING: Village = Village { family: $family, zombie: false };
         const ZOMBIE: Village = Village { family: $family, zombie: true };
         #[rustfmt::skip]
-        const UNEMPLOYED: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NONE.name())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.name()))]))];
+        const UNEMPLOYED: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NONE.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.as_static_str()))]))];
         #[rustfmt::skip]
-        const NITWIT: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NITWIT.name())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.name()))]))];
+        const NITWIT: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NITWIT.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.as_static_str()))]))];
 
         pub const TEMPLATES: &[Entry] = &[
             $((concat!("village/", $family, "/", $path), $size, |c| ($paint)(c, LIVING)),)*
@@ -89,48 +89,48 @@ pub fn build(id: &ResourceLocation) -> Option<Template> {
     Some(canvas.template())
 }
 
-const AIR: &str = keys::block::AIR.name();
-const NOTHING: &str = keys::block::STRUCTURE_VOID.name();
+const AIR: &str = keys::block::AIR.as_static_str();
+const NOTHING: &str = keys::block::STRUCTURE_VOID.as_static_str();
 const EMPTY: &str = keys::template_pool::EMPTY.as_static_str();
 const BOTTOM: &str = "minecraft:bottom";
 
 const ANIMALS: &str = keys::template_pool::VILLAGE_COMMON_ANIMALS.as_static_str();
-const BLUE_BED: &str = keys::block::BLUE_BED.name();
+const BLUE_BED: &str = keys::block::BLUE_BED.as_static_str();
 const BUTCHER_ANIMALS: &str = keys::template_pool::VILLAGE_COMMON_BUTCHER_ANIMALS.as_static_str();
 const CATS: &str = keys::template_pool::VILLAGE_COMMON_CATS.as_static_str();
-const COBBLE: &str = keys::block::COBBLESTONE.name();
-const COBBLE_STAIRS: &str = keys::block::COBBLESTONE_STAIRS.name();
-const DIRT: &str = keys::block::DIRT.name();
-const GRASS: &str = keys::block::GRASS_BLOCK.name();
+const COBBLE: &str = keys::block::COBBLESTONE.as_static_str();
+const COBBLE_STAIRS: &str = keys::block::COBBLESTONE_STAIRS.as_static_str();
+const DIRT: &str = keys::block::DIRT.as_static_str();
+const GRASS: &str = keys::block::GRASS_BLOCK.as_static_str();
 const IRON_GOLEM: &str = keys::template_pool::VILLAGE_COMMON_IRON_GOLEM.as_static_str();
-const PATH: &str = keys::block::DIRT_PATH.name();
-const RED_BED: &str = keys::block::RED_BED.name();
+const PATH: &str = keys::block::DIRT_PATH.as_static_str();
+const RED_BED: &str = keys::block::RED_BED.as_static_str();
 const SHEEP: &str = keys::template_pool::VILLAGE_COMMON_SHEEP.as_static_str();
-const SPRUCE_DOOR: &str = keys::block::SPRUCE_DOOR.name();
-const SPRUCE_STAIRS: &str = keys::block::SPRUCE_STAIRS.name();
-const WHITE_BED: &str = keys::block::WHITE_BED.name();
+const SPRUCE_DOOR: &str = keys::block::SPRUCE_DOOR.as_static_str();
+const SPRUCE_STAIRS: &str = keys::block::SPRUCE_STAIRS.as_static_str();
+const WHITE_BED: &str = keys::block::WHITE_BED.as_static_str();
 
 kit! {
     S;
     air: block(AIR),
     cobble: block(COBBLE),
-    mossy: block(keys::block::MOSSY_COBBLESTONE.name()),
+    mossy: block(keys::block::MOSSY_COBBLESTONE.as_static_str()),
     pane: settled("minecraft:glass_pane[waterlogged=false]"),
     cobble_wall: settled("minecraft:cobblestone_wall[waterlogged=false]"),
-    torch: block(keys::block::TORCH.name()),
-    wall_torch: settled(keys::block::WALL_TORCH.name()),
+    torch: block(keys::block::TORCH.as_static_str()),
+    wall_torch: settled(keys::block::WALL_TORCH.as_static_str()),
     dirt: block(DIRT),
     grass: settled(GRASS),
     path: block(PATH),
     water: block("minecraft:water[level=0]"),
     farmland: block("minecraft:farmland[moisture=7]"),
-    short_grass: block(keys::block::SHORT_GRASS.name()),
+    short_grass: block(keys::block::SHORT_GRASS.as_static_str()),
     tall_grass: block("minecraft:tall_grass[half=lower]"),
-    poppy: block(keys::block::POPPY.name()),
-    bookshelf: block(keys::block::BOOKSHELF.name()),
+    poppy: block(keys::block::POPPY.as_static_str()),
+    bookshelf: block(keys::block::BOOKSHELF.as_static_str()),
     composter: block("minecraft:composter[level=0]"),
-    crafting_table: block(keys::block::CRAFTING_TABLE.name()),
-    spruce_planks: block(keys::block::SPRUCE_PLANKS.name()),
+    crafting_table: block(keys::block::CRAFTING_TABLE.as_static_str()),
+    spruce_planks: block(keys::block::SPRUCE_PLANKS.as_static_str()),
     spruce_slab_top: block("minecraft:spruce_slab[type=top,waterlogged=false]"),
     spruce_fence: settled("minecraft:spruce_fence[waterlogged=false]"),
 }
@@ -144,7 +144,7 @@ fn slab(id: &str, kind: &str) -> Cell {
 }
 
 fn smooth_slab(kind: &str) -> Cell {
-    slab(keys::block::SMOOTH_STONE_SLAB.name(), kind)
+    slab(keys::block::SMOOTH_STONE_SLAB.as_static_str(), kind)
 }
 
 fn trapdoor(id: &str, facing: Direction, half: &str, open: bool) -> Cell {
@@ -320,8 +320,8 @@ mod mob {
     /// What every mob of the village templates is saved with.
     pub const MOB: Fields = &[("AbsorptionAmount", Tag::Float(0.0)), ("Air", Tag::Short(300)), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[])])), ("CanPickUpLoot", Tag::Byte(0)), ("DeathTime", Tag::Short(0)), ("Dimension", Tag::Int(0)), ("FallFlying", Tag::Byte(0)), ("Fire", Tag::Short(-1)), ("HandItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[])])), ("Health", Tag::Float(20.0)), ("HurtByTimestamp", Tag::Int(0)), ("HurtTime", Tag::Short(0)), ("Invulnerable", Tag::Byte(0)), ("LeftHanded", Tag::Byte(0)), ("Motion", Tag::List(&[Tag::Double(0.0), Tag::Double(-0.0784000015258789), Tag::Double(0.0)])), ("OnGround", Tag::Byte(1)), ("PersistenceRequired", Tag::Byte(1)), ("PortalCooldown", Tag::Int(0)), ("attributes", Tag::List(&[])), ("fall_distance", Tag::Double(0.0))];
     pub const ANY_VILLAGER: Fields = &[("Pos", Tag::List(&[Tag::Double(-178.2795013809144), Tag::Double(5.0), Tag::Double(184.63145528989816)])), ("Rotation", Tag::List(&[Tag::Float(48.821632), Tag::Float(0.0)])), ("UUID", Tag::IntArray(&[1383272762, 272124144, -1415224788, -1032494613])), ("Age", Tag::Int(0)), ("CanPickUpLoot", Tag::Byte(1)), ("ForcedAge", Tag::Int(0)), ("Gossips", Tag::List(&[])), ("Inventory", Tag::List(&[])), ("Xp", Tag::Int(0))];
-    pub const VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::VILLAGER.name())), ("PersistenceRequired", Tag::Byte(0))];
-    pub const ZOMBIE_VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::ZOMBIE_VILLAGER.name()))];
+    pub const VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::VILLAGER.as_static_str())), ("PersistenceRequired", Tag::Byte(0))];
+    pub const ZOMBIE_VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::ZOMBIE_VILLAGER.as_static_str()))];
     pub const ADULT: Fields = &[("food_level", Tag::Byte(0)), ("Leashed", Tag::Byte(0)), ("lastRestock", Tag::Long(0))];
     pub const BABY: Fields = &[("FoodLevel", Tag::Byte(0)), ("LastRestock", Tag::Long(0)), ("UUID", Tag::IntArray(&[895037032, -995736946, -1319125422, -1224629455])), ("Age", Tag::Int(-21359)), ("Rotation", Tag::List(&[Tag::Float(0.0), Tag::Float(-25.827711)])), ("Pos", Tag::List(&[Tag::Double(-1740.6339469144218), Tag::Double(5.0), Tag::Double(496.0697962117287)]))];
 }

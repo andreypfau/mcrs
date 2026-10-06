@@ -119,7 +119,7 @@ const DIALOG_BODY_TYPE_ROWS: &[&str] = &["minecraft:item", "minecraft:plain_mess
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     DIALOG_BODY_TYPE_ROWS,
     &[],
-    keys::dialog_body_type::NAMES
+    keys::dialog_body_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -332,7 +332,7 @@ const INPUT_CONTROL_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     INPUT_CONTROL_TYPE_ROWS,
     &[],
-    keys::input_control_type::NAMES
+    keys::input_control_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq)]
@@ -649,7 +649,7 @@ const DIALOG_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     DIALOG_TYPE_ROWS,
     &[],
-    keys::dialog_type::NAMES
+    keys::dialog_type::ENTRIES
 ));
 
 #[cfg(test)]
@@ -661,7 +661,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<DialogBody>(
             DIALOG_BODY_TYPE_ROWS,
             &[],
-            keys::dialog_body_type::NAMES,
+            keys::dialog_body_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -671,7 +671,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<Input>(
             INPUT_CONTROL_TYPE_ROWS,
             &[],
-            keys::input_control_type::NAMES,
+            keys::input_control_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -681,7 +681,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<Dialog>(
             DIALOG_TYPE_ROWS,
             &[],
-            keys::dialog_type::NAMES,
+            keys::dialog_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

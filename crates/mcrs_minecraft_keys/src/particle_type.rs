@@ -1,263 +1,133 @@
 // Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
 
-use mcrs_minecraft_registry::Id;
-
-pub const ANGRY_VILLAGER: Id<crate::ParticleType> = Id::from_static(0);
-pub const ASH: Id<crate::ParticleType> = Id::from_static(94);
-pub const BLOCK: Id<crate::ParticleType> = Id::from_static(1);
-pub const BLOCK_CRUMBLE: Id<crate::ParticleType> = Id::from_static(125);
-pub const BLOCK_MARKER: Id<crate::ParticleType> = Id::from_static(2);
-pub const BUBBLE: Id<crate::ParticleType> = Id::from_static(3);
-pub const BUBBLE_COLUMN_UP: Id<crate::ParticleType> = Id::from_static(84);
-pub const BUBBLE_POP: Id<crate::ParticleType> = Id::from_static(82);
-pub const CAMPFIRE_COSY_SMOKE: Id<crate::ParticleType> = Id::from_static(87);
-pub const CAMPFIRE_SIGNAL_SMOKE: Id<crate::ParticleType> = Id::from_static(88);
-pub const CHERRY_LEAVES: Id<crate::ParticleType> = Id::from_static(41);
-pub const CLOUD: Id<crate::ParticleType> = Id::from_static(11);
-pub const COMPOSTER: Id<crate::ParticleType> = Id::from_static(54);
-pub const COPPER_FIRE_FLAME: Id<crate::ParticleType> = Id::from_static(12);
-pub const CRIMSON_SPORE: Id<crate::ParticleType> = Id::from_static(95);
-pub const CRIT: Id<crate::ParticleType> = Id::from_static(13);
-pub const CURRENT_DOWN: Id<crate::ParticleType> = Id::from_static(83);
-pub const DAMAGE_INDICATOR: Id<crate::ParticleType> = Id::from_static(14);
-pub const DOLPHIN: Id<crate::ParticleType> = Id::from_static(86);
-pub const DRAGON_BREATH: Id<crate::ParticleType> = Id::from_static(15);
-pub const DRIPPING_DRIPSTONE_LAVA: Id<crate::ParticleType> = Id::from_static(105);
-pub const DRIPPING_DRIPSTONE_WATER: Id<crate::ParticleType> = Id::from_static(107);
-pub const DRIPPING_HONEY: Id<crate::ParticleType> = Id::from_static(89);
-pub const DRIPPING_LAVA: Id<crate::ParticleType> = Id::from_static(16);
-pub const DRIPPING_OBSIDIAN_TEAR: Id<crate::ParticleType> = Id::from_static(98);
-pub const DRIPPING_WATER: Id<crate::ParticleType> = Id::from_static(19);
-pub const DUST: Id<crate::ParticleType> = Id::from_static(21);
-pub const DUST_COLOR_TRANSITION: Id<crate::ParticleType> = Id::from_static(22);
-pub const DUST_PILLAR: Id<crate::ParticleType> = Id::from_static(121);
-pub const DUST_PLUME: Id<crate::ParticleType> = Id::from_static(117);
-pub const EFFECT: Id<crate::ParticleType> = Id::from_static(23);
-pub const EGG_CRACK: Id<crate::ParticleType> = Id::from_static(116);
-pub const ELDER_GUARDIAN: Id<crate::ParticleType> = Id::from_static(24);
-pub const ELECTRIC_SPARK: Id<crate::ParticleType> = Id::from_static(113);
-pub const ENCHANT: Id<crate::ParticleType> = Id::from_static(26);
-pub const ENCHANTED_HIT: Id<crate::ParticleType> = Id::from_static(25);
-pub const END_ROD: Id<crate::ParticleType> = Id::from_static(27);
-pub const ENTITY_EFFECT: Id<crate::ParticleType> = Id::from_static(28);
-pub const EXPLOSION: Id<crate::ParticleType> = Id::from_static(30);
-pub const EXPLOSION_EMITTER: Id<crate::ParticleType> = Id::from_static(29);
-pub const FALLING_DRIPSTONE_LAVA: Id<crate::ParticleType> = Id::from_static(106);
-pub const FALLING_DRIPSTONE_WATER: Id<crate::ParticleType> = Id::from_static(108);
-pub const FALLING_DUST: Id<crate::ParticleType> = Id::from_static(36);
-pub const FALLING_HONEY: Id<crate::ParticleType> = Id::from_static(90);
-pub const FALLING_LAVA: Id<crate::ParticleType> = Id::from_static(17);
-pub const FALLING_NECTAR: Id<crate::ParticleType> = Id::from_static(92);
-pub const FALLING_OBSIDIAN_TEAR: Id<crate::ParticleType> = Id::from_static(99);
-pub const FALLING_SPORE_BLOSSOM: Id<crate::ParticleType> = Id::from_static(93);
-pub const FALLING_WATER: Id<crate::ParticleType> = Id::from_static(20);
-pub const FIREFLY: Id<crate::ParticleType> = Id::from_static(126);
-pub const FIREWORK: Id<crate::ParticleType> = Id::from_static(37);
-pub const FISHING: Id<crate::ParticleType> = Id::from_static(38);
-pub const FLAME: Id<crate::ParticleType> = Id::from_static(39);
-pub const FLASH: Id<crate::ParticleType> = Id::from_static(52);
-pub const GEYSER: Id<crate::ParticleType> = Id::from_static(7);
-pub const GEYSER_BASE: Id<crate::ParticleType> = Id::from_static(8);
-pub const GEYSER_PLUME: Id<crate::ParticleType> = Id::from_static(10);
-pub const GEYSER_POOF: Id<crate::ParticleType> = Id::from_static(9);
-pub const GLOW: Id<crate::ParticleType> = Id::from_static(110);
-pub const GLOW_SQUID_INK: Id<crate::ParticleType> = Id::from_static(109);
-pub const GUST: Id<crate::ParticleType> = Id::from_static(31);
-pub const GUST_EMITTER_LARGE: Id<crate::ParticleType> = Id::from_static(33);
-pub const GUST_EMITTER_SMALL: Id<crate::ParticleType> = Id::from_static(34);
-pub const HAPPY_VILLAGER: Id<crate::ParticleType> = Id::from_static(53);
-pub const HEART: Id<crate::ParticleType> = Id::from_static(55);
-pub const INFESTED: Id<crate::ParticleType> = Id::from_static(40);
-pub const INSTANT_EFFECT: Id<crate::ParticleType> = Id::from_static(56);
-pub const ITEM: Id<crate::ParticleType> = Id::from_static(57);
-pub const ITEM_COBWEB: Id<crate::ParticleType> = Id::from_static(63);
-pub const ITEM_SLIME: Id<crate::ParticleType> = Id::from_static(62);
-pub const ITEM_SNOWBALL: Id<crate::ParticleType> = Id::from_static(64);
-pub const LANDING_HONEY: Id<crate::ParticleType> = Id::from_static(91);
-pub const LANDING_LAVA: Id<crate::ParticleType> = Id::from_static(18);
-pub const LANDING_OBSIDIAN_TEAR: Id<crate::ParticleType> = Id::from_static(100);
-pub const LARGE_SMOKE: Id<crate::ParticleType> = Id::from_static(65);
-pub const LAVA: Id<crate::ParticleType> = Id::from_static(66);
-pub const MYCELIUM: Id<crate::ParticleType> = Id::from_static(67);
-pub const NAUTILUS: Id<crate::ParticleType> = Id::from_static(85);
-pub const NOTE: Id<crate::ParticleType> = Id::from_static(68);
-pub const NOXIOUS_GAS: Id<crate::ParticleType> = Id::from_static(5);
-pub const NOXIOUS_GAS_CLOUD: Id<crate::ParticleType> = Id::from_static(6);
-pub const OMINOUS_SPAWNING: Id<crate::ParticleType> = Id::from_static(122);
-pub const ORANGE_POPLAR_LEAVES: Id<crate::ParticleType> = Id::from_static(44);
-pub const PALE_OAK_LEAVES: Id<crate::ParticleType> = Id::from_static(42);
-pub const PAUSE_MOB_GROWTH: Id<crate::ParticleType> = Id::from_static(60);
-pub const POOF: Id<crate::ParticleType> = Id::from_static(69);
-pub const PORTAL: Id<crate::ParticleType> = Id::from_static(70);
-pub const RAID_OMEN: Id<crate::ParticleType> = Id::from_static(123);
-pub const RAIN: Id<crate::ParticleType> = Id::from_static(71);
-pub const RED_POPLAR_LEAVES: Id<crate::ParticleType> = Id::from_static(43);
-pub const RESET_MOB_GROWTH: Id<crate::ParticleType> = Id::from_static(61);
-pub const REVERSE_PORTAL: Id<crate::ParticleType> = Id::from_static(101);
-pub const SCRAPE: Id<crate::ParticleType> = Id::from_static(114);
-pub const SCULK_CHARGE: Id<crate::ParticleType> = Id::from_static(48);
-pub const SCULK_CHARGE_POP: Id<crate::ParticleType> = Id::from_static(49);
-pub const SCULK_SOUL: Id<crate::ParticleType> = Id::from_static(47);
-pub const SHRIEK: Id<crate::ParticleType> = Id::from_static(115);
-pub const SMALL_FLAME: Id<crate::ParticleType> = Id::from_static(103);
-pub const SMALL_GUST: Id<crate::ParticleType> = Id::from_static(32);
-pub const SMOKE: Id<crate::ParticleType> = Id::from_static(72);
-pub const SNEEZE: Id<crate::ParticleType> = Id::from_static(74);
-pub const SNOWFLAKE: Id<crate::ParticleType> = Id::from_static(104);
-pub const SONIC_BOOM: Id<crate::ParticleType> = Id::from_static(35);
-pub const SOUL: Id<crate::ParticleType> = Id::from_static(51);
-pub const SOUL_FIRE_FLAME: Id<crate::ParticleType> = Id::from_static(50);
-pub const SPIT: Id<crate::ParticleType> = Id::from_static(75);
-pub const SPLASH: Id<crate::ParticleType> = Id::from_static(80);
-pub const SPORE_BLOSSOM_AIR: Id<crate::ParticleType> = Id::from_static(97);
-pub const SQUID_INK: Id<crate::ParticleType> = Id::from_static(76);
-pub const SULFUR_BUBBLES: Id<crate::ParticleType> = Id::from_static(4);
-pub const SULFUR_CUBE_GOO: Id<crate::ParticleType> = Id::from_static(127);
-pub const SWEEP_ATTACK: Id<crate::ParticleType> = Id::from_static(77);
-pub const TINTED_LEAVES: Id<crate::ParticleType> = Id::from_static(46);
-pub const TOTEM_OF_UNDYING: Id<crate::ParticleType> = Id::from_static(78);
-pub const TRAIL: Id<crate::ParticleType> = Id::from_static(59);
-pub const TRIAL_OMEN: Id<crate::ParticleType> = Id::from_static(124);
-pub const TRIAL_SPAWNER_DETECTION: Id<crate::ParticleType> = Id::from_static(118);
-pub const TRIAL_SPAWNER_DETECTION_OMINOUS: Id<crate::ParticleType> = Id::from_static(119);
-pub const UNDERWATER: Id<crate::ParticleType> = Id::from_static(79);
-pub const VAULT_CONNECTION: Id<crate::ParticleType> = Id::from_static(120);
-pub const VIBRATION: Id<crate::ParticleType> = Id::from_static(58);
-pub const WARPED_SPORE: Id<crate::ParticleType> = Id::from_static(96);
-pub const WAX_OFF: Id<crate::ParticleType> = Id::from_static(112);
-pub const WAX_ON: Id<crate::ParticleType> = Id::from_static(111);
-pub const WHITE_ASH: Id<crate::ParticleType> = Id::from_static(102);
-pub const WHITE_SMOKE: Id<crate::ParticleType> = Id::from_static(73);
-pub const WITCH: Id<crate::ParticleType> = Id::from_static(81);
-pub const YELLOW_POPLAR_LEAVES: Id<crate::ParticleType> = Id::from_static(45);
-
-pub const NAMES: &[&str] = &[
-    "minecraft:angry_villager",
-    "minecraft:block",
-    "minecraft:block_marker",
-    "minecraft:bubble",
-    "minecraft:sulfur_bubbles",
-    "minecraft:noxious_gas",
-    "minecraft:noxious_gas_cloud",
-    "minecraft:geyser",
-    "minecraft:geyser_base",
-    "minecraft:geyser_poof",
-    "minecraft:geyser_plume",
-    "minecraft:cloud",
-    "minecraft:copper_fire_flame",
-    "minecraft:crit",
-    "minecraft:damage_indicator",
-    "minecraft:dragon_breath",
-    "minecraft:dripping_lava",
-    "minecraft:falling_lava",
-    "minecraft:landing_lava",
-    "minecraft:dripping_water",
-    "minecraft:falling_water",
-    "minecraft:dust",
-    "minecraft:dust_color_transition",
-    "minecraft:effect",
-    "minecraft:elder_guardian",
-    "minecraft:enchanted_hit",
-    "minecraft:enchant",
-    "minecraft:end_rod",
-    "minecraft:entity_effect",
-    "minecraft:explosion_emitter",
-    "minecraft:explosion",
-    "minecraft:gust",
-    "minecraft:small_gust",
-    "minecraft:gust_emitter_large",
-    "minecraft:gust_emitter_small",
-    "minecraft:sonic_boom",
-    "minecraft:falling_dust",
-    "minecraft:firework",
-    "minecraft:fishing",
-    "minecraft:flame",
-    "minecraft:infested",
-    "minecraft:cherry_leaves",
-    "minecraft:pale_oak_leaves",
-    "minecraft:red_poplar_leaves",
-    "minecraft:orange_poplar_leaves",
-    "minecraft:yellow_poplar_leaves",
-    "minecraft:tinted_leaves",
-    "minecraft:sculk_soul",
-    "minecraft:sculk_charge",
-    "minecraft:sculk_charge_pop",
-    "minecraft:soul_fire_flame",
-    "minecraft:soul",
-    "minecraft:flash",
-    "minecraft:happy_villager",
-    "minecraft:composter",
-    "minecraft:heart",
-    "minecraft:instant_effect",
-    "minecraft:item",
-    "minecraft:vibration",
-    "minecraft:trail",
-    "minecraft:pause_mob_growth",
-    "minecraft:reset_mob_growth",
-    "minecraft:item_slime",
-    "minecraft:item_cobweb",
-    "minecraft:item_snowball",
-    "minecraft:large_smoke",
-    "minecraft:lava",
-    "minecraft:mycelium",
-    "minecraft:note",
-    "minecraft:poof",
-    "minecraft:portal",
-    "minecraft:rain",
-    "minecraft:smoke",
-    "minecraft:white_smoke",
-    "minecraft:sneeze",
-    "minecraft:spit",
-    "minecraft:squid_ink",
-    "minecraft:sweep_attack",
-    "minecraft:totem_of_undying",
-    "minecraft:underwater",
-    "minecraft:splash",
-    "minecraft:witch",
-    "minecraft:bubble_pop",
-    "minecraft:current_down",
-    "minecraft:bubble_column_up",
-    "minecraft:nautilus",
-    "minecraft:dolphin",
-    "minecraft:campfire_cosy_smoke",
-    "minecraft:campfire_signal_smoke",
-    "minecraft:dripping_honey",
-    "minecraft:falling_honey",
-    "minecraft:landing_honey",
-    "minecraft:falling_nectar",
-    "minecraft:falling_spore_blossom",
-    "minecraft:ash",
-    "minecraft:crimson_spore",
-    "minecraft:warped_spore",
-    "minecraft:spore_blossom_air",
-    "minecraft:dripping_obsidian_tear",
-    "minecraft:falling_obsidian_tear",
-    "minecraft:landing_obsidian_tear",
-    "minecraft:reverse_portal",
-    "minecraft:white_ash",
-    "minecraft:small_flame",
-    "minecraft:snowflake",
-    "minecraft:dripping_dripstone_lava",
-    "minecraft:falling_dripstone_lava",
-    "minecraft:dripping_dripstone_water",
-    "minecraft:falling_dripstone_water",
-    "minecraft:glow_squid_ink",
-    "minecraft:glow",
-    "minecraft:wax_on",
-    "minecraft:wax_off",
-    "minecraft:electric_spark",
-    "minecraft:scrape",
-    "minecraft:shriek",
-    "minecraft:egg_crack",
-    "minecraft:dust_plume",
-    "minecraft:trial_spawner_detection",
-    "minecraft:trial_spawner_detection_ominous",
-    "minecraft:vault_connection",
-    "minecraft:dust_pillar",
-    "minecraft:ominous_spawning",
-    "minecraft:raid_omen",
-    "minecraft:trial_omen",
-    "minecraft:block_crumble",
-    "minecraft:firefly",
-    "minecraft:sulfur_cube_goo",
-];
+mcrs_minecraft_registry::static_keys! {
+    crate::ParticleType;
+    ANGRY_VILLAGER = "minecraft:angry_villager",
+    BLOCK = "minecraft:block",
+    BLOCK_MARKER = "minecraft:block_marker",
+    BUBBLE = "minecraft:bubble",
+    SULFUR_BUBBLES = "minecraft:sulfur_bubbles",
+    NOXIOUS_GAS = "minecraft:noxious_gas",
+    NOXIOUS_GAS_CLOUD = "minecraft:noxious_gas_cloud",
+    GEYSER = "minecraft:geyser",
+    GEYSER_BASE = "minecraft:geyser_base",
+    GEYSER_POOF = "minecraft:geyser_poof",
+    GEYSER_PLUME = "minecraft:geyser_plume",
+    CLOUD = "minecraft:cloud",
+    COPPER_FIRE_FLAME = "minecraft:copper_fire_flame",
+    CRIT = "minecraft:crit",
+    DAMAGE_INDICATOR = "minecraft:damage_indicator",
+    DRAGON_BREATH = "minecraft:dragon_breath",
+    DRIPPING_LAVA = "minecraft:dripping_lava",
+    FALLING_LAVA = "minecraft:falling_lava",
+    LANDING_LAVA = "minecraft:landing_lava",
+    DRIPPING_WATER = "minecraft:dripping_water",
+    FALLING_WATER = "minecraft:falling_water",
+    DUST = "minecraft:dust",
+    DUST_COLOR_TRANSITION = "minecraft:dust_color_transition",
+    EFFECT = "minecraft:effect",
+    ELDER_GUARDIAN = "minecraft:elder_guardian",
+    ENCHANTED_HIT = "minecraft:enchanted_hit",
+    ENCHANT = "minecraft:enchant",
+    END_ROD = "minecraft:end_rod",
+    ENTITY_EFFECT = "minecraft:entity_effect",
+    EXPLOSION_EMITTER = "minecraft:explosion_emitter",
+    EXPLOSION = "minecraft:explosion",
+    GUST = "minecraft:gust",
+    SMALL_GUST = "minecraft:small_gust",
+    GUST_EMITTER_LARGE = "minecraft:gust_emitter_large",
+    GUST_EMITTER_SMALL = "minecraft:gust_emitter_small",
+    SONIC_BOOM = "minecraft:sonic_boom",
+    FALLING_DUST = "minecraft:falling_dust",
+    FIREWORK = "minecraft:firework",
+    FISHING = "minecraft:fishing",
+    FLAME = "minecraft:flame",
+    INFESTED = "minecraft:infested",
+    CHERRY_LEAVES = "minecraft:cherry_leaves",
+    PALE_OAK_LEAVES = "minecraft:pale_oak_leaves",
+    RED_POPLAR_LEAVES = "minecraft:red_poplar_leaves",
+    ORANGE_POPLAR_LEAVES = "minecraft:orange_poplar_leaves",
+    YELLOW_POPLAR_LEAVES = "minecraft:yellow_poplar_leaves",
+    TINTED_LEAVES = "minecraft:tinted_leaves",
+    SCULK_SOUL = "minecraft:sculk_soul",
+    SCULK_CHARGE = "minecraft:sculk_charge",
+    SCULK_CHARGE_POP = "minecraft:sculk_charge_pop",
+    SOUL_FIRE_FLAME = "minecraft:soul_fire_flame",
+    SOUL = "minecraft:soul",
+    FLASH = "minecraft:flash",
+    HAPPY_VILLAGER = "minecraft:happy_villager",
+    COMPOSTER = "minecraft:composter",
+    HEART = "minecraft:heart",
+    INSTANT_EFFECT = "minecraft:instant_effect",
+    ITEM = "minecraft:item",
+    VIBRATION = "minecraft:vibration",
+    TRAIL = "minecraft:trail",
+    PAUSE_MOB_GROWTH = "minecraft:pause_mob_growth",
+    RESET_MOB_GROWTH = "minecraft:reset_mob_growth",
+    ITEM_SLIME = "minecraft:item_slime",
+    ITEM_COBWEB = "minecraft:item_cobweb",
+    ITEM_SNOWBALL = "minecraft:item_snowball",
+    LARGE_SMOKE = "minecraft:large_smoke",
+    LAVA = "minecraft:lava",
+    MYCELIUM = "minecraft:mycelium",
+    NOTE = "minecraft:note",
+    POOF = "minecraft:poof",
+    PORTAL = "minecraft:portal",
+    RAIN = "minecraft:rain",
+    SMOKE = "minecraft:smoke",
+    WHITE_SMOKE = "minecraft:white_smoke",
+    SNEEZE = "minecraft:sneeze",
+    SPIT = "minecraft:spit",
+    SQUID_INK = "minecraft:squid_ink",
+    SWEEP_ATTACK = "minecraft:sweep_attack",
+    TOTEM_OF_UNDYING = "minecraft:totem_of_undying",
+    UNDERWATER = "minecraft:underwater",
+    SPLASH = "minecraft:splash",
+    WITCH = "minecraft:witch",
+    BUBBLE_POP = "minecraft:bubble_pop",
+    CURRENT_DOWN = "minecraft:current_down",
+    BUBBLE_COLUMN_UP = "minecraft:bubble_column_up",
+    NAUTILUS = "minecraft:nautilus",
+    DOLPHIN = "minecraft:dolphin",
+    CAMPFIRE_COSY_SMOKE = "minecraft:campfire_cosy_smoke",
+    CAMPFIRE_SIGNAL_SMOKE = "minecraft:campfire_signal_smoke",
+    DRIPPING_HONEY = "minecraft:dripping_honey",
+    FALLING_HONEY = "minecraft:falling_honey",
+    LANDING_HONEY = "minecraft:landing_honey",
+    FALLING_NECTAR = "minecraft:falling_nectar",
+    FALLING_SPORE_BLOSSOM = "minecraft:falling_spore_blossom",
+    ASH = "minecraft:ash",
+    CRIMSON_SPORE = "minecraft:crimson_spore",
+    WARPED_SPORE = "minecraft:warped_spore",
+    SPORE_BLOSSOM_AIR = "minecraft:spore_blossom_air",
+    DRIPPING_OBSIDIAN_TEAR = "minecraft:dripping_obsidian_tear",
+    FALLING_OBSIDIAN_TEAR = "minecraft:falling_obsidian_tear",
+    LANDING_OBSIDIAN_TEAR = "minecraft:landing_obsidian_tear",
+    REVERSE_PORTAL = "minecraft:reverse_portal",
+    WHITE_ASH = "minecraft:white_ash",
+    SMALL_FLAME = "minecraft:small_flame",
+    SNOWFLAKE = "minecraft:snowflake",
+    DRIPPING_DRIPSTONE_LAVA = "minecraft:dripping_dripstone_lava",
+    FALLING_DRIPSTONE_LAVA = "minecraft:falling_dripstone_lava",
+    DRIPPING_DRIPSTONE_WATER = "minecraft:dripping_dripstone_water",
+    FALLING_DRIPSTONE_WATER = "minecraft:falling_dripstone_water",
+    GLOW_SQUID_INK = "minecraft:glow_squid_ink",
+    GLOW = "minecraft:glow",
+    WAX_ON = "minecraft:wax_on",
+    WAX_OFF = "minecraft:wax_off",
+    ELECTRIC_SPARK = "minecraft:electric_spark",
+    SCRAPE = "minecraft:scrape",
+    SHRIEK = "minecraft:shriek",
+    EGG_CRACK = "minecraft:egg_crack",
+    DUST_PLUME = "minecraft:dust_plume",
+    TRIAL_SPAWNER_DETECTION = "minecraft:trial_spawner_detection",
+    TRIAL_SPAWNER_DETECTION_OMINOUS = "minecraft:trial_spawner_detection_ominous",
+    VAULT_CONNECTION = "minecraft:vault_connection",
+    DUST_PILLAR = "minecraft:dust_pillar",
+    OMINOUS_SPAWNING = "minecraft:ominous_spawning",
+    RAID_OMEN = "minecraft:raid_omen",
+    TRIAL_OMEN = "minecraft:trial_omen",
+    BLOCK_CRUMBLE = "minecraft:block_crumble",
+    FIREFLY = "minecraft:firefly",
+    SULFUR_CUBE_GOO = "minecraft:sulfur_cube_goo",
+}

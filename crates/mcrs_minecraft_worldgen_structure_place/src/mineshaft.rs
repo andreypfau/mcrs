@@ -1,5 +1,5 @@
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use std::cmp::Ordering;
 
 use bevy_math::IVec3;
@@ -25,7 +25,7 @@ const MAX_PILLAR_HEIGHT: i32 = 20;
 const MAX_CHAIN_HEIGHT: i32 = 50;
 
 /// The blocks whose class is `FallingBlock`, which a chain never hangs from.
-const FALLING_BLOCKS: [Id<keys::Block>; 23] = [
+const FALLING_BLOCKS: [StaticKey<keys::Block>; 23] = [
     keys::block::SAND,
     keys::block::RED_SAND,
     keys::block::GRAVEL,
@@ -93,7 +93,7 @@ impl MineshaftBlocks {
                 keys::block::DARK_OAK_FENCE,
             ),
         };
-        let oriented = |block: Id<keys::Block>, properties: &[(&str, &str)]| {
+        let oriented = |block: StaticKey<keys::Block>, properties: &[(&str, &str)]| {
             Oriented::named(world, blocks, block, properties)
         };
         let unstable = keys::block_tags::UNSTABLE_BOTTOM_CENTER.location().to_arc();
@@ -383,7 +383,7 @@ fn corridor<W: WorldGenVolume>(
                 c.volume.set(pos, b.spawner);
                 c.entities.push(GeneratedBlockEntity::mob_spawner(
                     pos,
-                    keys::entity_type::CAVE_SPIDER.name(),
+                    keys::entity_type::CAVE_SPIDER.as_static_str(),
                 ));
             }
         }

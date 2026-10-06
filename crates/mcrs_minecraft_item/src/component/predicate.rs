@@ -412,7 +412,7 @@ macro_rules! predicate_types {
         const _: () = assert!(
             mcrs_minecraft_registry::static_rows::rows_match(
                 &[$((concat!("minecraft:", $name), $id)),*],
-                mcrs_minecraft_keys::data_component_predicate_type::NAMES,
+                mcrs_minecraft_keys::data_component_predicate_type::ENTRIES,
                 true,
             ),
             "the predicate type table must equal the generated data_component_predicate_type names row by row",

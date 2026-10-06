@@ -12,7 +12,7 @@ use mcrs_minecraft_core::voxel_shape::{
 };
 use mcrs_minecraft_keys::{Block, block_tags};
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_registry::{HolderSet, Id, StaticKey};
 use mcrs_minecraft_worldgen_feature::block_predicate::Direction;
 use mcrs_minecraft_worldgen_feature::compile::{
     FeatureCompileError, StateQuery, compile_predicate,
@@ -89,21 +89,24 @@ pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let vine_side = std::array::from_fn(|index| {
         state_of(
             blocks,
-            keys::block::VINE,
+            keys::block::VINE.id(),
             &[(Direction::HORIZONTAL[index].name(), "true")],
         )
         .unwrap_or_default()
     });
-    let state = |block: Id<Block>, properties: &[(&str, &str)]| {
-        missing(state_of(blocks, block, properties), block.name())
+    let state = |block: StaticKey<Block>, properties: &[(&str, &str)]| {
+        missing(
+            state_of(blocks, block.id(), properties),
+            block.as_static_str(),
+        )
     };
     let palette = TreePalette {
         vines: resolver.block_mask_of(keys::block::VINE)?,
         shelf_mushrooms: resolver.block_mask_of(keys::block::SHELF_MUSHROOM)?,
         vine_side,
         bee_nest: state(keys::block::BEE_NEST, &[("facing", "south")])?,
-        cocoa: aged_facings(blocks, keys::block::COCOA),
-        shelf_mushroom: aged_facings(blocks, keys::block::SHELF_MUSHROOM),
+        cocoa: aged_facings(blocks, keys::block::COCOA.id()),
+        shelf_mushroom: aged_facings(blocks, keys::block::SHELF_MUSHROOM.id()),
         pale_hanging_moss: [
             state(keys::block::PALE_HANGING_MOSS, &[("tip", "false")])?,
             state(keys::block::PALE_HANGING_MOSS, &[("tip", "true")])?,

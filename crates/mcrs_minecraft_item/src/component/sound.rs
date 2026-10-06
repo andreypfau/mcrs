@@ -42,7 +42,7 @@ pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> 
 
 pub fn sound_holder_samples() -> Vec<Holder<SoundEvent>> {
     vec![
-        Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK),
+        Holder::Reference(keys::sound_event::ENTITY_ITEM_BREAK.id()),
         Holder::Direct(SoundEvent {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: None,

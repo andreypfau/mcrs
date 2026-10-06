@@ -62,7 +62,7 @@ pub fn from_files(
             .transpose()?;
         entries.push(ItemEntry {
             identifier: item.description.identifier,
-            id: mcrs_minecraft_keys::item::AIR,
+            id: mcrs_minecraft_keys::item::AIR.id(),
             prototype: item.components,
             block_placer: placed.map(|block| block.default_state_id),
             container_slots: placed.and_then(|block| block.container_slots),

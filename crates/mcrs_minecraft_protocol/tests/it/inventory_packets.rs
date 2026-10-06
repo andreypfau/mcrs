@@ -1,6 +1,7 @@
 //! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
 //! ids the capture session had.
 
+use mcrs_minecraft_registry::DenseId;
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
@@ -58,7 +59,7 @@ fn fixture() -> Fixture {
 }
 
 fn item(fixture: &Fixture, path: &str) -> Id<mcrs_minecraft_keys::Item> {
-    Id::from_static(
+    Id::from_raw(
         fixture
             .id("item", &ResourceLocation::minecraft(path).unwrap())
             .unwrap(),

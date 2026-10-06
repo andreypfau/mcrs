@@ -1,3 +1,7 @@
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+
+type Location = ResourceLocation<&'static str>;
+
 pub const fn same_name(a: &str, b: &str) -> bool {
     let (a, b) = (a.as_bytes(), b.as_bytes());
     if a.len() != b.len() {
@@ -13,14 +17,14 @@ pub const fn same_name(a: &str, b: &str) -> bool {
     true
 }
 
-pub const fn rows_match(rows: &[(&str, u16)], names: &[&str], complete: bool) -> bool {
+pub const fn rows_match(rows: &[(&str, u16)], names: &[Location], complete: bool) -> bool {
     if complete && rows.len() != names.len() {
         return false;
     }
     let mut i = 0;
     while i < rows.len() {
         let (name, id) = rows[i];
-        if id as usize >= names.len() || !same_name(name, names[id as usize]) {
+        if id as usize >= names.len() || !same_name(name, names[id as usize].as_static_str()) {
             return false;
         }
         if complete && id as usize != i {
@@ -43,10 +47,11 @@ const fn count_of(list: &[&str], name: &str) -> usize {
     count
 }
 
-pub const fn names_cover(rows: &[&str], unsupported: &[&str], names: &[&str]) -> bool {
+pub const fn names_cover(rows: &[&str], unsupported: &[&str], names: &[Location]) -> bool {
     let mut i = 0;
     while i < names.len() {
-        if count_of(rows, names[i]) + count_of(unsupported, names[i]) != 1 {
+        let name = names[i].as_static_str();
+        if count_of(rows, name) + count_of(unsupported, name) != 1 {
             return false;
         }
         i += 1;
@@ -58,7 +63,7 @@ pub const fn names_cover(rows: &[&str], unsupported: &[&str], names: &[&str]) ->
 pub fn assert_dispatch<T: serde::de::DeserializeOwned>(
     rows: &[&str],
     unsupported: &[&str],
-    names: &[&str],
+    names: &[impl std::fmt::Display],
     probe: impl Fn(&str) -> serde_json::Value,
 ) {
     let unknown = |name: &str| {
@@ -89,7 +94,7 @@ pub fn assert_dispatch<T: serde::de::DeserializeOwned>(
     }
     for variant in declared {
         assert!(
-            rows.contains(&variant) || !names.contains(&variant),
+            rows.contains(&variant) || !names.iter().any(|name| name.to_string() == variant),
             "{variant} names a registry entry that is not in the rows"
         );
     }
@@ -109,7 +114,14 @@ pub const fn numbered<const N: usize>(names: [&'static str; N]) -> [(&'static st
 mod tests {
     use super::*;
 
-    const NAMES: &[&str] = &["minecraft:air", "minecraft:stone", "minecraft:dirt"];
+    use mcrs_minecraft_core::rl;
+
+    const NAME_TEXT: &[&str] = &["minecraft:air", "minecraft:stone", "minecraft:dirt"];
+    const NAMES: &[Location] = &[
+        rl!("minecraft:air"),
+        rl!("minecraft:stone"),
+        rl!("minecraft:dirt"),
+    ];
 
     #[test]
     fn numbered_rows_carry_their_position() {
@@ -128,7 +140,7 @@ mod tests {
 
     #[test]
     fn the_row_check_refuses_every_drift() {
-        let table: &[(&str, &[(&str, u16)], &[&str], bool, bool)] = &[
+        let table: &[(&str, &[(&str, u16)], &[Location], bool, bool)] = &[
             (
                 "complete table",
                 &[
@@ -252,8 +264,8 @@ mod tests {
                 &["minecraft:stone"],
                 true,
             ),
-            ("rows alone", NAMES, &[], true),
-            ("unsupported alone", &[], NAMES, true),
+            ("rows alone", NAME_TEXT, &[], true),
+            ("unsupported alone", &[], NAME_TEXT, true),
             (
                 "name in neither list",
                 &["minecraft:air"],

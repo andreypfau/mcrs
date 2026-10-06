@@ -139,7 +139,7 @@ const BLOCK_PREDICATE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BLOCK_PREDICATE_TYPE_ROWS,
     &[],
-    keys::block_predicate_type::NAMES
+    keys::block_predicate_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -180,8 +180,8 @@ mod tests {
         else {
             panic!("a matching_blocks predicate parses to its own variant");
         };
-        assert!(matching.contains(keys::block::STONE, &tags));
-        assert!(!matching.contains(keys::block::DIRT, &tags));
+        assert!(matching.contains(keys::block::STONE.id(), &tags));
+        assert!(!matching.contains(keys::block::DIRT.id(), &tags));
     }
 
     #[test]
@@ -210,7 +210,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<BlockPredicate>(
             BLOCK_PREDICATE_TYPE_ROWS,
             &[],
-            keys::block_predicate_type::NAMES,
+            keys::block_predicate_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

@@ -139,7 +139,7 @@ null_as_default! {
 }
 
 fn equip_generic() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_GENERIC)
+    Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_GENERIC.id())
 }
 
 fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
@@ -147,7 +147,7 @@ fn is_equip_generic(sound: &Holder<SoundEvent>) -> bool {
 }
 
 fn shears_snip() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ITEM_SHEARS_SNIP)
+    Holder::Reference(sound_event::ITEM_SHEARS_SNIP.id())
 }
 
 fn is_shears_snip(sound: &Holder<SoundEvent>) -> bool {
@@ -191,7 +191,7 @@ impl Sample for Equippable {
                 ("shearing_sound.range", FLOAT_ID),
             ]),
             Holder::Direct(_) => tags.push(("shearing_sound", COMPOUND_ID)),
-            Holder::Reference(id) if *id != sound_event::ITEM_SHEARS_SNIP => {
+            Holder::Reference(id) if *id != sound_event::ITEM_SHEARS_SNIP.id() => {
                 tags.push(("shearing_sound", STRING_ID))
             }
             Holder::Reference(_) => {}
@@ -204,7 +204,7 @@ impl Sample for Equippable {
             Equippable::new(EquipmentSlot::Head),
             Equippable {
                 slot: EquipmentSlot::OffHand,
-                equip_sound: Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_IRON),
+                equip_sound: Holder::Reference(sound_event::ITEM_ARMOR_EQUIP_IRON.id()),
                 asset_id: Some(rl!("minecraft:iron").to_arc()),
                 camera_overlay: Some(rl!("minecraft:misc/pumpkinblur").to_arc()),
                 allowed_entities: Some(list_set(&["zombie", "pig"])),

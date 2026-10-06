@@ -44,7 +44,7 @@ impl PrimedTntBundle {
         Self {
             explosion_radius: ExplosionRadius(DEFAULT_EXPLOSION_RADIUS),
             fuse: Fuse::default(),
-            kind: EntityKind(mcrs_minecraft_keys::entity_type::TNT),
+            kind: EntityKind(mcrs_minecraft_keys::entity_type::TNT.id()),
             tracked_by: TrackedBy::default(),
             mc_entity_marker: MinecraftEntity,
             marker: PrimedTnt,

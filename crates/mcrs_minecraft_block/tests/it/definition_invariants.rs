@@ -1,3 +1,4 @@
+use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -96,9 +97,14 @@ fn a_component_is_not_stated_both_for_the_block_and_in_a_permutation() {
 fn default_state_by_id_equals_by_name_for_every_block() {
     let blocks = crate::common::corpus();
     let mismatches: Vec<String> = (0..blocks.blocks().len())
-        .map(|number| Id::<BlockKey>::from_static(number as u16))
-        .filter(|id| blocks.default_state_of(*id) != blocks.default_state(id.name()))
-        .map(|id| id.name().to_owned())
+        .map(|number| {
+            mcrs_minecraft_keys::block::at(Id::<BlockKey>::from_raw(number as u16))
+                .expect("every block of the corpus has a generated key")
+        })
+        .filter(|key| {
+            blocks.default_state_of(key.id()) != blocks.default_state(key.as_static_str())
+        })
+        .map(|key| key.as_static_str().to_owned())
         .collect();
     crate::common::assert_no_mismatches(
         "blocks whose id and name reach different default states",

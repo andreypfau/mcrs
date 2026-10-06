@@ -66,7 +66,7 @@ fn moved(pos: Pos, turn: Turn, shift: [i32; 3]) -> Pos {
 impl Canvas {
     /// A box of air.
     pub fn new(size: [i32; 3]) -> Self {
-        let air = block(keys::block::AIR.name());
+        let air = block(keys::block::AIR.as_static_str());
         let last = [size[0] - 1, size[1] - 1, size[2] - 1];
         Canvas {
             size: (size[0], size[1], size[2]),

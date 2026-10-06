@@ -75,7 +75,7 @@ const ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED: &[&str] = &["minecraft:exponent
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
     ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
-    keys::enchantment_value_effect_type::NAMES
+    keys::enchantment_value_effect_type::ENTRIES
 ));
 
 impl EnchantmentValueEffect {
@@ -203,12 +203,12 @@ impl ProviderObject {
                 id: None,
                 properties: None,
                 state: Some(state),
-            } if kind == keys::block_state_provider_type::SIMPLE.name() => Ok(BlockStateProvider::Typed(
+            } if kind == keys::block_state_provider_type::SIMPLE.as_static_str() => Ok(BlockStateProvider::Typed(
                 TypedBlockStateProvider::Simple { state },
             )),
             ProviderObject {
                 kind: Some(kind), ..
-            } if kind != keys::block_state_provider_type::SIMPLE.name() => {
+            } if kind != keys::block_state_provider_type::SIMPLE.as_static_str() => {
                 Err(format!("unknown block state provider type `{kind}`"))
             }
             _ => Err("a block state states an `id` and its `properties`; a provider states a `type` and its fields".to_owned()),
@@ -427,7 +427,7 @@ const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
     ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
-    keys::enchantment_location_based_effect_type::NAMES
+    keys::enchantment_location_based_effect_type::ENTRIES
 ));
 
 const ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS: &[&str] = &[
@@ -454,7 +454,7 @@ const ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
     ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
-    keys::enchantment_entity_effect_type::NAMES
+    keys::enchantment_entity_effect_type::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -509,7 +509,7 @@ dispatched_map! {
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     EnchantmentEffects::KEYS,
     &[],
-    keys::enchantment_effect_component_type::NAMES
+    keys::enchantment_effect_component_type::ENTRIES
 ));
 
 #[cfg(test)]
@@ -521,7 +521,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentValueEffect>(
             ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
             ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
-            keys::enchantment_value_effect_type::NAMES,
+            keys::enchantment_value_effect_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -531,7 +531,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
             ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
             ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
-            keys::enchantment_entity_effect_type::NAMES,
+            keys::enchantment_entity_effect_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -541,7 +541,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
             ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
             ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
-            keys::enchantment_location_based_effect_type::NAMES,
+            keys::enchantment_location_based_effect_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

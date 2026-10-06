@@ -405,7 +405,7 @@ pub fn share_registries(world: &mut World) {
 }
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {
-    RegistrySet::from_names(keys::STATIC_REGISTRIES)
+    RegistrySet::from_locations(keys::STATIC_REGISTRIES)
         .and_then(|set| set.with_types(keys::bindings()))
         .map_err(LoadReport::invalid)
 }
@@ -474,21 +474,22 @@ mod tests {
             "../../../assets/mcrs/reports/registries.json"
         ))
         .unwrap();
-        let registries: [(&str, &[&str]); 6] = [
-            ("minecraft:attribute", keys::attribute::NAMES),
-            ("minecraft:block", keys::block::NAMES),
+        let registries: [(&str, &[mcrs_minecraft_core::StaticResourceLocation]); 6] = [
+            ("minecraft:attribute", keys::attribute::ENTRIES),
+            ("minecraft:block", keys::block::ENTRIES),
             (
                 "minecraft:block_entity_type",
-                keys::block_entity_type::NAMES,
+                keys::block_entity_type::ENTRIES,
             ),
-            ("minecraft:entity_type", keys::entity_type::NAMES),
-            ("minecraft:item", keys::item::NAMES),
-            ("minecraft:menu", keys::menu::NAMES),
+            ("minecraft:entity_type", keys::entity_type::ENTRIES),
+            ("minecraft:item", keys::item::ENTRIES),
+            ("minecraft:menu", keys::menu::ENTRIES),
         ];
         for (registry, names) in registries {
             let table = set.table(registry).unwrap();
             let in_report: Vec<String> = table.names().iter().map(ToString::to_string).collect();
-            assert_eq!(in_report, names, "{registry}");
+            let generated: Vec<String> = names.iter().map(ToString::to_string).collect();
+            assert_eq!(in_report, generated, "{registry}");
         }
     }
 
@@ -514,18 +515,17 @@ mod tests {
             (kind::ZOMBIE_NAUTILUS, "zombie_nautilus"),
             (kind::ZOMBIE_VILLAGER, "zombie_villager"),
         ];
-        for (id, name) in entity_types {
-            assert_eq!(
-                keys::entity_type::NAMES[id.index()],
-                format!("minecraft:{name}")
-            );
+        for (key, name) in entity_types {
+            assert_eq!(key.as_static_str(), format!("minecraft:{name}"));
+            assert_eq!(keys::entity_type::ENTRIES[key.id().index()], key.location());
         }
+        assert_eq!(keys::block::TNT.as_static_str(), "minecraft:tnt");
         assert_eq!(
-            keys::block::NAMES[keys::block::TNT.index()],
-            "minecraft:tnt"
+            keys::block::ENTRIES[keys::block::TNT.id().index()],
+            keys::block::TNT.location()
         );
         assert_eq!(
-            keys::attribute::NAMES[keys::attribute::MAX_HEALTH.index()],
+            keys::attribute::MAX_HEALTH.as_static_str(),
             "minecraft:max_health"
         );
     }

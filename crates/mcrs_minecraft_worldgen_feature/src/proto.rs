@@ -699,7 +699,7 @@ const FEATURE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     FEATURE_TYPE_ROWS,
     &[],
-    keys::feature_type::NAMES
+    keys::feature_type::ENTRIES
 ));
 
 impl RegistryValue for Feature {
@@ -886,7 +886,7 @@ const STRUCTURE_PROCESSOR_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     STRUCTURE_PROCESSOR_ROWS,
     &[],
-    keys::structure_processor::NAMES
+    keys::structure_processor::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -926,7 +926,7 @@ const POS_RULE_TEST_ROWS: &[&str] = &[
 const _: () = assert!(names_cover(
     POS_RULE_TEST_ROWS,
     &[],
-    keys::pos_rule_test::NAMES
+    keys::pos_rule_test::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -966,7 +966,7 @@ const RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED: &[&str] = &["minecraft:append_stat
 const _: () = assert!(names_cover(
     RULE_BLOCK_ENTITY_MODIFIER_ROWS,
     RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-    keys::rule_block_entity_modifier::NAMES
+    keys::rule_block_entity_modifier::ENTRIES
 ));
 
 // ---------------------------------------------------------------------------
@@ -1039,7 +1039,7 @@ mod tests {
         assert_dispatch::<Feature>(
             FEATURE_TYPE_ROWS,
             &[],
-            keys::feature_type::NAMES,
+            keys::feature_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -1054,7 +1054,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PosRuleTest>(
             POS_RULE_TEST_ROWS,
             &[],
-            keys::pos_rule_test::NAMES,
+            keys::pos_rule_test::ENTRIES,
             |name| serde_json::json!({ "predicate_type": name }),
         );
     }
@@ -1064,7 +1064,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<RuleBlockEntityModifier>(
             RULE_BLOCK_ENTITY_MODIFIER_ROWS,
             RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-            keys::rule_block_entity_modifier::NAMES,
+            keys::rule_block_entity_modifier::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -1074,7 +1074,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<StructureProcessor>(
             STRUCTURE_PROCESSOR_ROWS,
             &[],
-            keys::structure_processor::NAMES,
+            keys::structure_processor::ENTRIES,
             |name| serde_json::json!({ "processor_type": name }),
         );
     }

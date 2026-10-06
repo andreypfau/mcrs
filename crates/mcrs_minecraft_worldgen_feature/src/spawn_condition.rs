@@ -40,7 +40,7 @@ const SPAWN_CONDITION_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     SPAWN_CONDITION_TYPE_ROWS,
     &[],
-    keys::spawn_condition_type::NAMES
+    keys::spawn_condition_type::ENTRIES
 ));
 
 /// `MinMaxBounds.Doubles`: a bare number is a point, an object holds either
@@ -238,7 +238,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<SpawnCondition>(
             SPAWN_CONDITION_TYPE_ROWS,
             &[],
-            keys::spawn_condition_type::NAMES,
+            keys::spawn_condition_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

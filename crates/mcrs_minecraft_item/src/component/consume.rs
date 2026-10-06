@@ -79,11 +79,11 @@ impl ConsumeEffectType {
 
     pub const fn id(self) -> &'static str {
         match self {
-            Self::ApplyEffects => keys::consume_effect_type::APPLY_EFFECTS.name(),
-            Self::RemoveEffects => keys::consume_effect_type::REMOVE_EFFECTS.name(),
-            Self::ClearAllEffects => keys::consume_effect_type::CLEAR_ALL_EFFECTS.name(),
-            Self::TeleportRandomly => keys::consume_effect_type::TELEPORT_RANDOMLY.name(),
-            Self::PlaySound => keys::consume_effect_type::PLAY_SOUND.name(),
+            Self::ApplyEffects => keys::consume_effect_type::APPLY_EFFECTS.as_static_str(),
+            Self::RemoveEffects => keys::consume_effect_type::REMOVE_EFFECTS.as_static_str(),
+            Self::ClearAllEffects => keys::consume_effect_type::CLEAR_ALL_EFFECTS.as_static_str(),
+            Self::TeleportRandomly => keys::consume_effect_type::TELEPORT_RANDOMLY.as_static_str(),
+            Self::PlaySound => keys::consume_effect_type::PLAY_SOUND.as_static_str(),
         }
     }
 
@@ -105,7 +105,7 @@ const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
         }
         rows
     },
-    keys::consume_effect_type::NAMES,
+    keys::consume_effect_type::ENTRIES,
     true
 ));
 
@@ -146,7 +146,7 @@ const CONSUME_EFFECT_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     CONSUME_EFFECT_TYPE_ROWS,
     &[],
-    keys::consume_effect_type::NAMES
+    keys::consume_effect_type::ENTRIES
 ));
 
 impl ConsumeEffect {
@@ -225,7 +225,7 @@ fn is_eat(animation: &ItemUseAnimation) -> bool {
 }
 
 fn generic_eat() -> Holder<SoundEvent> {
-    Holder::Reference(sound_event::ENTITY_GENERIC_EAT)
+    Holder::Reference(sound_event::ENTITY_GENERIC_EAT.id())
 }
 
 fn is_generic_eat(sound: &Holder<SoundEvent>) -> bool {
@@ -296,7 +296,7 @@ pub fn every_consume_effect() -> Vec<ConsumeEffect> {
             directional_particles: false,
         },
         ConsumeEffect::PlaySound {
-            sound: Holder::Reference(sound_event::ENTITY_ITEM_BREAK),
+            sound: Holder::Reference(sound_event::ENTITY_ITEM_BREAK.id()),
         },
         ConsumeEffect::PlaySound {
             sound: Holder::Direct(SoundEvent {
@@ -378,7 +378,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<ConsumeEffect>(
             CONSUME_EFFECT_TYPE_ROWS,
             &[],
-            keys::consume_effect_type::NAMES,
+            keys::consume_effect_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

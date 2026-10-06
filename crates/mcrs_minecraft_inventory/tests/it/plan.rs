@@ -1,3 +1,4 @@
+use mcrs_minecraft_registry::DenseId;
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_inventory::{
     Click, Drag, Feed, MenuSnapshot, Op, Planner, SLOT_CLICKED_OUTSIDE, Slot, Source, StackKey,
@@ -12,7 +13,7 @@ use mcrs_minecraft_registry::Id;
 fn stone(count: u8) -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(1),
+            item: Id::from_raw(1),
             components: ComponentPatch::EMPTY,
         },
         count,
@@ -29,7 +30,7 @@ fn stone(count: u8) -> StackView {
 fn ender_pearl(count: u8) -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(8),
+            item: Id::from_raw(8),
             components: ComponentPatch::EMPTY,
         },
         count,
@@ -46,7 +47,7 @@ fn ender_pearl(count: u8) -> StackView {
 fn helmet() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(2),
+            item: Id::from_raw(2),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -63,7 +64,7 @@ fn helmet() -> StackView {
 fn leggings() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(3),
+            item: Id::from_raw(3),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -80,7 +81,7 @@ fn leggings() -> StackView {
 fn sword() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(4),
+            item: Id::from_raw(4),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -97,7 +98,7 @@ fn sword() -> StackView {
 fn cursed_chestplate() -> StackView {
     StackView {
         key: StackKey {
-            item: Id::from_static(7),
+            item: Id::from_raw(7),
             components: ComponentPatch::EMPTY,
         },
         count: 1,
@@ -686,7 +687,7 @@ fn a_sword_is_refused_by_every_armour_slot() {
 fn swapping_onto_worn_armour_is_gated_by_the_incoming_stack() {
     let other_helmet = StackView {
         key: StackKey {
-            item: Id::from_static(5),
+            item: Id::from_raw(5),
             components: ComponentPatch::EMPTY,
         },
         ..helmet()

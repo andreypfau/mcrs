@@ -22,7 +22,7 @@ const CHUNK_GENERATOR_ROWS: &[&str] = &["minecraft:noise", "minecraft:flat", "mi
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     CHUNK_GENERATOR_ROWS,
     &[],
-    keys::chunk_generator::NAMES
+    keys::chunk_generator::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,7 +41,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<ChunkGenerator>(
             CHUNK_GENERATOR_ROWS,
             &[],
-            keys::chunk_generator::NAMES,
+            keys::chunk_generator::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

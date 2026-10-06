@@ -1268,7 +1268,7 @@ const STRUCTURE_PIECE_UNSUPPORTED: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_PIECE_ROWS,
     STRUCTURE_PIECE_UNSUPPORTED,
-    mcrs_minecraft_keys::structure_piece::NAMES
+    mcrs_minecraft_keys::structure_piece::ENTRIES
 ));
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
@@ -2911,7 +2911,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PieceTag>(
             STRUCTURE_PIECE_ROWS,
             STRUCTURE_PIECE_UNSUPPORTED,
-            mcrs_minecraft_keys::structure_piece::NAMES,
+            mcrs_minecraft_keys::structure_piece::ENTRIES,
             |name| serde_json::json!({ "id": name }),
         );
     }

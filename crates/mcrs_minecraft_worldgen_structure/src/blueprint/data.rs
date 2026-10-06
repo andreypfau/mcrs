@@ -102,7 +102,7 @@ fn texts(fields: &[(&str, &str)]) -> NbtCompound {
 pub(super) fn chest(loot_table: &str) -> BlockData {
     BlockData::Fixed(texts(&[
         ("LootTable", loot_table),
-        ("id", keys::block_entity_type::CHEST.name()),
+        ("id", keys::block_entity_type::CHEST.as_static_str()),
     ]))
 }
 
@@ -126,7 +126,7 @@ impl BlockData {
                     ("final_state", final_state),
                     ("name", name),
                     ("pool", pool),
-                    ("id", keys::block_entity_type::JIGSAW.name()),
+                    ("id", keys::block_entity_type::JIGSAW.as_static_str()),
                     ("target", name),
                 ])
             }

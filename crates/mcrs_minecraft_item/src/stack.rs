@@ -4,7 +4,7 @@ use std::fmt;
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_registry::{Id, RegistryLookup};
+use mcrs_minecraft_registry::{DenseId, Id, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -30,7 +30,7 @@ pub struct ItemStackValue {
 
 impl Validate for ItemStackValue {
     fn validate(&self) -> Result<(), String> {
-        if self.item.as_str() == keys::item::AIR.name() {
+        if self.item.as_str() == keys::item::AIR.as_static_str() {
             return Err("Item must not be minecraft:air".into());
         }
         Ok(())
@@ -164,7 +164,7 @@ impl Default for ProtoStack {
 
 impl ProtoStack {
     pub const EMPTY: ProtoStack = ProtoStack {
-        id: item::AIR,
+        id: item::AIR.id(),
         count: 0,
         components: ComponentPatch::EMPTY,
     };
@@ -191,7 +191,7 @@ impl ProtoStack {
             )
             .with_context(|| format!("{} is not in registry item", value.item))?;
         Ok(ProtoStack {
-            id: Id::from_static(id),
+            id: Id::from_raw(id),
             count: value.count.0,
             components: value.components.clone(),
         })

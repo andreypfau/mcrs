@@ -109,7 +109,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         }
         // chisle: the only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
-        if self.item().as_str() == keys::item::COMPASS.name()
+        if self.item().as_str() == keys::item::COMPASS.as_static_str()
             && self.has(ItemComponentKind::LodestoneTracker)
         {
             return true;
@@ -244,7 +244,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
             ChargeType::None
         } else if projectiles
             .iter()
-            .any(|c| c.item().as_str() == keys::item::FIREWORK_ROCKET.name())
+            .any(|c| c.item().as_str() == keys::item::FIREWORK_ROCKET.as_static_str())
         {
             ChargeType::Rocket
         } else {

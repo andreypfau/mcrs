@@ -5,7 +5,7 @@ use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_density::proto::BlockState;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -57,7 +57,7 @@ impl OceanRuinBlocks {
                 keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
-        let bare = |block: Id<keys::Block>| BlockState::bare(block.location().to_arc());
+        let bare = |block: StaticKey<keys::Block>| BlockState::bare(block.location().to_arc());
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {

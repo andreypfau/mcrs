@@ -54,7 +54,7 @@ fn player_will_destroy_tnt(
 }
 
 fn is_tnt(blocks: &Blocks, state: mcrs_minecraft_registry::BlockStateId) -> bool {
-    blocks.block_index(state) == block::TNT
+    blocks.block_index(state) == block::TNT.id()
 }
 
 fn is_unstable_tnt(blocks: &Blocks, state: mcrs_minecraft_registry::BlockStateId) -> bool {

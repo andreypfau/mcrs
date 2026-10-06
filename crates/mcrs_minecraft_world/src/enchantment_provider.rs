@@ -34,7 +34,7 @@ const ENCHANTMENT_PROVIDER_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ENCHANTMENT_PROVIDER_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::enchantment_provider_type::NAMES
+    mcrs_minecraft_keys::enchantment_provider_type::ENTRIES
 ));
 
 #[cfg(test)]
@@ -46,7 +46,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentProvider>(
             ENCHANTMENT_PROVIDER_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::enchantment_provider_type::NAMES,
+            mcrs_minecraft_keys::enchantment_provider_type::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

@@ -579,7 +579,7 @@ impl Builder {
             keys::block::VOID_AIR,
         ]
         .iter()
-        .any(|block| block.name() == description.identifier.as_str());
+        .any(|block| block.as_static_str() == description.identifier.as_str());
         let mut values = vec![0u8; properties.0.len()];
         for index in 0..state_count {
             let mut rest = index;
@@ -737,7 +737,12 @@ impl Builder {
             .as_ref()
             .map(|fluid| {
                 Ok::<_, BlockError>(FluidState {
-                    fluid: Id::from_name(fluid.fluid.as_str())?,
+                    fluid: keys::fluid::find(fluid.fluid.as_str())
+                        .ok_or_else(|| UnknownEntry {
+                            registry: keys::FLUID.location().into(),
+                            name: fluid.fluid.as_str().to_owned(),
+                        })?
+                        .id(),
                     level: fluid.level,
                     source: fluid.source,
                 })
