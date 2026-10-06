@@ -78,7 +78,7 @@ const STRUCTURE_PLACEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_PLACEMENT_ROWS,
     &[],
-    mcrs_minecraft_keys::structure_placement::ENTRIES
+    crate::keys::StructurePlacement::ENTRIES
 ));
 
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
@@ -240,7 +240,7 @@ const STRUCTURE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::structure_type::ENTRIES
+    crate::keys::StructureType::ENTRIES
 ));
 
 impl Structure {
@@ -479,7 +479,7 @@ const POOL_ALIAS_BINDING_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     POOL_ALIAS_BINDING_ROWS,
     &[],
-    mcrs_minecraft_keys::pool_alias_binding::ENTRIES
+    crate::keys::PoolAliasBinding::ENTRIES
 ));
 
 #[cfg(test)]
@@ -613,7 +613,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolAlias>(
             POOL_ALIAS_BINDING_ROWS,
             &[],
-            mcrs_minecraft_keys::pool_alias_binding::ENTRIES,
+            crate::keys::PoolAliasBinding::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -623,7 +623,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<StructurePlacement>(
             STRUCTURE_PLACEMENT_ROWS,
             &[],
-            mcrs_minecraft_keys::structure_placement::ENTRIES,
+            crate::keys::StructurePlacement::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -633,7 +633,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<Structure>(
             STRUCTURE_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::structure_type::ENTRIES,
+            crate::keys::StructureType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

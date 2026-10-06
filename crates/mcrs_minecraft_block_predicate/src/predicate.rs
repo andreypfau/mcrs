@@ -138,7 +138,7 @@ const BLOCK_PREDICATE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     BLOCK_PREDICATE_TYPE_ROWS,
     &[],
-    keys::block_predicate_type::ENTRIES
+    crate::keys::BlockPredicateType::ENTRIES
 ));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -225,7 +225,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<BlockPredicate>(
             BLOCK_PREDICATE_TYPE_ROWS,
             &[],
-            keys::block_predicate_type::ENTRIES,
+            crate::keys::BlockPredicateType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

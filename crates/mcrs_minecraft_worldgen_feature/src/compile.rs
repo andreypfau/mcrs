@@ -363,7 +363,7 @@ pub fn compile_predicate(
         }
         BlockPredicate::Unobstructed { .. } => {
             return Err(FeatureCompileError::Unsupported(
-                keys::block_predicate_type::UNOBSTRUCTED
+                mcrs_minecraft_block_predicate::keys::BlockPredicateType::Unobstructed
                     .as_static_str()
                     .to_owned(),
             ));

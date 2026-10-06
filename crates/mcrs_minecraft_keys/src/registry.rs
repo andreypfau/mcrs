@@ -46,13 +46,6 @@ impl Registered for BlockEntityType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockPredicateType {}
-pub const BLOCK_PREDICATE_TYPE: RegistryKey<BlockPredicateType> = RegistryKey::new(rl!("minecraft:block_predicate_type"));
-impl Registered for BlockPredicateType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_PREDICATE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CommandArgumentType {}
 pub const COMMAND_ARGUMENT_TYPE: RegistryKey<CommandArgumentType> = RegistryKey::new(rl!("minecraft:command_argument_type"));
 impl Registered for CommandArgumentType {
@@ -403,13 +396,6 @@ impl Registered for PointOfInterestType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PosRuleTest {}
-pub const POS_RULE_TEST: RegistryKey<PosRuleTest> = RegistryKey::new(rl!("minecraft:pos_rule_test"));
-impl Registered for PosRuleTest {
-    const REGISTRY: RegistryKey<Self> = POS_RULE_TEST;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PositionSourceType {}
 pub const POSITION_SOURCE_TYPE: RegistryKey<PositionSourceType> = RegistryKey::new(rl!("minecraft:position_source_type"));
 impl Registered for PositionSourceType {
@@ -466,20 +452,6 @@ impl Registered for RecipeType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RuleBlockEntityModifier {}
-pub const RULE_BLOCK_ENTITY_MODIFIER: RegistryKey<RuleBlockEntityModifier> = RegistryKey::new(rl!("minecraft:rule_block_entity_modifier"));
-impl Registered for RuleBlockEntityModifier {
-    const REGISTRY: RegistryKey<Self> = RULE_BLOCK_ENTITY_MODIFIER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RuleTestType {}
-pub const RULE_TEST_TYPE: RegistryKey<RuleTestType> = RegistryKey::new(rl!("minecraft:rule_test_type"));
-impl Registered for RuleTestType {
-    const REGISTRY: RegistryKey<Self> = RULE_TEST_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SensorType {}
 pub const SENSOR_TYPE: RegistryKey<SensorType> = RegistryKey::new(rl!("minecraft:sensor_type"));
 impl Registered for SensorType {
@@ -505,13 +477,6 @@ pub enum SlotSourceType {}
 pub const SLOT_SOURCE_TYPE: RegistryKey<SlotSourceType> = RegistryKey::new(rl!("minecraft:slot_source_type"));
 impl Registered for SlotSourceType {
     const REGISTRY: RegistryKey<Self> = SLOT_SOURCE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SpawnConditionType {}
-pub const SPAWN_CONDITION_TYPE: RegistryKey<SpawnConditionType> = RegistryKey::new(rl!("minecraft:spawn_condition_type"));
-impl Registered for SpawnConditionType {
-    const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -578,27 +543,6 @@ impl Registered for VillagerType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BiomeSource {}
-pub const BIOME_SOURCE: RegistryKey<BiomeSource> = RegistryKey::new(rl!("minecraft:worldgen/biome_source"));
-impl Registered for BiomeSource {
-    const REGISTRY: RegistryKey<Self> = BIOME_SOURCE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlockStateProviderType {}
-pub const BLOCK_STATE_PROVIDER_TYPE: RegistryKey<BlockStateProviderType> = RegistryKey::new(rl!("minecraft:worldgen/block_state_provider_type"));
-impl Registered for BlockStateProviderType {
-    const REGISTRY: RegistryKey<Self> = BLOCK_STATE_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CarverType {}
-pub const CARVER_TYPE: RegistryKey<CarverType> = RegistryKey::new(rl!("minecraft:worldgen/carver_type"));
-impl Registered for CarverType {
-    const REGISTRY: RegistryKey<Self> = CARVER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkGenerator {}
 pub const CHUNK_GENERATOR: RegistryKey<ChunkGenerator> = RegistryKey::new(rl!("minecraft:worldgen/chunk_generator"));
 impl Registered for ChunkGenerator {
@@ -613,38 +557,10 @@ impl Registered for DensityFunction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DensityFunctionType {}
-pub const DENSITY_FUNCTION_TYPE: RegistryKey<DensityFunctionType> = RegistryKey::new(rl!("minecraft:worldgen/density_function_type"));
-impl Registered for DensityFunctionType {
-    const REGISTRY: RegistryKey<Self> = DENSITY_FUNCTION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FeatureSizeType {}
-pub const FEATURE_SIZE_TYPE: RegistryKey<FeatureSizeType> = RegistryKey::new(rl!("minecraft:worldgen/feature_size_type"));
-impl Registered for FeatureSizeType {
-    const REGISTRY: RegistryKey<Self> = FEATURE_SIZE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FeatureType {}
-pub const FEATURE_TYPE: RegistryKey<FeatureType> = RegistryKey::new(rl!("minecraft:worldgen/feature_type"));
-impl Registered for FeatureType {
-    const REGISTRY: RegistryKey<Self> = FEATURE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlatLevelGeneratorPreset {}
 pub const FLAT_LEVEL_GENERATOR_PRESET: RegistryKey<FlatLevelGeneratorPreset> = RegistryKey::new(rl!("minecraft:worldgen/flat_level_generator_preset"));
 impl Registered for FlatLevelGeneratorPreset {
     const REGISTRY: RegistryKey<Self> = FLAT_LEVEL_GENERATOR_PRESET;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FoliagePlacerType {}
-pub const FOLIAGE_PLACER_TYPE: RegistryKey<FoliagePlacerType> = RegistryKey::new(rl!("minecraft:worldgen/foliage_placer_type"));
-impl Registered for FoliagePlacerType {
-    const REGISTRY: RegistryKey<Self> = FOLIAGE_PLACER_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -654,91 +570,7 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MaterialConditionType {}
-pub const MATERIAL_CONDITION_TYPE: RegistryKey<MaterialConditionType> = RegistryKey::new(rl!("minecraft:worldgen/material_condition_type"));
-impl Registered for MaterialConditionType {
-    const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum MaterialRuleType {}
-pub const MATERIAL_RULE_TYPE: RegistryKey<MaterialRuleType> = RegistryKey::new(rl!("minecraft:worldgen/material_rule_type"));
-impl Registered for MaterialRuleType {
-    const REGISTRY: RegistryKey<Self> = MATERIAL_RULE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PlacementModifierType {}
-pub const PLACEMENT_MODIFIER_TYPE: RegistryKey<PlacementModifierType> = RegistryKey::new(rl!("minecraft:worldgen/placement_modifier_type"));
-impl Registered for PlacementModifierType {
-    const REGISTRY: RegistryKey<Self> = PLACEMENT_MODIFIER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PoolAliasBinding {}
-pub const POOL_ALIAS_BINDING: RegistryKey<PoolAliasBinding> = RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));
-impl Registered for PoolAliasBinding {
-    const REGISTRY: RegistryKey<Self> = POOL_ALIAS_BINDING;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RootPlacerType {}
-pub const ROOT_PLACER_TYPE: RegistryKey<RootPlacerType> = RegistryKey::new(rl!("minecraft:worldgen/root_placer_type"));
-impl Registered for RootPlacerType {
-    const REGISTRY: RegistryKey<Self> = ROOT_PLACER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructurePiece {}
-pub const STRUCTURE_PIECE: RegistryKey<StructurePiece> = RegistryKey::new(rl!("minecraft:worldgen/structure_piece"));
-impl Registered for StructurePiece {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PIECE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructurePlacement {}
-pub const STRUCTURE_PLACEMENT: RegistryKey<StructurePlacement> = RegistryKey::new(rl!("minecraft:worldgen/structure_placement"));
-impl Registered for StructurePlacement {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PLACEMENT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructurePoolElement {}
-pub const STRUCTURE_POOL_ELEMENT: RegistryKey<StructurePoolElement> = RegistryKey::new(rl!("minecraft:worldgen/structure_pool_element"));
-impl Registered for StructurePoolElement {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_POOL_ELEMENT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructureProcessor {}
-pub const STRUCTURE_PROCESSOR: RegistryKey<StructureProcessor> = RegistryKey::new(rl!("minecraft:worldgen/structure_processor"));
-impl Registered for StructureProcessor {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PROCESSOR;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StructureType {}
-pub const STRUCTURE_TYPE: RegistryKey<StructureType> = RegistryKey::new(rl!("minecraft:worldgen/structure_type"));
-impl Registered for StructureType {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TreeDecoratorType {}
-pub const TREE_DECORATOR_TYPE: RegistryKey<TreeDecoratorType> = RegistryKey::new(rl!("minecraft:worldgen/tree_decorator_type"));
-impl Registered for TreeDecoratorType {
-    const REGISTRY: RegistryKey<Self> = TREE_DECORATOR_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TrunkPlacerType {}
-pub const TRUNK_PLACER_TYPE: RegistryKey<TrunkPlacerType> = RegistryKey::new(rl!("minecraft:worldgen/trunk_placer_type"));
-impl Registered for TrunkPlacerType {
-    const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
-}
-
-pub fn bindings() -> [TypeBinding; 105] {
+pub fn bindings() -> [TypeBinding; 81] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -746,7 +578,6 @@ pub fn bindings() -> [TypeBinding; 105] {
         ATTRIBUTE_TYPE.binding(),
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
-        BLOCK_PREDICATE_TYPE.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
         CONSUME_EFFECT_TYPE.binding(),
         CONTEXT_FLOAT_PROVIDER.binding(),
@@ -797,7 +628,6 @@ pub fn bindings() -> [TypeBinding; 105] {
         PERMISSION_CHECK_TYPE.binding(),
         PERMISSION_TYPE.binding(),
         POINT_OF_INTEREST_TYPE.binding(),
-        POS_RULE_TEST.binding(),
         POSITION_SOURCE_TYPE.binding(),
         POTION.binding(),
         PREDICATE.binding(),
@@ -806,13 +636,10 @@ pub fn bindings() -> [TypeBinding; 105] {
         RECIPE_DISPLAY.binding(),
         RECIPE_SERIALIZER.binding(),
         RECIPE_TYPE.binding(),
-        RULE_BLOCK_ENTITY_MODIFIER.binding(),
-        RULE_TEST_TYPE.binding(),
         SENSOR_TYPE.binding(),
         SLOT_DISPLAY.binding(),
         SLOT_SOURCE.binding(),
         SLOT_SOURCE_TYPE.binding(),
-        SPAWN_CONDITION_TYPE.binding(),
         STAT_TYPE.binding(),
         TEST_ENVIRONMENT_DEFINITION_TYPE.binding(),
         TEST_FUNCTION.binding(),
@@ -822,28 +649,9 @@ pub fn bindings() -> [TypeBinding; 105] {
         TRIGGER_TYPE.binding(),
         VILLAGER_PROFESSION.binding(),
         VILLAGER_TYPE.binding(),
-        BIOME_SOURCE.binding(),
-        BLOCK_STATE_PROVIDER_TYPE.binding(),
-        CARVER_TYPE.binding(),
         CHUNK_GENERATOR.binding(),
         DENSITY_FUNCTION.binding(),
-        DENSITY_FUNCTION_TYPE.binding(),
-        FEATURE_SIZE_TYPE.binding(),
-        FEATURE_TYPE.binding(),
         FLAT_LEVEL_GENERATOR_PRESET.binding(),
-        FOLIAGE_PLACER_TYPE.binding(),
         MATERIAL_CONDITION.binding(),
-        MATERIAL_CONDITION_TYPE.binding(),
-        MATERIAL_RULE_TYPE.binding(),
-        PLACEMENT_MODIFIER_TYPE.binding(),
-        POOL_ALIAS_BINDING.binding(),
-        ROOT_PLACER_TYPE.binding(),
-        STRUCTURE_PIECE.binding(),
-        STRUCTURE_PLACEMENT.binding(),
-        STRUCTURE_POOL_ELEMENT.binding(),
-        STRUCTURE_PROCESSOR.binding(),
-        STRUCTURE_TYPE.binding(),
-        TREE_DECORATOR_TYPE.binding(),
-        TRUNK_PLACER_TYPE.binding(),
     ]
 }
