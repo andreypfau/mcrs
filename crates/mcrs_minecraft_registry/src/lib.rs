@@ -21,7 +21,7 @@ pub use entries::Entries;
 pub use holder::*;
 pub use holder_set::{HolderSet, skip_sets, skipping_sets};
 pub use id::{BlockStateId, Id, NarrowError};
-pub use load::{Built, Pack, PackFile, WorldRegistries};
+pub use load::{Built, Pack, PackFile, Parts, WorldRegistries};
 pub use lookup::{ChainLookup, LookupIndex, NoRegistries, RegistryLookup};
 pub use names::NameTable;
 pub use registry::{Registry, RegistryError, UnknownEntry};

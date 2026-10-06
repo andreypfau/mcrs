@@ -164,6 +164,38 @@ fn encode_value<T: Serialize + 'static>(
     Some(serde_json::to_string(values.get(index)?))
 }
 
+/// The parts a split registry stores, one column each.
+pub trait Parts: Sized + Send + Sync + 'static {
+    type Refs<'a>;
+
+    fn columns(parts: Vec<Self>) -> Vec<(TypeId, Column)>;
+
+    fn refs<'a>(set: &'a RegistrySet, registry: &str, index: usize) -> Option<Self::Refs<'a>>;
+}
+
+macro_rules! parts {
+    ($(($part:ident, $column:ident, $value:ident)),+) => {
+        impl<$($part: Send + Sync + 'static),+> Parts for ($($part,)+) {
+            type Refs<'a> = ($(&'a $part,)+);
+
+            fn columns(parts: Vec<Self>) -> Vec<(TypeId, Column)> {
+                $(let mut $column = Vec::with_capacity(parts.len());)+
+                for ($($value,)+) in parts {
+                    $($column.push($value);)+
+                }
+                vec![$((TypeId::of::<$part>(), Arc::new(Arc::<[$part]>::from($column)) as Column)),+]
+            }
+
+            fn refs<'a>(set: &'a RegistrySet, registry: &str, index: usize) -> Option<Self::Refs<'a>> {
+                Some(($(set.column::<$part>(registry)?.get(index)?,)+))
+            }
+        }
+    };
+}
+
+parts!((A, a, va), (B, b, vb));
+parts!((A, a, va), (B, b, vb), (C, c, vc));
+
 impl WorldRegistries {
     pub fn new(declared: impl IntoIterator<Item = Name>) -> Self {
         WorldRegistries {
@@ -224,18 +256,18 @@ impl WorldRegistries {
         self
     }
 
-    /// Stores what `parse::<T>` read as two columns, `A` and `B`, in place of
-    /// `T`. Validators still see `T`; `join` rebuilds `T` to encode an entry.
-    pub fn split<T, A, B>(
+    /// Stores what `parse::<T>` read as the columns of the parts `split`
+    /// returns, in place of `T`. Validators still see `T`; `join` rebuilds `T`
+    /// from the parts to encode an entry.
+    pub fn split<T, P>(
         &mut self,
         registry: ResourceLocation<&'static str>,
-        split: fn(&T) -> (A, B),
-        join: fn(&A, &B) -> T,
+        split: fn(&T) -> P,
+        join: for<'a> fn(P::Refs<'a>) -> T,
     ) -> &mut Self
     where
         T: Serialize + Send + Sync + 'static,
-        A: Send + Sync + 'static,
-        B: Send + Sync + 'static,
+        P: Parts,
     {
         let codec = self
             .declaration(registry)
@@ -252,16 +284,10 @@ impl WorldRegistries {
                 let values = column
                     .downcast_ref::<Arc<[T]>>()
                     .expect("a parsed column holds the parsed type");
-                let (a, b): (Vec<A>, Vec<B>) = values.iter().map(split).unzip();
-                vec![
-                    (TypeId::of::<A>(), Arc::new(Arc::<[A]>::from(a)) as Column),
-                    (TypeId::of::<B>(), Arc::new(Arc::<[B]>::from(b)) as Column),
-                ]
+                P::columns(values.iter().map(split).collect())
             }),
             encode: Box::new(move |set, registry, index| {
-                let a = set.column::<A>(registry)?.get(index)?;
-                let b = set.column::<B>(registry)?.get(index)?;
-                Some(serde_json::to_string(&join(a, b)))
+                Some(serde_json::to_string(&join(P::refs(set, registry, index)?)))
             }),
         });
         self
@@ -919,10 +945,10 @@ mod tests {
                 assert_eq!(values[0].asset_id, "plain");
                 Vec::new()
             })
-            .split::<Variant, String, Id<Variant>>(
+            .split::<Variant, (String, Id<Variant>)>(
                 Variant::KEY.location(),
                 |variant| (variant.asset_id.clone(), variant.next),
-                |asset_id, next| Variant {
+                |(asset_id, next)| Variant {
                     asset_id: asset_id.clone(),
                     next: *next,
                 },
