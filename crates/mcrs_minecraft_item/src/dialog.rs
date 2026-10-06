@@ -10,7 +10,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registry::HolderSet;
-use mcrs_minecraft_text::ClickEvent;
+type ClickEvent = mcrs_minecraft_text::ClickEvent<Template>;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

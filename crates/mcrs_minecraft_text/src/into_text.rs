@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use mcrs_minecraft_core::ResourceLocation;
 
-use super::{ClickEvent, Color, HoverEvent, HoverItem, Text};
+use super::{ClickEvent, Color, HoverEvent, Text, TextTypes};
 
 /// Trait for any data that can be converted to a [`Text`] object.
 ///
@@ -18,7 +18,7 @@ use super::{ClickEvent, Color, HoverEvent, HoverItem, Text};
 /// let mut my_text: Text = "".into_text();
 /// my_text = my_text.color(NamedColor::Red).bold();
 /// my_text = my_text.add_child("CRABBBBB".obfuscated());
-pub trait IntoText<I: HoverItem = ()>: Sized {
+pub trait IntoText<I: TextTypes = ()>: Sized {
     /// Converts to an owned [`Text`] object.
     fn into_text(self) -> Text<I>;
 
@@ -135,25 +135,25 @@ pub trait IntoText<I: HoverItem = ()>: Sized {
     }
 }
 
-impl<I: HoverItem, T: Into<Text<I>>> IntoText<I> for T {
+impl<I: TextTypes, T: Into<Text<I>>> IntoText<I> for T {
     fn into_text(self) -> Text<I> {
         self.into()
     }
 }
 
-impl<I: HoverItem> From<String> for Text<I> {
+impl<I: TextTypes> From<String> for Text<I> {
     fn from(value: String) -> Self {
         Text::text(value)
     }
 }
 
-impl<I: HoverItem> From<Cow<'static, str>> for Text<I> {
+impl<I: TextTypes> From<Cow<'static, str>> for Text<I> {
     fn from(value: Cow<'static, str>) -> Self {
         Text::text(value)
     }
 }
 
-impl<I: HoverItem> From<&'static str> for Text<I> {
+impl<I: TextTypes> From<&'static str> for Text<I> {
     fn from(value: &'static str) -> Self {
         Text::text(value)
     }
