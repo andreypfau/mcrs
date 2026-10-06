@@ -39,7 +39,7 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
-    Entries, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
+    Entries, LoadReport, Pack, PackFile, Parts, Registry, RegistrySet, WorldRegistries,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -74,20 +74,20 @@ macro_rules! world_registry_table {
 }
 
 macro_rules! split_registry_table {
-    ($($key:ty => $file:ty, $split:expr, $join:expr, synced as $project:expr;)*) => {
+    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr, synced as $project:expr;)*) => {
         fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
                 parse::<$key, $file>(world, report);
                 let registry = <$key as keys::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
-                    world.split(registry, $split, $join);
+                    world.split::<$file, $parts>(registry, $split, $join);
                 }
             )*
         }
 
         pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
             $(
-                register_joined(
+                register_joined::<$file, $parts, _>(
                     access,
                     set,
                     <$key as keys::Registered>::REGISTRY.location().as_static_str(),
@@ -100,8 +100,8 @@ macro_rules! split_registry_table {
 }
 
 split_registry_table! {
-    keys::Enchantment => EnchantmentFile, EnchantmentFile::split, EnchantmentFile::join,
-        synced as |file: &EnchantmentFile| file.clone();
+    keys::Enchantment => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
+        EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
 }
 
 world_registry_table! {
@@ -332,17 +332,18 @@ pub fn register_loaded<T: 'static, N: Serialize>(
     register_projected(access, set, registry, |id| project(&values[id]));
 }
 
-fn register_joined<T, A: 'static, B: 'static, N: Serialize>(
+fn register_joined<T, P: Parts, N: Serialize>(
     access: &mut RegistryAccess,
     set: &RegistrySet,
     registry: &str,
-    join: fn(&A, &B) -> T,
+    join: for<'a> fn(P::Refs<'a>) -> T,
     project: fn(&T) -> N,
 ) {
-    let (Some(a), Some(b)) = (set.column::<A>(registry), set.column::<B>(registry)) else {
-        panic!("{registry} holds no split columns of the joined type");
-    };
-    register_projected(access, set, registry, |id| project(&join(&a[id], &b[id])));
+    register_projected(access, set, registry, |id| {
+        let parts = P::refs(set, registry, id)
+            .unwrap_or_else(|| panic!("{registry} holds no split columns of the joined type"));
+        project(&join(parts))
+    });
 }
 
 fn register_projected<N: Serialize>(

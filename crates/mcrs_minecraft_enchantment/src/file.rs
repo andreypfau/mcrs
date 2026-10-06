@@ -45,7 +45,7 @@ impl EnchantmentFile {
         (data, self.effects.clone())
     }
 
-    pub fn join(data: &EnchantmentData, effects: &Option<EnchantmentEffects>) -> Self {
+    pub fn join((data, effects): (&EnchantmentData, &Option<EnchantmentEffects>)) -> Self {
         EnchantmentFile {
             description: data.description.clone(),
             min_cost: data.min_cost.clone(),
