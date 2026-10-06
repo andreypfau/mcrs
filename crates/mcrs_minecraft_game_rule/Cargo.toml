@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_minecraft_game_rule"
+description = "Game rules, their categories, value types, defaults and bounds"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_registry.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true

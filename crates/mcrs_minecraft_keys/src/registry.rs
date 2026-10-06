@@ -60,13 +60,6 @@ impl Registered for GameEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GameRule {}
-pub const GAME_RULE: RegistryKey<GameRule> = RegistryKey::new(rl!("minecraft:game_rule"));
-impl Registered for GameRule {
-    const REGISTRY: RegistryKey<Self> = GAME_RULE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IncomingRpcMethods {}
 pub const INCOMING_RPC_METHODS: RegistryKey<IncomingRpcMethods> = RegistryKey::new(rl!("minecraft:incoming_rpc_methods"));
 impl Registered for IncomingRpcMethods {
@@ -199,7 +192,7 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 28] {
+pub fn bindings() -> [TypeBinding; 27] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
@@ -209,7 +202,6 @@ pub fn bindings() -> [TypeBinding; 28] {
         DIALOG_ACTION_TYPE.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
         GAME_EVENT.binding(),
-        GAME_RULE.binding(),
         INCOMING_RPC_METHODS.binding(),
         MEMORY_MODULE_TYPE.binding(),
         NUMBER_FORMAT_TYPE.binding(),

@@ -24,9 +24,10 @@ usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory
        mcrs_minecraft_update keys
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
-descriptor, runs the data generator and dumps the block and item definitions, stops if the
-block definitions disagree with the blocks report of the generator, then replaces the reports
-in assets/mcrs/reports and assets/mcrs/block_definition and assets/mcrs/item_definition. The
+descriptor, runs the data generator and dumps the block, item and game rule definitions, stops
+if the block definitions disagree with the blocks report of the generator, then replaces the
+reports in assets/mcrs/reports and assets/mcrs/block_definition, assets/mcrs/item_definition
+and assets/mcrs/registry_definition. The
 blocks report is checked and not stored. The protocol_id diff against the previous registries report is
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
 of the definitions is printed and written to definitions.txt there. The names report is
@@ -56,7 +57,7 @@ const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const NAMES_FILE: &str = "names.json";
-const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
+const DEFINITIONS: [&str; 3] = ["block_definition", "item_definition", "registry_definition"];
 const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
 struct Options {

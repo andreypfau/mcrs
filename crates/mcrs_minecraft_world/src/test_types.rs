@@ -7,9 +7,10 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation, Rotation};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{GameRule, TestFunction};
-use mcrs_minecraft_registry::{Holder, Id, Registry};
+use mcrs_minecraft_keys::TestFunction;
+use mcrs_minecraft_registry::Holder;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -94,85 +95,16 @@ impl Serialize for GameRuleValue {
     }
 }
 
-// chisle: a rule not listed here is read as a boolean, so an integer rule a later game version
-// registers is refused until it is added; listing it lifts that.
-pub const INTEGER_GAME_RULES: [(&str, i32, i32); 12] = [
-    (
-        keys::game_rule::FIRE_SPREAD_RADIUS_AROUND_PLAYER.as_static_str(),
-        -1,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::MAX_BLOCK_MODIFICATIONS.as_static_str(),
-        1,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::MAX_COMMAND_FORKS.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::MAX_COMMAND_SEQUENCE_LENGTH.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::MAX_ENTITY_CRAMMING.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (keys::game_rule::MAX_MINECART_SPEED.as_static_str(), 1, 1000),
-    (
-        keys::game_rule::MAX_SNOW_ACCUMULATION_HEIGHT.as_static_str(),
-        0,
-        8,
-    ),
-    (
-        keys::game_rule::PLAYERS_NETHER_PORTAL_CREATIVE_DELAY.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::PLAYERS_NETHER_PORTAL_DEFAULT_DELAY.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::PLAYERS_SLEEPING_PERCENTAGE.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (
-        keys::game_rule::RANDOM_TICK_SPEED.as_static_str(),
-        0,
-        i32::MAX,
-    ),
-    (keys::game_rule::RESPAWN_RADIUS.as_static_str(), 0, i32::MAX),
-];
-
 #[derive(Debug, Clone, Copy)]
-enum RuleKind {
-    Bool,
-    Int { min: i32, max: i32 },
-}
-
-impl RuleKind {
-    fn of(rule: &str) -> Self {
-        INTEGER_GAME_RULES
-            .iter()
-            .find(|(name, ..)| *name == rule)
-            .map_or(RuleKind::Bool, |&(_, min, max)| RuleKind::Int { min, max })
-    }
-}
+struct RuleKind(GameRuleValueType);
 
 impl<'de> DeserializeSeed<'de> for RuleKind {
     type Value = GameRuleValue;
 
     fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<GameRuleValue, D::Error> {
-        match self {
-            RuleKind::Bool => bool::deserialize(d).map(GameRuleValue::Bool),
-            RuleKind::Int { min, max } => {
+        match self.0 {
+            GameRuleValueType::Bool { .. } => bool::deserialize(d).map(GameRuleValue::Bool),
+            GameRuleValueType::Int { min, max, .. } => {
                 let value = int_value(d)?;
                 if !(min..=max).contains(&value) {
                     return Err(D::Error::custom(format_args!(
@@ -186,7 +118,7 @@ impl<'de> DeserializeSeed<'de> for RuleKind {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct GameRuleMap(pub BTreeMap<Id<GameRule>, GameRuleValue>);
+pub struct GameRuleMap(pub BTreeMap<GameRule, GameRuleValue>);
 
 impl Serialize for GameRuleMap {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -208,13 +140,10 @@ impl<'de> Deserialize<'de> for GameRuleMap {
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<GameRuleMap, A::Error> {
                 let mut rules = BTreeMap::new();
                 while let Some(name) = map.next_key::<ResourceLocation>()? {
-                    let rule = Registry::<GameRule>::in_scope("GameRuleMap", |registry| {
-                        registry.require(&ResourceKey::from_location(name.clone()))
-                    })
-                    .map_err(A::Error::custom)?
-                    .map_err(A::Error::custom)?;
+                    let rule = GameRule::find(name.as_str())
+                        .ok_or_else(|| A::Error::custom(format_args!("{name} is no GameRule")))?;
                     let value = map
-                        .next_value_seed(RuleKind::of(name.as_str()))
+                        .next_value_seed(RuleKind(rule.definition().value))
                         .map_err(|e| A::Error::custom(format_args!("game rule {name}: {e}")))?;
                     rules.insert(rule, value);
                 }

@@ -36,7 +36,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_value_provider::keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::FloatProviderType::ENTRIES),
     (mcrs_minecraft_block::keys::FLUID.location(), mcrs_minecraft_block::keys::Fluid::ENTRIES),
     (mcrs_minecraft_keys::GAME_EVENT.location(), mcrs_minecraft_keys::game_event::ENTRIES),
-    (mcrs_minecraft_keys::GAME_RULE.location(), mcrs_minecraft_keys::game_rule::ENTRIES),
+    (mcrs_minecraft_game_rule::keys::GAME_RULE.location(), mcrs_minecraft_game_rule::keys::GameRule::ENTRIES),
     (mcrs_minecraft_value_provider::keys::HEIGHT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::HeightProviderType::ENTRIES),
     (mcrs_minecraft_keys::INCOMING_RPC_METHODS.location(), mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES),
     (mcrs_minecraft_item::keys::INPUT_CONTROL_TYPE.location(), mcrs_minecraft_item::keys::InputControlType::ENTRIES),
@@ -112,6 +112,7 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
         .chain(mcrs_minecraft_enchantment::keys::bindings())
         .chain(mcrs_minecraft_entity::keys::bindings())
         .chain(mcrs_minecraft_environment::keys::bindings())
+        .chain(mcrs_minecraft_game_rule::keys::bindings())
         .chain(mcrs_minecraft_item::keys::bindings())
         .chain(mcrs_minecraft_keys::bindings())
         .chain(mcrs_minecraft_loot::keys::bindings())

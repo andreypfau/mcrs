@@ -1124,14 +1124,6 @@ fn test_values_the_game_refuses_fail_to_parse() {
     }
 }
 
-#[test]
-fn every_integer_game_rule_is_a_registered_rule() {
-    let rules = registered_names("minecraft:game_rule");
-    for (name, ..) in mcrs_minecraft_world::test_types::INTEGER_GAME_RULES {
-        assert!(rules.contains(name), "{name} is not a game rule");
-    }
-}
-
 fn synced<T: serde::de::DeserializeOwned + serde::Serialize>(
     json: &str,
 ) -> mcrs_minecraft_nbt::compound::NbtCompound {

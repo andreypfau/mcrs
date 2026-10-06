@@ -124,6 +124,7 @@ public final class BlockDefinitionDumper {
 
             List<String> failed = new ArrayList<>(dump(outDir.resolve("block_definition"), placementFilters));
             failed.addAll(ItemDefinitionDumper.dump(access, outDir.resolve("item_definition")));
+            failed.addAll(GameRuleDefinitionDumper.dump(outDir.resolve("registry_definition")));
             if (!failed.isEmpty()) {
                 System.err.println("failed: " + failed.size() + " " + failed);
                 return 1;

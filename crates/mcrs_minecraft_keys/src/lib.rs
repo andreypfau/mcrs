@@ -25,8 +25,6 @@ pub mod game_event;
 #[rustfmt::skip]
 pub mod game_event_tags;
 #[rustfmt::skip]
-pub mod game_rule;
-#[rustfmt::skip]
 pub mod incoming_rpc_methods;
 #[rustfmt::skip]
 pub mod material_condition;

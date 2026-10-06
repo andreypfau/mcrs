@@ -18,6 +18,7 @@ mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_loot.workspace = true
