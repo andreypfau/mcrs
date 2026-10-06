@@ -28,6 +28,8 @@ pub mod painting_variant;
 pub mod painting_variant_tags;
 pub mod potion;
 pub mod potion_tags;
+pub mod recipe_book_category;
+pub mod recipe_serializer;
 pub mod trim_material;
 pub mod trim_pattern;
 
@@ -42,6 +44,8 @@ pub use map_decoration_type::MapDecorationType;
 pub use menu::MenuType;
 pub use mob_effect::MobEffect;
 pub use potion::Potion;
+pub use recipe_book_category::RecipeBookCategory;
+pub use recipe_serializer::RecipeSerializer;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
@@ -146,6 +150,21 @@ impl Registered for crate::keys::Potion {
     const REGISTRY: RegistryKey<Self> = POTION;
 }
 
+pub const RECIPE: RegistryKey<crate::recipe::Recipe> = RegistryKey::new(rl!("minecraft:recipe"));
+impl Registered for crate::recipe::Recipe {
+    const REGISTRY: RegistryKey<Self> = RECIPE;
+}
+
+pub const RECIPE_BOOK_CATEGORY: RegistryKey<crate::keys::RecipeBookCategory> = RegistryKey::new(rl!("minecraft:recipe_book_category"));
+impl Registered for crate::keys::RecipeBookCategory {
+    const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
+}
+
+pub const RECIPE_SERIALIZER: RegistryKey<crate::keys::RecipeSerializer> = RegistryKey::new(rl!("minecraft:recipe_serializer"));
+impl Registered for crate::keys::RecipeSerializer {
+    const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
+}
+
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> = RegistryKey::new(rl!("minecraft:trim_material"));
 impl Registered for crate::TrimMaterial {
     const REGISTRY: RegistryKey<Self> = TRIM_MATERIAL;
@@ -156,7 +175,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 22] {
+pub fn bindings() -> [TypeBinding; 25] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -178,6 +197,9 @@ pub fn bindings() -> [TypeBinding; 22] {
         MOB_EFFECT.binding(),
         PAINTING_VARIANT.binding(),
         POTION.binding(),
+        RECIPE.binding(),
+        RECIPE_BOOK_CATEGORY.binding(),
+        RECIPE_SERIALIZER.binding(),
         TRIM_MATERIAL.binding(),
         TRIM_PATTERN.binding(),
     ]

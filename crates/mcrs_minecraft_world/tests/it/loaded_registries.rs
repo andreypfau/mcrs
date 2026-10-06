@@ -35,7 +35,10 @@ use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
-use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
+use crate::common::{
+    assets, datapack_report, declared_reloadable_registries, declared_world_registries,
+    loaded_names,
+};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
@@ -134,16 +137,28 @@ fn the_declared_registries_are_the_reports_world_registries() {
     let statics = static_registries();
     let set = test_registries();
 
-    let world: BTreeSet<String> = set
+    let reloadable = declared_reloadable_registries();
+    let loaded: BTreeSet<String> = set
         .tables()
         .map(|table| table.registry().to_string())
         .filter(|registry| !statics.contains(registry))
         .collect();
+    let world: BTreeSet<String> = loaded.difference(&reloadable).cloned().collect();
     assert_eq!(world, declared_world_registries());
+    assert!(
+        reloadable.is_subset(&loaded),
+        "{:?} are reloadable and not loaded",
+        reloadable.difference(&loaded).collect::<Vec<_>>()
+    );
 
     for (registry, flags) in &report.registries {
         if flags.stable {
-            assert!(!world.contains(registry), "{registry} is stable");
+            assert!(
+                !WORLD
+                    .declared()
+                    .any(|declared| declared.as_str() == registry),
+                "{registry} is stable"
+            );
         }
         let directory = assets()
             .join("minecraft")
@@ -1997,8 +2012,8 @@ fn trial_spawners_have_names_and_no_values() {
             "{loot} is declared"
         );
         assert!(
-            test_registries().table(loot).is_none(),
-            "{loot} has a table"
+            test_registries().table(loot).is_some(),
+            "{loot} has no table from the reloadable registries"
         );
     }
 

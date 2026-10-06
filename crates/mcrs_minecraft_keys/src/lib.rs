@@ -71,10 +71,6 @@ pub mod point_of_interest_type_tags;
 #[rustfmt::skip]
 pub mod predicate;
 #[rustfmt::skip]
-pub mod recipe_book_category;
-#[rustfmt::skip]
-pub mod recipe_serializer;
-#[rustfmt::skip]
 pub mod recipe_type;
 #[rustfmt::skip]
 pub mod registry;

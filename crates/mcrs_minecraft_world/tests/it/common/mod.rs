@@ -58,6 +58,15 @@ pub fn declared_world_registries() -> BTreeSet<String> {
         .collect()
 }
 
+pub fn declared_reloadable_registries() -> BTreeSet<String> {
+    datapack_report()
+        .registries
+        .into_iter()
+        .filter(|(_, flags)| flags.elements && flags.stable)
+        .map(|(registry, _)| registry)
+        .collect()
+}
+
 pub fn loaded_names(set: &RegistrySet, registry: &str) -> Vec<String> {
     set.table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"))

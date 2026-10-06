@@ -536,4 +536,19 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_value_provider",
         value: ValueType::Enum("HeightProviderType"),
     },
+    Owner {
+        registry: "minecraft:recipe",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Defined("crate::recipe::Recipe"),
+    },
+    Owner {
+        registry: "minecraft:recipe_serializer",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("RecipeSerializer"),
+    },
+    Owner {
+        registry: "minecraft:recipe_book_category",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("RecipeBookCategory"),
+    },
 ];

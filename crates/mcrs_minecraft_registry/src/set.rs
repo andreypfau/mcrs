@@ -88,6 +88,10 @@ impl RegistrySet {
         }
     }
 
+    pub(crate) fn values(&self) -> &Values {
+        &self.values
+    }
+
     pub(crate) fn with_values(self, values: Values) -> Self {
         RegistrySet {
             values: Arc::new(values),

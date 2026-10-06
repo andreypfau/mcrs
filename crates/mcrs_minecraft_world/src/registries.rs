@@ -44,6 +44,7 @@ use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern;
 use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_item::recipe::Recipe;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Items, JukeboxSong, PaintingVariantValue, TrimMaterial,
     TrimPattern,
@@ -171,6 +172,31 @@ world_registry_table! {
     crate::enchantment_provider::EnchantmentProvider => EnchantmentProvider;
     crate::villager_trade::VillagerTrade => VillagerTrade;
     crate::villager_trade::TradeSet => TradeSet;
+}
+
+macro_rules! reloadable_registry_table {
+    ($($key:ty => $value:ty;)*) => {
+        fn parse_reloadable_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
+            $(parse::<$key, $value>(reloadable, report);)*
+        }
+    };
+}
+
+reloadable_registry_table! {
+    Recipe => Recipe;
+}
+
+/// The registries a data pack reload reads, parsed over the world registries.
+pub fn reloadable_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
+    let mut reloadable = WorldRegistries::reloadable_from_datapack_report(datapack_report)
+        .map_err(LoadReport::invalid)?;
+    let mut undeclared = LoadReport::new();
+    parse_reloadable_registries(&mut reloadable, &mut undeclared);
+    if undeclared.is_empty() {
+        Ok(reloadable)
+    } else {
+        Err(undeclared)
+    }
 }
 
 pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadReport> {
@@ -314,7 +340,9 @@ async fn read_pack(
     Pack {
         name: name.to_owned(),
         files,
-        built: if vanilla {
+        built: if vanilla
+            && registries.parses(mcrs_minecraft_biome::keys::BIOME.location().as_static_str())
+        {
             vec![mcrs_minecraft_worldgen_builtin::built_biomes()]
         } else {
             Vec::new()
@@ -341,7 +369,10 @@ pub fn load_registries(
         .map_err(|error| LoadReport::invalid(format_args!("{}: {error}", path.display())))?;
     let world = world_registries(&bytes)?;
     let packs = read_packs(asset_server, &world, &statics);
-    world.load(&statics, &packs)
+    let loaded = world.load(&statics, &packs)?;
+    let reloadable = reloadable_registries(&bytes)?;
+    let packs = read_packs(asset_server, &reloadable, &loaded);
+    reloadable.load(&loaded, &packs)
 }
 
 pub fn register_loaded<T: 'static, N: Serialize>(
