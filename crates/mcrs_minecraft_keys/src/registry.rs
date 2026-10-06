@@ -53,38 +53,10 @@ impl Registered for BlockPredicateType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CatSoundVariant {}
-pub const CAT_SOUND_VARIANT: RegistryKey<CatSoundVariant> = RegistryKey::new(rl!("minecraft:cat_sound_variant"));
-impl Registered for CatSoundVariant {
-    const REGISTRY: RegistryKey<Self> = CAT_SOUND_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CatVariant {}
-pub const CAT_VARIANT: RegistryKey<CatVariant> = RegistryKey::new(rl!("minecraft:cat_variant"));
-impl Registered for CatVariant {
-    const REGISTRY: RegistryKey<Self> = CAT_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChatType {}
 pub const CHAT_TYPE: RegistryKey<ChatType> = RegistryKey::new(rl!("minecraft:chat_type"));
 impl Registered for ChatType {
     const REGISTRY: RegistryKey<Self> = CHAT_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChickenSoundVariant {}
-pub const CHICKEN_SOUND_VARIANT: RegistryKey<ChickenSoundVariant> = RegistryKey::new(rl!("minecraft:chicken_sound_variant"));
-impl Registered for ChickenSoundVariant {
-    const REGISTRY: RegistryKey<Self> = CHICKEN_SOUND_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChickenVariant {}
-pub const CHICKEN_VARIANT: RegistryKey<ChickenVariant> = RegistryKey::new(rl!("minecraft:chicken_variant"));
-impl Registered for ChickenVariant {
-    const REGISTRY: RegistryKey<Self> = CHICKEN_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -141,20 +113,6 @@ pub enum ContextKeySet {}
 pub const CONTEXT_KEY_SET: RegistryKey<ContextKeySet> = RegistryKey::new(rl!("minecraft:context_key_set"));
 impl Registered for ContextKeySet {
     const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CowSoundVariant {}
-pub const COW_SOUND_VARIANT: RegistryKey<CowSoundVariant> = RegistryKey::new(rl!("minecraft:cow_sound_variant"));
-impl Registered for CowSoundVariant {
-    const REGISTRY: RegistryKey<Self> = COW_SOUND_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CowVariant {}
-pub const COW_VARIANT: RegistryKey<CowVariant> = RegistryKey::new(rl!("minecraft:cow_variant"));
-impl Registered for CowVariant {
-    const REGISTRY: RegistryKey<Self> = COW_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -309,13 +267,6 @@ pub enum Fluid {}
 pub const FLUID: RegistryKey<Fluid> = RegistryKey::new(rl!("minecraft:fluid"));
 impl Registered for Fluid {
     const REGISTRY: RegistryKey<Self> = FLUID;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FrogVariant {}
-pub const FROG_VARIANT: RegistryKey<FrogVariant> = RegistryKey::new(rl!("minecraft:frog_variant"));
-impl Registered for FrogVariant {
-    const REGISTRY: RegistryKey<Self> = FROG_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -477,20 +428,6 @@ pub enum PermissionType {}
 pub const PERMISSION_TYPE: RegistryKey<PermissionType> = RegistryKey::new(rl!("minecraft:permission_type"));
 impl Registered for PermissionType {
     const REGISTRY: RegistryKey<Self> = PERMISSION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PigSoundVariant {}
-pub const PIG_SOUND_VARIANT: RegistryKey<PigSoundVariant> = RegistryKey::new(rl!("minecraft:pig_sound_variant"));
-impl Registered for PigSoundVariant {
-    const REGISTRY: RegistryKey<Self> = PIG_SOUND_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PigVariant {}
-pub const PIG_VARIANT: RegistryKey<PigVariant> = RegistryKey::new(rl!("minecraft:pig_variant"));
-impl Registered for PigVariant {
-    const REGISTRY: RegistryKey<Self> = PIG_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -708,20 +645,6 @@ pub enum VillagerType {}
 pub const VILLAGER_TYPE: RegistryKey<VillagerType> = RegistryKey::new(rl!("minecraft:villager_type"));
 impl Registered for VillagerType {
     const REGISTRY: RegistryKey<Self> = VILLAGER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WolfSoundVariant {}
-pub const WOLF_SOUND_VARIANT: RegistryKey<WolfSoundVariant> = RegistryKey::new(rl!("minecraft:wolf_sound_variant"));
-impl Registered for WolfSoundVariant {
-    const REGISTRY: RegistryKey<Self> = WOLF_SOUND_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WolfVariant {}
-pub const WOLF_VARIANT: RegistryKey<WolfVariant> = RegistryKey::new(rl!("minecraft:wolf_variant"));
-impl Registered for WolfVariant {
-    const REGISTRY: RegistryKey<Self> = WOLF_VARIANT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -983,14 +906,7 @@ impl Registered for WorldPreset {
     const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ZombieNautilusVariant {}
-pub const ZOMBIE_NAUTILUS_VARIANT: RegistryKey<ZombieNautilusVariant> = RegistryKey::new(rl!("minecraft:zombie_nautilus_variant"));
-impl Registered for ZombieNautilusVariant {
-    const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
-}
-
-pub fn bindings() -> [TypeBinding; 141] {
+pub fn bindings() -> [TypeBinding; 129] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -999,11 +915,7 @@ pub fn bindings() -> [TypeBinding; 141] {
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
         BLOCK_PREDICATE_TYPE.binding(),
-        CAT_SOUND_VARIANT.binding(),
-        CAT_VARIANT.binding(),
         CHAT_TYPE.binding(),
-        CHICKEN_SOUND_VARIANT.binding(),
-        CHICKEN_VARIANT.binding(),
         CHUNK_STATUS.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
         CONSUME_EFFECT_TYPE.binding(),
@@ -1012,8 +924,6 @@ pub fn bindings() -> [TypeBinding; 141] {
         CONTEXT_INT_PROVIDER.binding(),
         CONTEXT_INT_PROVIDER_TYPE.binding(),
         CONTEXT_KEY_SET.binding(),
-        COW_SOUND_VARIANT.binding(),
-        COW_VARIANT.binding(),
         CREATIVE_MODE_TAB.binding(),
         CUSTOM_STAT.binding(),
         DATA_COMPONENT_PREDICATE_TYPE.binding(),
@@ -1036,7 +946,6 @@ pub fn bindings() -> [TypeBinding; 141] {
         ENVIRONMENT_ATTRIBUTE.binding(),
         FLOAT_PROVIDER_TYPE.binding(),
         FLUID.binding(),
-        FROG_VARIANT.binding(),
         GAME_EVENT.binding(),
         GAME_RULE.binding(),
         HEIGHT_PROVIDER_TYPE.binding(),
@@ -1060,8 +969,6 @@ pub fn bindings() -> [TypeBinding; 141] {
         PARTICLE_TYPE.binding(),
         PERMISSION_CHECK_TYPE.binding(),
         PERMISSION_TYPE.binding(),
-        PIG_SOUND_VARIANT.binding(),
-        PIG_VARIANT.binding(),
         POINT_OF_INTEREST_TYPE.binding(),
         POS_RULE_TEST.binding(),
         POSITION_SOURCE_TYPE.binding(),
@@ -1093,8 +1000,6 @@ pub fn bindings() -> [TypeBinding; 141] {
         VILLAGER_PROFESSION.binding(),
         VILLAGER_TRADE.binding(),
         VILLAGER_TYPE.binding(),
-        WOLF_SOUND_VARIANT.binding(),
-        WOLF_VARIANT.binding(),
         BIOME.binding(),
         BIOME_SOURCE.binding(),
         BLOCK_STATE_PROVIDER.binding(),
@@ -1132,6 +1037,5 @@ pub fn bindings() -> [TypeBinding; 141] {
         TREE_DECORATOR_TYPE.binding(),
         TRUNK_PLACER_TYPE.binding(),
         WORLD_PRESET.binding(),
-        ZOMBIE_NAUTILUS_VARIANT.binding(),
     ]
 }

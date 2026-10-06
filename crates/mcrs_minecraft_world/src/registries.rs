@@ -4,7 +4,10 @@ use crate::dimension::DimensionEntry;
 use crate::enchantment_provider::EnchantmentProvider;
 use crate::sulfur_cube_archetype::SulfurCubeArchetype;
 use crate::test_types::{TestEnvironment, TestInstance};
-use crate::variant;
+use crate::variant::{
+    CatVariantFile, ChickenVariantFile, CowVariantFile, FrogVariantFile, PigVariantFile,
+    SpawnSelector, WolfVariantFile, ZombieNautilusVariantFile,
+};
 use crate::villager_trade::{TradeSet, VillagerTrade};
 use crate::worldgen::chunk_generator::ChunkGenerator;
 use crate::worldgen::world_preset::WorldPreset;
@@ -29,6 +32,10 @@ use mcrs_minecraft_dimension_environment::dimension_type::{
 };
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
+use mcrs_minecraft_entity::variant::{
+    CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
+    FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
+};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
@@ -79,13 +86,14 @@ macro_rules! world_registry_table {
 }
 
 macro_rules! split_registry_table {
-    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr $(, synced as $project:expr)?;)*) => {
+    ($($key:ty => $file:ty as $parts:ty $([$non_empty:ident])?, $split:expr, $join:expr $(, synced as $project:expr)?;)*) => {
         fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
                 parse::<$key, $file>(world, report);
                 let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
                     world.split::<$file, $parts>(registry, $split, $join);
+                    $(world.$non_empty(registry);)?
                 }
             )*
         }
@@ -105,6 +113,20 @@ macro_rules! split_registry_table {
 }
 
 split_registry_table! {
+    WolfVariant => WolfVariantFile as (WolfVariant, Vec<SpawnSelector>) [non_empty],
+        WolfVariantFile::split, WolfVariantFile::join, synced as WolfVariantFile::synced;
+    PigVariant => PigVariantFile as (PigVariant, Vec<SpawnSelector>) [non_empty],
+        PigVariantFile::split, PigVariantFile::join, synced as PigVariantFile::synced;
+    CowVariant => CowVariantFile as (CowVariant, Vec<SpawnSelector>) [non_empty],
+        CowVariantFile::split, CowVariantFile::join, synced as CowVariantFile::synced;
+    ChickenVariant => ChickenVariantFile as (ChickenVariant, Vec<SpawnSelector>) [non_empty],
+        ChickenVariantFile::split, ChickenVariantFile::join, synced as ChickenVariantFile::synced;
+    CatVariant => CatVariantFile as (CatVariant, Vec<SpawnSelector>) [non_empty],
+        CatVariantFile::split, CatVariantFile::join, synced as CatVariantFile::synced;
+    FrogVariant => FrogVariantFile as (FrogVariant, Vec<SpawnSelector>) [non_empty],
+        FrogVariantFile::split, FrogVariantFile::join, synced as FrogVariantFile::synced;
+    ZombieNautilusVariant => ZombieNautilusVariantFile as (ZombieNautilusVariant, Vec<SpawnSelector>) [non_empty],
+        ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join, synced as ZombieNautilusVariantFile::synced;
     mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
     keys::Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
@@ -130,30 +152,16 @@ world_registry_table! {
     mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
     mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
     mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
-    keys::WolfVariant => variant::WolfVariant [non_empty],
-        synced as |v| variant::NetworkWolfVariant::from(v);
-    keys::WolfSoundVariant => variant::WolfSoundVariant [non_empty],
+    WolfSoundVariant => WolfSoundVariant [non_empty],
         synced as Clone::clone;
-    keys::PigVariant => variant::PigVariant [non_empty],
-        synced as |v| variant::NetworkPigVariant::from(v);
-    keys::PigSoundVariant => variant::PigSoundVariant [non_empty],
+    PigSoundVariant => PigSoundVariant [non_empty],
         synced as Clone::clone;
-    keys::CowVariant => variant::CowVariant [non_empty],
-        synced as |v| variant::NetworkCowVariant::from(v);
-    keys::CowSoundVariant => variant::CowSoundVariant [non_empty],
+    CowSoundVariant => CowSoundVariant [non_empty],
         synced as Clone::clone;
-    keys::ChickenVariant => variant::ChickenVariant [non_empty],
-        synced as |v| variant::NetworkChickenVariant::from(v);
-    keys::ChickenSoundVariant => variant::ChickenSoundVariant [non_empty],
+    ChickenSoundVariant => ChickenSoundVariant [non_empty],
         synced as Clone::clone;
-    keys::CatVariant => variant::CatVariant [non_empty],
-        synced as |v| variant::NetworkCatVariant::from(v);
-    keys::CatSoundVariant => variant::CatSoundVariant [non_empty],
+    CatSoundVariant => CatSoundVariant [non_empty],
         synced as Clone::clone;
-    keys::FrogVariant => variant::FrogVariant [non_empty],
-        synced as |v| variant::NetworkFrogVariant::from(v);
-    keys::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
-        synced as |v| variant::NetworkZombieNautilusVariant::from(v);
     WorldClock => WorldClock, synced as Clone::clone;
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;

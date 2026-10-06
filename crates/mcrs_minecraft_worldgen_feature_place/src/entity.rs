@@ -486,11 +486,11 @@ pub fn cat(
     rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
     let left_handed = mob(rng);
-    let variant = tables
-        .cats
-        .pick(ctx, rng)
-        .cloned()
-        .unwrap_or_else(|| keys::cat_variant::BLACK.location().to_arc());
+    let variant = tables.cats.pick(ctx, rng).cloned().unwrap_or_else(|| {
+        mcrs_minecraft_entity::keys::cat_variant::BLACK
+            .location()
+            .to_arc()
+    });
     let sound_variant = pick_sound(&tables.cat_sounds, rng);
     placed(
         bottom_centre(at),
@@ -510,11 +510,11 @@ fn chicken_jockey(
     tables: &VariantTables,
     rng: &mut WorldgenRandom,
 ) -> GeneratedEntity {
-    let variant = tables
-        .chickens
-        .pick(ctx, rng)
-        .cloned()
-        .unwrap_or_else(|| keys::chicken_variant::TEMPERATE.location().to_arc());
+    let variant = tables.chickens.pick(ctx, rng).cloned().unwrap_or_else(|| {
+        mcrs_minecraft_entity::keys::chicken_variant::TEMPERATE
+            .location()
+            .to_arc()
+    });
     let sound_variant = pick_sound(&tables.chicken_sounds, rng);
     let left_handed = mob(rng);
     placed(
@@ -540,7 +540,11 @@ fn zombie_nautilus(
         .zombie_nautiluses
         .pick(ctx, rng)
         .cloned()
-        .unwrap_or_else(|| keys::zombie_nautilus_variant::TEMPERATE.location().to_arc());
+        .unwrap_or_else(|| {
+            mcrs_minecraft_entity::keys::zombie_nautilus_variant::TEMPERATE
+                .location()
+                .to_arc()
+        });
     // `NautilusAi.initMemories`: the attack cooldown, `UniformInt.of(2400, 3600)`.
     rng.next_i32_bound(1201);
     let left_handed = mob(rng);

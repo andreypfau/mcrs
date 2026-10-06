@@ -104,6 +104,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
 #[rustfmt::skip]
 pub fn bindings() -> impl Iterator<Item = TypeBinding> {
     std::iter::empty()
+        .chain(mcrs_minecraft_entity::keys::bindings())
         .chain(mcrs_minecraft_environment::keys::bindings())
         .chain(mcrs_minecraft_item::keys::bindings())
         .chain(mcrs_minecraft_keys::bindings())

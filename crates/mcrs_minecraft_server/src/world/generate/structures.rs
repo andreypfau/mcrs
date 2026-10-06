@@ -8,11 +8,10 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_VARIANT};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
-use mcrs_minecraft_world::variant::{
-    CatVariant, ChickenVariant, ZombieNautilusVariant, spawn_selectors,
-};
+use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::template::PaletteState;
@@ -123,29 +122,25 @@ pub(crate) fn build_dimension_structures(
         Some(Cow::Borrowed(&templates.get(handle)?.template))
     };
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
-    let cats = spawn_selectors(
-        &registries,
-        keys::CAT_VARIANT.location().as_static_str(),
-        |variant: &CatVariant| &variant.spawn_conditions,
-    );
-    let chickens = spawn_selectors(
-        &registries,
-        keys::CHICKEN_VARIANT.location().as_static_str(),
-        |variant: &ChickenVariant| &variant.spawn_conditions,
-    );
-    let zombie_nautiluses = spawn_selectors(
-        &registries,
-        keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
-        |variant: &ZombieNautilusVariant| &variant.spawn_conditions,
-    );
+    let cats = spawn_selectors(&registries, CAT_VARIANT);
+    let chickens = spawn_selectors(&registries, CHICKEN_VARIANT);
+    let zombie_nautiluses = spawn_selectors(&registries, ZOMBIE_NAUTILUS_VARIANT);
     let names = |registry: &str| -> Vec<ResourceLocation> {
         registries
             .table(registry)
             .map(|table| table.names().to_vec())
             .unwrap_or_default()
     };
-    let cat_sounds = names(keys::CAT_SOUND_VARIANT.location().as_static_str());
-    let chicken_sounds = names(keys::CHICKEN_SOUND_VARIANT.location().as_static_str());
+    let cat_sounds = names(
+        mcrs_minecraft_entity::keys::CAT_SOUND_VARIANT
+            .location()
+            .as_static_str(),
+    );
+    let chicken_sounds = names(
+        mcrs_minecraft_entity::keys::CHICKEN_SOUND_VARIANT
+            .location()
+            .as_static_str(),
+    );
     let frozen = freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,

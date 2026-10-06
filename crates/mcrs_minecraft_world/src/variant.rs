@@ -1,89 +1,60 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_registry::{Holder, RegistrySet};
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
+use mcrs_minecraft_entity::variant::{
+    CatVariant, ChickenModel, ChickenVariant, CowModel, CowVariant, FrogVariant, PigModel,
+    PigVariant, WolfVariant, WolfVariantAssets, ZombieNautilusModel, ZombieNautilusVariant,
+};
+use mcrs_minecraft_registry::RegistrySet;
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 
 macro_rules! spawning_variant {
     (
-        $name:ident, $network:ident {
+        $file:ident for $value:ident {
             $($(#[$field_meta:meta])* $field:ident: $ty:ty),+ $(,)?
         }
     ) => {
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         #[serde(deny_unknown_fields)]
-        pub struct $name {
+        pub struct $file {
             $($(#[$field_meta])* pub $field: $ty,)+
             pub spawn_conditions: Vec<SpawnSelector>,
         }
 
-        #[derive(Debug, Clone, PartialEq, Serialize)]
-        pub struct $network {
-            $($(#[$field_meta])* pub $field: $ty,)+
-        }
+        impl $file {
+            pub fn split(file: &Self) -> ($value, Vec<SpawnSelector>) {
+                (
+                    $value { $($field: file.$field.clone(),)+ },
+                    file.spawn_conditions.clone(),
+                )
+            }
 
-        impl From<&$name> for $network {
-            fn from(variant: &$name) -> Self {
-                Self { $($field: variant.$field.clone(),)+ }
+            pub fn join((value, spawn_conditions): (&$value, &Vec<SpawnSelector>)) -> Self {
+                Self {
+                    $($field: value.$field.clone(),)+
+                    spawn_conditions: spawn_conditions.clone(),
+                }
+            }
+
+            pub fn synced(file: &Self) -> $value {
+                Self::split(file).0
             }
         }
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WolfVariantAssets {
-    pub wild: ResourceLocation,
-    pub tame: ResourceLocation,
-    pub angry: ResourceLocation,
-}
-
 spawning_variant! {
-    WolfVariant, NetworkWolfVariant {
+    WolfVariantFile for WolfVariant {
         assets: WolfVariantAssets,
         baby_assets: WolfVariantAssets,
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PigModel {
-    #[default]
-    Normal,
-    Cold,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CowModel {
-    #[default]
-    Normal,
-    Cold,
-    Warm,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ChickenModel {
-    #[default]
-    Normal,
-    Cold,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ZombieNautilusModel {
-    #[default]
-    Normal,
-    Warm,
-}
-
 spawning_variant! {
-    PigVariant, NetworkPigVariant {
+    PigVariantFile for PigVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: PigModel,
         asset_id: ResourceLocation,
@@ -92,7 +63,7 @@ spawning_variant! {
 }
 
 spawning_variant! {
-    CowVariant, NetworkCowVariant {
+    CowVariantFile for CowVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: CowModel,
         asset_id: ResourceLocation,
@@ -101,7 +72,7 @@ spawning_variant! {
 }
 
 spawning_variant! {
-    ChickenVariant, NetworkChickenVariant {
+    ChickenVariantFile for ChickenVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: ChickenModel,
         asset_id: ResourceLocation,
@@ -110,7 +81,7 @@ spawning_variant! {
 }
 
 spawning_variant! {
-    ZombieNautilusVariant, NetworkZombieNautilusVariant {
+    ZombieNautilusVariantFile for ZombieNautilusVariant {
         #[serde(default, skip_serializing_if = "is_default")]
         model: ZombieNautilusModel,
         asset_id: ResourceLocation,
@@ -118,118 +89,34 @@ spawning_variant! {
 }
 
 spawning_variant! {
-    CatVariant, NetworkCatVariant {
+    CatVariantFile for CatVariant {
         asset_id: ResourceLocation,
         baby_asset_id: ResourceLocation,
     }
 }
 
 spawning_variant! {
-    FrogVariant, NetworkFrogVariant {
+    FrogVariantFile for FrogVariant {
         asset_id: ResourceLocation,
     }
 }
 
-type Sound = Holder<SoundEvent>;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WolfSounds {
-    pub ambient_sound: Sound,
-    pub death_sound: Sound,
-    pub growl_sound: Sound,
-    pub hurt_sound: Sound,
-    pub pant_sound: Sound,
-    pub whine_sound: Sound,
-    pub step_sound: Sound,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WolfSoundVariant {
-    pub adult_sounds: WolfSounds,
-    pub baby_sounds: WolfSounds,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PigSounds {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
-    pub eat_sound: Sound,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PigSoundVariant {
-    pub adult_sounds: PigSounds,
-    pub baby_sounds: PigSounds,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CatSounds {
-    pub ambient_sound: Sound,
-    pub stray_ambient_sound: Sound,
-    pub hiss_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub eat_sound: Sound,
-    pub beg_for_food_sound: Sound,
-    pub purr_sound: Sound,
-    pub purreow_sound: Sound,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CatSoundVariant {
-    pub adult_sounds: CatSounds,
-    pub baby_sounds: CatSounds,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CowSoundVariant {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ChickenSounds {
-    pub ambient_sound: Sound,
-    pub hurt_sound: Sound,
-    pub death_sound: Sound,
-    pub step_sound: Sound,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ChickenSoundVariant {
-    pub adult_sounds: ChickenSounds,
-    pub baby_sounds: ChickenSounds,
-}
-
 /// A variant registry's spawn conditions by variant, in registry order.
-pub fn spawn_selectors<T: 'static>(
+pub fn spawn_selectors<R>(
     registries: &RegistrySet,
-    registry: &str,
-    conditions: fn(&T) -> &[SpawnSelector],
+    registry: RegistryKey<R>,
 ) -> BTreeMap<ResourceLocation, Vec<SpawnSelector>> {
+    let registry = registry.location().as_static_str();
     let table = registries
         .table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
-    let values = registries
-        .column::<T>(registry)
-        .unwrap_or_else(|| panic!("{registry} holds no values of the requested type"));
+    let conditions = registries
+        .column::<Vec<SpawnSelector>>(registry)
+        .unwrap_or_else(|| panic!("{registry} holds no spawn conditions"));
     table
         .names()
         .iter()
-        .zip(values)
-        .map(|(name, value)| (name.clone(), conditions(value).to_vec()))
+        .cloned()
+        .zip(conditions.iter().cloned())
         .collect()
 }

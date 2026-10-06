@@ -29,15 +29,7 @@ pub mod carver;
 #[rustfmt::skip]
 pub mod carver_type;
 #[rustfmt::skip]
-pub mod cat_sound_variant;
-#[rustfmt::skip]
-pub mod cat_variant;
-#[rustfmt::skip]
 pub mod chat_type;
-#[rustfmt::skip]
-pub mod chicken_sound_variant;
-#[rustfmt::skip]
-pub mod chicken_variant;
 #[rustfmt::skip]
 pub mod chunk_generator;
 #[rustfmt::skip]
@@ -56,10 +48,6 @@ pub mod context_int_provider;
 pub mod context_int_provider_type;
 #[rustfmt::skip]
 pub mod context_key_set;
-#[rustfmt::skip]
-pub mod cow_sound_variant;
-#[rustfmt::skip]
-pub mod cow_variant;
 #[rustfmt::skip]
 pub mod creative_mode_tab;
 #[rustfmt::skip]
@@ -127,8 +115,6 @@ pub mod fluid_tags;
 #[rustfmt::skip]
 pub mod foliage_placer_type;
 #[rustfmt::skip]
-pub mod frog_variant;
-#[rustfmt::skip]
 pub mod game_event;
 #[rustfmt::skip]
 pub mod game_event_tags;
@@ -190,10 +176,6 @@ pub mod particle_type;
 pub mod permission_check_type;
 #[rustfmt::skip]
 pub mod permission_type;
-#[rustfmt::skip]
-pub mod pig_sound_variant;
-#[rustfmt::skip]
-pub mod pig_variant;
 #[rustfmt::skip]
 pub mod placed_feature;
 #[rustfmt::skip]
@@ -293,14 +275,8 @@ pub mod villager_trade_tags;
 #[rustfmt::skip]
 pub mod villager_type;
 #[rustfmt::skip]
-pub mod wolf_sound_variant;
-#[rustfmt::skip]
-pub mod wolf_variant;
-#[rustfmt::skip]
 pub mod world_preset;
 #[rustfmt::skip]
 pub mod world_preset_tags;
-#[rustfmt::skip]
-pub mod zombie_nautilus_variant;
 
 pub use registry::*;
