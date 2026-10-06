@@ -208,7 +208,7 @@ mod tests {
     use super::*;
     use crate::attribute::MoonPhase;
     use crate::attribute::attribute;
-    use mcrs_minecraft_protocol::particle::ParticleOptions;
+    use mcrs_minecraft_particle::ParticleOptions;
 
     #[test]
     fn an_angle_track_lerps_the_long_way_between_keyframes() {

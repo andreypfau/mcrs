@@ -4,17 +4,18 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_particle::{
+    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleKind,
+    ParticleOptions, ParticleScale, PositionSource, SpellParticle, TrailParticle,
+    VibrationParticle,
+};
 use mcrs_minecraft_protocol::item::{
     ArgbInt, ComponentPatch, DecodeCtx, EncodeCtx, RgbInt, Template,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundLevelParticles, ParticleRandomization,
 };
-use mcrs_minecraft_protocol::particle::{
-    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleKind,
-    ParticleOptions, ParticleScale, PositionSource, RawParticle, SpellParticle, TrailParticle,
-    VibrationParticle,
-};
+use mcrs_minecraft_protocol::particle::RawParticle;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 
 use crate::item::harness::{TestLookup, hex};
@@ -123,7 +124,7 @@ fn particle_kinds_match_the_registry_report() {
     assert_eq!(sources.names()[1].as_str(), "minecraft:entity");
     let mut out = Vec::new();
     PositionSource::Entity {
-        entity_id: mcrs_minecraft_protocol::VarInt(7),
+        entity_id: 7,
         y_offset: 0.5,
     }
     .encode(&mut out)

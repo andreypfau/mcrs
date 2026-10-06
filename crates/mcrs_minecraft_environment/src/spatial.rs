@@ -176,7 +176,7 @@ impl SpatialAttributeInterpolator {
 mod tests {
     use super::*;
     use crate::attribute::attribute;
-    use mcrs_minecraft_protocol::particle::ParticleOptions;
+    use mcrs_minecraft_particle::ParticleOptions;
     use serde_json::json;
 
     fn map(json: serde_json::Value) -> Arc<BiomeAttributes> {
