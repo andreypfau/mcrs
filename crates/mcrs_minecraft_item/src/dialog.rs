@@ -1,10 +1,10 @@
 use std::fmt;
 
+use crate::{Template, Text};
 use mcrs_minecraft_core::codec::{
     Bounded, CompactList, Validate, default_true, is_default, is_true,
 };
 use mcrs_minecraft_core::{ResourceLocation, validated};
-use mcrs_minecraft_item::{Template, Text};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;

@@ -7,10 +7,10 @@ use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
-use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnContext, VariantTables};
 use mcrs_minecraft_worldgen_feature_place::entity;
 use mcrs_minecraft_worldgen_structure::orient::{Orientation, world_pos};
 use mcrs_minecraft_worldgen_structure::piece::DesertPyramidPiece;
+use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 
 use crate::canvas::{ChestStates, PieceCanvas, replaceable_by_structures};
 use crate::{Oriented, state};

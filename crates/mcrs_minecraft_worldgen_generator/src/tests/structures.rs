@@ -11,11 +11,11 @@ use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes;
 use mcrs_minecraft_registry::{Registry, TagRules, Tags, build_tags};
-use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_minecraft_worldgen_feature::template::{
     PaletteState, ResolvedState, Template, TemplateBlock,
 };
+use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_structure::{
     MineshaftType, OceanTemperature, Structure, StructureSet, TemplatePool,
 };
@@ -135,7 +135,7 @@ fn the_corpus_freezes() {
 
 fn the_cat_variants_freeze_with_the_swamp_hut_in_their_structure_tag() {
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
-    use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnContext;
+    use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnContext;
 
     let frozen = frozen();
     let variants = &frozen.variants;

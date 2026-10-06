@@ -9,10 +9,10 @@ use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-pub use mcrs_minecraft_worldgen_feature::spawn_condition::{
+use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
+pub use mcrs_minecraft_worldgen_structure::spawn_condition::{
     Condition, IdSet, SpawnContext, VariantTable, VariantTables,
 };
-use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
 use serde::{Deserialize, Serialize};
 
 use crate::block_entity::nbt_flag;
@@ -628,7 +628,7 @@ mod tests {
     use mcrs_minecraft_core::{TagKey, rl};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_registry::HolderSet;
-    use mcrs_minecraft_worldgen_feature::spawn_condition::{SpawnCondition, SpawnSelector};
+    use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnCondition, SpawnSelector};
     use mcrs_minecraft_worldgen_testing::corpus_set;
     use std::sync::Arc;
 

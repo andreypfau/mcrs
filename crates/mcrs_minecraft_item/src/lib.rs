@@ -1,5 +1,8 @@
 pub mod component;
+pub mod damage_type;
+pub mod decorated_pot_pattern;
 pub mod definition;
+pub mod dialog;
 #[cfg(feature = "bevy")]
 pub mod dropped;
 #[cfg(feature = "bevy")]

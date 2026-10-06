@@ -1,5 +1,5 @@
 use super::*;
-use mcrs_minecraft_worldgen_structure::DecorationStep::*;
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 pub fn end_base(generation: Generation) -> Draft {
     let mut m = Mobs::default();

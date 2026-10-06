@@ -6,7 +6,7 @@ use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::{Holder, RegistrySet};
 use serde::{Deserialize, Serialize};
 
-pub use mcrs_minecraft_worldgen_feature::spawn_condition::SpawnSelector;
+pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 
 macro_rules! spawning_variant {
     (

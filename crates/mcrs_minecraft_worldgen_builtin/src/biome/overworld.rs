@@ -2,7 +2,7 @@ use super::defaults::*;
 use super::mob::*;
 use super::*;
 use mcrs_minecraft_biome::TemperatureModifier;
-use mcrs_minecraft_worldgen_structure::DecorationStep::*;
+use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 const DARK_DRY_FOLIAGE_COLOR: i32 = 8082228;
 const COLD_WATER_COLOR: i32 = 4020182;
