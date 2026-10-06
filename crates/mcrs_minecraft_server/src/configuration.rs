@@ -283,7 +283,9 @@ fn on_known_packs_response(
                 })
                 .collect();
             con.write_packet(&ClientboundRegistryData {
-                registry: keys::ENVIRONMENT_ATTRIBUTE.location().into(),
+                registry: mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE
+                    .location()
+                    .into(),
                 entries,
             });
         }

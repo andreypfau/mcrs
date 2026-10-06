@@ -78,7 +78,7 @@ const STRUCTURE_PLACEMENT_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     STRUCTURE_PLACEMENT_ROWS,
     &[],
-    crate::keys::StructurePlacement::ENTRIES
+    crate::keys::StructurePlacementType::ENTRIES
 ));
 
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
@@ -479,7 +479,7 @@ const POOL_ALIAS_BINDING_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     POOL_ALIAS_BINDING_ROWS,
     &[],
-    crate::keys::PoolAliasBinding::ENTRIES
+    crate::keys::PoolAliasBindingType::ENTRIES
 ));
 
 #[cfg(test)]
@@ -613,7 +613,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolAlias>(
             POOL_ALIAS_BINDING_ROWS,
             &[],
-            crate::keys::PoolAliasBinding::ENTRIES,
+            crate::keys::PoolAliasBindingType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -623,7 +623,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<StructurePlacement>(
             STRUCTURE_PLACEMENT_ROWS,
             &[],
-            crate::keys::StructurePlacement::ENTRIES,
+            crate::keys::StructurePlacementType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

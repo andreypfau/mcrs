@@ -2079,7 +2079,7 @@ mod data {
 use data::*;
 
 templates! {
-    "savanna" SAVANNA;
+    "savanna" Savanna;
     both {
         "houses/savanna_animal_pen_2" [13, 7, 12] animal_pen_2;
         "houses/savanna_animal_pen_3" [8, 5, 9] animal_pen_3;

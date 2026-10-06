@@ -137,6 +137,14 @@ macro_rules! static_registry {
                 }
             }
 
+            pub const fn from_protocol_id(id: u16) -> Option<$name> {
+                if (id as usize) < Self::ALL.len() {
+                    Some(Self::ALL[id as usize])
+                } else {
+                    None
+                }
+            }
+
             pub fn find(location: &str) -> Option<$name> {
                 Self::ENTRIES
                     .iter()
@@ -203,6 +211,8 @@ mod tests {
         assert_eq!(Fruit::find("minecraft:mango"), None);
         let beyond: Id<Fruit> = crate::bitset::DenseId::from_raw(2);
         assert_eq!(Fruit::from_id(beyond), None);
+        assert_eq!(Fruit::from_protocol_id(1), Some(Fruit::Apple));
+        assert_eq!(Fruit::from_protocol_id(2), None);
     }
 
     #[test]

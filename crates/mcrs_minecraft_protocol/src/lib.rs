@@ -27,6 +27,8 @@ pub mod __private {
     pub use crate::{Decode, Encode, Packet};
 }
 
+#[rustfmt::skip]
+pub mod keys;
 pub mod advancement;
 mod block;
 pub mod block_pos;

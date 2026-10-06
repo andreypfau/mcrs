@@ -1,3 +1,4 @@
+use crate::keys::{RecipeDisplayType, SlotDisplayType};
 use std::io::Write;
 
 use anyhow::ensure;
@@ -58,72 +59,29 @@ impl DecodeCtx<'_> for Ingredient {
     }
 }
 
-/// `minecraft:slot_display`, whose ids are the wire dispatch prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
-pub enum SlotDisplayType {
-    Empty,
-    AnyFuel,
-    WithAnyPotion,
-    OnlyWithComponent,
-    Item,
-    ItemStack,
-    Tag,
-    Dyed,
-    SmithingTrim,
-    WithRemainder,
-    Composite,
+macro_rules! static_registry_wire {
+    ($($ty:ty),* $(,)?) => {$(
+        impl crate::Encode for $ty {
+            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+                crate::VarInt(i32::from(*self as u16)).encode(w)
+            }
+        }
+
+        impl<'a> crate::Decode<'a> for $ty {
+            fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+                let id = crate::VarInt::decode(r)?.0;
+                u16::try_from(id)
+                    .ok()
+                    .and_then(<$ty>::from_protocol_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("unexpected enum discriminant {id} in `{}`", stringify!($ty))
+                    })
+            }
+        }
+    )*};
 }
 
-const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
-    &[
-        (
-            mcrs_minecraft_keys::slot_display::EMPTY.as_static_str(),
-            SlotDisplayType::Empty as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::ANY_FUEL.as_static_str(),
-            SlotDisplayType::AnyFuel as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::WITH_ANY_POTION.as_static_str(),
-            SlotDisplayType::WithAnyPotion as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::ONLY_WITH_COMPONENT.as_static_str(),
-            SlotDisplayType::OnlyWithComponent as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::ITEM.as_static_str(),
-            SlotDisplayType::Item as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::ITEM_STACK.as_static_str(),
-            SlotDisplayType::ItemStack as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::TAG.as_static_str(),
-            SlotDisplayType::Tag as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::DYED.as_static_str(),
-            SlotDisplayType::Dyed as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::SMITHING_TRIM.as_static_str(),
-            SlotDisplayType::SmithingTrim as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::WITH_REMAINDER.as_static_str(),
-            SlotDisplayType::WithRemainder as u16
-        ),
-        (
-            mcrs_minecraft_keys::slot_display::COMPOSITE.as_static_str(),
-            SlotDisplayType::Composite as u16
-        ),
-    ],
-    mcrs_minecraft_keys::slot_display::ENTRIES,
-    true
-));
+static_registry_wire!(SlotDisplayType, RecipeDisplayType);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -185,7 +143,7 @@ const SLOT_DISPLAY_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     SLOT_DISPLAY_ROWS,
     &[],
-    mcrs_minecraft_keys::slot_display::ENTRIES
+    crate::keys::SlotDisplayType::ENTRIES
 ));
 
 impl SlotDisplay {
@@ -289,43 +247,6 @@ impl DecodeCtx<'_> for SlotDisplay {
     }
 }
 
-/// `minecraft:recipe_display`, whose ids are the wire dispatch prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Encode, Decode)]
-pub enum RecipeDisplayType {
-    CraftingShapeless,
-    CraftingShaped,
-    Furnace,
-    Stonecutter,
-    Smithing,
-}
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
-    &[
-        (
-            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPELESS.as_static_str(),
-            RecipeDisplayType::CraftingShapeless as u16
-        ),
-        (
-            mcrs_minecraft_keys::recipe_display::CRAFTING_SHAPED.as_static_str(),
-            RecipeDisplayType::CraftingShaped as u16
-        ),
-        (
-            mcrs_minecraft_keys::recipe_display::FURNACE.as_static_str(),
-            RecipeDisplayType::Furnace as u16
-        ),
-        (
-            mcrs_minecraft_keys::recipe_display::STONECUTTER.as_static_str(),
-            RecipeDisplayType::Stonecutter as u16
-        ),
-        (
-            mcrs_minecraft_keys::recipe_display::SMITHING.as_static_str(),
-            RecipeDisplayType::Smithing as u16
-        ),
-    ],
-    mcrs_minecraft_keys::recipe_display::ENTRIES,
-    true
-));
-
 validated!(RecipeDisplay);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -381,7 +302,7 @@ const RECIPE_DISPLAY_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     RECIPE_DISPLAY_ROWS,
     &[],
-    mcrs_minecraft_keys::recipe_display::ENTRIES
+    crate::keys::RecipeDisplayType::ENTRIES
 ));
 
 impl Validate for RecipeDisplay {
@@ -641,7 +562,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<SlotDisplay>(
             SLOT_DISPLAY_ROWS,
             &[],
-            mcrs_minecraft_keys::slot_display::ENTRIES,
+            crate::keys::SlotDisplayType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }
@@ -651,7 +572,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<RecipeDisplay>(
             RECIPE_DISPLAY_ROWS,
             &[],
-            mcrs_minecraft_keys::recipe_display::ENTRIES,
+            crate::keys::RecipeDisplayType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

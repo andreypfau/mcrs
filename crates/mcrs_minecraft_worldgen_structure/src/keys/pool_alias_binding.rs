@@ -1,7 +1,7 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
 mcrs_minecraft_registry::static_registry! {
-    pub enum PoolAliasBinding;
+    pub enum PoolAliasBindingType;
     Random = "minecraft:random",
     RandomGroup = "minecraft:random_group",
     Direct = "minecraft:direct",

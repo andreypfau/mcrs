@@ -23,9 +23,9 @@ macro_rules! templates {
         const LIVING: Village = Village { family: $family, zombie: false };
         const ZOMBIE: Village = Village { family: $family, zombie: true };
         #[rustfmt::skip]
-        const UNEMPLOYED: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NONE.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.as_static_str()))]))];
+        const UNEMPLOYED: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(mcrs_minecraft_entity::keys::VillagerProfession::None.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(mcrs_minecraft_entity::keys::VillagerType::$kind.as_static_str()))]))];
         #[rustfmt::skip]
-        const NITWIT: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(keys::villager_profession::NITWIT.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(keys::villager_type::$kind.as_static_str()))]))];
+        const NITWIT: Fields = &[("VillagerData", Tag::Compound(&[("profession", Tag::String(mcrs_minecraft_entity::keys::VillagerProfession::Nitwit.as_static_str())), ("level", Tag::Int(1)), ("type", Tag::String(mcrs_minecraft_entity::keys::VillagerType::$kind.as_static_str()))]))];
 
         pub const TEMPLATES: &[Entry] = &[
             $((concat!("village/", $family, "/", $path), $size, |c| ($paint)(c, LIVING)),)*

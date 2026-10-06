@@ -1,7 +1,7 @@
+use crate::keys::ConsumeEffectType;
+use crate::keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_sound::keys::sound_event;
@@ -58,58 +58,6 @@ float_default! {
     consume_seconds_default / is_consume_seconds_default = 1.6f32,
 }
 
-/// `minecraft:consume_effect_type`, whose ids are the wire dispatch prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ConsumeEffectType {
-    ApplyEffects = 0,
-    RemoveEffects = 1,
-    ClearAllEffects = 2,
-    TeleportRandomly = 3,
-    PlaySound = 4,
-}
-
-impl ConsumeEffectType {
-    pub const ALL: [Self; 5] = [
-        Self::ApplyEffects,
-        Self::RemoveEffects,
-        Self::ClearAllEffects,
-        Self::TeleportRandomly,
-        Self::PlaySound,
-    ];
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::ApplyEffects => keys::consume_effect_type::APPLY_EFFECTS.as_static_str(),
-            Self::RemoveEffects => keys::consume_effect_type::REMOVE_EFFECTS.as_static_str(),
-            Self::ClearAllEffects => keys::consume_effect_type::CLEAR_ALL_EFFECTS.as_static_str(),
-            Self::TeleportRandomly => keys::consume_effect_type::TELEPORT_RANDOMLY.as_static_str(),
-            Self::PlaySound => keys::consume_effect_type::PLAY_SOUND.as_static_str(),
-        }
-    }
-
-    pub fn from_wire_id(id: u16) -> Option<Self> {
-        Self::ALL.get(usize::from(id)).copied()
-    }
-}
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::rows_match(
-    &{
-        let mut rows = [("", 0); ConsumeEffectType::ALL.len()];
-        let mut i = 0;
-        while i < rows.len() {
-            rows[i] = (
-                ConsumeEffectType::ALL[i].id(),
-                ConsumeEffectType::ALL[i] as u16,
-            );
-            i += 1;
-        }
-        rows
-    },
-    keys::consume_effect_type::ENTRIES,
-    true
-));
-
 /// The map buffers on read, so the bools inside go through `nbt_flag`;
 /// vanilla writes the dispatch key last, so `Serialize` is by hand.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -147,7 +95,7 @@ const CONSUME_EFFECT_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     CONSUME_EFFECT_TYPE_ROWS,
     &[],
-    keys::consume_effect_type::ENTRIES
+    crate::keys::ConsumeEffectType::ENTRIES
 ));
 
 impl ConsumeEffect {
@@ -190,7 +138,7 @@ impl Serialize for ConsumeEffect {
             }
             Self::PlaySound { sound } => map.serialize_entry("sound", sound)?,
         }
-        map.serialize_entry("type", self.kind().id())?;
+        map.serialize_entry("type", &self.kind())?;
         map.end()
     }
 }
@@ -379,7 +327,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<ConsumeEffect>(
             CONSUME_EFFECT_TYPE_ROWS,
             &[],
-            keys::consume_effect_type::ENTRIES,
+            crate::keys::ConsumeEffectType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

@@ -1527,7 +1527,7 @@ mod data {
 use data::*;
 
 templates! {
-    "desert" DESERT;
+    "desert" Desert;
     both {
         "houses/desert_medium_house_1" [6, 6, 7] medium_house_1;
         "houses/desert_medium_house_2" [11, 9, 7] medium_house_2;

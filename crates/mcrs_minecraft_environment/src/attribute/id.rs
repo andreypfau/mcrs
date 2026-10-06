@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::marker::PhantomData;
 
 use mcrs_minecraft_core::StaticResourceLocation;
@@ -38,20 +37,20 @@ macro_rules! attributes {
 }
 
 attributes! {
-    SKY_COLOR: HexRgb = keys::environment_attribute::VISUAL_SKY_COLOR;
-    FOG_COLOR: HexRgb = keys::environment_attribute::VISUAL_FOG_COLOR;
-    WATER_FOG_COLOR: HexRgb = keys::environment_attribute::VISUAL_WATER_FOG_COLOR;
-    WATER_FOG_END_DISTANCE: f32 = keys::environment_attribute::VISUAL_WATER_FOG_END_DISTANCE;
-    AMBIENT_PARTICLES: Opaque = keys::environment_attribute::VISUAL_AMBIENT_PARTICLES;
-    BACKGROUND_MUSIC: Opaque = keys::environment_attribute::AUDIO_BACKGROUND_MUSIC;
-    MUSIC_VOLUME: f32 = keys::environment_attribute::AUDIO_MUSIC_VOLUME;
-    AMBIENT_SOUNDS: Opaque = keys::environment_attribute::AUDIO_AMBIENT_SOUNDS;
-    INCREASED_FIRE_BURNOUT: bool = keys::environment_attribute::GAMEPLAY_INCREASED_FIRE_BURNOUT;
-    SNOW_GOLEM_MELTS: bool = keys::environment_attribute::GAMEPLAY_SNOW_GOLEM_MELTS;
-    CAN_PILLAGER_PATROL_SPAWN: bool = keys::environment_attribute::GAMEPLAY_CAN_PILLAGER_PATROL_SPAWN;
+    SKY_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualSkyColor;
+    FOG_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualFogColor;
+    WATER_FOG_COLOR: HexRgb = crate::keys::EnvironmentAttribute::VisualWaterFogColor;
+    WATER_FOG_END_DISTANCE: f32 = crate::keys::EnvironmentAttribute::VisualWaterFogEndDistance;
+    AMBIENT_PARTICLES: Opaque = crate::keys::EnvironmentAttribute::VisualAmbientParticles;
+    BACKGROUND_MUSIC: Opaque = crate::keys::EnvironmentAttribute::AudioBackgroundMusic;
+    MUSIC_VOLUME: f32 = crate::keys::EnvironmentAttribute::AudioMusicVolume;
+    AMBIENT_SOUNDS: Opaque = crate::keys::EnvironmentAttribute::AudioAmbientSounds;
+    INCREASED_FIRE_BURNOUT: bool = crate::keys::EnvironmentAttribute::GameplayIncreasedFireBurnout;
+    SNOW_GOLEM_MELTS: bool = crate::keys::EnvironmentAttribute::GameplaySnowGolemMelts;
+    CAN_PILLAGER_PATROL_SPAWN: bool = crate::keys::EnvironmentAttribute::GameplayCanPillagerPatrolSpawn;
     CREATURE_WORLD_GEN_SPAWN_PROBABILITY: f32 =
-        keys::environment_attribute::GAMEPLAY_CREATURE_WORLD_GEN_SPAWN_PROBABILITY;
-    NATURAL_MOB_SPAWNS: MobSpawnSettings = keys::environment_attribute::GAMEPLAY_NATURAL_MOB_SPAWNS;
+        crate::keys::EnvironmentAttribute::GameplayCreatureWorldGenSpawnProbability;
+    NATURAL_MOB_SPAWNS: MobSpawnSettings = crate::keys::EnvironmentAttribute::GameplayNaturalMobSpawns;
 }
 
 #[cfg(test)]

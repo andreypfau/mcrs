@@ -24,7 +24,7 @@ pub struct Owner {
 /// enum of its entries the generator writes into the owner's keys module.
 pub enum ValueType {
     Defined(&'static str),
-    Enum,
+    Enum(&'static str),
 }
 
 const KEYS_CRATE: &str = "mcrs_minecraft_keys";
@@ -139,20 +139,22 @@ pub fn generate(
         }
 
         let enumerated = match owner_of.get(registry.as_str()).map(|owner| &owner.value) {
-            Some(ValueType::Enum) if report.is_some_and(|report| !report.entries.is_empty()) => {
-                true
+            Some(ValueType::Enum(name))
+                if report.is_some_and(|report| !report.entries.is_empty()) =>
+            {
+                Some(*name)
             }
-            Some(ValueType::Enum) => {
+            Some(ValueType::Enum(_)) => {
                 return Err(format!(
                     "{registry}: only a static registry with entries is keyed by an enum of them"
                 ));
             }
-            _ => false,
+            _ => None,
         };
         let (krate, value) = match owner_of.get(registry.as_str()) {
             Some(owner) => match owner.value {
                 ValueType::Defined(value) => (owner.krate, value.to_owned()),
-                ValueType::Enum => (owner.krate, format!("crate::keys::{marker}")),
+                ValueType::Enum(name) => (owner.krate, format!("crate::keys::{name}")),
             },
             None => (KEYS_CRATE, format!("crate::{marker}")),
         };
@@ -166,9 +168,9 @@ pub fn generate(
 
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
-                if enumerated {
-                    target.enums.push((module.clone(), marker.clone()));
-                    Some(enum_module(registry, &marker, report)?)
+                if let Some(name) = enumerated {
+                    target.enums.push((module.clone(), name.to_owned()));
+                    Some(enum_module(registry, name, report)?)
                 } else {
                     Some(static_module(registry, &target.value, report)?)
                 }
@@ -189,8 +191,8 @@ pub fn generate(
             }
             let entries = if report.entries.is_empty() {
                 "&[]".to_owned()
-            } else if enumerated {
-                target.path(&format!("{marker}::ENTRIES"))
+            } else if let Some(name) = enumerated {
+                target.path(&format!("{name}::ENTRIES"))
             } else {
                 target.path(&format!("{module}::ENTRIES"))
             };
@@ -1383,7 +1385,7 @@ mod tests {
             &[Owner {
                 registry: "minecraft:fruit",
                 krate: "mcrs_minecraft_food",
-                value: ValueType::Enum,
+                value: ValueType::Enum("Fruit"),
             }],
         )
         .unwrap();
@@ -1417,8 +1419,8 @@ mod tests {
         let statics: Statics = &[("minecraft:none", &[]), ("minecraft:block", BLOCK)];
         let data: Data = &[("minecraft:worldgen/biome", &["minecraft:plains"])];
         for (registry, value) in [
-            ("minecraft:none", ValueType::Enum),
-            ("minecraft:worldgen/biome", ValueType::Enum),
+            ("minecraft:none", ValueType::Enum("Fruit")),
+            ("minecraft:worldgen/biome", ValueType::Enum("Fruit")),
         ] {
             assert_refused(owned(statics, data, &[owner(registry, value)]), &[registry]);
         }
@@ -1435,7 +1437,7 @@ mod tests {
             &[Owner {
                 registry: "minecraft:fruit",
                 krate: "mcrs_minecraft_food",
-                value: ValueType::Enum,
+                value: ValueType::Enum("Fruit"),
             }],
         );
         assert_refused(result, &["minecraft:foo_1_2", "minecraft:foo_12", "Foo12"]);
@@ -1474,7 +1476,7 @@ mod tests {
                 &registries,
                 &datapack,
                 &names,
-                &[owner("minecraft:block", ValueType::Enum)],
+                &[owner("minecraft:block", ValueType::Enum("Block"))],
                 &above,
             ),
             &["minecraft:block", "mcrs_minecraft_world"],

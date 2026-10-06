@@ -1,6 +1,6 @@
-use super::villager::VillagerProfession;
 use bytes::Buf;
 use mcrs_minecraft_entity::attribute;
+use mcrs_minecraft_entity::keys::VillagerProfession;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
@@ -43,14 +43,6 @@ fn read_census() -> Census {
         .collect();
     assert!(r.is_empty(), "{} trailing bytes", r.len());
     Census { ids, attributes }
-}
-
-fn serde_name<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_value(value)
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .to_owned()
 }
 
 fn loaded_names(registry: &str) -> Vec<String> {
@@ -97,17 +89,19 @@ fn every_template_entity_kind_is_a_registered_entity_type() {
 fn villager_types_and_professions_follow_the_registry_order() {
     let census = read_census();
     assert_eq!(
-        mcrs_minecraft_keys::villager_type::ENTRIES
+        mcrs_minecraft_entity::keys::VillagerType::ENTRIES
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>(),
         census.ids["minecraft:villager_type"]
     );
-    let professions: Vec<String> = VillagerProfession::ALL.iter().map(serde_name).collect();
-    assert_eq!(professions, census.ids["minecraft:villager_profession"]);
-    for (index, profession) in VillagerProfession::ALL.iter().enumerate() {
-        assert_eq!(profession.protocol_id() as usize, index);
-    }
+    assert_eq!(
+        VillagerProfession::ENTRIES
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        census.ids["minecraft:villager_profession"]
+    );
 }
 
 #[test]

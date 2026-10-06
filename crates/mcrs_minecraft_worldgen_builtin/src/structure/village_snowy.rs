@@ -1674,7 +1674,7 @@ fn snowy_farm_2(c: &mut Canvas) {
 }
 
 templates! {
-    "snowy" SNOW;
+    "snowy" Snow;
     both {
         "houses/snowy_medium_house_1" [7, 6, 8] medium_house_1;
         "houses/snowy_medium_house_2" [14, 9, 7] medium_house_2;

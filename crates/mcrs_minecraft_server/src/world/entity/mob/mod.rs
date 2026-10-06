@@ -14,6 +14,7 @@ use bevy_math::DVec3;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
+use mcrs_minecraft_entity::keys::VillagerProfession;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::aoi::PlayerObservers;
@@ -44,8 +45,6 @@ use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, Item as GeneratedItem,
     ItemStack as GeneratedStack,
 };
-use serde::de::value::StrDeserializer;
-use serde::de::{DeserializeOwned, IntoDeserializer};
 use smallvec::SmallVec;
 
 /// `clientTrackingRange` of the spawned kinds, in blocks: eight chunks, the
@@ -300,27 +299,27 @@ fn registry_id(
 fn villager_data(data: &mcrs_minecraft_worldgen_feature::template::VillagerData) -> VillagerData {
     VillagerData {
         kind: registered_type(data.kind.as_str()),
-        profession: registered(data.profession.as_str()),
+        profession: registered_profession(data.profession.as_str()),
         level: data.level,
     }
 }
 
-fn registered_type(name: &str) -> Id<keys::VillagerType> {
-    keys::villager_type::find(name)
+fn registered_type(name: &str) -> Id<mcrs_minecraft_entity::keys::VillagerType> {
+    mcrs_minecraft_entity::keys::VillagerType::find(name)
         .unwrap_or_else(|| {
             tracing::warn!(name, "a template villager names a type the registry lacks");
-            keys::villager_type::PLAINS
+            mcrs_minecraft_entity::keys::VillagerType::Plains
         })
         .id()
 }
 
-/// A villager profession by its id, the kind's default when the
-/// template names one the registry lacks.
-fn registered<T: DeserializeOwned + Default>(name: &str) -> T {
-    let named: StrDeserializer<serde::de::value::Error> = name.into_deserializer();
-    T::deserialize(named).unwrap_or_else(|_| {
-        tracing::warn!(name, "a template villager names an id the registry lacks");
-        T::default()
+fn registered_profession(name: &str) -> VillagerProfession {
+    VillagerProfession::find(name).unwrap_or_else(|| {
+        tracing::warn!(
+            name,
+            "a template villager names a profession the registry lacks"
+        );
+        VillagerProfession::None
     })
 }
 
@@ -534,7 +533,7 @@ impl PairingItem<'_, '_> {
                     },
                     MetaDataValue::VillagerData(mcrs_minecraft_protocol::entity::VillagerData {
                         kind: RegistryId(villager.kind.number()),
-                        profession: RegistryId(villager.profession.protocol_id()),
+                        profession: RegistryId(villager.profession.id().number()),
                         level: VarInt(villager.level),
                     }),
                 );

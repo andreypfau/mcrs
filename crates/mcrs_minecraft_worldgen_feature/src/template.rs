@@ -120,8 +120,12 @@ pub struct VillagerData {
 impl Default for VillagerData {
     fn default() -> Self {
         VillagerData {
-            kind: keys::villager_type::PLAINS.location().to_arc(),
-            profession: keys::villager_profession::NONE.location().to_arc(),
+            kind: mcrs_minecraft_entity::keys::VillagerType::Plains
+                .location()
+                .to_arc(),
+            profession: mcrs_minecraft_entity::keys::VillagerProfession::None
+                .location()
+                .to_arc(),
             level: 1,
         }
     }
@@ -1283,7 +1287,9 @@ mod tests {
                     rotation: [90.0, -5.0],
                     kind: EntityKind::Villager {
                         data: VillagerData {
-                            kind: keys::villager_type::PLAINS.location().to_arc(),
+                            kind: mcrs_minecraft_entity::keys::VillagerType::Plains
+                                .location()
+                                .to_arc(),
                             profession: rl!("minecraft:cleric").to_arc(),
                             level: 2,
                         },

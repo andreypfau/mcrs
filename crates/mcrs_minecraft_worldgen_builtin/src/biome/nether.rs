@@ -2,7 +2,7 @@ use super::defaults::*;
 use super::mob::*;
 use super::*;
 use mcrs_minecraft_biome_file::PlacedFeatureKey;
-use mcrs_minecraft_keys::{ParticleType, particle_type};
+use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep::*;
 
 #[derive(Serialize)]
@@ -59,7 +59,7 @@ fn ambient_sounds(
     }
 }
 
-fn ambient_particle(particle: StaticKey<ParticleType>, probability: f32) -> AmbientParticle {
+fn ambient_particle(particle: ParticleType, probability: f32) -> AmbientParticle {
     AmbientParticle {
         particle: Particle {
             kind: particle.as_static_str(),
@@ -175,7 +175,7 @@ pub fn soul_sand_valley() -> Draft {
     .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle_type::ASH, 0.00625)],
+        [ambient_particle(ParticleType::Ash, 0.00625)],
     )
 }
 
@@ -225,7 +225,7 @@ pub fn basalt_deltas() -> Draft {
     .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle_type::WHITE_ASH, 0.118093334)],
+        [ambient_particle(ParticleType::WhiteAsh, 0.118093334)],
     )
 }
 
@@ -257,7 +257,7 @@ pub fn crimson_forest() -> Draft {
     .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle_type::CRIMSON_SPORE, 0.025)],
+        [ambient_particle(ParticleType::CrimsonSpore, 0.025)],
     )
 }
 
@@ -289,6 +289,6 @@ pub fn warped_forest() -> Draft {
     .modified(
         AMBIENT_PARTICLES,
         Operation::Append,
-        [ambient_particle(particle_type::WARPED_SPORE, 0.01428)],
+        [ambient_particle(ParticleType::WarpedSpore, 0.01428)],
     )
 }

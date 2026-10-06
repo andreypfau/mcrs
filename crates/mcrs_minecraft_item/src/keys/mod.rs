@@ -3,20 +3,40 @@
 pub mod banner_pattern;
 pub mod banner_pattern_tags;
 pub mod block_transformer;
+pub mod consume_effect_type;
 pub mod damage_type;
 pub mod damage_type_tags;
+pub mod data_component_predicate_type;
+pub mod data_component_type;
 pub mod decorated_pot_pattern;
 pub mod dialog;
+pub mod dialog_body_type;
 pub mod dialog_tags;
+pub mod dialog_type;
 pub mod enchantment;
 pub mod enchantment_tags;
+pub mod input_control_type;
 pub mod instrument;
 pub mod instrument_tags;
 pub mod jukebox_song;
+pub mod map_decoration_type;
+pub mod mob_effect;
 pub mod painting_variant;
 pub mod painting_variant_tags;
+pub mod potion;
+pub mod potion_tags;
 pub mod trim_material;
 pub mod trim_pattern;
+
+pub use consume_effect_type::ConsumeEffectType;
+pub use data_component_predicate_type::DataComponentPredicateType;
+pub use data_component_type::DataComponentType;
+pub use dialog_body_type::DialogBodyType;
+pub use dialog_type::DialogType;
+pub use input_control_type::InputControlType;
+pub use map_decoration_type::MapDecorationType;
+pub use mob_effect::MobEffect;
+pub use potion::Potion;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
@@ -31,9 +51,24 @@ impl Registered for crate::block_transformer::BlockTransformer {
     const REGISTRY: RegistryKey<Self> = BLOCK_TRANSFORMER;
 }
 
+pub const CONSUME_EFFECT_TYPE: RegistryKey<crate::keys::ConsumeEffectType> = RegistryKey::new(rl!("minecraft:consume_effect_type"));
+impl Registered for crate::keys::ConsumeEffectType {
+    const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
+}
+
 pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> = RegistryKey::new(rl!("minecraft:damage_type"));
 impl Registered for crate::damage_type::DamageType {
     const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
+}
+
+pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<crate::keys::DataComponentPredicateType> = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
+impl Registered for crate::keys::DataComponentPredicateType {
+    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_PREDICATE_TYPE;
+}
+
+pub const DATA_COMPONENT_TYPE: RegistryKey<crate::keys::DataComponentType> = RegistryKey::new(rl!("minecraft:data_component_type"));
+impl Registered for crate::keys::DataComponentType {
+    const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
 }
 
 pub const DECORATED_POT_PATTERN: RegistryKey<crate::decorated_pot_pattern::DecoratedPotPattern> = RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
@@ -46,9 +81,24 @@ impl Registered for crate::dialog::Dialog {
     const REGISTRY: RegistryKey<Self> = DIALOG;
 }
 
+pub const DIALOG_BODY_TYPE: RegistryKey<crate::keys::DialogBodyType> = RegistryKey::new(rl!("minecraft:dialog_body_type"));
+impl Registered for crate::keys::DialogBodyType {
+    const REGISTRY: RegistryKey<Self> = DIALOG_BODY_TYPE;
+}
+
+pub const DIALOG_TYPE: RegistryKey<crate::keys::DialogType> = RegistryKey::new(rl!("minecraft:dialog_type"));
+impl Registered for crate::keys::DialogType {
+    const REGISTRY: RegistryKey<Self> = DIALOG_TYPE;
+}
+
 pub const ENCHANTMENT: RegistryKey<crate::enchantment::EnchantmentData> = RegistryKey::new(rl!("minecraft:enchantment"));
 impl Registered for crate::enchantment::EnchantmentData {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT;
+}
+
+pub const INPUT_CONTROL_TYPE: RegistryKey<crate::keys::InputControlType> = RegistryKey::new(rl!("minecraft:input_control_type"));
+impl Registered for crate::keys::InputControlType {
+    const REGISTRY: RegistryKey<Self> = INPUT_CONTROL_TYPE;
 }
 
 pub const INSTRUMENT: RegistryKey<crate::InstrumentValue> = RegistryKey::new(rl!("minecraft:instrument"));
@@ -61,9 +111,24 @@ impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
 }
 
+pub const MAP_DECORATION_TYPE: RegistryKey<crate::keys::MapDecorationType> = RegistryKey::new(rl!("minecraft:map_decoration_type"));
+impl Registered for crate::keys::MapDecorationType {
+    const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
+}
+
+pub const MOB_EFFECT: RegistryKey<crate::keys::MobEffect> = RegistryKey::new(rl!("minecraft:mob_effect"));
+impl Registered for crate::keys::MobEffect {
+    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
+}
+
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> = RegistryKey::new(rl!("minecraft:painting_variant"));
 impl Registered for crate::PaintingVariantValue {
     const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
+}
+
+pub const POTION: RegistryKey<crate::keys::Potion> = RegistryKey::new(rl!("minecraft:potion"));
+impl Registered for crate::keys::Potion {
+    const REGISTRY: RegistryKey<Self> = POTION;
 }
 
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> = RegistryKey::new(rl!("minecraft:trim_material"));
@@ -76,17 +141,26 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 11] {
+pub fn bindings() -> [TypeBinding; 20] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
+        CONSUME_EFFECT_TYPE.binding(),
         DAMAGE_TYPE.binding(),
+        DATA_COMPONENT_PREDICATE_TYPE.binding(),
+        DATA_COMPONENT_TYPE.binding(),
         DECORATED_POT_PATTERN.binding(),
         DIALOG.binding(),
+        DIALOG_BODY_TYPE.binding(),
+        DIALOG_TYPE.binding(),
         ENCHANTMENT.binding(),
+        INPUT_CONTROL_TYPE.binding(),
         INSTRUMENT.binding(),
         JUKEBOX_SONG.binding(),
+        MAP_DECORATION_TYPE.binding(),
+        MOB_EFFECT.binding(),
         PAINTING_VARIANT.binding(),
+        POTION.binding(),
         TRIM_MATERIAL.binding(),
         TRIM_PATTERN.binding(),
     ]

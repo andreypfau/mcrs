@@ -12,6 +12,7 @@ use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
     Raw, Template, TrimPattern,
 };
+use mcrs_minecraft_protocol::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundRecipeBookAdd, ClientboundRecipeBookRemove, ClientboundRecipeBookSettings,
     ClientboundUpdateRecipes,
@@ -21,8 +22,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::{
 };
 use mcrs_minecraft_protocol::recipe::{
     Ingredient, RecipeBookCategory, RecipeBookEntry, RecipeBookSettings, RecipeBookType,
-    RecipeBookTypeSettings, RecipeDisplay, RecipeDisplayType, SelectableRecipe, SlotDisplay,
-    SlotDisplayType,
+    RecipeBookTypeSettings, RecipeDisplay, SelectableRecipe, SlotDisplay,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};

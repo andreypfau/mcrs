@@ -116,7 +116,7 @@ const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS: &[&str] = &[
 const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
     ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
     &[],
-    mcrs_minecraft_keys::enchantment_level_based_value_type::ENTRIES
+    crate::keys::EnchantmentLevelBasedValueType::ENTRIES
 ));
 
 impl From<DispatchedLevelBasedValue> for LevelBasedValue {
@@ -373,7 +373,7 @@ mod dispatch_rows {
         mcrs_minecraft_registry::static_rows::assert_dispatch::<DispatchedLevelBasedValue>(
             ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
             &[],
-            mcrs_minecraft_keys::enchantment_level_based_value_type::ENTRIES,
+            crate::keys::EnchantmentLevelBasedValueType::ENTRIES,
             |name| serde_json::json!({ "type": name }),
         );
     }

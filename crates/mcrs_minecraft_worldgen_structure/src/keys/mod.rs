@@ -10,9 +10,9 @@ pub mod structure_tags;
 pub mod structure_type;
 
 pub use spawn_condition_type::SpawnConditionType;
-pub use pool_alias_binding::PoolAliasBinding;
-pub use structure_piece::StructurePiece;
-pub use structure_placement::StructurePlacement;
+pub use pool_alias_binding::PoolAliasBindingType;
+pub use structure_piece::StructurePieceType;
+pub use structure_placement::StructurePlacementType;
 pub use structure_type::StructureType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
@@ -23,8 +23,8 @@ impl Registered for crate::keys::SpawnConditionType {
     const REGISTRY: RegistryKey<Self> = SPAWN_CONDITION_TYPE;
 }
 
-pub const POOL_ALIAS_BINDING: RegistryKey<crate::keys::PoolAliasBinding> = RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));
-impl Registered for crate::keys::PoolAliasBinding {
+pub const POOL_ALIAS_BINDING: RegistryKey<crate::keys::PoolAliasBindingType> = RegistryKey::new(rl!("minecraft:worldgen/pool_alias_binding"));
+impl Registered for crate::keys::PoolAliasBindingType {
     const REGISTRY: RegistryKey<Self> = POOL_ALIAS_BINDING;
 }
 
@@ -33,13 +33,13 @@ impl Registered for crate::Structure {
     const REGISTRY: RegistryKey<Self> = STRUCTURE;
 }
 
-pub const STRUCTURE_PIECE: RegistryKey<crate::keys::StructurePiece> = RegistryKey::new(rl!("minecraft:worldgen/structure_piece"));
-impl Registered for crate::keys::StructurePiece {
+pub const STRUCTURE_PIECE: RegistryKey<crate::keys::StructurePieceType> = RegistryKey::new(rl!("minecraft:worldgen/structure_piece"));
+impl Registered for crate::keys::StructurePieceType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PIECE;
 }
 
-pub const STRUCTURE_PLACEMENT: RegistryKey<crate::keys::StructurePlacement> = RegistryKey::new(rl!("minecraft:worldgen/structure_placement"));
-impl Registered for crate::keys::StructurePlacement {
+pub const STRUCTURE_PLACEMENT: RegistryKey<crate::keys::StructurePlacementType> = RegistryKey::new(rl!("minecraft:worldgen/structure_placement"));
+impl Registered for crate::keys::StructurePlacementType {
     const REGISTRY: RegistryKey<Self> = STRUCTURE_PLACEMENT;
 }
 
