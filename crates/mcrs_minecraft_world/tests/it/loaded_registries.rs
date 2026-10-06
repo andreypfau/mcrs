@@ -14,10 +14,11 @@ use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_keys as keys;
-use mcrs_minecraft_keys::{Block, SoundEvent, WorldClock};
+use mcrs_minecraft_keys::{Block, SoundEvent};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
@@ -2070,7 +2071,7 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
     let overworld_clock = set
         .registry::<WorldClock>()
         .unwrap()
-        .get(&keys::world_clock::OVERWORLD)
+        .get(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
         .unwrap();
 
     let infiniburn: [(&str, HolderSet<Block>); 3] = [
@@ -2095,7 +2096,7 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
     let shipped = overworld_dimension_type_with(&[]).expect("the shipped overworld reads");
     assert_eq!(
         shipped.timelines,
-        HolderSet::Named(tag_in::<keys::Timeline>(set, "minecraft:in_overworld"))
+        HolderSet::Named(tag_in::<Timeline>(set, "minecraft:in_overworld"))
     );
     assert_eq!(shipped.default_clock, Some(overworld_clock));
 

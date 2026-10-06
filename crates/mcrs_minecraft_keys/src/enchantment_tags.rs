@@ -1,4 +1,4 @@
-// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
 use mcrs_minecraft_core::{TagKey, rl};
 

@@ -8,6 +8,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_registry_catalog.workspace = true
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true

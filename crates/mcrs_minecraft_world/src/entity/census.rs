@@ -64,7 +64,7 @@ fn loaded_names(registry: &str) -> Vec<String> {
 }
 
 fn report_set() -> RegistrySet {
-    RegistrySet::from_locations(mcrs_minecraft_keys::STATIC_REGISTRIES).unwrap()
+    RegistrySet::from_locations(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES).unwrap()
 }
 
 #[test]

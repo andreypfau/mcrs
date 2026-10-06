@@ -6,7 +6,6 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
@@ -21,7 +20,7 @@ use crate::timeline::Timeline;
 pub struct WorldClock {}
 
 impl RegistryValue for WorldClock {
-    type Registry = keys::WorldClock;
+    type Registry = Self;
 }
 
 /// One clock's authoritative state.
@@ -87,26 +86,26 @@ impl ClockState {
 /// A resource rather than an entity per clock: this crosses into every
 /// dimension sub-world once per tick, and entities do not cross worlds.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct WorldClocks(BTreeMap<Id<keys::WorldClock>, ClockState>);
+pub struct WorldClocks(BTreeMap<Id<WorldClock>, ClockState>);
 
 impl WorldClocks {
-    pub fn get(&self, clock: Id<keys::WorldClock>) -> Option<&ClockState> {
+    pub fn get(&self, clock: Id<WorldClock>) -> Option<&ClockState> {
         self.0.get(&clock)
     }
 
-    pub fn get_mut(&mut self, clock: Id<keys::WorldClock>) -> Option<&mut ClockState> {
+    pub fn get_mut(&mut self, clock: Id<WorldClock>) -> Option<&mut ClockState> {
         self.0.get_mut(&clock)
     }
 
-    pub fn insert(&mut self, clock: Id<keys::WorldClock>, state: ClockState) {
+    pub fn insert(&mut self, clock: Id<WorldClock>, state: ClockState) {
         self.0.insert(clock, state);
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (Id<keys::WorldClock>, &ClockState)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Id<WorldClock>, &ClockState)> {
         self.0.iter().map(|(id, state)| (*id, state))
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Id<keys::WorldClock>, &mut ClockState)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Id<WorldClock>, &mut ClockState)> {
         self.0.iter_mut().map(|(id, state)| (*id, state))
     }
 
@@ -121,7 +120,7 @@ impl WorldClocks {
     /// Leave exactly one clock per registry entry: keep the supplied state for
     /// an entry that has one, default the rest, drop what the registry no
     /// longer knows.
-    pub fn reconcile_with_registry(&mut self, registry: &Registry<keys::WorldClock>) {
+    pub fn reconcile_with_registry(&mut self, registry: &Registry<WorldClock>) {
         self.0.retain(|id, _| {
             let known = registry.name(*id).is_some();
             if !known {
@@ -159,7 +158,7 @@ pub struct DuplicateTimeMarker {
 /// Markers have no registry of their own: this table is derived once from the
 /// `timeline` column and never touched again.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct ClockTimeMarkers(Arc<BTreeMap<Id<keys::WorldClock>, MarkersOfClock>>);
+pub struct ClockTimeMarkers(Arc<BTreeMap<Id<WorldClock>, MarkersOfClock>>);
 
 type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
 
@@ -170,18 +169,18 @@ impl SharedResource for ClockTimeMarkers {
 }
 
 impl ClockTimeMarkers {
-    pub fn get(&self, clock: Id<keys::WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
+    pub fn get(&self, clock: Id<WorldClock>, marker: &str) -> Option<&ClockTimeMarker> {
         self.0.get(&clock)?.get(marker)
     }
 
     pub fn of_clock(
         &self,
-        clock: Id<keys::WorldClock>,
+        clock: Id<WorldClock>,
     ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &ClockTimeMarker)> {
         self.0.get(&clock).into_iter().flat_map(BTreeMap::iter)
     }
 
-    pub fn clocks(&self) -> impl Iterator<Item = Id<keys::WorldClock>> {
+    pub fn clocks(&self) -> impl Iterator<Item = Id<WorldClock>> {
         self.0.keys().copied()
     }
 
@@ -197,9 +196,9 @@ impl ClockTimeMarkers {
     /// repeat is returned with the index of the timeline that repeated it.
     pub fn derive(
         timelines: &[Timeline],
-        clocks: &Registry<keys::WorldClock>,
+        clocks: &Registry<WorldClock>,
     ) -> Result<Self, Vec<(usize, DuplicateTimeMarker)>> {
-        let mut table: BTreeMap<Id<keys::WorldClock>, MarkersOfClock> = BTreeMap::new();
+        let mut table: BTreeMap<Id<WorldClock>, MarkersOfClock> = BTreeMap::new();
         let mut duplicates = Vec::new();
         for (index, timeline) in timelines.iter().enumerate() {
             let Some(clock) = clocks.name(timeline.clock) else {
@@ -234,7 +233,7 @@ impl ClockTimeMarkers {
 }
 
 pub fn check_time_markers(timelines: &[Timeline], set: &RegistrySet) -> Vec<(usize, String)> {
-    let Some(clocks) = set.registry::<keys::WorldClock>() else {
+    let Some(clocks) = set.registry::<WorldClock>() else {
         return Vec::new();
     };
     match ClockTimeMarkers::derive(timelines, &clocks) {
@@ -271,7 +270,7 @@ impl Plugin for WorldClockPlugin {
 }
 
 pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
-    let Some(registry) = set.registry::<keys::WorldClock>() else {
+    let Some(registry) = set.registry::<WorldClock>() else {
         tracing::error!("the registry set holds no world_clock registry to seed the clocks from");
         return;
     };
@@ -300,7 +299,7 @@ pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
 
 #[cfg(test)]
 pub(crate) static TEST_CLOCKS: std::sync::LazyLock<RegistrySet> = std::sync::LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<keys::WorldClock>("world_clock")
+    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
 });
 
 #[cfg(test)]
@@ -312,9 +311,9 @@ mod tests {
 
     const THE_END: &str = "minecraft:the_end";
 
-    fn id(name: &str) -> Id<keys::WorldClock> {
+    fn id(name: &str) -> Id<WorldClock> {
         TEST_CLOCKS
-            .registry::<keys::WorldClock>()
+            .registry::<WorldClock>()
             .unwrap()
             .require_by_name(name)
             .unwrap()
@@ -341,7 +340,7 @@ mod tests {
         app
     }
 
-    fn total_ticks(app: &App, clock: Id<keys::WorldClock>) -> i64 {
+    fn total_ticks(app: &App, clock: Id<WorldClock>) -> i64 {
         app.world()
             .resource::<WorldClocks>()
             .get(clock)
@@ -351,9 +350,9 @@ mod tests {
 
     #[test]
     fn reconcile_gives_one_clock_per_registry_entry() {
-        let registry = TEST_CLOCKS.registry::<keys::WorldClock>().unwrap();
-        let removed = Registry::<keys::WorldClock>::new(
-            keys::WORLD_CLOCK,
+        let registry = TEST_CLOCKS.registry::<WorldClock>().unwrap();
+        let removed = Registry::<WorldClock>::new(
+            crate::keys::WORLD_CLOCK,
             ["minecraft:overworld", THE_END, "datapack:removed"]
                 .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
         )
@@ -380,7 +379,7 @@ mod tests {
 
     #[test]
     fn clocks_are_read_and_advanced_by_id() {
-        let registry = TEST_CLOCKS.registry::<keys::WorldClock>().unwrap();
+        let registry = TEST_CLOCKS.registry::<WorldClock>().unwrap();
         let (overworld, end) = (id(OVERWORLD), id(THE_END));
 
         let mut app = App::new();
@@ -549,10 +548,7 @@ mod tests {
     fn markers_of(
         timelines: &[Timeline],
     ) -> Result<ClockTimeMarkers, Vec<(usize, DuplicateTimeMarker)>> {
-        ClockTimeMarkers::derive(
-            timelines,
-            &TEST_CLOCKS.registry::<keys::WorldClock>().unwrap(),
-        )
+        ClockTimeMarkers::derive(timelines, &TEST_CLOCKS.registry::<WorldClock>().unwrap())
     }
 
     #[test]

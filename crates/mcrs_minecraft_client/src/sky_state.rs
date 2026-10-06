@@ -345,7 +345,8 @@ mod tests {
         CLOCKS.scope(|| serde_json::from_slice(&bytes).unwrap())
     }
 
-    fn clock_registry() -> mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::WorldClock> {
+    fn clock_registry()
+    -> mcrs_minecraft_registry::Registry<mcrs_minecraft_environment::world_clock::WorldClock> {
         CLOCKS.registry().unwrap()
     }
 

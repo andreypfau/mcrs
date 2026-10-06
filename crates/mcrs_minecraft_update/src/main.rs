@@ -11,6 +11,7 @@ mod fixtures;
 mod gradle;
 mod keys;
 mod names;
+mod owners;
 mod registries;
 mod release;
 #[cfg(test)]
@@ -20,6 +21,7 @@ const USAGE: &str = "\
 usage: mcrs_minecraft_update <version id> [--allow-dirty] [--diff-out <directory>]
        mcrs_minecraft_update recapture <fixture name | --all>
        mcrs_minecraft_update names
+       mcrs_minecraft_update keys
 
 Replaces assets/minecraft from the client jar of the version, writes the client jar
 descriptor, runs the data generator and dumps the block and item definitions, stops if the
@@ -29,7 +31,7 @@ blocks report is checked and not stored. The protocol_id diff against the previo
 printed and, with --diff-out, written to protocol_id.txt in that directory; the field diff
 of the definitions is printed and written to definitions.txt there. The names report is
 written after the reports, and its diff is printed and written to names.txt there. The sources
-of crates/mcrs_minecraft_keys are written after the names report. Each diff
+of the registry keys are written after the names report. Each diff
 is computed before the files it describes are replaced. Two runs against one working tree at
 the same time are not supported.
 
@@ -41,8 +43,12 @@ a failure and exits non-zero if any fixture failed. It never updates the corpus.
 names writes assets/mcrs/reports/names.json from the client jar the descriptor names: the
 entry names of every registry of datapack.json that has elements and the tag names of every
 registry, in sorted order. It prints the entries and tags added and removed against the stored
-file, then writes the sources of crates/mcrs_minecraft_keys from the stored reports and deletes
-a source file there the generator no longer produces. It touches nothing else.";
+file, then writes the registry key sources from the stored reports. It touches nothing else.
+
+keys writes the registry key sources from the stored reports alone: the src/keys module of
+every crate that owns a registry type, crates/mcrs_minecraft_keys for the registries no crate
+owns, and crates/mcrs_minecraft_registry_catalog. A source file there the generator no longer
+produces is deleted.";
 
 const CORPUS: &str = "assets/minecraft";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
@@ -50,7 +56,6 @@ const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const NAMES_FILE: &str = "names.json";
-const KEYS: &str = "crates/mcrs_minecraft_keys";
 const DEFINITIONS: [&str; 2] = ["block_definition", "item_definition"];
 const DEFINITIONS_ROOT: &str = "assets/mcrs";
 
@@ -65,6 +70,7 @@ fn main() {
     let result = match args.first().map(String::as_str) {
         Some("recapture") => recapture(&args[1..]),
         Some("names") => names_report(&args[1..]),
+        Some("keys") if args.len() == 1 => write_keys(&workspace_root(), None),
         _ => {
             let options = parse(args.into_iter()).unwrap_or_else(|| usage());
             run(&options)
@@ -230,9 +236,33 @@ fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), S
     write_diff(diff_out, "names.txt", &text)?;
     write(&stored.join(NAMES_FILE), &names::render(&new)?)?;
 
+    write_keys(root, Some(&new))
+}
+
+fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, String> {
+    let stored = root.join(REPORTS);
+    let datapack = stored.join("datapack.json");
+    let text = fs::read_to_string(&datapack).map_err(|error| corpus::io(&datapack, error))?;
+    let datapack_report = names::Datapack::parse(&text)
+        .map_err(|error| format!("{}: {error}", datapack.display()))?;
+    let read;
+    let names = match names {
+        Some(names) => names,
+        None => {
+            read = names::read(&stored.join(NAMES_FILE))?;
+            &read
+        }
+    };
     let registries = registries::read(&stored.join("registries.json"))?;
-    let files = keys::generate(&registries, &datapack_report, &new)?;
-    keys::write(&root.join(KEYS), &files)
+    keys::generate(&registries, &datapack_report, names, owners::OWNERS)
+}
+
+fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {
+    keys::write(root, &keys_files(root, names)?)
 }
 
 fn with_gradle_output(

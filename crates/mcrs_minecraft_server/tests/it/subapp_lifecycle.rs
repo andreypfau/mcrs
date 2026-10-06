@@ -7,7 +7,6 @@ use bevy_time::{Fixed, Time};
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
@@ -20,6 +19,7 @@ use mcrs_minecraft_server::world::sub_app_builder::{
 use mcrs_minecraft_server::world_options::DimensionList;
 
 use crate::host_app;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 
 #[test]
 fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
@@ -117,16 +117,16 @@ fn install_counters(sub_app: &mut bevy_app::SubApp) {
     sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
 }
 
-fn world_clocks(app: &App) -> Registry<keys::WorldClock> {
+fn world_clocks(app: &App) -> Registry<WorldClock> {
     app.world()
         .resource::<RegistrySet>()
-        .registry::<keys::WorldClock>()
+        .registry::<WorldClock>()
         .expect("the world clock registry is loaded")
 }
 
-fn overworld_clock(app: &App) -> Id<keys::WorldClock> {
+fn overworld_clock(app: &App) -> Id<WorldClock> {
     world_clocks(app)
-        .require(&keys::world_clock::OVERWORLD)
+        .require(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
         .expect("the overworld clock is registered")
 }
 

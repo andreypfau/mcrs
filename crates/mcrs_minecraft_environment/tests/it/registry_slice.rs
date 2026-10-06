@@ -9,7 +9,6 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_environment::timeline::{TimeMarker, Tracks};
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, Tags};
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files, shipped_tags};
@@ -22,7 +21,7 @@ use serde_json::Value;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimelineRow {
-    clock: Id<keys::WorldClock>,
+    clock: Id<WorldClock>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     period_ticks: Option<u32>,
     #[serde(default)]
@@ -34,8 +33,8 @@ struct TimelineRow {
 #[derive(Debug, PartialEq)]
 enum TimelineSet {
     Tag(ResourceLocation<Arc<str>>),
-    One(Id<keys::Timeline>),
-    List(Vec<Id<keys::Timeline>>),
+    One(Id<mcrs_minecraft_environment::timeline::Timeline>),
+    List(Vec<Id<mcrs_minecraft_environment::timeline::Timeline>>),
 }
 
 impl<'de> Deserialize<'de> for TimelineSet {
@@ -55,15 +54,15 @@ impl<'de> Deserialize<'de> for TimelineSet {
                         .map(TimelineSet::One);
                 };
                 let tag = ResourceLocation::read(tag).map_err(E::custom)?;
-                let known = Tags::<keys::Timeline>::in_scope("TimelineSet", |tags| {
-                    tags.get(&TagKey::<keys::Timeline, _>::from_location(tag.clone()))
+                let known = Tags::<mcrs_minecraft_environment::timeline::Timeline>::in_scope("TimelineSet", |tags| {
+                    tags.get(&TagKey::<mcrs_minecraft_environment::timeline::Timeline, _>::from_location(tag.clone()))
                         .is_some()
                 })
                 .map_err(E::custom)?;
                 if !known {
                     return Err(E::custom(format_args!(
                         "Missing tag: '{tag}' in '{}'",
-                        keys::TIMELINE.location()
+                        mcrs_minecraft_environment::keys::TIMELINE.location()
                     )));
                 }
                 Ok(TimelineSet::Tag(tag))
@@ -82,7 +81,7 @@ impl<'de> Deserialize<'de> for TimelineSet {
 struct DimensionProbe {
     timelines: TimelineSet,
     #[serde(default)]
-    default_clock: Option<Id<keys::WorldClock>>,
+    default_clock: Option<Id<WorldClock>>,
 }
 
 fn corpus(dir: &str) -> PathBuf {
@@ -120,15 +119,22 @@ fn read_all<T: DeserializeOwned>(dir: &str) -> Vec<T> {
 }
 
 struct Slice {
-    clocks: Registry<keys::WorldClock>,
-    timelines: Registry<keys::Timeline>,
+    clocks: Registry<WorldClock>,
+    timelines: Registry<mcrs_minecraft_environment::timeline::Timeline>,
     set: RegistrySet,
 }
 
 fn slice() -> Slice {
-    let clocks =
-        Registry::<keys::WorldClock>::new(keys::WORLD_CLOCK, names("world_clock")).unwrap();
-    let timelines = Registry::<keys::Timeline>::new(keys::TIMELINE, names("timeline")).unwrap();
+    let clocks = Registry::<WorldClock>::new(
+        mcrs_minecraft_environment::keys::WORLD_CLOCK,
+        names("world_clock"),
+    )
+    .unwrap();
+    let timelines = Registry::<mcrs_minecraft_environment::timeline::Timeline>::new(
+        mcrs_minecraft_environment::keys::TIMELINE,
+        names("timeline"),
+    )
+    .unwrap();
     let set = RegistrySet::new()
         .with(clocks.clone())
         .unwrap()
@@ -232,9 +238,9 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
             match &probe.timelines {
                 TimelineSet::Tag(tag) => {
                     assert!(
-                        set.tags::<keys::Timeline>()
+                        set.tags::<mcrs_minecraft_environment::timeline::Timeline>()
                             .unwrap()
-                            .get(&TagKey::<keys::Timeline, _>::from_location(tag.clone()))
+                            .get(&TagKey::<mcrs_minecraft_environment::timeline::Timeline, _>::from_location(tag.clone()))
                             .is_some()
                     );
                     assert_eq!(
@@ -263,7 +269,7 @@ fn every_dimension_type_names_a_known_timeline_tag_and_clock() {
 fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     #[derive(Deserialize)]
     struct Holder {
-        clock: Id<keys::WorldClock>,
+        clock: Id<WorldClock>,
     }
 
     #[derive(Deserialize)]
@@ -279,7 +285,7 @@ fn an_id_under_an_untagged_or_flattened_shape_still_resolves() {
     enum Either {
         #[allow(dead_code)]
         Number(u32),
-        Clock(Id<keys::WorldClock>),
+        Clock(Id<WorldClock>),
     }
 
     let Slice { clocks, set, .. } = slice();

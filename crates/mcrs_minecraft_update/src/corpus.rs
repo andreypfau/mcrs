@@ -75,7 +75,7 @@ pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, Stri
         tables.push(std::sync::Arc::new(table));
     }
     RegistrySet::from_tables(tables)
-        .and_then(|set| set.with_types(mcrs_minecraft_keys::bindings()))
+        .and_then(|set| set.with_types(mcrs_minecraft_registry_catalog::bindings()))
         .map_err(|error| format!("{}: {error}", names.display()))
 }
 

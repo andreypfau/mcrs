@@ -1,0 +1,14 @@
+# Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+[package]
+name = "mcrs_minecraft_registry_catalog"
+description = "The static registries and the registry types of every crate that owns one"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_keys.workspace = true

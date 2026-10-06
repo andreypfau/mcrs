@@ -23,6 +23,7 @@ use mcrs_minecraft_environment::attribute::{
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
 use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 
 pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
@@ -171,7 +172,7 @@ impl<'a> DimensionEnvironment<'a> {
 #[derive(Resource, Debug, Clone)]
 pub struct EnvironmentAttributes {
     skybox: Skybox,
-    clocks: Vec<Id<keys::WorldClock>>,
+    clocks: Vec<Id<WorldClock>>,
     stacks: Vec<AttributeStack>,
 }
 
@@ -179,7 +180,7 @@ impl EnvironmentAttributes {
     pub fn build(
         dimension: &DimensionEnvironment,
         timelines: &[&Timeline],
-        world_clocks: &Registry<keys::WorldClock>,
+        world_clocks: &Registry<WorldClock>,
     ) -> Result<Self, EnvironmentError> {
         let mut stacks: Vec<AttributeStack> = ENVIRONMENT_ATTRIBUTES
             .values()
@@ -201,7 +202,7 @@ impl EnvironmentAttributes {
             stack.layers.push(Layer::Biome);
         }
 
-        let mut clocks: Vec<Id<keys::WorldClock>> = Vec::new();
+        let mut clocks: Vec<Id<WorldClock>> = Vec::new();
         for timeline in timelines {
             world_clocks
                 .name(timeline.clock)
@@ -252,7 +253,7 @@ impl EnvironmentAttributes {
         self.skybox
     }
 
-    pub fn clocks(&self) -> &[Id<keys::WorldClock>] {
+    pub fn clocks(&self) -> &[Id<WorldClock>] {
         &self.clocks
     }
 
@@ -307,9 +308,9 @@ pub fn build_dimension_environments(
         Some(dimension_types),
         Some(dimension_environments),
     ) = (
-        registries.column::<Timeline>(keys::TIMELINE.location().as_static_str()),
-        registries.tags::<keys::Timeline>(),
-        registries.registry::<keys::WorldClock>(),
+        registries.column::<Timeline>(mcrs_minecraft_environment::keys::TIMELINE.location().as_static_str()),
+        registries.tags::<Timeline>(),
+        registries.registry::<WorldClock>(),
         registries.registry::<keys::DimensionType>(),
         registries.entries::<keys::DimensionType, DimensionType>(),
         registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),

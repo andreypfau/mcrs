@@ -5,6 +5,8 @@ use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{HolderSet, Id};
 
@@ -70,9 +72,9 @@ pub struct DimensionTypeFile {
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, skip_serializing_if = "is_default")]
-    pub timelines: HolderSet<keys::Timeline>,
+    pub timelines: HolderSet<Timeline>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_clock: Option<Id<keys::WorldClock>>,
+    pub default_clock: Option<Id<WorldClock>>,
 }
 
 impl<'de> Deserialize<'de> for DimensionTypeFile {
@@ -111,8 +113,8 @@ impl Serialize for DimensionTypeFile {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionTypeEnvironment {
     pub attributes: EnvironmentAttributeMap,
-    pub timelines: HolderSet<keys::Timeline>,
-    pub default_clock: Option<Id<keys::WorldClock>>,
+    pub timelines: HolderSet<Timeline>,
+    pub default_clock: Option<Id<WorldClock>>,
 }
 
 impl DimensionTypeFile {
@@ -189,9 +191,9 @@ pub struct NetworkDimensionType {
     #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(skip_serializing_if = "is_default")]
-    pub timelines: HolderSet<keys::Timeline>,
+    pub timelines: HolderSet<Timeline>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_clock: Option<Id<keys::WorldClock>>,
+    pub default_clock: Option<Id<WorldClock>>,
 }
 
 impl From<&DimensionTypeFile> for NetworkDimensionType {

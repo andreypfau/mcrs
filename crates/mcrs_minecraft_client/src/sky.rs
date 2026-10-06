@@ -107,7 +107,7 @@ pub struct SkyEnvironment {
     attributes: EnvironmentAttributes,
     layout: SkyLayout,
     statics: SkyStatic,
-    clock: Option<Id<keys::WorldClock>>,
+    clock: Option<Id<mcrs_minecraft_environment::world_clock::WorldClock>>,
 }
 
 impl SkyEnvironment {
@@ -202,7 +202,7 @@ fn build_sky_environment(
     let (Some(types), Some(dimension_types), Some(world_clocks)) = (
         registries.registry::<keys::DimensionType>(),
         registries.entries::<keys::DimensionType, DimensionTypeEnvironment>(),
-        registries.registry::<keys::WorldClock>(),
+        registries.registry::<mcrs_minecraft_environment::world_clock::WorldClock>(),
     ) else {
         error!("the registry set holds no dimension types to draw a sky from");
         return;
@@ -904,9 +904,9 @@ mod sky_regression {
     #[test]
     fn the_drift_follows_the_default_clock_by_id_and_reads_none_without_one() {
         let overworld_clock = CLOCKS
-            .registry::<keys::WorldClock>()
+            .registry::<mcrs_minecraft_environment::world_clock::WorldClock>()
             .unwrap()
-            .require(&keys::world_clock::OVERWORLD)
+            .require(&mcrs_minecraft_environment::keys::world_clock::OVERWORLD)
             .unwrap();
         let mut clocks = WorldClocks::default();
         clocks.insert(

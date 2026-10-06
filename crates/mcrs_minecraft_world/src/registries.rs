@@ -155,8 +155,8 @@ world_registry_table! {
         synced as |v| variant::NetworkFrogVariant::from(v);
     keys::ZombieNautilusVariant => variant::ZombieNautilusVariant [non_empty],
         synced as |v| variant::NetworkZombieNautilusVariant::from(v);
-    keys::WorldClock => WorldClock, synced as Clone::clone;
-    keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
+    WorldClock => WorldClock, synced as Clone::clone;
+    Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
     keys::BlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
     keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
@@ -172,8 +172,15 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     let mut undeclared = LoadReport::new();
     parse_world_registries(&mut world, &mut undeclared);
     parse_split_registries(&mut world, &mut undeclared);
-    if world.parses(keys::TIMELINE.location().as_static_str()) {
-        world.validate::<Timeline>(keys::TIMELINE.location(), check_time_markers);
+    if world.parses(
+        mcrs_minecraft_environment::keys::TIMELINE
+            .location()
+            .as_static_str(),
+    ) {
+        world.validate::<Timeline>(
+            mcrs_minecraft_environment::keys::TIMELINE.location(),
+            check_time_markers,
+        );
     }
     if world.parses(
         keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
@@ -437,10 +444,14 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
             .expect("the data pack loader splits minecraft:enchantment"),
     );
     let clocks = registries
-        .registry::<keys::WorldClock>()
+        .registry::<WorldClock>()
         .expect("the data pack loader parses minecraft:world_clock");
     let timelines = registries
-        .column::<Timeline>(keys::TIMELINE.location().as_static_str())
+        .column::<Timeline>(
+            mcrs_minecraft_environment::keys::TIMELINE
+                .location()
+                .as_static_str(),
+        )
         .expect("the data pack loader parses minecraft:timeline");
     world.insert_resource(
         ClockTimeMarkers::derive(timelines, &clocks)
@@ -448,7 +459,7 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     );
     world.insert_resource(
         registries
-            .registry::<keys::Timeline>()
+            .registry::<Timeline>()
             .expect("the data pack loader parses minecraft:timeline"),
     );
     world.insert_resource(
@@ -469,15 +480,15 @@ pub fn share_registries(world: &mut World) {
     share::<Entries<Enchantment, Option<EnchantmentEffects>>>(world);
     share::<Registry<keys::Biome>>(world);
     share::<Registry<keys::Structure>>(world);
-    share::<Registry<keys::Timeline>>(world);
+    share::<Registry<Timeline>>(world);
     share::<Registry<keys::EntityType>>(world);
     share::<ClockTimeMarkers>(world);
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
 }
 
 pub fn static_registries() -> Result<RegistrySet, LoadReport> {
-    RegistrySet::from_locations(keys::STATIC_REGISTRIES)
-        .and_then(|set| set.with_types(keys::bindings()))
+    RegistrySet::from_locations(mcrs_minecraft_registry_catalog::STATIC_REGISTRIES)
+        .and_then(|set| set.with_types(mcrs_minecraft_registry_catalog::bindings()))
         .map_err(LoadReport::invalid)
 }
 
