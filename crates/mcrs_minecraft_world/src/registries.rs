@@ -44,10 +44,15 @@ use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern;
 use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_item::loot::{ContextFloatProvider, ContextIntProvider, LootTable};
 use mcrs_minecraft_item::recipe::Recipe;
 use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Items, JukeboxSong, PaintingVariantValue, TrimMaterial,
     TrimPattern,
+};
+use mcrs_minecraft_loot::number::{FloatExpression, IntExpression};
+use mcrs_minecraft_loot::{
+    LootCondition, LootItemFunction, LootTableBody, LootTableFile, SlotSource,
 };
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
@@ -184,6 +189,32 @@ macro_rules! reloadable_registry_table {
 
 reloadable_registry_table! {
     Recipe => Recipe;
+    LootCondition => LootCondition;
+    LootItemFunction => LootItemFunction;
+    SlotSource => SlotSource;
+}
+
+macro_rules! reloadable_split_table {
+    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr;)*) => {
+        fn parse_reloadable_split_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
+            $(
+                parse::<$key, $file>(reloadable, report);
+                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
+                if reloadable.parses(registry.as_static_str()) {
+                    reloadable.split::<$file, $parts>(registry, $split, $join);
+                }
+            )*
+        }
+    };
+}
+
+reloadable_split_table! {
+    LootTable => LootTableFile as (LootTable, LootTableBody),
+        LootTableFile::split, LootTableFile::join;
+    ContextIntProvider => IntExpression as (ContextIntProvider, IntExpression),
+        IntExpression::split, IntExpression::join;
+    ContextFloatProvider => FloatExpression as (ContextFloatProvider, FloatExpression),
+        FloatExpression::split, FloatExpression::join;
 }
 
 /// The registries a data pack reload reads, parsed over the world registries.
@@ -192,6 +223,7 @@ pub fn reloadable_registries(datapack_report: &[u8]) -> Result<WorldRegistries, 
         .map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
     parse_reloadable_registries(&mut reloadable, &mut undeclared);
+    parse_reloadable_split_registries(&mut reloadable, &mut undeclared);
     if undeclared.is_empty() {
         Ok(reloadable)
     } else {

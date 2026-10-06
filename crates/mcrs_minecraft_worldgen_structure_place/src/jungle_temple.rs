@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
@@ -249,7 +248,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         3,
         -2,
         1,
-        keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
+        mcrs_minecraft_item::keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_south, 3, -2, 2);
@@ -270,7 +269,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         9,
         -2,
         3,
-        keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
+        mcrs_minecraft_item::keys::loot_table::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_east, 8, -1, 3);
@@ -281,7 +280,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         8,
         -3,
         3,
-        keys::loot_table::CHESTS_JUNGLE_TEMPLE,
+        mcrs_minecraft_item::keys::loot_table::CHESTS_JUNGLE_TEMPLE,
     );
 
     c.place(mossy, 9, -3, 2);
@@ -317,6 +316,6 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         9,
         -3,
         10,
-        keys::loot_table::CHESTS_JUNGLE_TEMPLE,
+        mcrs_minecraft_item::keys::loot_table::CHESTS_JUNGLE_TEMPLE,
     );
 }

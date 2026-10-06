@@ -13,11 +13,11 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_anvil::keys::CHUNK_STATUS.location(), mcrs_minecraft_anvil::keys::ChunkStatus::ENTRIES),
     (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE.location(), mcrs_minecraft_keys::command_argument_type::ENTRIES),
     (mcrs_minecraft_item::keys::CONSUME_EFFECT_TYPE.location(), mcrs_minecraft_item::keys::ConsumeEffectType::ENTRIES),
-    (mcrs_minecraft_keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::context_float_provider_type::ENTRIES),
-    (mcrs_minecraft_keys::CONTEXT_INT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::context_int_provider_type::ENTRIES),
-    (mcrs_minecraft_keys::CONTEXT_KEY_SET.location(), mcrs_minecraft_keys::context_key_set::ENTRIES),
+    (mcrs_minecraft_item::keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_item::keys::ContextFloatProviderType::ENTRIES),
+    (mcrs_minecraft_item::keys::CONTEXT_INT_PROVIDER_TYPE.location(), mcrs_minecraft_item::keys::ContextIntProviderType::ENTRIES),
+    (mcrs_minecraft_item::keys::CONTEXT_KEY_SET.location(), mcrs_minecraft_item::keys::ContextKeySet::ENTRIES),
     (mcrs_minecraft_keys::CREATIVE_MODE_TAB.location(), mcrs_minecraft_keys::creative_mode_tab::ENTRIES),
-    (mcrs_minecraft_keys::CUSTOM_STAT.location(), mcrs_minecraft_keys::custom_stat::ENTRIES),
+    (mcrs_minecraft_predicate::keys::CUSTOM_STAT.location(), mcrs_minecraft_predicate::keys::CustomStat::ENTRIES),
     (mcrs_minecraft_item::keys::DATA_COMPONENT_PREDICATE_TYPE.location(), mcrs_minecraft_item::keys::DataComponentPredicateType::ENTRIES),
     (mcrs_minecraft_item::keys::DATA_COMPONENT_TYPE.location(), mcrs_minecraft_item::keys::DataComponentType::ENTRIES),
     (mcrs_minecraft_keys::DEBUG_SUBSCRIPTION.location(), mcrs_minecraft_keys::debug_subscription::ENTRIES),
@@ -26,11 +26,11 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_item::keys::DIALOG_TYPE.location(), mcrs_minecraft_item::keys::DialogType::ENTRIES),
     (mcrs_minecraft_enchantment::keys::ENCHANTMENT_EFFECT_COMPONENT_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentEffectComponentType::ENTRIES),
     (mcrs_minecraft_enchantment::keys::ENCHANTMENT_ENTITY_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentEntityEffectType::ENTRIES),
-    (mcrs_minecraft_enchantment::keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentLevelBasedValueType::ENTRIES),
+    (mcrs_minecraft_item::keys::ENCHANTMENT_LEVEL_BASED_VALUE_TYPE.location(), mcrs_minecraft_item::keys::EnchantmentLevelBasedValueType::ENTRIES),
     (mcrs_minecraft_enchantment::keys::ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentLocationBasedEffectType::ENTRIES),
     (mcrs_minecraft_keys::ENCHANTMENT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::enchantment_provider_type::ENTRIES),
     (mcrs_minecraft_enchantment::keys::ENCHANTMENT_VALUE_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentValueEffectType::ENTRIES),
-    (mcrs_minecraft_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_keys::entity_sub_predicate_type::ENTRIES),
+    (mcrs_minecraft_predicate::keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_predicate::keys::EntitySubPredicateType::ENTRIES),
     (mcrs_minecraft_entity::keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::keys::EntityType::ENTRIES),
     (mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::keys::EnvironmentAttribute::ENTRIES),
     (mcrs_minecraft_value_provider::keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::FloatProviderType::ENTRIES),
@@ -42,11 +42,11 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_item::keys::INPUT_CONTROL_TYPE.location(), mcrs_minecraft_item::keys::InputControlType::ENTRIES),
     (mcrs_minecraft_value_provider::keys::INT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::keys::IntProviderType::ENTRIES),
     (mcrs_minecraft_item::keys::ITEM.location(), mcrs_minecraft_item::keys::Item::ENTRIES),
-    (mcrs_minecraft_enchantment::keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_enchantment::keys::LootConditionType::ENTRIES),
-    (mcrs_minecraft_keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_keys::loot_function_type::ENTRIES),
-    (mcrs_minecraft_keys::LOOT_NBT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::loot_nbt_provider_type::ENTRIES),
-    (mcrs_minecraft_keys::LOOT_POOL_ENTRY_TYPE.location(), mcrs_minecraft_keys::loot_pool_entry_type::ENTRIES),
-    (mcrs_minecraft_keys::LOOT_SCORE_PROVIDER_TYPE.location(), mcrs_minecraft_keys::loot_score_provider_type::ENTRIES),
+    (mcrs_minecraft_loot::keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_loot::keys::LootConditionType::ENTRIES),
+    (mcrs_minecraft_loot::keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_loot::keys::LootFunctionType::ENTRIES),
+    (mcrs_minecraft_loot::keys::LOOT_NBT_PROVIDER_TYPE.location(), mcrs_minecraft_loot::keys::LootNbtProviderType::ENTRIES),
+    (mcrs_minecraft_loot::keys::LOOT_POOL_ENTRY_TYPE.location(), mcrs_minecraft_loot::keys::LootPoolEntryType::ENTRIES),
+    (mcrs_minecraft_loot::keys::LOOT_SCORE_PROVIDER_TYPE.location(), mcrs_minecraft_loot::keys::LootScoreProviderType::ENTRIES),
     (mcrs_minecraft_item::keys::MAP_DECORATION_TYPE.location(), mcrs_minecraft_item::keys::MapDecorationType::ENTRIES),
     (mcrs_minecraft_keys::MEMORY_MODULE_TYPE.location(), mcrs_minecraft_keys::memory_module_type::ENTRIES),
     (mcrs_minecraft_item::keys::MENU.location(), mcrs_minecraft_item::keys::MenuType::ENTRIES),
@@ -68,10 +68,10 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_worldgen_feature::keys::RULE_TEST_TYPE.location(), mcrs_minecraft_worldgen_feature::keys::RuleTestType::ENTRIES),
     (mcrs_minecraft_keys::SENSOR_TYPE.location(), mcrs_minecraft_keys::sensor_type::ENTRIES),
     (mcrs_minecraft_protocol::keys::SLOT_DISPLAY.location(), mcrs_minecraft_protocol::keys::SlotDisplayType::ENTRIES),
-    (mcrs_minecraft_keys::SLOT_SOURCE_TYPE.location(), mcrs_minecraft_keys::slot_source_type::ENTRIES),
+    (mcrs_minecraft_loot::keys::SLOT_SOURCE_TYPE.location(), mcrs_minecraft_loot::keys::SlotSourceType::ENTRIES),
     (mcrs_minecraft_sound::keys::SOUND_EVENT.location(), mcrs_minecraft_sound::keys::sound_event::ENTRIES),
     (mcrs_minecraft_worldgen_structure::keys::SPAWN_CONDITION_TYPE.location(), mcrs_minecraft_worldgen_structure::keys::SpawnConditionType::ENTRIES),
-    (mcrs_minecraft_keys::STAT_TYPE.location(), mcrs_minecraft_keys::stat_type::ENTRIES),
+    (mcrs_minecraft_predicate::keys::STAT_TYPE.location(), mcrs_minecraft_predicate::keys::StatType::ENTRIES),
     (mcrs_minecraft_keys::TEST_ENVIRONMENT_DEFINITION_TYPE.location(), mcrs_minecraft_keys::test_environment_definition_type::ENTRIES),
     (mcrs_minecraft_keys::TEST_FUNCTION.location(), mcrs_minecraft_keys::test_function::ENTRIES),
     (mcrs_minecraft_keys::TEST_INSTANCE_TYPE.location(), mcrs_minecraft_keys::test_instance_type::ENTRIES),
@@ -114,7 +114,9 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
         .chain(mcrs_minecraft_environment::keys::bindings())
         .chain(mcrs_minecraft_item::keys::bindings())
         .chain(mcrs_minecraft_keys::bindings())
+        .chain(mcrs_minecraft_loot::keys::bindings())
         .chain(mcrs_minecraft_particle::keys::bindings())
+        .chain(mcrs_minecraft_predicate::keys::bindings())
         .chain(mcrs_minecraft_protocol::keys::bindings())
         .chain(mcrs_minecraft_sound::keys::bindings())
         .chain(mcrs_minecraft_value_provider::keys::bindings())

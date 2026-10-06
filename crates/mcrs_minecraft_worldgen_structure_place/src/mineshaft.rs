@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::cmp::Ordering;
 
 use bevy_math::IVec3;
@@ -493,7 +492,7 @@ fn create_minecart<W: WorldGenVolume>(
     c.place(rail, x, y, z);
     c.spawns.push(chest_minecart(
         pos,
-        keys::loot_table::CHESTS_ABANDONED_MINESHAFT
+        mcrs_minecraft_item::keys::loot_table::CHESTS_ABANDONED_MINESHAFT
             .as_str()
             .to_owned(),
         rng,

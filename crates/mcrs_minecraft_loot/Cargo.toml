@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_loot"
+description = "Loot tables, loot conditions, item modifiers and context number providers as data packs state them"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_predicate.workspace = true
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_value_provider.workspace = true
+mcrs_minecraft_worldgen_structure.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+mcrs_minecraft_worldgen_testing.workspace = true
+serde_json.workspace = true

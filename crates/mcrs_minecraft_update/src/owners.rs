@@ -438,7 +438,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:enchantment_level_based_value_type",
-        krate: "mcrs_minecraft_enchantment",
+        krate: "mcrs_minecraft_item",
         value: ValueType::Enum("EnchantmentLevelBasedValueType"),
     },
     Owner {
@@ -453,7 +453,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:loot_condition_type",
-        krate: "mcrs_minecraft_enchantment",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Enum("LootConditionType"),
     },
     Owner {
@@ -550,5 +550,90 @@ pub const OWNERS: &[Owner] = &[
         registry: "minecraft:recipe_book_category",
         krate: "mcrs_minecraft_item",
         value: ValueType::Enum("RecipeBookCategory"),
+    },
+    Owner {
+        registry: "minecraft:entity_sub_predicate_type",
+        krate: "mcrs_minecraft_predicate",
+        value: ValueType::Enum("EntitySubPredicateType"),
+    },
+    Owner {
+        registry: "minecraft:stat_type",
+        krate: "mcrs_minecraft_predicate",
+        value: ValueType::Enum("StatType"),
+    },
+    Owner {
+        registry: "minecraft:custom_stat",
+        krate: "mcrs_minecraft_predicate",
+        value: ValueType::Enum("CustomStat"),
+    },
+    Owner {
+        registry: "minecraft:loot_table",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Defined("crate::loot::LootTable"),
+    },
+    Owner {
+        registry: "minecraft:context_key_set",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("ContextKeySet"),
+    },
+    Owner {
+        registry: "minecraft:context_int_provider",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Defined("crate::loot::ContextIntProvider"),
+    },
+    Owner {
+        registry: "minecraft:context_float_provider",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Defined("crate::loot::ContextFloatProvider"),
+    },
+    Owner {
+        registry: "minecraft:predicate",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Defined("crate::condition::LootCondition"),
+    },
+    Owner {
+        registry: "minecraft:item_modifier",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Defined("crate::function::LootItemFunction"),
+    },
+    Owner {
+        registry: "minecraft:slot_source",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Defined("crate::slot::SlotSource"),
+    },
+    Owner {
+        registry: "minecraft:context_int_provider_type",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("ContextIntProviderType"),
+    },
+    Owner {
+        registry: "minecraft:context_float_provider_type",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("ContextFloatProviderType"),
+    },
+    Owner {
+        registry: "minecraft:loot_function_type",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Enum("LootFunctionType"),
+    },
+    Owner {
+        registry: "minecraft:loot_pool_entry_type",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Enum("LootPoolEntryType"),
+    },
+    Owner {
+        registry: "minecraft:loot_nbt_provider_type",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Enum("LootNbtProviderType"),
+    },
+    Owner {
+        registry: "minecraft:loot_score_provider_type",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Enum("LootScoreProviderType"),
+    },
+    Owner {
+        registry: "minecraft:slot_source_type",
+        krate: "mcrs_minecraft_loot",
+        value: ValueType::Enum("SlotSourceType"),
     },
 ];

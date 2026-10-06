@@ -1,7 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -102,7 +101,7 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
             volume.set(pos, b.chest.facing[index]);
             entities.push(GeneratedBlockEntity::chest(
                 pos,
-                keys::loot_table::CHESTS_WOODLAND_MANSION
+                mcrs_minecraft_item::keys::loot_table::CHESTS_WOODLAND_MANSION
                     .as_str()
                     .to_owned(),
                 rng.next_java_long(),

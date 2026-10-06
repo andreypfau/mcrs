@@ -329,6 +329,25 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// corpus ships under `assets/minecraft/<folder>`, for reading a value that
 /// names an entry of it inside `RegistrySet::scope`.
 pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str) -> RegistrySet {
+    RegistrySet::new()
+        .with(shipped_registry::<R>(folder))
+        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
+}
+
+/// `set` with the registry `R` numbered by the files the corpus ships under
+/// `assets/minecraft/<folder>`, and the tags it ships for it.
+pub fn with_shipped<R: mcrs_minecraft_registry::Registered>(
+    set: RegistrySet,
+    folder: &str,
+) -> RegistrySet {
+    let registry = shipped_registry::<R>(folder);
+    let tags = shipped_tags(registry.table(), folder);
+    set.with(registry)
+        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
+        .with_tags(tags)
+}
+
+fn shipped_registry<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Registry<R> {
     let root = assets_dir().join("minecraft").join(folder);
     let names = json_files(&root).into_iter().map(|file| {
         let relative = file
@@ -338,11 +357,7 @@ pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str
         ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
             .unwrap_or_else(|e| panic!("{folder} holds a file that is no identifier: {e}"))
     });
-    let registry = Registry::<R>::new(R::REGISTRY, names)
-        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
-    RegistrySet::new()
-        .with(registry)
-        .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
+    Registry::<R>::new(R::REGISTRY, names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
 /// What a dimension type names: every registry of the report, with the block

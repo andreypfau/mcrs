@@ -13,19 +13,27 @@ mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_entity.workspace = true
-bevy_app.workspace = true
-bevy_ecs.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
-bevy_state.workspace = true
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_registry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[features]
+default = []
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_ecs",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dev-dependencies]
+mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_testing.workspace = true

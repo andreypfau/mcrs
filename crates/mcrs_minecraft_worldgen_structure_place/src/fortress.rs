@@ -1,5 +1,4 @@
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -385,7 +384,7 @@ fn small_corridor_left_turn<W: WorldGenVolume, R: Random>(
             3,
             2,
             3,
-            keys::loot_table::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_item::keys::loot_table::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);
@@ -427,7 +426,7 @@ fn small_corridor_right_turn<W: WorldGenVolume, R: Random>(
             1,
             2,
             3,
-            keys::loot_table::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_item::keys::loot_table::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);

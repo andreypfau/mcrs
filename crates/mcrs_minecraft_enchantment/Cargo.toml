@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_enchantment"
-description = "Enchantment effects, the predicates and level-based values they read, and the enchantment file"
+description = "Enchantment effects and the enchantment file"
 version.workspace = true
 edition.workspace = true
 
@@ -17,6 +17,8 @@ mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_loot.workspace = true
+mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_registry.workspace = true
 serde = { workspace = true, features = ["derive"] }
 

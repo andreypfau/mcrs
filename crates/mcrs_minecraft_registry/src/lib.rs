@@ -1,6 +1,7 @@
 pub mod bitset;
 pub mod entries;
 pub mod holder;
+pub mod holder_list;
 pub mod holder_set;
 pub mod id;
 pub mod load;
@@ -20,6 +21,7 @@ pub mod tags;
 pub use bitset::{BitSet, DenseId};
 pub use entries::Entries;
 pub use holder::*;
+pub use holder_list::HolderList;
 pub use holder_set::{HolderSet, skip_sets, skipping_sets};
 pub use id::{BlockStateId, Id, NarrowError};
 pub use load::{Built, Pack, PackFile, Parts, WorldRegistries};

@@ -2,7 +2,6 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, Direction};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
@@ -86,7 +85,7 @@ pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
                 pos.x,
                 pos.y,
                 pos.z,
-                keys::loot_table::CHESTS_BURIED_TREASURE,
+                mcrs_minecraft_item::keys::loot_table::CHESTS_BURIED_TREASURE,
             );
             return;
         }

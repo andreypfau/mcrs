@@ -5,7 +5,10 @@ use derive_more::{From, Into};
 
 use crate::{Decode, Encode, VarInt};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Encode, Decode)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Debug, Default, Encode, Decode, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum GameMode {
     #[default]
     Survival,

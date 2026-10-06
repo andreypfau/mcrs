@@ -16,7 +16,8 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::keys::MobEffect;
-use mcrs_minecraft_keys::{ContextFloatProvider, ContextIntProvider};
+use crate::loot::ContextFloatProvider;
+use crate::loot::ContextIntProvider;
 
 pub use mcrs_minecraft_core::codec::{
     ArgbInt, BoundedString, IntArray, Number, RgbInt, compound_or_snbt, lenient, lenient_float,

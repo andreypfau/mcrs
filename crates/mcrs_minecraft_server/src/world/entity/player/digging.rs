@@ -5,10 +5,10 @@ use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
 use crate::world::item::StackSet;
-use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
+use crate::world::loot::entry::roll;
+use crate::world::loot::{BlockLootTables, LootRegistries};
 use bevy_app::{FixedUpdate, Plugin, Update};
-use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
@@ -391,8 +391,8 @@ fn handle_player_will_destroy_block(
     tools: Query<(Option<&Tool>, Option<&Enchantments>), With<ItemStack>>,
     registries: Res<RegistrySet>,
     blocks: Res<Blocks>,
-    mut loot_tables: ResMut<BlockLootTables>,
-    asset_server: Res<AssetServer>,
+    loot_tables: Res<BlockLootTables>,
+    loot: Res<LootRegistries>,
     mut drops: MessageWriter<BlockDrop>,
 ) {
     if reader.is_empty() {
@@ -425,27 +425,21 @@ fn handle_player_will_destroy_block(
         if has_correct_tool {
             let tool_enchantments = held_tool.and_then(|(_, enchantments)| enchantments);
 
-            if let Some(loot) = state.loot {
-                match loot_tables.tables.get(&loot) {
-                    Some(table) => {
-                        let ctx = BlockBreakContext {
-                            blocks: &blocks,
-                            state: event.block_state,
-                            tags: &tags,
-                            tool_enchantments,
-                        };
-                        for drop in table.evaluate(&ctx) {
-                            drops.write(BlockDrop {
-                                dim: dim.entity(),
-                                pos: event.block_pos,
-                                item: drop.item_name,
-                                count: drop.count,
-                            });
-                        }
-                    }
-                    None => {
-                        loot_tables.request(loot, &blocks, &asset_server);
-                    }
+            if let Some(table) = state.loot.and_then(|id| loot_tables.get(id)) {
+                let ctx = BlockBreakContext {
+                    loot: &loot,
+                    blocks: &blocks,
+                    state: event.block_state,
+                    tags: &tags,
+                    tool_enchantments,
+                };
+                for drop in roll(&loot.bodies[table], &ctx) {
+                    drops.write(BlockDrop {
+                        dim: dim.entity(),
+                        pos: event.block_pos,
+                        item: drop.item.location().to_arc(),
+                        count: drop.count,
+                    });
                 }
             }
 

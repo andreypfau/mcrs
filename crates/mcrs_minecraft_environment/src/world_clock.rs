@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+#[cfg(feature = "bevy")]
 use bevy_app::{App, FixedUpdate, Plugin, Startup};
+#[cfg(feature = "bevy")]
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_core::registry_key::RegistryValue;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use serde::{Deserialize, Serialize};
@@ -85,7 +88,8 @@ impl ClockState {
 ///
 /// A resource rather than an entity per clock: this crosses into every
 /// dimension sub-world once per tick, and entities do not cross worlds.
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct WorldClocks(BTreeMap<Id<WorldClock>, ClockState>);
 
 impl WorldClocks {
@@ -157,11 +161,13 @@ pub struct DuplicateTimeMarker {
 ///
 /// Markers have no registry of their own: this table is derived once from the
 /// `timeline` column and never touched again.
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct ClockTimeMarkers(Arc<BTreeMap<Id<WorldClock>, MarkersOfClock>>);
 
 type MarkersOfClock = BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>;
 
+#[cfg(feature = "bevy")]
 impl SharedResource for ClockTimeMarkers {
     fn shares_with(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -246,7 +252,8 @@ pub fn check_time_markers(timelines: &[Timeline], set: &RegistrySet) -> Vec<(usi
 }
 
 /// The global `advance_time` gamerule. Truth until a save reader supplies it.
-#[derive(Resource, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct AdvanceTime(pub bool);
 
 impl Default for AdvanceTime {
@@ -255,8 +262,10 @@ impl Default for AdvanceTime {
     }
 }
 
+#[cfg(feature = "bevy")]
 pub struct WorldClockPlugin;
 
+#[cfg(feature = "bevy")]
 impl Plugin for WorldClockPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldClocks>()
@@ -269,6 +278,7 @@ impl Plugin for WorldClockPlugin {
     }
 }
 
+#[cfg(feature = "bevy")]
 pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>) {
     let Some(registry) = set.registry::<WorldClock>() else {
         tracing::error!("the registry set holds no world_clock registry to seed the clocks from");
@@ -278,10 +288,12 @@ pub fn seed_world_clocks(mut clocks: ResMut<WorldClocks>, set: Res<RegistrySet>)
     tracing::info!(clocks = clocks.len(), "seeded world clocks");
 }
 
+#[cfg(feature = "bevy")]
 fn advance_time_enabled(advance_time: Res<AdvanceTime>) -> bool {
     advance_time.0
 }
 
+#[cfg(feature = "bevy")]
 fn advance_world_clocks(mut clocks: ResMut<WorldClocks>) {
     for state in clocks.0.values_mut() {
         state.advance(1.0);
@@ -291,18 +303,19 @@ fn advance_world_clocks(mut clocks: ResMut<WorldClocks>) {
 /// Push the main app's clocks into a dimension sub-world. The sub-world holds
 /// a read-only copy: it is overwritten wholesale every tick, so any local
 /// advancement it attempted would be silently discarded.
+#[cfg(feature = "bevy")]
 pub fn extract_world_clocks(main_world: &mut World, sub_world: &mut World) {
     if let Some(clocks) = main_world.get_resource::<WorldClocks>() {
         sub_world.insert_resource(clocks.clone());
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "bevy"))]
 pub(crate) static TEST_CLOCKS: std::sync::LazyLock<RegistrySet> = std::sync::LazyLock::new(|| {
     mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
 });
 
-#[cfg(test)]
+#[cfg(all(test, feature = "bevy"))]
 mod tests {
     use super::*;
     use crate::timeline::Timeline;

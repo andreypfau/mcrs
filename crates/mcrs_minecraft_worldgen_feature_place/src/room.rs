@@ -3,7 +3,6 @@ use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
@@ -126,7 +125,9 @@ pub fn place_monster_room<W: WorldGenVolume>(
             if volume.set_unless(&config.cannot_replace, pos, chest) {
                 entities.push(GeneratedBlockEntity::chest(
                     pos,
-                    keys::loot_table::CHESTS_SIMPLE_DUNGEON.as_str().to_owned(),
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_SIMPLE_DUNGEON
+                        .as_str()
+                        .to_owned(),
                     rng.next_java_long(),
                 ));
             }
@@ -222,7 +223,7 @@ pub fn place_bonus_chest<W: WorldGenVolume>(
             volume.set(pos, config.chest);
             entities.push(GeneratedBlockEntity::chest(
                 pos,
-                keys::loot_table::CHESTS_SPAWN_BONUS_CHEST
+                mcrs_minecraft_item::keys::loot_table::CHESTS_SPAWN_BONUS_CHEST
                     .as_str()
                     .to_owned(),
                 rng.next_java_long(),

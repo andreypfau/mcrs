@@ -11,7 +11,6 @@ use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
@@ -443,7 +442,7 @@ const VAULT_ACTIVATION_RANGE: f64 = 4.0;
 const VAULT_DEACTIVATION_RANGE: f64 = 4.5;
 
 fn is_vault_loot(value: &String) -> bool {
-    value == keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD.as_str()
+    value == mcrs_minecraft_item::keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD.as_str()
 }
 
 fn is_vault_activation_range(value: &f64) -> bool {
@@ -601,7 +600,7 @@ pub struct VaultConfig {
 impl Default for VaultConfig {
     fn default() -> Self {
         VaultConfig {
-            loot_table: keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD
+            loot_table: mcrs_minecraft_item::keys::loot_table::CHESTS_TRIAL_CHAMBERS_REWARD
                 .as_str()
                 .to_owned(),
             activation_range: VAULT_ACTIVATION_RANGE,

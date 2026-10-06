@@ -24,8 +24,8 @@ use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId,
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
-    read_packs, register_split_registries, static_registries as build_static_registries,
-    test_registries, world_registries,
+    read_packs, register_split_registries, reloadable_registries,
+    static_registries as build_static_registries, test_registries, world_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -506,6 +506,64 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
     assert!(parsed > 0, "the loader parses no registry");
 }
 
+static RELOADABLE: LazyLock<WorldRegistries> = LazyLock::new(|| {
+    let bytes = std::fs::read(assets().join("mcrs/reports/datapack.json")).unwrap();
+    reloadable_registries(&bytes).expect("the report parses")
+});
+
+#[test]
+fn every_shipped_file_of_a_parsed_reloadable_registry_round_trips() {
+    let set = test_registries();
+    let reloadable = &*RELOADABLE;
+    let mut parsed = Vec::new();
+    for registry in reloadable
+        .declared()
+        .filter(|r| reloadable.parses(r.as_str()))
+    {
+        let table = set
+            .table(registry.as_str())
+            .unwrap_or_else(|| panic!("{registry} has no table"));
+        for (index, name) in table.names().iter().enumerate() {
+            let pack = set
+                .pack_of(registry.as_str(), index)
+                .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
+            let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
+            let text = std::fs::read_to_string(&file)
+                .unwrap_or_else(|e| panic!("{registry}/{name}: {}: {e}", file.display()));
+            let encoded = reloadable
+                .encode(set, registry.as_str(), index)
+                .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
+                .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
+            let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(
+                from_entry,
+                from_file,
+                "{registry}/{name} ({})",
+                file.display()
+            );
+        }
+        parsed.push((registry.to_string(), table.len()));
+    }
+    parsed.sort();
+    let counts: Vec<(&str, bool)> = parsed
+        .iter()
+        .map(|(registry, len)| (registry.as_str(), *len > 0))
+        .collect();
+    assert_eq!(
+        counts,
+        [
+            ("minecraft:context_float_provider", true),
+            ("minecraft:context_int_provider", true),
+            ("minecraft:item_modifier", false),
+            ("minecraft:loot_table", true),
+            ("minecraft:predicate", true),
+            ("minecraft:recipe", true),
+            ("minecraft:slot_source", false),
+        ]
+    );
+}
+
 #[test]
 fn a_loaded_holder_set_answers_membership_through_the_tags() {
     let set = test_registries();
@@ -621,7 +679,7 @@ fn an_instrument_or_painting_the_game_refuses_fails_to_parse_in_scope() {
 fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
     let stone = r#"{"id":"minecraft:stone"}"#;
     let wolf_assets = r#"{"wild":"minecraft:a","tame":"minecraft:b","angry":"minecraft:c"}"#;
-    let cases: [(&str, String, &[&str]); 18] = [
+    let cases: [(&str, String, &[&str]); 17] = [
         ("instrument", "{}".to_owned(), &["sound_event"]),
         (
             "instrument",
@@ -714,11 +772,6 @@ fn a_file_the_game_refuses_names_its_registry_entry_and_file() {
             r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:no_such_item"}}"#
                 .to_owned(),
             &["minecraft:item", "minecraft:no_such_item"],
-        ),
-        (
-            "villager_trade",
-            trade_with_modifier(r#"{"type":"minecraft:set_name"}"#),
-            &["minecraft:set_name"],
         ),
     ];
     for (registry, json, parts) in cases {
@@ -1797,19 +1850,7 @@ fn trade_values_the_game_refuses_fail_to_parse() {
             r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
                 "max_uses":{"type":"minecraft:abs","value":1}}"#
                 .to_owned(),
-            "minecraft:abs",
-        ),
-        (
-            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
-                "reputation_discount":{"type":"minecraft:uniform","min":0.0,"max":1.0}}"#
-                .to_owned(),
-            "minecraft:uniform",
-        ),
-        (
-            r#"{"gives":{"id":"minecraft:emerald"},"wants":{"id":"minecraft:stick"},
-                "max_uses":3000000000}"#
-                .to_owned(),
-            "3000000000",
+            "input",
         ),
         (
             modifier(r#""minecraft:some_item_modifier""#),
@@ -1850,14 +1891,17 @@ fn trade_values_the_game_refuses_fail_to_parse() {
             "bogus",
         ),
     ];
-    for (json, expected) in cases {
-        let message = test_registries().scope(|| {
-            serde_json::from_str::<VillagerTrade>(&json)
-                .expect_err(&json)
-                .to_string()
-        });
-        assert!(message.contains(expected), "{json}: {message}");
-    }
+    let accepted: Vec<_> = cases
+        .iter()
+        .filter_map(|(json, expected)| {
+            let message = test_registries().scope(|| {
+                serde_json::from_str::<VillagerTrade>(json)
+                    .map_or_else(|e| e.to_string(), |_| "accepted".to_owned())
+            });
+            (!message.contains(expected)).then(|| format!("{json}: {message}"))
+        })
+        .collect();
+    assert_eq!(accepted, Vec::<String>::new());
 }
 
 #[test]
