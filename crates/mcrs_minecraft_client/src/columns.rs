@@ -13,7 +13,6 @@ use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
@@ -455,7 +454,7 @@ fn extent_of(
 ) -> Option<Extent> {
     let data = registries
         .iter()
-        .find(|registry| registry.registry == keys::DimensionType::KEY.as_str())?
+        .find(|registry| registry.registry == keys::DIMENSION_TYPE.location().as_static_str())?
         .entries
         .get(usize::from(dimension_type.number()))?
         .data

@@ -12,6 +12,7 @@ use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, UnknownEntry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::proto::StructureProcessorList;
 use mcrs_minecraft_worldgen_structure::StructureSet;
+use std::any::type_name;
 use std::collections::BTreeMap;
 use thiserror::Error;
 
@@ -40,22 +41,22 @@ impl SharedResource for WorldgenTables {
     }
 }
 
-fn empty<R: RegistryKey, T>() -> Entries<R, Option<T>> {
-    let registry = Registry::<R>::new([]).expect("a registry of no entries");
+fn empty<R, T>(key: RegistryKey<R>) -> Entries<R, Option<T>> {
+    let registry = Registry::new(key, []).expect("a registry of no entries");
     Entries::new(&registry, Vec::new()).expect("no values for no entries")
 }
 
 impl Default for WorldgenTables {
     fn default() -> Self {
         WorldgenTables {
-            carvers: empty(),
-            features: empty(),
-            placed_features: empty(),
-            processor_lists: empty(),
-            structures: empty(),
-            structure_sets: empty(),
-            template_pools: empty(),
-            noise_settings: empty(),
+            carvers: empty(keys::CARVER),
+            features: empty(keys::FEATURE),
+            placed_features: empty(keys::PLACED_FEATURE),
+            processor_lists: empty(keys::PROCESSOR_LIST),
+            structures: empty(keys::STRUCTURE),
+            structure_sets: empty(keys::STRUCTURE_SET),
+            template_pools: empty(keys::TEMPLATE_POOL),
+            noise_settings: empty(keys::NOISE_SETTINGS),
         }
     }
 }
@@ -71,7 +72,7 @@ pub enum TableError {
     },
 }
 
-pub fn lookup<'a, R: RegistryKey, T>(
+pub fn lookup<'a, R: 'static, T>(
     registry: &Registry<R>,
     entries: &'a Entries<R, Option<T>>,
     name: &str,
@@ -79,7 +80,7 @@ pub fn lookup<'a, R: RegistryKey, T>(
     lookup_id(registry, entries, registry.require_by_name(name)?)
 }
 
-pub fn lookup_id<'a, R: RegistryKey, T>(
+pub fn lookup_id<'a, R: 'static, T>(
     registry: &Registry<R>,
     entries: &'a Entries<R, Option<T>>,
     id: Id<R>,
@@ -88,7 +89,7 @@ pub fn lookup_id<'a, R: RegistryKey, T>(
         .get(id)
         .and_then(Option::as_ref)
         .ok_or_else(|| TableError::Absent {
-            registry: R::KEY.into(),
+            registry: registry.table().registry().clone(),
             name: registry
                 .name(id)
                 .map_or_else(|| format!("{id:?}"), ToString::to_string),
@@ -97,16 +98,19 @@ pub fn lookup_id<'a, R: RegistryKey, T>(
 
 /// The path a registry entry's asset loads from, which is also the path
 /// `build_worldgen_tables` finds the loaded asset at.
-pub fn asset_path<R: RegistryKey>(name: &ResourceLocation) -> String {
+pub fn asset_path<S: AsRef<str>>(
+    registry: &ResourceLocation<S>,
+    name: &ResourceLocation,
+) -> String {
     format!(
         "{}/{}/{}.json",
         name.namespace(),
-        R::KEY.path(),
+        registry.path(),
         name.path()
     )
 }
 
-pub fn named<'a, R: RegistryKey, T, V>(
+pub fn named<'a, R: 'static, T, V>(
     set: &RegistrySet,
     entries: &'a Entries<R, Option<T>>,
     value: impl Fn(&'a T) -> &'a V,
@@ -121,12 +125,12 @@ pub fn named<'a, R: RegistryKey, T, V>(
         .collect()
 }
 
-fn declared<R: RegistryKey>(set: &RegistrySet) -> Registry<R> {
+fn declared<R: 'static>(set: &RegistrySet) -> Registry<R> {
     set.registry::<R>()
-        .unwrap_or_else(|| panic!("{} is not a loaded registry", R::KEY))
+        .unwrap_or_else(|| panic!("the registry of {} is not loaded", type_name::<R>()))
 }
 
-fn column<R: RegistryKey, A: Asset, T>(
+fn column<R: 'static, A: Asset, T>(
     set: &RegistrySet,
     asset_server: &AssetServer,
     assets: &Assets<A>,
@@ -137,12 +141,12 @@ fn column<R: RegistryKey, A: Asset, T>(
         .ids()
         .map(|id| {
             let name = registry.name(id).expect("an id of the registry has a name");
-            let path = asset_path::<R>(name);
+            let path = asset_path(registry.table().registry(), name);
             // A handle that exists without an asset is a file that failed to
             // load; a name nothing referenced has no handle and nothing to report.
             let handle = asset_server.get_handle::<A>(path)?;
             let Some(asset) = assets.get(&handle) else {
-                tracing::error!(registry = %R::KEY, %name, "the asset of this entry did not load");
+                tracing::error!(registry = %registry.table().registry(), %name, "the asset of this entry did not load");
                 return None;
             };
             Some(value(asset))

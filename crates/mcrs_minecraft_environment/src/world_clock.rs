@@ -353,6 +353,7 @@ mod tests {
     fn reconcile_gives_one_clock_per_registry_entry() {
         let registry = TEST_CLOCKS.registry::<keys::WorldClock>().unwrap();
         let removed = Registry::<keys::WorldClock>::new(
+            keys::WORLD_CLOCK,
             ["minecraft:overworld", THE_END, "datapack:removed"]
                 .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
         )

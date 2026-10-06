@@ -28,7 +28,7 @@ pub use local_pos::LocalPos;
 pub use mirror::Mirror;
 pub use quart_pos::QuartPos;
 pub use region_pos::RegionPos;
-pub use registry_key::{RegistryKey, RegistryValue};
+pub use registry_key::{RegistryKey, RegistryValue, TypeBinding};
 pub use resource_key::ResourceKey;
 pub use resource_location::{ResourceLocation, StaticResourceLocation};
 pub use rotation::Rotation;

@@ -1,6 +1,5 @@
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
 
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
@@ -466,10 +465,10 @@ fn apply_saved_clocks(
 fn log_registry_counts(registries: Res<RegistrySet>) {
     let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
     info!(
-        dimension_types = loaded(keys::DimensionType::KEY.as_str()),
-        biomes = loaded(keys::Biome::KEY.as_str()),
-        timelines = loaded(keys::Timeline::KEY.as_str()),
-        world_clocks = loaded(keys::WorldClock::KEY.as_str()),
+        dimension_types = loaded(keys::DIMENSION_TYPE.location().as_static_str()),
+        biomes = loaded(keys::BIOME.location().as_static_str()),
+        timelines = loaded(keys::TIMELINE.location().as_static_str()),
+        world_clocks = loaded(keys::WORLD_CLOCK.location().as_static_str()),
         "registry assets loaded"
     );
 }

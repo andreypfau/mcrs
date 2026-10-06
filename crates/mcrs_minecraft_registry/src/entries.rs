@@ -1,6 +1,5 @@
 use crate::id::Id;
 use crate::registry::{Registry, RegistryError};
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use std::marker::PhantomData;
 use std::ops::Index;
 use std::sync::Arc;
@@ -46,11 +45,11 @@ impl<R: Send + Sync + 'static, T: Send + Sync + 'static> crate::shared::SharedRe
     }
 }
 
-impl<R: RegistryKey, T> Entries<R, T> {
+impl<R, T> Entries<R, T> {
     pub fn new(registry: &Registry<R>, values: Vec<T>) -> Result<Self, RegistryError> {
         if values.len() != registry.len() {
             return Err(RegistryError::LengthMismatch {
-                registry: R::KEY.into(),
+                registry: registry.table().registry().clone(),
                 expected: registry.len(),
                 found: values.len(),
             });
@@ -74,17 +73,19 @@ impl<R, T> Index<Id<R>> for Entries<R, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::resource_location::ResourceLocation;
     use mcrs_minecraft_core::rl;
 
     struct TestRegistry;
 
-    impl RegistryKey for TestRegistry {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_registry");
+    impl TestRegistry {
+        const KEY: RegistryKey<TestRegistry> = RegistryKey::new(rl!("minecraft:test_registry"));
     }
 
     fn registry(names: &[&str]) -> Registry<TestRegistry> {
         Registry::new(
+            TestRegistry::KEY,
             names
                 .iter()
                 .map(|text| ResourceLocation::read(text).unwrap()),

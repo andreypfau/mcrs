@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock};
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
-use mcrs_minecraft_core::{RegistryKey, rl};
+use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -343,7 +343,7 @@ fn parse<T: serde::de::DeserializeOwned>(
         .collect()
 }
 
-fn no_tags<R: RegistryKey>(registry: &Registry<R>) -> Tags<R> {
+fn no_tags<R: 'static>(registry: &Registry<R>) -> Tags<R> {
     let (table, problems) = build_tags(registry.table(), TagRules::World, &[], None);
     assert!(problems.is_empty(), "{problems:?}");
     Tags::new(Arc::new(table))
@@ -368,9 +368,10 @@ fn try_freeze_with(
     let sets = parse::<StructureSet>(sets);
     let structures = parse::<Structure>(structures);
     let pools = parse::<TemplatePool>(pools);
-    let biomes = Registry::<keys::Biome>::new([]).expect("an empty registry");
+    let biomes = Registry::<keys::Biome>::new(keys::BIOME, []).expect("an empty registry");
     let tags = no_tags(&biomes);
-    let structure_registry = Registry::<keys::Structure>::new([]).expect("an empty registry");
+    let structure_registry =
+        Registry::<keys::Structure>::new(keys::STRUCTURE, []).expect("an empty registry");
     let structure_tags = no_tags(&structure_registry);
     let template = |id: &ResourceLocation| template(id).map(Cow::Owned);
     freeze(&StructureInputs {

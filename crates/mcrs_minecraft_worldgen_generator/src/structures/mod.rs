@@ -3,7 +3,6 @@ use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags};
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_core::{ResourceLocation, TagKey};
 use mcrs_minecraft_keys as keys;
@@ -167,12 +166,18 @@ fn freeze_variants(
         .map_err(|error| format!("{registry}: {error}"))
     };
     frozen.variants = VariantTables {
-        cats: table(keys::CatVariant::KEY.as_str(), inputs.variants.cats)?,
+        cats: table(
+            keys::CAT_VARIANT.location().as_static_str(),
+            inputs.variants.cats,
+        )?,
         cat_sounds: inputs.variants.cat_sounds.to_vec(),
-        chickens: table(keys::ChickenVariant::KEY.as_str(), inputs.variants.chickens)?,
+        chickens: table(
+            keys::CHICKEN_VARIANT.location().as_static_str(),
+            inputs.variants.chickens,
+        )?,
         chicken_sounds: inputs.variants.chicken_sounds.to_vec(),
         zombie_nautiluses: table(
-            keys::ZombieNautilusVariant::KEY.as_str(),
+            keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
             inputs.variants.zombie_nautiluses,
         )?,
         ..VariantTables::default()

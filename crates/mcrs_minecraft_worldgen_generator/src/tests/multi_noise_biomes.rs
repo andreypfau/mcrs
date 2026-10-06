@@ -239,6 +239,7 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
 fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
     let (names, lists) = super::parameter_lists();
     let beyond = Registry::<keys::MultiNoiseBiomeSourceParameterList>::new(
+        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
         names
             .ids()
             .map(|id| {

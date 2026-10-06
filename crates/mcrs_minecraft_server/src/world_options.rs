@@ -28,7 +28,7 @@ pub fn configured_preset(
     set: &RegistrySet,
     report: &mut LoadReport,
 ) -> Option<Id<keys::WorldPreset>> {
-    let registry = report.registry::<keys::WorldPreset>(set)?;
+    let registry = report.registry(set, keys::WORLD_PRESET)?;
     report.require_by_name(&registry, name)
 }
 
@@ -94,8 +94,10 @@ pub(crate) fn request_dimension_noise_settings(
             error!(id = ?generator.settings, "the dimension names noise settings the registry does not number");
             continue;
         };
-        let handle = asset_server
-            .load::<NoiseGeneratorSettingsAsset>(asset_path::<keys::NoiseSettings>(name));
+        let handle = asset_server.load::<NoiseGeneratorSettingsAsset>(asset_path(
+            &keys::NOISE_SETTINGS.location(),
+            name,
+        ));
         loaded.push(handle.untyped());
     }
 }

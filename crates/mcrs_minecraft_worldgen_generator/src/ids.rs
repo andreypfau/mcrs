@@ -24,11 +24,11 @@ pub struct FillIds {
 
 impl FillIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let biomes = report.registry(set);
+        let biomes = report.registry(set, mcrs_minecraft_keys::BIOME);
         let end = biomes
             .as_ref()
             .and_then(|biomes| EndBiomes::resolve(biomes, report));
-        let tags = report.tags::<Block>(set);
+        let tags = report.tags(set, mcrs_minecraft_keys::BLOCK);
         let uncarvable = tags
             .as_ref()
             .and_then(|tags| report.require_tag(tags, &block_tags::UNCARVABLE));
@@ -54,8 +54,8 @@ pub struct SurvivalIds {
 
 impl SurvivalIds {
     pub fn resolve(set: &RegistrySet, report: &mut LoadReport) -> Option<Resolved<Self>> {
-        let blocks = report.tags::<Block>(set);
-        let fluids = report.tags::<Fluid>(set);
+        let blocks = report.tags(set, mcrs_minecraft_keys::BLOCK);
+        let fluids = report.tags(set, mcrs_minecraft_keys::FLUID);
         let mut block = |key: TagKey<Block, &'static str>| {
             blocks
                 .as_ref()

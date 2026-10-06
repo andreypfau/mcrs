@@ -6,7 +6,6 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_minecraft_block::definition::{
     BlockDefinitions, CORPUS_DIRECTORY, load_block_definitions,
 };
-use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::static_report::shipped_report;
 use serde::de::DeserializeOwned;
 
@@ -20,7 +19,7 @@ pub fn corpus() -> &'static BlockDefinitions {
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
         let blocks = shipped_report()
-            .registry::<Block>()
+            .registry_of(mcrs_minecraft_keys::BLOCK)
             .expect("the registries report has blocks");
         load_block_definitions(&asset_server, &blocks)
             .expect("the corpus loads")

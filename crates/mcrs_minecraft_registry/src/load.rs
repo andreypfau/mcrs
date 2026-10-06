@@ -472,7 +472,7 @@ impl WorldRegistries {
             .cloned()
             .chain(world.iter().map(|loaded| Arc::clone(&loaded.table)));
         let set = match RegistrySet::from_tables(tables) {
-            Ok(set) => set,
+            Ok(set) => set.with_types_of(statics),
             Err(error) => {
                 report.invalid_report(error);
                 return Err(report);
@@ -661,20 +661,20 @@ mod tests {
         next: Id<Variant>,
     }
 
-    impl RegistryKey for Variant {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_variant");
+    impl Variant {
+        const KEY: RegistryKey<Variant> = RegistryKey::new(rl!("minecraft:test_variant"));
     }
 
     struct Marker;
 
-    impl RegistryKey for Marker {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_marker");
+    impl Marker {
+        const KEY: RegistryKey<Marker> = RegistryKey::new(rl!("minecraft:test_marker"));
     }
 
     struct Fixed;
 
-    impl RegistryKey for Fixed {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_static");
+    impl Fixed {
+        const KEY: RegistryKey<Fixed> = RegistryKey::new(rl!("minecraft:test_static"));
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -684,8 +684,8 @@ mod tests {
         tag: Option<HolderSet<Marker>>,
     }
 
-    impl RegistryKey for Linked {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_linked");
+    impl Linked {
+        const KEY: RegistryKey<Linked> = RegistryKey::new(rl!("minecraft:test_linked"));
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -694,15 +694,26 @@ mod tests {
         tag: HolderSet<Fixed>,
     }
 
-    impl RegistryKey for FixedLinked {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_fixed_linked");
+    impl FixedLinked {
+        const KEY: RegistryKey<FixedLinked> = RegistryKey::new(rl!("minecraft:test_fixed_linked"));
     }
 
     const EMPTY_TAG: &str = r#"{"values":[]}"#;
 
-    fn fixed_statics() -> RegistrySet {
+    fn typed() -> RegistrySet {
         RegistrySet::new()
-            .with(Registry::<Fixed>::new([name("minecraft:one")]).unwrap())
+            .with_types([
+                Variant::KEY.binding(),
+                Marker::KEY.binding(),
+                Linked::KEY.binding(),
+                FixedLinked::KEY.binding(),
+            ])
+            .unwrap()
+    }
+
+    fn fixed_statics() -> RegistrySet {
+        typed()
+            .with(Registry::<Fixed>::new(Fixed::KEY, [name("minecraft:one")]).unwrap())
             .unwrap()
     }
 
@@ -712,11 +723,16 @@ mod tests {
 
     fn registries() -> WorldRegistries {
         let mut registries = WorldRegistries::new(
-            [Variant::KEY, Marker::KEY, Linked::KEY].map(ResourceLocation::<Arc<str>>::from),
+            [
+                Variant::KEY.location(),
+                Marker::KEY.location(),
+                Linked::KEY.location(),
+            ]
+            .map(ResourceLocation::<Arc<str>>::from),
         );
         registries
-            .parse::<Variant>(Variant::KEY)
-            .parse::<Linked>(Linked::KEY);
+            .parse::<Variant>(Variant::KEY.location())
+            .parse::<Linked>(Linked::KEY.location());
         registries
     }
 
@@ -750,7 +766,7 @@ mod tests {
     }
 
     fn load(packs: &[Pack]) -> Result<RegistrySet, LoadReport> {
-        registries().load(&RegistrySet::new(), packs)
+        registries().load(&typed(), packs)
     }
 
     fn report(packs: &[Pack]) -> String {
@@ -811,7 +827,7 @@ mod tests {
     fn built_one(name: &str, build: Builder) -> Pack {
         built_pack(
             "builtin",
-            vec![built_variants(Variant::KEY, &[name], build)],
+            vec![built_variants(Variant::KEY.location(), &[name], build)],
         )
     }
 
@@ -854,7 +870,7 @@ mod tests {
             ),
         ];
         let registries = registries();
-        let set = registries.load(&RegistrySet::new(), &packs).unwrap();
+        let set = registries.load(&typed(), &packs).unwrap();
 
         assert_eq!(
             names(&set, VARIANT),
@@ -1109,9 +1125,10 @@ mod tests {
             ),
         ];
         let mut world = WorldRegistries::new(
-            [Marker::KEY, FixedLinked::KEY].map(ResourceLocation::<Arc<str>>::from),
+            [Marker::KEY.location(), FixedLinked::KEY.location()]
+                .map(ResourceLocation::<Arc<str>>::from),
         );
-        world.parse::<FixedLinked>(FixedLinked::KEY);
+        world.parse::<FixedLinked>(FixedLinked::KEY.location());
         for (case, files, expect) in cases {
             let loaded = world.load(&fixed_statics(), &[pack("vanilla", files)]);
             match (loaded, expect) {
@@ -1207,9 +1224,9 @@ mod tests {
     #[test]
     fn a_non_empty_registry_without_entries_is_reported() {
         let mut registries = registries();
-        registries.non_empty(Marker::KEY);
+        registries.non_empty(Marker::KEY.location());
         let text = registries
-            .load(&RegistrySet::new(), &[])
+            .load(&typed(), &[])
             .err()
             .expect("an empty registry declared non-empty is refused")
             .to_string();
@@ -1219,13 +1236,13 @@ mod tests {
              minecraft:test_marker (minecraft/test_marker/): Registry must be non-empty: minecraft:test_marker"
         );
         let filled = marker_files(&["minecraft/test_marker/one.json"]);
-        assert!(registries.load(&RegistrySet::new(), &filled).is_ok());
+        assert!(registries.load(&typed(), &filled).is_ok());
     }
 
     #[test]
     fn a_validator_reports_against_its_entry() {
         let mut registries = registries();
-        registries.validate::<Variant>(Variant::KEY, |values, _| {
+        registries.validate::<Variant>(Variant::KEY.location(), |values, _| {
             assert_eq!(values.len(), 3);
             vec![
                 (1, "bad asset".to_owned()),
@@ -1245,7 +1262,7 @@ mod tests {
                 .into(),
         )];
         let text = registries
-            .load(&RegistrySet::new(), &packs)
+            .load(&typed(), &packs)
             .err()
             .expect("the validator refuses the load")
             .to_string();
@@ -1277,8 +1294,12 @@ mod tests {
                 built_pack(
                     "first",
                     vec![
-                        built_variants(Variant::KEY, &["minecraft:made", "a:made"], two_entries),
-                        built_variants(Variant::KEY, &["b:made"], first_entry),
+                        built_variants(
+                            Variant::KEY.location(),
+                            &["minecraft:made", "a:made"],
+                            two_entries,
+                        ),
+                        built_variants(Variant::KEY.location(), &["b:made"], first_entry),
                     ],
                 ),
                 built_one("z:made", first_entry),
@@ -1350,7 +1371,11 @@ mod tests {
     #[test]
     fn a_file_in_the_same_pack_replaces_a_built_entry() {
         let same_pack = Pack {
-            built: vec![built_variants(Variant::KEY, &["test:b"], next_is_c)],
+            built: vec![built_variants(
+                Variant::KEY.location(),
+                &["test:b"],
+                next_is_c,
+            )],
             ..pack(
                 "files",
                 vec![
@@ -1411,7 +1436,11 @@ mod tests {
     fn a_built_entry_for_a_registry_without_values_is_refused() {
         let packs = [built_pack(
             "builtin",
-            vec![built_variants(Marker::KEY, &["test:b"], first_entry)],
+            vec![built_variants(
+                Marker::KEY.location(),
+                &["test:b"],
+                first_entry,
+            )],
         )];
         assert_eq!(
             report(&packs),
@@ -1426,7 +1455,11 @@ mod tests {
     fn a_built_entry_of_the_wrong_type_is_a_programming_error() {
         let packs = [built_pack(
             "builtin",
-            vec![built_variants(Linked::KEY, &["test:b"], first_entry)],
+            vec![built_variants(
+                Linked::KEY.location(),
+                &["test:b"],
+                first_entry,
+            )],
         )];
         let _ = load(&packs);
     }
@@ -1434,19 +1467,19 @@ mod tests {
     #[test]
     fn built_entries_satisfy_the_non_empty_rule() {
         let mut registries = registries();
-        registries.non_empty(Variant::KEY);
+        registries.non_empty(Variant::KEY.location());
         let set = registries
-            .load(&RegistrySet::new(), &[built_one("test:b", first_entry)])
+            .load(&typed(), &[built_one("test:b", first_entry)])
             .unwrap();
         assert_eq!(names(&set, VARIANT), ["test:b"]);
-        assert!(registries.load(&RegistrySet::new(), &[]).is_err());
+        assert!(registries.load(&typed(), &[]).is_err());
     }
 
     #[test]
     fn a_built_without_names_adds_nothing() {
         let packs = [built_pack(
             "builtin",
-            vec![built_variants(Variant::KEY, &[], nothing)],
+            vec![built_variants(Variant::KEY.location(), &[], nothing)],
         )];
         let set = load(&packs).unwrap();
         assert!(names(&set, VARIANT).is_empty());
@@ -1467,8 +1500,7 @@ mod tests {
             ),
             built_one("test:b", next_is_c),
         ];
-        let [first, second] =
-            [(); 2].map(|()| registries.load(&RegistrySet::new(), &packs).unwrap());
+        let [first, second] = [(); 2].map(|()| registries.load(&typed(), &packs).unwrap());
         for registry in [VARIANT, MARKER, LINKED] {
             assert_eq!(names(&first, registry), names(&second, registry));
             for id in 0..names(&first, registry).len() {

@@ -25,7 +25,7 @@ pub fn blocks() -> &'static Blocks {
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
         let blocks = shipped_report()
-            .registry::<Block>()
+            .registry_of(mcrs_minecraft_keys::BLOCK)
             .expect("the registries report has blocks");
         Blocks(std::sync::Arc::new(
             load_block_definitions(&asset_server, &blocks)

@@ -1,7 +1,7 @@
 use crate::id::Id;
 use crate::tags::{TagId, Tags};
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation};
 use serde::de::{SeqAccess, Visitor, value};
 use serde::ser::{Error as _, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -124,7 +124,7 @@ impl<R, const ALWAYS_LIST: bool> Hash for HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST> {
+impl<R: 'static, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             HolderSet::Named(tag) => {
@@ -149,11 +149,11 @@ impl<R: RegistryKey, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_
     }
 }
 
-impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSet<R, ALWAYS_LIST> {
+impl<'de, R: 'static, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSet<R, ALWAYS_LIST> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct SetVisitor<R, const ALWAYS_LIST: bool>(PhantomData<fn() -> R>);
 
-        impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Visitor<'de> for SetVisitor<R, ALWAYS_LIST> {
+        impl<'de, R: 'static, const ALWAYS_LIST: bool> Visitor<'de> for SetVisitor<R, ALWAYS_LIST> {
             type Value = HolderSet<R, ALWAYS_LIST>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -176,16 +176,16 @@ impl<'de, R: RegistryKey, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSe
                 };
                 let key =
                     TagKey::<R, _>::from_location(ResourceLocation::read(tag).map_err(E::custom)?);
-                Tags::<R>::in_scope("HolderSet", |tags| tags.get(&key))
-                    .map_err(E::custom)?
-                    .map(HolderSet::Named)
-                    .ok_or_else(|| {
+                Tags::<R>::in_scope("HolderSet", |tags| {
+                    tags.get(&key).map(HolderSet::Named).ok_or_else(|| {
                         E::custom(format_args!(
                             "Missing tag: '{}' in '{}'",
                             key.as_str(),
-                            R::KEY
+                            tags.registry()
                         ))
                     })
+                })
+                .map_err(E::custom)?
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
@@ -208,13 +208,14 @@ mod tests {
     use crate::registry::Registry;
     use crate::set::RegistrySet;
     use crate::tags::{TagRules, TagSource, TagTable, build_tags};
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
     use std::sync::Arc;
 
     struct Marker;
 
-    impl RegistryKey for Marker {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_marker");
+    impl Marker {
+        const KEY: RegistryKey<Marker> = RegistryKey::new(rl!("minecraft:test_marker"));
     }
 
     type Name = ResourceLocation<Arc<str>>;
@@ -226,8 +227,11 @@ mod tests {
     }
 
     fn markers() -> Registry<Marker> {
-        Registry::new(["minecraft:a", "minecraft:b", "minecraft:c", "minecraft:d"].map(name))
-            .unwrap()
+        Registry::new(
+            Marker::KEY,
+            ["minecraft:a", "minecraft:b", "minecraft:c", "minecraft:d"].map(name),
+        )
+        .unwrap()
     }
 
     fn table(prior: Option<&[Name]>, tags: &[(&str, &str)]) -> Arc<TagTable> {
@@ -357,10 +361,7 @@ mod tests {
             r#"["minecraft:a"]"#,
         ] {
             let message = serde_json::from_str::<Set>(text).unwrap_err().to_string();
-            assert!(
-                message.contains("minecraft:test_marker"),
-                "{text}: {message}"
-            );
+            assert!(message.contains("tests::Marker"), "{text}: {message}");
         }
     }
 

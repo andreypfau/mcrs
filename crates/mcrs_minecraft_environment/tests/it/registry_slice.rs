@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
@@ -64,7 +63,7 @@ impl<'de> Deserialize<'de> for TimelineSet {
                 if !known {
                     return Err(E::custom(format_args!(
                         "Missing tag: '{tag}' in '{}'",
-                        keys::Timeline::KEY
+                        keys::TIMELINE.location()
                     )));
                 }
                 Ok(TimelineSet::Tag(tag))
@@ -127,8 +126,9 @@ struct Slice {
 }
 
 fn slice() -> Slice {
-    let clocks = Registry::<keys::WorldClock>::new(names("world_clock")).unwrap();
-    let timelines = Registry::<keys::Timeline>::new(names("timeline")).unwrap();
+    let clocks =
+        Registry::<keys::WorldClock>::new(keys::WORLD_CLOCK, names("world_clock")).unwrap();
+    let timelines = Registry::<keys::Timeline>::new(keys::TIMELINE, names("timeline")).unwrap();
     let set = RegistrySet::new()
         .with(clocks.clone())
         .unwrap()

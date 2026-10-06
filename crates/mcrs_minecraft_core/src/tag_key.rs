@@ -1,4 +1,3 @@
-use crate::registry_key::RegistryKey;
 use crate::resource_location::ResourceLocation;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
@@ -11,14 +10,14 @@ use std::sync::Arc;
 /// - `TagKey<R, &'static str>` — `Copy`, zero-alloc, const-constructible; every constant spells it.
 ///
 /// Cross-variant equality and hashing compare by string content (like `ResourceLocation`).
-pub struct TagKey<R: RegistryKey, S = Arc<str>> {
+pub struct TagKey<R, S = Arc<str>> {
     rl: ResourceLocation<S>,
     _marker: PhantomData<fn() -> R>,
 }
 
 // ── Clone / Copy ──
 
-impl<R: RegistryKey, S: Clone> Clone for TagKey<R, S> {
+impl<R, S: Clone> Clone for TagKey<R, S> {
     fn clone(&self) -> Self {
         TagKey {
             rl: self.rl.clone(),
@@ -27,19 +26,19 @@ impl<R: RegistryKey, S: Clone> Clone for TagKey<R, S> {
     }
 }
 
-impl<R: RegistryKey> Copy for TagKey<R, &'static str> {}
+impl<R> Copy for TagKey<R, &'static str> {}
 
 // ── Eq / Hash (cross-variant, by string content) ──
 
-impl<R: RegistryKey, S: AsRef<str>, U: AsRef<str>> PartialEq<TagKey<R, U>> for TagKey<R, S> {
+impl<R, S: AsRef<str>, U: AsRef<str>> PartialEq<TagKey<R, U>> for TagKey<R, S> {
     fn eq(&self, other: &TagKey<R, U>) -> bool {
         self.rl.as_str() == other.rl.as_str()
     }
 }
 
-impl<R: RegistryKey, S: AsRef<str>> Eq for TagKey<R, S> {}
+impl<R, S: AsRef<str>> Eq for TagKey<R, S> {}
 
-impl<R: RegistryKey, S: AsRef<str>> Hash for TagKey<R, S> {
+impl<R, S: AsRef<str>> Hash for TagKey<R, S> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.rl.as_str().hash(state);
     }
@@ -47,7 +46,7 @@ impl<R: RegistryKey, S: AsRef<str>> Hash for TagKey<R, S> {
 
 // ── Static variant (`&'static str`) ──
 
-impl<R: RegistryKey> TagKey<R, &'static str> {
+impl<R> TagKey<R, &'static str> {
     /// Create a tag key from a compile-time validated `ResourceLocation<&'static str>`.
     ///
     /// ```rust,ignore
@@ -70,7 +69,7 @@ impl<R: RegistryKey> TagKey<R, &'static str> {
 
 // ── Arc variant (runtime-parsed) ──
 
-impl<R: RegistryKey> TagKey<R, Arc<str>> {
+impl<R> TagKey<R, Arc<str>> {
     /// Create a tag key from a runtime-parsed `ResourceLocation<Arc<str>>`.
     pub fn from_location(rl: ResourceLocation<Arc<str>>) -> Self {
         TagKey {
@@ -82,7 +81,7 @@ impl<R: RegistryKey> TagKey<R, Arc<str>> {
 
 // ── Generic accessors (any S: AsRef<str>) ──
 
-impl<R: RegistryKey, S: AsRef<str>> TagKey<R, S> {
+impl<R, S: AsRef<str>> TagKey<R, S> {
     /// The full `namespace:path` string of this tag key.
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -93,18 +92,6 @@ impl<R: RegistryKey, S: AsRef<str>> TagKey<R, S> {
     #[inline]
     pub fn location(&self) -> &ResourceLocation<S> {
         &self.rl
-    }
-
-    /// The Bevy asset path for this tag's JSON file.
-    ///
-    /// Format: `{namespace}/tags/{registry path}/{path}.json`
-    pub fn asset_path(&self) -> String {
-        format!(
-            "{}/tags/{}/{}.json",
-            self.rl.namespace(),
-            R::KEY.path(),
-            self.rl.path()
-        )
     }
 
     /// Convert to the `Arc<str>` variant (heap-allocates if not already `Arc`).
@@ -118,7 +105,7 @@ impl<R: RegistryKey, S: AsRef<str>> TagKey<R, S> {
 
 // ── From static → Arc ──
 
-impl<R: RegistryKey> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
+impl<R> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
     fn from(key: TagKey<R, &'static str>) -> Self {
         key.to_arc()
     }
@@ -126,7 +113,7 @@ impl<R: RegistryKey> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
 
 // ── Debug ──
 
-impl<R: RegistryKey, S: AsRef<str>> std::fmt::Debug for TagKey<R, S> {
+impl<R, S: AsRef<str>> std::fmt::Debug for TagKey<R, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "TagKey({})", self.rl.as_str())
     }

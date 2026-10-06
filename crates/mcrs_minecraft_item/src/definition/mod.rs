@@ -52,7 +52,8 @@ impl Default for ItemDefinitions {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
-            registry: Registry::new(std::iter::empty()).expect("a registry without entries builds"),
+            registry: Registry::new(mcrs_minecraft_keys::ITEM, std::iter::empty())
+                .expect("a registry without entries builds"),
         }
     }
 }
@@ -156,6 +157,7 @@ mod tests {
 
     fn registry(names: &[&str]) -> Registry<Item> {
         Registry::new(
+            mcrs_minecraft_keys::ITEM,
             names
                 .iter()
                 .map(|name| ResourceLocation::minecraft(name).unwrap()),

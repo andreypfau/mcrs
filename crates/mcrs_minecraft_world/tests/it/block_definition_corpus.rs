@@ -23,7 +23,7 @@ fn report_blocks() -> Registry<Block> {
     .expect("the registries report reads");
     from_report(&report)
         .expect("the registries report parses")
-        .registry::<Block>()
+        .registry_of(mcrs_minecraft_keys::BLOCK)
         .expect("the registries report has blocks")
 }
 

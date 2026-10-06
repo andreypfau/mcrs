@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use crate::bitset::DenseId;
 use crate::holder_set::skipping_sets;
 use crate::id::Id;
-use mcrs_minecraft_core::{RegistryKey, RegistryValue};
+use mcrs_minecraft_core::RegistryValue;
 use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -60,7 +60,11 @@ impl<'de, V: RegistryValue + DeserializeOwned> Deserialize<'de> for Holder<V> {
             type Value = Holder<V>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "a {} id or an inline entry", V::Registry::KEY.path())
+                write!(
+                    f,
+                    "a {} id or an inline entry",
+                    crate::set::label::<V::Registry>()
+                )
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
@@ -107,7 +111,7 @@ impl<V: RegistryValue + Serialize> Serialize for HolderWireOnly<V> {
             Holder::Reference(id) => id.serialize(s),
             Holder::Direct(_) => Err(S::Error::custom(format_args!(
                 "an inline {} entry has no persistent form",
-                V::Registry::KEY.path()
+                crate::set::label::<V::Registry>()
             ))),
         }
     }
@@ -125,6 +129,7 @@ mod tests {
     use crate::holder_set::skip_sets;
     use crate::registry::Registry;
     use crate::set::RegistrySet;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::{ResourceLocation, rl};
     use std::sync::Arc;
 
@@ -135,22 +140,23 @@ mod tests {
 
     struct Item;
 
-    impl RegistryKey for Item {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_item");
+    impl Item {
+        const KEY: RegistryKey<Item> = RegistryKey::new(rl!("minecraft:test_item"));
     }
 
     struct SoundRegistry;
 
-    impl RegistryKey for SoundRegistry {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:test_sound");
+    impl SoundRegistry {
+        const KEY: RegistryKey<SoundRegistry> = RegistryKey::new(rl!("minecraft:test_sound"));
     }
 
     impl RegistryValue for Sound {
         type Registry = SoundRegistry;
     }
 
-    fn registry<R: RegistryKey>(names: &[&str]) -> Registry<R> {
+    fn registry<R>(key: RegistryKey<R>, names: &[&str]) -> Registry<R> {
         Registry::new(
+            key,
             names
                 .iter()
                 .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap()),
@@ -160,7 +166,7 @@ mod tests {
 
     fn sounds(names: &[&str]) -> RegistrySet {
         RegistrySet::new()
-            .with(registry::<SoundRegistry>(names))
+            .with(registry(SoundRegistry::KEY, names))
             .unwrap()
     }
 
@@ -197,9 +203,9 @@ mod tests {
     #[test]
     fn a_reference_into_the_wrong_registry_fails() {
         let set = RegistrySet::new()
-            .with(registry::<SoundRegistry>(&["minecraft:ding"]))
+            .with(registry(SoundRegistry::KEY, &["minecraft:ding"]))
             .unwrap()
-            .with(registry::<Item>(&["minecraft:stick"]))
+            .with(registry(Item::KEY, &["minecraft:stick"]))
             .unwrap();
 
         set.scope(|| {

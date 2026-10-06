@@ -112,7 +112,7 @@ mod tests {
     }
 
     fn order(source: &BiomeSource) -> Vec<String> {
-        let biomes = Registry::<keys::Biome>::new([]).unwrap();
+        let biomes = Registry::<keys::Biome>::new(keys::BIOME, []).unwrap();
         possible_biomes(source, &biomes, &crate::tests::parameter_lists().1)
             .iter()
             .map(|id| id.as_str().to_owned())

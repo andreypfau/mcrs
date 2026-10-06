@@ -8,7 +8,6 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::variant::{
@@ -126,17 +125,17 @@ pub(crate) fn build_dimension_structures(
     let resolve = |state: &PaletteState| resolve_palette_state(&blocks.0, state);
     let cats = spawn_selectors(
         &registries,
-        keys::CatVariant::KEY.as_str(),
+        keys::CAT_VARIANT.location().as_static_str(),
         |variant: &CatVariant| &variant.spawn_conditions,
     );
     let chickens = spawn_selectors(
         &registries,
-        keys::ChickenVariant::KEY.as_str(),
+        keys::CHICKEN_VARIANT.location().as_static_str(),
         |variant: &ChickenVariant| &variant.spawn_conditions,
     );
     let zombie_nautiluses = spawn_selectors(
         &registries,
-        keys::ZombieNautilusVariant::KEY.as_str(),
+        keys::ZOMBIE_NAUTILUS_VARIANT.location().as_static_str(),
         |variant: &ZombieNautilusVariant| &variant.spawn_conditions,
     );
     let names = |registry: &str| -> Vec<ResourceLocation> {
@@ -145,8 +144,8 @@ pub(crate) fn build_dimension_structures(
             .map(|table| table.names().to_vec())
             .unwrap_or_default()
     };
-    let cat_sounds = names(keys::CatSoundVariant::KEY.as_str());
-    let chicken_sounds = names(keys::ChickenSoundVariant::KEY.as_str());
+    let cat_sounds = names(keys::CAT_SOUND_VARIANT.location().as_static_str());
+    let chicken_sounds = names(keys::CHICKEN_SOUND_VARIANT.location().as_static_str());
     let frozen = freeze(&StructureInputs {
         sets: &sets,
         structures: &structures,

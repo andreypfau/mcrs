@@ -2855,7 +2855,7 @@ impl<'a> Resolver<'a> {
     }
 }
 
-fn named_tag<R: mcrs_minecraft_core::RegistryKey>(
+fn named_tag<R: 'static>(
     tags: &Tags<R>,
     tag: TagKey<R, &'static str>,
 ) -> Compiled<mcrs_minecraft_registry::TagId<R>> {

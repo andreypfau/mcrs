@@ -9,7 +9,6 @@ use bevy::app::{App, Plugin, Update};
 use bevy::ecs::prelude::{
     Changed, Commands, IntoScheduleConfigs, Query, Res, Resource, resource_exists,
 };
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientNetworkSystems, ReceivedRegistries};
@@ -78,20 +77,20 @@ impl WireIds {
         }
     }
 
-    pub fn get<R: RegistryKey>(&self, wire: WireId<R>) -> Option<Id<R>> {
+    pub fn get<R: mcrs_minecraft_keys::Registered>(&self, wire: WireId<R>) -> Option<Id<R>> {
         self.table::<R>()?.get(usize::from(wire.number)).copied()?
     }
 
-    pub fn sent_len<R: RegistryKey>(&self) -> Option<usize> {
+    pub fn sent_len<R: mcrs_minecraft_keys::Registered>(&self) -> Option<usize> {
         Some(self.table::<R>()?.len())
     }
 
-    fn table<R: RegistryKey>(&self) -> Option<&Table<R>> {
+    fn table<R: mcrs_minecraft_keys::Registered>(&self) -> Option<&Table<R>> {
         self.tables.get(&TypeId::of::<R>())?.downcast_ref()
     }
 }
 
-fn insert<R: RegistryKey>(
+fn insert<R: mcrs_minecraft_keys::Registered>(
     tables: &mut HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     received: &ReceivedRegistries,
     local: &RegistrySet,
@@ -102,7 +101,7 @@ fn insert<R: RegistryKey>(
     let Some(sent) = received
         .0
         .iter()
-        .find(|sent| sent.registry == R::KEY.as_str())
+        .find(|sent| sent.registry == R::REGISTRY.location().as_static_str())
     else {
         return;
     };
@@ -152,14 +151,14 @@ pub(crate) mod testing {
             .iter()
             .map(|name| ResourceLocation::<Arc<str>>::read(name).unwrap());
         RegistrySet::new()
-            .with(Registry::<keys::Biome>::new(names).unwrap())
+            .with(Registry::<keys::Biome>::new(keys::BIOME, names).unwrap())
             .unwrap()
     }
 
     pub fn received_biomes(names: &[&str]) -> ReceivedRegistries {
         let mut received = ReceivedRegistries::default();
         received.push(ReceivedRegistry {
-            registry: keys::Biome::KEY.as_str().to_owned(),
+            registry: keys::BIOME.location().as_static_str().to_owned(),
             entries: names
                 .iter()
                 .map(|name| RegistryEntry {

@@ -23,11 +23,21 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Encode, Packet, ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::static_report::shipped_report as registries;
+use mcrs_minecraft_registry::static_report::shipped_report;
 use mcrs_minecraft_registry::{NameTable, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 
 use super::{ContainerSeqno, InventoryPlugin, OpenMenu, Screen, inventory_index_to_cell};
+
+fn registries() -> &'static RegistrySet {
+    static SET: OnceLock<RegistrySet> = OnceLock::new();
+    SET.get_or_init(|| {
+        shipped_report()
+            .clone()
+            .with_types(mcrs_minecraft_keys::bindings())
+            .unwrap()
+    })
+}
 use crate::player::Player;
 
 const GOLDEN: &str =

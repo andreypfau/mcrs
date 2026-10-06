@@ -2,9 +2,9 @@ use crate::entries::Entries;
 use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use crate::tags::{TagTable, Tags};
-use mcrs_minecraft_core::registry_key::RegistryKey;
+use mcrs_minecraft_core::registry_key::{RegistryKey, TypeBinding};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use std::any::Any;
+use std::any::{Any, TypeId, type_name};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 type Tables = HashMap<ResourceLocation<Arc<str>>, Arc<NameTable>>;
 type Paths = HashMap<Box<str>, Arc<NameTable>>;
+type Types = HashMap<TypeId, ResourceLocation<Arc<str>>>;
 pub(crate) type Column = Arc<dyn Any + Send + Sync>;
 
 #[derive(Clone, Default)]
@@ -27,6 +28,7 @@ pub(crate) struct Values {
 pub struct RegistrySet {
     tables: Arc<Tables>,
     paths: Arc<Paths>,
+    types: Arc<Types>,
     values: Arc<Values>,
 }
 
@@ -84,6 +86,7 @@ impl RegistrySet {
         RegistrySet {
             tables: Arc::new(tables),
             paths: Arc::new(paths),
+            types: Arc::default(),
             values,
         }
     }
@@ -95,20 +98,76 @@ impl RegistrySet {
         }
     }
 
-    pub fn with<R: RegistryKey>(self, registry: Registry<R>) -> Result<Self, RegistryError> {
-        if self.tables.contains_key(R::KEY.as_str()) {
-            return Err(RegistryError::DuplicateRegistry {
-                registry: R::KEY.into(),
-            });
+    pub fn with<R: 'static>(self, registry: Registry<R>) -> Result<Self, RegistryError> {
+        let name = registry.table().registry().clone();
+        if self.tables.contains_key(&name) {
+            return Err(RegistryError::DuplicateRegistry { registry: name });
         }
         let mut tables = (*self.tables).clone();
-        tables.insert(R::KEY.into(), Arc::clone(registry.table()));
-        Ok(Self::of(tables, Arc::clone(&self.values)))
+        tables.insert(name.clone(), Arc::clone(registry.table()));
+        let types = Arc::clone(&self.types);
+        RegistrySet {
+            types,
+            ..Self::of(tables, Arc::clone(&self.values))
+        }
+        .bind(TypeId::of::<R>(), type_name::<R>(), name)
     }
 
-    pub fn registry<R: RegistryKey>(&self) -> Option<Registry<R>> {
+    pub fn with_types(
+        self,
+        bindings: impl IntoIterator<Item = TypeBinding>,
+    ) -> Result<Self, RegistryError> {
+        bindings.into_iter().try_fold(self, |set, binding| {
+            set.bind(binding.type_id, binding.type_name, binding.registry.into())
+        })
+    }
+
+    pub(crate) fn with_types_of(self, other: &RegistrySet) -> Self {
+        RegistrySet {
+            types: Arc::clone(&other.types),
+            ..self
+        }
+    }
+
+    fn bind(
+        mut self,
+        type_id: TypeId,
+        type_name: &'static str,
+        registry: ResourceLocation<Arc<str>>,
+    ) -> Result<Self, RegistryError> {
+        if let Some(bound) = self.types.get(&type_id) {
+            return if *bound == registry {
+                Ok(self)
+            } else {
+                Err(RegistryError::TypeBoundTwice {
+                    type_name,
+                    first: bound.clone(),
+                    second: registry,
+                })
+            };
+        }
+        if let Some((_, other)) = self.types.iter().find(|(_, bound)| **bound == registry) {
+            return Err(RegistryError::RegistryBoundTwice {
+                registry: other.clone(),
+            });
+        }
+        Arc::make_mut(&mut self.types).insert(type_id, registry);
+        Ok(self)
+    }
+
+    fn name_of<R: 'static>(&self) -> Option<&ResourceLocation<Arc<str>>> {
+        self.types.get(&TypeId::of::<R>())
+    }
+
+    pub fn registry<R: 'static>(&self) -> Option<Registry<R>> {
         self.tables
-            .get(R::KEY.as_str())
+            .get(self.name_of::<R>()?)
+            .map(|table| Registry::view(Arc::clone(table)))
+    }
+
+    pub fn registry_of<R>(&self, key: RegistryKey<R>) -> Option<Registry<R>> {
+        self.tables
+            .get(key.location().as_static_str())
             .map(|table| Registry::view(Arc::clone(table)))
     }
 
@@ -116,10 +175,10 @@ impl RegistrySet {
         self.tables.get(registry)
     }
 
-    pub fn tags<R: RegistryKey>(&self) -> Option<Tags<R>> {
+    pub fn tags<R: 'static>(&self) -> Option<Tags<R>> {
         self.values
             .tags
-            .get(R::KEY.as_str())
+            .get(self.name_of::<R>()?)
             .map(|table| Tags::new(Arc::clone(table)))
     }
 
@@ -147,8 +206,8 @@ impl RegistrySet {
             .map(|values| &**values)
     }
 
-    pub fn entries<R: RegistryKey, T: 'static>(&self) -> Option<Entries<R, T>> {
-        self.column_any(R::KEY.as_str())?
+    pub fn entries<R: 'static, T: 'static>(&self) -> Option<Entries<R, T>> {
+        self.column_any(self.name_of::<R>()?.as_str())?
             .downcast_ref::<Arc<[T]>>()
             .map(|values| Entries::from_shared(Arc::clone(values)))
     }
@@ -175,6 +234,7 @@ impl RegistrySet {
         let already = CURRENT.with_borrow(|current| {
             current.as_ref().is_some_and(|current| {
                 Arc::ptr_eq(&current.tables, &self.tables)
+                    && Arc::ptr_eq(&current.types, &self.types)
                     && Arc::ptr_eq(&current.values, &self.values)
             })
         });
@@ -191,15 +251,24 @@ pub(crate) fn current() -> Option<RegistrySet> {
     CURRENT.with_borrow(Clone::clone)
 }
 
+pub(crate) fn label<R: 'static>() -> String {
+    CURRENT.with_borrow(|current| {
+        current
+            .as_ref()
+            .and_then(|set| set.name_of::<R>())
+            .map_or_else(|| type_name::<R>().to_owned(), ToString::to_string)
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopeError {
     NoScope {
         parsing: &'static str,
-        registry: ResourceLocation<&'static str>,
+        registry: String,
     },
     MissingRegistry {
         parsing: &'static str,
-        registry: ResourceLocation<&'static str>,
+        registry: String,
     },
 }
 
@@ -231,6 +300,7 @@ mod tests {
     use crate::holder::{Holder, HolderWireOnly};
     use crate::holder_set::HolderSet;
     use crate::id::Id;
+    use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::{RegistryValue, rl};
     use serde::de::DeserializeOwned;
     use serde::{Deserialize, Deserializer, Serialize};
@@ -239,21 +309,23 @@ mod tests {
 
     struct Biome;
 
-    impl RegistryKey for Biome {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:worldgen/biome");
+    impl Biome {
+        const KEY: RegistryKey<Biome> = RegistryKey::new(rl!("minecraft:worldgen/biome"));
     }
 
     struct Item;
 
-    impl RegistryKey for Item {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:item");
+    impl Item {
+        const KEY: RegistryKey<Item> = RegistryKey::new(rl!("minecraft:item"));
     }
 
     const PLAINS_FIRST: [&str; 3] = ["minecraft:plains", "minecraft:desert", "minecraft:forest"];
     const PLAINS_LAST: [&str; 3] = ["minecraft:desert", "minecraft:forest", "minecraft:plains"];
 
     fn set_of(names: &[&str]) -> RegistrySet {
-        RegistrySet::new().with(registry::<Biome>(names)).unwrap()
+        RegistrySet::new()
+            .with(registry(Biome::KEY, names))
+            .unwrap()
     }
 
     fn parse(name: &str) -> Result<Id<Biome>, serde_json::Error> {
@@ -264,8 +336,9 @@ mod tests {
         parse(name).unwrap().index()
     }
 
-    fn registry<R: RegistryKey>(names: &[&str]) -> Registry<R> {
+    fn registry<R>(key: RegistryKey<R>, names: &[&str]) -> Registry<R> {
         Registry::new(
+            key,
             names
                 .iter()
                 .map(|text| ResourceLocation::read(text).unwrap()),
@@ -277,14 +350,14 @@ mod tests {
         Registry::<Biome>::in_scope("probe", |_| ())
             == Err(ScopeError::NoScope {
                 parsing: "probe",
-                registry: Biome::KEY,
+                registry: type_name::<Biome>().to_owned(),
             })
     }
 
     #[test]
     fn a_name_parses_to_its_id_inside_a_scope_and_is_written_back_as_the_name() {
         assert!(no_scope_here());
-        let biomes = registry::<Biome>(&["minecraft:plains", "minecraft:desert"]);
+        let biomes = registry(Biome::KEY, &["minecraft:plains", "minecraft:desert"]);
         let set = RegistrySet::new().with(biomes.clone()).unwrap();
         set.scope(|| {
             let id: Id<Biome> = serde_json::from_str("\"minecraft:desert\"").unwrap();
@@ -301,7 +374,7 @@ mod tests {
         let error = serde_json::from_str::<Id<Biome>>("\"minecraft:plains\"").unwrap_err();
         let message = error.to_string();
         assert!(message.contains("Id<"), "{message}");
-        assert!(message.contains("minecraft:worldgen/biome"), "{message}");
+        assert!(message.contains("tests::Biome"), "{message}");
         let probe = Registry::<Biome>::in_scope("probe", |_| ());
         assert!(matches!(probe, Err(ScopeError::NoScope { .. })));
         assert!(no_scope_here());
@@ -320,12 +393,12 @@ mod tests {
         label: &str,
         of: fn(Id<Biome>) -> T,
     ) {
-        let id = registry::<Biome>(&PLAINS_FIRST)
+        let id = registry(Biome::KEY, &PLAINS_FIRST)
             .by_name("minecraft:plains")
             .unwrap();
         let value = of(id);
         let without_biomes = RegistrySet::new()
-            .with(registry::<Item>(&["minecraft:stick"]))
+            .with(registry(Item::KEY, &["minecraft:stick"]))
             .unwrap();
 
         for (set, expected) in [
@@ -348,7 +421,7 @@ mod tests {
                     .to_string();
                 assert!(message.contains(expected), "{label} {direction}: {message}");
                 assert!(
-                    message.contains("minecraft:worldgen/biome"),
+                    message.contains("tests::Biome"),
                     "{label} {direction}: {message}"
                 );
             }
@@ -376,7 +449,7 @@ mod tests {
                         assert!(no_scope_here());
                         let message = parse("minecraft:plains").unwrap_err().to_string();
                         assert!(message.contains("Id<"), "{message}");
-                        assert!(message.contains("minecraft:worldgen/biome"), "{message}");
+                        assert!(message.contains("tests::Biome"), "{message}");
                         assert!(no_scope_here());
                     })
                     .join()
@@ -485,26 +558,26 @@ mod tests {
     fn a_scope_over_a_set_without_the_registry_is_a_distinct_error() {
         assert!(no_scope_here());
         let items_only = RegistrySet::new()
-            .with(registry::<Item>(&["minecraft:stick"]))
+            .with(registry(Item::KEY, &["minecraft:stick"]))
             .unwrap();
         for set in [RegistrySet::new(), items_only] {
             set.scope(|| {
                 let message = parse("minecraft:plains").unwrap_err().to_string();
                 assert!(message.contains("Id<"), "{message}");
-                assert!(message.contains("minecraft:worldgen/biome"), "{message}");
+                assert!(message.contains("tests::Biome"), "{message}");
                 let missing = Registry::<Biome>::in_scope("probe", |_| ()).unwrap_err();
                 assert_eq!(
                     missing,
                     ScopeError::MissingRegistry {
                         parsing: "probe",
-                        registry: Biome::KEY,
+                        registry: type_name::<Biome>().to_owned(),
                     }
                 );
                 assert_ne!(
                     missing,
                     ScopeError::NoScope {
                         parsing: "probe",
-                        registry: Biome::KEY,
+                        registry: type_name::<Biome>().to_owned(),
                     }
                 );
                 assert!(!message.contains("no registry scope"), "{message}");
@@ -517,17 +590,17 @@ mod tests {
     fn two_registries_of_one_key_cannot_share_a_set() {
         assert!(no_scope_here());
         let set = RegistrySet::new()
-            .with(registry::<Biome>(&PLAINS_FIRST))
+            .with(registry(Biome::KEY, &PLAINS_FIRST))
             .unwrap();
         let error = set
             .clone()
-            .with(registry::<Biome>(&PLAINS_LAST))
+            .with(registry(Biome::KEY, &PLAINS_LAST))
             .err()
             .unwrap();
         assert_eq!(
             error,
             RegistryError::DuplicateRegistry {
-                registry: Biome::KEY.into()
+                registry: Biome::KEY.location().into()
             }
         );
         assert!(error.to_string().contains("minecraft:worldgen/biome"));

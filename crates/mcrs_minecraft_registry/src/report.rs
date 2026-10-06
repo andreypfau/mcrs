@@ -62,7 +62,7 @@ impl LoadReport {
         self.record(registry, None, Some(directory), message.to_string());
     }
 
-    pub fn require<R: RegistryKey, S: AsRef<str>>(
+    pub fn require<R, S: AsRef<str>>(
         &mut self,
         registry: &Registry<R>,
         key: &ResourceKey<R, S>,
@@ -70,11 +70,7 @@ impl LoadReport {
         self.resolved(registry.require(key))
     }
 
-    pub fn require_by_name<R: RegistryKey>(
-        &mut self,
-        registry: &Registry<R>,
-        name: &str,
-    ) -> Option<Id<R>> {
+    pub fn require_by_name<R>(&mut self, registry: &Registry<R>, name: &str) -> Option<Id<R>> {
         self.resolved(registry.require_by_name(name))
     }
 
@@ -88,37 +84,46 @@ impl LoadReport {
         }
     }
 
-    pub fn missing<R: RegistryKey>(&mut self, name: &str, message: impl fmt::Display) {
-        self.record(&R::KEY.into(), Some(name), None, message.to_string());
+    pub fn missing<R>(&mut self, registry: RegistryKey<R>, name: &str, message: impl fmt::Display) {
+        self.record(
+            &registry.location().into(),
+            Some(name),
+            None,
+            message.to_string(),
+        );
     }
 
-    pub fn registry<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Registry<R>> {
+    pub fn registry<R: 'static>(
+        &mut self,
+        set: &RegistrySet,
+        key: RegistryKey<R>,
+    ) -> Option<Registry<R>> {
         let registry = set.registry::<R>();
         if registry.is_none() {
             self.record(
                 &ROOT.into(),
-                Some(R::KEY.as_str()),
+                Some(key.location().as_static_str()),
                 None,
-                format!("registry {} is absent from the registries report", R::KEY),
+                format!("registry {key} is absent from the registries report"),
             );
         }
         registry
     }
 
-    pub fn tags<R: RegistryKey>(&mut self, set: &RegistrySet) -> Option<Tags<R>> {
+    pub fn tags<R: 'static>(&mut self, set: &RegistrySet, key: RegistryKey<R>) -> Option<Tags<R>> {
         let tags = set.tags::<R>();
         if tags.is_none() {
             self.record(
                 &ROOT.into(),
-                Some(R::KEY.as_str()),
+                Some(key.location().as_static_str()),
                 None,
-                format!("tags of registry {} are absent from the loaded set", R::KEY),
+                format!("tags of registry {key} are absent from the loaded set"),
             );
         }
         tags
     }
 
-    pub fn require_tag<R: RegistryKey, S: AsRef<str>>(
+    pub fn require_tag<R, S: AsRef<str>>(
         &mut self,
         tags: &Tags<R>,
         key: &TagKey<R, S>,
@@ -126,12 +131,9 @@ impl LoadReport {
         let found = tags.get(key);
         if found.is_none() {
             let name = format!("#{}", key.as_str());
-            self.record(
-                &R::KEY.into(),
-                Some(&name),
-                None,
-                format!("registry {} holds no tag named {}", R::KEY, key.as_str()),
-            );
+            let registry = tags.registry().clone();
+            let message = format!("registry {registry} holds no tag named {}", key.as_str());
+            self.record(&registry, Some(&name), None, message);
         }
         found
     }
@@ -190,22 +192,23 @@ mod tests {
 
     struct Alpha;
 
-    impl RegistryKey for Alpha {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:alpha");
+    impl Alpha {
+        const KEY: RegistryKey<Alpha> = RegistryKey::new(rl!("minecraft:alpha"));
     }
 
     struct Beta;
 
-    impl RegistryKey for Beta {
-        const KEY: ResourceLocation<&'static str> = rl!("minecraft:beta");
+    impl Beta {
+        const KEY: RegistryKey<Beta> = RegistryKey::new(rl!("minecraft:beta"));
     }
 
     fn key<R>(text: &'static str) -> ResourceKey<R, &'static str> {
         ResourceKey::new(ResourceLocation::new_static(text))
     }
 
-    fn registry<R: RegistryKey>(names: &[&str]) -> Registry<R> {
+    fn registry<R>(key: RegistryKey<R>, names: &[&str]) -> Registry<R> {
         Registry::new(
+            key,
             names
                 .iter()
                 .map(|text| ResourceLocation::<Arc<str>>::read(text).unwrap()),
@@ -215,7 +218,7 @@ mod tests {
 
     #[test]
     fn a_found_entry_is_returned_and_nothing_is_recorded() {
-        let alpha = registry::<Alpha>(&["minecraft:one", "minecraft:two"]);
+        let alpha = registry(Alpha::KEY, &["minecraft:one", "minecraft:two"]);
         let mut report = LoadReport::new();
         let id = report.require(&alpha, &key("minecraft:two"));
         assert_eq!(id, alpha.by_name("minecraft:two"));
@@ -226,8 +229,8 @@ mod tests {
 
     #[test]
     fn every_missing_entry_of_one_pass_is_named_sorted_by_registry_then_entry() {
-        let alpha = registry::<Alpha>(&["minecraft:present"]);
-        let beta = registry::<Beta>(&[]);
+        let alpha = registry(Alpha::KEY, &["minecraft:present"]);
+        let beta = registry(Beta::KEY, &[]);
         let mut report = LoadReport::new();
         assert!(report.require(&beta, &key("minecraft:b_second")).is_none());
         assert!(report.require(&alpha, &key("minecraft:z_last")).is_none());
@@ -250,8 +253,8 @@ mod tests {
 
     #[test]
     fn a_report_names_the_key_s_own_registry() {
-        let alpha = registry::<Alpha>(&[]);
-        let beta = registry::<Beta>(&["minecraft:one"]);
+        let alpha = registry(Alpha::KEY, &[]);
+        let beta = registry(Beta::KEY, &["minecraft:one"]);
         let mut report = LoadReport::new();
         assert!(report.require(&alpha, &key("minecraft:one")).is_none());
         assert_eq!(
@@ -268,7 +271,7 @@ mod tests {
 
     #[test]
     fn a_data_name_is_reported_as_it_was_written() {
-        let alpha = registry::<Alpha>(&["minecraft:one"]);
+        let alpha = registry(Alpha::KEY, &["minecraft:one"]);
         let mut report = LoadReport::new();
         assert_eq!(report.require_by_name(&alpha, "one"), alpha.by_name("one"));
         assert!(report.require_by_name(&alpha, "One").is_none());
@@ -279,7 +282,7 @@ mod tests {
 
     #[test]
     fn a_missing_tag_is_named_under_its_registry() {
-        let alpha = registry::<Alpha>(&["minecraft:one"]);
+        let alpha = registry(Alpha::KEY, &["minecraft:one"]);
         let tag = ResourceLocation::<Arc<str>>::read("minecraft:present").unwrap();
         let tags = Tags::from_members(&alpha, vec![(tag, vec![])]);
         let mut report = LoadReport::new();
@@ -304,7 +307,7 @@ mod tests {
 
     #[test]
     fn a_miss_asked_for_twice_is_named_once() {
-        let alpha = registry::<Alpha>(&[]);
+        let alpha = registry(Alpha::KEY, &[]);
         let mut report = LoadReport::new();
         report.require(&alpha, &key("minecraft:absent"));
         report.require(&alpha, &key("minecraft:absent"));
@@ -314,12 +317,12 @@ mod tests {
     #[test]
     fn a_registry_the_report_lacks_is_reported() {
         let set = RegistrySet::new()
-            .with(registry::<Alpha>(&["minecraft:one"]))
+            .with(registry(Alpha::KEY, &["minecraft:one"]))
             .unwrap();
         let mut report = LoadReport::new();
-        assert!(report.registry::<Alpha>(&set).is_some());
+        assert!(report.registry(&set, Alpha::KEY).is_some());
         assert!(report.is_empty());
-        assert!(report.registry::<Beta>(&set).is_none());
+        assert!(report.registry(&set, Beta::KEY).is_none());
         assert!(!report.is_empty());
         let text = report.to_string();
         assert_eq!(text.lines().count(), 1, "{text}");

@@ -3,7 +3,6 @@ use mcrs_minecraft_client::player::PlayerCamera;
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_client::sky_state::SkyFrame;
 use mcrs_minecraft_client::wire_id::WireIdPlugin;
-use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension::environment::Weather;
 use mcrs_minecraft_keys as keys;
@@ -69,7 +68,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
 
     let mut received = ReceivedRegistries::default();
     received.push(ReceivedRegistry {
-        registry: keys::DimensionType::KEY.as_str().to_owned(),
+        registry: keys::DIMENSION_TYPE.location().as_static_str().to_owned(),
         entries: server
             .iter()
             .map(|id| RegistryEntry {
