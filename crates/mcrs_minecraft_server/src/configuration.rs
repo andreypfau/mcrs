@@ -17,7 +17,7 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
 use mcrs_minecraft_keys::{
     self as keys, BannerPattern, Block, CatVariant, DamageType, Dialog, Enchantment, EntityType,
     Instrument, Item, JukeboxSong, PaintingVariant, Timeline, TrimMaterial, TrimPattern,

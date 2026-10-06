@@ -3567,7 +3567,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_inventory",
  "mcrs_minecraft_item",
@@ -3636,7 +3636,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_dimension"
+name = "mcrs_minecraft_dimension_environment"
 version = "0.4.6"
 dependencies = [
  "bevy_asset",
@@ -4041,7 +4041,7 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
@@ -4129,7 +4129,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
+ "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",

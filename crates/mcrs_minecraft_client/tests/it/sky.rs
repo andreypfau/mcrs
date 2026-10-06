@@ -4,7 +4,7 @@ use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_client::sky_state::SkyFrame;
 use mcrs_minecraft_client::wire_id::WireIdPlugin;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_dimension::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{

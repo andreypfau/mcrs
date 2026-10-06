@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_dimension"
+name = "mcrs_minecraft_dimension_environment"
 description = "Dimension types and the environment attribute layers of a dimension"
 version.workspace = true
 edition.workspace = true

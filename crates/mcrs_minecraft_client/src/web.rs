@@ -6,7 +6,7 @@ use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_assets::packs::layered_reader;
-use mcrs_minecraft_dimension::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::Weather;
 use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks, seed_world_clocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;

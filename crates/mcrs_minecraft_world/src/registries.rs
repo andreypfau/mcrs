@@ -22,7 +22,7 @@ use mcrs_minecraft_biome::parameter_list::{
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
-use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_dimension_environment::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;

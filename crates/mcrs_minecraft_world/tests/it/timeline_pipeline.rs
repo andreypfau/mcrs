@@ -2,8 +2,8 @@ use bevy_app::App;
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
-use mcrs_minecraft_dimension::environment::DimensionEnvironments;
+use mcrs_minecraft_dimension_environment::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
@@ -89,10 +89,11 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let overworld = environment("minecraft:overworld").unwrap();
     assert_eq!(overworld.clocks(), [overworld_clock(app)]);
 
-    let sky_light = mcrs_minecraft_dimension::environment::EnvironmentAttributes::index(
-        "minecraft:gameplay/sky_light_level",
-    )
-    .unwrap();
+    let sky_light =
+        mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes::index(
+            "minecraft:gameplay/sky_light_level",
+        )
+        .unwrap();
     assert!(overworld.stack(sky_light).is_dynamic());
 
     // `#minecraft:in_nether` pulls in villager_schedule alone, which touches

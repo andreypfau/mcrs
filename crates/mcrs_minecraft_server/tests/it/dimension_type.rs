@@ -5,7 +5,7 @@ use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_dimension::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::dimension::{
