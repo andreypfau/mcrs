@@ -14,7 +14,7 @@ use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
+use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registries::{
     read_packs, static_registries, test_registries, world_registries,
 };
@@ -168,6 +168,51 @@ fn a_save_listing_a_dimension_the_preset_lacks_spawns_it() {
         ]
     );
     std::fs::remove_dir_all(world).unwrap();
+}
+
+fn spawned_dimensions(plugin: MinecraftServerPlugin) -> Vec<String> {
+    let mut app = App::new();
+    app.add_plugins(MinecraftServerPlugin {
+        asset_path: Some(ASSETS.to_owned()),
+        lighting: Lighting::Propagated,
+        announce_on_lan: false,
+        ..plugin
+    });
+    app.finish();
+    app.cleanup();
+    let deadline = Instant::now() + Duration::from_secs(45);
+    while *app.world().resource::<State<AppState>>().get() != AppState::Playing {
+        assert!(Instant::now() < deadline, "never reached Playing");
+        app.update();
+    }
+    app.world()
+        .resource::<DimSpawnQueue>()
+        .0
+        .iter()
+        .map(|request| request.dimension.as_str().to_owned())
+        .collect()
+}
+
+#[test]
+fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
+    let lobby = Dimensions::from([(
+        key("mcrs:lobby"),
+        debug_dimension(test_registries(), "minecraft:overworld"),
+    )]);
+    let spawned = spawned_dimensions(MinecraftServerPlugin {
+        dimensions: Some(lobby),
+        ..MinecraftServerPlugin::embedded()
+    });
+    assert_eq!(spawned, ["mcrs:lobby"]);
+}
+
+#[test]
+fn an_empty_dimension_list_from_the_plugin_is_refused() {
+    let mut report = LoadReport::new();
+    assert!(bake_list(&Dimensions::new(), test_registries(), &mut report).is_none());
+    let text = report.to_string();
+    assert_eq!(text.lines().count(), 1, "{text}");
+    assert!(text.contains("minecraft:dimension"), "{text}");
 }
 
 #[test]

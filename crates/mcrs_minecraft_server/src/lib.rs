@@ -26,6 +26,7 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_level::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_network::NetworkPlugin;
+use mcrs_minecraft_world::dimension::Dimensions;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 
@@ -54,6 +55,9 @@ pub struct MinecraftServerPlugin {
     /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
     pub singleplayer_profile: Option<SingleplayerProfile>,
+    /// The dimensions the world spawns, in place of a save's list and the world preset; the
+    /// overworld is then optional, and a player with no saved dimension spawns in the first.
+    pub dimensions: Option<Dimensions>,
 }
 
 /// Whether dimensions propagate light. Without it the block light table is never built, so
@@ -93,6 +97,7 @@ impl Default for MinecraftServerPlugin {
             default_op_level: 0,
             announce_on_lan: true,
             singleplayer_profile: None,
+            dimensions: None,
         }
     }
 }
@@ -129,6 +134,9 @@ impl Plugin for MinecraftServerPlugin {
         app.insert_resource(crate::world_options::world_seed_from_env());
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
+        }
+        if let Some(dimensions) = &self.dimensions {
+            app.insert_resource(crate::world_options::PluginDimensions(dimensions.clone()));
         }
         app.insert_resource(self.lighting);
         let ops = ops::OpList::read(std::path::Path::new(ops::OPS_FILE))
