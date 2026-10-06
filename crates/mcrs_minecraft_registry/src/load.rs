@@ -1182,7 +1182,7 @@ mod tests {
 
     #[test]
     fn tag_outcomes_on_the_load() {
-        let cases: [(&str, Vec<PackFile>, Expect); 5] = [
+        let cases: [(&str, Vec<PackFile>, Expect); 6] = [
             (
                 "a world registry tag with a missing required element refuses the load",
                 vec![
@@ -1238,6 +1238,20 @@ mod tests {
                     r##"{"tag":"#minecraft:never"}"##,
                 )],
                 Expect::Fails(&["Missing tag: 'minecraft:never'"]),
+            ),
+            (
+                "a value naming a tag whose only file is malformed refuses the load",
+                vec![
+                    data("minecraft/tags/test_static/lone.json", "{"),
+                    data(
+                        "minecraft/test_fixed_linked/v.json",
+                        r##"{"tag":"#minecraft:lone"}"##,
+                    ),
+                ],
+                Expect::Fails(&[
+                    "minecraft:test_fixed_linked/minecraft:v (minecraft/test_fixed_linked/v.json): ",
+                    "Missing tag: 'minecraft:lone'",
+                ]),
             ),
             (
                 "a malformed tag file is skipped and the others still load",

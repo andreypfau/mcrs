@@ -164,7 +164,9 @@ impl<R> Tags<R> {
     }
 
     pub fn tag_ids(&self) -> impl ExactSizeIterator<Item = TagId<R>> + use<R> {
-        (0..self.table.names.len() as u16).map(TagId::from_number)
+        (0..=u16::MAX)
+            .take(self.table.names.len())
+            .map(TagId::from_number)
     }
 
     pub fn members(
@@ -392,20 +394,27 @@ pub fn build_tags(
 
     let mut pending: BTreeMap<&Name, Vec<Pending>> = BTreeMap::new();
     for (tag, sources) in files {
-        let entries = pending.entry(tag).or_default();
         for source in sources {
+            let skip = |problems: &mut Vec<TagProblem>, error: serde_json::Error| {
+                log_and_push(
+                    problems,
+                    TagProblem::Skipped {
+                        registry: registry.clone(),
+                        tag: tag.clone(),
+                        file: source.path.to_owned(),
+                        message: format!("malformed tag file in pack {}: {error}", source.pack),
+                    },
+                );
+            };
+            if let Err(error) = serde_json::from_slice::<IgnoredAny>(source.bytes) {
+                skip(&mut problems, error);
+                continue;
+            }
+            let entries = pending.entry(tag).or_default();
             let file = match serde_json::from_slice::<TagFile>(source.bytes) {
                 Ok(file) => file,
                 Err(error) => {
-                    log_and_push(
-                        &mut problems,
-                        TagProblem::Skipped {
-                            registry: registry.clone(),
-                            tag: tag.clone(),
-                            file: source.path.to_owned(),
-                            message: format!("malformed tag file in pack {}: {error}", source.pack),
-                        },
-                    );
+                    skip(&mut problems, error);
                     continue;
                 }
             };
@@ -426,16 +435,31 @@ pub fn build_tags(
         .enumerate()
         .map(|(position, (tag, _))| (tag.as_str(), position))
         .collect();
-    let edges: Vec<Vec<usize>> = tags
+    let mut edges: Vec<Vec<usize>> = tags
         .iter()
         .map(|(_, entries)| {
             entries
                 .iter()
-                .filter(|pending| pending.entry.tag)
+                .filter(|pending| pending.entry.tag && pending.entry.required)
                 .filter_map(|pending| index.get(pending.entry.id.as_str()).copied())
                 .collect()
         })
         .collect();
+    let mut searched = FixedBitSet::with_capacity(tags.len());
+    let mut frontier = Vec::new();
+    for (source, (_, entries)) in tags.iter().enumerate() {
+        for pending in entries
+            .iter()
+            .filter(|pending| pending.entry.tag && !pending.entry.required)
+        {
+            let Some(&target) = index.get(pending.entry.id.as_str()) else {
+                continue;
+            };
+            if !reaches(&edges, target, source, &mut searched, &mut frontier) {
+                edges[source].push(target);
+            }
+        }
+    }
 
     let mut built: Vec<Option<Vec<u16>>> = vec![None; tags.len()];
     for (node, on_cycle) in dependency_order(&edges) {
@@ -582,6 +606,32 @@ fn assemble(
 fn log_and_push(problems: &mut Vec<TagProblem>, problem: TagProblem) {
     tracing::error!("{problem}");
     problems.push(problem);
+}
+
+// chisle: one search per optional nested reference, quadratic in the tag count for a pack full of
+// them; an incrementally maintained topological order lifts it.
+fn reaches(
+    edges: &[Vec<usize>],
+    from: usize,
+    to: usize,
+    searched: &mut FixedBitSet,
+    frontier: &mut Vec<usize>,
+) -> bool {
+    searched.clear();
+    frontier.clear();
+    searched.insert(from);
+    frontier.push(from);
+    while let Some(node) = frontier.pop() {
+        if node == to {
+            return true;
+        }
+        for &next in &edges[node] {
+            if !searched.put(next) {
+                frontier.push(next);
+            }
+        }
+    }
+    false
 }
 
 /// Explicit-stack Tarjan, so a deep chain of nested tags cannot exhaust the call stack. Nodes
@@ -925,21 +975,120 @@ mod tests {
             ],
         },
         Outcome {
-            case: "malformed file: skipped and logged, a well-formed file of the same tag in another pack applies",
+            case: "malformed file: skipped and logged, a well-formed file of the same tag in another pack applies; a tag whose only file is malformed does not exist",
+            rules: TagRules::Static,
+            tags: &[
+                (
+                    "minecraft:t",
+                    &[
+                        ("early", "{not json"),
+                        ("late", r#"{"values":["minecraft:b"]}"#),
+                    ],
+                ),
+                ("minecraft:lone", &[("p", "{not json")]),
+                (
+                    "minecraft:needs_lone",
+                    &[("p", r##"{"values":["#minecraft:lone","minecraft:c"]}"##)],
+                ),
+            ],
+            members: &[
+                ("minecraft:t", Some(&["minecraft:b"])),
+                ("minecraft:lone", None),
+                ("minecraft:needs_lone", None),
+            ],
+            problems: &[
+                (
+                    Kind::Skipped,
+                    "minecraft:t",
+                    &["tags/minecraft:t.json", "early"],
+                ),
+                (
+                    Kind::Skipped,
+                    "minecraft:lone",
+                    &["tags/minecraft:lone.json"],
+                ),
+                (Kind::Dropped, "minecraft:needs_lone", &["#minecraft:lone"]),
+            ],
+        },
+        Outcome {
+            case: "valid JSON the tag codec refuses: the tag exists with no members and a tag that requires it keeps its other members",
+            rules: TagRules::Static,
+            tags: &[
+                ("minecraft:shape", &[("p", r#"{"values":3}"#)]),
+                (
+                    "minecraft:needs_shape",
+                    &[("p", r##"{"values":["#minecraft:shape","minecraft:c"]}"##)],
+                ),
+            ],
+            members: &[
+                ("minecraft:shape", Some(&[])),
+                ("minecraft:needs_shape", Some(&["minecraft:c"])),
+            ],
+            problems: &[(
+                Kind::Skipped,
+                "minecraft:shape",
+                &["tags/minecraft:shape.json"],
+            )],
+        },
+        Outcome {
+            case: "an optional reference back along a required one keeps both tags",
+            rules: TagRules::Static,
+            tags: &[
+                (
+                    "minecraft:outer",
+                    &[("p", r##"{"values":["#minecraft:inner","minecraft:a"]}"##)],
+                ),
+                (
+                    "minecraft:inner",
+                    &[(
+                        "p",
+                        r##"{"values":["minecraft:b",{"id":"#minecraft:outer","required":false}]}"##,
+                    )],
+                ),
+            ],
+            members: &[
+                ("minecraft:outer", Some(&["minecraft:b", "minecraft:a"])),
+                ("minecraft:inner", Some(&["minecraft:b"])),
+            ],
+            problems: &[],
+        },
+        Outcome {
+            case: "a tag that optionally includes itself is kept",
             rules: TagRules::Static,
             tags: &[(
                 "minecraft:t",
-                &[
-                    ("early", "{not json"),
-                    ("late", r#"{"values":["minecraft:b"]}"#),
-                ],
+                &[(
+                    "p",
+                    r##"{"values":["minecraft:a",{"id":"#minecraft:t","required":false}]}"##,
+                )],
             )],
-            members: &[("minecraft:t", Some(&["minecraft:b"]))],
-            problems: &[(
-                Kind::Skipped,
-                "minecraft:t",
-                &["tags/minecraft:t.json", "early"],
-            )],
+            members: &[("minecraft:t", Some(&["minecraft:a"]))],
+            problems: &[],
+        },
+        Outcome {
+            case: "two tags that optionally include each other: the first by name holds the second",
+            rules: TagRules::Static,
+            tags: &[
+                (
+                    "minecraft:first",
+                    &[(
+                        "p",
+                        r##"{"values":[{"id":"#minecraft:second","required":false},"minecraft:a"]}"##,
+                    )],
+                ),
+                (
+                    "minecraft:second",
+                    &[(
+                        "p",
+                        r##"{"values":[{"id":"#minecraft:first","required":false},"minecraft:b"]}"##,
+                    )],
+                ),
+            ],
+            members: &[
+                ("minecraft:first", Some(&["minecraft:b", "minecraft:a"])),
+                ("minecraft:second", Some(&["minecraft:b"])),
+            ],
+            problems: &[],
         },
     ];
 
@@ -1367,6 +1516,8 @@ mod tests {
         let (tags, problems) =
             many_tags(usize::from(u16::MAX) + 2, |_| r#"{"values":[]}"#.to_owned());
         assert_eq!(tags.table().len(), usize::from(u16::MAX) + 1);
+        assert_eq!(tags.tag_ids().len(), usize::from(u16::MAX) + 1);
+        assert_eq!(tags.tag_ids().last().map(TagId::number), Some(u16::MAX));
         assert_eq!(problems.len(), 1, "{problems:?}");
         let TagProblem::Dropped { tag, message, .. } = &problems[0] else {
             panic!("expected a drop, got {:?}", problems[0]);
