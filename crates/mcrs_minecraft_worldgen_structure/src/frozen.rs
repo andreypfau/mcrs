@@ -10,7 +10,7 @@ use super::{
 };
 use crate::spawn_condition::VariantTables;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_core::value_provider::HeightProvider;
+use mcrs_minecraft_value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 use mcrs_minecraft_worldgen_feature::proto::{PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature::template::Projection;

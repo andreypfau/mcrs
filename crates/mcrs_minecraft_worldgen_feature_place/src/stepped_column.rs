@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, StateMask, WorldGenVolume};
 
 use crate::tree::provider::StateProvider;

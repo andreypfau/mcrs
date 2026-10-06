@@ -4,9 +4,9 @@ use crate::mask::CarvingMask;
 use crate::target::{CarveTarget, SingleColumn};
 use crate::water::WaterMask;
 use mcrs_minecraft_core::mth::{cos_modern, sin_modern};
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_value_provider::HeightContext;
 
 use crate::modern::RANGE;
 
@@ -178,7 +178,7 @@ fn update_vertical_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::value_provider::{FloatProvider, HeightProvider, VerticalAnchor};
+    use mcrs_minecraft_value_provider::{FloatProvider, HeightProvider, VerticalAnchor};
 
     fn overworld() -> HeightContext {
         HeightContext {

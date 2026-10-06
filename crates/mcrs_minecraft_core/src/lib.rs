@@ -15,7 +15,6 @@ pub mod resource_location;
 pub mod rotation;
 pub mod section_pos;
 pub mod tag_key;
-pub mod value_provider;
 pub mod version;
 pub mod voxel_shape;
 

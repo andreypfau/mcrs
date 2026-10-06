@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_core::value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_value_provider::{IntProvider, Weighted};
 use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};

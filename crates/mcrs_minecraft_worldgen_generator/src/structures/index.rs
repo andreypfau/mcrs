@@ -8,8 +8,8 @@ use bevy_math::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen::beard::{Beard, BeardPiece, JunctionPoint};
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{

@@ -1,9 +1,9 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 
 use std::sync::Arc;
@@ -148,8 +148,8 @@ mod tests {
     use std::sync::Arc;
 
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_core::value_provider::DispatchedIntProvider;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_value_provider::DispatchedIntProvider;
 
     use super::*;
     use crate::tree::decorator::TreePalette;

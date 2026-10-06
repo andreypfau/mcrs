@@ -102,13 +102,6 @@ impl Registered for EntitySubPredicateType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FloatProviderType {}
-pub const FLOAT_PROVIDER_TYPE: RegistryKey<FloatProviderType> = RegistryKey::new(rl!("minecraft:float_provider_type"));
-impl Registered for FloatProviderType {
-    const REGISTRY: RegistryKey<Self> = FLOAT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameEvent {}
 pub const GAME_EVENT: RegistryKey<GameEvent> = RegistryKey::new(rl!("minecraft:game_event"));
 impl Registered for GameEvent {
@@ -123,24 +116,10 @@ impl Registered for GameRule {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HeightProviderType {}
-pub const HEIGHT_PROVIDER_TYPE: RegistryKey<HeightProviderType> = RegistryKey::new(rl!("minecraft:height_provider_type"));
-impl Registered for HeightProviderType {
-    const REGISTRY: RegistryKey<Self> = HEIGHT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IncomingRpcMethods {}
 pub const INCOMING_RPC_METHODS: RegistryKey<IncomingRpcMethods> = RegistryKey::new(rl!("minecraft:incoming_rpc_methods"));
 impl Registered for IncomingRpcMethods {
     const REGISTRY: RegistryKey<Self> = INCOMING_RPC_METHODS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum IntProviderType {}
-pub const INT_PROVIDER_TYPE: RegistryKey<IntProviderType> = RegistryKey::new(rl!("minecraft:int_provider_type"));
-impl Registered for IntProviderType {
-    const REGISTRY: RegistryKey<Self> = INT_PROVIDER_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -360,7 +339,7 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 51] {
+pub fn bindings() -> [TypeBinding; 48] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
@@ -376,12 +355,9 @@ pub fn bindings() -> [TypeBinding; 51] {
         DIALOG_ACTION_TYPE.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
         ENTITY_SUB_PREDICATE_TYPE.binding(),
-        FLOAT_PROVIDER_TYPE.binding(),
         GAME_EVENT.binding(),
         GAME_RULE.binding(),
-        HEIGHT_PROVIDER_TYPE.binding(),
         INCOMING_RPC_METHODS.binding(),
-        INT_PROVIDER_TYPE.binding(),
         ITEM_MODIFIER.binding(),
         LOOT_FUNCTION_TYPE.binding(),
         LOOT_NBT_PROVIDER_TYPE.binding(),

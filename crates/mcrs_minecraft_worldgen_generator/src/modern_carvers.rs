@@ -8,9 +8,9 @@ use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_c
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::{Entries, Id, Registry};
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;

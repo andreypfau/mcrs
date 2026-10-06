@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 

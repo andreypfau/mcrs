@@ -2,9 +2,9 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 use super::provider::StateProvider;
@@ -180,8 +180,8 @@ mod tests {
     use mcrs_minecraft_chunk::Blocks;
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_core::value_provider::IntProvider;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_value_provider::IntProvider;
 
     use super::*;
     use crate::tree::provider::fake::{AIR, FakeVolume};

@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
-use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_core::{codec::Validate, validated};
+use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
 /// `UniformInt.MAP_CODEC` reached directly rather than through the int-provider
 /// dispatch, so the object carries no `type`.

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
-use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;

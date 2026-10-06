@@ -1,4 +1,7 @@
-use crate::codec::{Bounded, NonNegativeInt, Validate, is_default};
+#[rustfmt::skip]
+pub mod keys;
+
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -28,7 +31,7 @@ pub enum VerticalAnchor {
     RelativeToSeaLevel(i32),
 }
 
-crate::validated!(VerticalAnchor);
+mcrs_minecraft_core::validated!(VerticalAnchor);
 
 impl Validate for VerticalAnchor {
     fn validate(&self) -> Result<(), String> {
@@ -594,7 +597,7 @@ impl HeightProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codec::Bounded;
+    use mcrs_minecraft_core::codec::Bounded;
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
@@ -1142,7 +1145,6 @@ mod tests {
 #[cfg(test)]
 mod dispatch_rows {
     use super::*;
-    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_registry::static_rows::{assert_dispatch, names_cover};
     use serde::de::DeserializeOwned;
 
@@ -1164,7 +1166,7 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         INT_PROVIDER_TYPE_ROWS,
         INT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::int_provider_type::ENTRIES
+        crate::keys::IntProviderType::ENTRIES
     ));
 
     const FLOAT_PROVIDER_TYPE_ROWS: &[&str] = &[
@@ -1179,7 +1181,7 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         FLOAT_PROVIDER_TYPE_ROWS,
         FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::float_provider_type::ENTRIES
+        crate::keys::FloatProviderType::ENTRIES
     ));
 
     const HEIGHT_PROVIDER_TYPE_ROWS: &[&str] = &[
@@ -1195,7 +1197,7 @@ mod dispatch_rows {
     const _: () = assert!(names_cover(
         HEIGHT_PROVIDER_TYPE_ROWS,
         HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-        keys::height_provider_type::ENTRIES
+        crate::keys::HeightProviderType::ENTRIES
     ));
 
     fn assert_providers<V: DeserializeOwned, D: DeserializeOwned>(
@@ -1220,7 +1222,7 @@ mod dispatch_rows {
         assert_providers::<i32, DispatchedIntProvider>(
             INT_PROVIDER_TYPE_ROWS,
             INT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::int_provider_type::ENTRIES,
+            crate::keys::IntProviderType::ENTRIES,
         );
     }
 
@@ -1229,7 +1231,7 @@ mod dispatch_rows {
         assert_providers::<f32, DispatchedFloatProvider>(
             FLOAT_PROVIDER_TYPE_ROWS,
             FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::float_provider_type::ENTRIES,
+            crate::keys::FloatProviderType::ENTRIES,
         );
     }
 
@@ -1238,7 +1240,7 @@ mod dispatch_rows {
         assert_providers::<VerticalAnchor, DispatchedHeightProvider>(
             HEIGHT_PROVIDER_TYPE_ROWS,
             HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-            keys::height_provider_type::ENTRIES,
+            crate::keys::HeightProviderType::ENTRIES,
         );
     }
 }

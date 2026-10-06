@@ -3,12 +3,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
-use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
 const Y_SIZE: i32 = (1 << 12) - 32;
 const MAX_Y: i32 = (Y_SIZE >> 1) - 1;

@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::NonNegativeInt;
-use mcrs_minecraft_core::value_provider::IntProvider;
+use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
 macro_rules! mob_categories {

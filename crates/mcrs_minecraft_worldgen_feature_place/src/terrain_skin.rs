@@ -5,10 +5,10 @@ use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::placer::{
     Predicate, StateMask, WorldGenVolume, biome_info_noise,
 };
@@ -384,8 +384,8 @@ fn frozen_temperature(pos: BlockPos, base_temperature: f32) -> f32 {
 mod tests {
     use mcrs_minecraft_worldgen_feature::placer::mask_of;
 
-    use mcrs_minecraft_core::value_provider::{DispatchedIntProvider, IntProvider};
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_value_provider::{DispatchedIntProvider, IntProvider};
 
     use super::*;
     use crate::tree::provider::fake::FakeVolume;

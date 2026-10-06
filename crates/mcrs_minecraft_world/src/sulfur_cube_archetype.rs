@@ -1,11 +1,11 @@
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
-use mcrs_minecraft_core::value_provider::{DispatchedFloatProvider, FloatProvider};
 use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::{Holder, HolderSet, Id};
 use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_value_provider::{DispatchedFloatProvider, FloatProvider};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 

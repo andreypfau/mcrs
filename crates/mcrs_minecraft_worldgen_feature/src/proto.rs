@@ -20,10 +20,8 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_core::value_provider::{
-    BoundedIntProvider, FloatProvider, IntProvider, Weighted,
-};
 use mcrs_minecraft_registry::static_rows::names_cover;
+use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 

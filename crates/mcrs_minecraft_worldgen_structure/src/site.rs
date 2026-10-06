@@ -11,10 +11,10 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::value_provider::{HeightContext, pick_weighted_by};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffle};
+use mcrs_minecraft_value_provider::{HeightContext, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BiomeMask, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::{
     EMPTY_LABEL, JigsawBlock, Joint, bounding_box, transform,

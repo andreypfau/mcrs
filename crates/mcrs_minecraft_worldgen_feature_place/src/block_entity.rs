@@ -10,7 +10,6 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::BlockEntityType;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_core::value_provider::Weighted;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -18,6 +17,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_value_provider::Weighted;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use serde::{Deserialize, Serialize};
 

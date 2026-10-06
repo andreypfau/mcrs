@@ -8,7 +8,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_core::value_provider::HeightContext;
+use mcrs_minecraft_value_provider::HeightContext;
 
 #[cfg(any(test, feature = "test-support"))]
 mod box_region;
@@ -177,7 +177,7 @@ mod tests {
     use bevy_math::IVec3;
     use mcrs_minecraft_block_predicate::provider::UnitFloat;
     use mcrs_minecraft_core::codec::Bounded;
-    use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
+    use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 
     const AIR: VoxelId = VoxelId(0);
     const STONE: VoxelId = VoxelId(1);

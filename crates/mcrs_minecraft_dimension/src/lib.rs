@@ -2,8 +2,8 @@
 pub mod keys;
 
 use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_value_provider::IntProvider;
 use serde::{Deserialize, Serialize};
 
 /// The part of a dimension type every crate that names one can hold. Its

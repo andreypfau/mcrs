@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::value_provider::VerticalAnchor;
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_value_provider::VerticalAnchor;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
 use mcrs_minecraft_worldgen_noise::proto::HashableF64;
 

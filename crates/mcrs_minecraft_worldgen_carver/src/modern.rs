@@ -6,9 +6,9 @@ use crate::target::{CarveTarget, SingleColumn};
 use crate::tunnel::{SplitSeeding, TrigIndex, TunnelShape, walk_tunnel_into};
 use crate::water::WaterMask;
 use mcrs_minecraft_core::mth::sin_modern;
-use mcrs_minecraft_core::value_provider::{FloatProvider, HeightContext};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_value_provider::{FloatProvider, HeightContext};
 
 /// `WorldCarver.getRange()`. It feeds the tunnel length and nothing else; the
 /// source loop's own radius is [`SOURCE_RADIUS`].
@@ -196,7 +196,7 @@ fn create_room_into<T: CarveTarget>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_core::value_provider::{HeightProvider, IntProvider, VerticalAnchor};
+    use mcrs_minecraft_value_provider::{HeightProvider, IntProvider, VerticalAnchor};
 
     fn overworld() -> HeightContext {
         HeightContext {

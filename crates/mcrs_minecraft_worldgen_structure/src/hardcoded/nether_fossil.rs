@@ -1,8 +1,8 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::Mirror;
-use mcrs_minecraft_core::value_provider::HeightProvider;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_value_provider::HeightProvider;
 use mcrs_minecraft_worldgen_feature::template::bounding_box;
 
 use crate::frozen::TemplateId;

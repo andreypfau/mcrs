@@ -7,10 +7,10 @@ use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::mth::clamped_map;
-use mcrs_minecraft_core::value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::{DenseId, Id};
+use mcrs_minecraft_value_provider::{IntProvider, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::placer::{BlockLayout, Predicate, WorldGenVolume, with_digit};
 use mcrs_minecraft_worldgen_noise::stack::{NoiseStack, Octave};
 
@@ -366,7 +366,7 @@ pub(crate) mod fake {
 
     use mcrs_minecraft_block_predicate::predicate::HeightmapName;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume};
-    use mcrs_minecraft_core::value_provider::HeightContext;
+    use mcrs_minecraft_value_provider::HeightContext;
     use mcrs_minecraft_worldgen_feature::placer::WorldStates;
 
     use super::*;
@@ -466,9 +466,9 @@ mod tests {
     use std::sync::Arc;
 
     use mcrs_minecraft_chunk::BlocksMut;
-    use mcrs_minecraft_core::value_provider::{DispatchedIntProvider, IntProvider};
     use mcrs_minecraft_random::legacy::LegacyRandom;
     use mcrs_minecraft_random::worldgen::WorldgenRandom;
+    use mcrs_minecraft_value_provider::{DispatchedIntProvider, IntProvider};
     use mcrs_minecraft_worldgen_feature::placer::PropertyLayout;
     use mcrs_minecraft_worldgen_noise::normal;
 
