@@ -13,7 +13,7 @@ use mcrs_minecraft_registry::{Id, RegistrySet};
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::{
-    DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, Weather,
+    EnvironmentAttributes, EnvironmentContext, Weather,
 };
 use mcrs_minecraft_environment::attribute::MoonPhase;
 use mcrs_minecraft_environment::spatial::SpatialAttributeInterpolator;
@@ -193,7 +193,6 @@ impl SkyEnvironment {
 fn build_sky_environment(
     joined: Single<&JoinedGame, Changed<JoinedGame>>,
     wire: Option<Res<WireIds>>,
-    environments: Res<DimensionEnvironments>,
     registries: Res<RegistrySet>,
     clocks: Res<WorldClocks>,
     weather: Res<Weather>,
@@ -217,12 +216,15 @@ fn build_sky_environment(
         commands.remove_resource::<SkyEnvironment>();
         return;
     };
-    let Some(attributes) = environments.get(type_id) else {
-        error!(dimension = %joined.dimension, "no environment to draw a sky from");
-        commands.remove_resource::<SkyEnvironment>();
-        return;
-    };
-    let attributes = attributes.clone();
+    let attributes =
+        match EnvironmentAttributes::of_dimension(&registries, &joined.dimension, type_id) {
+            Ok(attributes) => attributes,
+            Err(error) => {
+                error!(dimension = %joined.dimension, %error, "no environment to draw a sky from");
+                commands.remove_resource::<SkyEnvironment>();
+                return;
+            }
+        };
     let layout = SkyLayout::derive(&attributes);
 
     let mut ticks = Vec::new();

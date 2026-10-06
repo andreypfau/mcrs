@@ -15,15 +15,14 @@ use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
 use crate::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_dimension::{DimensionType, Skybox};
+use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
     AttributeEntry, AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES,
     EnvironmentAttributeMap, ModifierError, Operation, apply,
 };
 use mcrs_minecraft_environment::timeline::{AttributeTrackSampler, Timeline};
-use mcrs_minecraft_environment::world_clock::WorldClocks;
 use mcrs_minecraft_environment::world_clock::WorldClock;
-use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeInterpolator};
 
@@ -46,6 +45,8 @@ pub enum EnvironmentError {
     UnknownAttribute(String),
     #[error("a timeline runs on a clock the world clock registry does not hold")]
     UnknownClock,
+    #[error("the registry set holds no `{0}` registry")]
+    MissingRegistry(&'static str),
 }
 
 #[derive(Debug, Clone)]
@@ -146,21 +147,12 @@ impl<'a> DimensionEnvironment<'a> {
         dimension_type: &DimensionType,
         environment: &'a DimensionTypeEnvironment,
     ) -> Self {
-        let mut environment = Self::of_type(dimension_type, environment);
-        environment.can_have_weather &= *dimension != mcrs_minecraft_dimension::keys::dimension::THE_END;
-        environment
-    }
-
-    // chisle: a type table has no dimension key, so it cannot apply the end rule;
-    // building environments per dimension lifts it.
-    pub fn of_type(
-        dimension_type: &DimensionType,
-        environment: &'a DimensionTypeEnvironment,
-    ) -> Self {
         DimensionEnvironment {
             attributes: &environment.attributes,
             skybox: dimension_type.skybox,
-            can_have_weather: dimension_type.has_skylight && !dimension_type.has_ceiling,
+            can_have_weather: dimension_type.has_skylight
+                && !dimension_type.has_ceiling
+                && *dimension != mcrs_minecraft_dimension::keys::dimension::THE_END,
         }
     }
 }
@@ -236,6 +228,42 @@ impl EnvironmentAttributes {
         })
     }
 
+    pub fn of_dimension(
+        registries: &RegistrySet,
+        dimension: &ResourceKey<Dimension>,
+        dimension_type: Id<DimensionType>,
+    ) -> Result<Self, EnvironmentError> {
+        let timeline_registry = mcrs_minecraft_environment::keys::TIMELINE.location();
+        let timelines = registries
+            .column::<Timeline>(timeline_registry.as_static_str())
+            .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
+        let timeline_tags = registries
+            .tags::<Timeline>()
+            .ok_or(EnvironmentError::MissingRegistry("timeline"))?;
+        let world_clocks = registries
+            .registry::<WorldClock>()
+            .ok_or(EnvironmentError::MissingRegistry("world_clock"))?;
+        let dimension_types = registries
+            .entries::<DimensionType, DimensionType>()
+            .ok_or(EnvironmentError::MissingRegistry("dimension_type"))?;
+        let dimension_environments = registries
+            .entries::<DimensionType, DimensionTypeEnvironment>()
+            .ok_or(EnvironmentError::MissingRegistry("dimension_type"))?;
+
+        let environment = &dimension_environments[dimension_type];
+        let dimension_timelines: Vec<&Timeline> = environment
+            .timelines
+            .ids(&timeline_tags)
+            .filter_map(|member| timelines.get(member.index()))
+            .collect();
+
+        Self::build(
+            &DimensionEnvironment::of(dimension, &dimension_types[dimension_type], environment),
+            &dimension_timelines,
+            &world_clocks,
+        )
+    }
+
     /// The stack index of `id`. Resolved while building, never during a frame.
     pub fn index(id: &str) -> Option<usize> {
         ENVIRONMENT_ATTRIBUTES.keys().position(|key| *key == id)
@@ -273,85 +301,6 @@ impl EnvironmentAttributes {
     pub fn value(&self, id: &str, ctx: &EnvironmentContext) -> Option<AttributeValue> {
         Some(self.stacks[Self::index(id)?].evaluate(ctx))
     }
-}
-
-/// One layer stack set per loaded dimension type.
-///
-/// Derived once from the dimension type registry, the `timeline` registry and
-/// the tag that joins them.
-#[derive(Resource, Debug, Clone, Default)]
-pub struct DimensionEnvironments(Vec<Option<EnvironmentAttributes>>);
-
-impl DimensionEnvironments {
-    pub fn get(&self, dimension_type: Id<DimensionType>) -> Option<&EnvironmentAttributes> {
-        self.0.get(dimension_type.index())?.as_ref()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.iter().flatten().count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.iter().all(Option::is_none)
-    }
-}
-
-pub fn build_dimension_environments(
-    registries: Res<RegistrySet>,
-    mut environments: ResMut<DimensionEnvironments>,
-) {
-    let (
-        Some(timelines),
-        Some(timeline_tags),
-        Some(world_clocks),
-        Some(types),
-        Some(dimension_types),
-        Some(dimension_environments),
-    ) = (
-        registries.column::<Timeline>(mcrs_minecraft_environment::keys::TIMELINE.location().as_static_str()),
-        registries.tags::<Timeline>(),
-        registries.registry::<WorldClock>(),
-        registries.registry::<DimensionType>(),
-        registries.entries::<DimensionType, DimensionType>(),
-        registries.entries::<DimensionType, DimensionTypeEnvironment>(),
-    )
-    else {
-        tracing::error!(
-            "the registry set holds no dimension types, timelines and clocks to build environments from"
-        );
-        return;
-    };
-
-    environments.0.clear();
-    environments.0.resize_with(types.len(), || None);
-    for id in types.ids() {
-        let dimension_type = &dimension_types[id];
-        let environment = &dimension_environments[id];
-        let name = types
-            .name(id)
-            .expect("an id of the registry has a name")
-            .as_str();
-
-        let dimension_timelines: Vec<&Timeline> = environment
-            .timelines
-            .ids(&timeline_tags)
-            .filter_map(|member| timelines.get(member.index()))
-            .collect();
-
-        match EnvironmentAttributes::build(
-            &DimensionEnvironment::of_type(dimension_type, environment),
-            &dimension_timelines,
-            &world_clocks,
-        ) {
-            Ok(attributes) => environments.0[id.index()] = Some(attributes),
-            Err(error) => tracing::error!(dimension = name, %error, "could not build environment"),
-        }
-    }
-
-    tracing::info!(
-        dimensions = environments.len(),
-        "built dimension environments"
-    );
 }
 
 /// Everything a layer stack needs that is not fixed for the dimension.

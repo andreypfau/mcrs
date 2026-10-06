@@ -1,16 +1,21 @@
 use bevy_app::App;
+use bevy_math::DVec3;
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
 };
-use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
+use mcrs_minecraft_dimension_environment::environment::{
+    EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator, Weather,
+};
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_registry::{Id, RegistrySet};
+use mcrs_minecraft_world::registries::test_registries;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -67,18 +72,20 @@ pub fn the_timeline_tags_resolve_through_universal(app: &App) {
 }
 
 pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
-    let environments = app.world().resource::<DimensionEnvironments>();
-    let types = app
-        .world()
-        .resource::<RegistrySet>()
+    let set = app.world().resource::<RegistrySet>();
+    let types = set
         .registry::<DimensionType>()
         .expect("the dimension types are loaded");
     let environment = |name: &str| {
-        environments.get(
+        let dimension = ResourceKey::<Dimension>::from_location(name.parse().unwrap());
+        EnvironmentAttributes::of_dimension(
+            set,
+            &dimension,
             types
                 .by_name(name)
                 .unwrap_or_else(|| panic!("{name} is not a dimension type")),
         )
+        .ok()
     };
 
     for id in [
@@ -104,6 +111,48 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     // no sky attribute, so the Nether sky never moves.
     let nether = environment("minecraft:the_nether").unwrap();
     assert!(!nether.stack(sky_light).is_dynamic());
+}
+
+#[test]
+fn weather_follows_the_dimension_key_on_the_loaded_set() {
+    let set = test_registries();
+    let types = set
+        .registry::<DimensionType>()
+        .expect("the dimension types are loaded");
+    let storm = Weather {
+        rain: 1.0,
+        thunder: 1.0,
+    };
+    let biomes = SpatialAttributeInterpolator::default();
+
+    let rows = [
+        ("minecraft:overworld", "minecraft:overworld", true),
+        ("minecraft:the_end", "minecraft:the_end", false),
+        ("minecraft:the_end", "minecraft:overworld", false),
+        ("test:end_like", "minecraft:the_end", true),
+        ("minecraft:the_nether", "minecraft:the_nether", false),
+    ];
+    for (key, type_name, has_weather) in rows {
+        let dimension = ResourceKey::<Dimension>::from_location(key.parse().unwrap());
+        let type_id = types
+            .by_name(type_name)
+            .unwrap_or_else(|| panic!("{type_name} is not a dimension type"));
+        let attributes = EnvironmentAttributes::of_dimension(set, &dimension, type_id).unwrap();
+        let ticks = vec![0.0; attributes.clocks().len()];
+        let context = |weather| EnvironmentContext {
+            position: DVec3::ZERO,
+            ticks: &ticks,
+            biomes: &biomes,
+            weather,
+        };
+        let moved = attributes.stacks().iter().any(|stack| {
+            stack.evaluate(&context(storm)) != stack.evaluate(&context(Weather::default()))
+        });
+        assert_eq!(
+            moved, has_weather,
+            "a storm over a dimension keyed {key} of type {type_name}"
+        );
+    }
 }
 
 pub fn the_shipped_time_markers_reach_the_overworld_clock(app: &App) {
