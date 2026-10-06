@@ -41,7 +41,10 @@ impl Validate for ItemStackValue {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Template(pub ItemStackValue);
 
-impl mcrs_minecraft_text::HoverItem for Template {}
+impl mcrs_minecraft_text::TextTypes for Template {
+    type EntityKey = ResourceKey<keys::EntityType>;
+    type DialogKey = ResourceKey<keys::Dialog>;
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
