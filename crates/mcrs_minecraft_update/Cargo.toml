@@ -6,6 +6,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+mcrs_minecraft_registry_catalog.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block.workspace = true

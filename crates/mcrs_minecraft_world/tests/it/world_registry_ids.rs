@@ -8,6 +8,7 @@ use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
 use crate::common::{declared_world_registries, loaded_names};
+use mcrs_minecraft_environment::timeline::Timeline;
 
 fn crate_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative)
@@ -60,10 +61,7 @@ pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
             "minecraft:worldgen/structure",
             names_in_registry::<keys::Structure>(app),
         ),
-        (
-            "minecraft:timeline",
-            names_in_registry::<keys::Timeline>(app),
-        ),
+        ("minecraft:timeline", names_in_registry::<Timeline>(app)),
     ];
     for (registry, numbered) in indexes {
         assert_eq!(

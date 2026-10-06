@@ -1,4 +1,4 @@
-// Written by `cargo run -p mcrs_minecraft_update -- names`; do not edit.
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
@@ -739,13 +739,6 @@ impl Registered for TicketType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Timeline {}
-pub const TIMELINE: RegistryKey<Timeline> = RegistryKey::new(rl!("minecraft:timeline"));
-impl Registered for Timeline {
-    const REGISTRY: RegistryKey<Self> = TIMELINE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TradeSet {}
 pub const TRADE_SET: RegistryKey<TradeSet> = RegistryKey::new(rl!("minecraft:trade_set"));
 impl Registered for TradeSet {
@@ -813,13 +806,6 @@ pub enum WolfVariant {}
 pub const WOLF_VARIANT: RegistryKey<WolfVariant> = RegistryKey::new(rl!("minecraft:wolf_variant"));
 impl Registered for WolfVariant {
     const REGISTRY: RegistryKey<Self> = WOLF_VARIANT;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WorldClock {}
-pub const WORLD_CLOCK: RegistryKey<WorldClock> = RegistryKey::new(rl!("minecraft:world_clock"));
-impl Registered for WorldClock {
-    const REGISTRY: RegistryKey<Self> = WORLD_CLOCK;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1088,7 +1074,7 @@ impl Registered for ZombieNautilusVariant {
     const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
 }
 
-pub fn bindings() -> [TypeBinding; 155] {
+pub fn bindings() -> [TypeBinding; 153] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -1195,7 +1181,6 @@ pub fn bindings() -> [TypeBinding; 155] {
         TEST_INSTANCE.binding(),
         TEST_INSTANCE_TYPE.binding(),
         TICKET_TYPE.binding(),
-        TIMELINE.binding(),
         TRADE_SET.binding(),
         TRIAL_SPAWNER.binding(),
         TRIGGER_TYPE.binding(),
@@ -1206,7 +1191,6 @@ pub fn bindings() -> [TypeBinding; 155] {
         VILLAGER_TYPE.binding(),
         WOLF_SOUND_VARIANT.binding(),
         WOLF_VARIANT.binding(),
-        WORLD_CLOCK.binding(),
         BIOME.binding(),
         BIOME_SOURCE.binding(),
         BLOCK_STATE_PROVIDER.binding(),

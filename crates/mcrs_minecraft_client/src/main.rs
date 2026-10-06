@@ -37,6 +37,7 @@ use mcrs_minecraft_client::{
     ClientPlugins, ClientTerrainPlugin, asset_corpus, config, gui, local_player, player, sky,
     vanilla,
 };
+use mcrs_minecraft_environment::world_clock::WorldClock;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -449,7 +450,7 @@ fn apply_saved_clocks(
     mut clocks: ResMut<WorldClocks>,
     mut commands: Commands,
 ) {
-    if let Some(registry) = registries.registry::<keys::WorldClock>() {
+    if let Some(registry) = registries.registry::<WorldClock>() {
         for (name, state) in &saved.0 {
             match registry.by_name(name.as_str()) {
                 Some(id) => clocks.insert(id, *state),
@@ -467,8 +468,16 @@ fn log_registry_counts(registries: Res<RegistrySet>) {
     info!(
         dimension_types = loaded(keys::DIMENSION_TYPE.location().as_static_str()),
         biomes = loaded(keys::BIOME.location().as_static_str()),
-        timelines = loaded(keys::TIMELINE.location().as_static_str()),
-        world_clocks = loaded(keys::WORLD_CLOCK.location().as_static_str()),
+        timelines = loaded(
+            mcrs_minecraft_environment::keys::TIMELINE
+                .location()
+                .as_static_str()
+        ),
+        world_clocks = loaded(
+            mcrs_minecraft_environment::keys::WORLD_CLOCK
+                .location()
+                .as_static_str()
+        ),
         "registry assets loaded"
     );
 }
@@ -493,7 +502,7 @@ fn log_seeded_resources(
     advance_time: Res<AdvanceTime>,
     weather: Res<Weather>,
 ) {
-    let names = registries.registry::<keys::WorldClock>();
+    let names = registries.registry::<WorldClock>();
     info!(
         clocks = ?clocks
             .iter()

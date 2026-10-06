@@ -3,8 +3,8 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::light::BlockLightRegistry;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::WorldClocks;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
@@ -45,7 +45,7 @@ fn the_startup_tables_and_clocks_exist_after_the_first_update() {
     let registered = app
         .world()
         .resource::<RegistrySet>()
-        .registry::<keys::WorldClock>()
+        .registry::<WorldClock>()
         .expect("the world clock registry is loaded");
     assert!(!registered.is_empty());
     assert_eq!(

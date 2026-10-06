@@ -7,16 +7,18 @@ use mcrs_minecraft_dimension_environment::dimension_type::{
     DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
 };
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
+use mcrs_minecraft_environment::timeline::Timeline;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
-fn overworld_clock(app: &App) -> Id<keys::WorldClock> {
+fn overworld_clock(app: &App) -> Id<WorldClock> {
     app.world()
         .resource::<RegistrySet>()
-        .registry::<keys::WorldClock>()
+        .registry::<WorldClock>()
         .expect("the world clock registry is loaded")
         .require_by_name(OVERWORLD_CLOCK)
         .expect("the overworld clock is registered")
@@ -25,12 +27,12 @@ fn overworld_clock(app: &App) -> Id<keys::WorldClock> {
 fn members(app: &App, tag: &str) -> Vec<String> {
     let set = app.world().resource::<RegistrySet>();
     let timelines = set
-        .registry::<keys::Timeline>()
+        .registry::<Timeline>()
         .expect("the timeline registry is loaded");
     let tags = set
-        .tags::<keys::Timeline>()
+        .tags::<Timeline>()
         .expect("the load builds the timeline tags");
-    let key = TagKey::<keys::Timeline, _>::from_location(ResourceLocation::read(tag).unwrap());
+    let key = TagKey::<Timeline, _>::from_location(ResourceLocation::read(tag).unwrap());
     let mut names: Vec<String> = tags
         .members(tags.get(&key).expect("the tag is resolved"))
         .map(|id| {

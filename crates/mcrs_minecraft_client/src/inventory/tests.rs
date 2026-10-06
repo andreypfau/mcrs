@@ -35,7 +35,7 @@ fn registries() -> &'static RegistrySet {
     SET.get_or_init(|| {
         shipped_report()
             .clone()
-            .with_types(mcrs_minecraft_keys::bindings())
+            .with_types(mcrs_minecraft_registry_catalog::bindings())
             .unwrap()
     })
 }

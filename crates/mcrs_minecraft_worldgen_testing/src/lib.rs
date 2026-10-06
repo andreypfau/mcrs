@@ -13,6 +13,8 @@ use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
+use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::timeline::Timeline;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -127,7 +129,7 @@ fn base_set() -> &'static RegistrySet {
 }
 
 fn typed(set: RegistrySet) -> RegistrySet {
-    set.with_types(keys::bindings())
+    set.with_types(mcrs_minecraft_registry_catalog::bindings())
         .unwrap_or_else(|e| panic!("the generated registry types do not bind: {e}"))
 }
 
@@ -334,7 +336,7 @@ pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str
     });
     let registry = Registry::<R>::new(R::REGISTRY, names)
         .unwrap_or_else(|e| panic!("{folder} does not number: {e}"));
-    typed(RegistrySet::new())
+    RegistrySet::new()
         .with(registry)
         .unwrap_or_else(|e| panic!("{folder} does not join the set: {e}"))
 }
@@ -354,10 +356,10 @@ pub fn dimension_type_set() -> &'static RegistrySet {
             .collect();
         let blocks = Registry::<keys::Block>::new(keys::BLOCK, block_names)
             .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
-        let timelines = Registry::<keys::Timeline>::new(keys::TIMELINE, shipped_ids("timeline"))
+        let timelines = Registry::<Timeline>::new(mcrs_minecraft_environment::keys::TIMELINE, shipped_ids("timeline"))
             .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
         let clocks =
-            Registry::<keys::WorldClock>::new(keys::WORLD_CLOCK, shipped_ids("world_clock"))
+            Registry::<WorldClock>::new(mcrs_minecraft_environment::keys::WORLD_CLOCK, shipped_ids("world_clock"))
                 .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
         let tables = report
             .tables()

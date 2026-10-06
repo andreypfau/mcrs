@@ -12,6 +12,7 @@ use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
+use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
 const NOON: i64 = 6000;
@@ -35,10 +36,10 @@ fn dimension_type(name: &str) -> (DimensionType, DimensionTypeEnvironment) {
 }
 
 static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
-    mcrs_minecraft_worldgen_testing::shipped_registry_set::<keys::WorldClock>("world_clock")
+    mcrs_minecraft_worldgen_testing::shipped_registry_set::<WorldClock>("world_clock")
 });
 
-fn clock_registry() -> Registry<keys::WorldClock> {
+fn clock_registry() -> Registry<WorldClock> {
     CLOCKS.registry().unwrap()
 }
 
@@ -472,9 +473,11 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     let alpha = overriding(0.25);
     let zulu = overriding(0.75);
 
-    let registry =
-        Registry::<keys::Timeline>::new(keys::TIMELINE, [rl("test:alpha"), rl("test:zulu")])
-            .unwrap();
+    let registry = Registry::<mcrs_minecraft_environment::timeline::Timeline>::new(
+        mcrs_minecraft_environment::keys::TIMELINE,
+        [rl("test:alpha"), rl("test:zulu")],
+    )
+    .unwrap();
     let source = |path, bytes| TagSource {
         pack: "test",
         path,
@@ -498,11 +501,13 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     ];
     let (table, problems) = build_tags(registry.table(), TagRules::World, &files, None);
     assert!(problems.is_empty(), "{problems:?}");
-    let tags = Tags::<keys::Timeline>::new(Arc::new(table));
+    let tags = Tags::<mcrs_minecraft_environment::timeline::Timeline>::new(Arc::new(table));
     let listing = tags
-        .get(&TagKey::<keys::Timeline, _>::from_location(rl(
-            "test:listing",
-        )))
+        .get(
+            &TagKey::<mcrs_minecraft_environment::timeline::Timeline, _>::from_location(rl(
+                "test:listing",
+            )),
+        )
         .unwrap();
     let order: Vec<_> = tags.members(listing).collect();
     assert_eq!(
