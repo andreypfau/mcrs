@@ -14,7 +14,8 @@ type Name = ResourceLocation<Arc<str>>;
 type Failures = Vec<(usize, String)>;
 type Validator = Box<dyn Fn(&(dyn Any + Send + Sync), &RegistrySet) -> Failures + Send + Sync>;
 type Parse = fn(Vec<Input<'_>>) -> Result<Column, Failures>;
-type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<Result<String, serde_json::Error>>;
+type EncodeResult = Result<String, serde_json::Error>;
+type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
 type Check<T> = fn(&[T], &RegistrySet) -> Failures;
 
 pub struct PackFile {
@@ -78,6 +79,12 @@ struct Codec {
     parse: Parse,
     encode: Encode,
     validators: Vec<Validator>,
+    split: Option<Split>,
+}
+
+struct Split {
+    columns: Box<dyn Fn(&(dyn Any + Send + Sync)) -> Vec<(TypeId, Column)> + Send + Sync>,
+    encode: Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>,
 }
 
 struct Declaration {
@@ -212,6 +219,50 @@ impl WorldRegistries {
             parse: parse_column::<T>,
             encode: encode_value::<T>,
             validators: Vec::new(),
+            split: None,
+        });
+        self
+    }
+
+    /// Stores what `parse::<T>` read as two columns, `A` and `B`, in place of
+    /// `T`. Validators still see `T`; `join` rebuilds `T` to encode an entry.
+    pub fn split<T, A, B>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        split: fn(&T) -> (A, B),
+        join: fn(&A, &B) -> T,
+    ) -> &mut Self
+    where
+        T: Serialize + Send + Sync + 'static,
+        A: Send + Sync + 'static,
+        B: Send + Sync + 'static,
+    {
+        let codec = self
+            .declaration(registry)
+            .codec
+            .as_mut()
+            .unwrap_or_else(|| panic!("registry {registry} parses no values to split"));
+        assert_eq!(
+            codec.value_type,
+            TypeId::of::<T>(),
+            "registry {registry} does not parse the split type"
+        );
+        codec.split = Some(Split {
+            columns: Box::new(move |column| {
+                let values = column
+                    .downcast_ref::<Arc<[T]>>()
+                    .expect("a parsed column holds the parsed type");
+                let (a, b): (Vec<A>, Vec<B>) = values.iter().map(split).unzip();
+                vec![
+                    (TypeId::of::<A>(), Arc::new(Arc::<[A]>::from(a)) as Column),
+                    (TypeId::of::<B>(), Arc::new(Arc::<[B]>::from(b)) as Column),
+                ]
+            }),
+            encode: Box::new(move |set, registry, index| {
+                let a = set.column::<A>(registry)?.get(index)?;
+                let b = set.column::<B>(registry)?.get(index)?;
+                Some(serde_json::to_string(&join(a, b)))
+            }),
         });
         self
     }
@@ -250,7 +301,10 @@ impl WorldRegistries {
         index: usize,
     ) -> Option<Result<String, serde_json::Error>> {
         let codec = self.declared.get(registry)?.codec.as_ref()?;
-        let column = set.column_any(registry)?;
+        if let Some(split) = &codec.split {
+            return set.scope(|| (split.encode)(set, registry, index));
+        }
+        let column = set.column_any(registry, codec.value_type)?;
         set.scope(|| (codec.encode)(&**column, index))
     }
 
@@ -518,7 +572,13 @@ impl WorldRegistries {
                                 loaded.report(&mut report, index, message);
                             }
                         }
-                        values.columns.insert(loaded.registry.clone(), column);
+                        let columns = match &codec.split {
+                            Some(split) => (split.columns)(&*column),
+                            None => vec![(codec.value_type, column)],
+                        };
+                        values
+                            .columns
+                            .insert(loaded.registry.clone(), columns.into_iter().collect());
                     }
                     Err(failures) => {
                         for (index, message) in failures {
@@ -844,6 +904,36 @@ mod tests {
             "vanilla",
             paths.iter().map(|path| names_only(path)).collect(),
         )]
+    }
+
+    #[test]
+    fn a_split_registry_stores_both_columns_and_encodes_the_file_again() {
+        let file = r#"{"asset_id":"plain","next":"minecraft:plain"}"#;
+        let packs = [pack(
+            "vanilla",
+            vec![data("minecraft/test_variant/plain.json", file)],
+        )];
+        let mut registries = registries();
+        registries
+            .validate::<Variant>(Variant::KEY.location(), |values, _| {
+                assert_eq!(values[0].asset_id, "plain");
+                Vec::new()
+            })
+            .split::<Variant, String, Id<Variant>>(
+                Variant::KEY.location(),
+                |variant| (variant.asset_id.clone(), variant.next),
+                |asset_id, next| Variant {
+                    asset_id: asset_id.clone(),
+                    next: *next,
+                },
+            );
+        let set = registries.load(&typed(), &packs).unwrap();
+
+        let registry = Variant::KEY.location().as_static_str();
+        assert_eq!(set.column::<String>(registry).unwrap(), ["plain"]);
+        assert_eq!(set.column::<Id<Variant>>(registry).unwrap()[0].index(), 0);
+        assert!(set.column::<Variant>(registry).is_none());
+        assert_eq!(registries.encode(&set, registry, 0).unwrap().unwrap(), file);
     }
 
     #[test]

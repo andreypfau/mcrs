@@ -18,7 +18,7 @@ pub(crate) type Column = Arc<dyn Any + Send + Sync>;
 #[derive(Clone, Default)]
 pub(crate) struct Values {
     pub(crate) tags: HashMap<ResourceLocation<Arc<str>>, Arc<TagTable>>,
-    pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, Column>,
+    pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, HashMap<TypeId, Column>>,
     pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
     pub(crate) packs: Box<[Box<str>]>,
 }
@@ -198,14 +198,11 @@ impl RegistrySet {
     }
 
     pub fn column<T: 'static>(&self, registry: &str) -> Option<&[T]> {
-        self.column_any(registry)?
-            .downcast_ref::<Arc<[T]>>()
-            .map(|values| &**values)
+        self.shared_column::<T>(registry).map(|values| &**values)
     }
 
     pub fn entries<R: 'static, T: 'static>(&self) -> Option<Entries<R, T>> {
-        self.column_any(self.name_of::<R>()?.as_str())?
-            .downcast_ref::<Arc<[T]>>()
+        self.shared_column::<T>(self.name_of::<R>()?.as_str())
             .map(|values| Entries::from_shared(Arc::clone(values)))
     }
 
@@ -214,8 +211,16 @@ impl RegistrySet {
         self.values.packs.get(pack as usize).map(|name| &**name)
     }
 
-    pub(crate) fn column_any(&self, registry: &str) -> Option<&Column> {
-        self.values.columns.get(registry)
+    pub(crate) fn column_any(&self, registry: &str, value_type: TypeId) -> Option<&Column> {
+        self.values.columns.get(registry)?.get(&value_type)
+    }
+
+    fn shared_column<T: 'static>(&self, registry: &str) -> Option<&Arc<[T]>> {
+        self.values
+            .columns
+            .get(registry)?
+            .get(&TypeId::of::<T>())?
+            .downcast_ref::<Arc<[T]>>()
     }
 
     pub fn scope<T>(&self, run: impl FnOnce() -> T) -> T {
