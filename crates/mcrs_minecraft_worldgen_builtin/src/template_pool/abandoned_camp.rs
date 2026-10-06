@@ -1,4 +1,4 @@
-use mcrs_minecraft_biome::PlacedFeatureKey;
+use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_keys::placed_feature;
 use mcrs_minecraft_worldgen_feature::template::Projection::Rigid;

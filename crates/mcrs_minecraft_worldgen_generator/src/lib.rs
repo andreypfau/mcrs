@@ -1,9 +1,9 @@
+use crate::beta_land_surface::beta_surface_blocks;
 use crate::biome_upscale::upscale_biomes;
 use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
 use crate::task::CancellationToken;
 use bevy_math::IVec3;
-use mcrs_minecraft_biome::beta_surface::beta_surface_blocks;
 use mcrs_minecraft_biome::climate::TargetPoint;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
@@ -1093,6 +1093,7 @@ pub fn apply_beta_surface(
     }
 }
 
+mod beta_land_surface;
 pub mod block_state;
 pub mod column_blocks;
 pub mod heightmap;

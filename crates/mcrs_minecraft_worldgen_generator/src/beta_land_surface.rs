@@ -1,7 +1,7 @@
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::BlockStateId;
 
-use crate::source::BetaLandBiome;
+use mcrs_minecraft_biome::source::BetaLandBiome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 
 /// Return the (top_block, filler_block) BlockStateIds for a Beta land biome.

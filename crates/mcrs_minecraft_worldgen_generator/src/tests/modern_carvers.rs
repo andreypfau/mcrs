@@ -29,7 +29,8 @@ fn y_sections() -> Vec<i32> {
 /// The carver list a biome actually ships, read the way the loader would.
 pub(super) fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     let id = mcrs_minecraft_core::ResourceLocation::read(biome).expect("a biome id");
-    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let biome: mcrs_minecraft_biome_file::BiomeFile =
+        mcrs_minecraft_worldgen_testing::read("biome", &id);
     mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
         .iter()
         .map(|name| {
@@ -156,7 +157,8 @@ fn carvers_by_biome() -> (
     &'static mcrs_minecraft_registry::Registry<mcrs_minecraft_keys::Biome>,
     mcrs_minecraft_registry::Entries<mcrs_minecraft_keys::Biome, Arc<[CarverConfig]>>,
 ) {
-    let biomes = mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome::Biome>("biome");
+    let biomes =
+        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome_file::BiomeFile>("biome");
     let configs: std::collections::BTreeMap<_, _> =
         mcrs_minecraft_worldgen_testing::registry::<CarverConfig>("carver")
             .into_iter()

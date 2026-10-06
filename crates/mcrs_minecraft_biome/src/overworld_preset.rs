@@ -1352,7 +1352,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     fn shipped_biomes() -> BTreeSet<String> {
-        mcrs_minecraft_worldgen_testing::registry::<crate::Biome>("biome")
+        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome_file::BiomeFile>("biome")
             .into_keys()
             .map(|id| id.as_str().to_owned())
             .collect()
@@ -1375,16 +1375,17 @@ mod tests {
     /// neither is wrong.
     #[test]
     fn the_table_names_exactly_the_biomes_with_overworld_carvers() {
-        let with_overworld_carvers: BTreeSet<String> =
-            mcrs_minecraft_worldgen_testing::registry::<crate::Biome>("biome")
-                .into_iter()
-                .filter(|(_, biome)| {
-                    mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
-                        .iter()
-                        .any(|carver| carver == mcrs_minecraft_keys::carver::CAVE.as_str())
-                })
-                .map(|(id, _)| id.as_str().to_owned())
-                .collect();
+        let with_overworld_carvers: BTreeSet<String> = mcrs_minecraft_worldgen_testing::registry::<
+            mcrs_minecraft_biome_file::BiomeFile,
+        >("biome")
+        .into_iter()
+        .filter(|(_, biome)| {
+            mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
+                .iter()
+                .any(|carver| carver == mcrs_minecraft_keys::carver::CAVE.as_str())
+        })
+        .map(|(id, _)| id.as_str().to_owned())
+        .collect();
 
         let table = overworld_parameter_list();
         // Every climate cell of every slice, twice for the depth ends: 22

@@ -103,7 +103,8 @@ fn material_router(seed: u64, ids: &HashMap<String, u16>) -> (NoiseRouter, Mater
 
 fn carvers_of(biome: &str) -> Arc<[CarverConfig]> {
     let id = ResourceLocation::read(biome).expect("a biome id");
-    let biome: mcrs_minecraft_biome::Biome = mcrs_minecraft_worldgen_testing::read("biome", &id);
+    let biome: mcrs_minecraft_biome_file::BiomeFile =
+        mcrs_minecraft_worldgen_testing::read("biome", &id);
     mcrs_minecraft_worldgen_testing::names_of(&biome.carvers)
         .iter()
         .map(|name| {

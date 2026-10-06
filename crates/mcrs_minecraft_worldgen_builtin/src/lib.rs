@@ -11,7 +11,7 @@ mod structure;
 mod template_pool;
 mod terrain;
 
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_registry::{Built, RegistrySet};
@@ -36,7 +36,7 @@ pub fn built_biomes() -> Built {
 
 pub fn biomes(
     set: &RegistrySet,
-) -> Result<BTreeMap<ResourceLocation, Biome>, Vec<(usize, String)>> {
+) -> Result<BTreeMap<ResourceLocation, BiomeFile>, Vec<(usize, String)>> {
     Ok(biome::names().into_iter().zip(biome::build(set)?).collect())
 }
 

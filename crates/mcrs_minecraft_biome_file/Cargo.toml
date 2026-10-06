@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_biome_file"
+description = "The biome file as data packs write it, its built-in draft, and the columns it is stored as"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_worldgen_feature.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_worldgen_testing.workspace = true
+serde_json.workspace = true

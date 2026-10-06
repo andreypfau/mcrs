@@ -1,3 +1,5 @@
+use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings};
+use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -461,15 +463,16 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
                     "{registry}/{name}: {} is not a file and the entry is not a built biome",
                     file.display()
                 );
-                let column = set
-                    .column::<mcrs_minecraft_biome::Biome>(registry.as_str())
-                    .expect("biomes are parsed by the loader");
-                let read: mcrs_minecraft_biome::Biome =
-                    set.scope(|| serde_json::from_str(&encoded).unwrap());
-                assert!(
-                    read == column[index],
-                    "{registry}/{name} reads back changed"
-                );
+                let read: BiomeFile = set.scope(|| serde_json::from_str(&encoded).unwrap());
+                let stored = BiomeFile::join((
+                    &set.column::<mcrs_minecraft_biome::Biome>(registry.as_str())
+                        .unwrap()[index],
+                    &set.column::<EnvironmentAttributeMap>(registry.as_str())
+                        .unwrap()[index],
+                    &set.column::<BiomeGenerationSettings>(registry.as_str())
+                        .unwrap()[index],
+                ));
+                assert!(read == stored, "{registry}/{name} reads back changed");
                 continue;
             };
             let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();

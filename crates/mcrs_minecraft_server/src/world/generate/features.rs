@@ -8,6 +8,7 @@ use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_biome::{Biome, TemperatureModifier};
+use mcrs_minecraft_biome_file::BiomeGenerationSettings;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
@@ -156,19 +157,22 @@ fn build_dimension_features(
     let biomes = registries
         .entries::<keys::Biome, Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
-    let by_id: BTreeMap<ResourceLocation, &Biome> = biome_registry
+    let generation = registries
+        .entries::<keys::Biome, BiomeGenerationSettings>()
+        .expect("the data pack loader splits minecraft:worldgen/biome");
+    let by_id: BTreeMap<ResourceLocation, (&Biome, &BiomeGenerationSettings)> = biome_registry
         .ids()
         .map(|id| {
             let name = biome_registry
                 .name(id)
                 .expect("an id of the registry has a name");
-            (name.clone(), &biomes[id])
+            (name.clone(), (&biomes[id], &generation[id]))
         })
         .collect();
 
     let climate: BTreeMap<ResourceLocation, BiomeClimate> = by_id
         .iter()
-        .map(|(id, biome)| {
+        .map(|(id, (biome, _))| {
             (
                 id.clone(),
                 BiomeClimate {
@@ -187,8 +191,8 @@ fn build_dimension_features(
         let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {
-                Some(biome) => steps.push(decoration_steps(
-                    &biome.features,
+                Some((_, generation)) => steps.push(decoration_steps(
+                    &generation.features,
                     &placed_names,
                     &placed_tags,
                 )),

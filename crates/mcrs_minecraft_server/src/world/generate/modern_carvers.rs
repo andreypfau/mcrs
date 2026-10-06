@@ -36,7 +36,7 @@ impl bevy_app::Plugin for ModernCarverPlugin {
 /// biome names that did not load is reported and the biome runs without it.
 fn carvers_by_biome(
     biomes: &Registry<keys::Biome>,
-    values: &Entries<keys::Biome, mcrs_minecraft_biome::Biome>,
+    values: &Entries<keys::Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>,
     carvers: &Registry<keys::Carver>,
     carver_tags: &Tags<keys::Carver>,
     table: &Entries<keys::Carver, Option<CarverConfig>>,
@@ -79,7 +79,7 @@ fn build_modern_carver_biomes(
         .registry::<keys::Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let values = registries
-        .entries::<keys::Biome, mcrs_minecraft_biome::Biome>()
+        .entries::<keys::Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let carver_names = registries
         .registry::<keys::Carver>()

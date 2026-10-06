@@ -3478,17 +3478,30 @@ dependencies = [
 name = "mcrs_minecraft_biome"
 version = "0.4.6"
 dependencies = [
- "mcrs_minecraft_block",
+ "mcrs_minecraft_biome_file",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_keys",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registry",
+ "mcrs_minecraft_worldgen_testing",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "mcrs_minecraft_biome_file"
+version = "0.4.6"
+dependencies = [
+ "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_keys",
- "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
  "mcrs_minecraft_worldgen_feature",
  "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
- "sha2",
 ]
 
 [[package]]
@@ -4023,6 +4036,7 @@ dependencies = [
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
+ "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
@@ -4081,6 +4095,7 @@ name = "mcrs_minecraft_update"
 version = "0.4.6"
 dependencies = [
  "mcrs_minecraft_biome",
+ "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
@@ -4110,6 +4125,7 @@ dependencies = [
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
+ "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
@@ -4175,6 +4191,7 @@ name = "mcrs_minecraft_worldgen_builtin"
 version = "0.4.6"
 dependencies = [
  "mcrs_minecraft_biome",
+ "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
@@ -4297,6 +4314,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
+ "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
