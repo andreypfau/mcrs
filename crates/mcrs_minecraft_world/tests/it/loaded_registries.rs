@@ -12,7 +12,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
@@ -2034,7 +2034,7 @@ fn the_worldgen_tables_hold_every_loaded_carver_by_id() {
 
 fn overworld_dimension_type_with(
     changes: &[(&str, Option<&str>)],
-) -> Result<DimensionType, String> {
+) -> Result<DimensionTypeFile, String> {
     let mut file: serde_json::Value = serde_json::from_slice(
         &std::fs::read(assets().join("minecraft/dimension_type/overworld.json")).unwrap(),
     )

@@ -9,7 +9,8 @@ use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
 
-use crate::dimension_type::DimensionType;
+use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClocks};
 
@@ -25,11 +26,12 @@ fn assets_dir() -> PathBuf {
         .join("assets/minecraft")
 }
 
-fn dimension_type(name: &str) -> DimensionType {
+fn dimension_type(name: &str) -> (DimensionType, DimensionTypeEnvironment) {
     let bytes = std::fs::read(assets_dir().join("dimension_type").join(name)).unwrap();
     mcrs_minecraft_worldgen_testing::dimension_type_set()
-        .scope(|| serde_json::from_slice(&bytes))
+        .scope(|| serde_json::from_slice::<DimensionTypeFile>(&bytes))
         .unwrap()
+        .split()
 }
 
 static CLOCKS: LazyLock<RegistrySet> = LazyLock::new(|| {
@@ -74,8 +76,11 @@ fn dimension_key(id: &str) -> ResourceKey<keys::Dimension> {
     ResourceKey::from_location(id.parse().unwrap())
 }
 
-fn shape<'a>(id: &str, proto: &'a DimensionType) -> DimensionEnvironment<'a> {
-    DimensionEnvironment::of(&dimension_key(id), proto)
+fn shape<'a>(
+    id: &str,
+    (dimension_type, environment): &'a (DimensionType, DimensionTypeEnvironment),
+) -> DimensionEnvironment<'a> {
+    DimensionEnvironment::of(&dimension_key(id), dimension_type, environment)
 }
 
 fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes {
@@ -551,7 +556,7 @@ fn a_dimension_type_outside_the_games_bounds_fails() {
             }
         }
         mcrs_minecraft_worldgen_testing::dimension_type_set()
-            .scope(|| serde_json::from_value::<DimensionType>(file))
+            .scope(|| serde_json::from_value::<DimensionTypeFile>(file))
     };
     for refused in [
         json!({"weather": true}),

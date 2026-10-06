@@ -2,7 +2,10 @@ use bevy_app::App;
 use mcrs_minecraft_assets::packs::PACKS_ROOT;
 use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_dimension_environment::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_dimension::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::{
+    DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
+};
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
 use mcrs_minecraft_keys as keys;
@@ -126,10 +129,15 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
         .expect("the dimension type table is loaded");
     let dimension_types = set
         .column::<DimensionType>("minecraft:dimension_type")
-        .expect("the loader parses the dimension types");
+        .expect("the loader splits the dimension types");
+    let environments = set
+        .column::<DimensionTypeEnvironment>("minecraft:dimension_type")
+        .expect("the loader splits the dimension types");
 
     let mut seen = 0;
-    for (index, (rl, dimension_type)) in table.names().iter().zip(dimension_types).enumerate() {
+    for (index, rl) in table.names().iter().enumerate() {
+        let dimension_type =
+            &DimensionTypeFile::join((&dimension_types[index], &environments[index]));
         let pack = set
             .pack_of("minecraft:dimension_type", index)
             .unwrap_or_else(|| panic!("{rl} has no pack"));

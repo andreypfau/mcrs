@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_render.workspace = true

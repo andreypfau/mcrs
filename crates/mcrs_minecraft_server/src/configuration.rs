@@ -17,7 +17,7 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::{AppState, RegistryAccess};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionType;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_keys::{
     self as keys, BannerPattern, Block, CatVariant, DamageType, Dialog, Enchantment, EntityType,
     Instrument, Item, JukeboxSong, PaintingVariant, Timeline, TrimMaterial, TrimPattern,
@@ -255,10 +255,10 @@ fn on_known_packs_response(
     // dimension types. The vanilla protocol still expects it to be sent.
     {
         let attr_keys: BTreeSet<&str> = set
-            .column::<DimensionType>(keys::DIMENSION_TYPE.location().as_static_str())
+            .column::<DimensionTypeEnvironment>(keys::DIMENSION_TYPE.location().as_static_str())
             .unwrap_or_default()
             .iter()
-            .flat_map(|dim_type| dim_type.attributes.0.keys().map(|key| key.as_str()))
+            .flat_map(|environment| environment.attributes.0.keys().map(|key| key.as_str()))
             .collect();
         if !attr_keys.is_empty() {
             let entries: Vec<Entry> = attr_keys

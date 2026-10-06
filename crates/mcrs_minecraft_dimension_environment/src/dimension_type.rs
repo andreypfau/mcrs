@@ -3,6 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_core::value_provider::{BoundedIntProvider, IntProvider};
+use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{HolderSet, Id};
@@ -42,7 +43,7 @@ fn monster_spawn_light_level<'de, D: Deserializer<'de>>(d: D) -> Result<IntProvi
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
-pub struct DimensionType {
+pub struct DimensionTypeFile {
     pub has_skylight: bool,
     pub has_ceiling: bool,
     pub has_ender_dragon_fight: bool,
@@ -74,9 +75,9 @@ pub struct DimensionType {
     pub default_clock: Option<Id<keys::WorldClock>>,
 }
 
-impl<'de> Deserialize<'de> for DimensionType {
+impl<'de> Deserialize<'de> for DimensionTypeFile {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let dimension_type = DimensionType::deserialize(d)?;
+        let dimension_type = DimensionTypeFile::deserialize(d)?;
         let (min_y, height) = (dimension_type.min_y, dimension_type.height as i32);
         let refused = if min_y + height > MAX_Y + 1 {
             Some(format!(
@@ -99,9 +100,69 @@ impl<'de> Deserialize<'de> for DimensionType {
     }
 }
 
-impl Serialize for DimensionType {
+impl Serialize for DimensionTypeFile {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        DimensionType::serialize(self, s)
+        DimensionTypeFile::serialize(self, s)
+    }
+}
+
+/// The environment attributes, timelines and default clock of a dimension type,
+/// the column the environment stacks are built from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DimensionTypeEnvironment {
+    pub attributes: EnvironmentAttributeMap,
+    pub timelines: HolderSet<keys::Timeline>,
+    pub default_clock: Option<Id<keys::WorldClock>>,
+}
+
+impl DimensionTypeFile {
+    pub fn split(&self) -> (DimensionType, DimensionTypeEnvironment) {
+        let dimension_type = DimensionType {
+            has_skylight: self.has_skylight,
+            has_ceiling: self.has_ceiling,
+            has_ender_dragon_fight: self.has_ender_dragon_fight,
+            coordinate_scale: self.coordinate_scale,
+            min_y: self.min_y,
+            height: self.height,
+            logical_height: self.logical_height,
+            infiniburn: self.infiniburn.clone(),
+            ambient_light: self.ambient_light,
+            monster_spawn_block_light_limit: self.monster_spawn_block_light_limit,
+            monster_spawn_light_level: self.monster_spawn_light_level.clone(),
+            skybox: self.skybox,
+            cardinal_light: self.cardinal_light.clone(),
+            has_fixed_time: self.has_fixed_time,
+        };
+        let environment = DimensionTypeEnvironment {
+            attributes: self.attributes.clone(),
+            timelines: self.timelines.clone(),
+            default_clock: self.default_clock,
+        };
+        (dimension_type, environment)
+    }
+
+    pub fn join(
+        (dimension_type, environment): (&DimensionType, &DimensionTypeEnvironment),
+    ) -> Self {
+        DimensionTypeFile {
+            has_skylight: dimension_type.has_skylight,
+            has_ceiling: dimension_type.has_ceiling,
+            has_ender_dragon_fight: dimension_type.has_ender_dragon_fight,
+            coordinate_scale: dimension_type.coordinate_scale,
+            min_y: dimension_type.min_y,
+            height: dimension_type.height,
+            logical_height: dimension_type.logical_height,
+            infiniburn: dimension_type.infiniburn.clone(),
+            ambient_light: dimension_type.ambient_light,
+            monster_spawn_block_light_limit: dimension_type.monster_spawn_block_light_limit,
+            monster_spawn_light_level: dimension_type.monster_spawn_light_level.clone(),
+            skybox: dimension_type.skybox,
+            cardinal_light: dimension_type.cardinal_light.clone(),
+            has_fixed_time: dimension_type.has_fixed_time,
+            attributes: environment.attributes.clone(),
+            timelines: environment.timelines.clone(),
+            default_clock: environment.default_clock,
+        }
     }
 }
 
@@ -133,8 +194,8 @@ pub struct NetworkDimensionType {
     pub default_clock: Option<Id<keys::WorldClock>>,
 }
 
-impl From<&DimensionType> for NetworkDimensionType {
-    fn from(dt: &DimensionType) -> Self {
+impl From<&DimensionTypeFile> for NetworkDimensionType {
+    fn from(dt: &DimensionTypeFile) -> Self {
         NetworkDimensionType {
             has_skylight: dt.has_skylight,
             has_ceiling: dt.has_ceiling,
@@ -157,26 +218,6 @@ impl From<&DimensionType> for NetworkDimensionType {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Skybox {
-    #[default]
-    #[serde(rename = "overworld")]
-    Overworld,
-    #[serde(rename = "none")]
-    None,
-    #[serde(rename = "end")]
-    End,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum CardinalLight {
-    #[default]
-    #[serde(rename = "default")]
-    Default,
-    #[serde(rename = "nether")]
-    Nether,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,7 +233,7 @@ mod tests {
             .collect()
     }
 
-    fn read(name: &str) -> DimensionType {
+    fn read(name: &str) -> DimensionTypeFile {
         let path = dimension_type_dirs()
             .into_iter()
             .map(|dir| dir.join(name))
@@ -248,7 +289,7 @@ mod tests {
             }
             let bytes = std::fs::read(&path).unwrap();
             let raw: Value = serde_json::from_slice(&bytes).unwrap();
-            let parsed: DimensionType = dimension_type_set()
+            let parsed: DimensionTypeFile = dimension_type_set()
                 .scope(|| serde_json::from_slice(&bytes))
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
 
