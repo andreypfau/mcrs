@@ -3,9 +3,9 @@ mod end;
 mod nether;
 mod overworld;
 
-use mcrs_minecraft_biome::{
-    Biome, BiomeDraft as Draft, BiomeGeneration as Generation, GrassColorModifier,
-};
+use mcrs_minecraft_biome::GrassColorModifier;
+use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generation};
 use mcrs_minecraft_core::codec::{HexRgb, NonNegativeInt};
 use mcrs_minecraft_core::value_provider::IntProvider;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
@@ -322,7 +322,7 @@ pub fn names() -> Vec<ResourceLocation> {
         .collect()
 }
 
-pub fn build(set: &RegistrySet) -> Result<Vec<Biome>, Vec<(usize, String)>> {
+pub fn build(set: &RegistrySet) -> Result<Vec<BiomeFile>, Vec<(usize, String)>> {
     let mut built = Vec::with_capacity(BIOMES.len());
     let mut failures = Vec::new();
     for (index, (_, draft)) in BIOMES.iter().enumerate() {

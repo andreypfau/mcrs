@@ -15,15 +15,17 @@ use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, SyncedRegistry};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::{
     MultiNoiseBiomeSourceParameterList, check_parameter_list_biomes,
 };
-use mcrs_minecraft_biome::{Biome, NetworkBiome};
+use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
+use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
@@ -102,6 +104,8 @@ macro_rules! split_registry_table {
 split_registry_table! {
     keys::Enchantment => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
+    keys::Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
+        BiomeFile::split, BiomeFile::join, synced as |biome| NetworkBiome::from(biome);
 }
 
 world_registry_table! {
@@ -145,7 +149,6 @@ world_registry_table! {
     keys::WorldClock => WorldClock, synced as Clone::clone;
     keys::Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
     keys::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
-    keys::Biome => Biome, synced as |biome| NetworkBiome::from(biome);
     keys::DimensionType => DimensionType, synced as |d| NetworkDimensionType::from(d);
     keys::BlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
     keys::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;

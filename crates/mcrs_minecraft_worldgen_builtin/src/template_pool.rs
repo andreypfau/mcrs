@@ -11,7 +11,7 @@ mod village_savanna;
 mod village_snowy;
 mod village_taiga;
 
-use mcrs_minecraft_biome::PlacedFeatureKey;
+use mcrs_minecraft_biome_file::PlacedFeatureKey;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_keys::ProcessorList;

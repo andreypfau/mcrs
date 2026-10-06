@@ -113,7 +113,8 @@ fn every_shipped_noise_settings_compiles_its_material_rules() {
     assert!(seen >= 8, "only {seen} noise settings were checked");
 }
 
-use mcrs_minecraft_biome::{Biome, TemperatureModifier};
+use mcrs_minecraft_biome::TemperatureModifier;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_registry::{Registry, Tags};
@@ -160,7 +161,7 @@ pub fn corpus_climate() -> &'static std::sync::Arc<[BiomeClimate]> {
     static CLIMATE: std::sync::OnceLock<std::sync::Arc<[BiomeClimate]>> =
         std::sync::OnceLock::new();
     CLIMATE.get_or_init(|| {
-        let biomes = registry::<Biome>("biome");
+        let biomes = registry::<BiomeFile>("biome");
         corpus_biomes()
             .ids()
             .map(|id| {

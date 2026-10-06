@@ -3,7 +3,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
-use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_client_jar::{Directory, Files};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -132,9 +132,9 @@ fn biome_name(path: &str) -> Option<ResourceLocation> {
     ResourceLocation::minecraft(name).ok()
 }
 
-fn same_biome(names: &RegistrySet, built: &Biome, shipped: &[u8]) -> bool {
+fn same_biome(names: &RegistrySet, built: &BiomeFile, shipped: &[u8]) -> bool {
     names
-        .scope(|| serde_json::from_slice::<Biome>(shipped))
+        .scope(|| serde_json::from_slice::<BiomeFile>(shipped))
         .is_ok_and(|shipped| &shipped == built)
 }
 
@@ -524,10 +524,7 @@ mod tests {
 
     const PLAINS: &str = "worldgen/biome/plains.json";
 
-    fn jar_plains(
-        names: &RegistrySet,
-        change: impl FnOnce(&mut mcrs_minecraft_biome::Biome),
-    ) -> Files {
+    fn jar_plains(names: &RegistrySet, change: impl FnOnce(&mut BiomeFile)) -> Files {
         let mut plains = mcrs_minecraft_worldgen_builtin::biomes(names)
             .unwrap()
             .remove(&rl!("minecraft:plains").to_arc())
