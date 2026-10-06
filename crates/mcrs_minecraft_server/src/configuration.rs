@@ -379,8 +379,8 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 
 /// Runs each Update tick. For every connection in the game state whose session
 /// is still unplaced, picks the live `DimSubAppHandle` label entity of the
-/// dimension the player was saved in, or the overworld's when the save names
-/// none or a dimension that is not live, sends
+/// dimension the player was saved in, or the first dimension of the list when
+/// the save names none or a dimension that is not live, sends
 /// one `ToDim::Spawn` into the dimension's control channel and marks the session
 /// as joining that label entity — the key used by `DimChannelsResource`, NOT a
 /// sub-app-internal `Dimension` entity.
@@ -429,7 +429,10 @@ pub fn emit_initial_player_spawn(
         let Some(dim_label) = saved
             .as_ref()
             .and_then(|dat| live(dat.dimension.as_str()))
-            .or_else(|| live(mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str()))
+            .or_else(|| {
+                let first = dimension_list.as_ref()?.keys().first()?;
+                live(first.as_str())
+            })
         else {
             continue;
         };

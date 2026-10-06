@@ -40,7 +40,47 @@ const LEADING: [ResourceKey<Dimension, &str>; 3] = [
     mcrs_minecraft_dimension::keys::dimension::THE_END,
 ];
 
+/// The vanilla dimension list of a save or a world preset, which must hold the overworld.
 pub fn bake(
+    base: &Dimensions,
+    set: &RegistrySet,
+    report: &mut LoadReport,
+) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
+    let baked = merge(base, set, report)?;
+    if !baked
+        .first()
+        .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
+    {
+        report.missing(
+            mcrs_minecraft_dimension::keys::DIMENSION,
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str(),
+            "the dimension list has no overworld, which every world needs",
+        );
+        return None;
+    }
+    Some(baked)
+}
+
+/// `base` with the data pack's dimensions over it, the vanilla dimensions first when present.
+/// The first entry is where a player with no saved dimension spawns, so the list must not be
+/// empty.
+pub fn bake_list(
+    base: &Dimensions,
+    set: &RegistrySet,
+    report: &mut LoadReport,
+) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
+    let baked = merge(base, set, report)?;
+    if baked.is_empty() {
+        report.invalid_report(format_args!(
+            "{}: the dimension list is empty, so no player has a dimension to spawn in",
+            mcrs_minecraft_dimension::keys::DIMENSION
+        ));
+        return None;
+    }
+    Some(baked)
+}
+
+fn merge(
     base: &Dimensions,
     set: &RegistrySet,
     report: &mut LoadReport,
@@ -69,17 +109,5 @@ pub fn bake(
         }
     }
     baked.extend(merged);
-
-    if !baked
-        .first()
-        .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
-    {
-        report.missing(
-            mcrs_minecraft_dimension::keys::DIMENSION,
-            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str(),
-            "the dimension list has no overworld, which every world needs",
-        );
-        return None;
-    }
     Some(baked)
 }

@@ -8,7 +8,7 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
+use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registries::refuse;
 use mcrs_minecraft_world::save::read_world_gen_settings;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -33,34 +33,41 @@ pub fn configured_preset(
     report.require_by_name(&registry, name)
 }
 
+/// The dimension list the server plugin was given, which replaces the save's and the preset's.
+#[derive(Resource, Clone)]
+pub(crate) struct PluginDimensions(pub Dimensions);
+
 pub(crate) fn bake_dimensions(
     mut commands: Commands,
     set: Res<RegistrySet>,
     save: Option<Res<WorldSave>>,
+    given: Option<Res<PluginDimensions>>,
     mut seed: ResMut<WorldSeed>,
 ) {
-    let name = get_world_preset_name();
     let mut report = LoadReport::new();
-    let Some(preset) = configured_preset(&name, &set, &mut report) else {
-        refuse(&report)
-    };
-
     let mut base = Dimensions::new();
     if let Some(save) = save {
         let settings = read_world_gen_settings(&save.0, &set).unwrap_or_else(|err| panic!("{err}"));
         seed.0 = settings.seed as u64;
         base = settings.dimensions;
     }
-    if base.is_empty() {
-        base = set
-            .entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
-            .expect("the data pack loader parses minecraft:worldgen/world_preset")[preset]
-            .dimensions
-            .clone();
-    }
-    let Some(list) = bake(&base, &set, &mut report) else {
-        refuse(&report)
+    let (source, list) = if let Some(given) = given {
+        ("plugin".to_owned(), bake_list(&given.0, &set, &mut report))
+    } else {
+        let name = get_world_preset_name();
+        let Some(preset) = configured_preset(&name, &set, &mut report) else {
+            refuse(&report)
+        };
+        if base.is_empty() {
+            base = set
+                .entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
+                .expect("the data pack loader parses minecraft:worldgen/world_preset")[preset]
+                .dimensions
+                .clone();
+        }
+        (name, bake(&base, &set, &mut report))
     };
+    let Some(list) = list else { refuse(&report) };
 
     let mut sources = DimensionBiomeSources::default();
     for (dimension, entry) in &list {
@@ -71,7 +78,7 @@ pub(crate) fn bake_dimensions(
             );
         }
     }
-    info!(preset = %name, dimensions = list.len(), "dimension list");
+    info!(%source, dimensions = list.len(), "dimension list");
     commands.insert_resource(sources);
     commands.insert_resource(DimensionList::new(list));
 }

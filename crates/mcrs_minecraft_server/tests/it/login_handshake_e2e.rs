@@ -63,6 +63,7 @@ fn build_join_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     support::insert_registries(&mut app);
+    app.insert_resource(crate::support::dimension_list_with_extra());
 
     app.init_resource::<mcrs_minecraft_network::metrics::BridgeTelemetry>();
     app.init_resource::<mcrs_minecraft_level::session::PlayerSessionCounter>();

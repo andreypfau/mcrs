@@ -52,6 +52,7 @@ fn build_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     support::insert_registries(&mut app);
+    app.insert_resource(support::dimension_list_with_extra());
 
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
