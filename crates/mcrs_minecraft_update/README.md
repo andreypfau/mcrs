@@ -84,9 +84,10 @@ The steps, in order:
    every state computed from the declared property order and the default state
    agree. `blocks.json` is checked here and not stored.
 7. Store `registries.json`, `packets.json` and `datapack.json` in
-   `assets/mcrs/reports`, and replace `assets/mcrs/block_definition` and
-   `assets/mcrs/item_definition` with what the dump wrote, including the README
-   of the block definitions.
+   `assets/mcrs/reports`, and replace `assets/mcrs/block_definition`,
+   `assets/mcrs/item_definition` and `assets/mcrs/registry_definition` (the game
+   rules) with what the dump wrote, including the README of the block
+   definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
    regenerate the sources of `crates/mcrs_minecraft_keys` from the three reports.
 

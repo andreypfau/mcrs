@@ -3735,6 +3735,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_game_rule"
+version = "0.4.6"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_registry",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_inventory"
 version = "0.4.6"
 dependencies = [
@@ -4081,6 +4091,7 @@ dependencies = [
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
@@ -4271,6 +4282,7 @@ dependencies = [
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",

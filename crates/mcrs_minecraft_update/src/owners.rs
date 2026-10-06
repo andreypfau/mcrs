@@ -636,4 +636,9 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_loot",
         value: ValueType::Enum("SlotSourceType"),
     },
+    Owner {
+        registry: "minecraft:game_rule",
+        krate: "mcrs_minecraft_game_rule",
+        value: ValueType::Enum("GameRule"),
+    },
 ];
