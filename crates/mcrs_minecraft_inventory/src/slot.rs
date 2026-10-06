@@ -1,7 +1,7 @@
 use crate::shulker_boxes::ShulkerBoxes;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
+use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::{
     ItemStack, Items, SelectedHotbarSlot, SlotTable, is_stackable, max_stack_size, slots,
     stack_to_value,
@@ -97,12 +97,12 @@ fn prevents_armor_change(world: &World, enchantments: Option<&Enchantments>) -> 
         return false;
     };
     let registry = world.resource::<Registry<Enchantment>>();
-    let values = world.resource::<Entries<Enchantment, EnchantmentData>>();
+    let effects = world.resource::<Entries<Enchantment, Option<EnchantmentEffects>>>();
     enchantments.0.iter().any(|(id, _)| {
         registry
             .get(id)
-            .and_then(|id| values.get(id))
-            .and_then(|data| data.effects.as_ref())
+            .and_then(|id| effects.get(id))
+            .and_then(Option::as_ref)
             .is_some_and(|effects| effects.prevent_armor_change.is_some())
     })
 }

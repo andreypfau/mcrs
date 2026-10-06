@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_minecraft_enchantment"
+description = "Enchantment effects, the predicates and level-based values they read, and the enchantment file"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_keys.workspace = true
+mcrs_minecraft_registry.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_worldgen_testing.workspace = true
+serde_json.workspace = true

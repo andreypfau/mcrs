@@ -22,6 +22,8 @@ use mcrs_minecraft_biome::{Biome, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::dimension_type::{DimensionType, NetworkDimensionType};
+use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_enchantment::file::EnchantmentFile;
 use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClock, check_time_markers};
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
@@ -71,6 +73,37 @@ macro_rules! world_registry_table {
     };
 }
 
+macro_rules! split_registry_table {
+    ($($key:ty => $file:ty, $split:expr, $join:expr, synced as $project:expr;)*) => {
+        fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
+            $(
+                parse::<$key, $file>(world, report);
+                let registry = <$key as keys::Registered>::REGISTRY.location();
+                if world.parses(registry.as_static_str()) {
+                    world.split(registry, $split, $join);
+                }
+            )*
+        }
+
+        pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
+            $(
+                register_joined(
+                    access,
+                    set,
+                    <$key as keys::Registered>::REGISTRY.location().as_static_str(),
+                    $join,
+                    $project,
+                );
+            )*
+        }
+    };
+}
+
+split_registry_table! {
+    keys::Enchantment => EnchantmentFile, EnchantmentFile::split, EnchantmentFile::join,
+        synced as |file: &EnchantmentFile| file.clone();
+}
+
 world_registry_table! {
     keys::BannerPattern => BannerPattern, synced as Clone::clone;
     keys::Instrument => InstrumentValue, synced as Clone::clone;
@@ -84,7 +117,6 @@ world_registry_table! {
     keys::Dialog => Dialog, synced as Clone::clone;
     keys::DamageType => DamageType, synced as Clone::clone;
     keys::BlockTransformer => BlockTransformer, synced as Clone::clone;
-    keys::Enchantment => EnchantmentData, synced as Clone::clone;
     keys::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
     keys::WolfVariant => variant::WolfVariant [non_empty],
         synced as |v| variant::NetworkWolfVariant::from(v);
@@ -129,6 +161,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
     parse_world_registries(&mut world, &mut undeclared);
+    parse_split_registries(&mut world, &mut undeclared);
     if world.parses(keys::TIMELINE.location().as_static_str()) {
         world.validate::<Timeline>(keys::TIMELINE.location(), check_time_markers);
     }
@@ -293,20 +326,41 @@ pub fn register_loaded<T: 'static, N: Serialize>(
     registry: &str,
     project: fn(&T) -> N,
 ) {
-    let table = set
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
     let values = set
         .column::<T>(registry)
         .unwrap_or_else(|| panic!("{registry} holds no values of the projected type"));
+    register_projected(access, set, registry, |id| project(&values[id]));
+}
+
+fn register_joined<T, A: 'static, B: 'static, N: Serialize>(
+    access: &mut RegistryAccess,
+    set: &RegistrySet,
+    registry: &str,
+    join: fn(&A, &B) -> T,
+    project: fn(&T) -> N,
+) {
+    let (Some(a), Some(b)) = (set.column::<A>(registry), set.column::<B>(registry)) else {
+        panic!("{registry} holds no split columns of the joined type");
+    };
+    register_projected(access, set, registry, |id| project(&join(&a[id], &b[id])));
+}
+
+fn register_projected<N: Serialize>(
+    access: &mut RegistryAccess,
+    set: &RegistrySet,
+    registry: &str,
+    project: impl Fn(usize) -> N,
+) {
+    let table = set
+        .table(registry)
+        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
     let entries = set.scope(|| {
         table
             .names()
             .iter()
-            .zip(values)
             .enumerate()
-            .map(|(id, (name, value))| {
-                let tag = mcrs_minecraft_nbt::to_nbt_tag(&project(value)).unwrap_or_else(|e| {
+            .map(|(id, name)| {
+                let tag = mcrs_minecraft_nbt::to_nbt_tag(&project(id)).unwrap_or_else(|e| {
                     panic!("{registry}/{name} does not encode for the network: {e}")
                 });
                 RegistryEntry {
@@ -366,6 +420,11 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
             .entries::<Enchantment, EnchantmentData>()
             .expect("the data pack loader parses minecraft:enchantment"),
     );
+    world.insert_resource(
+        registries
+            .entries::<Enchantment, Option<EnchantmentEffects>>()
+            .expect("the data pack loader splits minecraft:enchantment"),
+    );
     let clocks = registries
         .registry::<keys::WorldClock>()
         .expect("the data pack loader parses minecraft:world_clock");
@@ -396,6 +455,7 @@ pub fn share_registries(world: &mut World) {
     share::<Items>(world);
     share::<Registry<Enchantment>>(world);
     share::<Entries<Enchantment, EnchantmentData>>(world);
+    share::<Entries<Enchantment, Option<EnchantmentEffects>>>(world);
     share::<Registry<keys::Biome>>(world);
     share::<Registry<keys::Structure>>(world);
     share::<Registry<keys::Timeline>>(world);

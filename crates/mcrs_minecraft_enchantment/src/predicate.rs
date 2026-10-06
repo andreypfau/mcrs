@@ -5,7 +5,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::value::{Bounds, NumberProvider};
-use crate::component::predicate::ComponentPredicates;
+use mcrs_minecraft_item::component::predicate::ComponentPredicates;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::HolderSet;
 

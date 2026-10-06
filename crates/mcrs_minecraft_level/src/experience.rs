@@ -2,8 +2,8 @@ use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_keys::Enchantment;
 use mcrs_minecraft_protocol::item::Enchantments;
 use mcrs_minecraft_random::Random;
@@ -77,7 +77,7 @@ fn process_block_experience(
     amount: i32,
     enchantments: Option<&Enchantments>,
     registry: &Registry<Enchantment>,
-    values: &Entries<Enchantment, EnchantmentData>,
+    values: &Entries<Enchantment, Option<EnchantmentEffects>>,
     random: &mut XoroshiroRandom,
 ) -> i32 {
     let Some(enchantments) = enchantments else {
@@ -85,12 +85,10 @@ fn process_block_experience(
     };
     let mut value = amount as f32;
     for (id, level) in &enchantments.0 {
-        let Some(data) = registry.get(id).and_then(|id| values.get(id)) else {
-            continue;
-        };
-        let Some(effects) = data
-            .effects
-            .as_ref()
+        let Some(effects) = registry
+            .get(id)
+            .and_then(|id| values.get(id))
+            .and_then(Option::as_ref)
             .and_then(|effects| effects.block_experience.as_ref())
         else {
             continue;
@@ -115,7 +113,7 @@ fn award_block_experience(
     mut award: MessageWriter<AwardExperience>,
     blocks: Res<Blocks>,
     registry: Res<Registry<Enchantment>>,
-    values: Res<Entries<Enchantment, EnchantmentData>>,
+    values: Res<Entries<Enchantment, Option<EnchantmentEffects>>>,
     tools: Query<Option<&Enchantments>, With<ItemStack>>,
     mut random: ResMut<DimensionRandom>,
 ) {

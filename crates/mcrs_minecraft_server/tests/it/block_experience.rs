@@ -9,7 +9,7 @@ use mcrs_minecraft_level::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
 use mcrs_minecraft_protocol::item::Enchantments;
-use mcrs_minecraft_world::item::{test_enchantment_registry, test_enchantments};
+use mcrs_minecraft_world::item::{test_enchantment_effects, test_enchantment_registry};
 
 use crate::inventory_sync::value;
 
@@ -21,7 +21,7 @@ fn harness() -> App {
         ..Default::default()
     });
     app.insert_resource(test_enchantment_registry());
-    app.insert_resource(test_enchantments());
+    app.insert_resource(test_enchantment_effects());
     crate::support::insert_corpus(&mut app);
     app.add_plugins(ExperiencePlugin);
     app.add_systems(Update, collect_awards);

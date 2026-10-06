@@ -137,12 +137,11 @@ impl Plugin for MinecraftWorldPlugin {
             let block_registry = registries
                 .registry::<mcrs_minecraft_keys::Block>()
                 .expect("the static registries hold minecraft:block");
-            registries::register_world_registries(
-                &mut app
-                    .world_mut()
-                    .resource_mut::<mcrs_minecraft_assets::RegistryAccess>(),
-                &registries,
-            );
+            let mut access = app
+                .world_mut()
+                .resource_mut::<mcrs_minecraft_assets::RegistryAccess>();
+            registries::register_world_registries(&mut access, &registries);
+            registries::register_split_registries(&mut access, &registries);
             registries::insert_registry_resources(app.world_mut(), &registries);
             (block_registry, registries)
         };
