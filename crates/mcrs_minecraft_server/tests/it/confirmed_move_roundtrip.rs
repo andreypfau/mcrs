@@ -18,7 +18,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::{Despawned, InTransit};
 use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, SessionPlacement};
@@ -85,14 +85,14 @@ fn build_harness() -> Harness {
         .world_mut()
         .spawn((
             DimSubAppHandle,
-            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD),
         ))
         .id();
     let dest_label = host
         .world_mut()
         .spawn((
             DimSubAppHandle,
-            ResourceKey::<keys::Dimension>::from(keys::dimension::THE_NETHER),
+            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::THE_NETHER),
         ))
         .id();
 
@@ -177,7 +177,7 @@ fn initiate_move(h: &Harness, source_dim: &mut App, move_id: MoveId) -> Entity {
     h.source_from_tx
         .send(FromDim::MoveEntity {
             move_id,
-            target: keys::dimension::THE_NETHER.into(),
+            target: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
             cause: ArrivalCause::CommandTeleport {
                 pos: DVec3::new(0.0, 100.0, 0.0),
             },

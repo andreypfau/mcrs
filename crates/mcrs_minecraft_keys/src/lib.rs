@@ -7,19 +7,13 @@ pub mod attribute;
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
-pub mod biome;
-#[rustfmt::skip]
 pub mod biome_source;
-#[rustfmt::skip]
-pub mod biome_tags;
 #[rustfmt::skip]
 pub mod block;
 #[rustfmt::skip]
 pub mod block_entity_type;
 #[rustfmt::skip]
 pub mod block_predicate_type;
-#[rustfmt::skip]
-pub mod block_state_provider;
 #[rustfmt::skip]
 pub mod block_state_provider_type;
 #[rustfmt::skip]
@@ -28,8 +22,6 @@ pub mod block_tags;
 pub mod carver;
 #[rustfmt::skip]
 pub mod carver_type;
-#[rustfmt::skip]
-pub mod chat_type;
 #[rustfmt::skip]
 pub mod chunk_generator;
 #[rustfmt::skip]
@@ -69,10 +61,6 @@ pub mod dialog_body_type;
 #[rustfmt::skip]
 pub mod dialog_type;
 #[rustfmt::skip]
-pub mod dimension;
-#[rustfmt::skip]
-pub mod dimension_type;
-#[rustfmt::skip]
 pub mod enchantment_effect_component_type;
 #[rustfmt::skip]
 pub mod enchantment_entity_effect_type;
@@ -80,8 +68,6 @@ pub mod enchantment_entity_effect_type;
 pub mod enchantment_level_based_value_type;
 #[rustfmt::skip]
 pub mod enchantment_location_based_effect_type;
-#[rustfmt::skip]
-pub mod enchantment_provider;
 #[rustfmt::skip]
 pub mod enchantment_provider_type;
 #[rustfmt::skip]
@@ -161,8 +147,6 @@ pub mod menu;
 #[rustfmt::skip]
 pub mod mob_effect;
 #[rustfmt::skip]
-pub mod multi_noise_biome_source_parameter_list;
-#[rustfmt::skip]
 pub mod noise;
 #[rustfmt::skip]
 pub mod noise_settings;
@@ -241,23 +225,15 @@ pub mod structure_tags;
 #[rustfmt::skip]
 pub mod structure_type;
 #[rustfmt::skip]
-pub mod sulfur_cube_archetype;
-#[rustfmt::skip]
 pub mod template_pool;
-#[rustfmt::skip]
-pub mod test_environment;
 #[rustfmt::skip]
 pub mod test_environment_definition_type;
 #[rustfmt::skip]
 pub mod test_function;
 #[rustfmt::skip]
-pub mod test_instance;
-#[rustfmt::skip]
 pub mod test_instance_type;
 #[rustfmt::skip]
 pub mod ticket_type;
-#[rustfmt::skip]
-pub mod trade_set;
 #[rustfmt::skip]
 pub mod tree_decorator_type;
 #[rustfmt::skip]
@@ -269,14 +245,6 @@ pub mod trunk_placer_type;
 #[rustfmt::skip]
 pub mod villager_profession;
 #[rustfmt::skip]
-pub mod villager_trade;
-#[rustfmt::skip]
-pub mod villager_trade_tags;
-#[rustfmt::skip]
 pub mod villager_type;
-#[rustfmt::skip]
-pub mod world_preset;
-#[rustfmt::skip]
-pub mod world_preset_tags;
 
 pub use registry::*;

@@ -5,7 +5,6 @@ use mcrs_minecraft_client::sky_state::SkyFrame;
 use mcrs_minecraft_client::wire_id::WireIdPlugin;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_dimension_environment::environment::Weather;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
     JoinedGame, ReceivedRegistries, ReceivedRegistry, RegistryEntry,
@@ -14,6 +13,7 @@ use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_render::sky::SkyUniform;
 
 use crate::boot::boot;
+use mcrs_minecraft_dimension::DimensionType;
 
 fn sky(app: &App) -> Option<(SkyUniform, String)> {
     let environment = app.world().get_resource::<SkyEnvironment>()?;
@@ -42,7 +42,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
     let local: Vec<String> = app
         .world()
         .resource::<RegistrySet>()
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .expect("the dimension type registry is loaded")
         .table()
         .names()
@@ -68,7 +68,10 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
 
     let mut received = ReceivedRegistries::default();
     received.push(ReceivedRegistry {
-        registry: keys::DIMENSION_TYPE.location().as_static_str().to_owned(),
+        registry: mcrs_minecraft_dimension::keys::DIMENSION_TYPE
+            .location()
+            .as_static_str()
+            .to_owned(),
         entries: server
             .iter()
             .map(|id| RegistryEntry {
@@ -87,7 +90,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
             JoinedGame {
                 player_id: 1,
                 dimensions: Vec::new(),
-                dimension: keys::dimension::OVERWORLD.into(),
+                dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
                 dimension_type_id: nether,
             },
         ))

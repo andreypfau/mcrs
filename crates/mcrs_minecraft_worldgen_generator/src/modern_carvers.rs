@@ -1,13 +1,13 @@
 use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registry::{Entries, Id, Registry};
@@ -322,7 +322,7 @@ impl CarverBiomeTable {
     /// alone.
     pub fn beta(
         source: &BiomeSource,
-        biomes: &Registry<keys::Biome>,
+        biomes: &Registry<Biome>,
         lookup: impl Fn(&str) -> Arc<[CarverConfig]>,
     ) -> Option<CarverBiomeTable> {
         let BiomeSource::Beta {
@@ -826,8 +826,8 @@ pub fn whole_climate_space() -> ParameterPoint {
 pub fn resolve_carver_biomes(
     preset: Option<Preset>,
     explicit: Option<Vec<(ParameterPoint, String)>>,
-    biomes: &Registry<keys::Biome>,
-    carvers: &Entries<keys::Biome, Arc<[CarverConfig]>>,
+    biomes: &Registry<Biome>,
+    carvers: &Entries<Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
     let lookup = biome_carvers(biomes, carvers);
     match preset {
@@ -839,15 +839,15 @@ pub fn resolve_carver_biomes(
 /// [`resolve_carver_biomes`] for a Beta source.
 pub fn resolve_beta_carver_biomes(
     source: &BiomeSource,
-    biomes: &Registry<keys::Biome>,
-    carvers: &Entries<keys::Biome, Arc<[CarverConfig]>>,
+    biomes: &Registry<Biome>,
+    carvers: &Entries<Biome, Arc<[CarverConfig]>>,
 ) -> Option<CarverBiomeTable> {
     CarverBiomeTable::beta(source, biomes, biome_carvers(biomes, carvers))
 }
 
 fn biome_carvers<'a>(
-    biomes: &'a Registry<keys::Biome>,
-    carvers: &'a Entries<keys::Biome, Arc<[CarverConfig]>>,
+    biomes: &'a Registry<Biome>,
+    carvers: &'a Entries<Biome, Arc<[CarverConfig]>>,
 ) -> impl Fn(&str) -> Arc<[CarverConfig]> + 'a {
     move |name: &str| match biomes.by_name(name) {
         Some(id) => carvers[id].clone(),

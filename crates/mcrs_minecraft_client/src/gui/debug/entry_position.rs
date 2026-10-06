@@ -79,7 +79,7 @@ mod tests {
         world.spawn(JoinedGame {
             player_id: 1,
             dimensions: Vec::new(),
-            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             dimension_type_id: 0,
         });
         world.spawn((

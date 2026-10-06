@@ -432,9 +432,11 @@ fn overlap(out: &Path) {
         })
         .collect();
 
-    let extent = Extent::of(keys::dimension::OVERWORLD.as_str());
+    let extent = Extent::of(mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str());
     let mut fixture = Fixture {
-        dimension: keys::dimension::OVERWORLD.as_str().to_owned(),
+        dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+            .as_str()
+            .to_owned(),
         min_section_y: extent.min_section_y(),
         section_count: extent.sections() as u32,
         origin: [origin.x, origin.y, origin.z],

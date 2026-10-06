@@ -8,6 +8,7 @@ use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_tasks::TaskPoolBuilder;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::SectionPos;
@@ -796,12 +797,11 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
 #[test]
 fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
     use mcrs_minecraft_biome::source::BiomeSource;
-    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_world::registries::test_registries;
     use mcrs_minecraft_worldgen_generator::stages::fill_column;
 
     let registry = test_registries()
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the loader parses the biomes");
     let ids: std::collections::HashMap<String, u16> = registry
         .ids()

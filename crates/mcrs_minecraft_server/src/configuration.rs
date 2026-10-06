@@ -66,7 +66,7 @@ use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noi
 const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
     keys::FLUID.location(),
     keys::GAME_EVENT.location(),
-    keys::BIOME.location(),
+    mcrs_minecraft_biome::keys::BIOME.location(),
 ];
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
@@ -265,7 +265,11 @@ fn on_known_packs_response(
     // dimension types. The vanilla protocol still expects it to be sent.
     {
         let attr_keys: BTreeSet<&str> = set
-            .column::<DimensionTypeEnvironment>(keys::DIMENSION_TYPE.location().as_static_str())
+            .column::<DimensionTypeEnvironment>(
+                mcrs_minecraft_dimension::keys::DIMENSION_TYPE
+                    .location()
+                    .as_static_str(),
+            )
             .unwrap_or_default()
             .iter()
             .flat_map(|environment| environment.attributes.0.keys().map(|key| key.as_str()))
@@ -381,7 +385,10 @@ const VIEW_DISTANCE_FALLBACK: u8 = 2;
 pub fn emit_initial_player_spawn(
     connections: Query<(&HostAnchorRef, &ConnectionState, Option<&ClientInfo>)>,
     mut sessions: Query<(&Session, &mut SessionPlacement, &GameProfile)>,
-    live_dims: Query<(Entity, &ResourceKey<keys::Dimension>), With<DimSubAppHandle>>,
+    live_dims: Query<
+        (Entity, &ResourceKey<mcrs_minecraft_dimension::Dimension>),
+        With<DimSubAppHandle>,
+    >,
     dim_channels: Res<DimChannelsResource>,
     dimension_list: Option<Res<DimensionList>>,
     save: Option<Res<WorldSave>>,
@@ -417,7 +424,7 @@ pub fn emit_initial_player_spawn(
         let Some(dim_label) = saved
             .as_ref()
             .and_then(|dat| live(dat.dimension.as_str()))
-            .or_else(|| live(keys::dimension::OVERWORLD.as_str()))
+            .or_else(|| live(mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str()))
         else {
             continue;
         };

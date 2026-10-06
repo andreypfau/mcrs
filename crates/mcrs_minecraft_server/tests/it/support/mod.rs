@@ -5,8 +5,8 @@ use std::sync::LazyLock;
 use bevy_app::App;
 use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::{
@@ -49,9 +49,9 @@ fn registries() -> &'static RegistrySet {
     &REGISTRIES
 }
 
-pub fn dimension_type(name: &str) -> Id<keys::DimensionType> {
+pub fn dimension_type(name: &str) -> Id<DimensionType> {
     test_registries()
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .and_then(|registry| registry.by_name(name))
         .unwrap_or_else(|| panic!("the dimension type {name} is loaded"))
 }
@@ -63,7 +63,6 @@ pub fn registry_set() -> &'static RegistrySet {
 /// The vanilla preset's three dimensions, then a data-pack dimension, baked as the server bakes them.
 pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::DimensionList {
     use mcrs_minecraft_core::ResourceKey;
-    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_registry::LoadReport;
     use mcrs_minecraft_world::dimension::{DimensionEntry, bake};
     use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
@@ -71,18 +70,22 @@ pub fn dimension_list_with_extra() -> mcrs_minecraft_server::world_options::Dime
 
     let set = test_registries();
     let preset = set
-        .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
+        .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
+        .and_then(|registry| registry.get(&mcrs_minecraft_world::keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
-    let mut dimensions = set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[preset]
+    let mut dimensions = set
+        .entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
+        .unwrap()[preset]
         .dimensions
         .clone();
     dimensions.insert(
         ResourceKey::from_location("test:extra".parse().unwrap()),
         DimensionEntry {
             dimension_type: set
-                .registry::<keys::DimensionType>()
-                .and_then(|registry| registry.get(&keys::dimension_type::OVERWORLD))
+                .registry::<DimensionType>()
+                .and_then(|registry| {
+                    registry.get(&mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD)
+                })
                 .expect("the dimension type is loaded"),
             generator: ChunkGenerator::Debug,
         },

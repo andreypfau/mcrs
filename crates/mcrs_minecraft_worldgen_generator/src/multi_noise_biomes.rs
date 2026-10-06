@@ -3,7 +3,6 @@ use std::fmt;
 use mcrs_minecraft_biome::climate::{ParameterList, ParameterPoint, TargetPoint};
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{NarrowError, Registry, UnknownEntry};
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
@@ -73,7 +72,7 @@ impl MultiNoiseBiomeTable {
     /// palette the client is sent.
     pub fn resolve(
         source: &MultiNoiseBiomeSource,
-        biomes: &Registry<keys::Biome>,
+        biomes: &Registry<mcrs_minecraft_biome::Biome>,
         lists: &ParameterLists,
     ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
         let values: Vec<(ParameterPoint, u8)> = match (&source.preset, &source.biomes) {

@@ -15,7 +15,6 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
@@ -33,13 +32,14 @@ mod support;
 
 use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in};
 use support::{corpus, router_blocks};
+use mcrs_minecraft_biome::Biome;
 
 fn parameter_lists() -> (
-    Registry<keys::MultiNoiseBiomeSourceParameterList>,
-    Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
+    Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
+    Entries<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
     let names = Registry::new(
-        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
         Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
     )
     .unwrap();
@@ -136,7 +136,7 @@ struct Ids {
     states: SurfaceStates,
 }
 
-fn surface_ids(biomes: &Registry<keys::Biome>) -> Ids {
+fn surface_ids(biomes: &Registry<Biome>) -> Ids {
     let id = |name: &str| {
         biomes
             .require_by_name(&format!("minecraft:{name}"))
@@ -159,9 +159,9 @@ fn surface_ids(biomes: &Registry<keys::Biome>) -> Ids {
 /// A registry over the whole corpus, numbering `names` in order, which is the
 /// order `corpus_biome_ids` produces, so a biome's id here equals the id the
 /// material rules were compiled with.
-fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
+fn biome_registry(names: &[String]) -> Registry<Biome> {
     Registry::new(
-        keys::BIOME,
+        mcrs_minecraft_biome::keys::BIOME,
         names.iter().map(|name| {
             ResourceLocation::read(&format!("minecraft:{name}")).expect("a biome name")
         }),
@@ -169,7 +169,7 @@ fn biome_registry(names: &[String]) -> Registry<keys::Biome> {
     .expect("the corpus names distinct biomes")
 }
 
-fn fixed_source(registry: &Registry<keys::Biome>, name: &str) -> BiomeSource {
+fn fixed_source(registry: &Registry<Biome>, name: &str) -> BiomeSource {
     BiomeSource::Fixed {
         biome: registry
             .require_by_name(&format!("minecraft:{name}"))
@@ -282,7 +282,7 @@ fn matrix(
     material: &MaterialProgram,
     names: &[String],
     ids: &Ids,
-    registry: &Registry<keys::Biome>,
+    registry: &Registry<Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,
@@ -365,7 +365,7 @@ fn natural(
     material: &MaterialProgram,
     names: &[String],
     ids: &Ids,
-    registry: &Registry<keys::Biome>,
+    registry: &Registry<Biome>,
     y_sections: &[i32],
     cancel: &CancellationToken,
     side: i32,

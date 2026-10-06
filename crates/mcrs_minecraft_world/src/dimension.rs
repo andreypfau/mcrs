@@ -5,14 +5,14 @@ use serde::{Deserialize, Serialize};
 use crate::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DimensionEntry {
     #[serde(rename = "type")]
-    pub dimension_type: Id<keys::DimensionType>,
+    pub dimension_type: Id<DimensionType>,
     pub generator: ChunkGenerator,
 }
 
@@ -32,23 +32,23 @@ impl DimensionEntry {
     }
 }
 
-pub type Dimensions = BTreeMap<ResourceKey<keys::Dimension>, DimensionEntry>;
+pub type Dimensions = BTreeMap<ResourceKey<Dimension>, DimensionEntry>;
 
-const LEADING: [ResourceKey<keys::Dimension, &str>; 3] = [
-    keys::dimension::OVERWORLD,
-    keys::dimension::THE_NETHER,
-    keys::dimension::THE_END,
+const LEADING: [ResourceKey<Dimension, &str>; 3] = [
+    mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
+    mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
+    mcrs_minecraft_dimension::keys::dimension::THE_END,
 ];
 
 pub fn bake(
     base: &Dimensions,
     set: &RegistrySet,
     report: &mut LoadReport,
-) -> Option<Vec<(ResourceKey<keys::Dimension>, DimensionEntry)>> {
-    let registry = report.registry(set, keys::DIMENSION)?;
+) -> Option<Vec<(ResourceKey<Dimension>, DimensionEntry)>> {
+    let registry = report.registry(set, mcrs_minecraft_dimension::keys::DIMENSION)?;
     let (Some(dimensions), Some(generators)) = (
-        set.entries::<keys::Dimension, Dimension>(),
-        set.entries::<keys::Dimension, ChunkGenerator>(),
+        set.entries::<Dimension, Dimension>(),
+        set.entries::<Dimension, ChunkGenerator>(),
     ) else {
         panic!("the data pack loader splits minecraft:dimension");
     };
@@ -72,11 +72,11 @@ pub fn bake(
 
     if !baked
         .first()
-        .is_some_and(|(key, _)| *key == keys::dimension::OVERWORLD)
+        .is_some_and(|(key, _)| *key == mcrs_minecraft_dimension::keys::dimension::OVERWORLD)
     {
         report.missing(
-            keys::DIMENSION,
-            keys::dimension::OVERWORLD.as_str(),
+            mcrs_minecraft_dimension::keys::DIMENSION,
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD.as_str(),
             "the dimension list has no overworld, which every world needs",
         );
         return None;

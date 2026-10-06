@@ -79,12 +79,12 @@ use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_level::explosion::ExplosionPlugin;
 use mcrs_minecraft_level::world::dimension::{
@@ -173,9 +173,9 @@ pub fn spawn_dim_subapp(
     };
     let (type_config, has_sky, has_weather) = {
         let set = app.world().get_resource::<RegistrySet>();
-        let types = set.and_then(|set| set.entries::<keys::DimensionType, DimensionType>());
+        let types = set.and_then(|set| set.entries::<DimensionType, DimensionType>());
         let environments =
-            set.and_then(|set| set.entries::<keys::DimensionType, DimensionTypeEnvironment>());
+            set.and_then(|set| set.entries::<DimensionType, DimensionTypeEnvironment>());
         let dimension_type = types
             .as_ref()
             .and_then(|types| types.get(request.dimension_type))
@@ -431,7 +431,7 @@ pub fn spawn_dim_subapp(
             let biome_registry = sub_app
                 .world()
                 .resource::<RegistrySet>()
-                .registry::<keys::Biome>()
+                .registry::<Biome>()
                 .expect("the data pack loader parses minecraft:worldgen/biome");
             let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
             let blocks = sub_app.world().resource::<Blocks>().0.clone();

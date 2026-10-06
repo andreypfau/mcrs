@@ -2,7 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -172,7 +171,7 @@ fn level_dat_reads_the_fields_we_consume() {
     assert_eq!(
         level.spawn,
         RespawnData {
-            dimension: keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             pos: [0, 70, 64],
             yaw: 0.0,
             pitch: 0.0,
@@ -357,10 +356,11 @@ fn singleplayer_uuid_ints_name_the_player_file_when_a_player_has_opened_the_worl
 fn normal_dimensions() -> Dimensions {
     let set = test_registries();
     let id = set
-        .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
+        .registry::<crate::worldgen::world_preset::WorldPreset>()
+        .and_then(|registry| registry.get(&crate::keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
-    set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
+    set.entries::<crate::worldgen::world_preset::WorldPreset, WorldPreset>()
+        .unwrap()[id]
         .dimensions
         .clone()
 }
@@ -484,7 +484,8 @@ fn world_gen_settings_keep_their_dimensions() {
     let world = std::env::temp_dir().join(format!("mcrs_save_gen_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&world);
     let mut dimensions = normal_dimensions();
-    let extra = ResourceKey::<keys::Dimension>::from_location(clock("test:extra"));
+    let extra =
+        ResourceKey::<mcrs_minecraft_dimension::Dimension>::from_location(clock("test:extra"));
     let overworld = dimensions["minecraft:overworld"].clone();
     dimensions.insert(extra, overworld);
     let settings = WorldGenSettings {

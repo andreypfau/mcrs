@@ -11,7 +11,6 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_core::value_provider::HeightContext;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::Block;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
@@ -52,6 +51,7 @@ use crate::{
     apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
     spans_dimension,
 };
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Everything a column stage reads that is the same for every column of one
@@ -67,7 +67,7 @@ pub struct FillContext {
     /// delta names a cell by its index in it, so it is one list, not one per
     /// dispatch.
     pub y_sections: Arc<[i32]>,
-    pub biome: Option<(Arc<BiomeSource>, Registry<keys::Biome>)>,
+    pub biome: Option<(Arc<BiomeSource>, Registry<Biome>)>,
     pub predicates: Option<HeightmapPredicates>,
     /// Read only where `biome` names the registry the save is decoded against.
     pub saved: Option<SavedColumns>,
@@ -119,7 +119,7 @@ impl FillContext {
         material: Option<Arc<MaterialProgram>>,
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
-        biome: Option<(Arc<BiomeSource>, Registry<keys::Biome>)>,
+        biome: Option<(Arc<BiomeSource>, Registry<Biome>)>,
         parameter_lists: &ParameterLists,
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,

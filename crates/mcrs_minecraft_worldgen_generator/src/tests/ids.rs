@@ -1,7 +1,7 @@
 use super::corpus_biomes;
 use crate::SurfaceIds;
 use crate::ids::{FillIds, SurvivalIds};
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_testing::corpus_set;
 
@@ -14,7 +14,7 @@ fn biomes_without(skipped: &str) -> RegistrySet {
         .cloned();
     RegistrySet::new()
         .with(
-            Registry::<keys::Biome>::new(keys::BIOME, names)
+            Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names)
                 .expect("the corpus names distinct biomes"),
         )
         .expect("one biome registry")

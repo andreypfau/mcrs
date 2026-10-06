@@ -1,7 +1,6 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
@@ -9,12 +8,12 @@ use std::collections::BTreeMap;
 
 /// `TheEndBiomeSource` lists its five biomes in this order, and that order is
 /// the input of the sort.
-const END_BIOMES: [ResourceKey<keys::Biome, &'static str>; 5] = [
-    keys::biome::THE_END,
-    keys::biome::END_HIGHLANDS,
-    keys::biome::END_MIDLANDS,
-    keys::biome::SMALL_END_ISLANDS,
-    keys::biome::END_BARRENS,
+const END_BIOMES: [ResourceKey<mcrs_minecraft_biome::Biome, &'static str>; 5] = [
+    mcrs_minecraft_biome::keys::biome::THE_END,
+    mcrs_minecraft_biome::keys::biome::END_HIGHLANDS,
+    mcrs_minecraft_biome::keys::biome::END_MIDLANDS,
+    mcrs_minecraft_biome::keys::biome::SMALL_END_ISLANDS,
+    mcrs_minecraft_biome::keys::biome::END_BARRENS,
 ];
 
 /// One dimension's sorted feature tables: what [`FeatureProgram::build`]
@@ -34,10 +33,10 @@ pub struct FeatureTables {
 /// repeats — the input the feature order is defined against.
 pub fn possible_biomes(
     source: &BiomeSource,
-    biomes: &Registry<keys::Biome>,
+    biomes: &Registry<mcrs_minecraft_biome::Biome>,
     lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
-    let named = |id: &mcrs_minecraft_registry::Id<keys::Biome>| {
+    let named = |id: &mcrs_minecraft_registry::Id<mcrs_minecraft_biome::Biome>| {
         biomes
             .name(*id)
             .unwrap_or_else(|| panic!("the biome registry holds no entry numbered {}", id.index()))
@@ -112,7 +111,9 @@ mod tests {
     }
 
     fn order(source: &BiomeSource) -> Vec<String> {
-        let biomes = Registry::<keys::Biome>::new(keys::BIOME, []).unwrap();
+        let biomes =
+            Registry::<mcrs_minecraft_biome::Biome>::new(mcrs_minecraft_biome::keys::BIOME, [])
+                .unwrap();
         possible_biomes(source, &biomes, &crate::tests::parameter_lists().1)
             .iter()
             .map(|id| id.as_str().to_owned())

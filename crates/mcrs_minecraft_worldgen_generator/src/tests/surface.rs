@@ -7,11 +7,11 @@ use crate::{
     ColumnBlocks, NO_TOP, SurfaceIds, SurfaceStates, apply_material_surface, fill_column_dense_any,
     multi_noise_grid, multi_noise_palettes, spans_dimension,
 };
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
 use mcrs_minecraft_worldgen_density::aquifer::WAY_BELOW_MIN_Y;
@@ -143,7 +143,7 @@ fn corpus_over(ids: &HashMap<String, u16>) -> RegistrySet {
 }
 
 /// A registry numbering the biomes as `ids` does.
-fn registry_of(ids: &HashMap<String, u16>) -> Registry<keys::Biome> {
+fn registry_of(ids: &HashMap<String, u16>) -> Registry<Biome> {
     let mut named: Vec<(u16, &str)> = ids.iter().map(|(name, id)| (*id, name.as_str())).collect();
     named.sort();
     let names: Vec<&str> = named.into_iter().map(|(_, name)| name).collect();
@@ -524,7 +524,7 @@ fn grid_biomes(
 }
 
 /// The preset's biomes as a registry, and the ids it gave them.
-pub fn overworld_biome_registry() -> (Registry<keys::Biome>, HashMap<String, u16>) {
+pub fn overworld_biome_registry() -> (Registry<Biome>, HashMap<String, u16>) {
     let mut names: Vec<&str> = Vec::new();
     for (_, biome) in overworld_parameter_list().values() {
         if !names.contains(biome) {
@@ -548,7 +548,7 @@ pub fn overworld_biome_registry() -> (Registry<keys::Biome>, HashMap<String, u16
 pub fn fill_context(
     router: NoiseRouter,
     material: MaterialProgram,
-    registry: Registry<keys::Biome>,
+    registry: Registry<Biome>,
     source: mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::stages::FillContext {
     use mcrs_minecraft_biome::source::BiomeSource;

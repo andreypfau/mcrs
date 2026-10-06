@@ -8,7 +8,6 @@ use mcrs_minecraft_worldgen_noise::simplex::SimplexNoise;
 use crate::model::{self, Pack};
 use mcrs_minecraft_biome::{Biome, GrassColorModifier};
 use mcrs_minecraft_core::codec::HexRgb;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::RegistrySet;
 
 use super::Catalog;
@@ -75,8 +74,8 @@ pub(super) fn extend_tints(
     let grass_map = noted(load_colormap(pack, "grass"), &mut catalog.failures);
     let foliage_map = noted(load_colormap(pack, "foliage"), &mut catalog.failures);
     let dry_foliage_map = noted(load_colormap(pack, "dry_foliage"), &mut catalog.failures);
-    let registry = registries.registry::<keys::Biome>();
-    let loaded = registries.entries::<keys::Biome, Biome>();
+    let registry = registries.registry::<Biome>();
+    let loaded = registries.entries::<Biome, Biome>();
     for name in &biomes[done..] {
         let biome = registry
             .as_ref()

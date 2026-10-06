@@ -7,12 +7,13 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{Chunk, ChunkStatus, PaletteLookup, Properties, RegionFile, Section};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_chunk::{VoxelId, VoxelPalette};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use std::time::Instant;
 
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_dimension::Dimension;
 use tracing::{debug, error};
 
 /// Resolves a saved palette entry against the corpus.
@@ -40,7 +41,7 @@ impl PaletteLookup<VoxelId> for CorpusBlockStates<'_> {
 
 /// Resolves a saved biome name against the registry the dimension runs with.
 /// Biomes carry no properties, so only the name selects the entry.
-pub struct RegistryBiomes<'a>(pub &'a Registry<keys::Biome>);
+pub struct RegistryBiomes<'a>(pub &'a Registry<Biome>);
 
 impl PaletteLookup<u8> for RegistryBiomes<'_> {
     fn resolve(&self, name: &str, _properties: Properties<'_>) -> Option<u8> {
@@ -50,7 +51,7 @@ impl PaletteLookup<u8> for RegistryBiomes<'_> {
 
 /// The identifier's own characters allow a `..` path segment, which would leave
 /// the world directory.
-pub fn region_dir(world: &Path, dimension: &ResourceKey<keys::Dimension>) -> Option<PathBuf> {
+pub fn region_dir(world: &Path, dimension: &ResourceKey<Dimension>) -> Option<PathBuf> {
     if dimension
         .path()
         .split('/')
@@ -89,7 +90,7 @@ impl SavedColumns {
     /// dimension has never been saved.
     pub fn open(
         world: &Path,
-        dimension: &ResourceKey<keys::Dimension>,
+        dimension: &ResourceKey<Dimension>,
         registries: RegistrySet,
     ) -> Option<Self> {
         let dir = region_dir(world, dimension)?;
@@ -119,7 +120,7 @@ impl SavedColumns {
         &self,
         pos: ColumnPos,
         blocks: &BlockDefinitions,
-        biomes: &Registry<keys::Biome>,
+        biomes: &Registry<Biome>,
     ) -> Option<Chunk> {
         let region = self.region(RegionPos::from(pos))?;
         let chunk =

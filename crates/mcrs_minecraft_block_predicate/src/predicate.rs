@@ -2,6 +2,7 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::block_state::BlockState;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::codec::is_default;
@@ -61,7 +62,7 @@ pub enum BlockPredicate {
         fluids: HolderSet<keys::Fluid>,
     },
     #[serde(rename = "minecraft:matching_biomes")]
-    MatchingBiomes { biomes: HolderSet<keys::Biome> },
+    MatchingBiomes { biomes: HolderSet<Biome> },
     #[serde(rename = "minecraft:has_sturdy_face")]
     HasSturdyFace {
         #[serde(default, skip_serializing_if = "is_default")]

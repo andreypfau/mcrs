@@ -1,13 +1,14 @@
 use crate::game_mode::OptGameMode;
 use crate::{Bounded, GameMode, GlobalPos, RegistryId, VarInt};
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys::{self as keys, dimension::OVERWORLD};
+use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_dimension::keys::dimension::OVERWORLD;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo {
     pub dimension_type_id: RegistryId,
-    pub dimension: ResourceKey<keys::Dimension>,
+    pub dimension: ResourceKey<Dimension>,
     pub game_mode: GameMode,
     pub prev_game_mode: OptGameMode,
     pub is_debug: bool,

@@ -11,7 +11,6 @@ use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, P
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_core::value_provider::HeightContext;
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Entries, Registry};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -35,15 +34,16 @@ mod support;
 
 use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in, worldgen_dir};
 use support::{corpus, router_blocks};
+use mcrs_minecraft_biome::Biome;
 
 const ABSENT_BIOME: u16 = 250;
 
 fn parameter_lists() -> (
-    Registry<keys::MultiNoiseBiomeSourceParameterList>,
-    Entries<keys::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
+    Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
+    Entries<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
 ) {
     let names = Registry::new(
-        keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
         Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
     )
     .unwrap();
@@ -140,8 +140,8 @@ fn main() {
     let (router, material) = material_router(seed, &ids);
     let mut numbered: Vec<(&u16, &String)> = ids.iter().map(|(name, id)| (id, name)).collect();
     numbered.sort();
-    let biomes = Registry::<keys::Biome>::new(
-        keys::BIOME,
+    let biomes = Registry::<Biome>::new(
+        mcrs_minecraft_biome::keys::BIOME,
         numbered
             .into_iter()
             .map(|(_, name)| ResourceLocation::read(name).unwrap()),

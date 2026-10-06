@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{
     Query, Ref, With,
 };
 use mcrs_minecraft_core::{ResourceKey, SectionPos};
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_registry::Id;
 use std::collections::BTreeSet;
 
@@ -35,7 +35,7 @@ impl Plugin for DimensionPlugin {
 #[derive(Bundle)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
-    pub key: ResourceKey<keys::Dimension>,
+    pub key: ResourceKey<mcrs_minecraft_dimension::Dimension>,
     pub type_config: DimensionTypeConfig,
     pub chunk_index: SectionIndex,
     pub tickets: SectionTickets,
@@ -45,7 +45,10 @@ pub struct DimensionBundle {
 }
 
 impl DimensionBundle {
-    pub fn new(key: ResourceKey<keys::Dimension>, type_config: DimensionTypeConfig) -> Self {
+    pub fn new(
+        key: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+        type_config: DimensionTypeConfig,
+    ) -> Self {
         let min_section_y = type_config.min_y >> SectionPos::BITS;
         let max_section_y = min_section_y + type_config.section_count as i32 - 1;
         Self {
@@ -73,7 +76,7 @@ pub struct HasSkyLight;
 pub struct HasWeather;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DimensionTypeId(pub Id<keys::DimensionType>);
+pub struct DimensionTypeId(pub Id<DimensionType>);
 
 #[derive(Component, Clone, Default, Deref, Debug)]
 pub struct DimensionPlayers(BTreeSet<Entity>);

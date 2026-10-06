@@ -96,10 +96,10 @@ fn build_dimension_features(
     let Some(sources) = sources else { return };
 
     let provider_registry = registries
-        .registry::<keys::BlockStateProvider>()
+        .registry::<mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider>()
         .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
     let providers = registries
-        .entries::<keys::BlockStateProvider, DirectBlockStateProvider>()
+        .entries::<mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider, DirectBlockStateProvider>()
         .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
 
     let features = named(&registries, &tables.features, |asset| asset);
@@ -152,13 +152,13 @@ fn build_dimension_features(
         .tags::<keys::PlacedFeature>()
         .expect("the data pack loader builds the placed feature tags");
     let biome_registry = registries
-        .registry::<keys::Biome>()
+        .registry::<Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let biomes = registries
-        .entries::<keys::Biome, Biome>()
+        .entries::<Biome, Biome>()
         .expect("the data pack loader parses minecraft:worldgen/biome");
     let generation = registries
-        .entries::<keys::Biome, BiomeGenerationSettings>()
+        .entries::<Biome, BiomeGenerationSettings>()
         .expect("the data pack loader splits minecraft:worldgen/biome");
     let by_id: BTreeMap<ResourceLocation, (&Biome, &BiomeGenerationSettings)> = biome_registry
         .ids()

@@ -131,4 +131,69 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_entity",
         value: "crate::variant::CatSoundVariant",
     },
+    Owner {
+        registry: "minecraft:chat_type",
+        krate: "mcrs_minecraft_world",
+        value: "crate::chat_type::ChatType",
+    },
+    Owner {
+        registry: "minecraft:test_environment",
+        krate: "mcrs_minecraft_world",
+        value: "crate::test_types::TestEnvironment",
+    },
+    Owner {
+        registry: "minecraft:test_instance",
+        krate: "mcrs_minecraft_world",
+        value: "crate::test_types::TestInstance",
+    },
+    Owner {
+        registry: "minecraft:sulfur_cube_archetype",
+        krate: "mcrs_minecraft_world",
+        value: "crate::sulfur_cube_archetype::SulfurCubeArchetype",
+    },
+    Owner {
+        registry: "minecraft:enchantment_provider",
+        krate: "mcrs_minecraft_world",
+        value: "crate::enchantment_provider::EnchantmentProvider",
+    },
+    Owner {
+        registry: "minecraft:villager_trade",
+        krate: "mcrs_minecraft_world",
+        value: "crate::villager_trade::VillagerTrade",
+    },
+    Owner {
+        registry: "minecraft:trade_set",
+        krate: "mcrs_minecraft_world",
+        value: "crate::villager_trade::TradeSet",
+    },
+    Owner {
+        registry: "minecraft:worldgen/world_preset",
+        krate: "mcrs_minecraft_world",
+        value: "crate::worldgen::world_preset::WorldPreset",
+    },
+    Owner {
+        registry: "minecraft:worldgen/biome",
+        krate: "mcrs_minecraft_biome",
+        value: "crate::Biome",
+    },
+    Owner {
+        registry: "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+        krate: "mcrs_minecraft_biome",
+        value: "crate::parameter_list::MultiNoiseBiomeSourceParameterList",
+    },
+    Owner {
+        registry: "minecraft:dimension",
+        krate: "mcrs_minecraft_dimension",
+        value: "crate::Dimension",
+    },
+    Owner {
+        registry: "minecraft:dimension_type",
+        krate: "mcrs_minecraft_dimension",
+        value: "crate::DimensionType",
+    },
+    Owner {
+        registry: "minecraft:worldgen/block_state_provider",
+        krate: "mcrs_minecraft_block_predicate",
+        value: "crate::provider::DirectBlockStateProvider",
+    },
 ];

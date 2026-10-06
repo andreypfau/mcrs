@@ -8,7 +8,8 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::layered_file_source;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
@@ -32,17 +33,18 @@ static WORLD: LazyLock<WorldRegistries> = LazyLock::new(|| {
     world_registries(&bytes).expect("the report parses")
 });
 
-fn key(name: &str) -> ResourceKey<keys::Dimension> {
+fn key(name: &str) -> ResourceKey<Dimension> {
     ResourceKey::from_location(name.parse().unwrap())
 }
 
 fn normal() -> Dimensions {
     let set = test_registries();
     let id = set
-        .registry::<keys::WorldPreset>()
-        .and_then(|registry| registry.get(&keys::world_preset::NORMAL))
+        .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
+        .and_then(|registry| registry.get(&mcrs_minecraft_world::keys::world_preset::NORMAL))
         .expect("the normal preset is loaded");
-    set.entries::<keys::WorldPreset, WorldPreset>().unwrap()[id]
+    set.entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
+        .unwrap()[id]
         .dimensions
         .clone()
 }
@@ -50,24 +52,21 @@ fn normal() -> Dimensions {
 fn debug_dimension(set: &RegistrySet, dimension_type: &str) -> DimensionEntry {
     DimensionEntry {
         dimension_type: set
-            .registry::<keys::DimensionType>()
+            .registry::<DimensionType>()
             .and_then(|registry| registry.by_name(dimension_type))
             .expect("the dimension type is loaded"),
         generator: ChunkGenerator::Debug,
     }
 }
 
-fn baked(
-    base: &Dimensions,
-    set: &RegistrySet,
-) -> Vec<(ResourceKey<keys::Dimension>, DimensionEntry)> {
+fn baked(base: &Dimensions, set: &RegistrySet) -> Vec<(ResourceKey<Dimension>, DimensionEntry)> {
     let mut report = LoadReport::new();
     let list = bake(base, set, &mut report);
     assert!(report.is_empty(), "{report}");
     list.expect("a list with an overworld bakes")
 }
 
-fn names(list: &[(ResourceKey<keys::Dimension>, DimensionEntry)]) -> Vec<&str> {
+fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
     list.iter().map(|(key, _)| key.as_str()).collect()
 }
 

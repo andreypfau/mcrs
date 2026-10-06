@@ -26,7 +26,9 @@ pub enum SpawnCondition {
         structures: HolderSet<keys::Structure>,
     },
     #[serde(rename = "minecraft:biome")]
-    Biome { biomes: HolderSet<keys::Biome> },
+    Biome {
+        biomes: HolderSet<mcrs_minecraft_biome::Biome>,
+    },
     #[serde(rename = "minecraft:moon_brightness")]
     MoonBrightness { range: DoubleBounds },
 }
@@ -152,7 +154,7 @@ impl VariantTable {
     pub fn freeze<'a>(
         entries: impl IntoIterator<Item = (ResourceLocation, &'a [SpawnSelector])>,
         structures: &dyn Fn(&HolderSet<keys::Structure>) -> Result<IdSet, String>,
-        biomes: &dyn Fn(&HolderSet<keys::Biome>) -> Result<IdSet, String>,
+        biomes: &dyn Fn(&HolderSet<mcrs_minecraft_biome::Biome>) -> Result<IdSet, String>,
     ) -> Result<Self, String> {
         let mut table = VariantTable::default();
         for (id, selectors) in entries {

@@ -20,7 +20,7 @@ const AIR_INDEX: usize = 0;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeSet {
-    pub trades: HolderSet<keys::VillagerTrade>,
+    pub trades: HolderSet<crate::villager_trade::VillagerTrade>,
     pub amount: ContextInt,
     #[serde(default, skip_serializing_if = "is_default")]
     pub allow_duplicates: bool,

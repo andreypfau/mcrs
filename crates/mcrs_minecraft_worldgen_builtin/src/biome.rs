@@ -12,14 +12,16 @@ use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_entity::spawn::MobCategory;
 use mcrs_minecraft_environment::attribute::id::*;
 use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
-use mcrs_minecraft_keys::{EntityType, biome, carver, placed_feature};
+use mcrs_minecraft_keys::{EntityType, carver, placed_feature};
+use mcrs_minecraft_biome::keys::biome;
 use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_sound::keys::sound_event;
 use mcrs_minecraft_registry::{Built, RegistrySet, StaticKey};
 use serde::Serialize;
+use mcrs_minecraft_biome::Biome;
 
 type BiomeRow = (
-    ResourceKey<mcrs_minecraft_keys::Biome, &'static str>,
+    ResourceKey<Biome, &'static str>,
     fn() -> Draft,
 );
 
@@ -341,5 +343,5 @@ pub fn build(set: &RegistrySet) -> Result<Vec<BiomeFile>, Vec<(usize, String)>> 
 }
 
 pub fn built() -> Built {
-    Built::new(mcrs_minecraft_keys::BIOME.location(), names(), build)
+    Built::new(mcrs_minecraft_biome::keys::BIOME.location(), names(), build)
 }

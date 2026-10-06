@@ -16,6 +16,7 @@ use tracing::{error, info};
 
 use crate::world::generate::structures::DimensionStructures;
 use crate::world_options::{DimensionList, WorldSeed};
+use mcrs_minecraft_biome::Biome;
 
 /// Every dimension's biome source, keyed by the id the world preset gave it.
 ///
@@ -60,7 +61,7 @@ pub(crate) fn build_dimension_routers(
     structures: Option<Res<DimensionStructures>>,
 ) {
     let biome_tags = registries
-        .tags::<keys::Biome>()
+        .tags::<Biome>()
         .expect("the data pack loader builds the biome tags");
     let noise_settings = registries
         .registry::<keys::NoiseSettings>()

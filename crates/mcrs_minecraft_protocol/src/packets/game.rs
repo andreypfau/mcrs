@@ -18,7 +18,6 @@ pub mod clientbound {
     use mcrs_minecraft_core::ResourceKey;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_core::SectionPos;
-    use mcrs_minecraft_keys as keys;
     use mcrs_minecraft_protocol::ByteAngle;
     use mcrs_minecraft_protocol_macros::{Decode, Encode};
     use mcrs_minecraft_registry::BlockStateId;
@@ -182,7 +181,7 @@ pub mod clientbound {
     pub struct ClientboundLogin {
         pub player_id: i32,
         pub hardcore: bool,
-        pub dimensions: Vec<ResourceKey<keys::Dimension>>,
+        pub dimensions: Vec<ResourceKey<mcrs_minecraft_dimension::Dimension>>,
         pub max_players: VarInt,
         pub chunk_radius: VarInt,
         pub simulation_distance: VarInt,

@@ -1,7 +1,7 @@
 use crate::block_state::try_resolve_state;
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_worldgen::beard::BeardifierPlacement;
 use mcrs_minecraft_worldgen::bevy::{
@@ -20,7 +20,7 @@ pub fn build_router(
     assets: &WorldgenAssets<'_>,
     seed: u64,
     blocks: &BlockDefinitions,
-    biome_tags: &Tags<keys::Biome>,
+    biome_tags: &Tags<Biome>,
 ) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
     let block = |state: &_| try_resolve_state(blocks, state).map(|state| state.0.into());
     build_dimension_router(settings, assets, seed, &block, biome_tags)

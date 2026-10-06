@@ -241,7 +241,7 @@ pub trait BlockResolver {
 
     fn states(&self, query: StateQuery<'_>) -> Option<StateMask>;
 
-    fn biomes(&self, set: &HolderSet<keys::Biome>) -> Option<BiomeMask>;
+    fn biomes(&self, set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask>;
 }
 
 pub fn state_named(state: &BlockState) -> String {
@@ -569,7 +569,7 @@ mod tests {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
 
-        fn biomes(&self, _set: &HolderSet<keys::Biome>) -> Option<BiomeMask> {
+        fn biomes(&self, _set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
             Some(Arc::new(FixedBitSet::with_capacity(1)))
         }
     }
@@ -613,7 +613,7 @@ mod tests {
             fn states(&self, _query: StateQuery<'_>) -> Option<StateMask> {
                 None
             }
-            fn biomes(&self, _set: &HolderSet<keys::Biome>) -> Option<BiomeMask> {
+            fn biomes(&self, _set: &HolderSet<mcrs_minecraft_biome::Biome>) -> Option<BiomeMask> {
                 None
             }
         }

@@ -10,6 +10,7 @@ use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::tags::{TagRules, TagSource, build_tags};
 
 use crate::dimension_type::{DimensionTypeEnvironment, DimensionTypeFile};
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_environment::attribute::attribute;
 use mcrs_minecraft_environment::world_clock::WorldClock;
@@ -73,7 +74,7 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
         .collect()
 }
 
-fn dimension_key(id: &str) -> ResourceKey<keys::Dimension> {
+fn dimension_key(id: &str) -> ResourceKey<Dimension> {
     ResourceKey::from_location(id.parse().unwrap())
 }
 

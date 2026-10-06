@@ -5,6 +5,8 @@
 )]
 
 pub mod chat_type;
+#[rustfmt::skip]
+pub mod keys;
 pub mod data_pack;
 pub mod dimension;
 pub mod enchantment_provider;

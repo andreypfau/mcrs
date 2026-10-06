@@ -30,6 +30,7 @@ use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::proto::{
     PlacedFeature, StructureProcessorList, WrappedProcessors,
 };
+use mcrs_minecraft_biome::Biome;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,7 +65,7 @@ pub enum StructurePlacement {
         distance: Bounded<0, 1023>,
         spread: Bounded<0, 1023>,
         count: Bounded<1, 4095>,
-        preferred_biomes: HolderSet<keys::Biome>,
+        preferred_biomes: HolderSet<Biome>,
     },
     // An empty struct variant, not a unit one: only the former refuses extra keys.
     #[serde(rename = "minecraft:dimension_origin")]
@@ -286,7 +287,7 @@ impl Structure {
 // Flatten target: no `deny_unknown_fields`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StructureSettings {
-    pub biomes: HolderSet<keys::Biome>,
+    pub biomes: HolderSet<Biome>,
     pub spawn_overrides: BTreeMap<MobCategory, SpawnOverride>,
     pub step: DecorationStep,
     #[serde(default, skip_serializing_if = "is_default")]

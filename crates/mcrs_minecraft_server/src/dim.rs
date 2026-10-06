@@ -10,7 +10,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_level::session::{MoveId, Place, PlayerSession, Session, SessionPlacement};
 use mcrs_minecraft_level::world::in_flight::{InFlightEntry, InFlightMoves};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
@@ -62,9 +62,9 @@ fn send_control(world: &mut World, dim_entity: Entity, msg: ToDim) -> bool {
     send_control_or_teardown(&sender, dim_entity, msg, &mut world.resource_mut())
 }
 
-fn find_dim(world: &World, key: &ResourceKey<keys::Dimension>) -> Option<Entity> {
+fn find_dim(world: &World, key: &ResourceKey<Dimension>) -> Option<Entity> {
     world
-        .try_query_filtered::<(Entity, &ResourceKey<keys::Dimension>), With<DimSubAppHandle>>()
+        .try_query_filtered::<(Entity, &ResourceKey<Dimension>), With<DimSubAppHandle>>()
         .and_then(|mut dims| {
             dims.iter(world)
                 .find(|(_, live)| *live == key)

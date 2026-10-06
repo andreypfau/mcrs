@@ -7,7 +7,6 @@ use mcrs_minecraft_biome::parameter_list::Preset;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_registry::{BlockStateId, Registry};
 use mcrs_minecraft_worldgen_carver::mask::CarvingMask;
@@ -26,6 +25,7 @@ use crate::ColumnBlocks;
 use crate::modern_carvers::{CarverBiomeTable, ModernCarverBlockIds, modern_carving_mask};
 use crate::stages::{ColumnGenerator, FillContext, extent, fill_column};
 use crate::task::CancellationToken;
+use mcrs_minecraft_biome::Biome;
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x100_0000_01b3;
@@ -166,7 +166,7 @@ fn the_per_column_mask_is_what_it_was() {
 fn material_router(
     dimension: Dimension,
     seed: u64,
-    biomes: &Registry<keys::Biome>,
+    biomes: &Registry<Biome>,
 ) -> (NoiseRouter, MaterialProgram) {
     let settings: NoiseGeneratorSettings = mcrs_minecraft_worldgen_testing::read(
         "noise_settings",
@@ -199,7 +199,7 @@ fn material_router(
     .expect("the material rule compiles")
 }
 
-fn biome_registry(dimension: Dimension) -> Registry<keys::Biome> {
+fn biome_registry(dimension: Dimension) -> Registry<Biome> {
     let mut names: Vec<&str> = Vec::new();
     let preset = dimension.biomes().values().iter().map(|(_, name)| *name);
     let surface = [

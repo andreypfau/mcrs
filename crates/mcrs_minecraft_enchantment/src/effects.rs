@@ -148,7 +148,7 @@ pub struct VelocitySource {
 /// block state or a typed provider.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockStateProvider {
-    Reference(Id<keys::BlockStateProvider>),
+    Reference(Id<mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider>),
     State(FullBlockState),
     Typed(TypedBlockStateProvider),
 }

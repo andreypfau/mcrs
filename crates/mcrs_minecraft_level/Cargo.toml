@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true

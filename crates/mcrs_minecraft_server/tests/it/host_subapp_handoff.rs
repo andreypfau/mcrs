@@ -14,7 +14,6 @@ use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::PlayerSession;
 use mcrs_minecraft_level::session::{Place, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -33,6 +32,7 @@ use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_s
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 
 use crate::support;
+use mcrs_minecraft_dimension::Dimension;
 
 /// Build a minimal host-side App with the bus substrate and the systems
 /// under test.
@@ -129,7 +129,7 @@ fn game_transition_emits_initial_spawn() {
         .world_mut()
         .spawn((
             DimSubAppHandle,
-            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD),
         ))
         .id();
     let ctl_rx = {
@@ -198,17 +198,20 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
         &save,
         uuid,
         &PlayerDat {
-            dimension: keys::dimension::THE_NETHER.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
             ..PlayerDat::default()
         },
     )
     .unwrap();
 
     let mut labels = Vec::new();
-    for name in [keys::dimension::OVERWORLD, keys::dimension::THE_NETHER] {
+    for name in [
+        mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
+        mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
+    ] {
         let label = app
             .world_mut()
-            .spawn((DimSubAppHandle, ResourceKey::<keys::Dimension>::from(name)))
+            .spawn((DimSubAppHandle, ResourceKey::<Dimension>::from(name)))
             .id();
         let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
@@ -237,7 +240,7 @@ fn a_player_saved_in_another_dimension_joins_that_dimension() {
 
 /// Live dimensions are registered nether first, so a join that takes the first
 /// live one lands in the wrong world.
-fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<keys::Dimension>>) {
+fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<Dimension>>) {
     use mcrs_minecraft_level::world::channels::{
         FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
@@ -270,13 +273,13 @@ fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<keys::Dimen
 
     let mut labels = Vec::new();
     for name in [
-        keys::dimension::THE_NETHER,
-        keys::dimension::THE_END,
-        keys::dimension::OVERWORLD,
+        mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
+        mcrs_minecraft_dimension::keys::dimension::THE_END,
+        mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
     ] {
         let label = app
             .world_mut()
-            .spawn((DimSubAppHandle, ResourceKey::<keys::Dimension>::from(name)))
+            .spawn((DimSubAppHandle, ResourceKey::<Dimension>::from(name)))
             .id();
         let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
@@ -364,9 +367,9 @@ fn no_duplicate_spawn_on_reread() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_keys::dimension_type::OVERWORLD.as_str(),
+                mcrs_minecraft_dimension::keys::dimension_type::OVERWORLD.as_str(),
             ),
         });
     drain_dim_spawn_queue(&mut app);
@@ -438,7 +441,7 @@ fn joining_players_share_the_baked_dimension_list() {
         .world_mut()
         .spawn((
             DimSubAppHandle,
-            ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD),
+            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD),
         ))
         .id();
     let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
@@ -591,10 +594,10 @@ fn every_registry_resource_of_the_host_is_shared() {
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
 const NETHER: (&str, &str) = ("minecraft:the_nether", "minecraft:the_nether");
 
-fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<keys::Dimension>)> {
+fn dimension_labels(app: &mut App) -> Vec<(Entity, ResourceKey<Dimension>)> {
     let mut query = app
         .world_mut()
-        .query_filtered::<(Entity, &ResourceKey<keys::Dimension>), With<DimSubAppHandle>>();
+        .query_filtered::<(Entity, &ResourceKey<Dimension>), With<DimSubAppHandle>>();
     query
         .iter(app.world())
         .map(|(label, key)| (label, key.clone()))
@@ -614,7 +617,11 @@ fn a_shared_registry_is_not_changed_on_the_second_tick() {
     assert_eq!(labels.len(), 2);
     let overworld = labels
         .iter()
-        .find(|(_, key)| *key == ResourceKey::<keys::Dimension>::from(keys::dimension::OVERWORLD))
+        .find(|(_, key)| {
+            *key == ResourceKey::<Dimension>::from(
+                mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
+            )
+        })
         .expect("the overworld is live")
         .0;
 

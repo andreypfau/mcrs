@@ -77,9 +77,9 @@ fn messages_buffered_before_dim_boots() {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension: mcrs_minecraft_keys::dimension::THE_END.into(),
+            dimension: mcrs_minecraft_dimension::keys::dimension::THE_END.into(),
             dimension_type: crate::support::dimension_type(
-                mcrs_minecraft_keys::dimension_type::THE_END.as_str(),
+                mcrs_minecraft_dimension::keys::dimension_type::THE_END.as_str(),
             ),
         });
     drain_dim_spawn_queue(&mut app);

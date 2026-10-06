@@ -1,5 +1,4 @@
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ColumnPos};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, LoadReport, Registry};
 use std::collections::HashMap;
 use std::ops::Range;
@@ -34,6 +33,7 @@ use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::stages::extent;
 use crate::{base_column, base_height, first_free_kind, heightmap_kind};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, SetId, StructureId};
 use mcrs_minecraft_worldgen_structure::locate::{LocatePlacement, MAX_SEARCH_RADIUS, locate};
 use mcrs_minecraft_worldgen_structure::piece::{Piece, Start};
@@ -58,13 +58,13 @@ pub struct EndBiomes {
 }
 
 impl EndBiomes {
-    pub fn resolve(biomes: &Registry<keys::Biome>, report: &mut LoadReport) -> Option<Self> {
+    pub fn resolve(biomes: &Registry<Biome>, report: &mut LoadReport) -> Option<Self> {
         let mut id_of = |key| report.require(biomes, &key).map(Id::number);
-        let end = id_of(keys::biome::THE_END);
-        let highlands = id_of(keys::biome::END_HIGHLANDS);
-        let midlands = id_of(keys::biome::END_MIDLANDS);
-        let islands = id_of(keys::biome::SMALL_END_ISLANDS);
-        let barrens = id_of(keys::biome::END_BARRENS);
+        let end = id_of(mcrs_minecraft_biome::keys::biome::THE_END);
+        let highlands = id_of(mcrs_minecraft_biome::keys::biome::END_HIGHLANDS);
+        let midlands = id_of(mcrs_minecraft_biome::keys::biome::END_MIDLANDS);
+        let islands = id_of(mcrs_minecraft_biome::keys::biome::SMALL_END_ISLANDS);
+        let barrens = id_of(mcrs_minecraft_biome::keys::biome::END_BARRENS);
         Some(EndBiomes {
             end: end?,
             highlands: highlands?,

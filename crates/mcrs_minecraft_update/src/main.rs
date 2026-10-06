@@ -258,7 +258,8 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
         }
     };
     let registries = registries::read(&stored.join("registries.json"))?;
-    keys::generate(&registries, &datapack_report, names, owners::OWNERS)
+    let above = keys::above_catalog(root, owners::OWNERS)?;
+    keys::generate(&registries, &datapack_report, names, owners::OWNERS, &above)
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {

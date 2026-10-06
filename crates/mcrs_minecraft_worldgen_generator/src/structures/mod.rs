@@ -32,6 +32,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use mcrs_minecraft_biome::Biome;
 
 pub mod index;
 
@@ -91,8 +92,8 @@ pub struct StructureInputs<'a> {
     pub pools: &'a BTreeMap<ResourceLocation, TemplatePool>,
     pub template: &'a dyn Fn(&ResourceLocation) -> Option<Cow<'a, Template>>,
     pub resolve: &'a dyn Fn(&PaletteState) -> Option<ResolvedState>,
-    pub biomes: &'a Registry<keys::Biome>,
-    pub biome_tags: &'a Tags<keys::Biome>,
+    pub biomes: &'a Registry<Biome>,
+    pub biome_tags: &'a Tags<Biome>,
     /// The structure ids the tags are resolved against, and those tags.
     pub structure_registry: &'a Registry<keys::Structure>,
     pub structure_tags: &'a Tags<keys::Structure>,
@@ -186,7 +187,7 @@ fn freeze_variants(
     Ok(())
 }
 
-fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<keys::Biome>) -> BiomeMask {
+fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<Biome>) -> BiomeMask {
     let mut mask = FixedBitSet::with_capacity(inputs.biomes.len());
     mask.extend(set.ids(inputs.biome_tags).map(Id::index));
     Arc::new(mask)
@@ -195,7 +196,7 @@ fn biome_mask(inputs: &StructureInputs<'_>, set: &HolderSet<keys::Biome>) -> Bio
 fn biome_tag_mask(
     inputs: &StructureInputs<'_>,
     owner: &dyn std::fmt::Display,
-    key: TagKey<keys::Biome, &'static str>,
+    key: TagKey<Biome, &'static str>,
 ) -> Result<BiomeMask, String> {
     let tag = inputs.biome_tags.get(&key).ok_or_else(|| {
         format!(
@@ -465,7 +466,7 @@ fn freeze_structures(
             Structure::JungleTemple { .. } => StructureKind::JungleTemple,
             Structure::Mineshaft { mineshaft_type, .. } => StructureKind::Mineshaft {
                 mineshaft_type: *mineshaft_type,
-                blocking: biome_tag_mask(inputs, id, keys::biome_tags::MINESHAFT_BLOCKING)?,
+                blocking: biome_tag_mask(inputs, id, mcrs_minecraft_biome::keys::biome_tags::MINESHAFT_BLOCKING)?,
             },
             Structure::NetherFossil { height, .. } => StructureKind::NetherFossil {
                 height: *height,
@@ -475,7 +476,7 @@ fn freeze_structures(
                 surrounding: biome_tag_mask(
                     inputs,
                     id,
-                    keys::biome_tags::REQUIRED_OCEAN_MONUMENT_SURROUNDING,
+                    mcrs_minecraft_biome::keys::biome_tags::REQUIRED_OCEAN_MONUMENT_SURROUNDING,
                 )?,
             },
             Structure::OceanRuin {
@@ -490,7 +491,7 @@ fn freeze_structures(
                 frequent_drowned: biome_tag_mask(
                     inputs,
                     id,
-                    keys::biome_tags::MORE_FREQUENT_DROWNED_SPAWNS,
+                    mcrs_minecraft_biome::keys::biome_tags::MORE_FREQUENT_DROWNED_SPAWNS,
                 )?,
             }),
             Structure::RuinedPortal { setups, .. } => {

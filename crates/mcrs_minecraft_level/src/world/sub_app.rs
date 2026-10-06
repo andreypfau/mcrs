@@ -2,7 +2,7 @@ use bevy_app::AppLabel;
 use bevy_ecs::prelude::{Entity, Resource};
 
 use mcrs_minecraft_core::ResourceKey;
-use mcrs_minecraft_keys as keys;
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_registry::Id;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, AppLabel)]
@@ -10,8 +10,8 @@ pub struct DimAppLabel(pub Entity);
 
 #[derive(Debug, Clone)]
 pub struct DimSpawnRequest {
-    pub dimension: ResourceKey<keys::Dimension>,
-    pub dimension_type: Id<keys::DimensionType>,
+    pub dimension: ResourceKey<mcrs_minecraft_dimension::Dimension>,
+    pub dimension_type: Id<DimensionType>,
 }
 
 #[derive(Resource, Default)]

@@ -37,6 +37,8 @@ use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
 use crate::common::{assets, datapack_report, declared_world_registries, loaded_names};
+use mcrs_minecraft_biome::Biome;
+use mcrs_minecraft_dimension::DimensionType;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
 
@@ -466,8 +468,7 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
                 );
                 let read: BiomeFile = set.scope(|| serde_json::from_str(&encoded).unwrap());
                 let stored = BiomeFile::join((
-                    &set.column::<mcrs_minecraft_biome::Biome>(registry.as_str())
-                        .unwrap()[index],
+                    &set.column::<Biome>(registry.as_str()).unwrap()[index],
                     &set.column::<EnvironmentAttributeMap>(registry.as_str())
                         .unwrap()[index],
                     &set.column::<BiomeGenerationSettings>(registry.as_str())
@@ -2137,14 +2138,17 @@ fn a_dimension_type_reads_its_holder_fields_as_vanilla_does() {
 }
 
 fn the_loaded_presets() -> (
-    mcrs_minecraft_registry::Registry<keys::WorldPreset>,
-    mcrs_minecraft_registry::Entries<keys::WorldPreset, WorldPreset>,
+    mcrs_minecraft_registry::Registry<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>,
+    mcrs_minecraft_registry::Entries<
+        mcrs_minecraft_world::worldgen::world_preset::WorldPreset,
+        WorldPreset,
+    >,
 ) {
     let set = test_registries();
     (
-        set.registry::<keys::WorldPreset>()
+        set.registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
             .expect("world presets are a declared registry"),
-        set.entries::<keys::WorldPreset, WorldPreset>()
+        set.entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
             .expect("the loader parses world presets"),
     )
 }
@@ -2190,9 +2194,9 @@ fn every_preset_parses_in_registry_context() {
         single.biome_source,
         BiomeSource::Fixed {
             biome: set
-                .registry::<keys::Biome>()
+                .registry::<Biome>()
                 .unwrap()
-                .get(&keys::biome::PLAINS)
+                .get(&mcrs_minecraft_biome::keys::biome::PLAINS)
                 .unwrap()
         }
     );
@@ -2239,7 +2243,7 @@ fn a_preset_reads_its_dimensions_as_a_map_by_key() {
         ["minecraft:overworld"]
     );
     let beta_type = set
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .unwrap()
         .by_name("minecraft:beta")
         .expect("the beta pack ships the beta dimension type");

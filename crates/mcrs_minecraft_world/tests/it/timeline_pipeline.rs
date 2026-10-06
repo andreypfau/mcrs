@@ -10,7 +10,6 @@ use mcrs_minecraft_dimension_environment::environment::DimensionEnvironments;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_environment::world_clock::{ClockTimeMarkers, WorldClocks};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
@@ -72,7 +71,7 @@ pub fn every_dimension_builds_its_environment_from_its_tag(app: &App) {
     let types = app
         .world()
         .resource::<RegistrySet>()
-        .registry::<keys::DimensionType>()
+        .registry::<DimensionType>()
         .expect("the dimension types are loaded");
     let environment = |name: &str| {
         environments.get(

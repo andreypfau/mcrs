@@ -26,6 +26,7 @@ use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use mcrs_minecraft_biome::Biome;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
@@ -744,7 +745,7 @@ pub fn multi_noise_grid(
 
 /// The containers of a `minecraft:fixed` source, which answers the same biome
 /// at every block however it is asked.
-fn fixed_biome_palettes(biome: Id<keys::Biome>, y_sections: &[i32]) -> Vec<BiomePalette> {
+fn fixed_biome_palettes(biome: Id<Biome>, y_sections: &[i32]) -> Vec<BiomePalette> {
     let stored = stored_biome(biome, "fixed biome");
     vec![BiomePalette::homogeneous(stored); y_sections.len()]
 }
@@ -754,7 +755,7 @@ fn fixed_biome_palettes(biome: Id<keys::Biome>, y_sections: &[i32]) -> Vec<Biome
 /// Answering nothing would skip the material stage entirely and hand back a
 /// column of bare stone, so an id that does not fit degrades to the first biome
 /// rather than silently dropping every rule the column owes.
-fn stored_biome(biome: Id<keys::Biome>, what: &str) -> u8 {
+fn stored_biome(biome: Id<Biome>, what: &str) -> u8 {
     match biome.narrow::<u8>() {
         Ok(stored) => stored,
         Err(error) => {

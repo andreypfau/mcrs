@@ -131,7 +131,7 @@ mod tests {
                 JoinedGame {
                     player_id: PLAYER_ID,
                     dimensions: Vec::new(),
-                    dimension: mcrs_minecraft_keys::dimension::OVERWORLD.into(),
+                    dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
                     dimension_type_id: 0,
                 },
             ))

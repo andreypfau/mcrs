@@ -10,7 +10,6 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::ColumnPos;
-use mcrs_minecraft_keys as keys;
 #[cfg(feature = "dev")]
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, TraceEvent};
 use mcrs_minecraft_registry::RegistrySet;
@@ -1535,7 +1534,7 @@ fn admit_meshing(
 /// In local id order: the tint table is indexed by the local biome id a decoded column holds.
 fn local_biome_names(registries: &RegistrySet) -> Vec<String> {
     registries
-        .registry::<keys::Biome>()
+        .registry::<mcrs_minecraft_biome::Biome>()
         .map(|biomes| {
             biomes
                 .table()
@@ -1572,7 +1571,9 @@ mod tests {
     fn the_tint_table_is_indexed_by_local_biome_id() {
         let names = local_biome_names(test_registries());
         let tints = tints_for(&names);
-        let biomes = test_registries().registry::<keys::Biome>().unwrap();
+        let biomes = test_registries()
+            .registry::<mcrs_minecraft_biome::Biome>()
+            .unwrap();
         assert_eq!(tints.len(), biomes.len());
         for name in [
             "minecraft:plains",

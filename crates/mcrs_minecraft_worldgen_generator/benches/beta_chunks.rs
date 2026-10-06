@@ -10,7 +10,6 @@ use std::time::Instant;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::program::Workspace;
@@ -28,13 +27,14 @@ use mcrs_minecraft_worldgen_generator::{
 mod support;
 
 use support::{build_settings_router, corpus};
+use mcrs_minecraft_biome::Biome;
 
-fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
+fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let mut names: Vec<ResourceLocation<Arc<str>>> = (0..11)
         .map(|i| ResourceLocation::read(&format!("minecraft:land_biome_{i}")).unwrap())
         .collect();
     names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    let registry = Registry::<keys::Biome>::new(keys::BIOME, names).expect("distinct land biomes");
+    let registry = Registry::<Biome>::new(mcrs_minecraft_biome::keys::BIOME, names).expect("distinct land biomes");
     let biome_source = BiomeSource::Beta {
         land_biomes: std::array::from_fn(|i| {
             registry
@@ -47,7 +47,7 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
 }
 
 /// Beta's carver in every land biome, as the shipped Beta biomes carry it.
-fn beta_carvers(source: &BiomeSource, biomes: &Registry<keys::Biome>) -> CarverBiomeTable {
+fn beta_carvers(source: &BiomeSource, biomes: &Registry<Biome>) -> CarverBiomeTable {
     CarverBiomeTable::beta(source, biomes, |_| Arc::from([CarverConfig::BetaCave]))
         .expect("a Beta source")
 }

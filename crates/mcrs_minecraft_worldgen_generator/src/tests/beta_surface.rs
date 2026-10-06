@@ -3,15 +3,15 @@ use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Registry;
 
 use super::build_beta_router;
 use crate::ColumnBlocks;
 use crate::task::CancellationToken;
 use crate::{apply_beta_surface, generate_column};
+use mcrs_minecraft_biome::Biome;
 
-pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<keys::Biome>) {
+pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let land: Vec<String> = (0..11)
         .map(|i| format!("minecraft:land_biome_{i}"))
         .collect();

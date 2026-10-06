@@ -164,7 +164,7 @@ fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    dims: Query<(Entity, &ResourceKey<keys::Dimension>, &DimensionTypeId), With<Dimension>>,
+    dims: Query<(Entity, &ResourceKey<mcrs_minecraft_dimension::Dimension>, &DimensionTypeId), With<Dimension>>,
     mut commands: Commands,
     mut dim_index: ResMut<DimPlayerIndex>,
     simulation_distance: Res<SimulationDistance>,
