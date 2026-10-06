@@ -156,29 +156,34 @@ pub fn generate(
                 ValueType::Defined(value) => (owner.krate, value.to_owned()),
                 ValueType::Enum(name) => (owner.krate, format!("crate::keys::{name}")),
             },
-            None => (KEYS_CRATE, format!("crate::{marker}")),
+            None => (KEYS_CRATE, String::new()),
         };
         let target = targets
             .entry(krate.to_owned())
             .or_insert_with(|| Target::new(krate, String::new()));
         target.value = value;
         let key = module.to_ascii_uppercase();
-        definition_text(target, registry, &marker, &key);
-        target.bindings.push(key.clone());
+        definition_text(target, registry, &key);
+        if target.owned() {
+            target.bindings.push(key.clone());
+        }
 
+        let value = target.owned().then_some(target.value.as_str());
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
                 if let Some(name) = enumerated {
                     target.enums.push((module.clone(), name.to_owned()));
                     Some(enum_module(registry, name, report)?)
+                } else if let Some(value) = value {
+                    Some(static_module(registry, value, report)?)
                 } else {
-                    Some(static_module(registry, &target.value, report)?)
+                    Some(static_names_module(registry, report)?)
                 }
             }
             (None, Some(entries))
                 if !entries.is_empty() && !NO_CONSTANTS.contains(&registry.as_str()) =>
             {
-                Some(data_module(registry, &target.value, entries)?)
+                Some(data_module(registry, value, entries)?)
             }
             _ => None,
         };
@@ -196,19 +201,22 @@ pub fn generate(
             } else {
                 target.path(&format!("{module}::ENTRIES"))
             };
-            statics.push(format!(
-                "    ({}.location(), {entries}),\n",
+            let location = if target.owned() {
+                format!("{}.location()", target.path(&key))
+            } else {
                 target.path(&key)
-            ));
+            };
+            statics.push(format!("    ({location}, {entries}),\n"));
         }
         if let Some(text) = text {
             files.insert(target.source(&format!("{module}.rs")), text);
             target.modules.push(module);
         }
         if let (Some(tags), Some(tag_module)) = (tags, tag_module) {
+            let value = target.owned().then_some(target.value.as_str());
             files.insert(
                 target.source(&format!("{tag_module}.rs")),
-                tag_module_text(registry, &target.value, tags)?,
+                tag_module_text(registry, value, tags)?,
             );
             target.modules.push(tag_module);
         }
@@ -393,26 +401,25 @@ fn constants<'n>(
     Ok(constants)
 }
 
-fn definition_text(target: &mut Target, registry: &str, marker: &str, key: &str) {
+fn definition_text(target: &mut Target, registry: &str, key: &str) {
     let owned = target.owned();
     let out = &mut target.definitions;
-    if !out.is_empty() {
+    if !out.is_empty() && owned {
         out.push('\n');
     }
-    let value = if owned {
-        target.value.clone()
+    if owned {
+        let value = &target.value;
+        out.push_str(&format!(
+            "pub const {key}: RegistryKey<{value}> = RegistryKey::new(rl!(\"{registry}\"));\n\
+             impl Registered for {value} {{\n    \
+                 const REGISTRY: RegistryKey<Self> = {key};\n\
+             }}\n"
+        ));
     } else {
         out.push_str(&format!(
-            "#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum {marker} {{}}\n"
+            "pub const {key}: StaticResourceLocation = rl!(\"{registry}\");\n"
         ));
-        marker.to_owned()
-    };
-    out.push_str(&format!(
-        "pub const {key}: RegistryKey<{value}> = RegistryKey::new(rl!(\"{registry}\"));\n\
-         impl Registered for {value} {{\n    \
-             const REGISTRY: RegistryKey<Self> = {key};\n\
-         }}\n"
-    ));
+    }
 }
 
 fn by_protocol_id<'r>(
@@ -451,6 +458,25 @@ fn static_module(
     Ok(out)
 }
 
+/// The entries of a static registry no crate keys by a type: one location
+/// per entry and the list of them by protocol id.
+fn static_names_module(registry: &str, report: &registries::Registry) -> Result<String, String> {
+    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{StaticResourceLocation, rl}};\n\n");
+    let names = by_protocol_id(registry, report)?;
+    let constants = constants(registry, names.into_iter(), &["ENTRIES"])?;
+    for (constant, name) in &constants {
+        out.push_str(&format!(
+            "pub const {constant}: StaticResourceLocation = rl!(\"{name}\");\n"
+        ));
+    }
+    out.push_str("\npub const ENTRIES: &[StaticResourceLocation] = &[\n");
+    for (constant, _) in &constants {
+        out.push_str(&format!("    {constant},\n"));
+    }
+    out.push_str("];\n");
+    Ok(out)
+}
+
 fn enum_module(
     registry: &str,
     marker: &str,
@@ -486,22 +512,46 @@ fn variant(constant: &str) -> String {
         .collect()
 }
 
-fn data_module(registry: &str, value: &str, entries: &BTreeSet<String>) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{ResourceKey, rl}};\n\n");
-    for (constant, name) in constants(registry, entries.iter().map(String::as_str), &[])? {
-        out.push_str(&format!(
-            "pub const {constant}: ResourceKey<{value}, &'static str> = ResourceKey::new(rl!(\"{name}\"));\n"
-        ));
-    }
-    Ok(out)
+/// Keys of a data registry's entries, or bare locations when no crate keys the
+/// registry by a type.
+fn data_module(
+    registry: &str,
+    value: Option<&str>,
+    entries: &BTreeSet<String>,
+) -> Result<String, String> {
+    named_constants(registry, value, "ResourceKey", entries)
 }
 
-fn tag_module_text(registry: &str, value: &str, tags: &BTreeSet<String>) -> Result<String, String> {
-    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{TagKey, rl}};\n\n");
-    for (constant, name) in constants(registry, tags.iter().map(String::as_str), &[])? {
-        out.push_str(&format!(
-            "pub const {constant}: TagKey<{value}, &'static str> = TagKey::new(rl!(\"{name}\"));\n"
-        ));
+fn tag_module_text(
+    registry: &str,
+    value: Option<&str>,
+    tags: &BTreeSet<String>,
+) -> Result<String, String> {
+    named_constants(registry, value, "TagKey", tags)
+}
+
+fn named_constants(
+    registry: &str,
+    value: Option<&str>,
+    key: &str,
+    names: &BTreeSet<String>,
+) -> Result<String, String> {
+    let ty = value.map_or_else(
+        || "StaticResourceLocation".to_owned(),
+        |value| format!("{key}<{value}, &'static str>"),
+    );
+    let import = if value.is_some() {
+        key
+    } else {
+        "StaticResourceLocation"
+    };
+    let mut out = format!("{HEADER}\nuse mcrs_minecraft_core::{{{import}, rl}};\n\n");
+    for (constant, name) in constants(registry, names.iter().map(String::as_str), &[])? {
+        let init = match value {
+            Some(_) => format!("{key}::new(rl!(\"{name}\"))"),
+            None => format!("rl!(\"{name}\")"),
+        };
+        out.push_str(&format!("pub const {constant}: {ty} = {init};\n"));
     }
     Ok(out)
 }
@@ -524,13 +574,10 @@ fn bindings_text(bindings: &[String]) -> String {
 fn registry_file(target: &Target) -> String {
     format!(
         "{HEADER}\n\
-         use mcrs_minecraft_core::{{RegistryKey, TypeBinding, rl}};\n\
-         use mcrs_minecraft_registry::Registered;\n\
+         use mcrs_minecraft_core::{{StaticResourceLocation, rl}};\n\
          \n\
-         {definitions}\n\
-         {bindings}",
+         {definitions}",
         definitions = target.definitions,
-        bindings = bindings_text(&target.bindings),
     )
 }
 
@@ -587,13 +634,8 @@ fn catalog_file(statics: &[String], owning: &[&str]) -> String {
          pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n    \
              std::iter::empty()\n",
     );
-    for krate in owning {
-        let path = if *krate == KEYS_CRATE {
-            format!("{krate}::bindings()")
-        } else {
-            format!("{krate}::keys::bindings()")
-        };
-        out.push_str(&format!("        .chain({path})\n"));
+    for krate in owning.iter().filter(|krate| **krate != KEYS_CRATE) {
+        out.push_str(&format!("        .chain({krate}::keys::bindings())\n"));
     }
     out.push_str("}\n");
     out
@@ -716,6 +758,7 @@ mod tests {
                     .or_else(|| line.strip_prefix("    ")?.split_once(" = \""))
             })
             .map(|(name, _)| name.to_owned())
+            .filter(|name| name != "ENTRIES")
             .collect()
     }
 
@@ -753,13 +796,12 @@ mod tests {
              \n\
              #[rustfmt::skip]\n\
              pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[\n\
-             \x20   (mcrs_minecraft_keys::BLOCK.location(), mcrs_minecraft_keys::block::ENTRIES),\n\
+             \x20   (mcrs_minecraft_keys::BLOCK, mcrs_minecraft_keys::block::ENTRIES),\n\
              ];\n\
              \n\
              #[rustfmt::skip]\n\
              pub fn bindings() -> impl Iterator<Item = TypeBinding> {\n\
              \x20   std::iter::empty()\n\
-             \x20       .chain(mcrs_minecraft_keys::bindings())\n\
              }\n"
         );
         assert_eq!(
@@ -779,47 +821,32 @@ mod tests {
             files["src/registry.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};\n\
-             use mcrs_minecraft_registry::Registered;\n\
+             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
              \n\
-             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
-             pub enum Block {}\n\
-             pub const BLOCK: RegistryKey<Block> = RegistryKey::new(rl!(\"minecraft:block\"));\n\
-             impl Registered for Block {\n\
-             \x20   const REGISTRY: RegistryKey<Self> = BLOCK;\n\
-             }\n\
-             \n\
-             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\n\
-             pub enum Biome {}\n\
-             pub const BIOME: RegistryKey<Biome> = RegistryKey::new(rl!(\"minecraft:worldgen/biome\"));\n\
-             impl Registered for Biome {\n\
-             \x20   const REGISTRY: RegistryKey<Self> = BIOME;\n\
-             }\n\
-             \n\
-             pub fn bindings() -> [TypeBinding; 2] {\n\
-             \x20   [\n\
-             \x20       BLOCK.binding(),\n\
-             \x20       BIOME.binding(),\n\
-             \x20   ]\n\
-             }\n"
+             pub const BLOCK: StaticResourceLocation = rl!(\"minecraft:block\");\n\
+             pub const BIOME: StaticResourceLocation = rl!(\"minecraft:worldgen/biome\");\n"
         );
         assert_eq!(
             files["src/block.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             mcrs_minecraft_registry::static_keys! {\n\
-             \x20   crate::Block;\n\
-             \x20   AIR = \"minecraft:air\",\n\
-             \x20   STONE = \"minecraft:stone\",\n\
-             }\n"
+             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
+             \n\
+             pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");\n\
+             pub const STONE: StaticResourceLocation = rl!(\"minecraft:stone\");\n\
+             \n\
+             pub const ENTRIES: &[StaticResourceLocation] = &[\n\
+             \x20   AIR,\n\
+             \x20   STONE,\n\
+             ];\n"
         );
         assert_eq!(
             files["src/biome.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{ResourceKey, rl};\n\
+             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
              \n\
-             pub const PLAINS: ResourceKey<crate::Biome, &'static str> = ResourceKey::new(rl!(\"minecraft:plains\"));\n"
+             pub const PLAINS: StaticResourceLocation = rl!(\"minecraft:plains\");\n"
         );
     }
 
@@ -868,9 +895,8 @@ mod tests {
             ["BRIGADIER_BOOL", "ENTITY"]
         );
         assert!(
-            files["src/jukebox_song.rs"].contains(
-                "pub const FIVE: ResourceKey<crate::JukeboxSong, &'static str> = ResourceKey::new(rl!(\"minecraft:5\"));"
-            ),
+            files["src/jukebox_song.rs"]
+                .contains("pub const FIVE: StaticResourceLocation = rl!(\"minecraft:5\");"),
             "{}",
             files["src/jukebox_song.rs"]
         );
@@ -927,15 +953,17 @@ mod tests {
     fn a_static_registry_without_entries_is_listed_and_has_no_module() {
         let files = generated(&[("minecraft:none", &[]), ("minecraft:block", BLOCK)], &[]).unwrap();
 
-        assert!(files[CATALOG_LIB].contains("    (mcrs_minecraft_keys::NONE.location(), &[]),\n"));
-        assert!(files[CATALOG_LIB].contains(
-            "    (mcrs_minecraft_keys::BLOCK.location(), mcrs_minecraft_keys::block::ENTRIES),\n"
-        ));
+        assert!(files[CATALOG_LIB].contains("    (mcrs_minecraft_keys::NONE, &[]),\n"));
+        assert!(
+            files[CATALOG_LIB].contains(
+                "    (mcrs_minecraft_keys::BLOCK, mcrs_minecraft_keys::block::ENTRIES),\n"
+            )
+        );
         assert!(!files.contains_key("src/none.rs"));
     }
 
     #[test]
-    fn a_registry_without_entries_gets_a_marker_and_no_constants() {
+    fn a_registry_without_entries_gets_its_name_and_no_constants() {
         let files = generated(
             &[],
             &[
@@ -945,7 +973,9 @@ mod tests {
         )
         .unwrap();
 
-        assert!(files["src/registry.rs"].contains("pub enum ItemModifier {}"));
+        assert!(files["src/registry.rs"].contains(
+            "pub const ITEM_MODIFIER: StaticResourceLocation = rl!(\"minecraft:item_modifier\");"
+        ));
         assert!(!files.contains_key("src/item_modifier.rs"));
         assert!(!files["src/lib.rs"].contains("item_modifier"));
         assert!(files.contains_key("src/biome.rs"));
@@ -998,9 +1028,9 @@ mod tests {
             files["src/block_tags.rs"],
             "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
              \n\
-             use mcrs_minecraft_core::{TagKey, rl};\n\
+             use mcrs_minecraft_core::{StaticResourceLocation, rl};\n\
              \n\
-             pub const LOGS: TagKey<crate::Block, &'static str> = TagKey::new(rl!(\"minecraft:logs\"));\n"
+             pub const LOGS: StaticResourceLocation = rl!(\"minecraft:logs\");\n"
         );
     }
 
@@ -1029,7 +1059,7 @@ mod tests {
             ]
         );
         assert!(files["src/biome_tags.rs"].contains(
-            "pub const HAS_STRUCTURE_VILLAGE: TagKey<crate::Biome, &'static str> = TagKey::new(rl!(\"minecraft:has_structure/village\"));"
+            "pub const HAS_STRUCTURE_VILLAGE: StaticResourceLocation = rl!(\"minecraft:has_structure/village\");"
         ));
     }
 
@@ -1082,12 +1112,12 @@ mod tests {
         )
         .unwrap();
 
-        assert!(files["src/block.rs"].contains(
-            "    crate::Block;\n    AIR = \"minecraft:air\",\n    STONE = \"minecraft:stone\",\n"
-        ));
-        assert!(files["src/item.rs"].contains(
-            "    crate::Item;\n    AIR = \"minecraft:air\",\n    APPLE = \"minecraft:apple\",\n    STONE = \"minecraft:stone\",\n"
-        ));
+        assert_eq!(constants(&files, "src/block.rs"), ["AIR", "STONE"]);
+        assert_eq!(constants(&files, "src/item.rs"), ["AIR", "APPLE", "STONE"]);
+        assert!(
+            files["src/item.rs"]
+                .contains("pub const AIR: StaticResourceLocation = rl!(\"minecraft:air\");")
+        );
     }
 
     #[test]
@@ -1123,8 +1153,8 @@ mod tests {
         )
         .unwrap();
 
-        assert!(files["src/registry.rs"].contains("pub enum Advancement {}"));
-        assert!(files["src/registry.rs"].contains("pub enum Recipe {}"));
+        assert!(files["src/registry.rs"].contains("pub const ADVANCEMENT: StaticResourceLocation"));
+        assert!(files["src/registry.rs"].contains("pub const RECIPE: StaticResourceLocation"));
         assert!(!files.contains_key("src/advancement.rs"));
         assert!(!files.contains_key("src/recipe.rs"));
         assert!(!files["src/lib.rs"].contains("advancement"));
@@ -1135,32 +1165,30 @@ mod tests {
     #[test]
     fn registries_are_named_from_their_path() {
         let rows = [
-            ("minecraft:block", "block", "Block"),
+            ("minecraft:block", "block", "BLOCK"),
             (
                 "minecraft:dimension_type",
                 "dimension_type",
-                "DimensionType",
+                "DIMENSION_TYPE",
             ),
             (
                 "minecraft:worldgen/placed_feature",
                 "placed_feature",
-                "PlacedFeature",
+                "PLACED_FEATURE",
             ),
         ];
-        for (registry, module, marker) in rows {
+        for (registry, module, key) in rows {
             let files = generated(&[], &[(registry, &["minecraft:x"])]).unwrap();
             assert!(
                 files.contains_key(&format!("src/{module}.rs")),
                 "{registry}"
             );
-            let markers = &files["src/registry.rs"];
+            let names = &files["src/registry.rs"];
             assert!(
-                markers.contains(&format!("pub enum {marker} {{}}")),
-                "{markers}"
-            );
-            assert!(
-                markers.contains(&format!("rl!(\"{registry}\")")),
-                "{markers}"
+                names.contains(&format!(
+                    "pub const {key}: StaticResourceLocation = rl!(\"{registry}\");"
+                )),
+                "{names}"
             );
         }
 

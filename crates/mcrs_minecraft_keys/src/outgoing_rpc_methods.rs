@@ -1,26 +1,49 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
-    crate::OutgoingRpcMethods;
-    NOTIFICATION_SERVER_STARTED = "minecraft:notification/server/started",
-    NOTIFICATION_SERVER_STOPPING = "minecraft:notification/server/stopping",
-    NOTIFICATION_SERVER_SAVING = "minecraft:notification/server/saving",
-    NOTIFICATION_SERVER_SAVED = "minecraft:notification/server/saved",
-    NOTIFICATION_SERVER_ACTIVITY = "minecraft:notification/server/activity",
-    NOTIFICATION_WORLD_UPGRADE_STARTED = "minecraft:notification/world/upgrade_started",
-    NOTIFICATION_WORLD_UPGRADE_PROGRESS = "minecraft:notification/world/upgrade_progress",
-    NOTIFICATION_WORLD_UPGRADE_FINISHED = "minecraft:notification/world/upgrade_finished",
-    NOTIFICATION_WORLD_UPGRADE_FAILED = "minecraft:notification/world/upgrade_failed",
-    NOTIFICATION_PLAYERS_JOINED = "minecraft:notification/players/joined",
-    NOTIFICATION_PLAYERS_LEFT = "minecraft:notification/players/left",
-    NOTIFICATION_OPERATORS_ADDED = "minecraft:notification/operators/added",
-    NOTIFICATION_OPERATORS_REMOVED = "minecraft:notification/operators/removed",
-    NOTIFICATION_ALLOWLIST_ADDED = "minecraft:notification/allowlist/added",
-    NOTIFICATION_ALLOWLIST_REMOVED = "minecraft:notification/allowlist/removed",
-    NOTIFICATION_IP_BANS_ADDED = "minecraft:notification/ip_bans/added",
-    NOTIFICATION_IP_BANS_REMOVED = "minecraft:notification/ip_bans/removed",
-    NOTIFICATION_BANS_ADDED = "minecraft:notification/bans/added",
-    NOTIFICATION_BANS_REMOVED = "minecraft:notification/bans/removed",
-    NOTIFICATION_GAMERULES_UPDATED = "minecraft:notification/gamerules/updated",
-    NOTIFICATION_SERVER_STATUS = "minecraft:notification/server/status",
-}
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
+
+pub const NOTIFICATION_SERVER_STARTED: StaticResourceLocation = rl!("minecraft:notification/server/started");
+pub const NOTIFICATION_SERVER_STOPPING: StaticResourceLocation = rl!("minecraft:notification/server/stopping");
+pub const NOTIFICATION_SERVER_SAVING: StaticResourceLocation = rl!("minecraft:notification/server/saving");
+pub const NOTIFICATION_SERVER_SAVED: StaticResourceLocation = rl!("minecraft:notification/server/saved");
+pub const NOTIFICATION_SERVER_ACTIVITY: StaticResourceLocation = rl!("minecraft:notification/server/activity");
+pub const NOTIFICATION_WORLD_UPGRADE_STARTED: StaticResourceLocation = rl!("minecraft:notification/world/upgrade_started");
+pub const NOTIFICATION_WORLD_UPGRADE_PROGRESS: StaticResourceLocation = rl!("minecraft:notification/world/upgrade_progress");
+pub const NOTIFICATION_WORLD_UPGRADE_FINISHED: StaticResourceLocation = rl!("minecraft:notification/world/upgrade_finished");
+pub const NOTIFICATION_WORLD_UPGRADE_FAILED: StaticResourceLocation = rl!("minecraft:notification/world/upgrade_failed");
+pub const NOTIFICATION_PLAYERS_JOINED: StaticResourceLocation = rl!("minecraft:notification/players/joined");
+pub const NOTIFICATION_PLAYERS_LEFT: StaticResourceLocation = rl!("minecraft:notification/players/left");
+pub const NOTIFICATION_OPERATORS_ADDED: StaticResourceLocation = rl!("minecraft:notification/operators/added");
+pub const NOTIFICATION_OPERATORS_REMOVED: StaticResourceLocation = rl!("minecraft:notification/operators/removed");
+pub const NOTIFICATION_ALLOWLIST_ADDED: StaticResourceLocation = rl!("minecraft:notification/allowlist/added");
+pub const NOTIFICATION_ALLOWLIST_REMOVED: StaticResourceLocation = rl!("minecraft:notification/allowlist/removed");
+pub const NOTIFICATION_IP_BANS_ADDED: StaticResourceLocation = rl!("minecraft:notification/ip_bans/added");
+pub const NOTIFICATION_IP_BANS_REMOVED: StaticResourceLocation = rl!("minecraft:notification/ip_bans/removed");
+pub const NOTIFICATION_BANS_ADDED: StaticResourceLocation = rl!("minecraft:notification/bans/added");
+pub const NOTIFICATION_BANS_REMOVED: StaticResourceLocation = rl!("minecraft:notification/bans/removed");
+pub const NOTIFICATION_GAMERULES_UPDATED: StaticResourceLocation = rl!("minecraft:notification/gamerules/updated");
+pub const NOTIFICATION_SERVER_STATUS: StaticResourceLocation = rl!("minecraft:notification/server/status");
+
+pub const ENTRIES: &[StaticResourceLocation] = &[
+    NOTIFICATION_SERVER_STARTED,
+    NOTIFICATION_SERVER_STOPPING,
+    NOTIFICATION_SERVER_SAVING,
+    NOTIFICATION_SERVER_SAVED,
+    NOTIFICATION_SERVER_ACTIVITY,
+    NOTIFICATION_WORLD_UPGRADE_STARTED,
+    NOTIFICATION_WORLD_UPGRADE_PROGRESS,
+    NOTIFICATION_WORLD_UPGRADE_FINISHED,
+    NOTIFICATION_WORLD_UPGRADE_FAILED,
+    NOTIFICATION_PLAYERS_JOINED,
+    NOTIFICATION_PLAYERS_LEFT,
+    NOTIFICATION_OPERATORS_ADDED,
+    NOTIFICATION_OPERATORS_REMOVED,
+    NOTIFICATION_ALLOWLIST_ADDED,
+    NOTIFICATION_ALLOWLIST_REMOVED,
+    NOTIFICATION_IP_BANS_ADDED,
+    NOTIFICATION_IP_BANS_REMOVED,
+    NOTIFICATION_BANS_ADDED,
+    NOTIFICATION_BANS_REMOVED,
+    NOTIFICATION_GAMERULES_UPDATED,
+    NOTIFICATION_SERVER_STATUS,
+];

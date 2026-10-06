@@ -1,7 +1,11 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
-    crate::TestInstanceType;
-    BLOCK_BASED = "minecraft:block_based",
-    FUNCTION = "minecraft:function",
-}
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
+
+pub const BLOCK_BASED: StaticResourceLocation = rl!("minecraft:block_based");
+pub const FUNCTION: StaticResourceLocation = rl!("minecraft:function");
+
+pub const ENTRIES: &[StaticResourceLocation] = &[
+    BLOCK_BASED,
+    FUNCTION,
+];

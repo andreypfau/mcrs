@@ -1,74 +1,145 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
-    crate::IncomingRpcMethods;
-    ALLOWLIST = "minecraft:allowlist",
-    ALLOWLIST_SET = "minecraft:allowlist/set",
-    ALLOWLIST_ADD = "minecraft:allowlist/add",
-    ALLOWLIST_REMOVE = "minecraft:allowlist/remove",
-    ALLOWLIST_CLEAR = "minecraft:allowlist/clear",
-    BANS = "minecraft:bans",
-    BANS_SET = "minecraft:bans/set",
-    BANS_ADD = "minecraft:bans/add",
-    BANS_REMOVE = "minecraft:bans/remove",
-    BANS_CLEAR = "minecraft:bans/clear",
-    IP_BANS = "minecraft:ip_bans",
-    IP_BANS_SET = "minecraft:ip_bans/set",
-    IP_BANS_ADD = "minecraft:ip_bans/add",
-    IP_BANS_REMOVE = "minecraft:ip_bans/remove",
-    IP_BANS_CLEAR = "minecraft:ip_bans/clear",
-    PLAYERS = "minecraft:players",
-    PLAYERS_KICK = "minecraft:players/kick",
-    OPERATORS = "minecraft:operators",
-    OPERATORS_SET = "minecraft:operators/set",
-    OPERATORS_ADD = "minecraft:operators/add",
-    OPERATORS_REMOVE = "minecraft:operators/remove",
-    OPERATORS_CLEAR = "minecraft:operators/clear",
-    SERVER_STATUS = "minecraft:server/status",
-    SERVER_SAVE = "minecraft:server/save",
-    SERVER_STOP = "minecraft:server/stop",
-    SERVER_SYSTEM_MESSAGE = "minecraft:server/system_message",
-    SERVERSETTINGS_AUTOSAVE = "minecraft:serversettings/autosave",
-    SERVERSETTINGS_AUTOSAVE_SET = "minecraft:serversettings/autosave/set",
-    SERVERSETTINGS_DIFFICULTY = "minecraft:serversettings/difficulty",
-    SERVERSETTINGS_DIFFICULTY_SET = "minecraft:serversettings/difficulty/set",
-    SERVERSETTINGS_ENFORCE_ALLOWLIST = "minecraft:serversettings/enforce_allowlist",
-    SERVERSETTINGS_ENFORCE_ALLOWLIST_SET = "minecraft:serversettings/enforce_allowlist/set",
-    SERVERSETTINGS_USE_ALLOWLIST = "minecraft:serversettings/use_allowlist",
-    SERVERSETTINGS_USE_ALLOWLIST_SET = "minecraft:serversettings/use_allowlist/set",
-    SERVERSETTINGS_MAX_PLAYERS = "minecraft:serversettings/max_players",
-    SERVERSETTINGS_MAX_PLAYERS_SET = "minecraft:serversettings/max_players/set",
-    SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS = "minecraft:serversettings/pause_when_empty_seconds",
-    SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS_SET = "minecraft:serversettings/pause_when_empty_seconds/set",
-    SERVERSETTINGS_PLAYER_IDLE_TIMEOUT = "minecraft:serversettings/player_idle_timeout",
-    SERVERSETTINGS_PLAYER_IDLE_TIMEOUT_SET = "minecraft:serversettings/player_idle_timeout/set",
-    SERVERSETTINGS_ALLOW_FLIGHT = "minecraft:serversettings/allow_flight",
-    SERVERSETTINGS_ALLOW_FLIGHT_SET = "minecraft:serversettings/allow_flight/set",
-    SERVERSETTINGS_MOTD = "minecraft:serversettings/motd",
-    SERVERSETTINGS_MOTD_SET = "minecraft:serversettings/motd/set",
-    SERVERSETTINGS_SPAWN_PROTECTION_RADIUS = "minecraft:serversettings/spawn_protection_radius",
-    SERVERSETTINGS_SPAWN_PROTECTION_RADIUS_SET = "minecraft:serversettings/spawn_protection_radius/set",
-    SERVERSETTINGS_FORCE_GAME_MODE = "minecraft:serversettings/force_game_mode",
-    SERVERSETTINGS_FORCE_GAME_MODE_SET = "minecraft:serversettings/force_game_mode/set",
-    SERVERSETTINGS_GAME_MODE = "minecraft:serversettings/game_mode",
-    SERVERSETTINGS_GAME_MODE_SET = "minecraft:serversettings/game_mode/set",
-    SERVERSETTINGS_VIEW_DISTANCE = "minecraft:serversettings/view_distance",
-    SERVERSETTINGS_VIEW_DISTANCE_SET = "minecraft:serversettings/view_distance/set",
-    SERVERSETTINGS_SIMULATION_DISTANCE = "minecraft:serversettings/simulation_distance",
-    SERVERSETTINGS_SIMULATION_DISTANCE_SET = "minecraft:serversettings/simulation_distance/set",
-    SERVERSETTINGS_ACCEPT_TRANSFERS = "minecraft:serversettings/accept_transfers",
-    SERVERSETTINGS_ACCEPT_TRANSFERS_SET = "minecraft:serversettings/accept_transfers/set",
-    SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL = "minecraft:serversettings/status_heartbeat_interval",
-    SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL_SET = "minecraft:serversettings/status_heartbeat_interval/set",
-    SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL = "minecraft:serversettings/operator_user_permission_level",
-    SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL_SET = "minecraft:serversettings/operator_user_permission_level/set",
-    SERVERSETTINGS_HIDE_ONLINE_PLAYERS = "minecraft:serversettings/hide_online_players",
-    SERVERSETTINGS_HIDE_ONLINE_PLAYERS_SET = "minecraft:serversettings/hide_online_players/set",
-    SERVERSETTINGS_STATUS_REPLIES = "minecraft:serversettings/status_replies",
-    SERVERSETTINGS_STATUS_REPLIES_SET = "minecraft:serversettings/status_replies/set",
-    SERVERSETTINGS_ENTITY_BROADCAST_RANGE = "minecraft:serversettings/entity_broadcast_range",
-    SERVERSETTINGS_ENTITY_BROADCAST_RANGE_SET = "minecraft:serversettings/entity_broadcast_range/set",
-    GAMERULES = "minecraft:gamerules",
-    GAMERULES_UPDATE = "minecraft:gamerules/update",
-    RPC_DISCOVER = "minecraft:rpc.discover",
-}
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
+
+pub const ALLOWLIST: StaticResourceLocation = rl!("minecraft:allowlist");
+pub const ALLOWLIST_SET: StaticResourceLocation = rl!("minecraft:allowlist/set");
+pub const ALLOWLIST_ADD: StaticResourceLocation = rl!("minecraft:allowlist/add");
+pub const ALLOWLIST_REMOVE: StaticResourceLocation = rl!("minecraft:allowlist/remove");
+pub const ALLOWLIST_CLEAR: StaticResourceLocation = rl!("minecraft:allowlist/clear");
+pub const BANS: StaticResourceLocation = rl!("minecraft:bans");
+pub const BANS_SET: StaticResourceLocation = rl!("minecraft:bans/set");
+pub const BANS_ADD: StaticResourceLocation = rl!("minecraft:bans/add");
+pub const BANS_REMOVE: StaticResourceLocation = rl!("minecraft:bans/remove");
+pub const BANS_CLEAR: StaticResourceLocation = rl!("minecraft:bans/clear");
+pub const IP_BANS: StaticResourceLocation = rl!("minecraft:ip_bans");
+pub const IP_BANS_SET: StaticResourceLocation = rl!("minecraft:ip_bans/set");
+pub const IP_BANS_ADD: StaticResourceLocation = rl!("minecraft:ip_bans/add");
+pub const IP_BANS_REMOVE: StaticResourceLocation = rl!("minecraft:ip_bans/remove");
+pub const IP_BANS_CLEAR: StaticResourceLocation = rl!("minecraft:ip_bans/clear");
+pub const PLAYERS: StaticResourceLocation = rl!("minecraft:players");
+pub const PLAYERS_KICK: StaticResourceLocation = rl!("minecraft:players/kick");
+pub const OPERATORS: StaticResourceLocation = rl!("minecraft:operators");
+pub const OPERATORS_SET: StaticResourceLocation = rl!("minecraft:operators/set");
+pub const OPERATORS_ADD: StaticResourceLocation = rl!("minecraft:operators/add");
+pub const OPERATORS_REMOVE: StaticResourceLocation = rl!("minecraft:operators/remove");
+pub const OPERATORS_CLEAR: StaticResourceLocation = rl!("minecraft:operators/clear");
+pub const SERVER_STATUS: StaticResourceLocation = rl!("minecraft:server/status");
+pub const SERVER_SAVE: StaticResourceLocation = rl!("minecraft:server/save");
+pub const SERVER_STOP: StaticResourceLocation = rl!("minecraft:server/stop");
+pub const SERVER_SYSTEM_MESSAGE: StaticResourceLocation = rl!("minecraft:server/system_message");
+pub const SERVERSETTINGS_AUTOSAVE: StaticResourceLocation = rl!("minecraft:serversettings/autosave");
+pub const SERVERSETTINGS_AUTOSAVE_SET: StaticResourceLocation = rl!("minecraft:serversettings/autosave/set");
+pub const SERVERSETTINGS_DIFFICULTY: StaticResourceLocation = rl!("minecraft:serversettings/difficulty");
+pub const SERVERSETTINGS_DIFFICULTY_SET: StaticResourceLocation = rl!("minecraft:serversettings/difficulty/set");
+pub const SERVERSETTINGS_ENFORCE_ALLOWLIST: StaticResourceLocation = rl!("minecraft:serversettings/enforce_allowlist");
+pub const SERVERSETTINGS_ENFORCE_ALLOWLIST_SET: StaticResourceLocation = rl!("minecraft:serversettings/enforce_allowlist/set");
+pub const SERVERSETTINGS_USE_ALLOWLIST: StaticResourceLocation = rl!("minecraft:serversettings/use_allowlist");
+pub const SERVERSETTINGS_USE_ALLOWLIST_SET: StaticResourceLocation = rl!("minecraft:serversettings/use_allowlist/set");
+pub const SERVERSETTINGS_MAX_PLAYERS: StaticResourceLocation = rl!("minecraft:serversettings/max_players");
+pub const SERVERSETTINGS_MAX_PLAYERS_SET: StaticResourceLocation = rl!("minecraft:serversettings/max_players/set");
+pub const SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS: StaticResourceLocation = rl!("minecraft:serversettings/pause_when_empty_seconds");
+pub const SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS_SET: StaticResourceLocation = rl!("minecraft:serversettings/pause_when_empty_seconds/set");
+pub const SERVERSETTINGS_PLAYER_IDLE_TIMEOUT: StaticResourceLocation = rl!("minecraft:serversettings/player_idle_timeout");
+pub const SERVERSETTINGS_PLAYER_IDLE_TIMEOUT_SET: StaticResourceLocation = rl!("minecraft:serversettings/player_idle_timeout/set");
+pub const SERVERSETTINGS_ALLOW_FLIGHT: StaticResourceLocation = rl!("minecraft:serversettings/allow_flight");
+pub const SERVERSETTINGS_ALLOW_FLIGHT_SET: StaticResourceLocation = rl!("minecraft:serversettings/allow_flight/set");
+pub const SERVERSETTINGS_MOTD: StaticResourceLocation = rl!("minecraft:serversettings/motd");
+pub const SERVERSETTINGS_MOTD_SET: StaticResourceLocation = rl!("minecraft:serversettings/motd/set");
+pub const SERVERSETTINGS_SPAWN_PROTECTION_RADIUS: StaticResourceLocation = rl!("minecraft:serversettings/spawn_protection_radius");
+pub const SERVERSETTINGS_SPAWN_PROTECTION_RADIUS_SET: StaticResourceLocation = rl!("minecraft:serversettings/spawn_protection_radius/set");
+pub const SERVERSETTINGS_FORCE_GAME_MODE: StaticResourceLocation = rl!("minecraft:serversettings/force_game_mode");
+pub const SERVERSETTINGS_FORCE_GAME_MODE_SET: StaticResourceLocation = rl!("minecraft:serversettings/force_game_mode/set");
+pub const SERVERSETTINGS_GAME_MODE: StaticResourceLocation = rl!("minecraft:serversettings/game_mode");
+pub const SERVERSETTINGS_GAME_MODE_SET: StaticResourceLocation = rl!("minecraft:serversettings/game_mode/set");
+pub const SERVERSETTINGS_VIEW_DISTANCE: StaticResourceLocation = rl!("minecraft:serversettings/view_distance");
+pub const SERVERSETTINGS_VIEW_DISTANCE_SET: StaticResourceLocation = rl!("minecraft:serversettings/view_distance/set");
+pub const SERVERSETTINGS_SIMULATION_DISTANCE: StaticResourceLocation = rl!("minecraft:serversettings/simulation_distance");
+pub const SERVERSETTINGS_SIMULATION_DISTANCE_SET: StaticResourceLocation = rl!("minecraft:serversettings/simulation_distance/set");
+pub const SERVERSETTINGS_ACCEPT_TRANSFERS: StaticResourceLocation = rl!("minecraft:serversettings/accept_transfers");
+pub const SERVERSETTINGS_ACCEPT_TRANSFERS_SET: StaticResourceLocation = rl!("minecraft:serversettings/accept_transfers/set");
+pub const SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL: StaticResourceLocation = rl!("minecraft:serversettings/status_heartbeat_interval");
+pub const SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL_SET: StaticResourceLocation = rl!("minecraft:serversettings/status_heartbeat_interval/set");
+pub const SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL: StaticResourceLocation = rl!("minecraft:serversettings/operator_user_permission_level");
+pub const SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL_SET: StaticResourceLocation = rl!("minecraft:serversettings/operator_user_permission_level/set");
+pub const SERVERSETTINGS_HIDE_ONLINE_PLAYERS: StaticResourceLocation = rl!("minecraft:serversettings/hide_online_players");
+pub const SERVERSETTINGS_HIDE_ONLINE_PLAYERS_SET: StaticResourceLocation = rl!("minecraft:serversettings/hide_online_players/set");
+pub const SERVERSETTINGS_STATUS_REPLIES: StaticResourceLocation = rl!("minecraft:serversettings/status_replies");
+pub const SERVERSETTINGS_STATUS_REPLIES_SET: StaticResourceLocation = rl!("minecraft:serversettings/status_replies/set");
+pub const SERVERSETTINGS_ENTITY_BROADCAST_RANGE: StaticResourceLocation = rl!("minecraft:serversettings/entity_broadcast_range");
+pub const SERVERSETTINGS_ENTITY_BROADCAST_RANGE_SET: StaticResourceLocation = rl!("minecraft:serversettings/entity_broadcast_range/set");
+pub const GAMERULES: StaticResourceLocation = rl!("minecraft:gamerules");
+pub const GAMERULES_UPDATE: StaticResourceLocation = rl!("minecraft:gamerules/update");
+pub const RPC_DISCOVER: StaticResourceLocation = rl!("minecraft:rpc.discover");
+
+pub const ENTRIES: &[StaticResourceLocation] = &[
+    ALLOWLIST,
+    ALLOWLIST_SET,
+    ALLOWLIST_ADD,
+    ALLOWLIST_REMOVE,
+    ALLOWLIST_CLEAR,
+    BANS,
+    BANS_SET,
+    BANS_ADD,
+    BANS_REMOVE,
+    BANS_CLEAR,
+    IP_BANS,
+    IP_BANS_SET,
+    IP_BANS_ADD,
+    IP_BANS_REMOVE,
+    IP_BANS_CLEAR,
+    PLAYERS,
+    PLAYERS_KICK,
+    OPERATORS,
+    OPERATORS_SET,
+    OPERATORS_ADD,
+    OPERATORS_REMOVE,
+    OPERATORS_CLEAR,
+    SERVER_STATUS,
+    SERVER_SAVE,
+    SERVER_STOP,
+    SERVER_SYSTEM_MESSAGE,
+    SERVERSETTINGS_AUTOSAVE,
+    SERVERSETTINGS_AUTOSAVE_SET,
+    SERVERSETTINGS_DIFFICULTY,
+    SERVERSETTINGS_DIFFICULTY_SET,
+    SERVERSETTINGS_ENFORCE_ALLOWLIST,
+    SERVERSETTINGS_ENFORCE_ALLOWLIST_SET,
+    SERVERSETTINGS_USE_ALLOWLIST,
+    SERVERSETTINGS_USE_ALLOWLIST_SET,
+    SERVERSETTINGS_MAX_PLAYERS,
+    SERVERSETTINGS_MAX_PLAYERS_SET,
+    SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS,
+    SERVERSETTINGS_PAUSE_WHEN_EMPTY_SECONDS_SET,
+    SERVERSETTINGS_PLAYER_IDLE_TIMEOUT,
+    SERVERSETTINGS_PLAYER_IDLE_TIMEOUT_SET,
+    SERVERSETTINGS_ALLOW_FLIGHT,
+    SERVERSETTINGS_ALLOW_FLIGHT_SET,
+    SERVERSETTINGS_MOTD,
+    SERVERSETTINGS_MOTD_SET,
+    SERVERSETTINGS_SPAWN_PROTECTION_RADIUS,
+    SERVERSETTINGS_SPAWN_PROTECTION_RADIUS_SET,
+    SERVERSETTINGS_FORCE_GAME_MODE,
+    SERVERSETTINGS_FORCE_GAME_MODE_SET,
+    SERVERSETTINGS_GAME_MODE,
+    SERVERSETTINGS_GAME_MODE_SET,
+    SERVERSETTINGS_VIEW_DISTANCE,
+    SERVERSETTINGS_VIEW_DISTANCE_SET,
+    SERVERSETTINGS_SIMULATION_DISTANCE,
+    SERVERSETTINGS_SIMULATION_DISTANCE_SET,
+    SERVERSETTINGS_ACCEPT_TRANSFERS,
+    SERVERSETTINGS_ACCEPT_TRANSFERS_SET,
+    SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL,
+    SERVERSETTINGS_STATUS_HEARTBEAT_INTERVAL_SET,
+    SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL,
+    SERVERSETTINGS_OPERATOR_USER_PERMISSION_LEVEL_SET,
+    SERVERSETTINGS_HIDE_ONLINE_PLAYERS,
+    SERVERSETTINGS_HIDE_ONLINE_PLAYERS_SET,
+    SERVERSETTINGS_STATUS_REPLIES,
+    SERVERSETTINGS_STATUS_REPLIES_SET,
+    SERVERSETTINGS_ENTITY_BROADCAST_RANGE,
+    SERVERSETTINGS_ENTITY_BROADCAST_RANGE_SET,
+    GAMERULES,
+    GAMERULES_UPDATE,
+    RPC_DISCOVER,
+];

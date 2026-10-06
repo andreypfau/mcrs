@@ -1,7 +1,11 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
-    crate::PermissionCheckType;
-    ALWAYS_PASS = "minecraft:always_pass",
-    REQUIRE = "minecraft:require",
-}
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
+
+pub const ALWAYS_PASS: StaticResourceLocation = rl!("minecraft:always_pass");
+pub const REQUIRE: StaticResourceLocation = rl!("minecraft:require");
+
+pub const ENTRIES: &[StaticResourceLocation] = &[
+    ALWAYS_PASS,
+    REQUIRE,
+];

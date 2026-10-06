@@ -1,8 +1,13 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-mcrs_minecraft_registry::static_keys! {
-    crate::ChunkGenerator;
-    NOISE = "minecraft:noise",
-    FLAT = "minecraft:flat",
-    DEBUG = "minecraft:debug",
-}
+use mcrs_minecraft_core::{StaticResourceLocation, rl};
+
+pub const NOISE: StaticResourceLocation = rl!("minecraft:noise");
+pub const FLAT: StaticResourceLocation = rl!("minecraft:flat");
+pub const DEBUG: StaticResourceLocation = rl!("minecraft:debug");
+
+pub const ENTRIES: &[StaticResourceLocation] = &[
+    NOISE,
+    FLAT,
+    DEBUG,
+];
