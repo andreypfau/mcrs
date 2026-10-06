@@ -15,7 +15,6 @@ pub mod instrument_tags;
 pub mod jukebox_song;
 pub mod painting_variant;
 pub mod painting_variant_tags;
-pub mod sound_event;
 pub mod trim_material;
 pub mod trim_pattern;
 
@@ -67,11 +66,6 @@ impl Registered for crate::PaintingVariantValue {
     const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
 }
 
-pub const SOUND_EVENT: RegistryKey<crate::SoundEvent> = RegistryKey::new(rl!("minecraft:sound_event"));
-impl Registered for crate::SoundEvent {
-    const REGISTRY: RegistryKey<Self> = SOUND_EVENT;
-}
-
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> = RegistryKey::new(rl!("minecraft:trim_material"));
 impl Registered for crate::TrimMaterial {
     const REGISTRY: RegistryKey<Self> = TRIM_MATERIAL;
@@ -82,7 +76,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 12] {
+pub fn bindings() -> [TypeBinding; 11] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -93,7 +87,6 @@ pub fn bindings() -> [TypeBinding; 12] {
         INSTRUMENT.binding(),
         JUKEBOX_SONG.binding(),
         PAINTING_VARIANT.binding(),
-        SOUND_EVENT.binding(),
         TRIM_MATERIAL.binding(),
         TRIM_PATTERN.binding(),
     ]

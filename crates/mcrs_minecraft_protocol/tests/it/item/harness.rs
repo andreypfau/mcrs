@@ -46,7 +46,7 @@ impl TestLookup {
             lookup.registry(registry, names);
         }
         let sounds: Vec<(&str, u16)> = (0u16..)
-            .zip(mcrs_minecraft_item::keys::sound_event::ENTRIES)
+            .zip(mcrs_minecraft_sound::keys::sound_event::ENTRIES)
             .map(|(number, name)| {
                 let name = name.as_static_str();
                 (name.strip_prefix("minecraft:").unwrap_or(name), number)

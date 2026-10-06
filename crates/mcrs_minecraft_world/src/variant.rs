@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::is_default;
-use mcrs_minecraft_item::SoundEvent;
 use mcrs_minecraft_registry::{Holder, RegistrySet};
+use mcrs_minecraft_sound::SoundEvent;
 use serde::{Deserialize, Serialize};
 
 pub use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;

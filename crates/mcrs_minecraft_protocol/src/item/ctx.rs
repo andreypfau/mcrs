@@ -497,7 +497,7 @@ mod tests {
     use mcrs_minecraft_registry::{LookupIndex, NoRegistries, Registry, RegistrySet};
 
     use super::*;
-    use crate::item::component::SoundEvent;
+    use mcrs_minecraft_sound::SoundEvent;
 
     struct Indexed {
         index: LookupIndex,
@@ -558,13 +558,13 @@ mod tests {
 
     #[test]
     fn a_holder_reference_crosses_the_wire_by_name_between_two_numberings() {
-        let lookup = with_local::<mcrs_minecraft_item::SoundEvent>(
+        let lookup = with_local::<mcrs_minecraft_sound::SoundEvent>(
             lookup("sound_event", &["a", "b", "c"]),
             &["c", "a", "b"],
         );
         let local = lookup
             .local
-            .registry::<mcrs_minecraft_item::SoundEvent>()
+            .registry::<mcrs_minecraft_sound::SoundEvent>()
             .unwrap();
         let holder = Holder::<SoundEvent>::Reference(local.by_name("minecraft:b").unwrap());
         assert_eq!(local.by_name("minecraft:b").unwrap().number(), 2);
@@ -578,7 +578,7 @@ mod tests {
 
     #[test]
     fn a_wire_number_the_local_registry_cannot_name_does_not_decode() {
-        let lookup = with_local::<mcrs_minecraft_item::SoundEvent>(
+        let lookup = with_local::<mcrs_minecraft_sound::SoundEvent>(
             lookup("sound_event", &["a", "b", "c"]),
             &["a", "b"],
         );
