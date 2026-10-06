@@ -59,8 +59,8 @@ macro_rules! world_registry_table {
             $(
                 parse::<$key, $value>(world, report);
                 $(
-                    if world.parses(<$key as keys::Registered>::REGISTRY.location().as_static_str()) {
-                        world.$non_empty(<$key as keys::Registered>::REGISTRY.location());
+                    if world.parses(<$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str()) {
+                        world.$non_empty(<$key as mcrs_minecraft_registry::Registered>::REGISTRY.location());
                     }
                 )?
             )*
@@ -71,7 +71,7 @@ macro_rules! world_registry_table {
                 register_loaded::<$value, _>(
                     access,
                     set,
-                    <$key as keys::Registered>::REGISTRY.location().as_static_str(),
+                    <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
                     $project,
                 );
             )?)*
@@ -84,7 +84,7 @@ macro_rules! split_registry_table {
         fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
                 parse::<$key, $file>(world, report);
-                let registry = <$key as keys::Registered>::REGISTRY.location();
+                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
                 if world.parses(registry.as_static_str()) {
                     world.split::<$file, $parts>(registry, $split, $join);
                 }
@@ -96,7 +96,7 @@ macro_rules! split_registry_table {
                 register_joined::<$file, $parts, _>(
                     access,
                     set,
-                    <$key as keys::Registered>::REGISTRY.location().as_static_str(),
+                    <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
                     $join,
                     $project,
                 );
@@ -194,7 +194,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
 
 fn parse<K, T>(world: &mut WorldRegistries, report: &mut LoadReport)
 where
-    K: keys::Registered,
+    K: mcrs_minecraft_registry::Registered,
     T: DeserializeOwned + Serialize + Send + Sync + 'static,
 {
     let registry = K::REGISTRY.location();

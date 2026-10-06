@@ -110,7 +110,7 @@ pub mod mob {
         mod report {
             use super::*;
 
-            pub fn missing<T: mcrs_minecraft_keys::Registered>(
+            pub fn missing<T: mcrs_minecraft_registry::Registered>(
                 keys: &[ResourceKey<T, &'static str>],
             ) -> Vec<String> {
                 let table = shipped_report().table(T::REGISTRY.location().as_static_str());

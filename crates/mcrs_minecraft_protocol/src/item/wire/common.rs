@@ -2,8 +2,8 @@ use std::io::Write;
 
 use anyhow::ensure;
 use mcrs_minecraft_core::{RegistryValue, ResourceKey, ResourceLocation};
-use mcrs_minecraft_keys::Registered;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{Holder, HolderWireOnly, RegistryLookup};
 
 use crate::item::component::common::*;

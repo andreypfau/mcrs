@@ -173,7 +173,7 @@ pub fn corpus_set() -> &'static RegistrySet {
     &SET
 }
 
-fn shipped_names<R: mcrs_minecraft_keys::Registered>(folder: &str) -> Registry<R> {
+fn shipped_names<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Registry<R> {
     numbered(folder, shipped_name_list(folder))
 }
 
@@ -193,7 +193,7 @@ fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
     names
 }
 
-fn numbered<R: mcrs_minecraft_keys::Registered>(
+fn numbered<R: mcrs_minecraft_registry::Registered>(
     folder: &str,
     mut names: Vec<ResourceLocation<Arc<str>>>,
 ) -> Registry<R> {
@@ -245,7 +245,7 @@ pub fn corpus_set_numbered(leading: &[&str]) -> RegistrySet {
 
 /// The names `set` holds, as `corpus_set` numbers them. A set that names a tag
 /// is refused.
-pub fn names_of<R: mcrs_minecraft_keys::Registered>(set: &HolderSet<R>) -> Vec<String> {
+pub fn names_of<R: mcrs_minecraft_registry::Registered>(set: &HolderSet<R>) -> Vec<String> {
     let registry = corpus_set()
         .registry::<R>()
         .unwrap_or_else(|| panic!("the corpus set holds no {}", R::REGISTRY));
@@ -322,7 +322,7 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
 /// A registry set holding the one registry `R`, numbered by the files the
 /// corpus ships under `assets/minecraft/<folder>`, for reading a value that
 /// names an entry of it inside `RegistrySet::scope`.
-pub fn shipped_registry_set<R: mcrs_minecraft_keys::Registered>(folder: &str) -> RegistrySet {
+pub fn shipped_registry_set<R: mcrs_minecraft_registry::Registered>(folder: &str) -> RegistrySet {
     let root = assets_dir().join("minecraft").join(folder);
     let names = json_files(&root).into_iter().map(|file| {
         let relative = file

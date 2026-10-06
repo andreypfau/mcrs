@@ -98,7 +98,7 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     assert_eq!(members, expected);
 }
 
-fn loaded_members<R: mcrs_minecraft_keys::Registered>(tag: &str) -> Vec<String> {
+fn loaded_members<R: mcrs_minecraft_registry::Registered>(tag: &str) -> Vec<String> {
     let set = test_registries();
     let registry = set.registry::<R>().expect("the registry is loaded");
     let tags = set
