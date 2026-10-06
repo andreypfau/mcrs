@@ -48,7 +48,6 @@ use mcrs_minecraft_item::{
     BannerPattern, InstrumentValue, Items, JukeboxSong, PaintingVariantValue, TrimMaterial,
     TrimPattern,
 };
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Parts, Registry, RegistrySet, WorldRegistries,
@@ -472,7 +471,7 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
     );
     world.insert_resource(
         registries
-            .registry::<keys::EntityType>()
+            .registry::<mcrs_minecraft_entity::keys::EntityType>()
             .expect("the registries report holds minecraft:entity_type"),
     );
     world.insert_resource(registries.clone());
@@ -489,7 +488,7 @@ pub fn share_registries(world: &mut World) {
     share::<Registry<Biome>>(world);
     share::<Registry<Structure>>(world);
     share::<Registry<Timeline>>(world);
-    share::<Registry<keys::EntityType>>(world);
+    share::<Registry<mcrs_minecraft_entity::keys::EntityType>>(world);
     share::<ClockTimeMarkers>(world);
     share::<mcrs_minecraft_worldgen::tables::WorldgenTables>(world);
 }
@@ -513,6 +512,7 @@ pub fn refuse(report: &LoadReport) -> ! {
 mod tests {
     use super::*;
     use mcrs_minecraft_core::registry_key::RegistryKey;
+    use mcrs_minecraft_keys as keys;
 
     #[derive(serde::Deserialize, Serialize)]
     struct Probe {
@@ -569,13 +569,19 @@ mod tests {
         ))
         .unwrap();
         let registries: [(&str, &[mcrs_minecraft_core::StaticResourceLocation]); 6] = [
-            ("minecraft:attribute", keys::attribute::ENTRIES),
+            (
+                "minecraft:attribute",
+                mcrs_minecraft_entity::keys::Attribute::ENTRIES,
+            ),
             ("minecraft:block", keys::block::ENTRIES),
             (
                 "minecraft:block_entity_type",
                 keys::block_entity_type::ENTRIES,
             ),
-            ("minecraft:entity_type", keys::entity_type::ENTRIES),
+            (
+                "minecraft:entity_type",
+                mcrs_minecraft_entity::keys::EntityType::ENTRIES,
+            ),
             ("minecraft:item", keys::item::ENTRIES),
             ("minecraft:menu", keys::menu::ENTRIES),
         ];
@@ -589,29 +595,29 @@ mod tests {
 
     #[test]
     fn generated_constants_stand_at_the_entry_they_name() {
-        use keys::entity_type as kind;
+        use mcrs_minecraft_entity::keys::EntityType;
         let entity_types = [
-            (kind::ALLAY, "allay"),
-            (kind::CAT, "cat"),
-            (kind::CHEST_MINECART, "chest_minecart"),
-            (kind::CHICKEN, "chicken"),
-            (kind::DROWNED, "drowned"),
-            (kind::ELDER_GUARDIAN, "elder_guardian"),
-            (kind::EVOKER, "evoker"),
-            (kind::ITEM, "item"),
-            (kind::ITEM_FRAME, "item_frame"),
-            (kind::PLAYER, "player"),
-            (kind::SHULKER, "shulker"),
-            (kind::TNT, "tnt"),
-            (kind::VILLAGER, "villager"),
-            (kind::VINDICATOR, "vindicator"),
-            (kind::WITCH, "witch"),
-            (kind::ZOMBIE_NAUTILUS, "zombie_nautilus"),
-            (kind::ZOMBIE_VILLAGER, "zombie_villager"),
+            (EntityType::Allay, "allay"),
+            (EntityType::Cat, "cat"),
+            (EntityType::ChestMinecart, "chest_minecart"),
+            (EntityType::Chicken, "chicken"),
+            (EntityType::Drowned, "drowned"),
+            (EntityType::ElderGuardian, "elder_guardian"),
+            (EntityType::Evoker, "evoker"),
+            (EntityType::Item, "item"),
+            (EntityType::ItemFrame, "item_frame"),
+            (EntityType::Player, "player"),
+            (EntityType::Shulker, "shulker"),
+            (EntityType::Tnt, "tnt"),
+            (EntityType::Villager, "villager"),
+            (EntityType::Vindicator, "vindicator"),
+            (EntityType::Witch, "witch"),
+            (EntityType::ZombieNautilus, "zombie_nautilus"),
+            (EntityType::ZombieVillager, "zombie_villager"),
         ];
         for (key, name) in entity_types {
             assert_eq!(key.as_static_str(), format!("minecraft:{name}"));
-            assert_eq!(keys::entity_type::ENTRIES[key.id().index()], key.location());
+            assert_eq!(EntityType::ENTRIES[key.id().index()], key.location());
         }
         assert_eq!(keys::block::TNT.as_static_str(), "minecraft:tnt");
         assert_eq!(
@@ -619,7 +625,7 @@ mod tests {
             keys::block::TNT.location()
         );
         assert_eq!(
-            keys::attribute::MAX_HEALTH.as_static_str(),
+            mcrs_minecraft_entity::keys::Attribute::MaxHealth.as_static_str(),
             "minecraft:max_health"
         );
     }

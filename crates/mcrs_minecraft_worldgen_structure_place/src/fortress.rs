@@ -512,7 +512,7 @@ fn monster_throne<W: WorldGenVolume>(b: &FortressBlocks, c: &mut PieceCanvas<'_,
         c.volume.set(pos, b.spawner);
         c.entities.push(GeneratedBlockEntity::mob_spawner(
             pos,
-            keys::entity_type::BLAZE.as_static_str(),
+            mcrs_minecraft_entity::keys::EntityType::Blaze.as_static_str(),
         ));
     }
     for x in 0..=6 {

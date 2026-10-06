@@ -179,21 +179,21 @@ pub enum EntityKind {
 
 impl EntityKind {
     pub const IDS: [&'static str; 15] = [
-        keys::entity_type::ALLAY.as_static_str(),
-        keys::entity_type::ARMOR_STAND.as_static_str(),
-        keys::entity_type::CAMEL.as_static_str(),
-        keys::entity_type::CAT.as_static_str(),
-        keys::entity_type::COW.as_static_str(),
-        keys::entity_type::CUSHION.as_static_str(),
-        keys::entity_type::HOGLIN.as_static_str(),
-        keys::entity_type::HORSE.as_static_str(),
-        keys::entity_type::IRON_GOLEM.as_static_str(),
-        keys::entity_type::PIG.as_static_str(),
-        keys::entity_type::PIGLIN.as_static_str(),
-        keys::entity_type::PIGLIN_BRUTE.as_static_str(),
-        keys::entity_type::SHEEP.as_static_str(),
-        keys::entity_type::VILLAGER.as_static_str(),
-        keys::entity_type::ZOMBIE_VILLAGER.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Allay.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ArmorStand.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Camel.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Cat.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Cow.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Cushion.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Hoglin.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Horse.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::IronGolem.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Pig.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Piglin.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::PiglinBrute.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Sheep.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::Villager.as_static_str(),
+        mcrs_minecraft_entity::keys::EntityType::ZombieVillager.as_static_str(),
     ];
 }
 

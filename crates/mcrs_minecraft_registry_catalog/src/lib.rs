@@ -5,7 +5,7 @@ use mcrs_minecraft_core::{StaticResourceLocation, TypeBinding};
 #[rustfmt::skip]
 pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation])] = &[
     (mcrs_minecraft_environment::keys::ACTIVITY.location(), mcrs_minecraft_environment::keys::Activity::ENTRIES),
-    (mcrs_minecraft_keys::ATTRIBUTE.location(), mcrs_minecraft_keys::attribute::ENTRIES),
+    (mcrs_minecraft_entity::keys::ATTRIBUTE.location(), mcrs_minecraft_entity::keys::Attribute::ENTRIES),
     (mcrs_minecraft_keys::ATTRIBUTE_TYPE.location(), mcrs_minecraft_keys::attribute_type::ENTRIES),
     (mcrs_minecraft_keys::BLOCK.location(), mcrs_minecraft_keys::block::ENTRIES),
     (mcrs_minecraft_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_keys::block_entity_type::ENTRIES),
@@ -31,7 +31,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_keys::ENCHANTMENT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::enchantment_provider_type::ENTRIES),
     (mcrs_minecraft_enchantment::keys::ENCHANTMENT_VALUE_EFFECT_TYPE.location(), mcrs_minecraft_enchantment::keys::EnchantmentValueEffectType::ENTRIES),
     (mcrs_minecraft_keys::ENTITY_SUB_PREDICATE_TYPE.location(), mcrs_minecraft_keys::entity_sub_predicate_type::ENTRIES),
-    (mcrs_minecraft_keys::ENTITY_TYPE.location(), mcrs_minecraft_keys::entity_type::ENTRIES),
+    (mcrs_minecraft_entity::keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::keys::EntityType::ENTRIES),
     (mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::keys::EnvironmentAttribute::ENTRIES),
     (mcrs_minecraft_keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::float_provider_type::ENTRIES),
     (mcrs_minecraft_keys::FLUID.location(), mcrs_minecraft_keys::fluid::ENTRIES),

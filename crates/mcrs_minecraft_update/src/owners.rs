@@ -486,4 +486,14 @@ pub const OWNERS: &[Owner] = &[
         krate: "mcrs_minecraft_environment",
         value: ValueType::Enum("EnvironmentAttribute"),
     },
+    Owner {
+        registry: "minecraft:entity_type",
+        krate: "mcrs_minecraft_entity",
+        value: ValueType::Enum("EntityType"),
+    },
+    Owner {
+        registry: "minecraft:attribute",
+        krate: "mcrs_minecraft_entity",
+        value: ValueType::Enum("Attribute"),
+    },
 ];

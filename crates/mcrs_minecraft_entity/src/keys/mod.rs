@@ -1,11 +1,14 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
+pub mod attribute;
 pub mod cat_sound_variant;
 pub mod cat_variant;
 pub mod chicken_sound_variant;
 pub mod chicken_variant;
 pub mod cow_sound_variant;
 pub mod cow_variant;
+pub mod entity_type;
+pub mod entity_type_tags;
 pub mod frog_variant;
 pub mod pig_sound_variant;
 pub mod pig_variant;
@@ -15,11 +18,18 @@ pub mod wolf_sound_variant;
 pub mod wolf_variant;
 pub mod zombie_nautilus_variant;
 
+pub use attribute::Attribute;
+pub use entity_type::EntityType;
 pub use villager_profession::VillagerProfession;
 pub use villager_type::VillagerType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
 use mcrs_minecraft_registry::Registered;
+
+pub const ATTRIBUTE: RegistryKey<crate::keys::Attribute> = RegistryKey::new(rl!("minecraft:attribute"));
+impl Registered for crate::keys::Attribute {
+    const REGISTRY: RegistryKey<Self> = ATTRIBUTE;
+}
 
 pub const CAT_SOUND_VARIANT: RegistryKey<crate::variant::CatSoundVariant> = RegistryKey::new(rl!("minecraft:cat_sound_variant"));
 impl Registered for crate::variant::CatSoundVariant {
@@ -49,6 +59,11 @@ impl Registered for crate::variant::CowSoundVariant {
 pub const COW_VARIANT: RegistryKey<crate::variant::CowVariant> = RegistryKey::new(rl!("minecraft:cow_variant"));
 impl Registered for crate::variant::CowVariant {
     const REGISTRY: RegistryKey<Self> = COW_VARIANT;
+}
+
+pub const ENTITY_TYPE: RegistryKey<crate::keys::EntityType> = RegistryKey::new(rl!("minecraft:entity_type"));
+impl Registered for crate::keys::EntityType {
+    const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
 }
 
 pub const FROG_VARIANT: RegistryKey<crate::variant::FrogVariant> = RegistryKey::new(rl!("minecraft:frog_variant"));
@@ -91,14 +106,16 @@ impl Registered for crate::variant::ZombieNautilusVariant {
     const REGISTRY: RegistryKey<Self> = ZOMBIE_NAUTILUS_VARIANT;
 }
 
-pub fn bindings() -> [TypeBinding; 14] {
+pub fn bindings() -> [TypeBinding; 16] {
     [
+        ATTRIBUTE.binding(),
         CAT_SOUND_VARIANT.binding(),
         CAT_VARIANT.binding(),
         CHICKEN_SOUND_VARIANT.binding(),
         CHICKEN_VARIANT.binding(),
         COW_SOUND_VARIANT.binding(),
         COW_VARIANT.binding(),
+        ENTITY_TYPE.binding(),
         FROG_VARIANT.binding(),
         PIG_SOUND_VARIANT.binding(),
         PIG_VARIANT.binding(),

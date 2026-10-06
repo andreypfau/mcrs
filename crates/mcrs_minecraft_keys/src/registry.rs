@@ -11,13 +11,6 @@ impl Registered for Advancement {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Attribute {}
-pub const ATTRIBUTE: RegistryKey<Attribute> = RegistryKey::new(rl!("minecraft:attribute"));
-impl Registered for Attribute {
-    const REGISTRY: RegistryKey<Self> = ATTRIBUTE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeType {}
 pub const ATTRIBUTE_TYPE: RegistryKey<AttributeType> = RegistryKey::new(rl!("minecraft:attribute_type"));
 impl Registered for AttributeType {
@@ -120,13 +113,6 @@ pub enum EntitySubPredicateType {}
 pub const ENTITY_SUB_PREDICATE_TYPE: RegistryKey<EntitySubPredicateType> = RegistryKey::new(rl!("minecraft:entity_sub_predicate_type"));
 impl Registered for EntitySubPredicateType {
     const REGISTRY: RegistryKey<Self> = ENTITY_SUB_PREDICATE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EntityType {}
-pub const ENTITY_TYPE: RegistryKey<EntityType> = RegistryKey::new(rl!("minecraft:entity_type"));
-impl Registered for EntityType {
-    const REGISTRY: RegistryKey<Self> = ENTITY_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -409,10 +395,9 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 58] {
+pub fn bindings() -> [TypeBinding; 56] {
     [
         ADVANCEMENT.binding(),
-        ATTRIBUTE.binding(),
         ATTRIBUTE_TYPE.binding(),
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
@@ -428,7 +413,6 @@ pub fn bindings() -> [TypeBinding; 58] {
         DIALOG_ACTION_TYPE.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
         ENTITY_SUB_PREDICATE_TYPE.binding(),
-        ENTITY_TYPE.binding(),
         FLOAT_PROVIDER_TYPE.binding(),
         FLUID.binding(),
         GAME_EVENT.binding(),

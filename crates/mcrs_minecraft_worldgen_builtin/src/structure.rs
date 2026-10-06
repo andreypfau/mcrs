@@ -315,13 +315,12 @@ fn adult(c: &mut Canvas, villager: &[Fields]) {
 #[rustfmt::skip]
 mod mob {
     use super::{Fields, Tag};
-    use mcrs_minecraft_keys as keys;
 
     /// What every mob of the village templates is saved with.
     pub const MOB: Fields = &[("AbsorptionAmount", Tag::Float(0.0)), ("Air", Tag::Short(300)), ("ArmorItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[]), Tag::Compound(&[])])), ("CanPickUpLoot", Tag::Byte(0)), ("DeathTime", Tag::Short(0)), ("Dimension", Tag::Int(0)), ("FallFlying", Tag::Byte(0)), ("Fire", Tag::Short(-1)), ("HandItems", Tag::List(&[Tag::Compound(&[]), Tag::Compound(&[])])), ("Health", Tag::Float(20.0)), ("HurtByTimestamp", Tag::Int(0)), ("HurtTime", Tag::Short(0)), ("Invulnerable", Tag::Byte(0)), ("LeftHanded", Tag::Byte(0)), ("Motion", Tag::List(&[Tag::Double(0.0), Tag::Double(-0.0784000015258789), Tag::Double(0.0)])), ("OnGround", Tag::Byte(1)), ("PersistenceRequired", Tag::Byte(1)), ("PortalCooldown", Tag::Int(0)), ("attributes", Tag::List(&[])), ("fall_distance", Tag::Double(0.0))];
     pub const ANY_VILLAGER: Fields = &[("Pos", Tag::List(&[Tag::Double(-178.2795013809144), Tag::Double(5.0), Tag::Double(184.63145528989816)])), ("Rotation", Tag::List(&[Tag::Float(48.821632), Tag::Float(0.0)])), ("UUID", Tag::IntArray(&[1383272762, 272124144, -1415224788, -1032494613])), ("Age", Tag::Int(0)), ("CanPickUpLoot", Tag::Byte(1)), ("ForcedAge", Tag::Int(0)), ("Gossips", Tag::List(&[])), ("Inventory", Tag::List(&[])), ("Xp", Tag::Int(0))];
-    pub const VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::VILLAGER.as_static_str())), ("PersistenceRequired", Tag::Byte(0))];
-    pub const ZOMBIE_VILLAGER: Fields = &[("id", Tag::String(keys::entity_type::ZOMBIE_VILLAGER.as_static_str()))];
+    pub const VILLAGER: Fields = &[("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::Villager.as_static_str())), ("PersistenceRequired", Tag::Byte(0))];
+    pub const ZOMBIE_VILLAGER: Fields = &[("id", Tag::String(mcrs_minecraft_entity::keys::EntityType::ZombieVillager.as_static_str()))];
     pub const ADULT: Fields = &[("food_level", Tag::Byte(0)), ("Leashed", Tag::Byte(0)), ("lastRestock", Tag::Long(0))];
     pub const BABY: Fields = &[("FoodLevel", Tag::Byte(0)), ("LastRestock", Tag::Long(0)), ("UUID", Tag::IntArray(&[895037032, -995736946, -1319125422, -1224629455])), ("Age", Tag::Int(-21359)), ("Rotation", Tag::List(&[Tag::Float(0.0), Tag::Float(-25.827711)])), ("Pos", Tag::List(&[Tag::Double(-1740.6339469144218), Tag::Double(5.0), Tag::Double(496.0697962117287)]))];
 }

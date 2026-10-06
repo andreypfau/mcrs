@@ -168,11 +168,11 @@ sample_registries_table! {
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
     keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];
-    keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
+    mcrs_minecraft_entity::keys::ENTITY_TYPE => "entity_type" ["zombie", "pig", "skeleton", "player"]
         [("skeletons" => ["skeleton"])];
     keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
     crate::keys::POTION => "potion" ["water", "swiftness", "healing"] [];
-    keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
+    mcrs_minecraft_entity::keys::ATTRIBUTE => "attribute" ["armor", "attack_damage"] [];
     crate::keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
     crate::keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];

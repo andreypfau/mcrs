@@ -31,7 +31,6 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_inventory::{Op, Slot};
 use mcrs_minecraft_item::{SlotTable, slots};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::aoi::every_n_ticks;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -403,7 +402,7 @@ fn network_add(
         PacketPayload::PlayerEnteredView(ClientboundAddEntity {
             id: VarInt(entity.index_u32() as i32),
             uuid: profile.id,
-            kind: RegistryId::from(keys::entity_type::PLAYER.id()),
+            kind: RegistryId::from(mcrs_minecraft_entity::keys::EntityType::Player.id()),
             pos: transform.translation,
             movement: LpVec3(DVec3::ZERO),
             yaw: ByteAngle::from_degrees(transform.rotation.yaw()),

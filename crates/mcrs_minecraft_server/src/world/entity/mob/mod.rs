@@ -125,7 +125,7 @@ fn spawn_one(
     match entity.kind {
         GeneratedKind::Witch { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::WITCH.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Witch.id()),
                 Health::full(26.0),
                 left_handed(left),
             ));
@@ -136,7 +136,7 @@ fn spawn_one(
             sound_variant,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CAT.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Cat.id()),
                 Health::full(10.0),
                 left_handed(left),
             ));
@@ -148,7 +148,7 @@ fn spawn_one(
         }
         GeneratedKind::ElderGuardian { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ELDER_GUARDIAN.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ElderGuardian.id()),
                 Health::full(80.0),
                 left_handed(left),
             ));
@@ -159,7 +159,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::DROWNED.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Drowned.id()),
                 Health::full(20.0),
                 left_handed(left),
             ));
@@ -177,7 +177,7 @@ fn spawn_one(
             ..
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CHICKEN.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Chicken.id()),
                 Health::full(4.0),
                 left_handed(left),
             ));
@@ -192,7 +192,7 @@ fn spawn_one(
             variant,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ZOMBIE_NAUTILUS.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieNautilus.id()),
                 Health::full(15.0),
                 left_handed(left),
             ));
@@ -202,14 +202,14 @@ fn spawn_one(
         }
         GeneratedKind::Shulker { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::SHULKER.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Shulker.id()),
                 Health::full(30.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::ItemFrame { item, facing } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ITEM_FRAME.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ItemFrame.id()),
                 ItemFrame {
                     item: Some(stack(item)),
                     facing,
@@ -218,7 +218,7 @@ fn spawn_one(
         }
         GeneratedKind::Evoker { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::EVOKER.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Evoker.id()),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -228,7 +228,7 @@ fn spawn_one(
             equipment,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::VINDICATOR.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Vindicator.id()),
                 Health::full(24.0),
                 left_handed(left),
             ));
@@ -238,14 +238,14 @@ fn spawn_one(
         }
         GeneratedKind::Allay { left_handed: left } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ALLAY.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Allay.id()),
                 Health::full(20.0),
                 left_handed(left),
             ));
         }
         GeneratedKind::Villager { data } => {
             spawned.insert((
-                EntityKind(keys::entity_type::VILLAGER.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::Villager.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -253,7 +253,7 @@ fn spawn_one(
         }
         GeneratedKind::ZombieVillager { data } => {
             spawned.insert((
-                EntityKind(keys::entity_type::ZOMBIE_VILLAGER.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ZombieVillager.id()),
                 Health::full(20.0),
                 MobFlags::empty(),
                 Villager(villager_data(&data)),
@@ -264,7 +264,7 @@ fn spawn_one(
             loot_table_seed,
         } => {
             spawned.insert((
-                EntityKind(keys::entity_type::CHEST_MINECART.id()),
+                EntityKind(mcrs_minecraft_entity::keys::EntityType::ChestMinecart.id()),
                 mcrs_minecraft_level::entity::mob::ContainerLoot {
                     table: loot_table,
                     seed: loot_table_seed,
@@ -428,7 +428,9 @@ impl PairingItem<'_, '_> {
                 ClientboundUpdateAttributes {
                     entity_id: id,
                     attributes: vec![AttributeSnapshot {
-                        attribute: RegistryId::from(keys::attribute::MAX_HEALTH.id()),
+                        attribute: RegistryId::from(
+                            mcrs_minecraft_entity::keys::Attribute::MaxHealth.id(),
+                        ),
                         base: f64::from(health.max),
                         modifiers: Vec::new(),
                     }],
@@ -523,7 +525,8 @@ impl PairingItem<'_, '_> {
             );
         }
         if let Some(villager) = self.villager {
-            let zombie = self.kind.0 == keys::entity_type::ZOMBIE_VILLAGER.id();
+            let zombie =
+                self.kind.0 == mcrs_minecraft_entity::keys::EntityType::ZombieVillager.id();
             if zombie || villager.0 != VillagerData::default() {
                 put(
                     if zombie {
@@ -739,7 +742,7 @@ mod tests {
         };
         assert_eq!(*id, wire_id(mob));
         let witch_id = set
-            .registry::<mcrs_minecraft_keys::EntityType>()
+            .registry::<mcrs_minecraft_entity::keys::EntityType>()
             .unwrap()
             .by_name("minecraft:witch")
             .unwrap();

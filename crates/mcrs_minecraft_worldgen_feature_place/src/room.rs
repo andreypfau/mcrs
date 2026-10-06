@@ -6,7 +6,6 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::StaticKey;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 
 use crate::block_entity::GeneratedBlockEntity;
@@ -28,11 +27,11 @@ pub struct CompiledMonsterRoom {
 }
 
 /// `MonsterRoomFeature.MOBS`, whose repeat of the zombie is the weighting.
-const MOBS: [StaticKey<keys::EntityType>; 4] = [
-    keys::entity_type::SKELETON,
-    keys::entity_type::ZOMBIE,
-    keys::entity_type::ZOMBIE,
-    keys::entity_type::SPIDER,
+const MOBS: [mcrs_minecraft_entity::keys::EntityType; 4] = [
+    mcrs_minecraft_entity::keys::EntityType::Skeleton,
+    mcrs_minecraft_entity::keys::EntityType::Zombie,
+    mcrs_minecraft_entity::keys::EntityType::Zombie,
+    mcrs_minecraft_entity::keys::EntityType::Spider,
 ];
 
 #[derive(Clone, Debug)]
