@@ -280,53 +280,6 @@ fn a_biome_naming_a_missing_carver_or_placed_feature_fails_the_load() {
 }
 
 #[test]
-fn a_preset_naming_a_missing_biome_fails_the_load() {
-    use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
-
-    let missing = overworld_parameter_list().values()[0].1;
-    let biome_files: Vec<(String, String)> = std::iter::once(assets())
-        .chain(packs())
-        .filter_map(|root| std::fs::read_dir(root.join("minecraft/worldgen/biome")).ok())
-        .flatten()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .filter(|file| format!("minecraft:{}", file.trim_end_matches(".json")) != missing)
-        .map(|file| (file.clone(), file))
-        .collect();
-    assert!(!biome_files.is_empty());
-
-    let biome_json = |file: &str| {
-        let path = std::iter::once(assets())
-            .chain(packs())
-            .map(|root| root.join("minecraft/worldgen/biome").join(file))
-            .find(|path| path.is_file())
-            .unwrap();
-        std::fs::read_to_string(path).unwrap()
-    };
-    let mut files: Vec<(String, String)> = biome_files
-        .iter()
-        .map(|(file, _)| (format!("minecraft/worldgen/biome/{file}"), biome_json(file)))
-        .collect();
-    files.push((
-        "minecraft/worldgen/multi_noise_biome_source_parameter_list/overworld.json".to_owned(),
-        r#"{"preset":"minecraft:overworld"}"#.to_owned(),
-    ));
-    let files: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(path, json)| (path.as_str(), json.as_str()))
-        .collect();
-
-    let refused = load_text(&files);
-    let line = refused
-        .lines()
-        .find(|line| line.contains("overworld") && line.contains(missing))
-        .unwrap_or_else(|| panic!("no line names the parameter list and {missing}: {refused}"));
-    assert!(
-        line.contains("minecraft:worldgen/multi_noise_biome_source_parameter_list"),
-        "{line}"
-    );
-}
-
-#[test]
 fn the_banner_pattern_column_follows_the_name_table() {
     let set = test_registries();
     let table = set

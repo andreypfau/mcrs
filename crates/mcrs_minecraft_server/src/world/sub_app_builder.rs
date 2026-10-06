@@ -80,7 +80,6 @@ use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::parameter_list::parameter_lists_of;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_dimension::DimensionType;
@@ -99,6 +98,7 @@ use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::heightmap::HeightmapPredicates;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
+use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_sections};
 
@@ -433,7 +433,6 @@ pub fn spawn_dim_subapp(
                 .resource::<RegistrySet>()
                 .registry::<Biome>()
                 .expect("the data pack loader parses minecraft:worldgen/biome");
-            let parameter_lists = parameter_lists_of(sub_app.world().resource::<RegistrySet>());
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
             let block_tags = sub_app
                 .world()
@@ -442,6 +441,10 @@ pub fn spawn_dim_subapp(
                 .expect("the data pack loader builds the block tags");
             let surface_ids = sub_app.world().resource::<Resolved<SurfaceIds>>().clone();
             let fill_ids = sub_app.world().resource::<Resolved<FillIds>>().clone();
+            let preset_tables = sub_app
+                .world()
+                .resource::<Resolved<PresetBiomeTables>>()
+                .clone();
             let features = registries
                 .features
                 .0
@@ -462,7 +465,7 @@ pub fn spawn_dim_subapp(
                     .0
                     .get(dimension)
                     .map(|source| (std::sync::Arc::clone(source), biome_registry)),
-                &parameter_lists,
+                &preset_tables,
                 registries.heightmap_predicates.clone(),
                 registries.world_save.as_ref().and_then(|save| {
                     let set = sub_app.world().resource::<RegistrySet>().clone();

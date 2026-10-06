@@ -20,9 +20,7 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, SyncedRegistry};
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_biome::parameter_list::{
-    MultiNoiseBiomeSourceParameterList, check_parameter_list_biomes,
-};
+use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
@@ -245,16 +243,6 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         world.validate::<Timeline>(
             mcrs_minecraft_environment::keys::TIMELINE.location(),
             check_time_markers,
-        );
-    }
-    if world.parses(
-        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST
-            .location()
-            .as_static_str(),
-    ) {
-        world.validate::<MultiNoiseBiomeSourceParameterList>(
-            mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
-            check_parameter_list_biomes,
         );
     }
     if undeclared.is_empty() {

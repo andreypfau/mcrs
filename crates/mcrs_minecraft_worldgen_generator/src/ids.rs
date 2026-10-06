@@ -1,4 +1,5 @@
 use crate::SurfaceIds;
+use crate::multi_noise_biomes::PresetBiomeTables;
 use crate::structures::index::EndBiomes;
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_block::keys::Block;
@@ -16,7 +17,8 @@ impl Plugin for GeneratorIdsPlugin {
     fn build(&self, app: &mut App) {
         app.add_registry_resolver(SurfaceIds::resolve)
             .add_registry_resolver(FillIds::resolve)
-            .add_registry_resolver(SurvivalIds::resolve);
+            .add_registry_resolver(SurvivalIds::resolve)
+            .add_registry_resolver(PresetBiomeTables::resolve);
     }
 }
 
