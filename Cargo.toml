@@ -4,6 +4,7 @@
 name = "mcrs"
 version = "0.4.6"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 
 [[bin]]
 name = "mcrs"
@@ -15,6 +16,8 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.4.6"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/andreypfau/mcrs"
 
 [workspace.dependencies]
 fixedbitset = "0.5.7"
