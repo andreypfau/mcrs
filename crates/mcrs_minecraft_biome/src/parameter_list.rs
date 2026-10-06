@@ -81,33 +81,6 @@ pub fn parameter_lists_of(set: &RegistrySet) -> ParameterLists {
     )
 }
 
-pub fn check_parameter_list_biomes(
-    lists: &[MultiNoiseBiomeSourceParameterList],
-    set: &RegistrySet,
-) -> Vec<(usize, String)> {
-    let Some(biomes) = set.registry::<crate::Biome>() else {
-        return Vec::new();
-    };
-    let mut failures = Vec::new();
-    for (index, list) in lists.iter().enumerate() {
-        let mut reported: Vec<&str> = Vec::new();
-        for (_, biome) in list.preset.parameter_list().values() {
-            if biomes.by_name(biome).is_none() && !reported.contains(biome) {
-                reported.push(biome);
-                failures.push((
-                    index,
-                    format!(
-                        "the preset {} names the biome {biome}, which {} does not hold",
-                        list.preset.name(),
-                        crate::keys::BIOME.location(),
-                    ),
-                ));
-            }
-        }
-    }
-    failures
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

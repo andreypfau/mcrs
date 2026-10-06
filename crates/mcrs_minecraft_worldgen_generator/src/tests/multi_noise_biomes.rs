@@ -1,16 +1,27 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
+use bevy_app::App;
 use mcrs_minecraft_biome::climate::{ClimateParameters, TargetPoint};
 use mcrs_minecraft_biome::overworld_preset::overworld_parameter_list;
+use mcrs_minecraft_biome::parameter_list::{
+    MultiNoiseBiomeSourceParameterList, ParameterLists, Preset,
+};
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_biome::zoom::{obfuscate_seed, quart_cell};
 use mcrs_minecraft_core::{BlockPos, ResourceLocation};
-use mcrs_minecraft_registry::{Id, Registry};
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{
+    Id, LoadReport, Pack, PackFile, Registry, RegistrySet, WorldRegistries,
+};
+use mcrs_minecraft_world::registries::test_registries;
+use mcrs_minecraft_world::resolvers::run_resolvers;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use super::build_settings_router;
+use crate::ids::GeneratorIdsPlugin;
 use crate::modern_carvers::climate_target_at;
-use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable};
+use crate::multi_noise_biomes::{BiomeTableError, MultiNoiseBiomeTable, PresetBiomeTables};
 use crate::{multi_noise_grid, multi_noise_palettes};
 use bevy_math::IVec3;
 use mcrs_minecraft_biome::Biome;
@@ -235,9 +246,185 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     );
 }
 
+fn shipped_tables() -> PresetBiomeTables {
+    let (names, lists) = super::parameter_lists();
+    let mut report = LoadReport::new();
+    PresetBiomeTables::build(names, lists, super::corpus_biomes(), &mut report)
+        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {report}"))
+}
+
+#[test]
+fn table_of_picks_the_named_or_inline_table() {
+    use mcrs_minecraft_biome::climate::ParameterRange;
+
+    let tables = shipped_tables();
+    let overworld = super::parameter_list_id("minecraft:overworld");
+    let named = MultiNoiseBiomeSource {
+        preset: Some(overworld),
+        biomes: None,
+    };
+    let picked = tables.table_of(&named).expect("a held list has a table");
+    assert!(Arc::ptr_eq(
+        &picked,
+        tables.get(overworld).expect("the overworld list is held")
+    ));
+
+    let biomes = super::corpus_biomes();
+    let at = |value: f64, name: &str| {
+        let parameters = ClimateParameters {
+            temperature: ParameterRange::Point(value),
+            humidity: ParameterRange::Point(0.0),
+            continentalness: ParameterRange::Point(0.0),
+            erosion: ParameterRange::Point(0.0),
+            depth: ParameterRange::Point(0.0),
+            weirdness: ParameterRange::Point(0.0),
+            offset: 0.0,
+        };
+        entry(parameters, biomes.by_name(name).expect("a corpus biome"))
+    };
+    let inline = MultiNoiseBiomeSource {
+        preset: None,
+        biomes: Some(vec![
+            at(-1.0, "minecraft:plains"),
+            at(0.0, "minecraft:desert"),
+            at(1.0, "minecraft:swamp"),
+        ]),
+    };
+    assert_eq!(tables.table_of(&inline).expect("an inline list").len(), 3);
+}
+
+#[test]
+fn the_shipped_parameter_lists_resolve_once_at_load() {
+    let set = test_registries();
+    let mut app = App::new();
+    app.add_plugins(GeneratorIdsPlugin);
+    run_resolvers(app.world_mut(), set).unwrap_or_else(|report| panic!("{report}"));
+
+    let tables = app.world().resource::<Resolved<PresetBiomeTables>>();
+    let names = set
+        .registry::<MultiNoiseBiomeSourceParameterList>()
+        .expect("the loaded set holds the parameter lists");
+    let lists: ParameterLists = set
+        .entries()
+        .expect("the loaded set holds the parameter list entries");
+    assert!(!names.is_empty());
+    for id in names.ids() {
+        let table = tables.get(id).expect("every list has a resolved table");
+        assert_eq!(
+            table.len(),
+            lists[id].preset.parameter_list().len(),
+            "{:?}",
+            names.name(id)
+        );
+    }
+}
+
+#[test]
+fn entries_naming_one_preset_share_one_table() {
+    let pair = Registry::<MultiNoiseBiomeSourceParameterList>::new(
+        mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
+        ["test:one", "test:two"]
+            .into_iter()
+            .map(|name| ResourceLocation::read(name).unwrap()),
+    )
+    .expect("a registry of distinct names");
+    let same_preset = ParameterLists::new(
+        &pair,
+        vec![
+            MultiNoiseBiomeSourceParameterList {
+                preset: Preset::Overworld,
+            };
+            2
+        ],
+    )
+    .expect("one entry per name");
+    let mut report = LoadReport::new();
+    let shared = PresetBiomeTables::build(&pair, &same_preset, super::corpus_biomes(), &mut report)
+        .unwrap_or_else(|| panic!("{report}"));
+    let (one, two) = (
+        pair.require_by_name("test:one").unwrap(),
+        pair.require_by_name("test:two").unwrap(),
+    );
+    assert!(Arc::ptr_eq(
+        shared.get(one).unwrap(),
+        shared.get(two).unwrap()
+    ));
+}
+
+#[test]
+fn a_preset_naming_a_missing_biome_fails_the_load() {
+    use mcrs_minecraft_biome::keys::{BIOME, MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST};
+    use mcrs_minecraft_biome::overworld_preset::nether_parameter_list;
+
+    let missing = overworld_parameter_list().values()[0].1;
+    let named: BTreeSet<&str> = overworld_parameter_list()
+        .values()
+        .iter()
+        .chain(nether_parameter_list().values())
+        .map(|(_, biome)| *biome)
+        .filter(|biome| *biome != missing)
+        .collect();
+    let mut files: Vec<PackFile> = named
+        .into_iter()
+        .map(|biome| PackFile {
+            path: format!(
+                "minecraft/worldgen/biome/{}.json",
+                biome.strip_prefix("minecraft:").expect("a vanilla biome")
+            ),
+            bytes: None,
+        })
+        .collect();
+    files.push(PackFile {
+        path: "minecraft/worldgen/multi_noise_biome_source_parameter_list/overworld.json"
+            .to_owned(),
+        bytes: Some(br#"{"preset":"minecraft:overworld"}"#.to_vec()),
+    });
+    let packs = [Pack {
+        name: "vanilla".to_owned(),
+        files,
+        built: Vec::new(),
+    }];
+
+    let mut declared = WorldRegistries::new([
+        BIOME.location().into(),
+        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location().into(),
+    ]);
+    declared.parse::<MultiNoiseBiomeSourceParameterList>(
+        MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.location(),
+    );
+    let statics = RegistrySet::new()
+        .with_types([
+            BIOME.binding(),
+            MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST.binding(),
+        ])
+        .expect("two distinct bindings");
+    let set = declared
+        .load(&statics, &packs)
+        .unwrap_or_else(|report| panic!("the small set loads: {report}"));
+
+    let mut app = App::new();
+    app.add_plugins(GeneratorIdsPlugin);
+    let refused = run_resolvers(app.world_mut(), &set)
+        .expect_err("a preset over a registry lacking one of its biomes is refused");
+    let text = refused.to_string();
+    let line = text
+        .lines()
+        .find(|line| line.contains("overworld") && line.contains(missing))
+        .unwrap_or_else(|| panic!("no line names the parameter list and {missing}: {text}"));
+    assert!(
+        line.contains("minecraft:worldgen/multi_noise_biome_source_parameter_list"),
+        "{line}"
+    );
+    assert!(
+        app.world()
+            .get_resource::<Resolved<PresetBiomeTables>>()
+            .is_none()
+    );
+}
+
 #[test]
 fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
-    let (names, lists) = super::parameter_lists();
+    let (names, _) = super::parameter_lists();
     let beyond =
         Registry::<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>::new(
             mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
@@ -260,9 +447,8 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
         ),
         biomes: None,
     };
-    let registry = super::biome_registry(&["minecraft:plains"]);
     assert!(matches!(
-        MultiNoiseBiomeTable::resolve(&source, &registry, lists),
+        shipped_tables().table_of(&source),
         Err(BiomeTableError::NoTable(_))
     ));
 }

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use crate::stored_biomes::column_cell;
 use bevy_ecs::prelude::Resource;
 use fixedbitset::FixedBitSet;
-use mcrs_minecraft_biome::parameter_list::ParameterLists;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
@@ -38,7 +37,7 @@ use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
 };
-use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::multi_noise_biomes::{MultiNoiseBiomeTable, PresetBiomeTables};
 use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
@@ -120,7 +119,7 @@ impl FillContext {
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
         biome: Option<(Arc<BiomeSource>, Registry<Biome>)>,
-        parameter_lists: &ParameterLists,
+        preset_tables: &PresetBiomeTables,
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
@@ -130,12 +129,12 @@ impl FillContext {
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
-        let multi_noise = biome.as_ref().and_then(|(source, registry)| {
+        let multi_noise = biome.as_ref().and_then(|(source, _)| {
             let BiomeSource::MultiNoise(multi) = source.as_ref() else {
                 return None;
             };
-            match MultiNoiseBiomeTable::resolve(multi, registry, parameter_lists) {
-                Ok(table) => Some(Arc::new(table)),
+            match preset_tables.table_of(multi) {
+                Ok(table) => Some(table),
                 Err(error) => {
                     error!(%error, "the multi-noise biome source has no climate table");
                     None
