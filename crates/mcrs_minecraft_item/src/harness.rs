@@ -200,9 +200,9 @@ sample_registries_table! {
 /// A static registry numbers its entries as the generated constants do, so a
 /// constant names the same entry in the samples as in the game.
 fn build_sample_registries() -> RegistrySet {
-    let sounds = Registry::<crate::SoundEvent>::new(
-        crate::keys::SOUND_EVENT,
-        crate::keys::sound_event::ENTRIES
+    let sounds = Registry::<mcrs_minecraft_sound::SoundEvent>::new(
+        mcrs_minecraft_sound::keys::SOUND_EVENT,
+        mcrs_minecraft_sound::keys::sound_event::ENTRIES
             .iter()
             .map(|&name| name.into()),
     )

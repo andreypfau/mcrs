@@ -1,8 +1,9 @@
 use std::fmt;
 
 use mcrs_minecraft_core::codec::{NonNegativeInt, int_value, is_default};
-use mcrs_minecraft_item::{Holder, SoundEvent, Text};
+use mcrs_minecraft_item::{Holder, Text};
 use mcrs_minecraft_particle::ParticleOptions;
+use mcrs_minecraft_sound::SoundEvent;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

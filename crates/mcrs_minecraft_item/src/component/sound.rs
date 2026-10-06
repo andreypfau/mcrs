@@ -1,25 +1,9 @@
-use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, lenient_float};
+use crate::component::common::Holder;
 use crate::harness::Sample;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SoundEvent {
-    pub sound_id: ResourceLocation,
-    #[serde(
-        default,
-        deserialize_with = "lenient_float",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub range: Option<f32>,
-}
-
-impl RegistryValue for SoundEvent {
-    type Registry = Self;
-}
+use mcrs_minecraft_sound::SoundEvent;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -41,7 +25,7 @@ pub fn sound_holder_tags(sound: &Holder<SoundEvent>) -> Vec<(&'static str, u8)> 
 
 pub fn sound_holder_samples() -> Vec<Holder<SoundEvent>> {
     vec![
-        Holder::Reference(crate::keys::sound_event::ENTITY_ITEM_BREAK.id()),
+        Holder::Reference(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id()),
         Holder::Direct(SoundEvent {
             sound_id: rl!("mcrs:custom").to_arc(),
             range: None,

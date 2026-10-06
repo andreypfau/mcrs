@@ -480,7 +480,8 @@ fn a_kind_is_a_var_int_on_the_wire_and_an_id_in_json() {
 
 #[test]
 fn a_holder_id_below_zero_is_an_error_not_a_panic() {
-    use mcrs_minecraft_protocol::item::{Holder, SoundEvent};
+    use mcrs_minecraft_protocol::item::Holder;
+    use mcrs_minecraft_sound::SoundEvent;
     let lookup = TestLookup::new();
     let min_var_int = [0x80, 0x80, 0x80, 0x80, 0x08];
     let error = Holder::<SoundEvent>::decode_ctx(&lookup, &mut &min_var_int[..]).unwrap_err();
@@ -545,14 +546,13 @@ fn a_patch_compares_as_a_map() {
 #[test]
 fn identifiers_read_with_the_default_namespace_everywhere() {
     use mcrs_minecraft_keys::EntityType;
-    use mcrs_minecraft_protocol::item::{
-        Holder, ResolvableFloat, ResolvableInt, SoundEvent, TypedEntityData,
-    };
+    use mcrs_minecraft_protocol::item::{Holder, ResolvableFloat, ResolvableInt, TypedEntityData};
+    use mcrs_minecraft_sound::SoundEvent;
     in_samples(|| {
         let sound: Holder<SoundEvent> = serde_json::from_str(r#""entity.item.break""#).unwrap();
         assert_eq!(
             sound,
-            Holder::Reference(mcrs_minecraft_item::keys::sound_event::ENTITY_ITEM_BREAK.id())
+            Holder::Reference(mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id())
         );
         let logs: HolderSet<Block> = serde_json::from_str("\"#logs\"").unwrap();
         assert_eq!(logs, tag_set("logs"));

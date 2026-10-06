@@ -43,7 +43,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:sound_event",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_sound",
         value: "crate::SoundEvent",
     },
     Owner {

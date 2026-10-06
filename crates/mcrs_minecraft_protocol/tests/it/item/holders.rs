@@ -1,5 +1,6 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
+use mcrs_minecraft_sound::SoundEvent;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::Bounded;
@@ -9,7 +10,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
     Consumable, ConsumeEffect, ConsumeEffectType, DecodeCtx, Holder, HolderWireOnly,
     ItemComponentKind, ItemComponentValue, JukeboxPlayable, JukeboxSong, PaintingVariant,
-    PaintingVariantValue, SoundEvent, hash_ops,
+    PaintingVariantValue, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_registry::RegistryLookup;
@@ -117,7 +118,7 @@ fn reference_only_kinds_still_carry_the_entry_inline_on_the_wire() {
         "jukebox_playable_direct",
         JukeboxPlayable(HolderWireOnly(Holder::Direct(JukeboxSong {
             sound_event: Holder::Reference(
-                mcrs_minecraft_item::keys::sound_event::ENTITY_ITEM_BREAK.id(),
+                mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
             ),
             description: Text::text("Song"),
             length_in_seconds: 12.5,

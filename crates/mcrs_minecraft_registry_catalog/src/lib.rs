@@ -69,7 +69,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_keys::SENSOR_TYPE.location(), mcrs_minecraft_keys::sensor_type::ENTRIES),
     (mcrs_minecraft_keys::SLOT_DISPLAY.location(), mcrs_minecraft_keys::slot_display::ENTRIES),
     (mcrs_minecraft_keys::SLOT_SOURCE_TYPE.location(), mcrs_minecraft_keys::slot_source_type::ENTRIES),
-    (mcrs_minecraft_item::keys::SOUND_EVENT.location(), mcrs_minecraft_item::keys::sound_event::ENTRIES),
+    (mcrs_minecraft_sound::keys::SOUND_EVENT.location(), mcrs_minecraft_sound::keys::sound_event::ENTRIES),
     (mcrs_minecraft_keys::SPAWN_CONDITION_TYPE.location(), mcrs_minecraft_keys::spawn_condition_type::ENTRIES),
     (mcrs_minecraft_keys::STAT_TYPE.location(), mcrs_minecraft_keys::stat_type::ENTRIES),
     (mcrs_minecraft_keys::TEST_ENVIRONMENT_DEFINITION_TYPE.location(), mcrs_minecraft_keys::test_environment_definition_type::ENTRIES),
@@ -107,4 +107,5 @@ pub fn bindings() -> impl Iterator<Item = TypeBinding> {
         .chain(mcrs_minecraft_environment::keys::bindings())
         .chain(mcrs_minecraft_item::keys::bindings())
         .chain(mcrs_minecraft_keys::bindings())
+        .chain(mcrs_minecraft_sound::keys::bindings())
 }

@@ -1,16 +1,16 @@
 use crate::damage_type::DamageType;
-use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::rl;
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
-use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
+use mcrs_minecraft_sound::SoundEvent;
 
 float_default! {
     ninety / is_ninety = 90.0f32,

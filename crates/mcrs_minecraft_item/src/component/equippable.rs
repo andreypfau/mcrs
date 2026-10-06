@@ -1,15 +1,15 @@
-use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_keys::EntityType;
 use mcrs_minecraft_nbt::{BYTE_ID, COMPOUND_ID, FLOAT_ID, STRING_ID};
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
 use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
 use crate::component::registry_ref::null_as_default;
-use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
+use mcrs_minecraft_sound::SoundEvent;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

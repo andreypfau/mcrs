@@ -1,12 +1,12 @@
 use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
-use mcrs_minecraft_item::keys::sound_event;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Consumable, Holder, ItemStackValue, ItemUseAnimation, ProtoStack, RawStack,
 };
 use mcrs_minecraft_registry::{ChainLookup, RegistryLookup};
 use mcrs_minecraft_server::world::item::item_lookups;
+use mcrs_minecraft_sound::keys::sound_event;
 
 use crate::support::{registry_set, standalone_corpus};
 

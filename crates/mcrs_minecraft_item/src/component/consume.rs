@@ -1,18 +1,18 @@
-use crate::keys::sound_event;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_keys::MobEffect;
 use mcrs_minecraft_nbt::nbt_flag;
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_sound::keys::sound_event;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
     Folded, Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance, list_set, one_set,
 };
-use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
+use mcrs_minecraft_sound::SoundEvent;
 
 /// A ranged float field with vanilla's error wording; the bounds order `-0.0`
 /// below `0.0` and NaN outside every range.

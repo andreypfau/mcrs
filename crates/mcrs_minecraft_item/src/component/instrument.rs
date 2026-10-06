@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::Text;
 use crate::component::common::{Holder, HolderWireOnly, entry};
 use crate::component::consume::{non_negative_float, positive_float};
-use crate::component::sound::SoundEvent;
 use crate::harness::Sample;
+use mcrs_minecraft_sound::SoundEvent;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,7 +73,9 @@ impl Sample for Instrument {
         vec![
             Instrument(Holder::Reference(entry("ponder_goat_horn"))),
             Instrument(Holder::Direct(InstrumentValue {
-                sound_event: Holder::Reference(crate::keys::sound_event::ENTITY_ITEM_BREAK.id()),
+                sound_event: Holder::Reference(
+                    mcrs_minecraft_sound::keys::sound_event::ENTITY_ITEM_BREAK.id(),
+                ),
                 use_duration: 7.0,
                 range: 256.0,
                 durability_damage: codec::Bounded(0),

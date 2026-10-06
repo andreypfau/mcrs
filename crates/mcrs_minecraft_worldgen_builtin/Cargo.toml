@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_sound.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
