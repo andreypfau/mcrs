@@ -79,6 +79,8 @@ mcrs_minecraft_level = { path = "crates/mcrs_minecraft_level" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_registry = { path = "crates/mcrs_minecraft_registry", default-features = false }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
+mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
+mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }
 mcrs_minecraft_registry_catalog = { path = "crates/mcrs_minecraft_registry_catalog" }
 mcrs_minecraft_sound = { path = "crates/mcrs_minecraft_sound" }
 mcrs_minecraft_value_provider = { path = "crates/mcrs_minecraft_value_provider" }

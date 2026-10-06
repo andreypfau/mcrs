@@ -1,333 +1,194 @@
-use crate::world::loot::context::BlockBreakContext;
-use mcrs_minecraft_block::definition::BlockEntry;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::component::predicate::{
+    BlockPredicate, ComponentPredicate, ComponentPredicateEntry, EnchantmentPredicate,
+    EnchantmentsPredicate, ItemPredicate,
+};
+use mcrs_minecraft_item::component::{MinMaxBounds, ValueMatcher};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::{HolderSet, Registry};
-use rustc_hash::FxHashMap;
-use serde::de::{IgnoredAny, MapAccess, Visitor, value};
-use serde::{Deserialize, Deserializer};
-use std::fmt;
-use tracing::warn;
+use mcrs_minecraft_loot::condition::EntityProperties;
+use mcrs_minecraft_loot::{EntityTarget, LootCondition};
+use mcrs_minecraft_registry::{Holder, HolderList, HolderSet, Id, Tags};
+
+use crate::world::loot::LootRegistries;
+use crate::world::loot::context::BlockBreakContext;
 
 // chisle: the block-break context has no random source, position, tool item or
-// tags, so a condition that needs one does not hold. That is the outcome vanilla
-// gives most often for a player breaking by hand: no shears, no lucky roll. The
-// richer loot context (#70) and typed conditions (#73) lift this.
+// entity beyond the player, so a condition that needs one does not hold. That is
+// the outcome vanilla gives most often for a player breaking by hand: no shears,
+// no lucky roll. A richer loot context (#70) lifts this.
 const UNDECIDABLE: bool = false;
 
-/// A predicate named from the `minecraft:predicate` registry, or a condition
-/// written in place. The loader inlines every name, so a loaded table holds
-/// `Inline` alone.
-#[derive(Debug, Clone)]
-pub enum Condition {
-    Named(ResourceLocation),
-    Inline(Box<LootCondition>),
+pub(crate) type Term<'a> = (Option<Id<LootCondition>>, &'a LootCondition);
+
+pub fn holds(condition: Option<&Holder<LootCondition>>, ctx: &BlockBreakContext) -> bool {
+    condition.is_none_or(|condition| check(ctx.loot.resolve(condition).1, ctx))
 }
 
-impl<'de> Deserialize<'de> for Condition {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ConditionVisitor;
-
-        impl<'de> Visitor<'de> for ConditionVisitor {
-            type Value = Condition;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a predicate id or an inline condition")
-            }
-
-            fn visit_str<E: serde::de::Error>(self, id: &str) -> Result<Self::Value, E> {
-                ResourceLocation::read(id)
-                    .map(Condition::Named)
-                    .map_err(E::custom)
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-                LootCondition::deserialize(value::MapAccessDeserializer::new(map))
-                    .map(|condition| Condition::Inline(Box::new(condition)))
-            }
-        }
-
-        deserializer.deserialize_any(ConditionVisitor)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
-pub enum LootCondition {
-    #[serde(rename = "minecraft:inverted")]
-    Inverted { term: Condition },
-    #[serde(rename = "minecraft:any_of")]
-    AnyOf { terms: Vec<Condition> },
-    #[serde(rename = "minecraft:all_of")]
-    AllOf { terms: Vec<Condition> },
-    #[serde(rename = "minecraft:match_tool")]
-    MatchTool { predicate: ToolPredicate },
-    #[serde(rename = "minecraft:match_block")]
-    MatchBlock {
-        blocks: Option<HolderSet<Block>>,
-        state: Option<StatePredicate>,
-    },
-    #[serde(rename = "minecraft:survives_explosion")]
-    SurvivesExplosion {},
-    #[serde(rename = "minecraft:entity_properties")]
-    EntityProperties {
-        entity: EntityTarget,
-        predicate: Option<EntityPredicate>,
-    },
-    // chisle: read without their fields and decided by `UNDECIDABLE`; typed
-    // conditions (#73) lift this.
-    #[serde(
-        rename = "minecraft:random_chance",
-        alias = "minecraft:random_chance_with_enchanted_bonus",
-        alias = "minecraft:table_bonus",
-        alias = "minecraft:location_check",
-        alias = "minecraft:killed_by_player",
-        alias = "minecraft:entity_scores",
-        alias = "minecraft:damage_source_properties",
-        alias = "minecraft:weather_check",
-        alias = "minecraft:time_check",
-        alias = "minecraft:int_value_check",
-        alias = "minecraft:float_value_check",
-        alias = "minecraft:enchantment_active_check",
-        alias = "minecraft:environment_attribute_check"
-    )]
-    Undecidable(IgnoredAny),
-}
-
-const LOOT_CONDITION_TYPE_ROWS: &[&str] = &[
-    "minecraft:inverted",
-    "minecraft:any_of",
-    "minecraft:all_of",
-    "minecraft:match_tool",
-    "minecraft:match_block",
-    "minecraft:survives_explosion",
-    "minecraft:entity_properties",
-    "minecraft:random_chance",
-    "minecraft:random_chance_with_enchanted_bonus",
-    "minecraft:table_bonus",
-    "minecraft:location_check",
-    "minecraft:killed_by_player",
-    "minecraft:entity_scores",
-    "minecraft:damage_source_properties",
-    "minecraft:weather_check",
-    "minecraft:time_check",
-    "minecraft:int_value_check",
-    "minecraft:float_value_check",
-    "minecraft:enchantment_active_check",
-    "minecraft:environment_attribute_check",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    LOOT_CONDITION_TYPE_ROWS,
-    &[],
-    mcrs_minecraft_enchantment::keys::LootConditionType::ENTRIES
-));
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ToolPredicate {
-    pub items: Option<HolderSet<Item>>,
-    pub predicates: Option<ToolPredicates>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ToolPredicates {
-    #[serde(rename = "minecraft:enchantments")]
-    pub enchantments: Option<Vec<EnchantmentPredicate>>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EnchantmentPredicate {
-    pub enchantments: ResourceLocation,
-    pub levels: Option<LevelRange>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LevelRange {
-    pub min: Option<u8>,
-}
-
-/// Property name to the exact value it must render as.
-#[derive(Debug, Clone, Deserialize)]
-pub struct StatePredicate(FxHashMap<Box<str>, Box<str>>);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EntityTarget {
-    This,
-    Attacker,
-    DirectAttacker,
-    AttackingPlayer,
-    TargetEntity,
-    InteractingEntity,
-}
-
-/// Only the empty predicate, which every present entity matches.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EntityPredicate {}
-
-pub fn holds(condition: &Option<Condition>, ctx: &BlockBreakContext) -> bool {
-    condition.as_ref().is_none_or(|c| c.check(ctx))
-}
-
-impl ToolPredicate {
-    fn enchantments(&self) -> &[EnchantmentPredicate] {
-        self.predicates
+pub fn check(condition: &LootCondition, ctx: &BlockBreakContext) -> bool {
+    match condition {
+        LootCondition::Inverted(inverted) => !check(ctx.loot.resolve(&inverted.term).1, ctx),
+        LootCondition::AnyOf(terms) => ctx
+            .loot
+            .terms(&terms.terms)
+            .any(|(_, term)| check(term, ctx)),
+        LootCondition::AllOf(terms) => ctx
+            .loot
+            .terms(&terms.terms)
+            .all(|(_, term)| check(term, ctx)),
+        LootCondition::MatchTool(tool) => tool
+            .predicate
             .as_ref()
-            .and_then(|p| p.enchantments.as_deref())
-            .unwrap_or_default()
-    }
-
-    fn matches(&self, ctx: &BlockBreakContext) -> bool {
-        let items_match = self.items.is_none() || UNDECIDABLE;
-        items_match
-            && self.enchantments().iter().all(|required| {
-                let min_level = required.levels.as_ref().and_then(|l| l.min).unwrap_or(1);
-                ctx.tool_enchantments.is_some_and(|enchantments| {
-                    enchantments.level(&required.enchantments) >= i32::from(min_level)
-                })
-            })
+            .is_none_or(|predicate| tool_matches(predicate, ctx)),
+        LootCondition::MatchBlock(predicate) => block_matches(predicate, ctx),
+        LootCondition::SurvivesExplosion => true,
+        LootCondition::EntityProperties(properties) => entity_matches(properties),
+        _ => UNDECIDABLE,
     }
 }
 
-impl StatePredicate {
-    fn matches(&self, block: &BlockEntry, ctx: &BlockBreakContext) -> bool {
-        self.0.iter().all(|(property, expected)| {
-            block
-                .value_of(ctx.state, property)
-                .is_some_and(|value| value.renders_to(expected))
+/// A block-break context is a player breaking the block: `this` is that player,
+/// and no other entity is present.
+fn entity_matches(properties: &EntityProperties) -> bool {
+    properties.predicate.as_ref().is_none_or(|predicate| {
+        properties.entity == EntityTarget::This && (predicate.is_empty() || UNDECIDABLE)
+    })
+}
+
+fn tool_matches(predicate: &ItemPredicate, ctx: &BlockBreakContext) -> bool {
+    (predicate.items.is_none() || UNDECIDABLE)
+        && (predicate.count.is_any() || UNDECIDABLE)
+        && (predicate.matchers.components.0.is_empty() || UNDECIDABLE)
+        && predicate
+            .matchers
+            .predicates
+            .0
+            .iter()
+            .all(|entry| match entry {
+                ComponentPredicateEntry::Typed(ComponentPredicate::Enchantments(
+                    EnchantmentsPredicate(required),
+                )) => required
+                    .iter()
+                    .all(|required| enchantment_matches(required, ctx)),
+                _ => UNDECIDABLE,
+            })
+}
+
+fn enchantment_matches(required: &EnchantmentPredicate, ctx: &BlockBreakContext) -> bool {
+    let held = ctx
+        .tool_enchantments
+        .map_or(&[][..], |enchantments| &enchantments.0[..]);
+    let level_of = |id: Id<EnchantmentData>| {
+        held.iter()
+            .find(|(key, _)| ctx.loot.enchantments.get(key) == Some(id))
+            .map_or(0, |(_, level)| *level)
+    };
+    match &required.enchantments {
+        Some(set) => members(set, &ctx.loot.enchantment_tags)
+            .any(|id| within(&required.levels, level_of(id))),
+        None if !required.levels.is_any() => held
+            .iter()
+            .any(|(_, level)| within(&required.levels, *level)),
+        None => !held.is_empty(),
+    }
+}
+
+fn block_matches(predicate: &BlockPredicate, ctx: &BlockBreakContext) -> bool {
+    let block = ctx.blocks.owner(ctx.state);
+    predicate
+        .blocks
+        .as_ref()
+        .is_none_or(|set| set.contains(ctx.blocks.block_index(ctx.state), ctx.tags))
+        && predicate.state.as_ref().is_none_or(|state| {
+            state.0.iter().all(|(property, matcher)| match matcher {
+                ValueMatcher::Exact(expected) => block
+                    .value_of(ctx.state, property)
+                    .is_some_and(|value| value.renders_to(expected)),
+                ValueMatcher::Ranged { .. } => UNDECIDABLE,
+            })
+        })
+        && (predicate.nbt.is_none() || UNDECIDABLE)
+        && (predicate.matchers.is_empty() || UNDECIDABLE)
+}
+
+fn within(bounds: &MinMaxBounds<i32>, value: i32) -> bool {
+    bounds.min.is_none_or(|min| value >= min) && bounds.max.is_none_or(|max| value <= max)
+}
+
+fn members<'a, R: 'static>(
+    set: &'a HolderSet<R>,
+    tags: &'a Tags<R>,
+) -> impl Iterator<Item = Id<R>> + 'a {
+    let (ids, tag) = match set {
+        HolderSet::Named(tag) => (&[][..], Some(*tag)),
+        HolderSet::One(id) => (std::slice::from_ref(id), None),
+        HolderSet::List(ids) => (&ids[..], None),
+    };
+    ids.iter()
+        .copied()
+        .chain(tag.into_iter().flat_map(|tag| tags.members(tag)))
+}
+
+impl LootRegistries {
+    pub(crate) fn resolve<'a>(&'a self, holder: &'a Holder<LootCondition>) -> Term<'a> {
+        match holder {
+            Holder::Direct(condition) => (None, condition),
+            Holder::Reference(id) => (Some(*id), &self.predicates[*id]),
+        }
+    }
+
+    pub(crate) fn terms<'a>(
+        &'a self,
+        list: &'a HolderList<LootCondition>,
+    ) -> impl Iterator<Item = Term<'a>> + 'a {
+        let (holders, tag) = match list {
+            HolderList::Named(tag) => (&[][..], Some(*tag)),
+            HolderList::One(holder) => (std::slice::from_ref(&**holder), None),
+            HolderList::List(holders) => (&holders[..], None),
+        };
+        holders.iter().map(|holder| self.resolve(holder)).chain(
+            tag.into_iter()
+                .flat_map(|tag| self.predicate_tags.members(tag))
+                .map(|id| (Some(id), &self.predicates[id])),
+        )
+    }
+
+    fn subterms<'a>(&'a self, condition: &'a LootCondition) -> impl Iterator<Item = Term<'a>> + 'a {
+        let (single, list) = match condition {
+            LootCondition::Inverted(inverted) => (Some(&*inverted.term), None),
+            LootCondition::AnyOf(terms) | LootCondition::AllOf(terms) => (None, Some(&terms.terms)),
+            _ => (None, None),
+        };
+        single
+            .into_iter()
+            .map(|holder| self.resolve(holder))
+            .chain(list.into_iter().flat_map(|list| self.terms(list)))
+    }
+
+    /// The first registered predicate that reaches itself through the ones it
+    /// names, which would make checking it recurse without end.
+    pub(crate) fn self_referring_predicate(&self) -> Option<Id<LootCondition>> {
+        let mut stack = Vec::new();
+        self.predicate_names.ids().find_map(|id| {
+            stack.push(id);
+            let found = self.reaches_stacked(&self.predicates[id], &mut stack);
+            stack.pop();
+            found
         })
     }
-}
 
-impl Condition {
-    pub fn check(&self, ctx: &BlockBreakContext) -> bool {
-        match self {
-            Condition::Inline(condition) => condition.check(ctx),
-            Condition::Named(name) => unreachable!("the loader inlines `{name}`"),
-        }
-    }
-
-    pub(crate) fn names(&self, into: &mut Vec<ResourceLocation>) {
-        match self {
-            Condition::Named(name) => into.push(name.clone()),
-            Condition::Inline(condition) => condition.terms().for_each(|t| t.names(into)),
-        }
-    }
-
-    /// Replaces every name with its predicate, refusing a predicate that
-    /// reaches itself.
-    pub(crate) fn inline(
-        &mut self,
-        predicates: &FxHashMap<ResourceLocation, LootCondition>,
-        stack: &mut Vec<ResourceLocation>,
-    ) -> Result<(), String> {
-        if let Condition::Named(name) = self {
-            if stack.contains(name) {
-                return Err(format!("predicate `{name}` refers to itself"));
+    fn reaches_stacked(
+        &self,
+        condition: &LootCondition,
+        stack: &mut Vec<Id<LootCondition>>,
+    ) -> Option<Id<LootCondition>> {
+        self.subterms(condition).find_map(|(id, term)| match id {
+            Some(id) if stack.contains(&id) => Some(id),
+            Some(id) => {
+                stack.push(id);
+                let found = self.reaches_stacked(term, stack);
+                stack.pop();
+                found
             }
-            let predicate = predicates
-                .get(name)
-                .ok_or_else(|| format!("predicate `{name}` was not read"))?;
-            let name = name.clone();
-            *self = Condition::Inline(Box::new(predicate.clone()));
-            stack.push(name);
-            let inlined = self.inline(predicates, stack);
-            stack.pop();
-            return inlined;
-        }
-        let Condition::Inline(condition) = self else {
-            unreachable!()
-        };
-        condition
-            .terms_mut()
-            .try_for_each(|term| term.inline(predicates, stack))
-    }
-
-    /// A tool predicate naming an enchantment the registry lacks is dropped, so
-    /// the condition always holds.
-    pub fn drop_unknown_enchantments(&mut self, registry: &Registry<EnchantmentData>) {
-        let Condition::Inline(condition) = self else {
-            return;
-        };
-        if let LootCondition::MatchTool { predicate } = &mut **condition
-            && let Some(unknown) = predicate
-                .enchantments()
-                .iter()
-                .find(|required| registry.by_name(required.enchantments.as_str()).is_none())
-        {
-            warn!(
-                enchantment = %unknown.enchantments,
-                "Enchantment not found in registry, condition will always be true"
-            );
-            predicate.predicates = None;
-        }
-        for term in condition.terms_mut() {
-            term.drop_unknown_enchantments(registry);
-        }
-    }
-}
-
-impl LootCondition {
-    pub fn check(&self, ctx: &BlockBreakContext) -> bool {
-        match self {
-            LootCondition::Inverted { term } => !term.check(ctx),
-            LootCondition::AnyOf { terms } => terms.iter().any(|c| c.check(ctx)),
-            LootCondition::AllOf { terms } => terms.iter().all(|c| c.check(ctx)),
-            LootCondition::MatchTool { predicate } => predicate.matches(ctx),
-            LootCondition::MatchBlock { blocks, state } => {
-                let block = ctx.blocks.owner(ctx.state);
-                let block_matches = blocks
-                    .as_ref()
-                    .is_none_or(|set| set.contains(ctx.blocks.block_index(ctx.state), ctx.tags));
-                block_matches && state.as_ref().is_none_or(|s| s.matches(block, ctx))
-            }
-            LootCondition::SurvivesExplosion {} => true,
-            // A block-break context is a player breaking the block: `this` is
-            // that player, and no other entity is present.
-            LootCondition::EntityProperties { entity, predicate } => {
-                predicate.is_none() || *entity == EntityTarget::This
-            }
-            LootCondition::Undecidable(_) => UNDECIDABLE,
-        }
-    }
-
-    pub(crate) fn terms(&self) -> impl Iterator<Item = &Condition> {
-        let terms: &[Condition] = match self {
-            LootCondition::Inverted { term } => std::slice::from_ref(term),
-            LootCondition::AnyOf { terms } | LootCondition::AllOf { terms } => terms,
-            _ => &[],
-        };
-        terms.iter()
-    }
-
-    fn terms_mut(&mut self) -> impl Iterator<Item = &mut Condition> {
-        let terms: &mut [Condition] = match self {
-            LootCondition::Inverted { term } => std::slice::from_mut(term),
-            LootCondition::AnyOf { terms } | LootCondition::AllOf { terms } => terms,
-            _ => &mut [],
-        };
-        terms.iter_mut()
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn loot_condition_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<LootCondition>(
-            LOOT_CONDITION_TYPE_ROWS,
-            &[],
-            mcrs_minecraft_enchantment::keys::LootConditionType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
+            None => self.reaches_stacked(term, stack),
+        })
     }
 }

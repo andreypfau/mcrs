@@ -1,0 +1,33 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+mcrs_minecraft_registry::static_registry! {
+    pub enum ContextFloatProviderType;
+    Abs = "minecraft:abs",
+    Avg = "minecraft:avg",
+    Ceil = "minecraft:ceil",
+    Conditional = "minecraft:conditional",
+    Constant = "minecraft:constant",
+    Cos = "minecraft:cos",
+    Sub = "minecraft:sub",
+    EnchantmentLevel = "minecraft:enchantment_level",
+    EnvironmentAttribute = "minecraft:environment_attribute",
+    Floor = "minecraft:floor",
+    FromInt = "minecraft:from_int",
+    Length = "minecraft:length",
+    Max = "minecraft:max",
+    Min = "minecraft:min",
+    Mod = "minecraft:mod",
+    Negate = "minecraft:negate",
+    NumberDispatcher = "minecraft:number_dispatcher",
+    Pow = "minecraft:pow",
+    Mul = "minecraft:mul",
+    Div = "minecraft:div",
+    Round = "minecraft:round",
+    Sin = "minecraft:sin",
+    Sqrt = "minecraft:sqrt",
+    Storage = "minecraft:storage",
+    Add = "minecraft:add",
+    Truncate = "minecraft:truncate",
+    Uniform = "minecraft:uniform",
+    WeightedList = "minecraft:weighted_list",
+}

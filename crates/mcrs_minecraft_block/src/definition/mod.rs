@@ -417,10 +417,21 @@ pub fn load_block_definitions(
         .get_source(AssetSourceId::Default)
         .map_err(|_| LoadError::NoAssetSource)?;
     let corpus = read_json_corpus(source.reader(), CORPUS_DIRECTORY)?;
+    let (definitions, mut report) = build_block_definitions(blocks, corpus)?;
+    report.elapsed = started.elapsed();
+    Ok((definitions, report))
+}
 
+/// The definitions the files state, one file per block, against the block
+/// registry they number. The report's `elapsed` is left zero.
+pub fn build_block_definitions(
+    blocks: &Registry<Block>,
+    files: impl IntoIterator<Item = (String, Vec<u8>)>,
+) -> Result<(BlockDefinitions, LoadReport), LoadError> {
     let mut builder = Builder::new(blocks);
-    let files = corpus.len();
-    for (path, bytes) in corpus {
+    let mut count = 0;
+    for (path, bytes) in files {
+        count += 1;
         if bytes.is_empty() {
             return Err(LoadError::Empty { path });
         }
@@ -437,12 +448,12 @@ pub fn load_block_definitions(
 
     let definitions = builder.finish()?;
     let report = LoadReport {
-        files,
+        files: count,
         states: definitions.states.len(),
         permutations: builder.permutations,
         shapes: definitions.shapes.len(),
         table_bytes: definitions.table_bytes(),
-        elapsed: started.elapsed(),
+        elapsed: Duration::ZERO,
     };
     Ok((definitions, report))
 }

@@ -25,52 +25,10 @@ impl Registered for CommandArgumentType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContextFloatProvider {}
-pub const CONTEXT_FLOAT_PROVIDER: RegistryKey<ContextFloatProvider> = RegistryKey::new(rl!("minecraft:context_float_provider"));
-impl Registered for ContextFloatProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContextFloatProviderType {}
-pub const CONTEXT_FLOAT_PROVIDER_TYPE: RegistryKey<ContextFloatProviderType> = RegistryKey::new(rl!("minecraft:context_float_provider_type"));
-impl Registered for ContextFloatProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContextIntProvider {}
-pub const CONTEXT_INT_PROVIDER: RegistryKey<ContextIntProvider> = RegistryKey::new(rl!("minecraft:context_int_provider"));
-impl Registered for ContextIntProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContextIntProviderType {}
-pub const CONTEXT_INT_PROVIDER_TYPE: RegistryKey<ContextIntProviderType> = RegistryKey::new(rl!("minecraft:context_int_provider_type"));
-impl Registered for ContextIntProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContextKeySet {}
-pub const CONTEXT_KEY_SET: RegistryKey<ContextKeySet> = RegistryKey::new(rl!("minecraft:context_key_set"));
-impl Registered for ContextKeySet {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CreativeModeTab {}
 pub const CREATIVE_MODE_TAB: RegistryKey<CreativeModeTab> = RegistryKey::new(rl!("minecraft:creative_mode_tab"));
 impl Registered for CreativeModeTab {
     const REGISTRY: RegistryKey<Self> = CREATIVE_MODE_TAB;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CustomStat {}
-pub const CUSTOM_STAT: RegistryKey<CustomStat> = RegistryKey::new(rl!("minecraft:custom_stat"));
-impl Registered for CustomStat {
-    const REGISTRY: RegistryKey<Self> = CUSTOM_STAT;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -95,13 +53,6 @@ impl Registered for EnchantmentProviderType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EntitySubPredicateType {}
-pub const ENTITY_SUB_PREDICATE_TYPE: RegistryKey<EntitySubPredicateType> = RegistryKey::new(rl!("minecraft:entity_sub_predicate_type"));
-impl Registered for EntitySubPredicateType {
-    const REGISTRY: RegistryKey<Self> = ENTITY_SUB_PREDICATE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameEvent {}
 pub const GAME_EVENT: RegistryKey<GameEvent> = RegistryKey::new(rl!("minecraft:game_event"));
 impl Registered for GameEvent {
@@ -120,48 +71,6 @@ pub enum IncomingRpcMethods {}
 pub const INCOMING_RPC_METHODS: RegistryKey<IncomingRpcMethods> = RegistryKey::new(rl!("minecraft:incoming_rpc_methods"));
 impl Registered for IncomingRpcMethods {
     const REGISTRY: RegistryKey<Self> = INCOMING_RPC_METHODS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ItemModifier {}
-pub const ITEM_MODIFIER: RegistryKey<ItemModifier> = RegistryKey::new(rl!("minecraft:item_modifier"));
-impl Registered for ItemModifier {
-    const REGISTRY: RegistryKey<Self> = ITEM_MODIFIER;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootFunctionType {}
-pub const LOOT_FUNCTION_TYPE: RegistryKey<LootFunctionType> = RegistryKey::new(rl!("minecraft:loot_function_type"));
-impl Registered for LootFunctionType {
-    const REGISTRY: RegistryKey<Self> = LOOT_FUNCTION_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootNbtProviderType {}
-pub const LOOT_NBT_PROVIDER_TYPE: RegistryKey<LootNbtProviderType> = RegistryKey::new(rl!("minecraft:loot_nbt_provider_type"));
-impl Registered for LootNbtProviderType {
-    const REGISTRY: RegistryKey<Self> = LOOT_NBT_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootPoolEntryType {}
-pub const LOOT_POOL_ENTRY_TYPE: RegistryKey<LootPoolEntryType> = RegistryKey::new(rl!("minecraft:loot_pool_entry_type"));
-impl Registered for LootPoolEntryType {
-    const REGISTRY: RegistryKey<Self> = LOOT_POOL_ENTRY_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootScoreProviderType {}
-pub const LOOT_SCORE_PROVIDER_TYPE: RegistryKey<LootScoreProviderType> = RegistryKey::new(rl!("minecraft:loot_score_provider_type"));
-impl Registered for LootScoreProviderType {
-    const REGISTRY: RegistryKey<Self> = LOOT_SCORE_PROVIDER_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LootTable {}
-pub const LOOT_TABLE: RegistryKey<LootTable> = RegistryKey::new(rl!("minecraft:loot_table"));
-impl Registered for LootTable {
-    const REGISTRY: RegistryKey<Self> = LOOT_TABLE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -207,13 +116,6 @@ impl Registered for PointOfInterestType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Predicate {}
-pub const PREDICATE: RegistryKey<Predicate> = RegistryKey::new(rl!("minecraft:predicate"));
-impl Registered for Predicate {
-    const REGISTRY: RegistryKey<Self> = PREDICATE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecipeType {}
 pub const RECIPE_TYPE: RegistryKey<RecipeType> = RegistryKey::new(rl!("minecraft:recipe_type"));
 impl Registered for RecipeType {
@@ -225,27 +127,6 @@ pub enum SensorType {}
 pub const SENSOR_TYPE: RegistryKey<SensorType> = RegistryKey::new(rl!("minecraft:sensor_type"));
 impl Registered for SensorType {
     const REGISTRY: RegistryKey<Self> = SENSOR_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SlotSource {}
-pub const SLOT_SOURCE: RegistryKey<SlotSource> = RegistryKey::new(rl!("minecraft:slot_source"));
-impl Registered for SlotSource {
-    const REGISTRY: RegistryKey<Self> = SLOT_SOURCE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SlotSourceType {}
-pub const SLOT_SOURCE_TYPE: RegistryKey<SlotSourceType> = RegistryKey::new(rl!("minecraft:slot_source_type"));
-impl Registered for SlotSourceType {
-    const REGISTRY: RegistryKey<Self> = SLOT_SOURCE_TYPE;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StatType {}
-pub const STAT_TYPE: RegistryKey<StatType> = RegistryKey::new(rl!("minecraft:stat_type"));
-impl Registered for StatType {
-    const REGISTRY: RegistryKey<Self> = STAT_TYPE;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -318,43 +199,26 @@ impl Registered for MaterialCondition {
     const REGISTRY: RegistryKey<Self> = MATERIAL_CONDITION;
 }
 
-pub fn bindings() -> [TypeBinding; 45] {
+pub fn bindings() -> [TypeBinding; 28] {
     [
         ADVANCEMENT.binding(),
         ATTRIBUTE_TYPE.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
-        CONTEXT_FLOAT_PROVIDER.binding(),
-        CONTEXT_FLOAT_PROVIDER_TYPE.binding(),
-        CONTEXT_INT_PROVIDER.binding(),
-        CONTEXT_INT_PROVIDER_TYPE.binding(),
-        CONTEXT_KEY_SET.binding(),
         CREATIVE_MODE_TAB.binding(),
-        CUSTOM_STAT.binding(),
         DEBUG_SUBSCRIPTION.binding(),
         DIALOG_ACTION_TYPE.binding(),
         ENCHANTMENT_PROVIDER_TYPE.binding(),
-        ENTITY_SUB_PREDICATE_TYPE.binding(),
         GAME_EVENT.binding(),
         GAME_RULE.binding(),
         INCOMING_RPC_METHODS.binding(),
-        ITEM_MODIFIER.binding(),
-        LOOT_FUNCTION_TYPE.binding(),
-        LOOT_NBT_PROVIDER_TYPE.binding(),
-        LOOT_POOL_ENTRY_TYPE.binding(),
-        LOOT_SCORE_PROVIDER_TYPE.binding(),
-        LOOT_TABLE.binding(),
         MEMORY_MODULE_TYPE.binding(),
         NUMBER_FORMAT_TYPE.binding(),
         OUTGOING_RPC_METHODS.binding(),
         PERMISSION_CHECK_TYPE.binding(),
         PERMISSION_TYPE.binding(),
         POINT_OF_INTEREST_TYPE.binding(),
-        PREDICATE.binding(),
         RECIPE_TYPE.binding(),
         SENSOR_TYPE.binding(),
-        SLOT_SOURCE.binding(),
-        SLOT_SOURCE_TYPE.binding(),
-        STAT_TYPE.binding(),
         TEST_ENVIRONMENT_DEFINITION_TYPE.binding(),
         TEST_FUNCTION.binding(),
         TEST_INSTANCE_TYPE.binding(),

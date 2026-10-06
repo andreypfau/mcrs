@@ -1,7 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror, ResourceKey};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -41,7 +40,7 @@ pub fn ignore_structure_and_air(
 pub fn seed_container_loot(
     entities: &mut [GeneratedBlockEntity],
     pos: BlockPos,
-    loot_table: ResourceKey<keys::LootTable, &'static str>,
+    loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
     rng: &mut WorldgenRandom,
 ) {
     let container = entities
@@ -62,11 +61,13 @@ pub fn seed_container_loot(
 }
 
 /// `ShipwreckPieces.MARKERS_TO_LOOT`.
-fn shipwreck_loot(marker: &str) -> Option<ResourceKey<keys::LootTable, &'static str>> {
+fn shipwreck_loot(
+    marker: &str,
+) -> Option<ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>> {
     Some(match marker {
-        "map_chest" => keys::loot_table::CHESTS_SHIPWRECK_MAP,
-        "treasure_chest" => keys::loot_table::CHESTS_SHIPWRECK_TREASURE,
-        "supply_chest" => keys::loot_table::CHESTS_SHIPWRECK_SUPPLY,
+        "map_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_MAP,
+        "treasure_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_TREASURE,
+        "supply_chest" => mcrs_minecraft_item::keys::loot_table::CHESTS_SHIPWRECK_SUPPLY,
         _ => return None,
     })
 }
@@ -196,7 +197,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
                 seed_container_loot(
                     entities,
                     (pos - IVec3::Y).into(),
-                    keys::loot_table::CHESTS_IGLOO_CHEST,
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_IGLOO_CHEST,
                     rng,
                 );
             }

@@ -3,7 +3,6 @@ use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_value_provider::IntProvider;
@@ -49,12 +48,12 @@ impl OceanRuinBlocks {
             OceanTemperature::Warm => (
                 Block::Sand,
                 Block::SuspiciousSand,
-                keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_WARM,
+                mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_WARM,
             ),
             OceanTemperature::Cold => (
                 Block::Gravel,
                 Block::SuspiciousGravel,
-                keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
+                mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
         let bare = |block: Block| BlockState::bare(block.location().to_arc());
@@ -169,9 +168,9 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                     },
                 );
                 let loot = if piece.large {
-                    keys::loot_table::CHESTS_UNDERWATER_RUIN_BIG
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_UNDERWATER_RUIN_BIG
                 } else {
-                    keys::loot_table::CHESTS_UNDERWATER_RUIN_SMALL
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_UNDERWATER_RUIN_SMALL
                 };
                 entities.push(GeneratedBlockEntity::chest(
                     pos,

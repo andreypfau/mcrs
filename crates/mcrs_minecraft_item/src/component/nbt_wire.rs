@@ -1,4 +1,3 @@
-use mcrs_minecraft_keys as keys;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
@@ -12,8 +11,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
 use crate::keys::MapDecorationType;
+use crate::loot::LootTable;
 use crate::recipe::Recipe;
-use mcrs_minecraft_keys::LootTable;
 
 /// The compound as is; an SNBT string reads as one too.
 #[derive(Clone, Debug, PartialEq, Default, Serialize)]
@@ -196,7 +195,8 @@ impl Sample for ContainerLoot {
     }
 
     fn samples() -> Vec<Self> {
-        let loot_table: ResourceKey<LootTable> = keys::loot_table::CHESTS_SIMPLE_DUNGEON.into();
+        let loot_table: ResourceKey<LootTable> =
+            crate::keys::loot_table::CHESTS_SIMPLE_DUNGEON.into();
         vec![
             ContainerLoot {
                 loot_table: loot_table.clone(),

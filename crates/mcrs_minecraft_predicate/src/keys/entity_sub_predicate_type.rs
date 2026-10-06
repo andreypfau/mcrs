@@ -1,0 +1,30 @@
+// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
+
+mcrs_minecraft_registry::static_registry! {
+    pub enum EntitySubPredicateType;
+    EntityType = "minecraft:entity_type",
+    Location = "minecraft:location",
+    SteppingOn = "minecraft:stepping_on",
+    MovementAffectedBy = "minecraft:movement_affected_by",
+    Distance = "minecraft:distance",
+    Movement = "minecraft:movement",
+    Effects = "minecraft:effects",
+    Nbt = "minecraft:nbt",
+    Flags = "minecraft:flags",
+    Equipment = "minecraft:equipment",
+    PeriodicTick = "minecraft:periodic_tick",
+    Vehicle = "minecraft:vehicle",
+    Passenger = "minecraft:passenger",
+    TargetedEntity = "minecraft:targeted_entity",
+    Team = "minecraft:team",
+    Slots = "minecraft:slots",
+    Components = "minecraft:components",
+    Predicates = "minecraft:predicates",
+    EntityTags = "minecraft:entity_tags",
+    TypeSpecificLightning = "minecraft:type_specific/lightning",
+    TypeSpecificFishingHook = "minecraft:type_specific/fishing_hook",
+    TypeSpecificPlayer = "minecraft:type_specific/player",
+    TypeSpecificCubeMob = "minecraft:type_specific/cube_mob",
+    TypeSpecificRaider = "minecraft:type_specific/raider",
+    TypeSpecificSheep = "minecraft:type_specific/sheep",
+}

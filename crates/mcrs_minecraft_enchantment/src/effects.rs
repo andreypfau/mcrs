@@ -2,14 +2,14 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::de::{self, MapAccess, Visitor};
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::predicate::{LootCondition, dispatched_map};
-use super::value::LevelBasedValue;
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
+use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_predicate::dispatched_map;
+use mcrs_minecraft_registry::{Holder, HolderSet, Id};
 use mcrs_minecraft_value_provider::FloatProvider;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -17,7 +17,7 @@ use mcrs_minecraft_value_provider::FloatProvider;
 pub struct ConditionalEffect<T> {
     pub effect: T,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requirements: Option<LootCondition>,
+    pub requirements: Option<Holder<LootCondition>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -38,7 +38,7 @@ pub struct TargetedConditionalEffect<T> {
     pub affected: Option<EnchantmentTarget>,
     pub effect: T,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requirements: Option<LootCondition>,
+    pub requirements: Option<Holder<LootCondition>>,
 }
 
 /// Java's `Unit`: the component's presence is the whole statement.

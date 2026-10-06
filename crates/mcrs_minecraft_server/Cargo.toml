@@ -8,6 +8,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
+mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
@@ -25,7 +26,7 @@ mcrs_minecraft_inventory.workspace = true
 mcrs_minecraft_dimension_environment.workspace = true
 mcrs_minecraft_biome.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true

@@ -1,77 +1,99 @@
-use crate::world::loot::Unapplied;
-use crate::world::loot::condition::{Condition, holds};
+use mcrs_minecraft_loot::entry::Composite;
+use mcrs_minecraft_loot::{IntExpression, LootCondition, LootPoolEntry, LootTableBody};
+use mcrs_minecraft_registry::Holder;
+
+use crate::world::loot::condition::holds;
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
-use mcrs_minecraft_core::ResourceLocation;
-use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
-pub enum LootEntry {
-    #[serde(rename = "minecraft:item")]
-    Item {
-        name: ResourceLocation,
-        condition: Option<Condition>,
-        #[serde(default, rename = "modifier")]
-        _modifier: Unapplied,
-    },
-    #[serde(rename = "minecraft:alternatives")]
-    Alternatives {
-        #[serde(default)]
-        children: Vec<LootEntry>,
-        condition: Option<Condition>,
-        #[serde(default, rename = "modifier")]
-        _modifier: Unapplied,
-    },
-    #[serde(rename = "minecraft:empty")]
-    Empty {
-        condition: Option<Condition>,
-        #[serde(default, rename = "modifier")]
-        _modifier: Unapplied,
-    },
-    #[serde(other)]
-    Unknown,
-}
-
-impl LootEntry {
-    pub fn evaluate(&self, ctx: &BlockBreakContext) -> Option<LootDrop> {
-        match self {
-            LootEntry::Item {
-                name, condition, ..
-            } => holds(condition, ctx).then(|| LootDrop {
-                item_name: name.clone(),
-                count: 1,
-            }),
-            LootEntry::Alternatives {
-                children,
-                condition,
-                ..
-            } => {
-                if !holds(condition, ctx) {
-                    return None;
-                }
-                children.iter().find_map(|child| child.evaluate(ctx))
+pub fn roll(table: &LootTableBody, ctx: &BlockBreakContext) -> Vec<LootDrop> {
+    let mut drops = Vec::new();
+    let mut candidates = Vec::new();
+    for pool in &table.pools {
+        if !holds(pool.condition.as_ref(), ctx) {
+            continue;
+        }
+        for _ in 0..rolls(&pool.rolls) {
+            candidates.clear();
+            for entry in &pool.entries {
+                expand(entry, ctx, &mut candidates);
             }
-            LootEntry::Empty { .. } | LootEntry::Unknown => None,
+            // chisle: with no random source the first of several candidates is
+            // taken where the game picks one by weight; seeded rolls (#72) lift this.
+            if let Some(LootPoolEntry::Item(item)) = candidates.first() {
+                drops.push(LootDrop {
+                    item: item.name,
+                    count: 1,
+                });
+            }
         }
     }
+    drops
+}
 
-    pub(crate) fn conditions_mut(&mut self, visit: &mut impl FnMut(&mut Condition)) {
-        let condition = match self {
-            LootEntry::Item { condition, .. } | LootEntry::Empty { condition, .. } => condition,
-            LootEntry::Alternatives {
-                children,
-                condition,
-                ..
-            } => {
-                for child in children {
-                    child.conditions_mut(visit);
-                }
-                condition
+// chisle: only a constant roll count is honoured and any other expression rolls
+// once; number providers evaluated over the loot context (#72) lift this.
+fn rolls(rolls: &Holder<IntExpression>) -> i32 {
+    match rolls {
+        Holder::Direct(IntExpression::Constant(count)) => *count,
+        _ => 1,
+    }
+}
+
+/// Collects the singleton entries `entry` expands to, and reports whether its
+/// own condition held, which is what alternatives and sequences compose.
+fn expand<'a>(
+    entry: &'a LootPoolEntry,
+    ctx: &BlockBreakContext,
+    candidates: &mut Vec<&'a LootPoolEntry>,
+) -> bool {
+    let composite = |composite: &Composite| holds(composite.condition.as_ref(), ctx);
+    match entry {
+        LootPoolEntry::Alternatives(alternatives) => {
+            composite(alternatives)
+                && alternatives
+                    .children
+                    .iter()
+                    .any(|child| expand(child, ctx, candidates))
+        }
+        LootPoolEntry::Sequence(sequence) => {
+            composite(sequence)
+                && sequence
+                    .children
+                    .iter()
+                    .all(|child| expand(child, ctx, candidates))
+        }
+        LootPoolEntry::Group(group) => {
+            if !composite(group) {
+                return false;
             }
-            LootEntry::Unknown => return,
-        };
-        if let Some(condition) = condition {
-            visit(condition);
+            for child in &group.children {
+                expand(child, ctx, candidates);
+            }
+            true
+        }
+        singleton => {
+            let (weight, condition) = singleton_terms(singleton);
+            if !holds(condition, ctx) {
+                return false;
+            }
+            if weight > 0 {
+                candidates.push(singleton);
+            }
+            true
+        }
+    }
+}
+
+fn singleton_terms(entry: &LootPoolEntry) -> (i32, Option<&Holder<LootCondition>>) {
+    match entry {
+        LootPoolEntry::Empty(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::Item(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::LootTable(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::Dynamic(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::Tag(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::Slots(e) => (e.weight, e.condition.as_ref()),
+        LootPoolEntry::Alternatives(e) | LootPoolEntry::Sequence(e) | LootPoolEntry::Group(e) => {
+            (1, e.condition.as_ref())
         }
     }
 }

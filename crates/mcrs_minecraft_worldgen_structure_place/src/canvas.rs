@@ -2,7 +2,6 @@ use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, ResourceKey};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
@@ -266,7 +265,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<keys::LootTable, &'static str>,
+        loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(&chest.states, pos) {
@@ -292,7 +291,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<keys::LootTable, &'static str>,
+        loot_table: ResourceKey<mcrs_minecraft_item::loot::LootTable, &'static str>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(dispenser_states, pos) {

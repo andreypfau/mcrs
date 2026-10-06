@@ -1,7 +1,6 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
@@ -378,7 +377,7 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
             10 + step_x * 2,
             -11,
             10 + step_z * 2,
-            keys::loot_table::CHESTS_DESERT_PYRAMID,
+            mcrs_minecraft_item::keys::loot_table::CHESTS_DESERT_PYRAMID,
         );
     }
 

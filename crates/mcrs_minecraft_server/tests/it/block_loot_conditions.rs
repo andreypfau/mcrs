@@ -1,65 +1,20 @@
-use bevy_app::{App, TaskPoolPlugin};
-use bevy_asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState};
+use std::sync::LazyLock;
+
+use mcrs_minecraft_block::definition::LootId;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_protocol::item::Enchantments;
-use mcrs_minecraft_server::world::loot::condition::LootCondition;
+use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_server::world::loot::condition::check;
 use mcrs_minecraft_server::world::loot::context::BlockBreakContext;
-use mcrs_minecraft_server::world::loot::{
-    LootTableAsset, LootTableLoader, LootTableLoaderSettings,
-};
+use mcrs_minecraft_server::world::loot::entry::roll;
+use mcrs_minecraft_server::world::loot::{BlockLootTables, LootRegistries};
 use mcrs_minecraft_world::registries::test_registries;
 
-fn loader_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
-    app.add_plugins(AssetPlugin {
-        watch_for_changes_override: Some(false),
-        ..Default::default()
-    });
-    app.init_asset::<LootTableAsset>()
-        .register_asset_loader(LootTableLoader::new(test_registries().clone()));
-    app
-}
-
-fn request(app: &App, block: &str) -> Handle<LootTableAsset> {
-    let settings = LootTableLoaderSettings {
-        loot: Some(0),
-        table_id: Some(format!("minecraft:blocks/{block}")),
-    };
-    app.world()
-        .resource::<AssetServer>()
-        .load_builder()
-        .with_settings(move |s: &mut LootTableLoaderSettings| *s = settings.clone())
-        .load(format!("minecraft/loot_table/blocks/{block}.json"))
-}
-
-/// Runs the app until every handle is loaded or failed, and names the failures.
-fn settle(app: &mut App, handles: &[(String, Handle<LootTableAsset>)]) -> Vec<String> {
-    for _ in 0..20_000 {
-        app.update();
-        let server = app.world().resource::<AssetServer>();
-        let states: Vec<_> = handles
-            .iter()
-            .map(|(_, h)| server.load_state(h.id()))
-            .collect();
-        if states
-            .iter()
-            .all(|s| matches!(s, LoadState::Loaded | LoadState::Failed(_)))
-        {
-            return handles
-                .iter()
-                .zip(states)
-                .filter_map(|((name, _), state)| match state {
-                    LoadState::Failed(e) => Some(format!("{name}: {e}")),
-                    _ => None,
-                })
-                .collect();
-        }
-        std::thread::yield_now();
-    }
-    panic!("loot tables did not settle");
-}
+static LOOT: LazyLock<LootRegistries> =
+    LazyLock::new(|| LootRegistries::from_set(test_registries()));
 
 fn silk_touch() -> Enchantments {
     Enchantments(vec![(
@@ -68,48 +23,59 @@ fn silk_touch() -> Enchantments {
     )])
 }
 
-/// Conditions come from the 26.4 `condition` field, written in place or named
-/// from the predicate registry: only the lower half of a door drops it, and
-/// glass needs silk touch, which `minecraft:tool/can_silk_touch` names.
+fn drops(table: &str, state: BlockStateId, tool_enchantments: Option<&Enchantments>) -> Vec<Item> {
+    let blocks = &crate::support::standalone_corpus().0;
+    let tags = test_registries().tags::<Block>().unwrap();
+    let id = LOOT.tables.by_name(table).unwrap();
+    let ctx = BlockBreakContext {
+        loot: &LOOT,
+        blocks,
+        state,
+        tags: &tags,
+        tool_enchantments,
+    };
+    roll(&LOOT.bodies[id], &ctx)
+        .into_iter()
+        .map(|drop| {
+            assert_eq!(drop.count, 1);
+            drop.item
+        })
+        .collect()
+}
+
+/// Conditions come from the `condition` field, written in place or named from
+/// the predicate registry: only the lower half of a door drops it, and glass
+/// needs silk touch, which `minecraft:tool/can_silk_touch` names.
 #[test]
 fn block_loot_follows_its_conditions() {
-    let mut app = loader_app();
-    let handles: Vec<_> = ["oak_door", "glass"]
-        .map(|block| (block.to_owned(), request(&app, block)))
-        .into();
-    assert_eq!(settle(&mut app, &handles), Vec::<String>::new());
-
     let blocks = &crate::support::standalone_corpus().0;
     let door = blocks.block("minecraft:oak_door").unwrap();
     let half = |half| door.with_text(door.default_state_id, "half", half).unwrap();
     let glass = blocks.default_state("minecraft:glass");
     let silk = silk_touch();
-    let tags = test_registries().tags::<Block>().unwrap();
 
     let cases = [
-        (0, half("lower"), None, vec!["minecraft:oak_door"]),
-        (0, half("upper"), None, vec![]),
-        (1, glass, None, vec![]),
-        (1, glass, Some(&silk), vec!["minecraft:glass"]),
+        (
+            "minecraft:blocks/oak_door",
+            half("lower"),
+            None,
+            vec![Item::OakDoor],
+        ),
+        ("minecraft:blocks/oak_door", half("upper"), None, vec![]),
+        ("minecraft:blocks/glass", glass, None, vec![]),
+        (
+            "minecraft:blocks/glass",
+            glass,
+            Some(&silk),
+            vec![Item::Glass],
+        ),
     ];
-    let assets = app.world().resource::<Assets<LootTableAsset>>();
     for (table, state, tool_enchantments, expected) in cases {
-        let ctx = BlockBreakContext {
-            blocks,
-            state,
-            tags: &tags,
-            tool_enchantments,
-        };
-        let drops: Vec<_> = assets
-            .get(&handles[table].1)
-            .unwrap()
-            .table
-            .evaluate(&ctx)
-            .into_iter()
-            .map(|drop| (drop.item_name.to_string(), drop.count))
-            .collect();
-        let expected: Vec<_> = expected.into_iter().map(|i| (i.to_owned(), 1)).collect();
-        assert_eq!(drops, expected, "{} state {state:?}", handles[table].0);
+        assert_eq!(
+            drops(table, state, tool_enchantments),
+            expected,
+            "{table} state {state:?}"
+        );
     }
 }
 
@@ -125,37 +91,30 @@ fn a_match_block_condition_tests_a_block_tag_by_membership() {
         .unwrap()
     });
     let holds = |block: &str| {
-        condition.check(&BlockBreakContext {
-            blocks,
-            state: blocks.default_state(block),
-            tags: &tags,
-            tool_enchantments: None,
-        })
+        check(
+            &condition,
+            &BlockBreakContext {
+                loot: &LOOT,
+                blocks,
+                state: blocks.default_state(block),
+                tags: &tags,
+                tool_enchantments: None,
+            },
+        )
     };
     assert!(holds("minecraft:stone"));
     assert!(!holds("minecraft:dirt"));
 }
 
-mod exhaustive {
-    use super::*;
-
-    #[test]
-    fn every_block_loot_table_loads() {
-        let dir = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/minecraft/loot_table/blocks"
-        );
-        let mut app = loader_app();
-        let handles: Vec<_> = std::fs::read_dir(dir)
-            .unwrap()
-            .map(|entry| {
-                let path = entry.unwrap().path();
-                let block = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                let handle = request(&app, &block);
-                (block, handle)
-            })
-            .collect();
-        assert!(handles.len() > 1000, "only {} tables", handles.len());
-        assert_eq!(settle(&mut app, &handles), Vec::<String>::new());
-    }
+#[test]
+fn every_loot_table_the_block_corpus_names_is_loaded() {
+    let blocks = &crate::support::standalone_corpus().0;
+    let tables = BlockLootTables::new(blocks, &LOOT.tables);
+    let missing: Vec<_> = (0..blocks.loot_table_count())
+        .map(|index| LootId(index as u16))
+        .filter(|&loot| tables.get(loot).is_none())
+        .map(|loot| blocks.loot_table(loot).to_string())
+        .collect();
+    assert!(blocks.loot_table_count() > 1000);
+    assert_eq!(missing, Vec::<String>::new());
 }

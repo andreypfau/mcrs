@@ -5,7 +5,7 @@ use crate::bitset::DenseId;
 use crate::holder_set::skipping_sets;
 use crate::id::Id;
 use mcrs_minecraft_core::RegistryValue;
-use serde::de::{DeserializeOwned, MapAccess, Visitor, value};
+use serde::de::{DeserializeOwned, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -76,6 +76,42 @@ impl<'de, V: RegistryValue + DeserializeOwned> Deserialize<'de> for Holder<V> {
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 V::deserialize(value::MapAccessDeserializer::new(map)).map(Holder::Direct)
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
+                V::deserialize(value::SeqAccessDeserializer::new(seq)).map(Holder::Direct)
+            }
+
+            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Self::Value, E> {
+                V::deserialize(value::BoolDeserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                V::deserialize(value::I64Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                V::deserialize(value::U64Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Self::Value, E> {
+                V::deserialize(value::F64Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_i32<E: serde::de::Error>(self, v: i32) -> Result<Self::Value, E> {
+                V::deserialize(value::I32Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_f32<E: serde::de::Error>(self, v: f32) -> Result<Self::Value, E> {
+                V::deserialize(value::F32Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_i8<E: serde::de::Error>(self, v: i8) -> Result<Self::Value, E> {
+                V::deserialize(value::I8Deserializer::new(v)).map(Holder::Direct)
+            }
+
+            fn visit_i16<E: serde::de::Error>(self, v: i16) -> Result<Self::Value, E> {
+                V::deserialize(value::I16Deserializer::new(v)).map(Holder::Direct)
             }
         }
 

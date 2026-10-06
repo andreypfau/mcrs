@@ -1,6 +1,5 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, Mirror};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -93,7 +92,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
                 seed_container_loot(
                     entities,
                     chest,
-                    keys::loot_table::CHESTS_END_CITY_TREASURE,
+                    mcrs_minecraft_item::keys::loot_table::CHESTS_END_CITY_TREASURE,
                     rng,
                 );
             }

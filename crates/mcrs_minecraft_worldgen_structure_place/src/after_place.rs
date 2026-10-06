@@ -1,6 +1,5 @@
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
@@ -31,7 +30,7 @@ pub fn desert_pyramid<W: WorldGenVolume>(
             y: pos.y,
             z: pos.z,
             loot_table: Some(
-                keys::loot_table::ARCHAEOLOGY_DESERT_PYRAMID
+                mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_DESERT_PYRAMID
                     .as_str()
                     .to_owned(),
             ),
