@@ -77,8 +77,6 @@ pub mod material_condition;
 #[rustfmt::skip]
 pub mod memory_module_type;
 #[rustfmt::skip]
-pub mod menu;
-#[rustfmt::skip]
 pub mod number_format_type;
 #[rustfmt::skip]
 pub mod outgoing_rpc_methods;

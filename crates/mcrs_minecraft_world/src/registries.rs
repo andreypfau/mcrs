@@ -583,7 +583,10 @@ mod tests {
                 mcrs_minecraft_entity::keys::EntityType::ENTRIES,
             ),
             ("minecraft:item", keys::item::ENTRIES),
-            ("minecraft:menu", keys::menu::ENTRIES),
+            (
+                "minecraft:menu",
+                mcrs_minecraft_item::keys::MenuType::ENTRIES,
+            ),
         ];
         for (registry, names) in registries {
             let table = set.table(registry).unwrap();

@@ -8,8 +8,8 @@ use mcrs_minecraft_inventory::{
     Click, MenuSnapshot, Planner, Slot, StackView, container_menu_layout, menu_slots,
     player_menu_layout,
 };
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::slots;
-use mcrs_minecraft_keys::menu;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
 use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{HolderSet, Id};
@@ -113,7 +113,7 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
         container_menu_layout(
             container,
             player,
-            menu_slots(menu::SHULKER_BOX.id()).unwrap(),
+            menu_slots(MenuType::ShulkerBox.id()).unwrap(),
         ),
     );
     in_shulker.shulker_box_slots = true;
@@ -134,7 +134,7 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
         container_menu_layout(
             container,
             player,
-            menu_slots(menu::GENERIC_9X3.id()).unwrap(),
+            menu_slots(MenuType::Generic9x3.id()).unwrap(),
         ),
     );
     assert_eq!(
@@ -149,7 +149,7 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
 
 #[test]
 fn every_menu_type_has_a_slot_layout_with_its_vanilla_slot_count() {
-    let own: Vec<Option<u16>> = (0..menu::ENTRIES.len())
+    let own: Vec<Option<u16>> = (0..MenuType::ENTRIES.len())
         .map(|number| menu_slots(Id::from_raw(number as u16)).map(|slots| slots.own))
         .collect();
     let expected: Vec<(&str, u16)> = vec![
@@ -180,13 +180,13 @@ fn every_menu_type_has_a_slot_layout_with_its_vanilla_slot_count() {
         ("stonecutter", 2),
     ];
     assert_eq!(own.len(), expected.len());
-    for (number, name) in menu::ENTRIES.iter().enumerate() {
+    for (number, name) in MenuType::ENTRIES.iter().enumerate() {
         let (short, slots) = expected
             .iter()
             .find(|(short, _)| format!("minecraft:{short}") == name.as_static_str())
             .unwrap_or_else(|| panic!("{name} has no expected layout"));
         assert_eq!(own[number], Some(*slots), "{short}");
     }
-    assert!(menu_slots(menu::LECTERN.id()).is_some_and(|slots| !slots.player_slots));
-    assert!(menu_slots(menu::CRAFTER_3X3.id()).is_some_and(|slots| slots.trailing_result));
+    assert!(menu_slots(MenuType::Lectern.id()).is_some_and(|slots| !slots.player_slots));
+    assert!(menu_slots(MenuType::Crafter3x3.id()).is_some_and(|slots| slots.trailing_result));
 }

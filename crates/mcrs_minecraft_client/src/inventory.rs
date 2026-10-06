@@ -5,7 +5,8 @@ use mcrs_minecraft_inventory::{
     MenuLayout, Op, Slot, Transaction, container_menu_layout, menu_slots, stack_in,
 };
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, item_of, slots};
-use mcrs_minecraft_keys::{Item, Menu};
+use mcrs_minecraft_keys::Item;
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -167,7 +168,7 @@ fn receive_inventory_packets(
         }
     } else if let Some(packet) = event.decode::<ClientboundOpenScreen>() {
         let Some(menu_type) = registries
-            .registry::<Menu>()
+            .registry::<MenuType>()
             .and_then(|menus| menus.id(packet.menu_type.0))
         else {
             warn!("open_screen: unknown menu type {}", packet.menu_type.0);
@@ -292,7 +293,7 @@ fn apply_set_slot(
     set_seqno(world, container, seqno);
 }
 
-fn open_screen(world: &mut World, container_id: i32, menu_type: Id<Menu>) {
+fn open_screen(world: &mut World, container_id: i32, menu_type: Id<MenuType>) {
     let Some(player) = player(world) else {
         return;
     };
