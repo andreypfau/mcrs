@@ -4013,6 +4013,7 @@ dependencies = [
 name = "mcrs_minecraft_registry_catalog"
 version = "0.4.6"
 dependencies = [
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_core",

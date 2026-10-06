@@ -2,7 +2,7 @@ use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::status::ChunkStatus;
+use crate::ChunkStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(remote = "Self", deny_unknown_fields)]

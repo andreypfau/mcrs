@@ -23,8 +23,6 @@ pub mod carver_type;
 #[rustfmt::skip]
 pub mod chunk_generator;
 #[rustfmt::skip]
-pub mod chunk_status;
-#[rustfmt::skip]
 pub mod command_argument_type;
 #[rustfmt::skip]
 pub mod consume_effect_type;

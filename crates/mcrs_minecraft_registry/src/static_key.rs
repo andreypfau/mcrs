@@ -58,7 +58,11 @@ impl<R> From<StaticKey<R>> for Id<R> {
 }
 
 #[doc(hidden)]
+pub use mcrs_minecraft_core::resource_location::ResourceLocation as __ResourceLocation;
+#[doc(hidden)]
 pub use mcrs_minecraft_core::rl as __rl;
+#[doc(hidden)]
+pub use serde as __serde;
 
 #[macro_export]
 macro_rules! static_keys {
@@ -97,9 +101,129 @@ macro_rules! static_keys {
 #[doc(hidden)]
 pub type StaticLocation = ResourceLocation<&'static str>;
 
+/// A static registry as an enum of its entries, numbered by protocol id.
+#[macro_export]
+macro_rules! static_registry {
+    ($vis:vis enum $name:ident; $($variant:ident = $location:literal,)+) => {
+        #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+        #[repr(u16)]
+        $vis enum $name {
+            $($variant,)+
+        }
+
+        impl $name {
+            pub const ALL: &'static [$name] = &[$($name::$variant,)+];
+
+            pub const ENTRIES: &'static [$crate::static_key::StaticLocation] =
+                &[$($crate::static_key::__rl!($location),)+];
+
+            pub const fn id(self) -> $crate::Id<$name> {
+                $crate::Id::from_static_position(self as u16)
+            }
+
+            pub const fn location(self) -> $crate::static_key::StaticLocation {
+                Self::ENTRIES[self as usize]
+            }
+
+            pub const fn as_static_str(self) -> &'static str {
+                self.location().as_static_str()
+            }
+
+            pub const fn from_id(id: $crate::Id<$name>) -> Option<$name> {
+                if id.index() < Self::ALL.len() {
+                    Some(Self::ALL[id.index()])
+                } else {
+                    None
+                }
+            }
+
+            pub fn find(location: &str) -> Option<$name> {
+                Self::ENTRIES
+                    .iter()
+                    .position(|entry| entry.as_static_str() == location)
+                    .map(|position| Self::ALL[position])
+            }
+        }
+
+        impl From<$name> for $crate::Id<$name> {
+            fn from(entry: $name) -> Self {
+                entry.id()
+            }
+        }
+
+        impl $crate::static_key::__serde::Serialize for $name {
+            fn serialize<S: $crate::static_key::__serde::Serializer>(
+                &self,
+                serializer: S,
+            ) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_static_str())
+            }
+        }
+
+        impl<'de> $crate::static_key::__serde::Deserialize<'de> for $name {
+            fn deserialize<D: $crate::static_key::__serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> Result<Self, D::Error> {
+                use $crate::static_key::__serde::de::Error as _;
+                let text = <std::borrow::Cow<'de, str> as $crate::static_key::__serde::Deserialize>::deserialize(deserializer)?;
+                let location = $crate::static_key::__ResourceLocation::read(&text).map_err(D::Error::custom)?;
+                Self::find(location.as_str()).ok_or_else(|| {
+                    D::Error::custom(format_args!("{location} is no {}", stringify!($name)))
+                })
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use crate::id::Id;
+
+    crate::static_registry! {
+        pub enum Fruit;
+        Zebra = "minecraft:zebra",
+        Apple = "minecraft:apple",
+    }
+
+    #[test]
+    fn an_entry_is_numbered_by_its_position_and_names_its_location() {
+        assert_eq!(Fruit::Zebra.id().number(), 0);
+        assert_eq!(Fruit::Apple.id().number(), 1);
+        assert_eq!(Fruit::Apple.as_static_str(), "minecraft:apple");
+        assert_eq!(
+            Fruit::ENTRIES[Fruit::Apple.id().index()],
+            Fruit::Apple.location()
+        );
+    }
+
+    #[test]
+    fn an_entry_is_found_by_id_and_by_location() {
+        assert_eq!(Fruit::from_id(Fruit::Apple.id()), Some(Fruit::Apple));
+        assert_eq!(Fruit::find("minecraft:zebra"), Some(Fruit::Zebra));
+        assert_eq!(Fruit::find("minecraft:mango"), None);
+        let beyond: Id<Fruit> = crate::bitset::DenseId::from_raw(2);
+        assert_eq!(Fruit::from_id(beyond), None);
+    }
+
+    #[test]
+    fn an_entry_reads_and_writes_as_its_location() {
+        assert_eq!(
+            serde_json::to_string(&Fruit::Apple).unwrap(),
+            r#""minecraft:apple""#
+        );
+        let cases = [
+            (r#""minecraft:apple""#, Ok(Fruit::Apple)),
+            (r#""zebra""#, Ok(Fruit::Zebra)),
+            (r#""minecraft:mango""#, Err("minecraft:mango is no Fruit")),
+        ];
+        for (json, expected) in cases {
+            let read = serde_json::from_str::<Fruit>(json).map_err(|error| error.to_string());
+            match expected {
+                Ok(fruit) => assert_eq!(read, Ok(fruit)),
+                Err(message) => assert!(read.unwrap_err().contains(message)),
+            }
+        }
+    }
 
     struct Fixed;
 

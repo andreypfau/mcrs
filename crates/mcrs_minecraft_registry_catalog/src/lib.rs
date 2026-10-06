@@ -10,7 +10,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
     (mcrs_minecraft_keys::BLOCK.location(), mcrs_minecraft_keys::block::ENTRIES),
     (mcrs_minecraft_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_keys::block_entity_type::ENTRIES),
     (mcrs_minecraft_keys::BLOCK_PREDICATE_TYPE.location(), mcrs_minecraft_keys::block_predicate_type::ENTRIES),
-    (mcrs_minecraft_keys::CHUNK_STATUS.location(), mcrs_minecraft_keys::chunk_status::ENTRIES),
+    (mcrs_minecraft_anvil::keys::CHUNK_STATUS.location(), mcrs_minecraft_anvil::keys::ChunkStatus::ENTRIES),
     (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE.location(), mcrs_minecraft_keys::command_argument_type::ENTRIES),
     (mcrs_minecraft_keys::CONSUME_EFFECT_TYPE.location(), mcrs_minecraft_keys::consume_effect_type::ENTRIES),
     (mcrs_minecraft_keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_keys::context_float_provider_type::ENTRIES),
@@ -104,6 +104,7 @@ pub const STATIC_REGISTRIES: &[(StaticResourceLocation, &[StaticResourceLocation
 #[rustfmt::skip]
 pub fn bindings() -> impl Iterator<Item = TypeBinding> {
     std::iter::empty()
+        .chain(mcrs_minecraft_anvil::keys::bindings())
         .chain(mcrs_minecraft_biome::keys::bindings())
         .chain(mcrs_minecraft_block_predicate::keys::bindings())
         .chain(mcrs_minecraft_dimension::keys::bindings())
