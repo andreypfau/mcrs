@@ -10,10 +10,10 @@ use mcrs_minecraft_nbt::{ArrayKind, ArrayVisitor};
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
 use crate::retrogen::{RetroGen, Words};
-use crate::status::ChunkStatus;
 
 pub const LIGHT_BYTES: usize = 2048;
 

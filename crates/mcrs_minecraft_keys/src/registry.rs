@@ -53,13 +53,6 @@ impl Registered for BlockPredicateType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChunkStatus {}
-pub const CHUNK_STATUS: RegistryKey<ChunkStatus> = RegistryKey::new(rl!("minecraft:chunk_status"));
-impl Registered for ChunkStatus {
-    const REGISTRY: RegistryKey<Self> = CHUNK_STATUS;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CommandArgumentType {}
 pub const COMMAND_ARGUMENT_TYPE: RegistryKey<CommandArgumentType> = RegistryKey::new(rl!("minecraft:command_argument_type"));
 impl Registered for CommandArgumentType {
@@ -745,7 +738,7 @@ impl Registered for TrunkPlacerType {
     const REGISTRY: RegistryKey<Self> = TRUNK_PLACER_TYPE;
 }
 
-pub fn bindings() -> [TypeBinding; 106] {
+pub fn bindings() -> [TypeBinding; 105] {
     [
         ACTIVITY.binding(),
         ADVANCEMENT.binding(),
@@ -754,7 +747,6 @@ pub fn bindings() -> [TypeBinding; 106] {
         BLOCK.binding(),
         BLOCK_ENTITY_TYPE.binding(),
         BLOCK_PREDICATE_TYPE.binding(),
-        CHUNK_STATUS.binding(),
         COMMAND_ARGUMENT_TYPE.binding(),
         CONSUME_EFFECT_TYPE.binding(),
         CONTEXT_FLOAT_PROVIDER.binding(),

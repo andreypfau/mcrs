@@ -4,7 +4,8 @@ pub mod fixture;
 mod palette;
 mod region;
 mod retrogen;
-mod status;
+#[rustfmt::skip]
+pub mod keys;
 mod write;
 
 #[cfg(test)]
@@ -16,7 +17,7 @@ pub use chunk::{Chunk, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use palette::{PaletteLookup, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
-pub use status::ChunkStatus;
+pub use keys::ChunkStatus;
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;

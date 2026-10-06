@@ -17,7 +17,14 @@ const WORDS: [(&str, &str); 3] = [("5", "FIVE"), ("11", "ELEVEN"), ("13", "THIRT
 pub struct Owner {
     pub registry: &'static str,
     pub krate: &'static str,
-    pub value: &'static str,
+    pub value: ValueType,
+}
+
+/// A registry is keyed by a type its owner writes, or a static registry by the
+/// enum of its entries the generator writes into the owner's keys module.
+pub enum ValueType {
+    Defined(&'static str),
+    Enum,
 }
 
 const KEYS_CRATE: &str = "mcrs_minecraft_keys";
@@ -29,6 +36,7 @@ struct Target {
     definitions: String,
     bindings: Vec<String>,
     modules: Vec<String>,
+    enums: Vec<(String, String)>,
 }
 
 impl Target {
@@ -39,6 +47,7 @@ impl Target {
             definitions: String::new(),
             bindings: Vec::new(),
             modules: Vec::new(),
+            enums: Vec::new(),
         }
     }
 
@@ -129,8 +138,22 @@ pub fn generate(
             return Err(format!("{registry}: names.json lists no entries for it"));
         }
 
+        let enumerated = match owner_of.get(registry.as_str()).map(|owner| &owner.value) {
+            Some(ValueType::Enum) if report.is_some_and(|report| !report.entries.is_empty()) => {
+                true
+            }
+            Some(ValueType::Enum) => {
+                return Err(format!(
+                    "{registry}: only a static registry with entries is keyed by an enum of them"
+                ));
+            }
+            _ => false,
+        };
         let (krate, value) = match owner_of.get(registry.as_str()) {
-            Some(owner) => (owner.krate, owner.value.to_owned()),
+            Some(owner) => match owner.value {
+                ValueType::Defined(value) => (owner.krate, value.to_owned()),
+                ValueType::Enum => (owner.krate, format!("crate::keys::{marker}")),
+            },
             None => (KEYS_CRATE, format!("crate::{marker}")),
         };
         let target = targets
@@ -143,7 +166,12 @@ pub fn generate(
 
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
-                Some(static_module(registry, &target.value, report)?)
+                if enumerated {
+                    target.enums.push((module.clone(), marker.clone()));
+                    Some(enum_module(registry, &marker, report)?)
+                } else {
+                    Some(static_module(registry, &target.value, report)?)
+                }
             }
             (None, Some(entries))
                 if !entries.is_empty() && !NO_CONSTANTS.contains(&registry.as_str()) =>
@@ -161,6 +189,8 @@ pub fn generate(
             }
             let entries = if report.entries.is_empty() {
                 "&[]".to_owned()
+            } else if enumerated {
+                target.path(&format!("{marker}::ENTRIES"))
             } else {
                 target.path(&format!("{module}::ENTRIES"))
             };
@@ -383,11 +413,10 @@ fn definition_text(target: &mut Target, registry: &str, marker: &str, key: &str)
     ));
 }
 
-fn static_module(
+fn by_protocol_id<'r>(
     registry: &str,
-    value: &str,
-    report: &registries::Registry,
-) -> Result<String, String> {
+    report: &'r registries::Registry,
+) -> Result<Vec<&'r str>, String> {
     let mut by_id: Vec<Option<&str>> = vec![None; report.entries.len()];
     for (name, entry) in &report.entries {
         let slot = by_id.get_mut(usize::from(entry.protocol_id));
@@ -403,13 +432,56 @@ fn static_module(
         }
     }
 
+    Ok(by_id.into_iter().flatten().collect())
+}
+
+fn static_module(
+    registry: &str,
+    value: &str,
+    report: &registries::Registry,
+) -> Result<String, String> {
     let mut out = format!("{HEADER}\nmcrs_minecraft_registry::static_keys! {{\n    {value};\n");
-    let names = by_id.into_iter().flatten();
-    for (constant, name) in constants(registry, names, &["ENTRIES"])? {
+    let names = by_protocol_id(registry, report)?;
+    for (constant, name) in constants(registry, names.into_iter(), &["ENTRIES"])? {
         out.push_str(&format!("    {constant} = \"{name}\",\n"));
     }
     out.push_str("}\n");
     Ok(out)
+}
+
+fn enum_module(
+    registry: &str,
+    marker: &str,
+    report: &registries::Registry,
+) -> Result<String, String> {
+    let mut out =
+        format!("{HEADER}\nmcrs_minecraft_registry::static_registry! {{\n    pub enum {marker};\n");
+    let names = by_protocol_id(registry, report)?;
+    let mut seen: BTreeMap<String, &str> = BTreeMap::new();
+    for (constant, name) in constants(registry, names.into_iter(), &[])? {
+        let variant = variant(&constant);
+        if let Some(other) = seen.insert(variant.clone(), name) {
+            return Err(format!(
+                "{registry}: {other} and {name} are both the variant {variant}"
+            ));
+        }
+        out.push_str(&format!("    {variant} = \"{name}\",\n"));
+    }
+    out.push_str("}\n");
+    Ok(out)
+}
+
+fn variant(constant: &str) -> String {
+    constant
+        .split('_')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|first| first.to_string() + &chars.as_str().to_ascii_lowercase())
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 fn data_module(registry: &str, value: &str, entries: &BTreeSet<String>) -> Result<String, String> {
@@ -466,6 +538,12 @@ fn owner_file(target: &Target) -> String {
         out.push_str(&format!("pub mod {module};\n"));
     }
     if !target.modules.is_empty() {
+        out.push('\n');
+    }
+    for (module, marker) in &target.enums {
+        out.push_str(&format!("pub use {module}::{marker};\n"));
+    }
+    if !target.enums.is_empty() {
         out.push('\n');
     }
     out.push_str(&format!(
@@ -1252,7 +1330,7 @@ mod tests {
             &[Owner {
                 registry: "minecraft:worldgen/biome",
                 krate: "mcrs_minecraft_biome",
-                value: "crate::Biome",
+                value: ValueType::Defined("crate::Biome"),
             }],
         )
         .unwrap();
@@ -1291,15 +1369,88 @@ mod tests {
     }
 
     #[test]
+    fn an_owned_static_registry_is_an_enum_of_its_entries() {
+        let files = owned(
+            &[(
+                "minecraft:fruit",
+                &[
+                    ("minecraft:zebra", 0),
+                    ("minecraft:apple", 1),
+                    ("minecraft:music_disc_5", 2),
+                ],
+            )],
+            &[],
+            &[Owner {
+                registry: "minecraft:fruit",
+                krate: "mcrs_minecraft_food",
+                value: ValueType::Enum,
+            }],
+        )
+        .unwrap();
+
+        assert_eq!(
+            files["crates/mcrs_minecraft_food/src/keys/fruit.rs"],
+            "// Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.\n\
+             \n\
+             mcrs_minecraft_registry::static_registry! {\n\
+             \x20   pub enum Fruit;\n\
+             \x20   Zebra = \"minecraft:zebra\",\n\
+             \x20   Apple = \"minecraft:apple\",\n\
+             \x20   MusicDisc5 = \"minecraft:music_disc_5\",\n\
+             }\n"
+        );
+        let module = &files["crates/mcrs_minecraft_food/src/keys/mod.rs"];
+        assert!(module.contains("pub mod fruit;\n\npub use fruit::Fruit;\n"));
+        assert!(module.contains("impl Registered for crate::keys::Fruit {"));
+        assert!(files[CATALOG_LIB].contains(
+            "    (mcrs_minecraft_food::keys::FRUIT.location(), mcrs_minecraft_food::keys::Fruit::ENTRIES),\n"
+        ));
+    }
+
+    #[test]
+    fn only_a_static_registry_with_entries_is_an_enum() {
+        let owner = |registry, value| Owner {
+            registry,
+            krate: "mcrs_minecraft_food",
+            value,
+        };
+        let statics: Statics = &[("minecraft:none", &[]), ("minecraft:block", BLOCK)];
+        let data: Data = &[("minecraft:worldgen/biome", &["minecraft:plains"])];
+        for (registry, value) in [
+            ("minecraft:none", ValueType::Enum),
+            ("minecraft:worldgen/biome", ValueType::Enum),
+        ] {
+            assert_refused(owned(statics, data, &[owner(registry, value)]), &[registry]);
+        }
+    }
+
+    #[test]
+    fn two_entries_of_one_variant_name_stop_generation() {
+        let result = owned(
+            &[(
+                "minecraft:fruit",
+                &[("minecraft:foo_1_2", 0), ("minecraft:foo_12", 1)],
+            )],
+            &[],
+            &[Owner {
+                registry: "minecraft:fruit",
+                krate: "mcrs_minecraft_food",
+                value: ValueType::Enum,
+            }],
+        );
+        assert_refused(result, &["minecraft:foo_1_2", "minecraft:foo_12", "Foo12"]);
+    }
+
+    #[test]
     fn an_owner_that_depends_on_the_catalog_is_left_out_of_it() {
         let (registries, datapack, names) = reports(
             &[("minecraft:block", BLOCK)],
             &[("minecraft:chat_type", &["minecraft:chat"])],
         );
-        let owner = |registry| Owner {
+        let owner = |registry, value| Owner {
             registry,
             krate: "mcrs_minecraft_world",
-            value: "crate::ChatType",
+            value,
         };
         let above = BTreeSet::from(["mcrs_minecraft_world".to_owned()]);
 
@@ -1307,7 +1458,10 @@ mod tests {
             &registries,
             &datapack,
             &names,
-            &[owner("minecraft:chat_type")],
+            &[owner(
+                "minecraft:chat_type",
+                ValueType::Defined("crate::ChatType"),
+            )],
             &above,
         )
         .unwrap();
@@ -1320,7 +1474,7 @@ mod tests {
                 &registries,
                 &datapack,
                 &names,
-                &[owner("minecraft:block")],
+                &[owner("minecraft:block", ValueType::Enum)],
                 &above,
             ),
             &["minecraft:block", "mcrs_minecraft_world"],
@@ -1332,7 +1486,7 @@ mod tests {
         let owner = |registry| Owner {
             registry,
             krate: "mcrs_minecraft_biome",
-            value: "crate::Biome",
+            value: ValueType::Defined("crate::Biome"),
         };
         let data: Data = &[("minecraft:worldgen/biome", &["minecraft:plains"])];
         assert_refused(
