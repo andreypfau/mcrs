@@ -406,7 +406,13 @@ pub fn build_tags(
                     },
                 );
             };
-            if let Err(error) = serde_json::from_slice::<IgnoredAny>(source.bytes) {
+            // Gson reads an empty or whitespace-only file as JSON null, which creates the tag
+            // before the codec refuses it; serde_json refuses it before that point.
+            let blank = source
+                .bytes
+                .iter()
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r'));
+            if !blank && let Err(error) = serde_json::from_slice::<IgnoredAny>(source.bytes) {
                 skip(&mut problems, error);
                 continue;
             }
@@ -1029,6 +1035,38 @@ mod tests {
                 "minecraft:shape",
                 &["tags/minecraft:shape.json"],
             )],
+        },
+        Outcome {
+            case: "an empty or blank file reads as JSON null: the tag exists with no members and a tag that requires it keeps its other members",
+            rules: TagRules::Static,
+            tags: &[
+                ("minecraft:empty", &[("p", "")]),
+                ("minecraft:blank", &[("p", " \r\n\t")]),
+                (
+                    "minecraft:needs_empty",
+                    &[(
+                        "p",
+                        r##"{"values":["#minecraft:empty","#minecraft:blank","minecraft:c"]}"##,
+                    )],
+                ),
+            ],
+            members: &[
+                ("minecraft:empty", Some(&[])),
+                ("minecraft:blank", Some(&[])),
+                ("minecraft:needs_empty", Some(&["minecraft:c"])),
+            ],
+            problems: &[
+                (
+                    Kind::Skipped,
+                    "minecraft:empty",
+                    &["tags/minecraft:empty.json"],
+                ),
+                (
+                    Kind::Skipped,
+                    "minecraft:blank",
+                    &["tags/minecraft:blank.json"],
+                ),
+            ],
         },
         Outcome {
             case: "an optional reference back along a required one keeps both tags",
