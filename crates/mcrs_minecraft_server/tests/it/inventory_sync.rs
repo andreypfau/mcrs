@@ -2,7 +2,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_inventory::value::spawn_stack;
@@ -27,15 +26,9 @@ use crate::support::{registry_set, standalone_corpus};
 
 pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = standalone_corpus();
-    let mut registry = RegistryAccess::default();
-    registry.register(SyncedRegistry::from_names(
-        "minecraft:item",
-        items.0.iter().map(|entry| entry.identifier.clone()),
-    ));
     let mut world = World::new();
     world.insert_resource(blocks.clone());
     world.insert_resource(items.clone());
-    world.insert_resource(registry);
     world.insert_resource(registry_set().clone());
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     let anchor = world.spawn_empty().id();

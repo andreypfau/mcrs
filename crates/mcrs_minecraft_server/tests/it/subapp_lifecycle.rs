@@ -4,13 +4,13 @@ use bevy_app::{
 };
 use bevy_ecs::prelude::*;
 use bevy_time::{Fixed, Time};
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_level::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_level::world::dimension::Dimension;
 use mcrs_minecraft_level::world::sub_app::{DimAppLabel, DimDespawnQueue};
 use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 use mcrs_minecraft_server::world::bus::InboundPlayerSpawn;
 use mcrs_minecraft_server::world::sub_app_builder::{
@@ -39,7 +39,7 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
         "host world should hold zero Dimension entities"
     );
 
-    let host_registry: RegistryAccess = app.world().resource::<RegistryAccess>().clone();
+    let host_registry: RegistrySet = app.world().resource::<RegistrySet>().clone();
     let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
     let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
     assert_eq!(handles.len(), 2, "one host-side handle entity per sub-app");
@@ -56,12 +56,12 @@ fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
             dimensions, 1,
             "exactly one Dimension entity per sub-app world"
         );
-        let access = world
-            .get_resource::<RegistryAccess>()
-            .expect("RegistryAccess resource present in sub-app");
+        let set = world
+            .get_resource::<RegistrySet>()
+            .expect("RegistrySet resource present in sub-app");
         assert!(
-            host_registry.shares_inner_with(access),
-            "RegistryAccess clone must share the host Arc"
+            host_registry.shares_with(set),
+            "RegistrySet clone must share the host Arc"
         );
         assert!(
             world.get_resource::<Blocks>().is_some(),

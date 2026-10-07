@@ -7,7 +7,6 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::io::memory::{Dir, MemoryAssetReader};
 use bevy_asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
-use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
@@ -23,8 +22,8 @@ use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
-    read_packs, register_split_registries, reloadable_registries,
-    static_registries as build_static_registries, test_registries, world_registries,
+    read_packs, reloadable_registries, static_registries as build_static_registries,
+    test_registries, world_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -741,17 +740,17 @@ fn an_empty_variant_registry_fails_the_load() {
 #[test]
 fn the_synced_wolf_variant_has_no_spawn_conditions() {
     let set = test_registries();
-    let mut access = RegistryAccess::default();
-    register_split_registries(&mut access, set);
-    let synced = access
-        .iter()
-        .find(|snapshot| snapshot.registry_key() == "minecraft:wolf_variant")
-        .expect("the wolf variants are registered")
-        .iter_entries()
-        .find(|entry| entry.location.as_str() == "minecraft:pale")
-        .and_then(|entry| entry.data.clone())
-        .expect("the pale wolf is synced");
-    let synced = synced.extract_compound().expect("a variant is a compound");
+    let (table, column) = set
+        .synced()
+        .find(|(table, _)| table.registry().as_str() == "minecraft:wolf_variant")
+        .expect("the wolf variants are synced");
+    let pale = table
+        .number("minecraft:pale")
+        .expect("the pale wolf is loaded") as usize;
+    let synced = column[pale]
+        .0
+        .extract_compound()
+        .expect("a variant is a compound");
     assert!(synced.get("assets").is_some());
     assert!(synced.get("spawn_conditions").is_none());
 

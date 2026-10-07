@@ -5,7 +5,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_inventory::value::spawn_stack;
@@ -24,7 +23,7 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_registry::RegistryLookup;
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
 use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};
@@ -1050,7 +1049,7 @@ fn a_creative_drop_at_the_drop_limit_spawns_nothing() {
     world
         .entity_mut(player)
         .insert(PlayerGameMode(GameMode::Creative));
-    let registry = world.resource::<RegistryAccess>().clone();
+    let registry = world.resource::<RegistrySet>().clone();
     let stone =
         ProtoStack::from_value(&value("stone", 1), &registry as &dyn RegistryLookup).unwrap();
     let item = RawDelimitedStack::from_stack(&stone, &registry).unwrap();

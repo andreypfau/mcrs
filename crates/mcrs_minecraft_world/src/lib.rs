@@ -31,9 +31,9 @@ use bevy_asset::{AssetServer, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::tables::build_worldgen_tables;
-use mcrs_minecraft_block::keys::Block;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -73,8 +73,6 @@ impl Plugin for MinecraftWorldPlugin {
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
         app.init_resource::<LoadedRegistryAssets>();
 
-        app.init_resource::<mcrs_minecraft_assets::RegistryAccess>();
-
         registries::share_registries(app.world_mut());
 
         app.add_systems(PostStartup, start_loading_data_pack)
@@ -83,16 +81,6 @@ impl Plugin for MinecraftWorldPlugin {
                 Update,
                 check_registry_assets_ready.run_if(in_state(AppState::LoadingDataPack)),
             )
-            // Ordering contract: every system in this schedule that calls
-            // `RegistryAccess::register` must
-            // complete before `transition_to_playing` fires. `transition_to_playing`
-            // triggers the `WorldgenFreeze → Playing` state transition, and
-            // `spawn_dim_subapp` runs at `OnEnter(AppState::Playing)`, where it
-            // takes the first clone of `RegistryAccess`. `RegistryAccess::register`
-            // requires `Arc::get_mut` (refcount == 1); calling it after any clone
-            // exists panics. The `OnEnter` schedule guarantees all its systems
-            // finish before the transition completes, so the ordering holds as
-            // long as no `register` call is added outside `OnEnter(WorldgenFreeze)`.
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (build_worldgen_tables, transition_to_playing),
@@ -136,11 +124,6 @@ impl Plugin for MinecraftWorldPlugin {
             let block_registry = registries
                 .registry::<Block>()
                 .expect("the static registries hold minecraft:block");
-            let mut access = app
-                .world_mut()
-                .resource_mut::<mcrs_minecraft_assets::RegistryAccess>();
-            registries::register_world_registries(&mut access, &registries);
-            registries::register_split_registries(&mut access, &registries);
             registries::insert_registry_resources(app.world_mut(), &registries);
             (block_registry, registries)
         };
