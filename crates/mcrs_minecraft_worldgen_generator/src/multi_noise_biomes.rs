@@ -79,7 +79,7 @@ impl MultiNoiseBiomeTable {
             .ok_or_else(|| failure.expect("a table is refused for a reason"))
     }
 
-    pub fn from_entries(
+    pub(crate) fn from_entries(
         biomes: &Registry<Biome>,
         entries: &[MultiNoiseBiomeEntry],
     ) -> Result<MultiNoiseBiomeTable, BiomeTableError> {
@@ -92,11 +92,6 @@ impl MultiNoiseBiomeTable {
                 ))
             })
             .collect::<Result<_, NarrowError>>()?;
-        if values.is_empty() {
-            return Err(BiomeTableError::NoTable(
-                "a multi-noise source lists no biomes".to_owned(),
-            ));
-        }
         Ok(MultiNoiseBiomeTable {
             table: ParameterList::new(values),
         })
@@ -207,16 +202,13 @@ impl PresetBiomeTables {
         &self,
         source: &MultiNoiseBiomeSource,
     ) -> Result<Arc<MultiNoiseBiomeTable>, BiomeTableError> {
-        match (&source.preset, &source.biomes) {
-            (Some(list), _) => self.get(*list).cloned().ok_or_else(|| {
+        match source {
+            MultiNoiseBiomeSource::Preset(list) => self.get(*list).cloned().ok_or_else(|| {
                 BiomeTableError::NoTable(format!("no parameter list is numbered {}", list.index()))
             }),
-            (None, Some(entries)) => {
+            MultiNoiseBiomeSource::Biomes(entries) => {
                 MultiNoiseBiomeTable::from_entries(&self.biomes, entries).map(Arc::new)
             }
-            (None, None) => Err(BiomeTableError::NoTable(
-                "a multi-noise source names neither biomes nor a preset".to_owned(),
-            )),
         }
     }
 }

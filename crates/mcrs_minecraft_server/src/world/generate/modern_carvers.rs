@@ -2,15 +2,13 @@ use crate::loaded::Loaded;
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
-use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_generator::modern_carvers::{
-    CarverBiomeTable, resolve_carver_biomes, whole_climate_space,
-};
+use mcrs_minecraft_worldgen_generator::modern_carvers::{CarverBiomeTable, whole_climate_space};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use std::sync::Arc;
 
@@ -110,26 +108,33 @@ fn build_modern_carver_biomes(
         // biome's carvers under a point covering the whole climate space: with a
         // single candidate the nearest-entry search returns it whatever the
         // climate.
-        let (climate, explicit) = match source {
-            BiomeSource::MultiNoise(multi) => (
-                multi.preset.map(|list| {
-                    preset_tables
-                        .get(list)
-                        .expect("the resolved tables hold every parameter list")
-                        .as_ref()
-                }),
-                multi.biomes.as_ref().map(|entries| {
+        let table = match source {
+            BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => {
+                let climate = preset_tables
+                    .get(*list)
+                    .expect("the resolved tables hold every parameter list");
+                Some(CarverBiomeTable::from_climate(climate.climate(), |biome| {
+                    carvers.as_slice()[usize::from(biome)].clone()
+                }))
+            }
+            BiomeSource::MultiNoise(MultiNoiseBiomeSource::Biomes(entries)) => {
+                CarverBiomeTable::from_entries(
                     entries
                         .iter()
                         .map(|entry| (ParameterPoint::from(&entry.parameters), entry.biome))
-                        .collect()
-                }),
-            ),
-            BiomeSource::Fixed { biome } => (None, Some(vec![(whole_climate_space(), *biome)])),
+                        .collect(),
+                    |biome| carvers[*biome].clone(),
+                )
+            }
+            BiomeSource::Fixed { biome } => {
+                CarverBiomeTable::from_entries(vec![(whole_climate_space(), *biome)], |biome| {
+                    carvers[*biome].clone()
+                })
+            }
             _ => continue,
         };
 
-        match resolve_carver_biomes(climate, explicit, &carvers) {
+        match table {
             Some(table) => {
                 // Beta's caves abort on water and leave Beta's substance, which
                 // only the Beta column program answers.

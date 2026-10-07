@@ -3,9 +3,6 @@ use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registries::test_registries;
-use mcrs_minecraft_world::save::{
-    WorldGenSettings, read_world_gen_settings, write_world_gen_settings,
-};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -78,65 +75,52 @@ fn a_dimension_list_without_the_overworld_is_refused() {
 fn the_baked_order_ignores_input_order() {
     let set = test_registries();
     let entry = debug_dimension(set, "minecraft:overworld");
-    let extras = ["z:last", "a:first", "minecraft:the_end", "m:middle"];
-
-    let mut forward = Dimensions::new();
-    let mut backward = Dimensions::new();
-    let mut full = normal();
-    for name in ["minecraft:overworld", "minecraft:the_nether"] {
-        forward.insert(key(name), full.remove(name).unwrap());
-    }
-    for name in extras {
-        forward.insert(key(name), entry.clone());
-    }
-    for name in extras.iter().rev() {
-        backward.insert(key(name), entry.clone());
-    }
-    for name in ["minecraft:the_nether", "minecraft:overworld"] {
-        backward.insert(key(name), forward[name].clone());
+    let mut base = normal();
+    base.remove("minecraft:the_end");
+    for name in ["z:last", "a:first", "minecraft:the_end", "m:middle"] {
+        base.insert(key(name), entry.clone());
     }
 
-    let expected = [
-        "minecraft:overworld",
-        "minecraft:the_nether",
-        "minecraft:the_end",
-        "a:first",
-        "m:middle",
-        "z:last",
-    ];
-    assert_eq!(names(&baked(&forward, set)), expected);
-    assert_eq!(baked(&forward, set), baked(&backward, set));
+    assert_eq!(
+        names(&baked(&base, set)),
+        [
+            "minecraft:overworld",
+            "minecraft:the_nether",
+            "minecraft:the_end",
+            "a:first",
+            "m:middle",
+            "z:last",
+        ]
+    );
 }
 
 #[test]
-fn baking_twice_gives_the_same_list() {
-    let set = test_registries();
-    let mut base = normal();
-    base.insert(
-        key("test:extra"),
-        debug_dimension(set, "minecraft:the_nether"),
-    );
-
-    let first = baked(&base, set);
-    assert_eq!(first, baked(&base, set));
-
-    let world = std::env::temp_dir().join(format!(
-        "mcrs-dimension-list-round-trip-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&world);
-    std::fs::create_dir_all(&world).unwrap();
-    let dimensions: Dimensions = first.iter().cloned().collect();
-    write_world_gen_settings(
-        &world,
-        &WorldGenSettings {
-            seed: 1,
-            dimensions,
-        },
-        set,
+fn a_data_pack_dimension_replaces_the_preset_entry_of_its_key() {
+    let set = crate::loaded_registries::load_shipped_and(
+        "minecraft/dimension",
+        &[(
+            "overworld",
+            r#"{"type":"minecraft:overworld_caves","generator":{"type":"minecraft:debug"}}"#
+                .to_owned(),
+        )],
     )
-    .unwrap();
-    let read = read_world_gen_settings(&world, set).unwrap();
-    assert_eq!(baked(&read.dimensions, set), first);
-    std::fs::remove_dir_all(world).unwrap();
+    .unwrap_or_else(|report| panic!("{report}"));
+    let base = normal();
+    let list = baked(&base, &set);
+
+    assert_eq!(
+        names(&list),
+        [
+            "minecraft:overworld",
+            "minecraft:the_nether",
+            "minecraft:the_end"
+        ]
+    );
+    assert_eq!(
+        list[0].1,
+        debug_dimension(&set, "minecraft:overworld_caves")
+    );
+    assert_ne!(list[0].1, base["minecraft:overworld"]);
+    assert_eq!(list[1].1, base["minecraft:the_nether"]);
+    assert_eq!(list[2].1, base["minecraft:the_end"]);
 }

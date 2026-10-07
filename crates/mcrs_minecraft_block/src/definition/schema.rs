@@ -207,7 +207,7 @@ pub struct RedstoneConductivity {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FluidStateDef {
-    pub fluid: ResourceLocation<Arc<str>>,
+    pub fluid: crate::keys::Fluid,
     pub level: u8,
     pub source: bool,
 }

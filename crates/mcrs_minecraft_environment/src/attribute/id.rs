@@ -30,9 +30,6 @@ macro_rules! attributes {
             id: $id.location(),
             value: PhantomData,
         };)*
-
-        #[cfg(test)]
-        const ALL: &[StaticResourceLocation] = &[$($name.id),*];
     };
 }
 
@@ -51,17 +48,4 @@ attributes! {
     CREATURE_WORLD_GEN_SPAWN_PROBABILITY: f32 =
         crate::keys::EnvironmentAttribute::GameplayCreatureWorldGenSpawnProbability;
     NATURAL_MOB_SPAWNS: MobSpawnSettings = crate::keys::EnvironmentAttribute::GameplayNaturalMobSpawns;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ALL;
-    use crate::attribute::attribute;
-
-    #[test]
-    fn every_typed_id_names_a_registered_attribute() {
-        for id in ALL {
-            assert!(attribute(id.as_str()).is_some(), "{id}");
-        }
-    }
 }

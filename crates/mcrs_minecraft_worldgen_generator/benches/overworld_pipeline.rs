@@ -2,6 +2,7 @@
 //!
 //! usage: cargo bench --bench overworld_pipeline -- [columns_per_side] [seed] [column_offset]
 
+use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -169,8 +170,7 @@ fn main() {
             z,
             &y_sections,
             &router,
-            None,
-            Some(&table),
+            &ColumnBiomes::None,
             None,
             &cancel,
         )

@@ -318,6 +318,11 @@ fn host_integrated_server(
         world: world.map(Path::to_path_buf),
         column_traces: traces,
         singleplayer_profile: Some(host),
+        seed: config::world_seed(),
+        preset: config::world_preset(),
+        lighting: config::lighting(),
+        default_game_mode: config::default_game_mode(),
+        slow_column_threshold: config::slow_column_threshold(),
         ..MinecraftServerPlugin::embedded()
     });
     let address = server.world().resource::<BoundAddress>().0;

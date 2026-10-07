@@ -15,3 +15,14 @@ fn corpus_round_trips() {
     });
     assert_eq!(files.len(), 3);
 }
+
+#[test]
+fn an_empty_transformer_is_refused_with_the_list_bounds() {
+    let error = serde_json::from_str::<BlockTransformer>("[]")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("List is too short: 0, expected range [1-200]"),
+        "{error}"
+    );
+}

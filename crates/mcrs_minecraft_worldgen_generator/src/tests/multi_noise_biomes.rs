@@ -228,16 +228,45 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     );
 }
 
+/// A fixed or Beta source is narrowed to the palette byte once, when its
+/// column biomes are built, rather than degrading per column.
+#[test]
+fn a_fixed_or_beta_biome_beyond_the_narrow_width_is_refused_once() {
+    use crate::ColumnBiomes;
+    use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
+
+    let names: Vec<String> = (0..=256).map(|id| format!("test:biome_{id:03}")).collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let registry = super::biome_registry(&names);
+    let (first, last) = (
+        registry.by_name("test:biome_000").unwrap(),
+        registry.by_name("test:biome_256").unwrap(),
+    );
+    let beta = |stray| BiomeSource::Beta {
+        land_biomes: std::array::from_fn(|i| if i == 10 { stray } else { first }),
+        lookup: Arc::new(build_beta_lookup_table()),
+    };
+
+    for source in [BiomeSource::Fixed { biome: last }, beta(last)] {
+        assert!(ColumnBiomes::new(Some(&source), None).is_err(), "{source:?}");
+    }
+    assert!(matches!(
+        ColumnBiomes::new(Some(&BiomeSource::Fixed { biome: first }), None),
+        Ok(ColumnBiomes::Fixed(0))
+    ));
+    assert!(matches!(
+        ColumnBiomes::new(Some(&beta(first)), None),
+        Ok(ColumnBiomes::Beta(_))
+    ));
+}
+
 #[test]
 fn table_of_picks_the_named_or_inline_table() {
     use mcrs_minecraft_biome::climate::ParameterRange;
 
     let tables = super::preset_tables();
     let overworld = super::parameter_list_id("minecraft:overworld");
-    let named = MultiNoiseBiomeSource {
-        preset: Some(overworld),
-        biomes: None,
-    };
+    let named = MultiNoiseBiomeSource::Preset(overworld);
     let picked = tables.table_of(&named).expect("a held list has a table");
     assert!(Arc::ptr_eq(
         &picked,
@@ -257,14 +286,11 @@ fn table_of_picks_the_named_or_inline_table() {
         };
         entry(parameters, biomes.by_name(name).expect("a corpus biome"))
     };
-    let inline = MultiNoiseBiomeSource {
-        preset: None,
-        biomes: Some(vec![
-            at(-1.0, "minecraft:plains"),
-            at(0.0, "minecraft:desert"),
-            at(1.0, "minecraft:swamp"),
-        ]),
-    };
+    let inline = MultiNoiseBiomeSource::Biomes(vec![
+        at(-1.0, "minecraft:plains"),
+        at(0.0, "minecraft:desert"),
+        at(1.0, "minecraft:swamp"),
+    ]);
     assert_eq!(tables.table_of(&inline).expect("an inline list").len(), 3);
 }
 
@@ -414,14 +440,11 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
                 .chain([ResourceLocation::read("test:beyond_the_loaded_lists").unwrap()]),
         )
         .expect("a registry of distinct names");
-    let source = MultiNoiseBiomeSource {
-        preset: Some(
-            beyond
-                .require_by_name("test:beyond_the_loaded_lists")
-                .unwrap(),
-        ),
-        biomes: None,
-    };
+    let source = MultiNoiseBiomeSource::Preset(
+        beyond
+            .require_by_name("test:beyond_the_loaded_lists")
+            .unwrap(),
+    );
     assert!(matches!(
         super::preset_tables().table_of(&source),
         Err(BiomeTableError::NoTable(_))

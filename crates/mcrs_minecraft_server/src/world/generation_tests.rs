@@ -742,12 +742,9 @@ fn a_delivery_carrying_part_of_a_column_still_lays_its_bedrock_floor() {
         router,
         material,
         registry,
-        BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-            preset: Some(mcrs_minecraft_worldgen_generator::tests::parameter_list_id(
-                "minecraft:overworld",
-            )),
-            biomes: None,
-        }),
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(
+            mcrs_minecraft_worldgen_generator::tests::parameter_list_id("minecraft:overworld"),
+        )),
     );
 
     let col = ColumnPos::new(3, -7);

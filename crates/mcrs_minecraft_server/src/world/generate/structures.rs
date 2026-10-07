@@ -11,7 +11,7 @@ use mcrs_minecraft_biome::parameter_list::{ParameterLists, parameter_lists_of};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_VARIANT};
-use mcrs_minecraft_registry::{Registry, RegistrySet};
+use mcrs_minecraft_registry::{Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::variant::spawn_selectors;
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
@@ -34,6 +34,7 @@ pub struct DimensionStructures(pub BTreeMap<ResourceLocation, Arc<DimensionStruc
 pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
     biomes: &Registry<Biome>,
+    biome_tags: &Tags<Biome>,
     lists: &ParameterLists,
     dimensions: &DimensionList,
 ) -> DimensionStructures {
@@ -44,7 +45,7 @@ pub fn dimension_tables(
         };
         let dimension = dimension.location();
         let mut mask = FixedBitSet::with_capacity(biomes.len());
-        for name in possible_biomes(&generator.biome_source, biomes, lists) {
+        for name in possible_biomes(&generator.biome_source, biomes, biome_tags, lists) {
             if let Some(id) = biomes.by_name(name.as_str()) {
                 mask.insert(id.index());
             }
@@ -167,6 +168,7 @@ pub(crate) fn build_dimension_structures(
     commands.insert_resource(dimension_tables(
         Arc::new(frozen),
         &biomes,
+        &biome_tags,
         &parameter_lists_of(&registries),
         &dimensions,
     ));

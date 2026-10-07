@@ -1,7 +1,8 @@
 use bevy_app::App;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_server::MinecraftServerPlugin;
 use mcrs_minecraft_server::world::generate::DimensionRouters;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
@@ -73,27 +74,10 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
             _ => None,
         })
         .collect();
-    // A sub-app is keyed by an entity, so the router it was handed is what says
-    // which dimension it is: the terrain block pair is distinct per dimension,
-    // which the assertion above holds to.
-    let dimension_of: Vec<_> = routers
-        .0
-        .iter()
-        .map(|(id, router)| {
-            (
-                (
-                    router.router.default_block_state,
-                    router.router.default_fluid_state,
-                ),
-                id.clone(),
-            )
-        })
-        .collect();
-
     let expected = routers.0.len();
     drain_dim_spawn_queue(&mut app);
 
-    let sub_apps = &app.sub_apps().sub_apps;
+    let sub_apps = &mut app.sub_apps_mut().sub_apps;
     assert!(!sub_apps.is_empty(), "the preset spawned no dimension");
     let with_router = sub_apps
         .values()
@@ -110,26 +94,24 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
     // surface rules and the carvers. A single host-wide source would hand the
     // nether the overworld's biomes while it samples the nether's router.
     let mut checked = 0;
-    for sub_app in sub_apps.values() {
-        let Some(context) = sub_app.world().get_resource::<FillContext>() else {
+    for sub_app in sub_apps.values_mut() {
+        let world = sub_app.world_mut();
+        let dimension = world
+            .query::<&ResourceKey<Dimension>>()
+            .single(world)
+            .expect("a sub-app holds one dimension")
+            .location()
+            .clone();
+        let Some(context) = world.get_resource::<FillContext>() else {
             continue;
         };
-        let key = (
-            context.router.default_block_state,
-            context.router.default_fluid_state,
-        );
-        let dimension = dimension_of
-            .iter()
-            .find(|(pair, _)| *pair == key)
-            .map(|(_, id)| id)
-            .expect("a sub-app carries a router no dimension compiled");
         let held = context
             .biome
             .as_ref()
             .unwrap_or_else(|| panic!("{dimension} reached its sub-app with no biome source"));
         let expected_source = sources
             .iter()
-            .find(|(key, _)| key == dimension)
+            .find(|(key, _)| *key == dimension)
             .map(|(_, source)| source)
             .unwrap_or_else(|| panic!("{dimension} has no noise generator in the list"));
         assert!(

@@ -1,16 +1,13 @@
 use crate::inventory_sync::{drain, item, place, stack_at, stone, value, world};
-use crate::support::standalone_corpus;
+use crate::support::{self, standalone_corpus};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::World;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::tag_key::TagKey;
-use mcrs_minecraft_core::{BlockPos, rl};
+use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{
     ContainerClickRequest, CurrentMenu, DROP_THROTTLE_LIMIT, DROP_THROTTLE_STEP, DropThrottle,
@@ -25,10 +22,9 @@ use mcrs_minecraft_protocol::item::{
     ContainerInput, HashedStack, ProtoStack, QuickCraftButton, QuickCraftKind, QuickCraftStage,
     RawDelimitedStack, RawStack,
 };
-use mcrs_minecraft_protocol::item::{Tool, ToolRule};
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup};
+use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::world::bus::PacketPayload;
 use mcrs_minecraft_server::world::entity::player::ability::PlayerGameMode;
 use mcrs_minecraft_server::world::item::chest::{OpenContainerRequest, open_containers};
@@ -336,24 +332,10 @@ fn a_claim_hashing_a_component_that_names_a_block_tag_is_agreed_with() {
     let (mut world, player) = opened();
     let registries = test_registries().clone();
     world.insert_resource(registries.clone());
-    let pickaxe_tag = registries
-        .tags::<Block>()
-        .unwrap()
-        .get(&TagKey::<Block, _>::from_location(
-            rl!("minecraft:mineable/pickaxe").to_arc(),
-        ))
-        .unwrap();
     let mut tagged = value("iron_sword", 1);
-    tagged.components.set(Tool {
-        rules: vec![ToolRule {
-            blocks: HolderSet::Named(pickaxe_tag),
-            speed: Some(2.0),
-            correct_for_drops: None,
-        }],
-        default_mining_speed: 1.0,
-        damage_per_block: Bounded(1),
-        can_destroy_blocks_in_creative: true,
-    });
+    tagged
+        .components
+        .set(support::pickaxe_tagged_tool(&registries));
     let stack = spawn_stack(&mut world, &tagged, &standalone_corpus().1).unwrap();
     place(&mut world, stack, player, slots::HOTBAR.start);
     sync_stack_slots(&mut world);

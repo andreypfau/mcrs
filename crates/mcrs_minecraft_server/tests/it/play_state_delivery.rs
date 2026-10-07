@@ -169,52 +169,7 @@ fn the_login_lists_the_baked_dimensions_in_order() {
     let mut app = build_host_app();
     let dim_label = spawn_subapp(&mut app);
 
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    app.world_mut()
-        .entity_mut(host_anchor)
-        .insert(SessionBundle::placed(
-            session,
-            SessionPlacement::new(Place::Joining(dim_label), 0),
-        ));
-    app.world()
-        .resource::<mcrs_minecraft_server::world::channel_types::DimChannelsResource>()
-        .get(dim_label)
-        .expect("channel registered for dim_label")
-        .control_sender
-        .try_send(mcrs_minecraft_server::world::channel_types::ToDim::Spawn(
-            InboundPlayerSpawn {
-                host_anchor,
-                session: PlayerSession(0),
-                snapshot: PlayerTransferSnapshot {
-                    uuid: Uuid::new_v4(),
-                    username: "list_test".into(),
-                    position: DVec3::new(0.0, 64.0, 0.0),
-                    rotation: bevy_math::Vec2::ZERO,
-                    view_distance: 12,
-                },
-                dimensions: list.keys().clone(),
-            },
-        ))
-        .expect("control channel not full");
-
-    for _ in 0..2 {
-        app.update();
-        pump_channels(&mut app);
-    }
-
-    let login = app
-        .world_mut()
-        .resource_mut::<Messages<OutboundPlayerPacket>>()
-        .drain()
-        .find_map(|packet| match packet.data {
-            PacketPayload::PlayerLogin(login) => Some(login),
-            _ => None,
-        })
-        .expect("PlayerLogin packet must be present");
+    let login = crate::host_app::join(&mut app, dim_label, list.keys().clone());
     let listed: Vec<&str> = login.dimensions.iter().map(|key| key.as_str()).collect();
     assert_eq!(
         listed,

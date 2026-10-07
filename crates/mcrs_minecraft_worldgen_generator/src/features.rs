@@ -1,7 +1,7 @@
 use mcrs_minecraft_biome::parameter_list::ParameterLists;
-use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_feature::compile::FeatureSteps;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use std::collections::BTreeMap;
@@ -34,6 +34,7 @@ pub struct FeatureTables {
 pub fn possible_biomes(
     source: &BiomeSource,
     biomes: &Registry<mcrs_minecraft_biome::Biome>,
+    biome_tags: &Tags<mcrs_minecraft_biome::Biome>,
     lists: &ParameterLists,
 ) -> Vec<ResourceLocation> {
     let named = |id: &mcrs_minecraft_registry::Id<mcrs_minecraft_biome::Biome>| {
@@ -43,20 +44,21 @@ pub fn possible_biomes(
             .clone()
     };
     let listed: Vec<ResourceLocation> = match source {
-        BiomeSource::MultiNoise(multi) => match (&multi.biomes, &multi.preset) {
-            (Some(entries), _) => entries.iter().map(|entry| named(&entry.biome)).collect(),
-            (None, Some(list)) => match lists.get(*list) {
-                Some(list) => preset_biomes(list.preset.parameter_list()),
-                None => panic!("no parameter list is numbered {}", list.index()),
-            },
-            (None, None) => panic!("a multi-noise source names neither biomes nor a preset"),
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Biomes(entries)) => {
+            entries.iter().map(|entry| named(&entry.biome)).collect()
+        }
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) => match lists.get(*list) {
+            Some(list) => preset_biomes(list.preset.parameter_list()),
+            None => panic!("no parameter list is numbered {}", list.index()),
         },
         BiomeSource::TheEnd => END_BIOMES
             .iter()
             .map(|biome| biome.location().to_arc())
             .collect(),
         BiomeSource::Fixed { biome } => vec![named(biome)],
-        BiomeSource::Checkerboard { biomes, .. } => biomes.iter().map(named).collect(),
+        BiomeSource::Checkerboard { biomes, .. } => {
+            biomes.ids(biome_tags).map(|id| named(&id)).collect()
+        }
         BiomeSource::Beta { land_biomes, .. } => land_biomes.iter().map(named).collect(),
     };
 
@@ -114,17 +116,17 @@ mod tests {
         let biomes =
             Registry::<mcrs_minecraft_biome::Biome>::new(mcrs_minecraft_biome::keys::BIOME, [])
                 .unwrap();
-        possible_biomes(source, &biomes, &crate::tests::parameter_lists().1)
+        let tags = Tags::from_members(&biomes, Vec::new());
+        possible_biomes(source, &biomes, &tags, &crate::tests::parameter_lists().1)
             .iter()
             .map(|id| id.as_str().to_owned())
             .collect()
     }
 
     fn preset(name: &str) -> BiomeSource {
-        BiomeSource::MultiNoise(mcrs_minecraft_biome::source::MultiNoiseBiomeSource {
-            preset: Some(crate::tests::parameter_list_id(name)),
-            biomes: None,
-        })
+        BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(
+            crate::tests::parameter_list_id(name),
+        ))
     }
 
     #[test]

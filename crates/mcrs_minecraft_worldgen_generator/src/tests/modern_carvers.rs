@@ -187,22 +187,26 @@ fn carvers_by_biome() -> (
 
 #[test]
 fn the_freeze_resolution_builds_the_dimension_tables() {
-    use crate::modern_carvers::resolve_carver_biomes;
     use crate::multi_noise_biomes::MultiNoiseBiomeTable;
     use mcrs_minecraft_biome::climate::{Parameter, ParameterPoint};
 
     let (biomes, carvers) = carvers_by_biome();
+    let of_climate = |table: &MultiNoiseBiomeTable| {
+        CarverBiomeTable::from_climate(table.climate(), |biome| {
+            carvers.as_slice()[usize::from(biome)].clone()
+        })
+    };
+    let of_entries =
+        |entries| CarverBiomeTable::from_entries(entries, |biome| carvers[*biome].clone());
 
     let overworld_climate = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes)
         .expect("every overworld preset biome is in the corpus");
-    let overworld = resolve_carver_biomes(Some(&overworld_climate), None, &carvers)
-        .expect("the overworld preset resolves");
+    let overworld = of_climate(&overworld_climate);
     assert_eq!(overworld.entry_count(), 7594);
 
     let nether_climate = MultiNoiseBiomeTable::of_preset(Preset::Nether, biomes)
         .expect("every nether preset biome is in the corpus");
-    let nether = resolve_carver_biomes(Some(&nether_climate), None, &carvers)
-        .expect("the nether preset resolves");
+    let nether = of_climate(&nether_climate);
     assert_eq!(nether.entry_count(), 5);
     let wastes = nether.carvers_at_for_test(mcrs_minecraft_biome::climate::TargetPoint::new(
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -212,46 +216,35 @@ fn the_freeze_resolution_builds_the_dimension_tables() {
 
     // A source that lists its biomes instead of naming a preset.
     let point = Parameter::point(0.0);
-    let explicit = resolve_carver_biomes(
-        None,
-        Some(vec![(
-            ParameterPoint {
-                temperature: point,
-                humidity: point,
-                continentalness: point,
-                erosion: point,
-                depth: point,
-                weirdness: point,
-                offset: 0,
-            },
-            biomes.by_name("minecraft:plains").expect("a corpus biome"),
-        )]),
-        &carvers,
-    )
+    let explicit = of_entries(vec![(
+        ParameterPoint {
+            temperature: point,
+            humidity: point,
+            continentalness: point,
+            erosion: point,
+            depth: point,
+            weirdness: point,
+            offset: 0,
+        },
+        biomes.by_name("minecraft:plains").expect("a corpus biome"),
+    )])
     .expect("an explicit list resolves");
     assert_eq!(explicit.entry_count(), 1);
 
-    // A source with neither form.
-    assert!(resolve_carver_biomes(None, None, &carvers).is_none());
-
     // A biome with no carvers resolves to an empty list rather than to the
     // wrong one.
-    let empty = resolve_carver_biomes(
-        None,
-        Some(vec![(
-            ParameterPoint {
-                temperature: point,
-                humidity: point,
-                continentalness: point,
-                erosion: point,
-                depth: point,
-                weirdness: point,
-                offset: 0,
-            },
-            biomes.by_name("minecraft:the_end").expect("a corpus biome"),
-        )]),
-        &carvers,
-    )
+    let empty = of_entries(vec![(
+        ParameterPoint {
+            temperature: point,
+            humidity: point,
+            continentalness: point,
+            erosion: point,
+            depth: point,
+            weirdness: point,
+            offset: 0,
+        },
+        biomes.by_name("minecraft:the_end").expect("a corpus biome"),
+    )])
     .unwrap();
     assert!(
         empty

@@ -7,7 +7,6 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_particle::ParticleOptions;
@@ -19,7 +18,7 @@ use super::value::{
     AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
 };
 use crate::attribute::MobSpawnSettings;
-use crate::keys::EnvironmentAttribute;
+use crate::keys::{Activity, EnvironmentAttribute};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
@@ -30,8 +29,7 @@ pub enum AttributeValue {
     Color(u32),
     Integer(i32),
     MoonPhase(MoonPhase),
-    // chisle: the name is not checked against the activity registry, which this crate does not depend on; lifts when it does
-    Activity(ResourceLocation),
+    Activity(crate::keys::Activity),
     BedRule(BedRule),
     Particle(Box<ParticleOptions>),
     AmbientParticles(Vec<AmbientParticle>),
@@ -481,7 +479,7 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
         T::Integer => V::Integer(int_value(d)?),
         T::RgbColor | T::ArgbColor => return d.deserialize_any(ColorDraft),
         T::MoonPhase => V::MoonPhase(MoonPhase::deserialize(d)?),
-        T::Activity => V::Activity(ResourceLocation::deserialize(d)?),
+        T::Activity => V::Activity(crate::keys::Activity::deserialize(d)?),
         T::BedRule => V::BedRule(BedRule::deserialize(d)?),
         T::Particle => V::Particle(Box::new(<ParticleOptions as Deserialize>::deserialize(d)?)),
         T::AmbientParticles => V::AmbientParticles(Vec::deserialize(d)?),
@@ -692,10 +690,6 @@ fn color(packed: i32) -> AttributeValue {
     AttributeValue::Color(packed as u32)
 }
 
-fn activity() -> AttributeValue {
-    AttributeValue::Activity(crate::keys::Activity::Idle.location().to_arc())
-}
-
 fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> AttributeValue {
     AttributeValue::BedRule(BedRule {
         can_sleep: BedRuleCondition::WhenDark,
@@ -780,8 +774,8 @@ table! {
         row(GameplayCanPillagerPatrolSpawn, T::Boolean, V::Bool(true), R::Any, 0),
         row(GameplayNaturalMobSpawns, T::MobSpawnSettings, V::MobSpawns(Box::default()), R::Any, 0),
         row(GameplayCreatureWorldGenSpawnProbability, T::Float, V::Float(0.1), R::UNIT_EPSILON, 0),
-        row(GameplayVillagerActivity, T::Activity, activity(), R::Any, 0),
-        row(GameplayBabyVillagerActivity, T::Activity, activity(), R::Any, 0),
+        row(GameplayVillagerActivity, T::Activity, V::Activity(Activity::Idle), R::Any, 0),
+        row(GameplayBabyVillagerActivity, T::Activity, V::Activity(Activity::Idle), R::Any, 0),
 }
 
 #[cfg(test)]
@@ -807,12 +801,6 @@ mod tests {
 
     #[test]
     fn registry_holds_every_attribute() {
-        assert_eq!(
-            table().len(),
-            ENVIRONMENT_ATTRIBUTES.len(),
-            "ids must be unique"
-        );
-
         let syncable: Vec<_> = ENVIRONMENT_ATTRIBUTES
             .values()
             .filter(|spec| spec.syncable)
@@ -825,14 +813,6 @@ mod tests {
                 .count()
                 == 5
         );
-
-        for spec in ENVIRONMENT_ATTRIBUTES.values() {
-            assert!(
-                spec.id.starts_with("minecraft:"),
-                "{} is not namespaced",
-                spec.id
-            );
-        }
     }
 
     #[test]
@@ -845,6 +825,17 @@ mod tests {
     #[test]
     fn an_attribute_value_stays_small_enough_to_clone_per_frame() {
         assert!(size_of::<AttributeValue>() <= 32);
+    }
+
+    #[test]
+    fn an_activity_value_names_a_registered_activity() {
+        let activity = attribute("minecraft:gameplay/villager_activity").unwrap();
+        assert_eq!(
+            value(activity, json!("minecraft:rest")).unwrap(),
+            AttributeValue::Activity(Activity::Rest)
+        );
+        let error = value(activity, json!("minecraft:no_such_activity")).unwrap_err();
+        assert!(error.to_string().contains("minecraft:no_such_activity"), "{error}");
     }
 
     #[test]

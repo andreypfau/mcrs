@@ -12,7 +12,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{BlockStateId, Id};
+use mcrs_minecraft_registry::{BlockStateId, NarrowError};
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
@@ -24,7 +24,7 @@ use mcrs_minecraft_worldgen_noise::interval::Interval;
 use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use mcrs_minecraft_biome::Biome;
+use std::sync::Arc;
 use mcrs_minecraft_block::keys::Block;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
@@ -638,6 +638,58 @@ pub fn base_column(
     (min_y, column)
 }
 
+/// What a column's biomes are read from, every biome id already narrowed to
+/// the byte a palette stores.
+#[derive(Clone, Default)]
+pub enum ColumnBiomes {
+    #[default]
+    None,
+    MultiNoise(Arc<MultiNoiseBiomeTable>),
+    Fixed(u8),
+    Beta(BetaBiomes),
+}
+
+#[derive(Clone)]
+pub struct BetaBiomes {
+    land: [u8; 11],
+    lookup: Arc<[[BetaLandBiome; 64]; 64]>,
+}
+
+impl BetaBiomes {
+    #[inline]
+    pub fn biome_at(&self, temperature: f32, rain: f32) -> u8 {
+        self.land[beta_biome_from_climate(&self.lookup, temperature, rain) as usize]
+    }
+}
+
+impl ColumnBiomes {
+    /// A multi-noise source answers through `multi_noise`, and with no table
+    /// it answers nothing.
+    pub fn new(
+        source: Option<&BiomeSource>,
+        multi_noise: Option<Arc<MultiNoiseBiomeTable>>,
+    ) -> Result<Self, NarrowError> {
+        Ok(match source {
+            Some(BiomeSource::MultiNoise(_)) => multi_noise.map_or(Self::None, Self::MultiNoise),
+            Some(BiomeSource::Fixed { biome }) => Self::Fixed(biome.narrow()?),
+            Some(BiomeSource::Beta {
+                land_biomes,
+                lookup,
+            }) => {
+                let mut land = [0; 11];
+                for (stored, biome) in land.iter_mut().zip(land_biomes) {
+                    *stored = biome.narrow()?;
+                }
+                Self::Beta(BetaBiomes {
+                    land,
+                    lookup: Arc::clone(lookup),
+                })
+            }
+            _ => Self::None,
+        })
+    }
+}
+
 /// One `BiomePalette` per section of the column, empty when no source can
 /// answer for the position.
 ///
@@ -645,26 +697,25 @@ pub fn base_column(
 /// with the game's zoom, and a fixed source is one value per section.
 fn column_biome_palettes(
     noise_router: &NoiseRouter,
-    biome_source: Option<&BiomeSource>,
-    multi_noise: Option<&MultiNoiseBiomeTable>,
+    biomes: &ColumnBiomes,
     block_x: i32,
     block_z: i32,
     y_sections: &[i32],
 ) -> (Vec<BiomePalette>, bool) {
-    match biome_source {
-        Some(BiomeSource::MultiNoise(_)) => match multi_noise {
-            Some(table) => (
-                multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
-                true,
-            ),
-            None => (vec![BiomePalette::default(); y_sections.len()], false),
-        },
-        Some(BiomeSource::Fixed { biome }) => (fixed_biome_palettes(*biome, y_sections), true),
-        Some(source @ BiomeSource::Beta { .. }) => {
-            let grid = beta_biome_grid(noise_router, source, block_x, block_z);
+    match biomes {
+        ColumnBiomes::MultiNoise(table) => (
+            multi_noise_palettes(noise_router, table, block_x, block_z, y_sections),
+            true,
+        ),
+        ColumnBiomes::Fixed(biome) => (
+            vec![BiomePalette::homogeneous(*biome); y_sections.len()],
+            true,
+        ),
+        ColumnBiomes::Beta(beta) => {
+            let grid = beta_biome_grid(noise_router, beta, block_x, block_z);
             (upscale_column(&grid, noise_router, y_sections), false)
         }
-        _ => (vec![BiomePalette::default(); y_sections.len()], false),
+        ColumnBiomes::None => (vec![BiomePalette::default(); y_sections.len()], false),
     }
 }
 
@@ -742,35 +793,12 @@ pub fn multi_noise_grid(
     Some(BiomeGrid { volume, ids })
 }
 
-/// The containers of a `minecraft:fixed` source, which answers the same biome
-/// at every block however it is asked.
-fn fixed_biome_palettes(biome: Id<Biome>, y_sections: &[i32]) -> Vec<BiomePalette> {
-    let stored = stored_biome(biome, "fixed biome");
-    vec![BiomePalette::homogeneous(stored); y_sections.len()]
-}
-
-/// The byte the palette stores a biome id in.
-///
-/// Answering nothing would skip the material stage entirely and hand back a
-/// column of bare stone, so an id that does not fit degrades to the first biome
-/// rather than silently dropping every rule the column owes.
-fn stored_biome(biome: Id<Biome>, what: &str) -> u8 {
-    match biome.narrow::<u8>() {
-        Ok(stored) => stored,
-        Err(error) => {
-            tracing::error!(%error, what, "a biome id does not fit the palette");
-            debug_assert!(false, "a biome id does not fit the palette");
-            0
-        }
-    }
-}
-
 /// The quart grid of a Beta column: one row, its own sixteen cells and the ring
 /// of twenty around them, each the biome its climate answers at the position
 /// the column owning that cell samples it at.
 pub fn beta_biome_grid(
     noise_router: &NoiseRouter,
-    biome_source: &BiomeSource,
+    beta: &BetaBiomes,
     block_x: i32,
     block_z: i32,
 ) -> BiomeGrid {
@@ -788,12 +816,7 @@ pub fn beta_biome_grid(
         &mut values,
     );
     let ids = (0..points)
-        .map(|at| {
-            stored_biome(
-                biome_source.beta_biome(values[at], values[points + at]),
-                "beta biome",
-            )
-        })
+        .map(|at| beta.biome_at(values[at], values[points + at]))
         .collect();
     BiomeGrid { volume, ids }
 }
@@ -830,8 +853,7 @@ pub fn generate_column(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &NoiseRouter,
-    biome_source: Option<&BiomeSource>,
-    multi_noise: Option<&MultiNoiseBiomeTable>,
+    biomes: &ColumnBiomes,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut column = ColumnBlocks::new(y_sections);
@@ -841,8 +863,7 @@ pub fn generate_column(
         section_z,
         y_sections,
         noise_router,
-        biome_source,
-        multi_noise,
+        biomes,
         None,
         cancel,
     ) else {
@@ -864,21 +885,14 @@ pub fn fill_column_dense_any<'a>(
     section_z: i32,
     y_sections: &[i32],
     noise_router: &'a NoiseRouter,
-    biome_source: Option<&BiomeSource>,
-    multi_noise: Option<&MultiNoiseBiomeTable>,
+    biomes: &ColumnBiomes,
     beard: Option<&Beard>,
     cancel: &CancellationToken,
 ) -> Option<FilledColumn<'a>> {
     let block_x = section_x * 16;
     let block_z = section_z * 16;
-    let (biomes, material_surface) = column_biome_palettes(
-        noise_router,
-        biome_source,
-        multi_noise,
-        block_x,
-        block_z,
-        y_sections,
-    );
+    let (biomes, material_surface) =
+        column_biome_palettes(noise_router, biomes, block_x, block_z, y_sections);
     column.reset(y_sections);
 
     let mut tops = [NO_TOP; 256];

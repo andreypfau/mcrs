@@ -353,10 +353,9 @@ fn a_beta_table_refuses_a_region() {
 fn overworld_context(seed: u64) -> FillContext {
     let (registry, ids) = overworld_biome_registry();
     let (router, material) = overworld_material_router(seed, &ids);
-    let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-        preset: Some(super::parameter_list_id(Preset::Overworld.name())),
-        biomes: None,
-    });
+    let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(super::parameter_list_id(
+        Preset::Overworld.name(),
+    )));
     let mut context = fill_context(router, material, registry, source);
     let bedrock: VoxelId = corpus().default_state("minecraft:bedrock").0.into();
     if let ColumnGenerator::Modern { carver_blocks, .. } = &mut context.program.generator {

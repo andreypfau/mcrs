@@ -24,7 +24,7 @@ pub struct DimensionType {
     pub monster_spawn_light_level: IntProvider,
     pub skybox: Skybox,
     pub cardinal_light: CardinalLight,
-    pub has_fixed_time: Option<bool>,
+    pub has_fixed_time: bool,
 }
 
 /// The part of a dimension every crate that names one can hold. Its chunk

@@ -128,11 +128,6 @@ mod tests {
                 "[0;16]: 17",
             ),
             (
-                codec::<PlacedFeatureSet>,
-                r##""#minecraft:has_structure/village""##,
-                "No placed feature tag exists",
-            ),
-            (
                 codec::<PlacementModifier>,
                 r#"{"type":"minecraft:fixed_placement","positions":[]}"#,
                 "",

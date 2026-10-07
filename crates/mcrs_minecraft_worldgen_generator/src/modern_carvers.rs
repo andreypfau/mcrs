@@ -1,4 +1,3 @@
-use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::structures::index::CLIMATE_ROOTS;
 use crate::{ColumnBlocks, beta_chunk_seed};
 use bevy_math::IVec3;
@@ -9,7 +8,7 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::{Entries, Id};
+use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_carver::beta::carve_beta_caves;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
@@ -75,7 +74,7 @@ enum SourceBiomes {
     /// only ever answers a land biome: one carver list per land biome, in
     /// discriminant order.
     Beta {
-        lookup: Box<[[BetaLandBiome; 64]; 64]>,
+        lookup: Arc<[[BetaLandBiome; 64]; 64]>,
         land: Box<[Arc<[CarverConfig]>]>,
     },
 }
@@ -802,21 +801,6 @@ pub fn whole_climate_space() -> ParameterPoint {
         depth: full,
         weirdness: full,
         offset: 0,
-    }
-}
-
-pub fn resolve_carver_biomes(
-    climate: Option<&MultiNoiseBiomeTable>,
-    explicit: Option<Vec<(ParameterPoint, Id<Biome>)>>,
-    carvers: &Entries<Biome, Arc<[CarverConfig]>>,
-) -> Option<CarverBiomeTable> {
-    match climate {
-        Some(table) => Some(CarverBiomeTable::from_climate(table.climate(), |biome| {
-            carvers.as_slice()[usize::from(biome)].clone()
-        })),
-        None => explicit.and_then(|entries| {
-            CarverBiomeTable::from_entries(entries, |biome| carvers[*biome].clone())
-        }),
     }
 }
 

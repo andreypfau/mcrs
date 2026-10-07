@@ -31,13 +31,11 @@ fn misnumbered_sounds() -> RegistryAccess {
         "intentionally_empty",
     ];
     let mut access = RegistryAccess::default();
-    access.register(SyncedRegistry::from_entries(
+    access.register(SyncedRegistry::from_names(
         "minecraft:sound_event",
         names
             .iter()
-            .map(|name| (ResourceLocation::minecraft(*name).unwrap().into(), None))
-            .collect(),
-        None,
+            .map(|name| ResourceLocation::minecraft(name).unwrap()),
     ));
     access
 }

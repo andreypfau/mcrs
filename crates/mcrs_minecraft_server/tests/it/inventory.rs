@@ -18,10 +18,8 @@ use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_minecraft_assets::SyncedRegistry;
 use mcrs_minecraft_assets::access::RegistryAccess;
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
-use mcrs_minecraft_core::{ColumnPos, rl};
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{CurrentMenu, Menu};
 use mcrs_minecraft_inventory::{Op, Slot, Transaction};
@@ -36,13 +34,12 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::{
     ContainerInput, Damage, HashedStack, ItemStackWithSlot, ProtoStack, RawDelimitedStack, RawStack,
 };
-use mcrs_minecraft_protocol::item::{Tool, ToolRule};
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundContainerClick, ServerboundSetCreativeModeSlot,
 };
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet};
-use mcrs_minecraft_registry::{HolderSet, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 use mcrs_minecraft_server::WorldSave;
 use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::disconnect::Departing;
@@ -59,7 +56,7 @@ use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 
 use crate::host_app;
 use crate::inventory_sync::{self, value};
-use crate::support::standalone_corpus;
+use crate::support::{self, standalone_corpus};
 
 const SPAWN: DVec3 = DVec3::new(8.5, 64.0, 8.5);
 
@@ -83,14 +80,9 @@ impl Server {
         app.insert_resource(WorldSave(save.clone()));
         app.world_mut()
             .resource_mut::<RegistryAccess>()
-            .register(SyncedRegistry::from_entries(
+            .register(SyncedRegistry::from_names(
                 "minecraft:item",
-                items
-                    .0
-                    .iter()
-                    .map(|entry| (entry.identifier.clone(), None))
-                    .collect(),
-                None,
+                items.0.iter().map(|entry| entry.identifier.clone()),
             ));
         host_app::drive_to_playing(&mut app);
         host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
@@ -636,24 +628,10 @@ fn a_relog_round_trips_the_player_file_with_keys_it_does_not_model() {
 fn a_relog_keeps_a_stack_whose_component_names_a_block_tag() {
     let mut server = Server::start();
     let registries = server.world().resource::<RegistrySet>().clone();
-    let pickaxe_tag = registries
-        .tags::<Block>()
-        .unwrap()
-        .get(&TagKey::<Block, _>::from_location(
-            rl!("minecraft:mineable/pickaxe").to_arc(),
-        ))
-        .unwrap();
     let mut stack = value("stick", 1);
-    stack.components.set(Tool {
-        rules: vec![ToolRule {
-            blocks: HolderSet::Named(pickaxe_tag),
-            speed: Some(2.0),
-            correct_for_drops: None,
-        }],
-        default_mining_speed: 1.0,
-        damage_per_block: Bounded(1),
-        can_destroy_blocks_in_creative: true,
-    });
+    stack
+        .components
+        .set(support::pickaxe_tagged_tool(&registries));
     let mut dat = PlayerDat::default();
     dat.inventory.push(ItemStackWithSlot {
         slot: 4,

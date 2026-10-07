@@ -479,6 +479,22 @@ fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
 }
 
 #[test]
+fn world_gen_settings_without_dimensions_are_refused() {
+    let mut payload = NbtCompound::new();
+    payload.put_long("seed", 2);
+    let err = parse_world_gen_settings(
+        &saved_data(VERSION.world_version, payload),
+        path(),
+        test_registries(),
+    )
+    .unwrap_err();
+    assert!(
+        err.to_string().contains("missing field `dimensions`"),
+        "{err}"
+    );
+}
+
+#[test]
 fn world_gen_settings_keep_their_dimensions() {
     let set = test_registries();
     let world = std::env::temp_dir().join(format!("mcrs_save_gen_{}", std::process::id()));

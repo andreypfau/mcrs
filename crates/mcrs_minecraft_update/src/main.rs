@@ -66,20 +66,33 @@ struct Options {
     diff_out: Option<PathBuf>,
 }
 
+enum Invocation {
+    Recapture(Vec<String>),
+    Names,
+    Keys,
+    Update(Options),
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let result = match args.first().map(String::as_str) {
-        Some("recapture") => recapture(&args[1..]),
-        Some("names") => names_report(&args[1..]),
-        Some("keys") if args.len() == 1 => write_keys(&workspace_root(), None),
-        _ => {
-            let options = parse(args.into_iter()).unwrap_or_else(|| usage());
-            run(&options)
-        }
+    let result = match command(args).unwrap_or_else(|| usage()) {
+        Invocation::Recapture(args) => recapture(&args),
+        Invocation::Names => names_report(),
+        Invocation::Keys => write_keys(&workspace_root(), None),
+        Invocation::Update(options) => run(&options),
     };
     if let Err(error) = result {
         eprintln!("error: {error}");
         std::process::exit(1);
+    }
+}
+
+fn command(args: Vec<String>) -> Option<Invocation> {
+    match args.first().map(String::as_str) {
+        Some("recapture") => Some(Invocation::Recapture(args[1..].to_vec())),
+        Some("names") => (args.len() == 1).then_some(Invocation::Names),
+        Some("keys") => (args.len() == 1).then_some(Invocation::Keys),
+        _ => parse(args.into_iter()).map(Invocation::Update),
     }
 }
 
@@ -110,10 +123,7 @@ fn recapture(args: &[String]) -> Result<(), String> {
     }
 }
 
-fn names_report(args: &[String]) -> Result<(), String> {
-    if !args.is_empty() {
-        usage();
-    }
+fn names_report() -> Result<(), String> {
     let root = workspace_root();
     let descriptor = &*RELEASE;
     let download = release::Download {
@@ -362,6 +372,27 @@ fn write(path: &Path, text: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::{Invocation, command};
+
+    #[test]
+    fn a_subcommand_takes_no_stray_arguments() {
+        for (args, accepted) in [
+            (&["keys"][..], true),
+            (&["keys", "--allow-dirty"], false),
+            (&["keys", "1.0"], false),
+            (&["names"], true),
+            (&["names", "--allow-dirty"], false),
+        ] {
+            let parsed = command(args.iter().map(|arg| arg.to_string()).collect());
+            assert_eq!(
+                matches!(parsed, Some(Invocation::Keys | Invocation::Names)),
+                accepted,
+                "{args:?}"
+            );
+            assert!(!matches!(parsed, Some(Invocation::Update(_))), "{args:?}");
+        }
+    }
+
     #[test]
     fn the_descriptor_names_the_corpus_version() {
         assert_eq!(

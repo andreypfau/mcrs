@@ -1,6 +1,7 @@
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::LocalPos;
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use mcrs_minecraft_worldgen_generator::generate_column;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
 use std::collections::BTreeMap;
@@ -34,8 +35,7 @@ fn main() {
                 oz + i / 8,
                 &y_sections,
                 &router,
-                None,
-                None,
+                &ColumnBiomes::None,
                 &cancel,
             );
             for (blocks, _) in results.iter().flatten() {

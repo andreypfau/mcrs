@@ -18,7 +18,8 @@ use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub use ingredient::Ingredient;
-pub use pattern::{Pattern, PatternKey, check_pattern};
+use pattern::check_pattern;
+pub use pattern::{Pattern, PatternKey};
 
 /// A recipe as its data pack file states it, dispatched on its serializer.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,10 +122,8 @@ impl Validate for ShapedRecipe {
     }
 }
 
-validated!(ShapelessRecipe);
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(deny_unknown_fields)]
 pub struct ShapelessRecipe {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub show_notification: bool,
@@ -133,20 +132,8 @@ pub struct ShapelessRecipe {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
     pub result: Template,
+    #[serde(deserialize_with = "codec::sized_list::<1, 9, _, _>")]
     pub ingredients: Vec<Ingredient>,
-}
-
-impl Validate for ShapelessRecipe {
-    fn validate(&self) -> Result<(), String> {
-        let count = self.ingredients.len();
-        if (1..=9).contains(&count) {
-            Ok(())
-        } else {
-            Err(format!(
-                "List must have between 1 and 9 elements, but has {count}"
-            ))
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

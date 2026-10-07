@@ -20,7 +20,6 @@ lz4-java-wrc = "0.2.0"
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
-serde_json.workspace = true
 
 [features]
 bench-helpers = []

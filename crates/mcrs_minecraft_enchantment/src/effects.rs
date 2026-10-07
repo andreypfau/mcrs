@@ -5,12 +5,17 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::NonNegativeInt;
+use mcrs_minecraft_entity::keys::Attribute;
 use mcrs_minecraft_item::AttributeOperation;
+use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_registry::dispatched_map;
 use mcrs_minecraft_registry::{Holder, HolderSet, Id};
+use mcrs_minecraft_sound::SoundEvent;
 use mcrs_minecraft_value_provider::FloatProvider;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -65,6 +70,10 @@ pub enum EnchantmentValueEffect {
     AllOf {
         effects: Vec<EnchantmentValueEffect>,
     },
+    Exponential {
+        base: LevelBasedValue,
+        exponent: LevelBasedValue,
+    },
 }
 
 mcrs_minecraft_registry::dispatch! {
@@ -75,8 +84,8 @@ mcrs_minecraft_registry::dispatch! {
         Multiply => Multiply,
         RemoveBinomial => RemoveBinomial,
         Set => Set,
+        Exponential => Exponential,
     }
-    unsupported { Exponential }
 }
 
 impl EnchantmentValueEffect {
@@ -101,6 +110,11 @@ impl EnchantmentValueEffect {
                     value = effect.process(level, value, binomial);
                 }
                 value
+            }
+            EnchantmentValueEffect::Exponential { base, exponent } => {
+                (input as f64
+                    * (base.calculate(level) as f64).powf(exponent.calculate(level) as f64))
+                    as f32
             }
         }
     }
@@ -290,9 +304,20 @@ impl<'de> Deserialize<'de> for BlockState {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct WeightedExplosionParticle {
+    pub particle: ParticleOptions,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scaling: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed: Option<f32>,
+    pub weight: NonNegativeInt,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnchantmentAttributeEffect {
-    pub id: String,
-    pub attribute: String,
+    pub id: ResourceLocation,
+    pub attribute: Attribute,
     pub amount: LevelBasedValue,
     pub operation: AttributeOperation,
 }
@@ -321,13 +346,13 @@ macro_rules! effect_enum {
         DamageEntity {
             min_damage: LevelBasedValue,
             max_damage: LevelBasedValue,
-            damage_type: String,
+            damage_type: Id<DamageType>,
         },
         Explode {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             attribute_to_user: Option<bool>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
-            damage_type: Option<String>,
+            damage_type: Option<Id<DamageType>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             knockback_multiplier: Option<LevelBasedValue>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -340,7 +365,9 @@ macro_rules! effect_enum {
             block_interaction: ExplosionInteraction,
             small_particle: ParticleOptions,
             large_particle: ParticleOptions,
-            sound: String,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            block_particles: Option<Vec<WeightedExplosionParticle>>,
+            sound: Holder<SoundEvent>,
         },
         Ignite { duration: LevelBasedValue },
         ApplyImpulse {
@@ -436,11 +463,11 @@ mcrs_minecraft_registry::dispatch! {
 #[serde(deny_unknown_fields)]
 pub struct ChargingSounds {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub start: Option<String>,
+    pub start: Option<Holder<SoundEvent>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mid: Option<String>,
+    pub mid: Option<Holder<SoundEvent>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end: Option<String>,
+    pub end: Option<Holder<SoundEvent>>,
 }
 
 dispatched_map! {
@@ -473,7 +500,7 @@ dispatched_map! {
         Attributes => attributes: Vec<EnchantmentAttributeEffect>,
         CrossbowChargeTime => crossbow_charge_time: EnchantmentValueEffect,
         CrossbowChargingSounds => crossbow_charging_sounds: Vec<ChargingSounds>,
-        TridentSound => trident_sound: Vec<String>,
+        TridentSound => trident_sound: Vec<Holder<SoundEvent>>,
         PreventEquipmentDrop => prevent_equipment_drop: Unit,
         PreventArmorChange => prevent_armor_change: Unit,
         TridentSpinAttackStrength => trident_spin_attack_strength: EnchantmentValueEffect,

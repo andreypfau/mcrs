@@ -1,3 +1,4 @@
+use crate::ColumnBiomes;
 use mcrs_minecraft_core::LocalPos;
 
 use mcrs_minecraft_biome::source::{BiomeSource, build_beta_lookup_table};
@@ -27,7 +28,7 @@ pub(crate) fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
     let land_biomes = std::array::from_fn(|i| registry.by_name(&land[i]).expect("a land biome"));
     let biome_source = BiomeSource::Beta {
         land_biomes,
-        lookup: Box::new(build_beta_lookup_table()),
+        lookup: std::sync::Arc::new(build_beta_lookup_table()),
     };
     (biome_source, registry)
 }
@@ -69,8 +70,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         chunk_z,
         &y_sections,
         &router,
-        Some(&biome_source),
-        None,
+        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
         &cancel,
     );
 
@@ -314,8 +314,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 cz,
                 &y_sections,
                 &router,
-                Some(&biome_source),
-                None,
+                &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
                 &cancel,
             )
         });

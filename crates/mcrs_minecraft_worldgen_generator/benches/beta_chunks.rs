@@ -5,6 +5,7 @@
 //! Mirrors the server's Beta `Filled` stage: terrain, surface, caves. Ores run
 //! in the `Run` stage over a region; `the_ladder_costs` in the tests times that.
 
+use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::sync::{Arc, Barrier};
 use std::time::Instant;
 
@@ -41,7 +42,7 @@ fn build_beta_biome_source() -> (BiomeSource, Registry<Biome>) {
                 .by_name(&format!("minecraft:land_biome_{i}"))
                 .expect("a land biome")
         }),
-        lookup: Box::new(build_beta_lookup_table()),
+        lookup: std::sync::Arc::new(build_beta_lookup_table()),
     };
     (biome_source, registry)
 }
@@ -92,8 +93,7 @@ fn generate_chunk(
         chunk_z,
         y_sections,
         router,
-        Some(biome_source),
-        None,
+        &ColumnBiomes::new(Some(biome_source), None).unwrap(),
         None,
         cancel,
     )
@@ -188,8 +188,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         0,
         y_sections,
         &router,
-        Some(&biome_source),
-        None,
+        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
         None,
         &cancel,
     )

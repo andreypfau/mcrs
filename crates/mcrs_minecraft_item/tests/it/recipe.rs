@@ -63,7 +63,11 @@ fn a_malformed_recipe_is_refused_naming_the_fault() {
         ),
         (
             r###"{"type":"minecraft:crafting_shapeless","ingredients":[],"result":"minecraft:stick"}"###,
-            "List must have between 1 and 9 elements, but has 0",
+            "List is too short: 0, expected range [1-9]",
+        ),
+        (
+            r###"{"type":"minecraft:crafting_shapeless","ingredients":["minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick","minecraft:stick"],"result":"minecraft:stick"}"###,
+            "List is too long: 10, expected range [1-9]",
         ),
         (
             r###"{"type":"minecraft:crafting_shapeless","ingredients":["minecraft:air"],"result":"minecraft:stick"}"###,

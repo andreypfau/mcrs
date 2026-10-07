@@ -14,12 +14,12 @@ use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_feature::compile::CompiledPlacedFeature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
-use crate::SurfaceStates;
 use crate::feature_program::FeatureProgram;
 use crate::features::FeatureTables;
 use crate::heightmap::heightmap_predicates;
 use crate::modern_carvers::ModernCarverBlockIds;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
+use crate::{ColumnBiomes, SurfaceStates};
 
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_surface::{
@@ -158,6 +158,7 @@ pub(super) fn dimension_with(
             .require_by_name(biome)
             .expect("the dimension's biome"),
     });
+    let biomes = ColumnBiomes::new(Some(&source), None).unwrap();
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(source),
@@ -165,13 +166,13 @@ pub(super) fn dimension_with(
         saved: None,
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
-                multi_noise: None,
                 surface: Some((
                     crate::tests::surface_ids_over(&registry),
                     SurfaceStates::new(&blocks().0),
                 )),
                 carver_blocks: Arc::new(ModernCarverBlockIds::for_test(Vec::new())),
             },
+            biomes,
             carvers: None,
             features: Some(Arc::new(program)),
         },

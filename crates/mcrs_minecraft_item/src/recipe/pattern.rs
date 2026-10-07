@@ -108,7 +108,7 @@ impl<'de> Deserialize<'de> for Pattern {
 
 /// A shaped recipe's key and pattern agree: every symbol of the pattern is in
 /// the key, and every symbol of the key is used.
-pub fn check_pattern(key: &PatternKey, pattern: &Pattern) -> Result<(), String> {
+pub(super) fn check_pattern(key: &PatternKey, pattern: &Pattern) -> Result<(), String> {
     let mut symbols = pattern
         .0
         .iter()

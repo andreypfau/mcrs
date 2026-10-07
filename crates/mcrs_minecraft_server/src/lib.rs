@@ -30,9 +30,11 @@ use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_minecraft_world::dimension::Dimensions;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub use mcrs_minecraft_level::server_loop::spawn_server_thread;
 pub use mcrs_minecraft_network::BoundAddress;
+pub use mcrs_minecraft_protocol::GameMode;
 
 pub struct MinecraftServerPlugin {
     /// Port 0 asks the OS for a free port; read the result back from
@@ -51,8 +53,16 @@ pub struct MinecraftServerPlugin {
     /// dimension's column lifecycle from it.
     pub column_traces: Option<ColumnTraceSink>,
     pub lighting: Lighting,
+    /// The seed of a world without a save; a save's own seed replaces it.
+    pub seed: u64,
+    /// The world preset that names the dimensions when neither the save nor `dimensions` does.
+    pub preset: String,
     /// Operator level of a player who has no entry in `ops.json`.
     pub default_op_level: u8,
+    /// Game mode of a player joining for the first time.
+    pub default_game_mode: GameMode,
+    /// A column that takes longer than this from request to delivery is logged.
+    pub slow_column_threshold: Duration,
     /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
     pub singleplayer_profile: Option<SingleplayerProfile>,
@@ -72,16 +82,6 @@ pub enum Lighting {
     FullSky,
 }
 
-impl Lighting {
-    /// `MCRS_NO_LIGHTING=1` turns propagation off.
-    pub fn from_env() -> Self {
-        match std::env::var("MCRS_NO_LIGHTING").as_deref() {
-            Ok("1" | "true" | "on" | "yes") => Self::FullSky,
-            _ => Self::Propagated,
-        }
-    }
-}
-
 /// The world folder the server reads its saved chunks from.
 #[derive(Resource, Clone)]
 pub struct WorldSave(pub PathBuf);
@@ -94,8 +94,12 @@ impl Default for MinecraftServerPlugin {
             asset_path: None,
             world: None,
             column_traces: None,
-            lighting: Lighting::from_env(),
+            lighting: Lighting::default(),
+            seed: 0,
+            preset: "normal".to_owned(),
             default_op_level: 0,
+            default_game_mode: GameMode::Creative,
+            slow_column_threshold: Duration::from_millis(250),
             announce_on_lan: true,
             singleplayer_profile: None,
             dimensions: None,
@@ -132,7 +136,8 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
-        app.insert_resource(crate::world_options::world_seed_from_env());
+        app.insert_resource(crate::world_options::WorldSeed(self.seed));
+        app.insert_resource(crate::world_options::WorldPresetName(self.preset.clone()));
         if let Some(world) = &self.world {
             app.insert_resource(WorldSave(world.clone()));
         }
@@ -145,6 +150,12 @@ impl Plugin for MinecraftServerPlugin {
         app.insert_resource(ops);
         app.insert_resource(ops::DefaultOpLevel(
             crate::world::entity::player::ability::PlayerOpLevel(self.default_op_level),
+        ));
+        app.insert_resource(crate::world::entity::player::DefaultGameMode(
+            self.default_game_mode,
+        ));
+        app.insert_resource(crate::world::chunk::SlowColumnThreshold(
+            self.slow_column_threshold,
         ));
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());

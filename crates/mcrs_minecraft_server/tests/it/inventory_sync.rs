@@ -28,14 +28,9 @@ use crate::support::{registry_set, standalone_corpus};
 pub(crate) fn world() -> (World, Entity, Entity) {
     let (blocks, items) = standalone_corpus();
     let mut registry = RegistryAccess::default();
-    registry.register(SyncedRegistry::from_entries(
+    registry.register(SyncedRegistry::from_names(
         "minecraft:item",
-        items
-            .0
-            .iter()
-            .map(|entry| (entry.identifier.clone(), None))
-            .collect(),
-        None,
+        items.0.iter().map(|entry| entry.identifier.clone()),
     ));
     let mut world = World::new();
     world.insert_resource(blocks.clone());

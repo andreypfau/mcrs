@@ -19,20 +19,52 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
 use mcrs_minecraft_core::registry_key::RegistryValue;
+use mcrs_minecraft_registry::{HolderSet, Registry, TagId, Tags};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
 
-/// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: one entry or a list of them,
-/// each a registry id or an inline placed feature. A `#tag` is refused, since
-/// no `tags/worldgen/placed_feature` file exists for it to name. A one-entry
-/// list writes as the bare entry.
+/// `RegistryCodecs.holderSet(PLACED_FEATURE, …)`: a `#tag`, one entry or a
+/// list of them, each a registry id or an inline placed feature. A tag is
+/// expanded from the set the file is read in and writes back as the tag; a
+/// one-entry list writes as the bare entry.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct PlacedFeatureSet(Vec<Holder<PlacedFeature>>);
+pub struct PlacedFeatureSet {
+    tag: Option<TagId<PlacedFeature>>,
+    entries: Vec<Holder<PlacedFeature>>,
+}
 
 impl PlacedFeatureSet {
     pub fn entries(&self) -> &[Holder<PlacedFeature>] {
-        &self.0
+        &self.entries
+    }
+
+    fn listed(entries: Vec<Holder<PlacedFeature>>) -> Self {
+        PlacedFeatureSet { tag: None, entries }
+    }
+
+    fn tagged<E: serde::de::Error>(text: &str) -> Result<Self, E> {
+        let tag = match HolderSet::<PlacedFeature>::deserialize(value::StrDeserializer::new(text))?
+        {
+            HolderSet::Named(tag) => tag,
+            // `skip_sets` reads every set as empty.
+            _ => return Ok(PlacedFeatureSet::default()),
+        };
+        let entries = Tags::<PlacedFeature>::in_scope("a placed feature tag", |tags| {
+            Registry::<PlacedFeature>::in_scope("a placed feature tag", |names| {
+                tags.members(tag)
+                    .map(|id| {
+                        Holder::Reference(names.name(id).expect("a tag member has a name").clone())
+                    })
+                    .collect()
+            })
+        })
+        .and_then(|entries| entries)
+        .map_err(E::custom)?;
+        Ok(PlacedFeatureSet {
+            tag: Some(tag),
+            entries,
+        })
     }
 }
 
@@ -44,27 +76,28 @@ impl<'de> Deserialize<'de> for PlacedFeatureSet {
             type Value = PlacedFeatureSet;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a placed feature, or a list of placed features")
+                formatter.write_str("a placed feature tag, a placed feature, or a list of them")
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
                 if text.starts_with('#') {
-                    return Err(E::custom(format!("No placed feature tag exists: {text}")));
+                    return PlacedFeatureSet::tagged(text);
                 }
                 Holder::deserialize(value::StrDeserializer::new(text))
-                    .map(|only| PlacedFeatureSet(vec![only]))
+                    .map(|only| PlacedFeatureSet::listed(vec![only]))
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 Holder::deserialize(value::MapAccessDeserializer::new(map))
-                    .map(|only| PlacedFeatureSet(vec![only]))
+                    .map(|only| PlacedFeatureSet::listed(vec![only]))
             }
 
             fn visit_seq<A: serde::de::SeqAccess<'de>>(
                 self,
                 seq: A,
             ) -> Result<Self::Value, A::Error> {
-                Vec::deserialize(value::SeqAccessDeserializer::new(seq)).map(PlacedFeatureSet)
+                Vec::deserialize(value::SeqAccessDeserializer::new(seq))
+                    .map(PlacedFeatureSet::listed)
             }
         }
 
@@ -74,7 +107,10 @@ impl<'de> Deserialize<'de> for PlacedFeatureSet {
 
 impl Serialize for PlacedFeatureSet {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self.0.as_slice() {
+        if let Some(tag) = self.tag {
+            return HolderSet::Named(tag).serialize(serializer);
+        }
+        match self.entries.as_slice() {
             [only] => only.serialize(serializer),
             entries => entries.serialize(serializer),
         }
@@ -893,7 +929,7 @@ defaults! {
 
 fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFeatureSet, D::Error> {
     let set = PlacedFeatureSet::deserialize(deserializer)?;
-    if set.0.is_empty() {
+    if set.tag.is_none() && set.entries.is_empty() {
         return Err(D::Error::custom("List must have contents"));
     }
     Ok(set)

@@ -5,6 +5,7 @@ use bevy::math::Vec3;
 use build::build_one;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 use mcrs_minecraft_registry::{BlockStateId, RegistrySet};
@@ -110,8 +111,11 @@ pub fn extend(
     for &id in ids {
         let state = state_key(definitions, id);
         let data = definitions.state(BlockStateId(id));
+        let block = Block::from_id(definitions.block_index(BlockStateId(id)))
+            .expect("a corpus block is a registry entry");
         match build_one(
             pack,
+            block,
             &state,
             data,
             definitions.shape(data.occlusion_shape),

@@ -51,7 +51,7 @@ impl PaletteLookup<u8> for RegistryBiomes<'_> {
 
 /// The identifier's own characters allow a `..` path segment, which would leave
 /// the world directory.
-pub fn region_dir(world: &Path, dimension: &ResourceKey<Dimension>) -> Option<PathBuf> {
+pub(crate) fn region_dir(world: &Path, dimension: &ResourceKey<Dimension>) -> Option<PathBuf> {
     if dimension
         .path()
         .split('/')

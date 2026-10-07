@@ -11,21 +11,32 @@
 
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
+use bevy_math::{DVec3, Vec2};
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
+use mcrs_minecraft_dimension::Dimension;
+use mcrs_minecraft_level::session::{Place, PlayerSession, PlayerSessionCounter, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_light::block_light::{BlockLightRegistry, block_light_registry};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLogin;
+use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_server::dim::pump_channels;
 use mcrs_minecraft_server::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerPacket,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PlayerTransferSnapshot,
 };
-use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
+use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
+use mcrs_minecraft_server::world::session::SessionBundle;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 
 /// Build a host `App` wired for the production per-dim sub-app builder path.
@@ -101,4 +112,55 @@ pub fn materialise_sub_apps(app: &mut App, dimensions: &[(&str, &str)]) {
         enqueue_spawn(app, id, dimension_type);
     }
     drain_dim_spawn_queue(app);
+}
+
+/// Places a new session joining `label`, sends its spawn over the dimension's control channel,
+/// pumps until the dimension answers and returns the login it sent.
+pub fn join(
+    app: &mut App,
+    label: Entity,
+    dimensions: Arc<[ResourceKey<Dimension>]>,
+) -> ClientboundLogin {
+    let host_anchor = app.world_mut().spawn_empty().id();
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut()
+        .entity_mut(host_anchor)
+        .insert(SessionBundle::placed(
+            session,
+            SessionPlacement::new(Place::Joining(label), 0),
+        ));
+    app.world()
+        .resource::<DimChannelsResource>()
+        .get(label)
+        .expect("a channel is registered for the dimension")
+        .control_sender
+        .try_send(ToDim::Spawn(InboundPlayerSpawn {
+            host_anchor,
+            session: PlayerSession(session.0),
+            snapshot: PlayerTransferSnapshot {
+                uuid: Uuid::new_v4(),
+                username: "joining".into(),
+                position: DVec3::new(0.0, 64.0, 0.0),
+                rotation: Vec2::ZERO,
+                view_distance: 12,
+            },
+            dimensions,
+        }))
+        .expect("the control channel is not full");
+
+    for _ in 0..2 {
+        app.update();
+        pump_channels(app);
+    }
+    app.world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .find_map(|packet| match packet.data {
+            PacketPayload::PlayerLogin(login) => Some(login),
+            _ => None,
+        })
+        .expect("a login is sent")
 }

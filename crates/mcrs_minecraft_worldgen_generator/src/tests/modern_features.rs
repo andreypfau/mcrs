@@ -297,7 +297,6 @@ fn the_empty_fluid_matches_every_state_that_holds_no_fluid() {
         0,
         &[],
         &super::corpus_features().block_state_providers,
-        super::survival_ids(&registries),
     )
     .expect("the corpus resolves");
     let set = HolderSet::One(Fluid::Empty.id());

@@ -68,28 +68,13 @@ pub mod persistence;
 mod placing;
 pub mod player_action;
 
-/// Game mode given to joining players, read once from `MCRS_DEFAULT_GAMEMODE`
-/// (`survival`, `creative`, `adventure`, or `spectator`). Falls back to creative
-/// when unset or unrecognized.
+/// Game mode given to players joining for the first time.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct DefaultGameMode(pub GameMode);
 
-fn game_mode_from_env() -> GameMode {
-    match std::env::var("MCRS_DEFAULT_GAMEMODE") {
-        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
-            "survival" => GameMode::Survival,
-            "creative" => GameMode::Creative,
-            "adventure" => GameMode::Adventure,
-            "spectator" => GameMode::Spectator,
-            other => {
-                tracing::warn!(
-                    value = other,
-                    "MCRS_DEFAULT_GAMEMODE unrecognized, defaulting to creative"
-                );
-                GameMode::Creative
-            }
-        },
-        Err(_) => GameMode::Creative,
+impl Default for DefaultGameMode {
+    fn default() -> Self {
+        Self(GameMode::Creative)
     }
 }
 
@@ -107,7 +92,7 @@ pub struct DimPlayerPlugin;
 
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.insert_resource(DefaultGameMode(game_mode_from_env()));
+        app.init_resource::<DefaultGameMode>();
         app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);

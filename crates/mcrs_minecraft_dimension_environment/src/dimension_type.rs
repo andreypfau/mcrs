@@ -67,8 +67,8 @@ pub struct DimensionTypeFile {
     pub skybox: Skybox,
     #[serde(default, skip_serializing_if = "is_default")]
     pub cardinal_light: CardinalLight,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub has_fixed_time: Option<bool>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub has_fixed_time: bool,
     #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default, skip_serializing_if = "is_default")]
