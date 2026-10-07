@@ -1,4 +1,3 @@
-use mcrs_minecraft_assets::{RegistryAccess, SyncedRegistry};
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_protocol::item::{
@@ -12,32 +11,6 @@ use crate::support::{registry_set, standalone_corpus};
 
 fn drink() -> ResourceLocation {
     rl!("minecraft:entity.generic.drink").to_arc()
-}
-
-fn misnumbered_sounds() -> RegistryAccess {
-    let names = [
-        "entity.generic.drink",
-        "entity.generic.eat",
-        "block.wood.break",
-        "block.wood.fall",
-        "block.wood.hit",
-        "block.wood.place",
-        "block.wood.step",
-        "block.stone.break",
-        "block.stone.fall",
-        "block.stone.hit",
-        "block.stone.place",
-        "block.stone.step",
-        "intentionally_empty",
-    ];
-    let mut access = RegistryAccess::default();
-    access.register(SyncedRegistry::from_names(
-        "minecraft:sound_event",
-        names
-            .iter()
-            .map(|name| ResourceLocation::minecraft(name).unwrap()),
-    ));
-    access
 }
 
 fn drinkable() -> ItemStackValue {
@@ -56,21 +29,17 @@ fn drinkable() -> ItemStackValue {
     }
 }
 
+/// The set is the only registry source of the stack codecs; a second registry that
+/// numbered sounds differently from the report no longer exists to be asked first.
 #[test]
 fn a_sound_in_a_stack_is_sent_with_its_report_id() {
-    let access = misnumbered_sounds();
     let (blocks, _) = standalone_corpus();
-    let lookups = item_lookups(registry_set(), &access, &blocks.0);
+    let lookups = item_lookups(registry_set(), &blocks.0);
     let chain = ChainLookup(&lookups);
 
     let report_id = registry_set()
         .id("sound_event", &drink())
         .expect("the report numbers it");
-    assert_eq!(
-        access.id("sound_event", &drink()),
-        Some(0),
-        "the fixture must number the sound differently from the report"
-    );
     assert_eq!(chain.id("sound_event", &drink()), Some(report_id));
 
     let stack = ProtoStack::from_value(&drinkable(), &chain).unwrap();

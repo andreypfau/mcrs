@@ -10,7 +10,6 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -419,7 +418,6 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
 
     let expected = [
         type_name::<RegistrySet>(),
-        type_name::<RegistryAccess>(),
         type_name::<Blocks>(),
         type_name::<Items>(),
         type_name::<Registry<EnchantmentData>>(),
@@ -484,7 +482,6 @@ fn is_registry_type(name: &str) -> bool {
         "Registry"
             | "Entries"
             | "RegistrySet"
-            | "RegistryAccess"
             | "Blocks"
             | "Items"
             | "WorldgenTables"

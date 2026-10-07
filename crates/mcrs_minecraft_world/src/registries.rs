@@ -18,7 +18,6 @@ use bevy_ecs::world::World;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
-use mcrs_minecraft_assets::{PackSource, RegistryAccess, RegistryEntry, SyncedRegistry};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
 use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
@@ -80,28 +79,6 @@ macro_rules! world_registry_table {
                     $(world.sync_value::<$value, _>(registry, $project);)?
                 }
             )*
-        }
-
-        pub fn register_world_registries(access: &mut RegistryAccess, set: &RegistrySet) {
-            $($(
-                register_loaded::<$value, _>(
-                    access,
-                    set,
-                    <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
-                    $project,
-                );
-            )?)*
-        }
-
-        pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
-            $($($(
-                register_joined::<$parts, _>(
-                    access,
-                    set,
-                    <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
-                    $part_project,
-                );
-            )?)?)*
         }
     };
 }
@@ -399,61 +376,6 @@ pub fn load_registries(
     reloadable.load(&loaded, &packs)
 }
 
-fn register_loaded<T: 'static, N: Serialize>(
-    access: &mut RegistryAccess,
-    set: &RegistrySet,
-    registry: &str,
-    project: fn(&T) -> N,
-) {
-    let values = set
-        .column::<T>(registry)
-        .unwrap_or_else(|| panic!("{registry} holds no values of the projected type"));
-    register_projected(access, set, registry, |id| project(&values[id]));
-}
-
-fn register_joined<P: Parts, N: Serialize>(
-    access: &mut RegistryAccess,
-    set: &RegistrySet,
-    registry: &str,
-    project: for<'a> fn(P::Refs<'a>) -> N,
-) {
-    register_projected(access, set, registry, |id| {
-        let parts = P::refs(set, registry, id)
-            .unwrap_or_else(|| panic!("{registry} holds no split columns of the joined type"));
-        project(parts)
-    });
-}
-
-fn register_projected<N: Serialize>(
-    access: &mut RegistryAccess,
-    set: &RegistrySet,
-    registry: &str,
-    project: impl Fn(usize) -> N,
-) {
-    let table = set
-        .table(registry)
-        .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
-    let entries = set.scope(|| {
-        table
-            .names()
-            .iter()
-            .enumerate()
-            .map(|(id, name)| {
-                let tag = mcrs_minecraft_nbt::to_nbt_tag(&project(id)).unwrap_or_else(|e| {
-                    panic!("{registry}/{name} does not encode for the network: {e}")
-                });
-                RegistryEntry {
-                    location: name.clone(),
-                    data: Some(tag),
-                    pack_source: (set.pack_of(registry, id) == Some(VANILLA_PACK))
-                        .then(PackSource::vanilla_core),
-                }
-            })
-            .collect()
-    });
-    access.register(SyncedRegistry::from_registry_entries(registry, entries));
-}
-
 pub fn test_registries() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let mut app = App::new();
@@ -533,7 +455,6 @@ pub fn insert_registry_resources(world: &mut World, registries: &RegistrySet) {
 
 pub fn share_registries(world: &mut World) {
     share::<RegistrySet>(world);
-    share::<RegistryAccess>(world);
     share::<Blocks>(world);
     share::<Items>(world);
     share::<Registry<EnchantmentData>>(world);
@@ -564,57 +485,6 @@ pub fn refuse(report: &LoadReport) -> ! {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use mcrs_minecraft_core::registry_key::RegistryKey;
-
-    #[derive(serde::Deserialize, Serialize)]
-    struct Probe {
-        asset_id: String,
-    }
-
-    impl Probe {
-        const KEY: RegistryKey<Probe> =
-            RegistryKey::new(mcrs_minecraft_core::rl!("minecraft:test_variant"));
-    }
-
-    #[test]
-    fn only_an_entry_from_the_vanilla_pack_claims_the_vanilla_source() {
-        let file = |path: &str| PackFile {
-            path: path.to_owned(),
-            bytes: Some(br#"{"asset_id":"x"}"#.to_vec()),
-        };
-        let packs = [
-            Pack {
-                name: VANILLA_PACK.to_owned(),
-                files: vec![file("minecraft/test_variant/a.json")],
-                built: Vec::new(),
-            },
-            Pack {
-                name: "extra".to_owned(),
-                files: vec![file("minecraft/test_variant/b.json")],
-                built: Vec::new(),
-            },
-        ];
-        let mut registries = WorldRegistries::new([mcrs_minecraft_core::ResourceLocation::from(
-            Probe::KEY.location(),
-        )]);
-        registries.parse::<Probe>(Probe::KEY.location());
-        let set = registries.load(&RegistrySet::new(), &packs).unwrap();
-
-        let mut access = RegistryAccess::default();
-        register_loaded::<Probe, _>(&mut access, &set, Probe::KEY.location().as_str(), |probe| {
-            probe.asset_id.clone()
-        });
-        let claimed: Vec<_> = access
-            .iter()
-            .next()
-            .unwrap()
-            .iter_entries()
-            .map(|entry| (entry.location.as_str(), entry.pack_source.is_some()))
-            .collect();
-        assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
-    }
-
     #[test]
     fn generated_constants_stand_at_the_entry_they_name() {
         use mcrs_minecraft_entity::keys::EntityType;

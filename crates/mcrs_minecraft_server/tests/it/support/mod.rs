@@ -3,7 +3,6 @@
 use std::sync::LazyLock;
 
 use bevy_app::App;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
@@ -39,7 +38,6 @@ pub fn insert_corpus(app: &mut App) {
 pub fn insert_registries(app: &mut App) {
     insert_corpus(app);
     insert_registry_resources(app.world_mut(), test_registries());
-    app.insert_resource(RegistryAccess::default());
     app.insert_resource(WorldgenTables::default());
     share_registries(app.world_mut());
     app.add_plugins((

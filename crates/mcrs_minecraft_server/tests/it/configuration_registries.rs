@@ -1,5 +1,7 @@
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::Encode;
+use mcrs_minecraft_registry::RegistryLookup;
 use mcrs_minecraft_server::configuration::registry_data;
 use mcrs_minecraft_world::registries::test_registries;
 use std::collections::HashSet;
@@ -74,4 +76,29 @@ fn an_entry_of_a_known_pack_is_sent_without_its_data() {
         from_other_packs > 0,
         "no entry comes from another pack, so the test cannot tell the skip from sending nothing"
     );
+}
+
+#[test]
+fn the_bridge_numbers_world_entries_as_the_registry_packets_do() {
+    let set = test_registries();
+    let packets = registry_data(set, &HashSet::new());
+    assert!(!packets.is_empty());
+
+    for packet in &packets {
+        let path = packet.registry.path();
+        for (position, entry) in packet.entries.iter().enumerate() {
+            let name = ResourceLocation::read(entry.id.as_str()).unwrap();
+            let number = u16::try_from(position).unwrap();
+            assert_eq!(
+                RegistryLookup::id(set, path, &name),
+                Some(number),
+                "{path}/{name}"
+            );
+            assert_eq!(
+                RegistryLookup::name(set, path, number),
+                Some(&name),
+                "{path}/{number}"
+            );
+        }
+    }
 }

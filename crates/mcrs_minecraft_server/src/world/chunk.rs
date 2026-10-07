@@ -9,7 +9,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::SectionPos;
 use mcrs_minecraft_level::entity::physics::Transform;
 use mcrs_minecraft_level::entity::player::Player;
@@ -24,6 +23,7 @@ use mcrs_minecraft_level::world::lifecycle::ticket::Ticket;
 use mcrs_minecraft_level::world::lifecycle::trace as column_trace;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnStage, ColumnTraceLog};
 use mcrs_minecraft_protocol::ColumnPos;
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_generator::saved::SectionData;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
@@ -385,7 +385,7 @@ pub(crate) fn deliver_merged_columns(
     section_dimensions: Query<&InDimension>,
     mut stages: SectionStages,
     ctx: Option<Res<FillContext>>,
-    registry: Option<Res<RegistryAccess>>,
+    registry: Option<Res<RegistrySet>>,
     mut commands: Commands,
     slow_threshold: Option<Res<SlowColumnThreshold>>,
     mut slow: Local<SlowColumns>,

@@ -1,5 +1,4 @@
 use bevy_app::App;
-use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 
@@ -28,19 +27,20 @@ pub fn the_shipped_biome_tags_resolve(app: &App) {
 
 pub fn the_biome_registry_and_the_synced_registry_agree_on_the_id_space(app: &App) {
     let biomes = app.world().resource::<Registry<Biome>>();
-    let synced = app
+    let (table, column) = app
         .world()
-        .resource::<RegistryAccess>()
-        .iter()
-        .find(|registry| registry.registry_key() == "minecraft:worldgen/biome")
+        .resource::<RegistrySet>()
+        .synced()
+        .find(|(table, _)| table.registry().as_str() == "minecraft:worldgen/biome")
         .expect("the biomes are synced");
 
-    assert_eq!(biomes.len(), synced.len());
+    assert_eq!(biomes.len(), table.len());
+    assert_eq!(biomes.len(), column.len());
     assert!(!biomes.is_empty());
-    for (id, entry) in biomes.ids().zip(synced.iter_entries()) {
+    for (id, name) in biomes.ids().zip(table.names()) {
         assert_eq!(
             biomes.name(id).map(|name| name.as_str()),
-            Some(entry.location.as_str())
+            Some(name.as_str())
         );
     }
 }

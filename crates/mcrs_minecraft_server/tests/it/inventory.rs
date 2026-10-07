@@ -16,8 +16,6 @@ use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_minecraft_assets::SyncedRegistry;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_core::ColumnPos;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
@@ -56,7 +54,7 @@ use mcrs_minecraft_world::save::{PlayerDat, read_player_dat, write_player_dat};
 
 use crate::host_app;
 use crate::inventory_sync::{self, value};
-use crate::support::{self, standalone_corpus};
+use crate::support::{self};
 
 const SPAWN: DVec3 = DVec3::new(8.5, 64.0, 8.5);
 
@@ -70,7 +68,6 @@ struct Server {
 
 impl Server {
     fn start() -> Self {
-        let (_, items) = standalone_corpus();
         let save = std::env::temp_dir().join(format!("mcrs-inventory-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&save).unwrap();
         let mut app = host_app::make_host_app();
@@ -78,12 +75,6 @@ impl Server {
         app.init_resource::<mcrs_minecraft_level::world::in_flight::InFlightMoves>();
         app.add_message::<InboundPlayerSpawn>();
         app.insert_resource(WorldSave(save.clone()));
-        app.world_mut()
-            .resource_mut::<RegistryAccess>()
-            .register(SyncedRegistry::from_names(
-                "minecraft:item",
-                items.0.iter().map(|entry| entry.identifier.clone()),
-            ));
         host_app::drive_to_playing(&mut app);
         host_app::materialise_sub_apps(&mut app, &[("minecraft:overworld", "minecraft:overworld")]);
         let dim = app
@@ -359,7 +350,7 @@ fn a_creative_slot_is_answered_with_one_set_slot() {
     let mut server = Server::start();
     server.join();
     let items = server.items();
-    let registry = server.world().resource::<RegistryAccess>().clone();
+    let registry = server.world().resource::<RegistrySet>().clone();
     let slot = ProtoStack::from_value(
         &value("diamond_pickaxe", 1),
         &registry as &dyn RegistryLookup,
@@ -434,7 +425,7 @@ fn damaging_a_pickaxe_inside_a_shulker_resends_the_shulker_cell() {
     let resent: Vec<_> = set_slots(&packets).collect();
     assert_eq!(resent.len(), 1, "{packets:?}");
     assert_eq!(resent[0].0, cell as i16);
-    let registry = server.world().resource::<RegistryAccess>().clone();
+    let registry = server.world().resource::<RegistrySet>().clone();
     let sent = resent[0].1.resolve(&registry).unwrap();
     assert_eq!(sent, stack_to_slot(server.world(), shulker, &items));
     assert_eq!(

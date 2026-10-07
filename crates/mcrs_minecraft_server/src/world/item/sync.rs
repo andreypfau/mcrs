@@ -7,7 +7,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Changed, Component, Ref, With};
 use bevy_ecs::world::World;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_inventory::{
     CurrentMenu, Menu, MenuLayout, MenuViewer, Remote, RemoteSlots, Slot, stack_in,
@@ -64,9 +63,8 @@ pub fn sync_stack_slots(world: &mut World) {
 fn sync_slots(world: &mut World) {
     let items = world.resource::<Items>().clone();
     let set = world.resource::<RegistrySet>().clone();
-    let registry = world.resource::<RegistryAccess>().clone();
     let blocks = world.resource::<Blocks>().clone();
-    let lookups = item_lookups(&set, &registry, &blocks.0);
+    let lookups = item_lookups(&set, &blocks.0);
     let lookup = ChainLookup(&lookups);
     let dirty = dirty_holders(world);
     let proto = |world: &World, slot: Slot| -> ProtoStack {

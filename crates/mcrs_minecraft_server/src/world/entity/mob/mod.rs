@@ -11,7 +11,6 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
-use mcrs_minecraft_assets::access::RegistryAccess;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_core::{ColumnPos, Direction, ResourceLocation, SectionPos};
 use mcrs_minecraft_entity::keys::VillagerProfession;
@@ -75,7 +74,7 @@ pub fn spawn_generated_entities(
     commands: &mut Commands,
     dim: InDimension,
     sections: &[(Entity, SectionPos)],
-    registry: Option<&RegistryAccess>,
+    registry: Option<&RegistrySet>,
     entities: Vec<GeneratedEntity>,
 ) {
     for entity in entities {
@@ -95,7 +94,7 @@ fn spawn_one(
     commands: &mut Commands,
     dim: InDimension,
     section: Entity,
-    registry: Option<&RegistryAccess>,
+    registry: Option<&RegistrySet>,
     entity: GeneratedEntity,
     vehicle: Option<Entity>,
 ) {
@@ -283,7 +282,7 @@ fn uuid([a, b, c, d]: [i32; 4]) -> Uuid {
 }
 
 fn registry_id(
-    registry: Option<&RegistryAccess>,
+    registry: Option<&RegistrySet>,
     key: &str,
     location: &ResourceLocation,
 ) -> Option<u16> {
@@ -550,14 +549,13 @@ pub fn update_mob_tracked_by(
     mut mobs: Query<(&InDimension, &mut TrackedBy, Pairing), With<EntityKind>>,
     vehicles: Query<&RiddenBy>,
     set: Res<RegistrySet>,
-    registry: Res<RegistryAccess>,
     blocks: Res<Blocks>,
     observers: Query<&PlayerObservers, With<Column>>,
     column_indices: Query<&ColumnIndex>,
     players: Query<(&Transform, &HostAnchor), With<Player>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let lookups = item_lookups(&set, &registry, &blocks.0);
+    let lookups = item_lookups(&set, &blocks.0);
     let lookup = ChainLookup(&lookups);
     for (in_dim, mut tracked_by, pairing) in mobs.iter_mut() {
         let at = pairing.transform.translation;
@@ -653,7 +651,6 @@ mod tests {
         let mut app = App::new();
         app.add_schedule(Schedule::new(FixedPostUpdate));
         app.add_message::<OutboundPlayerPacket>();
-        app.insert_resource(RegistryAccess::default());
         let set = crate::world::entity::report_registries();
         app.insert_resource(set.clone());
         app.insert_resource(mcrs_minecraft_world::item::test_corpus().0.clone());
