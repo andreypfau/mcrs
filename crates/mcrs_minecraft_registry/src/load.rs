@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
-type Name = ResourceLocation<Arc<str>>;
-type Failures = Vec<(usize, String)>;
+pub(crate) type Name = ResourceLocation<Arc<str>>;
+pub(crate) type Failures = Vec<(usize, String)>;
 type Validator = Box<dyn Fn(&RegistrySet) -> Failures + Send + Sync>;
 type Parse = fn(Vec<Input<'_>>) -> Result<Column, Failures>;
 type EncodeResult = Result<String, serde_json::Error>;
@@ -98,15 +98,22 @@ struct Split {
     encode: Box<dyn Fn(&RegistrySet, &str, usize) -> Option<EncodeResult> + Send + Sync>,
 }
 
-struct Declaration {
+pub(crate) struct Receive {
+    pub(crate) columns:
+        Box<dyn Fn(Vec<NbtTag>) -> Result<Vec<(TypeId, Column)>, Failures> + Send + Sync>,
+    reencode: Box<dyn Fn(NbtTag) -> Result<NbtTag, mcrs_minecraft_nbt::Error> + Send + Sync>,
+}
+
+pub(crate) struct Declaration {
     codec: Option<Codec>,
-    non_empty: bool,
+    pub(crate) non_empty: bool,
     sync: Option<Project>,
+    pub(crate) receive: Option<Receive>,
 }
 
 pub struct WorldRegistries {
-    declared: BTreeMap<Name, Declaration>,
-    sync_order: Vec<Name>,
+    pub(crate) declared: BTreeMap<Name, Declaration>,
+    pub(crate) sync_order: Vec<Name>,
 }
 
 #[derive(Deserialize)]
@@ -203,6 +210,7 @@ macro_rules! parts {
     };
 }
 
+parts!((A, a, va));
 parts!((A, a, va), (B, b, vb));
 parts!((A, a, va), (B, b, vb), (C, c, vc));
 
@@ -218,6 +226,7 @@ impl WorldRegistries {
                             codec: None,
                             non_empty: false,
                             sync: None,
+                            receive: None,
                         },
                     )
                 })
@@ -375,6 +384,63 @@ impl WorldRegistries {
                 Some(mcrs_minecraft_nbt::to_nbt_tag(&project(parts)))
             }),
         )
+    }
+
+    /// Declares how a client reads what `sync_value` or `sync_parts` sends: the
+    /// network type `N` is decoded from the entry's NBT and becomes the columns
+    /// of `P`.
+    pub fn receive<N, P>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        receive: fn(N) -> P,
+    ) -> &mut Self
+    where
+        N: DeserializeOwned + Serialize + 'static,
+        P: Parts,
+    {
+        let declaration = self.declaration(registry);
+        assert!(
+            declaration.sync.is_some(),
+            "registry {registry} is not synced: declare what it sends first"
+        );
+        assert!(
+            declaration.receive.is_none(),
+            "registry {registry} is received twice"
+        );
+        declaration.receive = Some(Receive {
+            columns: Box::new(move |tags| {
+                let mut parts = Vec::with_capacity(tags.len());
+                let mut failures = Vec::new();
+                for (index, tag) in tags.into_iter().enumerate() {
+                    match mcrs_minecraft_nbt::from_tag::<N>(tag) {
+                        Ok(network) => parts.push(receive(network)),
+                        Err(error) => failures.push((index, error.to_string())),
+                    }
+                }
+                if failures.is_empty() {
+                    Ok(P::columns(parts))
+                } else {
+                    Err(failures)
+                }
+            }),
+            reencode: Box::new(|tag| {
+                mcrs_minecraft_nbt::to_nbt_tag(&mcrs_minecraft_nbt::from_tag::<N>(tag)?)
+            }),
+        });
+        self
+    }
+
+    /// Decodes `tag` as the network type of `registry` and encodes it again, in
+    /// the scope of `set`. A codec that is not symmetric shows as a different
+    /// tag.
+    pub fn reencode(
+        &self,
+        set: &RegistrySet,
+        registry: &str,
+        tag: NbtTag,
+    ) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>> {
+        let receive = self.declared.get(registry)?.receive.as_ref()?;
+        Some(set.scope(|| (receive.reencode)(tag)))
     }
 
     fn codec(&mut self, registry: ResourceLocation<&'static str>, to: &str) -> &Codec {
@@ -855,7 +921,7 @@ fn stem_of(file_name: &str) -> Option<&str> {
         .filter(|stem| !stem.is_empty())
 }
 
-fn directory_of(registry: &Name) -> String {
+pub(crate) fn directory_of(registry: &Name) -> String {
     format!("{}/{}/", registry.namespace(), registry.path())
 }
 

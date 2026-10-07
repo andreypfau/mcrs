@@ -1,6 +1,7 @@
 use crate::registries::{static_registries, world_registries};
 use mcrs_minecraft_registry::{
-    Built, LoadReport, PACKS_ROOT, Pack, PackFile, RegistrySet, VANILLA_PACK, WorldRegistries,
+    Built, KnownPackEntries, LoadReport, PACKS_ROOT, Pack, PackFile, RegistrySet, VANILLA_PACK,
+    WorldRegistries,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::ErrorKind;
@@ -125,6 +126,31 @@ pub fn load_from_directory(root: &Path) -> Result<RegistrySet, LoadReport> {
     load_registry_set(static_registries()?, &report, |registries, statics| {
         read_packs_from_directory(root, registries, statics)
     })
+}
+
+/// The network form of the entries of the vanilla pack under `root`, built
+/// entries included. Loads the pack alone and drops the set it loaded.
+pub fn known_pack_entries(root: &Path) -> Result<KnownPackEntries, LoadReport> {
+    let path = root.join(DATAPACK_REPORT);
+    let report = std::fs::read(&path)
+        .map_err(|error| LoadReport::invalid(format_args!("{}: {error}", path.display())))?;
+    let statics = static_registries()?;
+    let world = world_registries(&report)?;
+    let mut problems = LoadReport::new();
+    let vanilla = vec![read_pack(
+        root,
+        VANILLA_PACK,
+        true,
+        &world,
+        &statics,
+        &mut problems,
+    )];
+    if !problems.is_empty() {
+        return Err(problems);
+    }
+    world
+        .load(&statics, &vanilla)
+        .map(|loaded| KnownPackEntries::from_set(&loaded))
 }
 
 pub fn read_packs_from_directory(

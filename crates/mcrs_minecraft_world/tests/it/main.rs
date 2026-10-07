@@ -2,6 +2,7 @@ mod biome_tags;
 mod block_definition_corpus;
 mod common;
 mod dimension_list;
+mod from_network;
 mod item_corpus;
 mod loaded_registries;
 mod player_dat;

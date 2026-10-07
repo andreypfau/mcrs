@@ -570,7 +570,7 @@ pub fn build_tags(
     (table, problems)
 }
 
-fn assemble(
+pub(crate) fn assemble(
     names: &NameTable,
     tags: impl ExactSizeIterator<Item = (Name, Box<[u16]>)>,
 ) -> TagTable {

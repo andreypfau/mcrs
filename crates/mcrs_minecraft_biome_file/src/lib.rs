@@ -49,7 +49,8 @@ pub type BiomeDraft = BiomeFile<Vec<StaticResourceLocation>, Vec<Vec<PlacedFeatu
 ///
 /// Sent to clients during Configuration; excludes carvers, features, and the
 /// attributes the client is not allowed to see.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NetworkBiome {
     pub temperature: f32,
     pub downfall: f32,
@@ -58,6 +59,20 @@ pub struct NetworkBiome {
     pub temperature_modifier: Option<TemperatureModifier>,
     pub attributes: EnvironmentAttributeMap,
     pub effects: BiomeEffects,
+}
+
+impl NetworkBiome {
+    /// The columns a client keeps of a biome: it has no generation settings.
+    pub fn into_parts(self) -> (Biome, EnvironmentAttributeMap) {
+        let biome = Biome {
+            temperature: self.temperature,
+            downfall: self.downfall,
+            has_precipitation: self.has_precipitation,
+            temperature_modifier: self.temperature_modifier,
+            effects: self.effects,
+        };
+        (biome, self.attributes)
+    }
 }
 
 impl From<(&Biome, &EnvironmentAttributeMap, &BiomeGenerationSettings)> for NetworkBiome {

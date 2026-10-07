@@ -19,7 +19,11 @@ pub struct LocationPredicate {
     pub structures: Option<HolderSet<Structure>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dimension: Option<ResourceKey<Dimension>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub smokey: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<LightPredicate>,
@@ -27,7 +31,11 @@ pub struct LocationPredicate {
     pub block: Option<BlockPredicate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fluid: Option<FluidPredicate>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub can_see_sky: Option<bool>,
 }
 

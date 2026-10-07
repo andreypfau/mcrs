@@ -196,9 +196,17 @@ pub struct LocationCheck {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WeatherCheck {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub raining: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub thundering: Option<bool>,
 }
 
@@ -228,6 +236,7 @@ pub struct FloatValueCheck {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnchantmentActiveCheck {
+    #[serde(deserialize_with = "mcrs_minecraft_core::codec::flag")]
     pub active: bool,
 }
 

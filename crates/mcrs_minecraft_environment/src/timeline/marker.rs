@@ -50,6 +50,12 @@ impl<'de> Deserialize<'de> for TimeMarker {
                 })
             }
 
+            fn visit_i64<E: de::Error>(self, ticks: i64) -> Result<TimeMarker, E> {
+                let unsigned = u64::try_from(ticks)
+                    .map_err(|_| E::invalid_type(de::Unexpected::Signed(ticks), &self))?;
+                self.visit_u64(unsigned)
+            }
+
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<TimeMarker, A::Error> {
                 FullTimeMarker::deserialize(MapAccessDeserializer::new(map)).map(TimeMarker::from)
             }
