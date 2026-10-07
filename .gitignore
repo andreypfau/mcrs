@@ -1,4 +1,5 @@
 /target
+/target-*/
 /screenshots
 .DS_Store
 .idea/
