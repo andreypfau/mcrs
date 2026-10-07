@@ -82,8 +82,9 @@ use std::sync::LazyLock;
 macro_rules! world_registry_table {
     ($(
         $key:ty => $value:ty $([$non_empty:ident])?
-            $(as $parts:ty, $split:expr, $join:expr $(, synced from parts as $part_project:expr)?)?
-            $(, synced as $project:expr)?;
+            $(as $parts:ty, $split:expr, $join:expr
+                $(, synced from parts as $part_project:expr, received as $part_net:ty => $part_receive:expr)?)?
+            $(, synced as $project:expr, received as $net:ty => $receive:expr)?;
     )*) => {
         fn declare_world_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
@@ -92,78 +93,99 @@ macro_rules! world_registry_table {
                 if world.parses(registry.as_static_str()) {
                     $(world.split::<$value, $parts>(registry, $split, $join);)?
                     $(world.$non_empty(registry);)?
-                    $($(world.sync_parts::<$parts, _>(registry, $part_project);)?)?
-                    $(world.sync_value::<$value, _>(registry, $project);)?
+                    $($(
+                        world.sync_parts::<$parts, _>(registry, $part_project);
+                        world.receive::<$part_net, _>(registry, $part_receive);
+                    )?)?
+                    $(
+                        world.sync_value::<$value, _>(registry, $project);
+                        world.receive::<$net, _>(registry, $receive);
+                    )?
                 }
             )*
         }
     };
 }
 
+fn bare<T>(value: T) -> (T,) {
+    (value,)
+}
+
 world_registry_table! {
     Biome => BiomeFile
         as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join,
-        synced from parts as |parts| NetworkBiome::from(parts);
+        synced from parts as |parts| NetworkBiome::from(parts),
+        received as NetworkBiome => NetworkBiome::into_parts;
     PlacedFeature => PlacedFeature;
-    crate::chat_type::ChatType => ChatType, synced as Clone::clone;
-    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
-    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
+    crate::chat_type::ChatType => ChatType, synced as Clone::clone, received as ChatType => bare;
+    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone, received as TrimPattern => bare;
+    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare;
     WolfVariant => WolfVariantFile [non_empty]
         as (WolfVariant, Vec<SpawnSelector>),
         WolfVariantFile::split, WolfVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
-    WolfSoundVariant => WolfSoundVariant [non_empty], synced as Clone::clone;
+        synced from parts as |(variant, _)| variant.clone(),
+        received as WolfVariant => bare;
+    WolfSoundVariant => WolfSoundVariant [non_empty], synced as Clone::clone, received as WolfSoundVariant => bare;
     PigVariant => PigVariantFile [non_empty]
         as (PigVariant, Vec<SpawnSelector>),
         PigVariantFile::split, PigVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
-    PigSoundVariant => PigSoundVariant [non_empty], synced as Clone::clone;
+        synced from parts as |(variant, _)| variant.clone(),
+        received as PigVariant => bare;
+    PigSoundVariant => PigSoundVariant [non_empty], synced as Clone::clone, received as PigSoundVariant => bare;
     FrogVariant => FrogVariantFile [non_empty]
         as (FrogVariant, Vec<SpawnSelector>),
         FrogVariantFile::split, FrogVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
+        synced from parts as |(variant, _)| variant.clone(),
+        received as FrogVariant => bare;
     CatVariant => CatVariantFile [non_empty]
         as (CatVariant, Vec<SpawnSelector>),
         CatVariantFile::split, CatVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
-    CatSoundVariant => CatSoundVariant [non_empty], synced as Clone::clone;
-    CowSoundVariant => CowSoundVariant [non_empty], synced as Clone::clone;
+        synced from parts as |(variant, _)| variant.clone(),
+        received as CatVariant => bare;
+    CatSoundVariant => CatSoundVariant [non_empty], synced as Clone::clone, received as CatSoundVariant => bare;
+    CowSoundVariant => CowSoundVariant [non_empty], synced as Clone::clone, received as CowSoundVariant => bare;
     CowVariant => CowVariantFile [non_empty]
         as (CowVariant, Vec<SpawnSelector>),
         CowVariantFile::split, CowVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
-    ChickenSoundVariant => ChickenSoundVariant [non_empty], synced as Clone::clone;
+        synced from parts as |(variant, _)| variant.clone(),
+        received as CowVariant => bare;
+    ChickenSoundVariant => ChickenSoundVariant [non_empty], synced as Clone::clone, received as ChickenSoundVariant => bare;
     ChickenVariant => ChickenVariantFile [non_empty]
         as (ChickenVariant, Vec<SpawnSelector>),
         ChickenVariantFile::split, ChickenVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
+        synced from parts as |(variant, _)| variant.clone(),
+        received as ChickenVariant => bare;
     ZombieNautilusVariant => ZombieNautilusVariantFile [non_empty]
         as (ZombieNautilusVariant, Vec<SpawnSelector>),
         ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
-        synced from parts as |(variant, _)| variant.clone();
-    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
-    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+        synced from parts as |(variant, _)| variant.clone(),
+        received as ZombieNautilusVariant => bare;
+    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone, received as PaintingVariantValue => bare;
+    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone, received as SulfurCubeArchetype => bare;
     DimensionType => DimensionTypeFile
         as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
-        synced from parts as |parts| DimensionTypeFile::join(parts).synced();
-    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
-    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone;
+        synced from parts as |parts| DimensionTypeFile::join(parts).synced(),
+        received as DimensionTypeFile => |file| file.split();
+    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone, received as DamageType => bare;
+    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone, received as BannerPattern => bare;
     mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile
         as (EnchantmentData, Option<EnchantmentEffects>),
         EnchantmentFile::split, EnchantmentFile::join,
-        synced from parts as EnchantmentFile::join;
-    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone;
-    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone;
-    crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone;
-    crate::test_types::TestInstance => TestInstance, synced as Clone::clone;
-    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone;
-    WorldClock => WorldClock, synced as Clone::clone;
-    Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
-    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
-    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
-    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
+        synced from parts as EnchantmentFile::join,
+        received as EnchantmentFile => |file| file.split();
+    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone, received as JukeboxSong => bare;
+    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone, received as InstrumentValue => bare;
+    crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone, received as TestEnvironment => bare;
+    crate::test_types::TestInstance => TestInstance, synced as Clone::clone, received as TestInstance => bare;
+    mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone, received as Dialog => bare;
+    WorldClock => WorldClock, synced as Clone::clone, received as WorldClock => bare;
+    Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline),
+        received as NetworkTimeline => |timeline| bare(Timeline::from(timeline));
+    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone, received as DecoratedPotPattern => bare;
+    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone, received as BlockTransformer => bare;
+    mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider, synced as Clone::clone, received as DirectBlockStateProvider => bare;
     Dimension => DimensionEntry
         as (Dimension, ChunkGenerator),
         DimensionEntry::split, DimensionEntry::join;

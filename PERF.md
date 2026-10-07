@@ -862,6 +862,13 @@ carries its data: 160260 bytes on the wire, on the tree of the change that adds 
 data, so this is the largest the packets get. The in-memory size of the column and the added load
 time were not measured.
 
+A client that offers the vanilla pack holds the network form of that pack's entries for the whole
+process, to fill the entries a server sends without data: 432 entries, 147939 bytes of encoded NBT
+(`KnownPackEntries::encoded_len`, measured on the tree of the change that adds it over `2e4d892ac`).
+The in-memory size is larger than the encoded length and was not measured. The local load that
+builds the entries is dropped once they are extracted, so this is the whole price of offering the
+pack; a client that offers no pack holds none and receives every entry with its data.
+
 ## Keys crate
 
 Scenario: `mcrs_minecraft_keys`, the checked-in crate of generated registry markers, static ids and

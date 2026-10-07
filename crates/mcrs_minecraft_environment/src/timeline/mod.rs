@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::world_clock::WorldClock;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_registry::Id;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
-use crate::world_clock::WorldClock;
 
 mod easing;
 mod marker;
@@ -94,6 +94,22 @@ impl<'de> Deserialize<'de> for Timeline {
 #[derive(Debug, Clone, Serialize)]
 #[serde(transparent)]
 pub struct NetworkTimeline(Timeline);
+
+impl<'de> Deserialize<'de> for NetworkTimeline {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let timeline = Timeline::deserialize(d)?;
+        Ok(NetworkTimeline(Timeline {
+            tracks: timeline.tracks.syncable(),
+            ..timeline
+        }))
+    }
+}
+
+impl From<NetworkTimeline> for Timeline {
+    fn from(timeline: NetworkTimeline) -> Self {
+        timeline.0
+    }
+}
 
 impl From<&Timeline> for NetworkTimeline {
     fn from(timeline: &Timeline) -> Self {

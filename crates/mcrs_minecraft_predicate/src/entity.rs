@@ -81,23 +81,59 @@ pub struct MovementPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntityFlagsPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_on_ground: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_on_fire: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_sneaking: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_sprinting: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_swimming: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_flying: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_baby: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_in_water: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_fall_flying: Option<bool>,
 }
 
@@ -144,7 +180,11 @@ pub struct LightningBoltPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FishingHookPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub in_open_water: Option<bool>,
 }
 
@@ -158,15 +198,27 @@ pub struct CubeMobPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RaiderPredicate {
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        default,
+        skip_serializing_if = "std::ops::Not::not",
+        deserialize_with = "mcrs_minecraft_core::codec::flag"
+    )]
     pub has_raid: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        default,
+        skip_serializing_if = "std::ops::Not::not",
+        deserialize_with = "mcrs_minecraft_core::codec::flag"
+    )]
     pub is_captain: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SheepPredicate {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub sheared: Option<bool>,
 }

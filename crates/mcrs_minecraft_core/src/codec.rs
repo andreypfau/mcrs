@@ -653,6 +653,12 @@ impl<'de, const N: usize> Deserialize<'de> for IntArray<N> {
     }
 }
 
+/// A boolean that is not optional: see [`optional_flag`].
+pub fn flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    optional_flag(deserializer)?
+        .ok_or_else(|| D::Error::custom("expected a boolean or the byte NBT stores one as"))
+}
+
 /// NBT stores a boolean as a byte, and serde's buffered `untagged` and
 /// `flatten` paths lose the deserializer's own coercion, so accept both.
 pub fn optional_flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<bool>, D::Error> {

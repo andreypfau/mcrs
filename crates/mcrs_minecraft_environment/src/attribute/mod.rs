@@ -203,11 +203,18 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
         self.value(BoolDeserializer::<E>::new(v))
     }
 
+    // NBT stores a boolean as a byte, and a game reading JSON takes any number as one.
     fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<AttributeEntry, E> {
+        if self.0.ty == AttributeType::Boolean {
+            return self.visit_bool(v != 0);
+        }
         self.value(I64Deserializer::<E>::new(v))
     }
 
     fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<AttributeEntry, E> {
+        if self.0.ty == AttributeType::Boolean {
+            return self.visit_bool(v != 0);
+        }
         self.value(U64Deserializer::<E>::new(v))
     }
 

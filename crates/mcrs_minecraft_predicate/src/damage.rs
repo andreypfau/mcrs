@@ -13,7 +13,11 @@ pub struct DamageSourcePredicate {
     pub direct_entity: Option<EntityPredicate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_entity: Option<EntityPredicate>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "mcrs_minecraft_core::codec::optional_flag"
+    )]
     pub is_direct: Option<bool>,
 }
 
@@ -22,5 +26,6 @@ pub struct DamageSourcePredicate {
 #[serde(deny_unknown_fields, bound(serialize = "", deserialize = ""))]
 pub struct TagPredicate<T: 'static> {
     pub id: HolderSet<T>,
+    #[serde(deserialize_with = "mcrs_minecraft_core::codec::flag")]
     pub expected: bool,
 }
