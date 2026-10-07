@@ -21,79 +21,58 @@ pub use pattern::{Pattern, PatternKey, check_pattern};
 
 /// A recipe as its data pack file states it, dispatched on its serializer.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum Recipe {
-    #[serde(rename = "minecraft:crafting_shaped", alias = "crafting_shaped")]
     CraftingShaped(ShapedRecipe),
-    #[serde(rename = "minecraft:crafting_shapeless", alias = "crafting_shapeless")]
     CraftingShapeless(ShapelessRecipe),
-    #[serde(rename = "minecraft:crafting_dye", alias = "crafting_dye")]
     CraftingDye(DyeRecipe),
-    #[serde(rename = "minecraft:crafting_imbue", alias = "crafting_imbue")]
     CraftingImbue(ImbueRecipe),
-    #[serde(rename = "minecraft:crafting_transmute", alias = "crafting_transmute")]
     CraftingTransmute(TransmuteRecipe),
-    #[serde(
-        rename = "minecraft:crafting_decorated_pot",
-        alias = "crafting_decorated_pot"
-    )]
     CraftingDecoratedPot(DecoratedPotRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_bookcloning",
-        alias = "crafting_special_bookcloning"
-    )]
     BookCloning(BookCloningRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_mapextending",
-        alias = "crafting_special_mapextending"
-    )]
     MapExtending(MapExtendingRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_firework_rocket",
-        alias = "crafting_special_firework_rocket"
-    )]
     FireworkRocket(FireworkRocketRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_firework_star",
-        alias = "crafting_special_firework_star"
-    )]
     FireworkStar(FireworkStarRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_firework_star_fade",
-        alias = "crafting_special_firework_star_fade"
-    )]
     FireworkStarFade(FireworkStarFadeRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_bannerduplicate",
-        alias = "crafting_special_bannerduplicate"
-    )]
     BannerDuplicate(BannerDuplicateRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_shielddecoration",
-        alias = "crafting_special_shielddecoration"
-    )]
     ShieldDecoration(ShieldDecorationRecipe),
-    #[serde(
-        rename = "minecraft:crafting_special_repairitem",
-        alias = "crafting_special_repairitem"
-    )]
     RepairItem,
-    #[serde(rename = "minecraft:smelting", alias = "smelting")]
     Smelting(CookingRecipe),
-    #[serde(rename = "minecraft:blasting", alias = "blasting")]
     Blasting(CookingRecipe),
-    #[serde(rename = "minecraft:smoking", alias = "smoking")]
     Smoking(CookingRecipe),
-    #[serde(rename = "minecraft:campfire_cooking", alias = "campfire_cooking")]
     CampfireCooking(CookingRecipe),
-    #[serde(rename = "minecraft:stonecutting", alias = "stonecutting")]
     Stonecutting(StonecutterRecipe),
-    #[serde(rename = "minecraft:smithing_transform", alias = "smithing_transform")]
     SmithingTransform(SmithingTransformRecipe),
-    #[serde(rename = "minecraft:smithing_trim", alias = "smithing_trim")]
     SmithingTrim(SmithingTrimRecipe),
-    #[serde(rename = "minecraft:brewing", alias = "brewing")]
     Brewing(BrewingRecipe),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    Recipe, key = "type", registry = crate::keys::RecipeSerializer,
+    {
+        CraftingShaped => CraftingShaped,
+        CraftingShapeless => CraftingShapeless,
+        CraftingDye => CraftingDye,
+        CraftingImbue => CraftingImbue,
+        CraftingTransmute => CraftingTransmute,
+        CraftingDecoratedPot => CraftingDecoratedPot,
+        CraftingSpecialBookcloning => BookCloning,
+        CraftingSpecialMapextending => MapExtending,
+        CraftingSpecialFireworkRocket => FireworkRocket,
+        CraftingSpecialFireworkStar => FireworkStar,
+        CraftingSpecialFireworkStarFade => FireworkStarFade,
+        CraftingSpecialBannerduplicate => BannerDuplicate,
+        CraftingSpecialShielddecoration => ShieldDecoration,
+        CraftingSpecialRepairitem => RepairItem,
+        Smelting => Smelting,
+        Blasting => Blasting,
+        Smoking => Smoking,
+        CampfireCooking => CampfireCooking,
+        Stonecutting => Stonecutting,
+        SmithingTransform => SmithingTransform,
+        Brewing => Brewing,
+        SmithingTrim => SmithingTrim,
+    }
 }
 
 impl RegistryValue for Recipe {

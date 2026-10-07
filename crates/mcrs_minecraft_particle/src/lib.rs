@@ -425,21 +425,19 @@ impl PositionSource {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 enum PositionSourceRepr {
-    #[serde(rename = "minecraft:block", alias = "block")]
     Block { pos: [i32; 3] },
-    #[serde(rename = "minecraft:entity", alias = "entity")]
     Entity {},
 }
 
-const POSITION_SOURCE_TYPE_ROWS: &[&str] = &["minecraft:block", "minecraft:entity"];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    POSITION_SOURCE_TYPE_ROWS,
-    &[],
-    crate::keys::PositionSourceType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    reads_only PositionSourceRepr, key = "type", registry = crate::keys::PositionSourceType,
+    {
+        Block => Block,
+        Entity => Entity,
+    }
+}
 
 impl Serialize for PositionSource {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -458,7 +456,7 @@ impl Serialize for PositionSource {
 
 impl<'de> Deserialize<'de> for PositionSource {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        match PositionSourceRepr::deserialize(d)? {
+        match <PositionSourceRepr as Deserialize>::deserialize(d)? {
             PositionSourceRepr::Block { pos: [x, y, z] } => Ok(Self::Block {
                 pos: BlockPos::new(x, y, z),
             }),
@@ -483,19 +481,4 @@ pub struct TrailParticle {
     pub target: [f64; 3],
     pub color: RgbInt,
     pub duration: PositiveInt,
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn position_source_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PositionSourceRepr>(
-            POSITION_SOURCE_TYPE_ROWS,
-            &[],
-            crate::keys::PositionSourceType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
 }

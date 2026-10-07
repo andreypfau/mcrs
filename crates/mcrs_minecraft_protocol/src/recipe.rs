@@ -4,8 +4,8 @@ use mcrs_minecraft_item::recipe::Ingredient;
 use std::io::Write;
 
 use anyhow::ensure;
+use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Validate;
-use mcrs_minecraft_core::{ResourceKey, validated};
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_minecraft_registry::{HolderSet, RegistryLookup, skipping_sets};
@@ -61,83 +61,58 @@ macro_rules! static_registry_wire {
 static_registry_wire!(SlotDisplayType, RecipeDisplayType, RecipeBookCategory);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum SlotDisplay {
-    #[serde(rename = "minecraft:empty", alias = "empty")]
     Empty,
-    #[serde(rename = "minecraft:any_fuel", alias = "any_fuel")]
     AnyFuel,
-    #[serde(rename = "minecraft:with_any_potion", alias = "with_any_potion")]
-    WithAnyPotion { contents: Box<SlotDisplay> },
-    #[serde(
-        rename = "minecraft:only_with_component",
-        alias = "only_with_component"
-    )]
+    WithAnyPotion {
+        contents: Box<SlotDisplay>,
+    },
     OnlyWithComponent {
         contents: Box<SlotDisplay>,
         component: ItemComponentKind,
     },
-    #[serde(rename = "minecraft:item", alias = "item")]
-    Item { item: ResourceKey<Item> },
-    #[serde(rename = "minecraft:item_stack", alias = "item_stack")]
-    ItemStack { item: Template },
-    #[serde(rename = "minecraft:tag", alias = "tag")]
-    Tag { tag: HolderSet<Item> },
-    #[serde(rename = "minecraft:dyed", alias = "dyed")]
+    Item {
+        item: ResourceKey<Item>,
+    },
+    ItemStack {
+        item: Template,
+    },
+    Tag {
+        tag: HolderSet<Item>,
+    },
     Dyed {
         dye: Box<SlotDisplay>,
         target: Box<SlotDisplay>,
     },
-    #[serde(rename = "minecraft:smithing_trim", alias = "smithing_trim")]
     SmithingTrim {
         base: Box<SlotDisplay>,
         material: Box<SlotDisplay>,
         pattern: Holder<TrimPattern>,
     },
-    #[serde(rename = "minecraft:with_remainder", alias = "with_remainder")]
     WithRemainder {
         input: Box<SlotDisplay>,
         remainder: Box<SlotDisplay>,
     },
-    #[serde(rename = "minecraft:composite", alias = "composite")]
-    Composite { contents: Vec<SlotDisplay> },
+    Composite {
+        contents: Vec<SlotDisplay>,
+    },
 }
 
-const SLOT_DISPLAY_ROWS: &[&str] = &[
-    "minecraft:empty",
-    "minecraft:any_fuel",
-    "minecraft:with_any_potion",
-    "minecraft:only_with_component",
-    "minecraft:item",
-    "minecraft:item_stack",
-    "minecraft:tag",
-    "minecraft:dyed",
-    "minecraft:smithing_trim",
-    "minecraft:with_remainder",
-    "minecraft:composite",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    SLOT_DISPLAY_ROWS,
-    &[],
-    crate::keys::SlotDisplayType::ENTRIES
-));
-
-impl SlotDisplay {
-    pub fn kind(&self) -> SlotDisplayType {
-        match self {
-            Self::Empty => SlotDisplayType::Empty,
-            Self::AnyFuel => SlotDisplayType::AnyFuel,
-            Self::WithAnyPotion { .. } => SlotDisplayType::WithAnyPotion,
-            Self::OnlyWithComponent { .. } => SlotDisplayType::OnlyWithComponent,
-            Self::Item { .. } => SlotDisplayType::Item,
-            Self::ItemStack { .. } => SlotDisplayType::ItemStack,
-            Self::Tag { .. } => SlotDisplayType::Tag,
-            Self::Dyed { .. } => SlotDisplayType::Dyed,
-            Self::SmithingTrim { .. } => SlotDisplayType::SmithingTrim,
-            Self::WithRemainder { .. } => SlotDisplayType::WithRemainder,
-            Self::Composite { .. } => SlotDisplayType::Composite,
-        }
+mcrs_minecraft_registry::dispatch! {
+    SlotDisplay, key = "type", registry = crate::keys::SlotDisplayType,
+    {
+        Empty => Empty,
+        AnyFuel => AnyFuel,
+        WithAnyPotion => WithAnyPotion,
+        OnlyWithComponent => OnlyWithComponent,
+        Item => Item,
+        ItemStack => ItemStack,
+        Tag => Tag,
+        Dyed => Dyed,
+        SmithingTrim => SmithingTrim,
+        WithRemainder => WithRemainder,
+        Composite => Composite,
     }
 }
 
@@ -224,18 +199,14 @@ impl DecodeCtx<'_> for SlotDisplay {
     }
 }
 
-validated!(RecipeDisplay);
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum RecipeDisplay {
-    #[serde(rename = "minecraft:crafting_shapeless", alias = "crafting_shapeless")]
     CraftingShapeless {
         ingredients: Vec<SlotDisplay>,
         result: SlotDisplay,
         crafting_station: SlotDisplay,
     },
-    #[serde(rename = "minecraft:crafting_shaped", alias = "crafting_shaped")]
     CraftingShaped {
         width: i32,
         height: i32,
@@ -243,7 +214,6 @@ pub enum RecipeDisplay {
         result: SlotDisplay,
         crafting_station: SlotDisplay,
     },
-    #[serde(rename = "minecraft:furnace", alias = "furnace")]
     Furnace {
         ingredient: SlotDisplay,
         fuel: SlotDisplay,
@@ -252,13 +222,11 @@ pub enum RecipeDisplay {
         duration: i32,
         experience: f32,
     },
-    #[serde(rename = "minecraft:stonecutter", alias = "stonecutter")]
     Stonecutter {
         input: SlotDisplay,
         result: SlotDisplay,
         crafting_station: SlotDisplay,
     },
-    #[serde(rename = "minecraft:smithing", alias = "smithing")]
     Smithing {
         template: SlotDisplay,
         base: SlotDisplay,
@@ -268,19 +236,16 @@ pub enum RecipeDisplay {
     },
 }
 
-const RECIPE_DISPLAY_ROWS: &[&str] = &[
-    "minecraft:crafting_shapeless",
-    "minecraft:crafting_shaped",
-    "minecraft:furnace",
-    "minecraft:stonecutter",
-    "minecraft:smithing",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    RECIPE_DISPLAY_ROWS,
-    &[],
-    crate::keys::RecipeDisplayType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    validated RecipeDisplay, key = "type", registry = crate::keys::RecipeDisplayType,
+    {
+        CraftingShapeless => CraftingShapeless,
+        CraftingShaped => CraftingShaped,
+        Furnace => Furnace,
+        Stonecutter => Stonecutter,
+        Smithing => Smithing,
+    }
+}
 
 impl Validate for RecipeDisplay {
     fn validate(&self) -> Result<(), String> {
@@ -295,18 +260,6 @@ impl Validate for RecipeDisplay {
             return Err("Invalid shaped recipe display contents".into());
         }
         Ok(())
-    }
-}
-
-impl RecipeDisplay {
-    pub fn kind(&self) -> RecipeDisplayType {
-        match self {
-            Self::CraftingShapeless { .. } => RecipeDisplayType::CraftingShapeless,
-            Self::CraftingShaped { .. } => RecipeDisplayType::CraftingShaped,
-            Self::Furnace { .. } => RecipeDisplayType::Furnace,
-            Self::Stonecutter { .. } => RecipeDisplayType::Stonecutter,
-            Self::Smithing { .. } => RecipeDisplayType::Smithing,
-        }
     }
 }
 
@@ -510,29 +463,4 @@ pub struct RecipeBookSettings {
     pub furnace: RecipeBookTypeSettings,
     pub blast_furnace: RecipeBookTypeSettings,
     pub smoker: RecipeBookTypeSettings,
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn slot_display_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<SlotDisplay>(
-            SLOT_DISPLAY_ROWS,
-            &[],
-            crate::keys::SlotDisplayType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn recipe_display_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<RecipeDisplay>(
-            RECIPE_DISPLAY_ROWS,
-            &[],
-            crate::keys::RecipeDisplayType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
 }

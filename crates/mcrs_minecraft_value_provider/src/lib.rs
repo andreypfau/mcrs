@@ -126,31 +126,19 @@ pub fn pick_weighted_by<'a, T, R: Random>(
     })
 }
 
-/// The explicit `constant` member of each provider registry. `Codec.either` reads a
-/// bare value first and falls through to the dispatch, where `constant` names a map
-/// codec over a single `value` field.
-#[derive(Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
-enum ExplicitConstant<V> {
-    #[serde(rename = "minecraft:constant")]
-    Constant { value: V },
-}
-
+/// `Codec.either` reads a bare value first and falls through to the dispatch, where
+/// `constant` names a map codec over a single `value` field.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ConstantOrDispatch<V, D> {
     Bare(V),
-    Explicit(ExplicitConstant<V>),
     Dispatched(D),
 }
 
 impl<V, D> ConstantOrDispatch<V, D> {
-    /// A constant is always written back as the bare value — `IntProviders.CODEC`
-    /// encodes through `Either.left(constantInt.value())` — so the two input forms
-    /// collapse into one representation here rather than being remembered.
     fn split(self) -> Result<V, D> {
         match self {
-            Self::Bare(value) | Self::Explicit(ExplicitConstant::Constant { value }) => Ok(value),
+            Self::Bare(value) => Ok(value),
             Self::Dispatched(dispatched) => Err(dispatched),
         }
     }
@@ -167,7 +155,7 @@ pub enum IntProvider {
 impl<'de> Deserialize<'de> for IntProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match ConstantOrDispatch::<i32, DispatchedIntProvider>::deserialize(deserializer)?.split() {
-            Ok(value) => Ok(Self::Constant(value)),
+            Ok(value) | Err(DispatchedIntProvider::Constant { value }) => Ok(Self::Constant(value)),
             Err(dispatched) => {
                 span_ordered(dispatched.span()).map_err(D::Error::custom)?;
                 Ok(Self::Dispatched(dispatched))
@@ -219,49 +207,63 @@ impl DispatchedIntProvider {
                 ..
             } => Some((*min_inclusive, *max_inclusive, None)),
             Trapezoid { min, max, plateau } => Some((*min, *max, Some(*plateau))),
-            VeryBiasedToBottom { .. } | WeightedList { .. } => None,
+            Constant { .. } | VeryBiasedToBottom { .. } | WeightedList { .. } => None,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum DispatchedIntProvider {
-    #[serde(rename = "minecraft:uniform")]
+    Constant {
+        value: i32,
+    },
     Uniform {
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    #[serde(rename = "minecraft:biased_to_bottom")]
     BiasedToBottom {
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    #[serde(rename = "minecraft:very_biased_to_bottom")]
     VeryBiasedToBottom {
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    #[serde(rename = "minecraft:clamped")]
     Clamped {
         source: Box<IntProvider>,
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    #[serde(rename = "minecraft:weighted_list")]
     WeightedList {
         #[serde(deserialize_with = "non_empty_distribution")]
         distribution: Vec<Weighted<IntProvider>>,
     },
-    #[serde(rename = "minecraft:clamped_normal")]
     ClampedNormal {
         mean: f32,
         deviation: f32,
         min_inclusive: i32,
         max_inclusive: i32,
     },
-    #[serde(rename = "minecraft:trapezoid")]
-    Trapezoid { min: i32, max: i32, plateau: i32 },
+    Trapezoid {
+        min: i32,
+        max: i32,
+        plateau: i32,
+    },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    DispatchedIntProvider, key = "type", registry = crate::keys::IntProviderType,
+    {
+        Constant => Constant,
+        Uniform => Uniform,
+        BiasedToBottom => BiasedToBottom,
+        VeryBiasedToBottom => VeryBiasedToBottom,
+        Clamped => Clamped,
+        WeightedList => WeightedList,
+        ClampedNormal => ClampedNormal,
+        Trapezoid => Trapezoid,
+    }
 }
 
 /// `IntProviders.codec(min, max)`: a provider whose whole range must sit inside
@@ -318,7 +320,9 @@ impl IntProvider {
     pub fn bounds(&self) -> (i32, i32) {
         use DispatchedIntProvider::*;
         match self {
-            IntProvider::Constant(value) => (*value, *value),
+            IntProvider::Constant(value) | IntProvider::Dispatched(Constant { value }) => {
+                (*value, *value)
+            }
             IntProvider::Dispatched(
                 Uniform {
                     min_inclusive,
@@ -360,7 +364,7 @@ impl IntProvider {
     pub fn sample<R: Random>(&self, rng: &mut R) -> i32 {
         use DispatchedIntProvider::*;
         match self {
-            Self::Constant(value) => *value,
+            Self::Constant(value) | Self::Dispatched(Constant { value }) => *value,
             Self::Dispatched(Uniform {
                 min_inclusive,
                 max_inclusive,
@@ -426,7 +430,9 @@ pub enum FloatProvider {
 impl<'de> Deserialize<'de> for FloatProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match ConstantOrDispatch::deserialize(deserializer)?.split() {
-            Ok(value) => Ok(Self::Constant(value)),
+            Ok(value) | Err(DispatchedFloatProvider::Constant { value }) => {
+                Ok(Self::Constant(value))
+            }
             Err(dispatched) => {
                 // `UniformFloat` alone refuses an empty span.
                 if let DispatchedFloatProvider::Uniform {
@@ -450,7 +456,7 @@ impl DispatchedFloatProvider {
     fn span(&self) -> Option<(f32, f32, Option<f32>)> {
         use DispatchedFloatProvider::*;
         match self {
-            Uniform { .. } => None,
+            Constant { .. } | Uniform { .. } => None,
             ClampedNormal { min, max, .. } => Some((*min, *max, None)),
             Trapezoid { min, max, plateau } => Some((*min, *max, Some(*plateau))),
         }
@@ -458,29 +464,43 @@ impl DispatchedFloatProvider {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum DispatchedFloatProvider {
-    #[serde(rename = "minecraft:uniform")]
+    Constant {
+        value: f32,
+    },
     Uniform {
         min_inclusive: f32,
         max_exclusive: f32,
     },
-    #[serde(rename = "minecraft:clamped_normal")]
     ClampedNormal {
         mean: f32,
         deviation: f32,
         min: f32,
         max: f32,
     },
-    #[serde(rename = "minecraft:trapezoid")]
-    Trapezoid { min: f32, max: f32, plateau: f32 },
+    Trapezoid {
+        min: f32,
+        max: f32,
+        plateau: f32,
+    },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    DispatchedFloatProvider, key = "type", registry = crate::keys::FloatProviderType,
+    {
+        Constant => Constant,
+        Uniform => Uniform,
+        ClampedNormal => ClampedNormal,
+        Trapezoid => Trapezoid,
+    }
 }
 
 impl FloatProvider {
     pub fn sample<R: Random>(self, rng: &mut R) -> f32 {
         use DispatchedFloatProvider::*;
         match self {
-            Self::Constant(value) => value,
+            Self::Constant(value) | Self::Dispatched(Constant { value }) => value,
             Self::Dispatched(Uniform {
                 min_inclusive,
                 max_exclusive,
@@ -510,28 +530,30 @@ pub enum HeightProvider {
 impl<'de> Deserialize<'de> for HeightProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match ConstantOrDispatch::deserialize(deserializer)?.split() {
-            Ok(value) => Ok(Self::Constant(value)),
+            Ok(value) | Err(DispatchedHeightProvider::Constant { value }) => {
+                Ok(Self::Constant(value))
+            }
             Err(dispatched) => Ok(Self::Dispatched(dispatched)),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum DispatchedHeightProvider {
-    #[serde(rename = "minecraft:uniform")]
+    Constant {
+        value: VerticalAnchor,
+    },
     Uniform {
         min_inclusive: VerticalAnchor,
         max_inclusive: VerticalAnchor,
     },
-    #[serde(rename = "minecraft:very_biased_to_bottom")]
     VeryBiasedToBottom {
         min_inclusive: VerticalAnchor,
         max_inclusive: VerticalAnchor,
         #[serde(default, skip_serializing_if = "is_default")]
         inner: Bounded<{ i32::MIN }, { i32::MAX }, 1>,
     },
-    #[serde(rename = "minecraft:trapezoid")]
     Trapezoid {
         min_inclusive: VerticalAnchor,
         max_inclusive: VerticalAnchor,
@@ -540,11 +562,24 @@ pub enum DispatchedHeightProvider {
     },
 }
 
+mcrs_minecraft_registry::dispatch! {
+    DispatchedHeightProvider, key = "type", registry = crate::keys::HeightProviderType,
+    {
+        Constant => Constant,
+        Uniform => Uniform,
+        VeryBiasedToBottom => VeryBiasedToBottom,
+        Trapezoid => Trapezoid,
+    }
+    unsupported { BiasedToBottom, WeightedList }
+}
+
 impl HeightProvider {
     pub fn sample<R: Random>(self, rng: &mut R, context: HeightContext) -> i32 {
         use DispatchedHeightProvider::*;
         match self {
-            Self::Constant(anchor) => anchor.resolve_y(context),
+            Self::Constant(anchor) | Self::Dispatched(Constant { value: anchor }) => {
+                anchor.resolve_y(context)
+            }
             Self::Dispatched(Uniform {
                 min_inclusive,
                 max_inclusive,
@@ -1139,108 +1174,5 @@ mod tests {
             max_inclusive: 16,
         });
         assert_eq!(provider.bounds(), (3, 16));
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-    use mcrs_minecraft_registry::static_rows::{assert_dispatch, names_cover};
-    use serde::de::DeserializeOwned;
-
-    const CONSTANT: &str = "minecraft:constant";
-
-    const INT_PROVIDER_TYPE_ROWS: &[&str] = &[
-        "minecraft:constant",
-        "minecraft:uniform",
-        "minecraft:biased_to_bottom",
-        "minecraft:very_biased_to_bottom",
-        "minecraft:clamped",
-        "minecraft:weighted_list",
-        "minecraft:clamped_normal",
-        "minecraft:trapezoid",
-    ];
-
-    const INT_PROVIDER_TYPE_UNSUPPORTED: &[&str] = &[];
-
-    const _: () = assert!(names_cover(
-        INT_PROVIDER_TYPE_ROWS,
-        INT_PROVIDER_TYPE_UNSUPPORTED,
-        crate::keys::IntProviderType::ENTRIES
-    ));
-
-    const FLOAT_PROVIDER_TYPE_ROWS: &[&str] = &[
-        "minecraft:constant",
-        "minecraft:uniform",
-        "minecraft:clamped_normal",
-        "minecraft:trapezoid",
-    ];
-
-    const FLOAT_PROVIDER_TYPE_UNSUPPORTED: &[&str] = &[];
-
-    const _: () = assert!(names_cover(
-        FLOAT_PROVIDER_TYPE_ROWS,
-        FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-        crate::keys::FloatProviderType::ENTRIES
-    ));
-
-    const HEIGHT_PROVIDER_TYPE_ROWS: &[&str] = &[
-        "minecraft:constant",
-        "minecraft:uniform",
-        "minecraft:very_biased_to_bottom",
-        "minecraft:trapezoid",
-    ];
-
-    const HEIGHT_PROVIDER_TYPE_UNSUPPORTED: &[&str] =
-        &["minecraft:biased_to_bottom", "minecraft:weighted_list"];
-
-    const _: () = assert!(names_cover(
-        HEIGHT_PROVIDER_TYPE_ROWS,
-        HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-        crate::keys::HeightProviderType::ENTRIES
-    ));
-
-    fn assert_providers<V: DeserializeOwned, D: DeserializeOwned>(
-        rows: &[&str],
-        unsupported: &[&str],
-        names: &[impl std::fmt::Display],
-    ) {
-        let probe = |name: &str| serde_json::json!({ "type": name });
-        let dispatched: Vec<&str> = rows.iter().copied().filter(|n| *n != CONSTANT).collect();
-        let outside: Vec<&str> = unsupported.iter().copied().chain([CONSTANT]).collect();
-        assert_dispatch::<D>(&dispatched, &outside, names, probe);
-        let other: Vec<&str> = dispatched
-            .iter()
-            .copied()
-            .chain(unsupported.iter().copied())
-            .collect();
-        assert_dispatch::<ExplicitConstant<V>>(&[CONSTANT], &other, names, probe);
-    }
-
-    #[test]
-    fn int_provider_type_rows_select_their_variants() {
-        assert_providers::<i32, DispatchedIntProvider>(
-            INT_PROVIDER_TYPE_ROWS,
-            INT_PROVIDER_TYPE_UNSUPPORTED,
-            crate::keys::IntProviderType::ENTRIES,
-        );
-    }
-
-    #[test]
-    fn float_provider_type_rows_select_their_variants() {
-        assert_providers::<f32, DispatchedFloatProvider>(
-            FLOAT_PROVIDER_TYPE_ROWS,
-            FLOAT_PROVIDER_TYPE_UNSUPPORTED,
-            crate::keys::FloatProviderType::ENTRIES,
-        );
-    }
-
-    #[test]
-    fn height_provider_type_rows_select_their_variants() {
-        assert_providers::<VerticalAnchor, DispatchedHeightProvider>(
-            HEIGHT_PROVIDER_TYPE_ROWS,
-            HEIGHT_PROVIDER_TYPE_UNSUPPORTED,
-            crate::keys::HeightProviderType::ENTRIES,
-        );
     }
 }

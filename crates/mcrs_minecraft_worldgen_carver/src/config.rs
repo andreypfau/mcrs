@@ -15,9 +15,8 @@ fn is_one(provider: &FloatProvider) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bevy", derive(bevy_reflect::TypePath))]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum CarverConfig {
-    #[serde(rename = "minecraft:cave")]
     Cave {
         probability: f32,
         y: HeightProvider,
@@ -32,7 +31,6 @@ pub enum CarverConfig {
         start_vertical_radius_multiplier: FloatProvider,
         floor_level: FloatProvider,
     },
-    #[serde(rename = "minecraft:canyon")]
     Canyon {
         probability: f32,
         y: HeightProvider,
@@ -41,17 +39,17 @@ pub enum CarverConfig {
     },
     /// Beta's `MapGenCaves`. Nothing about it is configurable: its draws, its
     /// seed and its abort on water are the carver.
-    #[serde(rename = "mcrs:beta_cave")]
     BetaCave,
 }
 
-const CARVER_TYPE_ROWS: &[&str] = &["minecraft:cave", "minecraft:canyon"];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    CARVER_TYPE_ROWS,
-    &[],
-    crate::keys::CarverType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    CarverConfig, key = "type", registry = crate::keys::CarverType,
+    {
+        Cave => Cave,
+        Canyon => Canyon,
+    }
+    extend { "mcrs:beta_cave" => BetaCave }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -102,21 +100,6 @@ mod tests {
         assert_eq!(
             start_vertical_radius_multiplier,
             FloatProvider::Constant(1.0)
-        );
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn carver_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<CarverConfig>(
-            CARVER_TYPE_ROWS,
-            &[],
-            crate::keys::CarverType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
         );
     }
 }

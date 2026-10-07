@@ -3,8 +3,6 @@
 #[rustfmt::skip]
 pub mod attribute_type;
 #[rustfmt::skip]
-pub mod chunk_generator;
-#[rustfmt::skip]
 pub mod command_argument_type;
 #[rustfmt::skip]
 pub mod creative_mode_tab;
@@ -12,10 +10,6 @@ pub mod creative_mode_tab;
 pub mod debug_subscription;
 #[rustfmt::skip]
 pub mod density_function;
-#[rustfmt::skip]
-pub mod dialog_action_type;
-#[rustfmt::skip]
-pub mod enchantment_provider_type;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset;
 #[rustfmt::skip]
@@ -49,11 +43,7 @@ pub mod registry;
 #[rustfmt::skip]
 pub mod sensor_type;
 #[rustfmt::skip]
-pub mod test_environment_definition_type;
-#[rustfmt::skip]
 pub mod test_function;
-#[rustfmt::skip]
-pub mod test_instance_type;
 #[rustfmt::skip]
 pub mod ticket_type;
 #[rustfmt::skip]

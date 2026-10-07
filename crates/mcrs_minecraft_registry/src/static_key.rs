@@ -101,6 +101,11 @@ macro_rules! static_keys {
 #[doc(hidden)]
 pub type StaticLocation = ResourceLocation<&'static str>;
 
+#[doc(hidden)]
+pub fn unknown_entry(registry: impl fmt::Display, location: impl fmt::Display) -> String {
+    format!("Unknown registry key in ResourceKey[minecraft:root / {registry}]: {location}")
+}
+
 /// A static registry as an enum of its entries, numbered by protocol id.
 #[macro_export]
 macro_rules! static_registry {
@@ -151,6 +156,11 @@ macro_rules! static_registry {
                     .position(|entry| entry.as_static_str() == location)
                     .map(|position| Self::ALL[position])
             }
+
+            pub fn read(text: &str) -> Option<$name> {
+                let location = $crate::static_key::__ResourceLocation::read(text).ok()?;
+                Self::find(location.as_str())
+            }
         }
 
         impl From<$name> for $crate::Id<$name> {
@@ -176,7 +186,10 @@ macro_rules! static_registry {
                 let text = <std::borrow::Cow<'de, str> as $crate::static_key::__serde::Deserialize>::deserialize(deserializer)?;
                 let location = $crate::static_key::__ResourceLocation::read(&text).map_err(D::Error::custom)?;
                 Self::find(location.as_str()).ok_or_else(|| {
-                    D::Error::custom(format_args!("{location} is no {}", stringify!($name)))
+                    D::Error::custom($crate::static_key::unknown_entry(
+                        <Self as $crate::Registered>::REGISTRY.location(),
+                        &location,
+                    ))
                 })
             }
         }
@@ -191,6 +204,11 @@ mod tests {
         pub enum Fruit;
         Zebra = "minecraft:zebra",
         Apple = "minecraft:apple",
+    }
+
+    impl crate::Registered for Fruit {
+        const REGISTRY: mcrs_minecraft_core::RegistryKey<Self> =
+            mcrs_minecraft_core::RegistryKey::new(mcrs_minecraft_core::rl!("minecraft:fruit"));
     }
 
     #[test]
@@ -224,8 +242,23 @@ mod tests {
         let cases = [
             (r#""minecraft:apple""#, Ok(Fruit::Apple)),
             (r#""zebra""#, Ok(Fruit::Zebra)),
-            (r#""minecraft:mango""#, Err("minecraft:mango is no Fruit")),
+            (
+                r#""minecraft:mango""#,
+                Err(
+                    "Unknown registry key in ResourceKey[minecraft:root / minecraft:fruit]: minecraft:mango",
+                ),
+            ),
+            (
+                r#""mango""#,
+                Err(
+                    "Unknown registry key in ResourceKey[minecraft:root / minecraft:fruit]: minecraft:mango",
+                ),
+            ),
         ];
+        assert_eq!(Fruit::read("apple"), Some(Fruit::Apple));
+        assert_eq!(Fruit::read("minecraft:apple"), Some(Fruit::Apple));
+        assert_eq!(Fruit::read("mango"), None);
+        assert_eq!(Fruit::read("Not A Location"), None);
         for (json, expected) in cases {
             let read = serde_json::from_str::<Fruit>(json).map_err(|error| error.to_string());
             match expected {

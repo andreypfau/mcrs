@@ -8,55 +8,52 @@ use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_registry::Holder;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum TestEnvironment {
-    #[serde(rename = "minecraft:all_of")]
     AllOf {
         definitions: Vec<Holder<TestEnvironment>>,
     },
-    #[serde(rename = "minecraft:clock_time")]
     ClockTime {
         clock: Holder<WorldClock>,
         time: Bounded<0, { i32::MAX }>,
     },
-    #[serde(rename = "minecraft:difficulty")]
-    SetDifficulty { difficulty: Difficulty },
-    #[serde(rename = "minecraft:function")]
+    SetDifficulty {
+        difficulty: Difficulty,
+    },
     Functions {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         setup: Option<ResourceLocation>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         teardown: Option<ResourceLocation>,
     },
-    #[serde(rename = "minecraft:game_rules")]
-    SetGameRules { rules: GameRuleMap },
-    #[serde(rename = "minecraft:timeline_attributes")]
-    Timelines { timelines: Vec<Holder<Timeline>> },
-    #[serde(rename = "minecraft:weather")]
-    Weather { weather: Weather },
+    SetGameRules {
+        rules: GameRuleMap,
+    },
+    Timelines {
+        timelines: Vec<Holder<Timeline>>,
+    },
+    Weather {
+        weather: Weather,
+    },
 }
 
-const TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS: &[&str] = &[
-    "minecraft:all_of",
-    "minecraft:clock_time",
-    "minecraft:difficulty",
-    "minecraft:function",
-    "minecraft:game_rules",
-    "minecraft:timeline_attributes",
-    "minecraft:weather",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
-    &[],
-    keys::test_environment_definition_type::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    TestEnvironment, key = "type", registry = mcrs_minecraft_environment::keys::TestEnvironmentDefinitionType,
+    {
+        AllOf => AllOf,
+        ClockTime => ClockTime,
+        Difficulty => SetDifficulty,
+        Function => Functions,
+        GameRules => SetGameRules,
+        TimelineAttributes => Timelines,
+        Weather => Weather,
+    }
+}
 
 impl RegistryValue for TestEnvironment {
     type Registry = Self;
@@ -211,43 +208,16 @@ test_instance!(FunctionTest {
 });
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum TestInstance {
-    #[serde(rename = "minecraft:block_based")]
     BlockBased(BlockBasedTest),
-    #[serde(rename = "minecraft:function")]
     Function(FunctionTest),
 }
 
-const TEST_INSTANCE_TYPE_ROWS: &[&str] = &["minecraft:block_based", "minecraft:function"];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    TEST_INSTANCE_TYPE_ROWS,
-    &[],
-    keys::test_instance_type::ENTRIES
-));
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn test_environment_definition_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<TestEnvironment>(
-            TEST_ENVIRONMENT_DEFINITION_TYPE_ROWS,
-            &[],
-            keys::test_environment_definition_type::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn test_instance_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<TestInstance>(
-            TEST_INSTANCE_TYPE_ROWS,
-            &[],
-            keys::test_instance_type::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
+mcrs_minecraft_registry::dispatch! {
+    TestInstance, key = "type", registry = mcrs_minecraft_environment::keys::TestInstanceType,
+    {
+        BlockBased => BlockBased,
+        Function => Function,
     }
 }

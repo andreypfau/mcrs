@@ -71,7 +71,8 @@ fn non_negative_float_provider<'de, D: Deserializer<'de>>(
 ) -> Result<FloatProvider, D::Error> {
     let provider = FloatProvider::deserialize(deserializer)?;
     let lowest = match provider {
-        FloatProvider::Constant(value) => value,
+        FloatProvider::Constant(value)
+        | FloatProvider::Dispatched(DispatchedFloatProvider::Constant { value }) => value,
         FloatProvider::Dispatched(DispatchedFloatProvider::Uniform { min_inclusive, .. }) => {
             min_inclusive
         }

@@ -83,22 +83,19 @@ pub fn beta_biome_from_climate(
 // ===========================================================================
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum BiomeSource {
-    #[serde(rename = "minecraft:multi_noise")]
     MultiNoise(MultiNoiseBiomeSource),
-    #[serde(rename = "minecraft:the_end")]
     TheEnd,
-    #[serde(rename = "minecraft:fixed")]
-    Fixed { biome: Id<crate::Biome> },
-    #[serde(rename = "minecraft:checkerboard")]
+    Fixed {
+        biome: Id<crate::Biome>,
+    },
     Checkerboard {
         biomes: Vec<Id<crate::Biome>>,
         #[serde(default = "default_scale")]
         scale: u32,
     },
-    #[serde(rename = "mcrs:beta")]
     Beta {
         // Indexed by BetaLandBiome discriminant (0..=10); the JSON biomes list
         // order must match those discriminant values.
@@ -109,18 +106,16 @@ pub enum BiomeSource {
     },
 }
 
-const BIOME_SOURCE_ROWS: &[&str] = &[
-    "minecraft:multi_noise",
-    "minecraft:the_end",
-    "minecraft:fixed",
-    "minecraft:checkerboard",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    BIOME_SOURCE_ROWS,
-    &[],
-    crate::keys::BiomeSourceType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    BiomeSource, key = "type", registry = crate::keys::BiomeSourceType,
+    {
+        MultiNoise => MultiNoise,
+        TheEnd => TheEnd,
+        Fixed => Fixed,
+        Checkerboard => Checkerboard,
+    }
+    extend { "mcrs:beta" => Beta }
+}
 
 fn default_scale() -> u32 {
     2
@@ -311,20 +306,5 @@ mod tests {
         // temp=0.3, rain=0.8 → rain*temp=0.24 >= 0.2, rain*temp <= 0.5 (no swampland), temp < 0.5 → Taiga
         // Without multiplication: rain=0.8 > 0.5 and temp=0.3 < 0.7 → Swampland (wrong)
         assert_eq!(beta_get_biome(0.3, 0.8), BetaLandBiome::Taiga);
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn biome_source_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<BiomeSource>(
-            BIOME_SOURCE_ROWS,
-            &[],
-            crate::keys::BiomeSourceType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

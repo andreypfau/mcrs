@@ -72,52 +72,45 @@ impl LevelBasedValue {
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 enum DispatchedLevelBasedValue {
-    #[serde(rename = "minecraft:clamped")]
     Clamped {
         value: LevelBasedValue,
         min: f32,
         max: f32,
     },
-    #[serde(rename = "minecraft:fraction")]
     Fraction {
         numerator: LevelBasedValue,
         denominator: LevelBasedValue,
     },
-    #[serde(rename = "minecraft:levels_squared")]
-    LevelsSquared { added: f32 },
-    #[serde(rename = "minecraft:linear")]
+    LevelsSquared {
+        added: f32,
+    },
     Linear {
         base: f32,
         per_level_above_first: f32,
     },
-    #[serde(rename = "minecraft:exponent")]
     Exponent {
         base: LevelBasedValue,
         power: LevelBasedValue,
     },
-    #[serde(rename = "minecraft:lookup")]
     Lookup {
         values: Vec<f32>,
         fallback: LevelBasedValue,
     },
 }
 
-const ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS: &[&str] = &[
-    "minecraft:clamped",
-    "minecraft:fraction",
-    "minecraft:levels_squared",
-    "minecraft:linear",
-    "minecraft:exponent",
-    "minecraft:lookup",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
-    &[],
-    crate::keys::EnchantmentLevelBasedValueType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    DispatchedLevelBasedValue, key = "type", registry = crate::keys::EnchantmentLevelBasedValueType,
+    {
+        Clamped => Clamped,
+        Fraction => Fraction,
+        LevelsSquared => LevelsSquared,
+        Linear => Linear,
+        Exponent => Exponent,
+        Lookup => Lookup,
+    }
+}
 
 impl From<DispatchedLevelBasedValue> for LevelBasedValue {
     fn from(value: DispatchedLevelBasedValue) -> Self {
@@ -180,8 +173,10 @@ impl<'de> Deserialize<'de> for LevelBasedValue {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<LevelBasedValue, A::Error> {
-                DispatchedLevelBasedValue::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(LevelBasedValue::from)
+                <DispatchedLevelBasedValue as Deserialize>::deserialize(
+                    de::value::MapAccessDeserializer::new(map),
+                )
+                .map(LevelBasedValue::from)
             }
         }
 
@@ -225,20 +220,5 @@ impl Serialize for LevelBasedValue {
             },
         };
         dispatched.serialize(s)
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn enchantment_level_based_value_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<DispatchedLevelBasedValue>(
-            ENCHANTMENT_LEVEL_BASED_VALUE_TYPE_ROWS,
-            &[],
-            crate::keys::EnchantmentLevelBasedValueType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

@@ -217,6 +217,28 @@ pub enum ArrayKind {
     Long,
 }
 
+impl ArrayKind {
+    /// The variant name a deserializer presents the array under.
+    pub const fn variant(self) -> &'static str {
+        match self {
+            ArrayKind::Byte => NBT_BYTE_ARRAY_TAG,
+            ArrayKind::Int => NBT_INT_ARRAY_TAG,
+            ArrayKind::Long => NBT_LONG_ARRAY_TAG,
+        }
+    }
+
+    pub const fn width(self) -> usize {
+        match self {
+            ArrayKind::Byte => 1,
+            ArrayKind::Int => 4,
+            ArrayKind::Long => 8,
+        }
+    }
+}
+
+/// The newtype name a reader asks for an array under; see [`nbt_array`].
+pub const NBT_ARRAY_NEWTYPE: &str = NBT_ARRAY_TAG;
+
 pub trait ArrayVisitor<'de>: Sized {
     type Value;
 

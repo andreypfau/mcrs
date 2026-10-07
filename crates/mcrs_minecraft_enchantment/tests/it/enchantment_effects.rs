@@ -96,7 +96,26 @@ fn every_shipped_enchantment_effect_round_trips() {
 fn unknown_effect_key_is_an_error_naming_it() {
     let err =
         serde_json::from_str::<EnchantmentEffects>(r#"{"minecraft:nonsense": []}"#).unwrap_err();
-    assert!(err.to_string().contains("`minecraft:nonsense`"), "{err}");
+    assert!(
+        err.to_string().contains(
+            "Unknown registry key in ResourceKey[minecraft:root / \
+             minecraft:enchantment_effect_component_type]: minecraft:nonsense"
+        ),
+        "{err}"
+    );
+
+    let attribute = r#"[{"effect":{"type":"minecraft:attribute","id":"minecraft:test","attribute":"minecraft:max_health","amount":1.0,"operation":"add_value"}}]"#;
+    let location = format!(r#"{{"minecraft:location_changed":{attribute}}}"#);
+    assert!(serde_json::from_str::<EnchantmentEffects>(&location).is_ok());
+    let entity = format!(r#"{{"minecraft:tick":{attribute}}}"#);
+    let err = serde_json::from_str::<EnchantmentEffects>(&entity).unwrap_err();
+    assert!(
+        err.to_string().contains(
+            "Unknown registry key in ResourceKey[minecraft:root / \
+             minecraft:enchantment_entity_effect_type]: minecraft:attribute"
+        ),
+        "{err}"
+    );
 }
 
 #[test]

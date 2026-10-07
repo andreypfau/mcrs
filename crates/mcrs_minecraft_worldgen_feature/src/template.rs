@@ -137,44 +137,51 @@ impl Default for VillagerData {
 // The jigsaw kinds are never placed, so a cat drops its variant and a piglin
 // its sword; the upgrade is a data-carrying variant per kind that gets placed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "id")]
+#[serde(remote = "Self")]
 pub enum EntityKind {
-    #[serde(rename = "minecraft:allay")]
     Allay,
-    #[serde(rename = "minecraft:armor_stand")]
     ArmorStand,
-    #[serde(rename = "minecraft:camel")]
     Camel,
-    #[serde(rename = "minecraft:cat")]
     Cat,
-    #[serde(rename = "minecraft:cow")]
     Cow,
-    #[serde(rename = "minecraft:cushion")]
     Cushion,
-    #[serde(rename = "minecraft:hoglin")]
     Hoglin,
-    #[serde(rename = "minecraft:horse")]
     Horse,
-    #[serde(rename = "minecraft:iron_golem")]
     IronGolem,
-    #[serde(rename = "minecraft:pig")]
     Pig,
-    #[serde(rename = "minecraft:piglin")]
     Piglin,
-    #[serde(rename = "minecraft:piglin_brute")]
     PiglinBrute,
-    #[serde(rename = "minecraft:sheep")]
     Sheep,
-    #[serde(rename = "minecraft:villager")]
     Villager {
         #[serde(rename = "VillagerData", default)]
         data: VillagerData,
     },
-    #[serde(rename = "minecraft:zombie_villager")]
     ZombieVillager {
         #[serde(rename = "VillagerData", default)]
         data: VillagerData,
     },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    EntityKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
+    {
+        Allay => Allay,
+        ArmorStand => ArmorStand,
+        Camel => Camel,
+        Cat => Cat,
+        Cow => Cow,
+        Cushion => Cushion,
+        Hoglin => Hoglin,
+        Horse => Horse,
+        IronGolem => IronGolem,
+        Pig => Pig,
+        Piglin => Piglin,
+        PiglinBrute => PiglinBrute,
+        Sheep => Sheep,
+        Villager => Villager,
+        ZombieVillager => ZombieVillager,
+    }
+    wildcard unsupported
 }
 
 impl EntityKind {

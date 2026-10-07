@@ -1,4 +1,3 @@
-use crate::keys::ConsumeEffectType;
 use crate::keys::MobEffect;
 use mcrs_minecraft_core::codec::default_true;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
@@ -61,52 +60,36 @@ float_default! {
 /// The map buffers on read, so the bools inside go through `nbt_flag`;
 /// vanilla writes the dispatch key last, so `Serialize` is by hand.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum ConsumeEffect {
-    #[serde(rename = "minecraft:apply_effects", alias = "apply_effects")]
     ApplyEffects {
         effects: Vec<MobEffectInstance>,
         #[serde(default = "one", deserialize_with = "unit_float")]
         probability: f32,
     },
-    #[serde(rename = "minecraft:remove_effects", alias = "remove_effects")]
-    RemoveEffects { effects: HolderSet<MobEffect> },
-    #[serde(rename = "minecraft:clear_all_effects", alias = "clear_all_effects")]
+    RemoveEffects {
+        effects: HolderSet<MobEffect>,
+    },
     ClearAllEffects,
-    #[serde(rename = "minecraft:teleport_randomly", alias = "teleport_randomly")]
     TeleportRandomly {
         #[serde(default = "sixteen", deserialize_with = "positive_float")]
         diameter: f32,
         #[serde(default = "default_true", deserialize_with = "nbt_flag")]
         directional_particles: bool,
     },
-    #[serde(rename = "minecraft:play_sound", alias = "play_sound")]
-    PlaySound { sound: Holder<SoundEvent> },
+    PlaySound {
+        sound: Holder<SoundEvent>,
+    },
 }
 
-const CONSUME_EFFECT_TYPE_ROWS: &[&str] = &[
-    "minecraft:apply_effects",
-    "minecraft:remove_effects",
-    "minecraft:clear_all_effects",
-    "minecraft:teleport_randomly",
-    "minecraft:play_sound",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    CONSUME_EFFECT_TYPE_ROWS,
-    &[],
-    crate::keys::ConsumeEffectType::ENTRIES
-));
-
-impl ConsumeEffect {
-    pub fn kind(&self) -> ConsumeEffectType {
-        match self {
-            Self::ApplyEffects { .. } => ConsumeEffectType::ApplyEffects,
-            Self::RemoveEffects { .. } => ConsumeEffectType::RemoveEffects,
-            Self::ClearAllEffects => ConsumeEffectType::ClearAllEffects,
-            Self::TeleportRandomly { .. } => ConsumeEffectType::TeleportRandomly,
-            Self::PlaySound { .. } => ConsumeEffectType::PlaySound,
-        }
+mcrs_minecraft_registry::dispatch! {
+    reads_only ConsumeEffect, key = "type", registry = crate::keys::ConsumeEffectType,
+    {
+        ApplyEffects => ApplyEffects,
+        RemoveEffects => RemoveEffects,
+        ClearAllEffects => ClearAllEffects,
+        TeleportRandomly => TeleportRandomly,
+        PlaySound => PlaySound,
     }
 }
 
@@ -315,20 +298,5 @@ impl Sample for DeathProtection {
                 death_effects: every_consume_effect(),
             },
         ]
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn consume_effect_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<ConsumeEffect>(
-            CONSUME_EFFECT_TYPE_ROWS,
-            &[],
-            crate::keys::ConsumeEffectType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

@@ -1,4 +1,5 @@
 pub mod bitset;
+pub mod dispatch;
 pub mod entries;
 pub mod holder;
 pub mod holder_list;

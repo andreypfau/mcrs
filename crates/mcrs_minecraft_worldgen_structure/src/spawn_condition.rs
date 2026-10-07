@@ -18,31 +18,27 @@ pub struct SpawnSelector {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum SpawnCondition {
-    #[serde(rename = "minecraft:structure")]
     Structure {
         structures: HolderSet<crate::Structure>,
     },
-    #[serde(rename = "minecraft:biome")]
     Biome {
         biomes: HolderSet<mcrs_minecraft_biome::Biome>,
     },
-    #[serde(rename = "minecraft:moon_brightness")]
-    MoonBrightness { range: DoubleBounds },
+    MoonBrightness {
+        range: DoubleBounds,
+    },
 }
 
-const SPAWN_CONDITION_TYPE_ROWS: &[&str] = &[
-    "minecraft:structure",
-    "minecraft:biome",
-    "minecraft:moon_brightness",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    SPAWN_CONDITION_TYPE_ROWS,
-    &[],
-    crate::keys::SpawnConditionType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    SpawnCondition, key = "type", registry = crate::keys::SpawnConditionType,
+    {
+        Structure => Structure,
+        MoonBrightness => MoonBrightness,
+        Biome => Biome,
+    }
+}
 
 /// `MinMaxBounds.Doubles`: a bare number is a point, an object holds either
 /// bound or both, and a point writes back as the bare number.
@@ -227,20 +223,5 @@ mod tests {
     fn a_lower_bound_matches_at_and_above_it() {
         let at_least: DoubleBounds = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
         assert!(at_least.matches(1.0) && at_least.matches(0.9) && !at_least.matches(0.8));
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn spawn_condition_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<SpawnCondition>(
-            SPAWN_CONDITION_TYPE_ROWS,
-            &[],
-            crate::keys::SpawnConditionType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

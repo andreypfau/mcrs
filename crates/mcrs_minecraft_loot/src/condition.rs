@@ -20,60 +20,54 @@ use crate::number::{FloatExpression, FloatRangePredicate, IntExpression, IntRang
 
 /// A test of the loot context, registered in `predicate` or written inline.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum LootCondition {
-    #[serde(rename = "minecraft:inverted", alias = "inverted")]
     Inverted(Inverted),
-    #[serde(rename = "minecraft:any_of", alias = "any_of")]
     AnyOf(Terms),
-    #[serde(rename = "minecraft:all_of", alias = "all_of")]
     AllOf(Terms),
-    #[serde(rename = "minecraft:random_chance", alias = "random_chance")]
     RandomChance(RandomChance),
-    #[serde(
-        rename = "minecraft:random_chance_with_enchanted_bonus",
-        alias = "random_chance_with_enchanted_bonus"
-    )]
     RandomChanceWithEnchantedBonus(RandomChanceWithEnchantedBonus),
-    #[serde(rename = "minecraft:entity_properties", alias = "entity_properties")]
     EntityProperties(Box<EntityProperties>),
-    #[serde(rename = "minecraft:killed_by_player", alias = "killed_by_player")]
     KilledByPlayer,
-    #[serde(rename = "minecraft:entity_scores", alias = "entity_scores")]
     EntityScores(EntityScores),
-    #[serde(rename = "minecraft:match_block", alias = "match_block")]
     MatchBlock(BlockPredicate),
-    #[serde(rename = "minecraft:match_tool", alias = "match_tool")]
     MatchTool(MatchTool),
-    #[serde(rename = "minecraft:table_bonus", alias = "table_bonus")]
     TableBonus(TableBonus),
-    #[serde(rename = "minecraft:survives_explosion", alias = "survives_explosion")]
     SurvivesExplosion,
-    #[serde(
-        rename = "minecraft:damage_source_properties",
-        alias = "damage_source_properties"
-    )]
     DamageSourceProperties(Box<DamageSourceProperties>),
-    #[serde(rename = "minecraft:location_check", alias = "location_check")]
     LocationCheck(Box<LocationCheck>),
-    #[serde(rename = "minecraft:weather_check", alias = "weather_check")]
     WeatherCheck(WeatherCheck),
-    #[serde(rename = "minecraft:time_check", alias = "time_check")]
     TimeCheck(TimeCheck),
-    #[serde(rename = "minecraft:int_value_check", alias = "int_value_check")]
     IntValueCheck(IntValueCheck),
-    #[serde(rename = "minecraft:float_value_check", alias = "float_value_check")]
     FloatValueCheck(FloatValueCheck),
-    #[serde(
-        rename = "minecraft:enchantment_active_check",
-        alias = "enchantment_active_check"
-    )]
     EnchantmentActiveCheck(EnchantmentActiveCheck),
-    #[serde(
-        rename = "minecraft:environment_attribute_check",
-        alias = "environment_attribute_check"
-    )]
     EnvironmentAttributeCheck(EnvironmentAttributeCheck),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    LootCondition, key = "type", registry = crate::keys::LootConditionType,
+    {
+        Inverted => Inverted,
+        AnyOf => AnyOf,
+        AllOf => AllOf,
+        RandomChance => RandomChance,
+        RandomChanceWithEnchantedBonus => RandomChanceWithEnchantedBonus,
+        EntityProperties => EntityProperties,
+        KilledByPlayer => KilledByPlayer,
+        EntityScores => EntityScores,
+        MatchBlock => MatchBlock,
+        MatchTool => MatchTool,
+        TableBonus => TableBonus,
+        SurvivesExplosion => SurvivesExplosion,
+        DamageSourceProperties => DamageSourceProperties,
+        LocationCheck => LocationCheck,
+        WeatherCheck => WeatherCheck,
+        TimeCheck => TimeCheck,
+        IntValueCheck => IntValueCheck,
+        FloatValueCheck => FloatValueCheck,
+        EnchantmentActiveCheck => EnchantmentActiveCheck,
+        EnvironmentAttributeCheck => EnvironmentAttributeCheck,
+    }
 }
 
 impl RegistryValue for LootCondition {

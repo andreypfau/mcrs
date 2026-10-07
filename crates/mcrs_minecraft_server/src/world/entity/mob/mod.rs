@@ -41,8 +41,7 @@ use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
 use mcrs_minecraft_registry::{ChainLookup, Id, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
-    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, Item as GeneratedItem,
-    ItemStack as GeneratedStack,
+    Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
 };
 use smallvec::SmallVec;
 
@@ -323,14 +322,7 @@ fn registered_profession(name: &str) -> VillagerProfession {
 }
 
 fn stack(stack: GeneratedStack) -> ItemStack {
-    let item = match stack.id {
-        GeneratedItem::Trident => mcrs_minecraft_item::keys::Item::Trident,
-        GeneratedItem::FishingRod => mcrs_minecraft_item::keys::Item::FishingRod,
-        GeneratedItem::NautilusShell => mcrs_minecraft_item::keys::Item::NautilusShell,
-        GeneratedItem::IronAxe => mcrs_minecraft_item::keys::Item::IronAxe,
-        GeneratedItem::Elytra => mcrs_minecraft_item::keys::Item::Elytra,
-    };
-    ItemStack::new(item.id(), stack.count as u8)
+    ItemStack::new(stack.id.id(), stack.count as u8)
 }
 
 fn carried(equipment: GeneratedEquipment) -> Equipment {

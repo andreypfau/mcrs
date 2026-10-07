@@ -185,38 +185,36 @@ impl FullBlockState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum TypedBlockStateProvider {
-    #[serde(rename = "minecraft:simple")]
-    Simple { state: BlockState },
-    #[serde(rename = "minecraft:weighted")]
+    Simple {
+        state: BlockState,
+    },
     Weighted {
         #[serde(deserialize_with = "non_empty")]
         entries: Vec<Weighted<BlockState>>,
     },
-    #[serde(rename = "minecraft:rule_based")]
     RuleBased {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         fallback: Option<BlockStateProvider>,
         rules: Vec<StateRule>,
     },
-    #[serde(rename = "minecraft:randomized_int")]
     RandomizedInt {
         source: BlockStateProvider,
         property: String,
         values: IntProvider,
     },
-    #[serde(rename = "minecraft:rotated")]
     Rotated {
         state: BlockStateProvider,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         direction: Option<Direction>,
     },
-    #[serde(rename = "minecraft:random_block")]
-    RandomBlock { blocks: BlockSet },
-    #[serde(rename = "minecraft:copy_properties")]
-    CopyProperties { source: BlockStateProvider },
-    #[serde(rename = "minecraft:noise")]
+    RandomBlock {
+        blocks: BlockSet,
+    },
+    CopyProperties {
+        source: BlockStateProvider,
+    },
     Noise {
         seed: i64,
         noise: NoiseParam,
@@ -224,7 +222,6 @@ pub enum TypedBlockStateProvider {
         #[serde(deserialize_with = "non_empty")]
         states: Vec<BlockState>,
     },
-    #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         seed: i64,
         noise: NoiseParam,
@@ -237,7 +234,6 @@ pub enum TypedBlockStateProvider {
         #[serde(deserialize_with = "non_empty")]
         high_states: Vec<BlockState>,
     },
-    #[serde(rename = "minecraft:dual_noise")]
     DualNoise {
         #[serde(deserialize_with = "variety_range")]
         variety: IntRange,
@@ -251,24 +247,21 @@ pub enum TypedBlockStateProvider {
     },
 }
 
-const BLOCK_STATE_PROVIDER_TYPE_ROWS: &[&str] = &[
-    "minecraft:simple",
-    "minecraft:weighted",
-    "minecraft:rule_based",
-    "minecraft:randomized_int",
-    "minecraft:rotated",
-    "minecraft:random_block",
-    "minecraft:copy_properties",
-    "minecraft:noise",
-    "minecraft:noise_threshold",
-    "minecraft:dual_noise",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    BLOCK_STATE_PROVIDER_TYPE_ROWS,
-    &[],
-    crate::keys::BlockStateProviderType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    TypedBlockStateProvider, key = "type", registry = crate::keys::BlockStateProviderType,
+    {
+        CopyProperties => CopyProperties,
+        DualNoise => DualNoise,
+        Noise => Noise,
+        NoiseThreshold => NoiseThreshold,
+        RandomBlock => RandomBlock,
+        RandomizedInt => RandomizedInt,
+        Rotated => Rotated,
+        RuleBased => RuleBased,
+        Simple => Simple,
+        Weighted => Weighted,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -279,19 +272,4 @@ pub struct StateRule {
 
 fn resource_location<E: serde::de::Error>(id: &str) -> Result<ResourceLocation, E> {
     ResourceLocation::from_str(id).map_err(|_| E::custom(format!("Not a valid id: {id}")))
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn block_state_provider_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<TypedBlockStateProvider>(
-            BLOCK_STATE_PROVIDER_TYPE_ROWS,
-            &[],
-            crate::keys::BlockStateProviderType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
 }

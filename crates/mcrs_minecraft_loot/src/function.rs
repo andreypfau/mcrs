@@ -71,7 +71,9 @@ impl<'de> Deserialize<'de> for LootItemFunction {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<LootItemFunction, A::Error> {
-                match TypedFunction::deserialize(value::MapAccessDeserializer::new(map))? {
+                match <TypedFunction as Deserialize>::deserialize(
+                    value::MapAccessDeserializer::new(map),
+                )? {
                     TypedFunction::Sequence(Sequence {
                         condition: None,
                         functions,
@@ -100,113 +102,98 @@ macro_rules! function {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum TypedFunction {
-    #[serde(rename = "minecraft:set_count", alias = "set_count")]
     SetCount(SetCount),
-    #[serde(rename = "minecraft:set_item", alias = "set_item")]
     SetItem(SetItem),
-    #[serde(
-        rename = "minecraft:enchant_with_levels",
-        alias = "enchant_with_levels"
-    )]
     EnchantWithLevels(EnchantWithLevels),
-    #[serde(rename = "minecraft:enchant_randomly", alias = "enchant_randomly")]
     EnchantRandomly(EnchantRandomly),
-    #[serde(rename = "minecraft:set_enchantments", alias = "set_enchantments")]
     SetEnchantments(SetEnchantments),
-    #[serde(rename = "minecraft:set_custom_data", alias = "set_custom_data")]
     SetCustomData(SetCustomData),
-    #[serde(rename = "minecraft:set_components", alias = "set_components")]
     SetComponents(SetComponents),
-    #[serde(rename = "minecraft:furnace_smelt", alias = "furnace_smelt")]
     FurnaceSmelt(FurnaceSmelt),
-    #[serde(
-        rename = "minecraft:enchanted_count_increase",
-        alias = "enchanted_count_increase"
-    )]
     EnchantedCountIncrease(EnchantedCountIncrease),
-    #[serde(rename = "minecraft:set_damage", alias = "set_damage")]
     SetDamage(SetDamage),
-    #[serde(rename = "minecraft:set_attributes", alias = "set_attributes")]
     SetAttributes(SetAttributes),
-    #[serde(rename = "minecraft:set_name", alias = "set_name")]
     SetName(SetName),
-    #[serde(rename = "minecraft:exploration_map", alias = "exploration_map")]
     ExplorationMap(ExplorationMap),
-    #[serde(rename = "minecraft:set_stew_effect", alias = "set_stew_effect")]
     SetStewEffect(SetStewEffect),
-    #[serde(rename = "minecraft:copy_name", alias = "copy_name")]
     CopyName(CopyName),
-    #[serde(rename = "minecraft:set_contents", alias = "set_contents")]
     SetContents(SetContents),
-    #[serde(rename = "minecraft:modify_contents", alias = "modify_contents")]
     ModifyContents(ModifyContents),
-    #[serde(rename = "minecraft:filtered", alias = "filtered")]
     Filtered(Filtered),
-    #[serde(rename = "minecraft:limit_count", alias = "limit_count")]
     LimitCount(LimitCount),
-    #[serde(rename = "minecraft:apply_bonus", alias = "apply_bonus")]
     ApplyBonus(ApplyBonus),
-    #[serde(rename = "minecraft:set_loot_table", alias = "set_loot_table")]
     SetLootTable(SetLootTable),
-    #[serde(rename = "minecraft:explosion_decay", alias = "explosion_decay")]
     ExplosionDecay(Conditioned),
-    #[serde(rename = "minecraft:set_lore", alias = "set_lore")]
     SetLore(SetLore),
-    #[serde(rename = "minecraft:fill_player_head", alias = "fill_player_head")]
     FillPlayerHead(FillPlayerHead),
-    #[serde(rename = "minecraft:copy_custom_data", alias = "copy_custom_data")]
     CopyCustomData(CopyCustomData),
-    #[serde(rename = "minecraft:copy_state", alias = "copy_state")]
     CopyState(CopyState),
-    #[serde(rename = "minecraft:set_banner_pattern", alias = "set_banner_pattern")]
     SetBannerPattern(SetBannerPattern),
-    #[serde(rename = "minecraft:set_potion", alias = "set_potion")]
     SetPotion(SetPotion),
-    #[serde(rename = "minecraft:set_random_dyes", alias = "set_random_dyes")]
     SetRandomDyes(SetRandomDyes),
-    #[serde(rename = "minecraft:set_random_potion", alias = "set_random_potion")]
     SetRandomPotion(SetRandomPotion),
-    #[serde(rename = "minecraft:set_instrument", alias = "set_instrument")]
     SetInstrument(SetInstrument),
-    #[serde(rename = "minecraft:sequence", alias = "sequence")]
     Sequence(Sequence),
-    #[serde(rename = "minecraft:copy_components", alias = "copy_components")]
     CopyComponents(CopyComponents),
-    #[serde(rename = "minecraft:set_fireworks", alias = "set_fireworks")]
     SetFireworks(SetFireworks),
-    #[serde(
-        rename = "minecraft:set_firework_explosion",
-        alias = "set_firework_explosion"
-    )]
     SetFireworkExplosion(SetFireworkExplosion),
-    #[serde(rename = "minecraft:set_book_cover", alias = "set_book_cover")]
     SetBookCover(SetBookCover),
-    #[serde(
-        rename = "minecraft:set_written_book_pages",
-        alias = "set_written_book_pages"
-    )]
     SetWrittenBookPages(SetWrittenBookPages),
-    #[serde(
-        rename = "minecraft:set_writable_book_pages",
-        alias = "set_writable_book_pages"
-    )]
     SetWritableBookPages(SetWritableBookPages),
-    #[serde(rename = "minecraft:toggle_tooltips", alias = "toggle_tooltips")]
     ToggleTooltips(ToggleTooltips),
-    #[serde(
-        rename = "minecraft:set_ominous_bottle_amplifier",
-        alias = "set_ominous_bottle_amplifier"
-    )]
     SetOminousBottleAmplifier(SetOminousBottleAmplifier),
-    #[serde(
-        rename = "minecraft:set_custom_model_data",
-        alias = "set_custom_model_data"
-    )]
     SetCustomModelData(SetCustomModelData),
-    #[serde(rename = "minecraft:discard", alias = "discard")]
     Discard(Conditioned),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedFunction, key = "type", registry = crate::keys::LootFunctionType,
+    {
+        SetCount => SetCount,
+        SetItem => SetItem,
+        EnchantWithLevels => EnchantWithLevels,
+        EnchantRandomly => EnchantRandomly,
+        SetEnchantments => SetEnchantments,
+        SetCustomData => SetCustomData,
+        SetComponents => SetComponents,
+        FurnaceSmelt => FurnaceSmelt,
+        EnchantedCountIncrease => EnchantedCountIncrease,
+        SetDamage => SetDamage,
+        SetAttributes => SetAttributes,
+        SetName => SetName,
+        ExplorationMap => ExplorationMap,
+        SetStewEffect => SetStewEffect,
+        CopyName => CopyName,
+        SetContents => SetContents,
+        ModifyContents => ModifyContents,
+        Filtered => Filtered,
+        LimitCount => LimitCount,
+        ApplyBonus => ApplyBonus,
+        SetLootTable => SetLootTable,
+        ExplosionDecay => ExplosionDecay,
+        SetLore => SetLore,
+        FillPlayerHead => FillPlayerHead,
+        CopyCustomData => CopyCustomData,
+        CopyState => CopyState,
+        SetBannerPattern => SetBannerPattern,
+        SetPotion => SetPotion,
+        SetRandomDyes => SetRandomDyes,
+        SetRandomPotion => SetRandomPotion,
+        SetInstrument => SetInstrument,
+        Sequence => Sequence,
+        CopyComponents => CopyComponents,
+        SetFireworks => SetFireworks,
+        SetFireworkExplosion => SetFireworkExplosion,
+        SetBookCover => SetBookCover,
+        SetWrittenBookPages => SetWrittenBookPages,
+        SetWritableBookPages => SetWritableBookPages,
+        ToggleTooltips => ToggleTooltips,
+        SetOminousBottleAmplifier => SetOminousBottleAmplifier,
+        SetCustomModelData => SetCustomModelData,
+        Discard => Discard,
+    }
 }
 
 function! {
@@ -556,7 +543,7 @@ struct ApplyBonusRepr {
     enchantment: Id<EnchantmentData>,
     formula: ResourceLocation,
     #[serde(default)]
-    parameters: Option<crate::buffer::Buffered>,
+    parameters: Option<mcrs_minecraft_registry::dispatch::Buffered>,
 }
 
 impl Serialize for ApplyBonus {

@@ -10,6 +10,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{from_tag, to_nbt_compound};
 use mcrs_minecraft_registry::HolderSet;
 type ClickEvent = mcrs_minecraft_text::ClickEvent<Template>;
+use crate::keys::DialogActionType;
+use serde::de::value::StrDeserializer;
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -105,21 +107,19 @@ pub struct ItemBody {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum DialogBody {
-    #[serde(rename = "minecraft:item")]
     Item(ItemBody),
-    #[serde(rename = "minecraft:plain_message")]
     PlainMessage(PlainMessage),
 }
 
-const DIALOG_BODY_TYPE_ROWS: &[&str] = &["minecraft:item", "minecraft:plain_message"];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    DIALOG_BODY_TYPE_ROWS,
-    &[],
-    crate::keys::DialogBodyType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    DialogBody, key = "type", registry = crate::keys::DialogBodyType,
+    {
+        Item => Item,
+        PlainMessage => PlainMessage,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InputKey(String);
@@ -309,30 +309,23 @@ impl Validate for TextInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum Input {
-    #[serde(rename = "minecraft:boolean")]
     Boolean(BooleanInput),
-    #[serde(rename = "minecraft:number_range")]
     NumberRange(NumberRangeInput),
-    #[serde(rename = "minecraft:single_option")]
     SingleOption(SingleOptionInput),
-    #[serde(rename = "minecraft:text")]
     Text(TextInput),
 }
 
-const INPUT_CONTROL_TYPE_ROWS: &[&str] = &[
-    "minecraft:boolean",
-    "minecraft:number_range",
-    "minecraft:single_option",
-    "minecraft:text",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    INPUT_CONTROL_TYPE_ROWS,
-    &[],
-    crate::keys::InputControlType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    Input, key = "type", registry = crate::keys::InputControlType,
+    {
+        Boolean => Boolean,
+        NumberRange => NumberRange,
+        SingleOption => SingleOption,
+        Text => Text,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandTemplate(String);
@@ -386,11 +379,11 @@ impl<'de> Deserialize<'de> for CommandTemplate {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum DynamicAction {
-    #[serde(rename = "minecraft:dynamic/run_command")]
-    RunCommand { template: CommandTemplate },
-    #[serde(rename = "minecraft:dynamic/custom")]
+    RunCommand {
+        template: CommandTemplate,
+    },
     Custom {
         id: ResourceLocation,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -398,17 +391,14 @@ pub enum DynamicAction {
     },
 }
 
-const STATIC_ACTIONS: [&str; 7] = [
-    "open_url",
-    "run_command",
-    "suggest_command",
-    "show_dialog",
-    "change_page",
-    "copy_to_clipboard",
-    "custom",
-];
-
-const DYNAMIC_ACTIONS: [&str; 2] = ["dynamic/run_command", "dynamic/custom"];
+mcrs_minecraft_registry::dispatch! {
+    DynamicAction, key = "type", registry = crate::keys::DialogActionType,
+    {
+        DynamicRunCommand => RunCommand,
+        DynamicCustom => Custom,
+    }
+    unsupported { OpenUrl, RunCommand, SuggestCommand, ShowDialog, ChangePage, CopyToClipboard, Custom }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -455,28 +445,28 @@ impl<'de> Deserialize<'de> for Action {
         let NbtTag::String(kind) = compound.child_tags.remove(position).1 else {
             return Err(D::Error::custom("'type' is not a string"));
         };
-        let kind = ResourceLocation::read(&kind).map_err(D::Error::custom)?;
-        let name = kind.as_str().strip_prefix("minecraft:").unwrap_or("");
+        let entry = DialogActionType::deserialize(StrDeserializer::<D::Error>::new(&kind))?;
 
-        if DYNAMIC_ACTIONS.contains(&name) {
-            compound
-                .child_tags
-                .push(("type".to_owned(), NbtTag::String(kind.as_str().to_owned())));
-            return from_tag(NbtTag::Compound(compound))
-                .map(Action::Dynamic)
-                .map_err(D::Error::custom);
+        match entry {
+            DialogActionType::DynamicRunCommand | DialogActionType::DynamicCustom => {
+                compound.child_tags.push((
+                    "type".to_owned(),
+                    NbtTag::String(entry.as_static_str().to_owned()),
+                ));
+                return from_tag(NbtTag::Compound(compound))
+                    .map(Action::Dynamic)
+                    .map_err(D::Error::custom);
+            }
+            DialogActionType::OpenUrl
+            | DialogActionType::RunCommand
+            | DialogActionType::SuggestCommand
+            | DialogActionType::ShowDialog
+            | DialogActionType::ChangePage
+            | DialogActionType::CopyToClipboard
+            | DialogActionType::Custom => {}
         }
-        if !STATIC_ACTIONS.contains(&name) {
-            return Err(D::Error::custom(format_args!(
-                "unknown dialog action type {kind}, expected one of minecraft:{}",
-                STATIC_ACTIONS
-                    .iter()
-                    .chain(&DYNAMIC_ACTIONS)
-                    .copied()
-                    .collect::<Vec<_>>()
-                    .join(", minecraft:")
-            )));
-        }
+        let kind = entry.location();
+        let name = kind.path();
 
         let given: Vec<String> = compound
             .child_tags
@@ -623,65 +613,22 @@ dialog_type!(DialogList {
 impl Specific for DialogList {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum Dialog {
-    #[serde(rename = "minecraft:notice")]
     Notice(Notice),
-    #[serde(rename = "minecraft:confirmation")]
     Confirmation(Confirmation),
-    #[serde(rename = "minecraft:multi_action")]
     MultiAction(MultiAction),
-    #[serde(rename = "minecraft:server_links")]
     ServerLinks(ServerLinks),
-    #[serde(rename = "minecraft:dialog_list")]
     DialogList(DialogList),
 }
 
-const DIALOG_TYPE_ROWS: &[&str] = &[
-    "minecraft:notice",
-    "minecraft:confirmation",
-    "minecraft:multi_action",
-    "minecraft:server_links",
-    "minecraft:dialog_list",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    DIALOG_TYPE_ROWS,
-    &[],
-    crate::keys::DialogType::ENTRIES
-));
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn dialog_body_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<DialogBody>(
-            DIALOG_BODY_TYPE_ROWS,
-            &[],
-            crate::keys::DialogBodyType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn input_control_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<Input>(
-            INPUT_CONTROL_TYPE_ROWS,
-            &[],
-            crate::keys::InputControlType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn dialog_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<Dialog>(
-            DIALOG_TYPE_ROWS,
-            &[],
-            crate::keys::DialogType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
+mcrs_minecraft_registry::dispatch! {
+    Dialog, key = "type", registry = crate::keys::DialogType,
+    {
+        Notice => Notice,
+        ServerLinks => ServerLinks,
+        DialogList => DialogList,
+        MultiAction => MultiAction,
+        Confirmation => Confirmation,
     }
 }

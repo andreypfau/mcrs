@@ -15,7 +15,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
-use mcrs_minecraft_registry::Id;
 use mcrs_minecraft_value_provider::Weighted;
 use mcrs_minecraft_worldgen_feature::template::Joint;
 use serde::{Deserialize, Serialize};
@@ -37,9 +36,8 @@ fn air_id() -> String {
 /// A block entity a generator produced, in the compound the save, the chunk
 /// packet and the anvil reader all encode.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "id")]
+#[serde(remote = "Self")]
 pub enum GeneratedBlockEntity {
-    #[serde(rename = "minecraft:beehive")]
     Beehive {
         x: i32,
         y: i32,
@@ -48,11 +46,8 @@ pub enum GeneratedBlockEntity {
     },
     /// The loot is not rolled here: the reference stores the table's id and its
     /// seed and rolls when a player first opens the chest.
-    #[serde(rename = "minecraft:chest")]
     Chest(ContainerData),
-    #[serde(rename = "minecraft:trapped_chest")]
     TrappedChest(ContainerData),
-    #[serde(rename = "minecraft:ender_chest")]
     EnderChest {
         x: i32,
         y: i32,
@@ -60,11 +55,8 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:barrel")]
     Barrel(ContainerData),
-    #[serde(rename = "minecraft:dispenser")]
     Dispenser(ContainerData),
-    #[serde(rename = "minecraft:hopper")]
     Hopper {
         x: i32,
         y: i32,
@@ -86,13 +78,9 @@ pub enum GeneratedBlockEntity {
         #[serde(rename = "TransferCooldown", default = "minus_one")]
         transfer_cooldown: i32,
     },
-    #[serde(rename = "minecraft:furnace")]
     Furnace(FurnaceData),
-    #[serde(rename = "minecraft:blast_furnace")]
     BlastFurnace(FurnaceData),
-    #[serde(rename = "minecraft:smoker")]
     Smoker(FurnaceData),
-    #[serde(rename = "minecraft:brewing_stand")]
     BrewingStand {
         x: i32,
         y: i32,
@@ -118,7 +106,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:campfire")]
     Campfire {
         x: i32,
         y: i32,
@@ -136,7 +123,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:comparator")]
     Comparator {
         x: i32,
         y: i32,
@@ -146,7 +132,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:bell")]
     Bell {
         x: i32,
         y: i32,
@@ -154,7 +139,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:copper_golem_statue")]
     CopperGolemStatue {
         x: i32,
         y: i32,
@@ -162,7 +146,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:lectern")]
     Lectern {
         x: i32,
         y: i32,
@@ -176,7 +159,6 @@ pub enum GeneratedBlockEntity {
     },
     /// A jigsaw block a non-jigsaw piece leaves in the world, the way the
     /// ruined portals do; a jigsaw piece replaces its own before writing.
-    #[serde(rename = "minecraft:jigsaw")]
     Jigsaw {
         x: i32,
         y: i32,
@@ -198,7 +180,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:creaking_heart")]
     CreakingHeart {
         x: i32,
         y: i32,
@@ -208,7 +189,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:decorated_pot")]
     DecoratedPot {
         x: i32,
         y: i32,
@@ -224,7 +204,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:brushable_block")]
     BrushableBlock {
         x: i32,
         y: i32,
@@ -238,7 +217,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:banner")]
     Banner {
         x: i32,
         y: i32,
@@ -254,7 +232,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:sign")]
     Sign {
         x: i32,
         y: i32,
@@ -272,7 +249,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:skull")]
     Skull {
         x: i32,
         y: i32,
@@ -286,7 +262,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:sculk_sensor")]
     SculkSensor {
         x: i32,
         y: i32,
@@ -298,7 +273,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:mob_spawner")]
     MobSpawner {
         x: i32,
         y: i32,
@@ -327,7 +301,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:trial_spawner")]
     TrialSpawner {
         x: i32,
         y: i32,
@@ -357,7 +330,6 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:vault")]
     Vault {
         x: i32,
         y: i32,
@@ -371,8 +343,42 @@ pub enum GeneratedBlockEntity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         components: Option<NbtCompound>,
     },
-    #[serde(rename = "minecraft:end_gateway")]
     EndGateway(EndGatewayData),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    GeneratedBlockEntity, key = "id", registry = mcrs_minecraft_block::keys::BlockEntityType,
+    {
+        Furnace => Furnace,
+        Chest => Chest,
+        TrappedChest => TrappedChest,
+        EnderChest => EnderChest,
+        Dispenser => Dispenser,
+        Sign => Sign,
+        MobSpawner => MobSpawner,
+        CreakingHeart => CreakingHeart,
+        BrewingStand => BrewingStand,
+        Skull => Skull,
+        Hopper => Hopper,
+        Comparator => Comparator,
+        Banner => Banner,
+        EndGateway => EndGateway,
+        Barrel => Barrel,
+        Smoker => Smoker,
+        BlastFurnace => BlastFurnace,
+        Lectern => Lectern,
+        Bell => Bell,
+        Jigsaw => Jigsaw,
+        Campfire => Campfire,
+        Beehive => Beehive,
+        SculkSensor => SculkSensor,
+        BrushableBlock => BrushableBlock,
+        DecoratedPot => DecoratedPot,
+        TrialSpawner => TrialSpawner,
+        Vault => Vault,
+        CopperGolemStatue => CopperGolemStatue,
+    }
+    wildcard unsupported
 }
 
 pub(crate) use mcrs_minecraft_nbt::nbt_flag;
@@ -715,41 +721,6 @@ impl GeneratedBlockEntity {
             GeneratedBlockEntity::EndGateway(gateway) => {
                 BlockPos::new(gateway.x, gateway.y, gateway.z)
             }
-        }
-    }
-
-    pub fn kind(&self) -> Id<BlockEntityType> {
-        match self {
-            GeneratedBlockEntity::Beehive { .. } => BlockEntityType::Beehive.id(),
-            GeneratedBlockEntity::Chest(_) => BlockEntityType::Chest.id(),
-            GeneratedBlockEntity::TrappedChest(_) => BlockEntityType::TrappedChest.id(),
-            GeneratedBlockEntity::EnderChest { .. } => BlockEntityType::EnderChest.id(),
-            GeneratedBlockEntity::Barrel(_) => BlockEntityType::Barrel.id(),
-            GeneratedBlockEntity::Dispenser(_) => BlockEntityType::Dispenser.id(),
-            GeneratedBlockEntity::Hopper { .. } => BlockEntityType::Hopper.id(),
-            GeneratedBlockEntity::Furnace(_) => BlockEntityType::Furnace.id(),
-            GeneratedBlockEntity::BlastFurnace(_) => BlockEntityType::BlastFurnace.id(),
-            GeneratedBlockEntity::Smoker(_) => BlockEntityType::Smoker.id(),
-            GeneratedBlockEntity::BrewingStand { .. } => BlockEntityType::BrewingStand.id(),
-            GeneratedBlockEntity::Campfire { .. } => BlockEntityType::Campfire.id(),
-            GeneratedBlockEntity::Comparator { .. } => BlockEntityType::Comparator.id(),
-            GeneratedBlockEntity::Bell { .. } => BlockEntityType::Bell.id(),
-            GeneratedBlockEntity::CopperGolemStatue { .. } => {
-                BlockEntityType::CopperGolemStatue.id()
-            }
-            GeneratedBlockEntity::Lectern { .. } => BlockEntityType::Lectern.id(),
-            GeneratedBlockEntity::Jigsaw { .. } => BlockEntityType::Jigsaw.id(),
-            GeneratedBlockEntity::CreakingHeart { .. } => BlockEntityType::CreakingHeart.id(),
-            GeneratedBlockEntity::DecoratedPot { .. } => BlockEntityType::DecoratedPot.id(),
-            GeneratedBlockEntity::BrushableBlock { .. } => BlockEntityType::BrushableBlock.id(),
-            GeneratedBlockEntity::Banner { .. } => BlockEntityType::Banner.id(),
-            GeneratedBlockEntity::Sign { .. } => BlockEntityType::Sign.id(),
-            GeneratedBlockEntity::Skull { .. } => BlockEntityType::Skull.id(),
-            GeneratedBlockEntity::SculkSensor { .. } => BlockEntityType::SculkSensor.id(),
-            GeneratedBlockEntity::MobSpawner { .. } => BlockEntityType::MobSpawner.id(),
-            GeneratedBlockEntity::TrialSpawner { .. } => BlockEntityType::TrialSpawner.id(),
-            GeneratedBlockEntity::Vault { .. } => BlockEntityType::Vault.id(),
-            GeneratedBlockEntity::EndGateway(_) => BlockEntityType::EndGateway.id(),
         }
     }
 
@@ -1147,10 +1118,7 @@ mod tests {
             let id = compound.get_string("id").unwrap();
             assert!(GeneratedBlockEntity::IDS.contains(&id), "{id}");
             assert_eq!(entity.position(), POS);
-            assert_eq!(
-                BlockEntityType::ENTRIES[entity.kind().index()].as_static_str(),
-                id
-            );
+            assert_eq!(entity.kind().as_static_str(), id);
             assert_eq!(
                 GeneratedBlockEntity::from_compound(&compound).unwrap(),
                 entity,

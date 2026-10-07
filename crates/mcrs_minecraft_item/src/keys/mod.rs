@@ -15,6 +15,7 @@ pub mod data_component_predicate_type;
 pub mod data_component_type;
 pub mod decorated_pot_pattern;
 pub mod dialog;
+pub mod dialog_action_type;
 pub mod dialog_body_type;
 pub mod dialog_tags;
 pub mod dialog_type;
@@ -46,6 +47,7 @@ pub use context_int_provider_type::ContextIntProviderType;
 pub use context_key_set::ContextKeySet;
 pub use data_component_predicate_type::DataComponentPredicateType;
 pub use data_component_type::DataComponentType;
+pub use dialog_action_type::DialogActionType;
 pub use dialog_body_type::DialogBodyType;
 pub use dialog_type::DialogType;
 pub use enchantment_level_based_value_type::EnchantmentLevelBasedValueType;
@@ -124,6 +126,11 @@ impl Registered for crate::decorated_pot_pattern::DecoratedPotPattern {
 pub const DIALOG: RegistryKey<crate::dialog::Dialog> = RegistryKey::new(rl!("minecraft:dialog"));
 impl Registered for crate::dialog::Dialog {
     const REGISTRY: RegistryKey<Self> = DIALOG;
+}
+
+pub const DIALOG_ACTION_TYPE: RegistryKey<crate::keys::DialogActionType> = RegistryKey::new(rl!("minecraft:dialog_action_type"));
+impl Registered for crate::keys::DialogActionType {
+    const REGISTRY: RegistryKey<Self> = DIALOG_ACTION_TYPE;
 }
 
 pub const DIALOG_BODY_TYPE: RegistryKey<crate::keys::DialogBodyType> = RegistryKey::new(rl!("minecraft:dialog_body_type"));
@@ -221,7 +228,7 @@ impl Registered for crate::TrimPattern {
     const REGISTRY: RegistryKey<Self> = TRIM_PATTERN;
 }
 
-pub fn bindings() -> [TypeBinding; 32] {
+pub fn bindings() -> [TypeBinding; 33] {
     [
         BANNER_PATTERN.binding(),
         BLOCK_TRANSFORMER.binding(),
@@ -236,6 +243,7 @@ pub fn bindings() -> [TypeBinding; 32] {
         DATA_COMPONENT_TYPE.binding(),
         DECORATED_POT_PATTERN.binding(),
         DIALOG.binding(),
+        DIALOG_ACTION_TYPE.binding(),
         DIALOG_BODY_TYPE.binding(),
         DIALOG_TYPE.binding(),
         ENCHANTMENT.binding(),

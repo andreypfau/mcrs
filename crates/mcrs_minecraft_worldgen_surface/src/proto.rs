@@ -24,22 +24,21 @@ pub enum MaterialConditionHolder {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum MaterialRule {
-    #[serde(rename = "minecraft:block")]
-    Block { result_state: BlockState },
-    #[serde(rename = "minecraft:sequence")]
-    Sequence { sequence: Vec<MaterialRuleHolder> },
-    #[serde(rename = "minecraft:condition")]
+    Block {
+        result_state: BlockState,
+    },
+    Sequence {
+        sequence: Vec<MaterialRuleHolder>,
+    },
     Condition {
         if_true: MaterialConditionHolder,
         then_run: MaterialRuleHolder,
     },
-    #[serde(rename = "minecraft:bandlands")]
     Bandlands,
-    #[serde(rename = "minecraft:ore_vein")]
     OreVein {
         ore_block: BlockState,
         raw_ore_block: BlockState,
@@ -51,29 +50,24 @@ pub enum MaterialRule {
     },
 }
 
-const MATERIAL_RULE_TYPE_ROWS: &[&str] = &[
-    "minecraft:block",
-    "minecraft:sequence",
-    "minecraft:condition",
-    "minecraft:bandlands",
-    "minecraft:ore_vein",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    MATERIAL_RULE_TYPE_ROWS,
-    &[],
-    crate::keys::MaterialRuleType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    MaterialRule, key = "type", registry = crate::keys::MaterialRuleType,
+    {
+        Block => Block,
+        Bandlands => Bandlands,
+        Sequence => Sequence,
+        Condition => Condition,
+        OreVein => OreVein,
+    }
+}
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
 pub enum MaterialCondition {
-    #[serde(rename = "minecraft:biome")]
     Biome {
         biome_is: HolderSet<mcrs_minecraft_biome::Biome>,
     },
-    #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
         noise: ResourceLocation,
         min_threshold: HashableF64,
@@ -81,35 +75,28 @@ pub enum MaterialCondition {
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         is_3d: bool,
     },
-    #[serde(rename = "minecraft:vertical_gradient")]
     VerticalGradient {
         random_name: ResourceLocation,
         true_at_and_below: VerticalAnchor,
         false_at_and_above: VerticalAnchor,
     },
-    #[serde(rename = "minecraft:y_above")]
     YAbove {
         anchor: VerticalAnchor,
         surface_depth_multiplier: i32,
         add_stone_depth: bool,
     },
-    #[serde(rename = "minecraft:water")]
     Water {
         offset: i32,
         surface_depth_multiplier: i32,
         add_stone_depth: bool,
     },
-    #[serde(rename = "minecraft:temperature")]
     Temperature,
-    #[serde(rename = "minecraft:steep")]
     Steep,
-    #[serde(rename = "minecraft:not")]
-    Not { invert: MaterialConditionHolder },
-    #[serde(rename = "minecraft:hole")]
+    Not {
+        invert: MaterialConditionHolder,
+    },
     Hole,
-    #[serde(rename = "minecraft:above_preliminary_surface")]
     AbovePreliminarySurface,
-    #[serde(rename = "minecraft:stone_depth")]
     StoneDepth {
         offset: i32,
         add_surface_depth: bool,
@@ -118,25 +105,22 @@ pub enum MaterialCondition {
     },
 }
 
-const MATERIAL_CONDITION_TYPE_ROWS: &[&str] = &[
-    "minecraft:biome",
-    "minecraft:noise_threshold",
-    "minecraft:vertical_gradient",
-    "minecraft:y_above",
-    "minecraft:water",
-    "minecraft:temperature",
-    "minecraft:steep",
-    "minecraft:not",
-    "minecraft:hole",
-    "minecraft:above_preliminary_surface",
-    "minecraft:stone_depth",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    MATERIAL_CONDITION_TYPE_ROWS,
-    &[],
-    crate::keys::MaterialConditionType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    MaterialCondition, key = "type", registry = crate::keys::MaterialConditionType,
+    {
+        Biome => Biome,
+        NoiseThreshold => NoiseThreshold,
+        VerticalGradient => VerticalGradient,
+        YAbove => YAbove,
+        Water => Water,
+        Temperature => Temperature,
+        Steep => Steep,
+        Not => Not,
+        Hole => Hole,
+        AbovePreliminarySurface => AbovePreliminarySurface,
+        StoneDepth => StoneDepth,
+    }
+}
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -175,30 +159,5 @@ mod tests {
                 assert_eq!(serde_json::to_string(&condition).unwrap(), json);
             }
         });
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn material_condition_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialCondition>(
-            MATERIAL_CONDITION_TYPE_ROWS,
-            &[],
-            crate::keys::MaterialConditionType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn material_rule_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<MaterialRule>(
-            MATERIAL_RULE_TYPE_ROWS,
-            &[],
-            crate::keys::MaterialRuleType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

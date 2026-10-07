@@ -41,105 +41,95 @@ impl<'de> Deserialize<'de> for Offset {
 pub use mcrs_minecraft_core::Direction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum BlockPredicate {
-    #[serde(rename = "minecraft:matching_blocks")]
     MatchingBlocks {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         blocks: HolderSet<mcrs_minecraft_block::keys::Block>,
     },
-    #[serde(rename = "minecraft:matching_block_tag")]
     MatchingBlockTag {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         tag: ResourceLocation,
     },
-    #[serde(rename = "minecraft:matching_fluids")]
     MatchingFluids {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         fluids: HolderSet<Fluid>,
     },
-    #[serde(rename = "minecraft:matching_biomes")]
-    MatchingBiomes { biomes: HolderSet<Biome> },
-    #[serde(rename = "minecraft:has_sturdy_face")]
+    MatchingBiomes {
+        biomes: HolderSet<Biome>,
+    },
     HasSturdyFace {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         direction: Direction,
     },
-    #[serde(rename = "minecraft:solid")]
     Solid {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
     },
-    #[serde(rename = "minecraft:replaceable")]
     Replaceable {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
     },
-    #[serde(rename = "minecraft:would_survive")]
     WouldSurvive {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
         state: BlockState,
     },
-    #[serde(rename = "minecraft:inside_world_bounds")]
     InsideWorldBounds {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: Offset,
     },
-    #[serde(rename = "minecraft:any_of")]
-    AnyOf { predicates: Vec<BlockPredicate> },
-    #[serde(rename = "minecraft:all_of")]
-    AllOf { predicates: Vec<BlockPredicate> },
-    #[serde(rename = "minecraft:not")]
-    Not { predicate: Box<BlockPredicate> },
-    #[serde(rename = "minecraft:true")]
+    AnyOf {
+        predicates: Vec<BlockPredicate>,
+    },
+    AllOf {
+        predicates: Vec<BlockPredicate>,
+    },
+    Not {
+        predicate: Box<BlockPredicate>,
+    },
     True,
     /// The one offset the reference does not bound to sixteen blocks per axis.
-    #[serde(rename = "minecraft:unobstructed")]
     Unobstructed {
         #[serde(default, skip_serializing_if = "is_default")]
         offset: [i32; 3],
     },
-    #[serde(rename = "minecraft:height_range")]
     HeightRange {
         min_inclusive: VerticalAnchor,
         max_inclusive: VerticalAnchor,
     },
-    #[serde(rename = "minecraft:volume_match")]
     VolumeMatch(VolumeMatch),
-    #[serde(rename = "minecraft:below_heightmap")]
-    BelowHeightmap { heightmap: HeightmapName },
+    BelowHeightmap {
+        heightmap: HeightmapName,
+    },
 }
 
-const BLOCK_PREDICATE_TYPE_ROWS: &[&str] = &[
-    "minecraft:matching_blocks",
-    "minecraft:matching_block_tag",
-    "minecraft:matching_fluids",
-    "minecraft:matching_biomes",
-    "minecraft:has_sturdy_face",
-    "minecraft:solid",
-    "minecraft:replaceable",
-    "minecraft:would_survive",
-    "minecraft:inside_world_bounds",
-    "minecraft:any_of",
-    "minecraft:all_of",
-    "minecraft:not",
-    "minecraft:true",
-    "minecraft:unobstructed",
-    "minecraft:height_range",
-    "minecraft:volume_match",
-    "minecraft:below_heightmap",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    BLOCK_PREDICATE_TYPE_ROWS,
-    &[],
-    crate::keys::BlockPredicateType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    BlockPredicate, key = "type", registry = crate::keys::BlockPredicateType,
+    {
+        MatchingBlocks => MatchingBlocks,
+        MatchingBlockTag => MatchingBlockTag,
+        MatchingFluids => MatchingFluids,
+        MatchingBiomes => MatchingBiomes,
+        HasSturdyFace => HasSturdyFace,
+        Solid => Solid,
+        Replaceable => Replaceable,
+        WouldSurvive => WouldSurvive,
+        InsideWorldBounds => InsideWorldBounds,
+        AnyOf => AnyOf,
+        AllOf => AllOf,
+        Not => Not,
+        True => True,
+        Unobstructed => Unobstructed,
+        HeightRange => HeightRange,
+        VolumeMatch => VolumeMatch,
+        BelowHeightmap => BelowHeightmap,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
@@ -213,20 +203,5 @@ mod tests {
                 assert!(!error.contains("unknown variant"), "{name}: {error}");
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn block_predicate_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<BlockPredicate>(
-            BLOCK_PREDICATE_TYPE_ROWS,
-            &[],
-            crate::keys::BlockPredicateType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
     }
 }

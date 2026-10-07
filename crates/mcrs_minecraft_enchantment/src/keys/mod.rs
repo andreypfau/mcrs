@@ -3,11 +3,13 @@
 pub mod enchantment_effect_component_type;
 pub mod enchantment_entity_effect_type;
 pub mod enchantment_location_based_effect_type;
+pub mod enchantment_provider_type;
 pub mod enchantment_value_effect_type;
 
 pub use enchantment_effect_component_type::EnchantmentEffectComponentType;
 pub use enchantment_entity_effect_type::EnchantmentEntityEffectType;
 pub use enchantment_location_based_effect_type::EnchantmentLocationBasedEffectType;
+pub use enchantment_provider_type::EnchantmentProviderType;
 pub use enchantment_value_effect_type::EnchantmentValueEffectType;
 
 use mcrs_minecraft_core::{RegistryKey, TypeBinding, rl};
@@ -28,16 +30,22 @@ impl Registered for crate::keys::EnchantmentLocationBasedEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE;
 }
 
+pub const ENCHANTMENT_PROVIDER_TYPE: RegistryKey<crate::keys::EnchantmentProviderType> = RegistryKey::new(rl!("minecraft:enchantment_provider_type"));
+impl Registered for crate::keys::EnchantmentProviderType {
+    const REGISTRY: RegistryKey<Self> = ENCHANTMENT_PROVIDER_TYPE;
+}
+
 pub const ENCHANTMENT_VALUE_EFFECT_TYPE: RegistryKey<crate::keys::EnchantmentValueEffectType> = RegistryKey::new(rl!("minecraft:enchantment_value_effect_type"));
 impl Registered for crate::keys::EnchantmentValueEffectType {
     const REGISTRY: RegistryKey<Self> = ENCHANTMENT_VALUE_EFFECT_TYPE;
 }
 
-pub fn bindings() -> [TypeBinding; 4] {
+pub fn bindings() -> [TypeBinding; 5] {
     [
         ENCHANTMENT_EFFECT_COMPONENT_TYPE.binding(),
         ENCHANTMENT_ENTITY_EFFECT_TYPE.binding(),
         ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE.binding(),
+        ENCHANTMENT_PROVIDER_TYPE.binding(),
         ENCHANTMENT_VALUE_EFFECT_TYPE.binding(),
     ]
 }
