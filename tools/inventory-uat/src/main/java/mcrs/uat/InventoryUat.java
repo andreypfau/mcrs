@@ -21,13 +21,15 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/// Joins the server named by `mcrs.uat.address`, drives every drag and
-/// double-click scenario through the vanilla click path, and exits with the
-/// verdict written to `mcrs.uat.report`.
+/// Joins the server named by `mcrs.uat.address`, then either drives every drag and
+/// double-click scenario through the vanilla click path or, for the `join` scenario,
+/// checks that the server sent every synced registry. Exits with the verdict written
+/// to `mcrs.uat.report`.
 public final class InventoryUat implements ClientModInitializer {
     private static final int OUTSIDE = AbstractContainerMenu.SLOT_CLICKED_OUTSIDE;
     private static final int HOTBAR_0 = 36;
     private static final int SETTLE = 10;
+    private static final int SYNCED_REGISTRIES = 32;
 
     private static InventoryUat instance;
 
@@ -92,6 +94,13 @@ public final class InventoryUat implements ClientModInitializer {
     }
 
     private void schedule() {
+        if (System.getProperty("mcrs.uat.scenario", "inventory").equals("join")) {
+            steps.add(new Step(0, () -> {
+                recordJoin();
+                finish();
+            }));
+            return;
+        }
         scenario("left drag splits 64 over five slots", () -> {
             give(HOTBAR_0, 64);
         }, () -> {
@@ -184,6 +193,16 @@ public final class InventoryUat implements ClientModInitializer {
         result.put("server_corrections", List.copyOf(Probe.corrections));
         results.add(result);
         System.out.println("UAT " + (result.get("passed").equals(true) ? "PASS" : "FAIL") + ": " + name + " " + result);
+    }
+
+    private void recordJoin() {
+        int registries = Probe.registries;
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("name", "join");
+        result.put("registries", registries);
+        result.put("passed", registries == SYNCED_REGISTRIES);
+        results.add(result);
+        System.out.println("UAT " + (result.get("passed").equals(true) ? "PASS" : "FAIL") + ": join " + result);
     }
 
     private void clear() {

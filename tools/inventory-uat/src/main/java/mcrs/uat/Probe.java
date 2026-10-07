@@ -9,6 +9,8 @@ import java.util.List;
 public final class Probe {
     public static boolean armed;
     public static int resyncs;
+    /// `registry_data` packets the client handled while joining.
+    public static volatile int registries;
     public static final List<String> corrections = new ArrayList<>();
 
     public static void reset() {

@@ -65,6 +65,9 @@ pub struct MinecraftServerPlugin {
     pub slow_column_threshold: Duration,
     /// A server that listens beyond loopback announces itself on the local network.
     pub announce_on_lan: bool,
+    /// Turned off, the server offers no known pack, so a client receives every registry entry's
+    /// data instead of only the entries that are not in the vanilla pack.
+    pub offer_known_packs: bool,
     pub singleplayer_profile: Option<SingleplayerProfile>,
     /// The dimensions the world spawns, in place of a save's list and the world preset; the
     /// overworld is then optional, and a player with no saved dimension spawns in the first.
@@ -101,6 +104,7 @@ impl Default for MinecraftServerPlugin {
             default_game_mode: GameMode::Creative,
             slow_column_threshold: Duration::from_millis(250),
             announce_on_lan: true,
+            offer_known_packs: true,
             singleplayer_profile: None,
             dimensions: None,
         }
@@ -157,6 +161,7 @@ impl Plugin for MinecraftServerPlugin {
         app.insert_resource(crate::world::chunk::SlowColumnThreshold(
             self.slow_column_threshold,
         ));
+        app.insert_resource(crate::configuration::KnownPackOffer(self.offer_known_packs));
         if let Some(traces) = &self.column_traces {
             app.insert_resource(traces.clone());
         }

@@ -14,6 +14,7 @@ loom {
 		client {
 			property 'mcrs.uat.address', project.findProperty('uatAddress') ?: '127.0.0.1:25565'
 			property 'mcrs.uat.report', project.findProperty('uatReport') ?: "${projectDir}/build/uat-report.json".toString()
+			property 'mcrs.uat.scenario', project.findProperty('uatScenario') ?: 'inventory'
 			if (project.findProperty('uatDumpPacket')) {
 				property 'mcrs.uat.dumpPacket', project.findProperty('uatDumpPacket')
 			}
