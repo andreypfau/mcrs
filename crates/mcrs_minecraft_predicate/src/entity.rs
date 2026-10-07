@@ -11,36 +11,37 @@ use serde::{Deserialize, Serialize};
 use crate::location::LocationPredicate;
 use crate::player::PlayerPredicate;
 use crate::slots::SlotsPredicate;
-use crate::{dispatched_map, is_any_double, is_any_int};
+use crate::{is_any_double, is_any_int};
+use mcrs_minecraft_registry::dispatched_map;
 
 dispatched_map! {
     /// The parts an entity must match, keyed by `entity_sub_predicate_type`.
-    EntityPredicate {
-        "minecraft:entity_type" => entity_type: HolderSet<EntityType>,
-        "minecraft:location" => location: LocationPredicate,
-        "minecraft:stepping_on" => stepping_on: LocationPredicate,
-        "minecraft:movement_affected_by" => movement_affected_by: LocationPredicate,
-        "minecraft:distance" => distance: DistancePredicate,
-        "minecraft:movement" => movement: MovementPredicate,
-        "minecraft:effects" => effects: MobEffectsPredicate,
-        "minecraft:nbt" => nbt: NbtPredicate,
-        "minecraft:flags" => flags: EntityFlagsPredicate,
-        "minecraft:equipment" => equipment: EntityEquipmentPredicate,
-        "minecraft:periodic_tick" => periodic_tick: PositiveInt,
-        "minecraft:vehicle" => vehicle: Box<EntityPredicate>,
-        "minecraft:passenger" => passenger: Box<EntityPredicate>,
-        "minecraft:targeted_entity" => targeted_entity: Box<EntityPredicate>,
-        "minecraft:team" => team: String,
-        "minecraft:slots" => slots: SlotsPredicate,
-        "minecraft:components" => components: ComponentMap,
-        "minecraft:predicates" => predicates: ComponentPredicates,
-        "minecraft:entity_tags" => entity_tags: EntityTagPredicate,
-        "minecraft:type_specific/lightning" => lightning: LightningBoltPredicate,
-        "minecraft:type_specific/fishing_hook" => fishing_hook: FishingHookPredicate,
-        "minecraft:type_specific/player" => player: Box<PlayerPredicate>,
-        "minecraft:type_specific/cube_mob" => cube_mob: CubeMobPredicate,
-        "minecraft:type_specific/raider" => raider: RaiderPredicate,
-        "minecraft:type_specific/sheep" => sheep: SheepPredicate,
+    EntityPredicate on crate::keys::EntitySubPredicateType {
+        EntityType => entity_type: HolderSet<EntityType>,
+        Location => location: LocationPredicate,
+        SteppingOn => stepping_on: LocationPredicate,
+        MovementAffectedBy => movement_affected_by: LocationPredicate,
+        Distance => distance: DistancePredicate,
+        Movement => movement: MovementPredicate,
+        Effects => effects: MobEffectsPredicate,
+        Nbt => nbt: NbtPredicate,
+        Flags => flags: EntityFlagsPredicate,
+        Equipment => equipment: EntityEquipmentPredicate,
+        PeriodicTick => periodic_tick: PositiveInt,
+        Vehicle => vehicle: Box<EntityPredicate>,
+        Passenger => passenger: Box<EntityPredicate>,
+        TargetedEntity => targeted_entity: Box<EntityPredicate>,
+        Team => team: String,
+        Slots => slots: SlotsPredicate,
+        Components => components: ComponentMap,
+        Predicates => predicates: ComponentPredicates,
+        EntityTags => entity_tags: EntityTagPredicate,
+        TypeSpecificLightning => lightning: LightningBoltPredicate,
+        TypeSpecificFishingHook => fishing_hook: FishingHookPredicate,
+        TypeSpecificPlayer => player: Box<PlayerPredicate>,
+        TypeSpecificCubeMob => cube_mob: CubeMobPredicate,
+        TypeSpecificRaider => raider: RaiderPredicate,
+        TypeSpecificSheep => sheep: SheepPredicate,
     }
 }
 

@@ -33,26 +33,22 @@ pub struct GeneratedEntity {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "id")]
+#[serde(remote = "Self")]
 pub enum GeneratedKind {
-    #[serde(rename = "minecraft:witch")]
     Witch {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
     },
-    #[serde(rename = "minecraft:cat")]
     Cat {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
         variant: ResourceLocation,
         sound_variant: ResourceLocation,
     },
-    #[serde(rename = "minecraft:elder_guardian")]
     ElderGuardian {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
     },
-    #[serde(rename = "minecraft:drowned")]
     Drowned {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
@@ -61,7 +57,6 @@ pub enum GeneratedKind {
         #[serde(default, skip_serializing_if = "Equipment::is_empty")]
         equipment: Equipment,
     },
-    #[serde(rename = "minecraft:chicken")]
     Chicken {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
@@ -70,18 +65,15 @@ pub enum GeneratedKind {
         variant: ResourceLocation,
         sound_variant: ResourceLocation,
     },
-    #[serde(rename = "minecraft:zombie_nautilus")]
     ZombieNautilus {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
         variant: ResourceLocation,
     },
-    #[serde(rename = "minecraft:shulker")]
     Shulker {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
     },
-    #[serde(rename = "minecraft:item_frame")]
     ItemFrame {
         #[serde(rename = "Item")]
         item: ItemStack,
@@ -92,40 +84,55 @@ pub enum GeneratedKind {
         )]
         facing: Direction,
     },
-    #[serde(rename = "minecraft:evoker")]
     Evoker {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
     },
-    #[serde(rename = "minecraft:vindicator")]
     Vindicator {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
         #[serde(default, skip_serializing_if = "Equipment::is_empty")]
         equipment: Equipment,
     },
-    #[serde(rename = "minecraft:allay")]
     Allay {
         #[serde(rename = "LeftHanded", deserialize_with = "nbt_flag")]
         left_handed: bool,
     },
-    #[serde(rename = "minecraft:villager")]
     Villager {
         #[serde(rename = "VillagerData")]
         data: VillagerData,
     },
-    #[serde(rename = "minecraft:zombie_villager")]
     ZombieVillager {
         #[serde(rename = "VillagerData")]
         data: VillagerData,
     },
-    #[serde(rename = "minecraft:chest_minecart")]
     ChestMinecart {
         #[serde(rename = "LootTable")]
         loot_table: String,
         #[serde(rename = "LootTableSeed")]
         loot_table_seed: i64,
     },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    GeneratedKind, key = "id", registry = mcrs_minecraft_entity::keys::EntityType,
+    {
+        Allay => Allay,
+        Cat => Cat,
+        ChestMinecart => ChestMinecart,
+        Chicken => Chicken,
+        Drowned => Drowned,
+        ElderGuardian => ElderGuardian,
+        Evoker => Evoker,
+        ItemFrame => ItemFrame,
+        Shulker => Shulker,
+        Villager => Villager,
+        Vindicator => Vindicator,
+        Witch => Witch,
+        ZombieNautilus => ZombieNautilus,
+        ZombieVillager => ZombieVillager,
+    }
+    wildcard unsupported
 }
 
 impl GeneratedKind {
@@ -166,20 +173,7 @@ impl GeneratedKind {
     }
 }
 
-/// The items the spawned kinds carry, by their registry ids.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Item {
-    #[serde(rename = "minecraft:trident")]
-    Trident,
-    #[serde(rename = "minecraft:fishing_rod")]
-    FishingRod,
-    #[serde(rename = "minecraft:nautilus_shell")]
-    NautilusShell,
-    #[serde(rename = "minecraft:iron_axe")]
-    IronAxe,
-    #[serde(rename = "minecraft:elytra")]
-    Elytra,
-}
+pub use mcrs_minecraft_item::keys::Item;
 
 /// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

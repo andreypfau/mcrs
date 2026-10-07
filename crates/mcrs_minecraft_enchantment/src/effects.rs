@@ -8,7 +8,7 @@ use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
-use mcrs_minecraft_predicate::dispatched_map;
+use mcrs_minecraft_registry::dispatched_map;
 use mcrs_minecraft_registry::{Holder, HolderSet, Id};
 use mcrs_minecraft_value_provider::FloatProvider;
 
@@ -47,37 +47,36 @@ pub struct TargetedConditionalEffect<T> {
 pub struct Unit {}
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum EnchantmentValueEffect {
-    #[serde(rename = "minecraft:set")]
-    Set { value: LevelBasedValue },
-    #[serde(rename = "minecraft:add")]
-    Add { value: LevelBasedValue },
-    #[serde(rename = "minecraft:multiply")]
-    Multiply { factor: LevelBasedValue },
-    #[serde(rename = "minecraft:remove_binomial")]
-    RemoveBinomial { chance: LevelBasedValue },
-    #[serde(rename = "minecraft:all_of")]
+    Set {
+        value: LevelBasedValue,
+    },
+    Add {
+        value: LevelBasedValue,
+    },
+    Multiply {
+        factor: LevelBasedValue,
+    },
+    RemoveBinomial {
+        chance: LevelBasedValue,
+    },
     AllOf {
         effects: Vec<EnchantmentValueEffect>,
     },
 }
 
-const ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS: &[&str] = &[
-    "minecraft:set",
-    "minecraft:add",
-    "minecraft:multiply",
-    "minecraft:remove_binomial",
-    "minecraft:all_of",
-];
-
-const ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED: &[&str] = &["minecraft:exponential"];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
-    ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
-    crate::keys::EnchantmentValueEffectType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    EnchantmentValueEffect, key = "type", registry = crate::keys::EnchantmentValueEffectType,
+    {
+        Add => Add,
+        AllOf => AllOf,
+        Multiply => Multiply,
+        RemoveBinomial => RemoveBinomial,
+        Set => Set,
+    }
+    unsupported { Exponential }
+}
 
 impl EnchantmentValueEffect {
     /// Java's `EnchantmentValueEffect.process`. `binomial` draws the removals
@@ -167,10 +166,17 @@ pub enum BlockState {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum TypedBlockStateProvider {
-    #[serde(rename = "minecraft:simple")]
     Simple { state: BlockState },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedBlockStateProvider, key = "type", registry = mcrs_minecraft_block_predicate::keys::BlockStateProviderType,
+    {
+        Simple => Simple,
+    }
+    unsupported { CopyProperties, DualNoise, Noise, NoiseThreshold, RandomBlock, RandomizedInt, Rotated, RuleBased, Weighted }
 }
 
 #[derive(Deserialize)]
@@ -298,158 +304,146 @@ pub struct EnchantmentAttributeEffect {
     pub operation: AttributeOperation,
 }
 
-/// Java keeps two registries here, one for entity effects and one for
-/// location-based effects; they differ only in that the location one also
-/// accepts `attribute`. One enum carries both.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "type", deny_unknown_fields)]
-pub enum EnchantmentEntityEffect {
-    #[serde(rename = "minecraft:all_of")]
-    AllOf {
-        effects: Vec<EnchantmentEntityEffect>,
-    },
-    #[serde(rename = "minecraft:attribute")]
-    Attribute {
-        id: String,
-        attribute: String,
-        amount: LevelBasedValue,
-        operation: AttributeOperation,
-    },
-    #[serde(rename = "minecraft:apply_mob_effect")]
-    ApplyMobEffect {
-        to_apply: HolderSet<mcrs_minecraft_item::keys::MobEffect>,
-        min_duration: LevelBasedValue,
-        max_duration: LevelBasedValue,
-        min_amplifier: LevelBasedValue,
-        max_amplifier: LevelBasedValue,
-    },
-    #[serde(rename = "minecraft:change_item_damage")]
-    ChangeItemDamage { amount: LevelBasedValue },
-    #[serde(rename = "minecraft:damage_entity")]
-    DamageEntity {
-        min_damage: LevelBasedValue,
-        max_damage: LevelBasedValue,
-        damage_type: String,
-    },
-    #[serde(rename = "minecraft:explode")]
-    Explode {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        attribute_to_user: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        damage_type: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        knockback_multiplier: Option<LevelBasedValue>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        immune_blocks: Option<HolderSet<mcrs_minecraft_block::keys::Block>>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[f64; 3]>,
-        radius: LevelBasedValue,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        create_fire: Option<bool>,
-        block_interaction: ExplosionInteraction,
-        small_particle: ParticleOptions,
-        large_particle: ParticleOptions,
-        sound: String,
-    },
-    #[serde(rename = "minecraft:ignite")]
-    Ignite { duration: LevelBasedValue },
-    #[serde(rename = "minecraft:apply_impulse")]
-    ApplyImpulse {
-        direction: [f64; 3],
-        coordinate_scale: [f64; 3],
-        magnitude: LevelBasedValue,
-    },
-    #[serde(rename = "minecraft:apply_exhaustion")]
-    ApplyExhaustion { amount: LevelBasedValue },
-    #[serde(rename = "minecraft:play_sound")]
-    PlaySound {
-        sound: HolderSet<mcrs_minecraft_sound::SoundEvent>,
-        volume: FloatProvider,
-        pitch: FloatProvider,
-    },
-    #[serde(rename = "minecraft:replace_disk")]
-    ReplaceDisk {
-        radius: LevelBasedValue,
-        height: LevelBasedValue,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        offset: Option<[i32; 3]>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        predicate: Option<BlockPredicate>,
-        block_state: BlockStateProvider,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        trigger_game_event: Option<String>,
-    },
-    #[serde(rename = "minecraft:spawn_particles")]
-    SpawnParticles {
-        particle: ParticleOptions,
-        horizontal_position: PositionSource,
-        vertical_position: PositionSource,
-        horizontal_velocity: VelocitySource,
-        vertical_velocity: VelocitySource,
-        speed: FloatProvider,
-    },
-    #[serde(rename = "minecraft:summon_entity")]
-    SummonEntity {
-        entity: HolderSet<mcrs_minecraft_entity::keys::EntityType>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        join_team: Option<bool>,
-    },
+/// Java keeps two registries here: location-based effects are the entity
+/// effects and `attribute`, so the two enums share their variants and the
+/// location one adds its own.
+macro_rules! effect_enum {
+    ($(#[$meta:meta])* $name:ident { $($extra:tt)* }) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+        #[serde(remote = "Self", deny_unknown_fields)]
+        pub enum $name {
+            AllOf {
+                effects: Vec<$name>,
+            },
+            $($extra)*
+
+        ApplyMobEffect {
+            to_apply: HolderSet<mcrs_minecraft_item::keys::MobEffect>,
+            min_duration: LevelBasedValue,
+            max_duration: LevelBasedValue,
+            min_amplifier: LevelBasedValue,
+            max_amplifier: LevelBasedValue,
+        },
+        ChangeItemDamage { amount: LevelBasedValue },
+        DamageEntity {
+            min_damage: LevelBasedValue,
+            max_damage: LevelBasedValue,
+            damage_type: String,
+        },
+        Explode {
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            attribute_to_user: Option<bool>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            damage_type: Option<String>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            knockback_multiplier: Option<LevelBasedValue>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            immune_blocks: Option<HolderSet<mcrs_minecraft_block::keys::Block>>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            offset: Option<[f64; 3]>,
+            radius: LevelBasedValue,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            create_fire: Option<bool>,
+            block_interaction: ExplosionInteraction,
+            small_particle: ParticleOptions,
+            large_particle: ParticleOptions,
+            sound: String,
+        },
+        Ignite { duration: LevelBasedValue },
+        ApplyImpulse {
+            direction: [f64; 3],
+            coordinate_scale: [f64; 3],
+            magnitude: LevelBasedValue,
+        },
+        ApplyExhaustion { amount: LevelBasedValue },
+        PlaySound {
+            sound: HolderSet<mcrs_minecraft_sound::SoundEvent>,
+            volume: FloatProvider,
+            pitch: FloatProvider,
+        },
+        ReplaceDisk {
+            radius: LevelBasedValue,
+            height: LevelBasedValue,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            offset: Option<[i32; 3]>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            predicate: Option<BlockPredicate>,
+            block_state: BlockStateProvider,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            trigger_game_event: Option<String>,
+        },
+        SpawnParticles {
+            particle: ParticleOptions,
+            horizontal_position: PositionSource,
+            vertical_position: PositionSource,
+            horizontal_velocity: VelocitySource,
+            vertical_velocity: VelocitySource,
+            speed: FloatProvider,
+        },
+        SummonEntity {
+            entity: HolderSet<mcrs_minecraft_entity::keys::EntityType>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            join_team: Option<bool>,
+        },
+        }
+    };
 }
 
-const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS: &[&str] = &[
-    "minecraft:all_of",
-    "minecraft:attribute",
-    "minecraft:apply_mob_effect",
-    "minecraft:change_item_damage",
-    "minecraft:damage_entity",
-    "minecraft:explode",
-    "minecraft:ignite",
-    "minecraft:apply_impulse",
-    "minecraft:apply_exhaustion",
-    "minecraft:play_sound",
-    "minecraft:replace_disk",
-    "minecraft:spawn_particles",
-    "minecraft:summon_entity",
-];
+effect_enum! {
+    EnchantmentEntityEffect {}
+}
 
-const ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
-    "minecraft:replace_block",
-    "minecraft:run_function",
-    "minecraft:set_block_properties",
-];
+effect_enum! {
+    EnchantmentLocationBasedEffect {
+        Attribute {
+            id: String,
+            attribute: String,
+            amount: LevelBasedValue,
+            operation: AttributeOperation,
+        },
+    }
+}
 
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
-    ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
-    crate::keys::EnchantmentLocationBasedEffectType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    EnchantmentEntityEffect, key = "type", registry = crate::keys::EnchantmentEntityEffectType,
+    {
+        AllOf => AllOf,
+        ApplyMobEffect => ApplyMobEffect,
+        ChangeItemDamage => ChangeItemDamage,
+        DamageEntity => DamageEntity,
+        Explode => Explode,
+        Ignite => Ignite,
+        ApplyImpulse => ApplyImpulse,
+        ApplyExhaustion => ApplyExhaustion,
+        PlaySound => PlaySound,
+        ReplaceDisk => ReplaceDisk,
+        SpawnParticles => SpawnParticles,
+        SummonEntity => SummonEntity,
+    }
+    unsupported { ReplaceBlock, RunFunction, SetBlockProperties }
+}
 
-const ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS: &[&str] = &[
-    "minecraft:all_of",
-    "minecraft:apply_mob_effect",
-    "minecraft:change_item_damage",
-    "minecraft:damage_entity",
-    "minecraft:explode",
-    "minecraft:ignite",
-    "minecraft:apply_impulse",
-    "minecraft:apply_exhaustion",
-    "minecraft:play_sound",
-    "minecraft:replace_disk",
-    "minecraft:spawn_particles",
-    "minecraft:summon_entity",
-];
-
-const ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED: &[&str] = &[
-    "minecraft:replace_block",
-    "minecraft:run_function",
-    "minecraft:set_block_properties",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
-    ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
-    crate::keys::EnchantmentEntityEffectType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    EnchantmentLocationBasedEffect, key = "type",
+    registry = crate::keys::EnchantmentLocationBasedEffectType,
+    {
+        Attribute => Attribute,
+        AllOf => AllOf,
+        ApplyMobEffect => ApplyMobEffect,
+        ChangeItemDamage => ChangeItemDamage,
+        DamageEntity => DamageEntity,
+        Explode => Explode,
+        Ignite => Ignite,
+        ApplyImpulse => ApplyImpulse,
+        ApplyExhaustion => ApplyExhaustion,
+        PlaySound => PlaySound,
+        ReplaceDisk => ReplaceDisk,
+        SpawnParticles => SpawnParticles,
+        SummonEntity => SummonEntity,
+    }
+    unsupported { ReplaceBlock, RunFunction, SetBlockProperties }
+}
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -465,78 +459,37 @@ pub struct ChargingSounds {
 dispatched_map! {
     /// Java's `EnchantmentEffectComponents`: the key names the component and so
     /// chooses the type of its value.
-    EnchantmentEffects {
-        "minecraft:damage_protection" => damage_protection: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:damage_immunity" => damage_immunity: Vec<ConditionalEffect<Unit>>,
-        "minecraft:damage" => damage: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:smash_damage_per_fallen_block" => smash_damage_per_fallen_block: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:knockback" => knockback: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:armor_effectiveness" => armor_effectiveness: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:post_attack" => post_attack: Vec<TargetedConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:post_piercing_attack" => post_piercing_attack: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:hit_block" => hit_block: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:item_damage" => item_damage: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:equipment_drops" => equipment_drops: Vec<TargetedConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:location_changed" => location_changed: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:tick" => tick: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:ammo_use" => ammo_use: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:projectile_piercing" => projectile_piercing: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:projectile_spawned" => projectile_spawned: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
-        "minecraft:projectile_spread" => projectile_spread: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:projectile_count" => projectile_count: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:trident_return_acceleration" => trident_return_acceleration: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:fishing_time_reduction" => fishing_time_reduction: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:fishing_luck_bonus" => fishing_luck_bonus: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:block_experience" => block_experience: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:mob_experience" => mob_experience: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:repair_with_xp" => repair_with_xp: Vec<ConditionalEffect<EnchantmentValueEffect>>,
-        "minecraft:attributes" => attributes: Vec<EnchantmentAttributeEffect>,
-        "minecraft:crossbow_charge_time" => crossbow_charge_time: EnchantmentValueEffect,
-        "minecraft:crossbow_charging_sounds" => crossbow_charging_sounds: Vec<ChargingSounds>,
-        "minecraft:trident_sound" => trident_sound: Vec<String>,
-        "minecraft:prevent_equipment_drop" => prevent_equipment_drop: Unit,
-        "minecraft:prevent_armor_change" => prevent_armor_change: Unit,
-        "minecraft:trident_spin_attack_strength" => trident_spin_attack_strength: EnchantmentValueEffect,
-    }
-}
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    EnchantmentEffects::KEYS,
-    &[],
-    crate::keys::EnchantmentEffectComponentType::ENTRIES
-));
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn enchantment_value_effect_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentValueEffect>(
-            ENCHANTMENT_VALUE_EFFECT_TYPE_ROWS,
-            ENCHANTMENT_VALUE_EFFECT_TYPE_UNSUPPORTED,
-            crate::keys::EnchantmentValueEffectType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn enchantment_entity_effect_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
-            ENCHANTMENT_ENTITY_EFFECT_TYPE_ROWS,
-            ENCHANTMENT_ENTITY_EFFECT_TYPE_UNSUPPORTED,
-            crate::keys::EnchantmentEntityEffectType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn enchantment_location_based_effect_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<EnchantmentEntityEffect>(
-            ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_ROWS,
-            ENCHANTMENT_LOCATION_BASED_EFFECT_TYPE_UNSUPPORTED,
-            crate::keys::EnchantmentLocationBasedEffectType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
+    EnchantmentEffects on crate::keys::EnchantmentEffectComponentType {
+        DamageProtection => damage_protection: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        DamageImmunity => damage_immunity: Vec<ConditionalEffect<Unit>>,
+        Damage => damage: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        SmashDamagePerFallenBlock => smash_damage_per_fallen_block: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        Knockback => knockback: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        ArmorEffectiveness => armor_effectiveness: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        PostAttack => post_attack: Vec<TargetedConditionalEffect<EnchantmentEntityEffect>>,
+        PostPiercingAttack => post_piercing_attack: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
+        HitBlock => hit_block: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
+        ItemDamage => item_damage: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        EquipmentDrops => equipment_drops: Vec<TargetedConditionalEffect<EnchantmentValueEffect>>,
+        LocationChanged => location_changed: Vec<ConditionalEffect<EnchantmentLocationBasedEffect>>,
+        Tick => tick: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
+        AmmoUse => ammo_use: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        ProjectilePiercing => projectile_piercing: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        ProjectileSpawned => projectile_spawned: Vec<ConditionalEffect<EnchantmentEntityEffect>>,
+        ProjectileSpread => projectile_spread: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        ProjectileCount => projectile_count: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        TridentReturnAcceleration => trident_return_acceleration: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        FishingTimeReduction => fishing_time_reduction: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        FishingLuckBonus => fishing_luck_bonus: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        BlockExperience => block_experience: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        MobExperience => mob_experience: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        RepairWithXp => repair_with_xp: Vec<ConditionalEffect<EnchantmentValueEffect>>,
+        Attributes => attributes: Vec<EnchantmentAttributeEffect>,
+        CrossbowChargeTime => crossbow_charge_time: EnchantmentValueEffect,
+        CrossbowChargingSounds => crossbow_charging_sounds: Vec<ChargingSounds>,
+        TridentSound => trident_sound: Vec<String>,
+        PreventEquipmentDrop => prevent_equipment_drop: Unit,
+        PreventArmorChange => prevent_armor_change: Unit,
+        TridentSpinAttackStrength => trident_spin_attack_strength: EnchantmentValueEffect,
     }
 }

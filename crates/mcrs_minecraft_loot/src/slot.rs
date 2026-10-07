@@ -3,6 +3,7 @@ use std::fmt;
 use mcrs_minecraft_core::codec::PositiveInt;
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_predicate::slots::SlotRange;
 use mcrs_minecraft_registry::{Holder, HolderList};
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -20,20 +21,26 @@ impl RegistryValue for SlotSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum TypedSlotSource {
-    #[serde(rename = "minecraft:group", alias = "group")]
     Group(Group),
-    #[serde(rename = "minecraft:filtered", alias = "filtered")]
     Filtered(Filtered),
-    #[serde(rename = "minecraft:limit_slots", alias = "limit_slots")]
     LimitSlots(LimitSlots),
-    #[serde(rename = "minecraft:slot_range", alias = "slot_range")]
     SlotRange(Range),
-    #[serde(rename = "minecraft:contents", alias = "contents")]
     Contents(Contents),
-    #[serde(rename = "minecraft:empty", alias = "empty")]
     Empty,
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedSlotSource, key = "type", registry = crate::keys::SlotSourceType,
+    {
+        Group => Group,
+        Filtered => Filtered,
+        LimitSlots => LimitSlots,
+        SlotRange => SlotRange,
+        Contents => Contents,
+        Empty => Empty,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -93,24 +100,35 @@ impl SlotTarget {
 }
 
 /// An item component that holds items.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ContainerComponent {
-    #[serde(rename = "minecraft:container")]
     Container,
-    #[serde(rename = "minecraft:bundle_contents")]
     BundleContents,
-    #[serde(rename = "minecraft:charged_projectiles")]
     ChargedProjectiles,
+}
+
+impl ContainerComponent {
+    const fn component(self) -> DataComponentType {
+        match self {
+            ContainerComponent::Container => DataComponentType::Container,
+            ContainerComponent::BundleContents => DataComponentType::BundleContents,
+            ContainerComponent::ChargedProjectiles => DataComponentType::ChargedProjectiles,
+        }
+    }
+}
+
+impl Serialize for ContainerComponent {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.component().serialize(s)
+    }
 }
 
 impl<'de> Deserialize<'de> for ContainerComponent {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let id = mcrs_minecraft_core::ResourceLocation::read(&String::deserialize(d)?)
-            .map_err(D::Error::custom)?;
-        match id.as_str() {
-            "minecraft:container" => Ok(ContainerComponent::Container),
-            "minecraft:bundle_contents" => Ok(ContainerComponent::BundleContents),
-            "minecraft:charged_projectiles" => Ok(ContainerComponent::ChargedProjectiles),
+        match DataComponentType::deserialize(d)? {
+            DataComponentType::Container => Ok(ContainerComponent::Container),
+            DataComponentType::BundleContents => Ok(ContainerComponent::BundleContents),
+            DataComponentType::ChargedProjectiles => Ok(ContainerComponent::ChargedProjectiles),
             _ => Err(D::Error::custom("No items in component")),
         }
     }
@@ -146,7 +164,9 @@ impl<'de> Deserialize<'de> for SlotSource {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<SlotSource, A::Error> {
-                match TypedSlotSource::deserialize(value::MapAccessDeserializer::new(map))? {
+                match <TypedSlotSource as Deserialize>::deserialize(
+                    value::MapAccessDeserializer::new(map),
+                )? {
                     TypedSlotSource::Group(group) => Ok(SlotSource::Group(group.terms)),
                     typed => Ok(SlotSource::Typed(Box::new(typed))),
                 }

@@ -17,17 +17,17 @@ use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::predicate::Offset;
 use mcrs_minecraft_block_predicate::provider::{PositiveFloat, UnitFloat, non_empty};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
-use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registry::HolderSet;
+use mcrs_minecraft_value_provider::{HeightProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
-use mcrs_minecraft_biome::Biome;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,9 +44,8 @@ pub struct StructureSelectionEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum StructurePlacement {
-    #[serde(rename = "minecraft:random_spread")]
     RandomSpread {
         #[serde(flatten)]
         spreading: Spreading,
@@ -55,7 +54,6 @@ pub enum StructurePlacement {
         #[serde(default, skip_serializing_if = "is_default")]
         spread_type: SpreadType,
     },
-    #[serde(rename = "minecraft:concentric_rings")]
     ConcentricRings {
         #[serde(flatten)]
         spreading: Spreading,
@@ -65,21 +63,17 @@ pub enum StructurePlacement {
         preferred_biomes: HolderSet<Biome>,
     },
     // An empty struct variant, not a unit one: only the former refuses extra keys.
-    #[serde(rename = "minecraft:dimension_origin")]
     DimensionOrigin {},
 }
 
-const STRUCTURE_PLACEMENT_ROWS: &[&str] = &[
-    "minecraft:random_spread",
-    "minecraft:concentric_rings",
-    "minecraft:dimension_origin",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    STRUCTURE_PLACEMENT_ROWS,
-    &[],
-    crate::keys::StructurePlacementType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    StructurePlacement, key = "type", registry = crate::keys::StructurePlacementType,
+    {
+        ConcentricRings => ConcentricRings,
+        DimensionOrigin => DimensionOrigin,
+        RandomSpread => RandomSpread,
+    }
+}
 
 // Flatten target: the enclosing enum reports unknown keys, so no `deny_unknown_fields` here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,63 +118,52 @@ pub enum SpreadType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum Structure {
-    #[serde(rename = "minecraft:buried_treasure")]
     BuriedTreasure {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:desert_pyramid")]
     DesertPyramid {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:end_city")]
     EndCity {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:fortress")]
     Fortress {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:igloo")]
     Igloo {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:jigsaw")]
     Jigsaw {
         #[serde(flatten)]
         settings: StructureSettings,
         #[serde(flatten)]
         jigsaw: JigsawConfig,
     },
-    #[serde(rename = "minecraft:jungle_temple")]
     JungleTemple {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:mineshaft")]
     Mineshaft {
         #[serde(flatten)]
         settings: StructureSettings,
         mineshaft_type: MineshaftType,
     },
-    #[serde(rename = "minecraft:nether_fossil")]
     NetherFossil {
         #[serde(flatten)]
         settings: StructureSettings,
         height: HeightProvider,
     },
-    #[serde(rename = "minecraft:ocean_monument")]
     OceanMonument {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:ocean_ruin")]
     OceanRuin {
         #[serde(flatten)]
         settings: StructureSettings,
@@ -188,60 +171,52 @@ pub enum Structure {
         large_probability: UnitFloat,
         cluster_probability: UnitFloat,
     },
-    #[serde(rename = "minecraft:ruined_portal")]
     RuinedPortal {
         #[serde(flatten)]
         settings: StructureSettings,
         #[serde(deserialize_with = "non_empty")]
         setups: Vec<RuinedPortalSetup>,
     },
-    #[serde(rename = "minecraft:shipwreck")]
     Shipwreck {
         #[serde(flatten)]
         settings: StructureSettings,
         is_beached: bool,
     },
-    #[serde(rename = "minecraft:stronghold")]
     Stronghold {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:swamp_hut")]
     SwampHut {
         #[serde(flatten)]
         settings: StructureSettings,
     },
-    #[serde(rename = "minecraft:woodland_mansion")]
     WoodlandMansion {
         #[serde(flatten)]
         settings: StructureSettings,
     },
 }
 
-const STRUCTURE_TYPE_ROWS: &[&str] = &[
-    "minecraft:buried_treasure",
-    "minecraft:desert_pyramid",
-    "minecraft:end_city",
-    "minecraft:fortress",
-    "minecraft:igloo",
-    "minecraft:jigsaw",
-    "minecraft:jungle_temple",
-    "minecraft:mineshaft",
-    "minecraft:nether_fossil",
-    "minecraft:ocean_monument",
-    "minecraft:ocean_ruin",
-    "minecraft:ruined_portal",
-    "minecraft:shipwreck",
-    "minecraft:stronghold",
-    "minecraft:swamp_hut",
-    "minecraft:woodland_mansion",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    STRUCTURE_TYPE_ROWS,
-    &[],
-    crate::keys::StructureType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    Structure, key = "type", registry = crate::keys::StructureType,
+    {
+        BuriedTreasure => BuriedTreasure,
+        DesertPyramid => DesertPyramid,
+        EndCity => EndCity,
+        Fortress => Fortress,
+        Igloo => Igloo,
+        Jigsaw => Jigsaw,
+        JungleTemple => JungleTemple,
+        Mineshaft => Mineshaft,
+        NetherFossil => NetherFossil,
+        OceanMonument => OceanMonument,
+        OceanRuin => OceanRuin,
+        RuinedPortal => RuinedPortal,
+        Shipwreck => Shipwreck,
+        Stronghold => Stronghold,
+        SwampHut => SwampHut,
+        WoodlandMansion => WoodlandMansion,
+    }
+}
 
 impl Structure {
     pub fn settings(&self) -> &StructureSettings {
@@ -450,37 +425,31 @@ fn is_unit_1_0(value: &UnitFloat) -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum PoolAlias {
-    #[serde(rename = "minecraft:direct")]
     Direct {
         alias: ResourceLocation,
         target: ResourceLocation,
     },
-    #[serde(rename = "minecraft:random")]
     Random {
         alias: ResourceLocation,
         #[serde(deserialize_with = "non_empty")]
         targets: Vec<Weighted<ResourceLocation>>,
     },
-    #[serde(rename = "minecraft:random_group")]
     RandomGroup {
         #[serde(deserialize_with = "non_empty")]
         groups: Vec<Weighted<Vec<PoolAlias>>>,
     },
 }
 
-const POOL_ALIAS_BINDING_ROWS: &[&str] = &[
-    "minecraft:direct",
-    "minecraft:random",
-    "minecraft:random_group",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    POOL_ALIAS_BINDING_ROWS,
-    &[],
-    crate::keys::PoolAliasBindingType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    PoolAlias, key = "type", registry = crate::keys::PoolAliasBindingType,
+    {
+        Random => Random,
+        RandomGroup => RandomGroup,
+        Direct => Direct,
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -600,41 +569,6 @@ mod tests {
                 jigsaw.dimension_padding.top()
             ),
             (0, 0)
-        );
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn pool_alias_binding_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolAlias>(
-            POOL_ALIAS_BINDING_ROWS,
-            &[],
-            crate::keys::PoolAliasBindingType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn structure_placement_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<StructurePlacement>(
-            STRUCTURE_PLACEMENT_ROWS,
-            &[],
-            crate::keys::StructurePlacementType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn structure_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<Structure>(
-            STRUCTURE_TYPE_ROWS,
-            &[],
-            crate::keys::StructureType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
         );
     }
 }

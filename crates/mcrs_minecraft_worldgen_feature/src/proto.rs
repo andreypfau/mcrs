@@ -20,7 +20,6 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
-use mcrs_minecraft_registry::static_rows::names_cover;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;
 use mcrs_minecraft_worldgen_surface::proto::CaveSurface;
@@ -208,69 +207,60 @@ impl RegistryValue for PlacedFeature {
 /// writes its configuration into the same object as its `type`; there is no
 /// `config` wrapper.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum Feature {
-    #[serde(rename = "minecraft:bamboo")]
-    Bamboo { probability: UnitFloat },
+    Bamboo {
+        probability: UnitFloat,
+    },
     /// Beta's populate step. One legacy stream per chunk runs every object in
     /// it, so the step is one feature rather than one per object.
-    #[serde(rename = "mcrs:beta_populate")]
     BetaPopulate,
-    #[serde(rename = "minecraft:block_blob")]
     BlockBlob {
         state: BlockState,
         can_place_on: BlockPredicate,
     },
-    #[serde(rename = "minecraft:block_column")]
     BlockColumn {
         layers: Vec<BlockColumnLayer>,
         direction: Direction,
         allowed_placement: BlockPredicate,
         prioritize_tip: bool,
     },
-    #[serde(rename = "minecraft:block_pile")]
-    BlockPile { state_provider: BlockStateProvider },
-    #[serde(rename = "minecraft:blue_ice")]
+    BlockPile {
+        state_provider: BlockStateProvider,
+    },
     BlueIce,
-    #[serde(rename = "minecraft:bonus_chest")]
     BonusChest,
-    #[serde(rename = "minecraft:chorus_plant")]
     ChorusPlant,
-    #[serde(rename = "minecraft:coral_claw")]
-    CoralClaw { feature: Holder<PlacedFeature> },
-    #[serde(rename = "minecraft:coral_tree")]
-    CoralTree { feature: Holder<PlacedFeature> },
-    #[serde(rename = "minecraft:delta_feature")]
+    CoralClaw {
+        feature: Holder<PlacedFeature>,
+    },
+    CoralTree {
+        feature: Holder<PlacedFeature>,
+    },
     Delta {
         contents: BlockState,
         rim: BlockState,
         size: BoundedIntProvider<0, 16>,
         rim_size: BoundedIntProvider<0, 16>,
     },
-    #[serde(rename = "minecraft:disk")]
     Disk {
         state_provider: BlockStateProvider,
         target: BlockPredicate,
         radius: BoundedIntProvider<0, 8>,
         half_height: Bounded<0, 4>,
     },
-    #[serde(rename = "minecraft:end_gateway")]
     EndGateway {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         exit: Option<[i32; 3]>,
         exact: bool,
     },
-    #[serde(rename = "minecraft:end_island")]
     EndIsland,
-    #[serde(rename = "minecraft:end_platform")]
     EndPlatform,
-    #[serde(rename = "minecraft:end_podium")]
     EndPodium {
         #[serde(default, skip_serializing_if = "is_default")]
         active: bool,
     },
-    #[serde(rename = "minecraft:end_spike")]
     EndSpikes {
         spikes: Vec<EndSpike>,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -278,19 +268,16 @@ pub enum Feature {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         crystal_beam_target: Option<[i32; 3]>,
     },
-    #[serde(rename = "minecraft:fallen_tree")]
     FallenTree {
         trunk_provider: BlockStateProvider,
         log_length: IntProvider,
         stump_decorators: Vec<super::tree::TreeDecorator>,
         log_decorators: Vec<super::tree::TreeDecorator>,
     },
-    #[serde(rename = "minecraft:fill_layer")]
     FillLayer {
         height: Bounded<0, 4064>,
         state: BlockState,
     },
-    #[serde(rename = "minecraft:fossil")]
     Fossil {
         #[serde(deserialize_with = "non_empty")]
         fossil_structures: Vec<ResourceLocation>,
@@ -300,9 +287,7 @@ pub enum Feature {
         overlay_processors: Holder<StructureProcessorList>,
         max_empty_corners_allowed: Bounded<0, 7>,
     },
-    #[serde(rename = "minecraft:freeze_top_layer")]
     FreezeTopLayer,
-    #[serde(rename = "minecraft:geode")]
     Geode {
         blocks: GeodeBlockSettings,
         layers: GeodeLayerSettings,
@@ -327,7 +312,6 @@ pub enum Feature {
         noise_multiplier: UnitDouble,
         invalid_blocks_threshold: i32,
     },
-    #[serde(rename = "minecraft:huge_brown_mushroom")]
     HugeBrownMushroom {
         cap_provider: BlockStateProvider,
         stem_provider: BlockStateProvider,
@@ -335,7 +319,6 @@ pub enum Feature {
         foliage_radius: IntOr<2>,
         can_place_on: BlockPredicate,
     },
-    #[serde(rename = "minecraft:huge_fungus")]
     HugeFungus {
         valid_base_block: BlockState,
         stem_state: BlockState,
@@ -345,7 +328,6 @@ pub enum Feature {
         #[serde(default, skip_serializing_if = "is_default")]
         planted: bool,
     },
-    #[serde(rename = "minecraft:huge_red_mushroom")]
     HugeRedMushroom {
         cap_provider: BlockStateProvider,
         stem_provider: BlockStateProvider,
@@ -353,9 +335,9 @@ pub enum Feature {
         foliage_radius: IntOr<2>,
         can_place_on: BlockPredicate,
     },
-    #[serde(rename = "minecraft:iceberg")]
-    Iceberg { state: BlockState },
-    #[serde(rename = "minecraft:lake")]
+    Iceberg {
+        state: BlockState,
+    },
     Lake {
         fluid: BlockStateProvider,
         barrier: BlockStateProvider,
@@ -363,7 +345,6 @@ pub enum Feature {
         can_replace_with_air_or_fluid: BlockPredicate,
         can_replace_with_barrier: BlockPredicate,
     },
-    #[serde(rename = "minecraft:large_dripstone")]
     LargeDripstone {
         replaceable_blocks: BlockSet,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -377,9 +358,7 @@ pub enum Feature {
         min_radius_for_wind: Bounded<0, 100>,
         min_bluntness_for_wind: BluntnessForWind,
     },
-    #[serde(rename = "minecraft:monster_room")]
     MonsterRoom,
-    #[serde(rename = "minecraft:multiface_growth")]
     MultifaceGrowth {
         block: ResourceLocation,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -394,38 +373,31 @@ pub enum Feature {
         chance_of_spreading: UnitFloat,
         can_be_placed_on: BlockSet,
     },
-    #[serde(rename = "minecraft:netherrack_replace_blobs")]
     NetherrackReplaceBlobs {
         target: BlockState,
         state: BlockState,
         radius: BoundedIntProvider<0, 12>,
     },
-    #[serde(rename = "minecraft:no_op")]
     NoOp,
-    #[serde(rename = "minecraft:ore")]
     Ore {
         targets: Vec<BlockReplacement>,
         size: Bounded<0, 64>,
         discard_chance_on_air_exposure: UnitFloat,
     },
-    #[serde(rename = "minecraft:overlay")]
     Overlay {
         #[serde(deserialize_with = "non_empty_set")]
         features: PlacedFeatureSet,
     },
-    #[serde(rename = "minecraft:projected_random_patchy_square")]
     ProjectedRandomPatchySquare {
         block: BlockStateProvider,
         project_through: BlockPredicate,
         size: BoundedIntProvider<1, 16>,
         max_projection_height: NonNegativeInt,
     },
-    #[serde(rename = "minecraft:random_boolean_selector")]
     RandomBooleanSelector {
         feature_true: Holder<PlacedFeature>,
         feature_false: Holder<PlacedFeature>,
     },
-    #[serde(rename = "minecraft:random_neighbor_spread")]
     RandomNeighborSpread {
         block: BlockStateProvider,
         accepted_neighbors: BlockSet,
@@ -434,14 +406,13 @@ pub enum Feature {
         xz_offset: BoundedIntProvider<-16, 16>,
         y_offset: BoundedIntProvider<-16, 16>,
     },
-    #[serde(rename = "minecraft:random_selector")]
     RandomSelector {
         features: Vec<WeightedPlacedFeature>,
         default: Holder<PlacedFeature>,
     },
-    #[serde(rename = "minecraft:replace_single_block")]
-    ReplaceSingleBlock { targets: Vec<BlockReplacement> },
-    #[serde(rename = "minecraft:root_system")]
+    ReplaceSingleBlock {
+        targets: Vec<BlockReplacement>,
+    },
     RootSystem {
         feature: Holder<PlacedFeature>,
         required_vertical_space_for_tree: Bounded<1, 64>,
@@ -459,13 +430,11 @@ pub enum Feature {
         allowed_vertical_water_for_tree: Bounded<1, 64>,
         allowed_tree_position: BlockPredicate,
     },
-    #[serde(rename = "minecraft:scattered_ore")]
     ScatteredOre {
         targets: Vec<BlockReplacement>,
         size: Bounded<0, 64>,
         discard_chance_on_air_exposure: UnitFloat,
     },
-    #[serde(rename = "minecraft:sculk_patch")]
     SculkPatch {
         charge_count: Bounded<1, 32>,
         amount_per_charge: Bounded<1, 500>,
@@ -473,23 +442,19 @@ pub enum Feature {
         growth_rounds: Bounded<0, 8>,
         spread_rounds: Bounded<0, 8>,
     },
-    #[serde(rename = "minecraft:sequence")]
     Sequence {
         #[serde(deserialize_with = "non_empty_set")]
         features: PlacedFeatureSet,
     },
-    #[serde(rename = "minecraft:simple_block")]
     SimpleBlock {
         to_place: BlockStateProvider,
         #[serde(default, skip_serializing_if = "is_default")]
         schedule_tick: bool,
     },
-    #[serde(rename = "minecraft:simple_random_selector")]
     SimpleRandomSelector {
         #[serde(deserialize_with = "non_empty_set")]
         features: PlacedFeatureSet,
     },
-    #[serde(rename = "minecraft:single_block_pillar")]
     SingleBlockPillar {
         block: BlockStateProvider,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -500,7 +465,6 @@ pub enum Feature {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cap_feature: Option<Holder<PlacedFeature>>,
     },
-    #[serde(rename = "minecraft:speleothem")]
     Speleothem {
         base_block: BlockState,
         pointed_block: BlockState,
@@ -514,7 +478,6 @@ pub enum Feature {
         #[serde(default = "d_unit_0_5", skip_serializing_if = "is_unit_0_5")]
         chance_of_spread_radius3: UnitFloat,
     },
-    #[serde(rename = "minecraft:speleothem_cluster")]
     SpeleothemCluster {
         base_block: BlockState,
         pointed_block: BlockState,
@@ -531,13 +494,11 @@ pub enum Feature {
         max_distance_from_edge_affecting_chance_of_speleothem: Bounded<1, 64>,
         max_distance_from_center_affecting_height_bias: Bounded<1, 64>,
     },
-    #[serde(rename = "minecraft:spike")]
     Spike {
         state: BlockState,
         can_place_on: BlockPredicate,
         can_replace: BlockPredicate,
     },
-    #[serde(rename = "minecraft:spring_feature")]
     Spring {
         state: BlockState,
         #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
@@ -548,7 +509,6 @@ pub enum Feature {
         hole_count: IntOr<1>,
         valid_blocks: BlockSet,
     },
-    #[serde(rename = "minecraft:stepped_column_cluster")]
     SteppedColumnCluster {
         block: BlockStateProvider,
         continue_through: BlockPredicate,
@@ -559,100 +519,90 @@ pub enum Feature {
         column_reach: IntProvider,
         height: IntProvider,
     },
-    #[serde(rename = "minecraft:template")]
     Template {
         templates: Vec<Weighted<TemplateEntry>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         processors: Option<Holder<StructureProcessorList>>,
     },
-    #[serde(rename = "minecraft:tree")]
     Tree(TreeConfig),
-    #[serde(rename = "minecraft:underwater_magma")]
     UnderwaterMagma {
         floor_search_range: Bounded<0, 512>,
         placement_radius_around_floor: Bounded<0, 64>,
         placement_probability_per_valid_position: UnitFloat,
     },
-    #[serde(rename = "minecraft:vegetation_patch")]
     VegetationPatch(VegetationPatchConfig),
-    #[serde(rename = "minecraft:vines")]
     Vines,
-    #[serde(rename = "minecraft:void_start_platform")]
     VoidStartPlatform,
-    #[serde(rename = "minecraft:waterlogged_vegetation_patch")]
     WaterloggedVegetationPatch(VegetationPatchConfig),
-    #[serde(rename = "minecraft:weighted_random_selector")]
     WeightedRandomSelector {
         features: Vec<Weighted<Holder<PlacedFeature>>>,
     },
 }
 
-const FEATURE_TYPE_ROWS: &[&str] = &[
-    "minecraft:bamboo",
-    "minecraft:block_blob",
-    "minecraft:block_column",
-    "minecraft:block_pile",
-    "minecraft:blue_ice",
-    "minecraft:bonus_chest",
-    "minecraft:chorus_plant",
-    "minecraft:coral_claw",
-    "minecraft:coral_tree",
-    "minecraft:delta_feature",
-    "minecraft:disk",
-    "minecraft:end_gateway",
-    "minecraft:end_island",
-    "minecraft:end_platform",
-    "minecraft:end_podium",
-    "minecraft:end_spike",
-    "minecraft:fallen_tree",
-    "minecraft:fill_layer",
-    "minecraft:fossil",
-    "minecraft:freeze_top_layer",
-    "minecraft:geode",
-    "minecraft:huge_brown_mushroom",
-    "minecraft:huge_fungus",
-    "minecraft:huge_red_mushroom",
-    "minecraft:iceberg",
-    "minecraft:lake",
-    "minecraft:large_dripstone",
-    "minecraft:monster_room",
-    "minecraft:multiface_growth",
-    "minecraft:netherrack_replace_blobs",
-    "minecraft:no_op",
-    "minecraft:ore",
-    "minecraft:overlay",
-    "minecraft:projected_random_patchy_square",
-    "minecraft:random_boolean_selector",
-    "minecraft:random_neighbor_spread",
-    "minecraft:random_selector",
-    "minecraft:replace_single_block",
-    "minecraft:root_system",
-    "minecraft:scattered_ore",
-    "minecraft:sculk_patch",
-    "minecraft:sequence",
-    "minecraft:simple_block",
-    "minecraft:simple_random_selector",
-    "minecraft:single_block_pillar",
-    "minecraft:speleothem",
-    "minecraft:speleothem_cluster",
-    "minecraft:spike",
-    "minecraft:spring_feature",
-    "minecraft:stepped_column_cluster",
-    "minecraft:template",
-    "minecraft:tree",
-    "minecraft:underwater_magma",
-    "minecraft:vegetation_patch",
-    "minecraft:vines",
-    "minecraft:void_start_platform",
-    "minecraft:waterlogged_vegetation_patch",
-    "minecraft:weighted_random_selector",
-];
-
-const _: () = assert!(names_cover(
-    FEATURE_TYPE_ROWS,
-    &[],
-    crate::keys::FeatureType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    Feature, key = "type", registry = crate::keys::FeatureType,
+    {
+        Bamboo => Bamboo,
+        BlockBlob => BlockBlob,
+        BlockColumn => BlockColumn,
+        BlockPile => BlockPile,
+        BlueIce => BlueIce,
+        BonusChest => BonusChest,
+        ChorusPlant => ChorusPlant,
+        CoralClaw => CoralClaw,
+        CoralTree => CoralTree,
+        DeltaFeature => Delta,
+        Disk => Disk,
+        EndGateway => EndGateway,
+        EndIsland => EndIsland,
+        EndPlatform => EndPlatform,
+        EndPodium => EndPodium,
+        EndSpike => EndSpikes,
+        FallenTree => FallenTree,
+        FillLayer => FillLayer,
+        Fossil => Fossil,
+        FreezeTopLayer => FreezeTopLayer,
+        Geode => Geode,
+        HugeBrownMushroom => HugeBrownMushroom,
+        HugeFungus => HugeFungus,
+        HugeRedMushroom => HugeRedMushroom,
+        Iceberg => Iceberg,
+        Lake => Lake,
+        LargeDripstone => LargeDripstone,
+        MonsterRoom => MonsterRoom,
+        MultifaceGrowth => MultifaceGrowth,
+        NetherrackReplaceBlobs => NetherrackReplaceBlobs,
+        NoOp => NoOp,
+        Ore => Ore,
+        Overlay => Overlay,
+        ProjectedRandomPatchySquare => ProjectedRandomPatchySquare,
+        RandomBooleanSelector => RandomBooleanSelector,
+        RandomNeighborSpread => RandomNeighborSpread,
+        RandomSelector => RandomSelector,
+        ReplaceSingleBlock => ReplaceSingleBlock,
+        RootSystem => RootSystem,
+        ScatteredOre => ScatteredOre,
+        SculkPatch => SculkPatch,
+        Sequence => Sequence,
+        SimpleBlock => SimpleBlock,
+        SimpleRandomSelector => SimpleRandomSelector,
+        SingleBlockPillar => SingleBlockPillar,
+        Speleothem => Speleothem,
+        SpeleothemCluster => SpeleothemCluster,
+        Spike => Spike,
+        SpringFeature => Spring,
+        SteppedColumnCluster => SteppedColumnCluster,
+        Template => Template,
+        Tree => Tree,
+        UnderwaterMagma => UnderwaterMagma,
+        VegetationPatch => VegetationPatch,
+        Vines => Vines,
+        VoidStartPlatform => VoidStartPlatform,
+        WaterloggedVegetationPatch => WaterloggedVegetationPatch,
+        WeightedRandomSelector => WeightedRandomSelector,
+    }
+    extend { "mcrs:beta_populate" => BetaPopulate }
+}
 
 impl RegistryValue for Feature {
     type Registry = Self;
@@ -783,63 +733,57 @@ pub fn processor_list(list: &StructureProcessorList) -> &[StructureProcessor] {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "processor_type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum StructureProcessor {
-    #[serde(rename = "minecraft:blackstone_replace")]
     BlackstoneReplace,
-    #[serde(rename = "minecraft:block_age")]
-    BlockAge { mossiness: f64 },
-    #[serde(rename = "minecraft:block_ignore")]
-    BlockIgnore { blocks: Vec<BlockState> },
-    #[serde(rename = "minecraft:block_rot")]
+    BlockAge {
+        mossiness: f64,
+    },
+    BlockIgnore {
+        blocks: Vec<BlockState>,
+    },
     BlockRot {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rottable_blocks: Option<BlockSet>,
         integrity: UnitFloat,
     },
-    #[serde(rename = "minecraft:capped")]
     Capped {
         delegate: Box<StructureProcessor>,
         limit: IntProvider,
     },
-    #[serde(rename = "minecraft:gravity")]
     Gravity {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         heightmap: Option<HeightmapName>,
         #[serde(default, skip_serializing_if = "is_default")]
         offset: i32,
     },
-    #[serde(rename = "minecraft:jigsaw_replacement")]
     JigsawReplacement,
-    #[serde(rename = "minecraft:lava_submerged_block")]
     LavaSubmergedBlock,
-    #[serde(rename = "minecraft:nop")]
     Nop,
-    #[serde(rename = "minecraft:protected_blocks")]
-    ProtectedBlocks { value: BlockSet },
-    #[serde(rename = "minecraft:rule")]
-    Rule { rules: Vec<ProcessorRule> },
+    ProtectedBlocks {
+        value: BlockSet,
+    },
+    Rule {
+        rules: Vec<ProcessorRule>,
+    },
 }
 
-const STRUCTURE_PROCESSOR_ROWS: &[&str] = &[
-    "minecraft:blackstone_replace",
-    "minecraft:block_age",
-    "minecraft:block_ignore",
-    "minecraft:block_rot",
-    "minecraft:capped",
-    "minecraft:gravity",
-    "minecraft:jigsaw_replacement",
-    "minecraft:lava_submerged_block",
-    "minecraft:nop",
-    "minecraft:protected_blocks",
-    "minecraft:rule",
-];
-
-const _: () = assert!(names_cover(
-    STRUCTURE_PROCESSOR_ROWS,
-    &[],
-    crate::keys::StructureProcessorType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    StructureProcessor, key = "processor_type", registry = crate::keys::StructureProcessorType,
+    {
+        BlackstoneReplace => BlackstoneReplace,
+        BlockAge => BlockAge,
+        BlockIgnore => BlockIgnore,
+        BlockRot => BlockRot,
+        Capped => Capped,
+        Gravity => Gravity,
+        JigsawReplacement => JigsawReplacement,
+        LavaSubmergedBlock => LavaSubmergedBlock,
+        Nop => Nop,
+        ProtectedBlocks => ProtectedBlocks,
+        Rule => Rule,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -854,13 +798,10 @@ pub struct ProcessorRule {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "predicate_type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum PosRuleTest {
-    #[serde(rename = "minecraft:always_true")]
     AlwaysTrue,
-    #[serde(rename = "minecraft:linear_pos")]
     LinearPos(LinearPos),
-    #[serde(rename = "minecraft:axis_aligned_linear_pos")]
     AxisAlignedLinearPos {
         #[serde(flatten)]
         linear: LinearPos,
@@ -869,17 +810,14 @@ pub enum PosRuleTest {
     },
 }
 
-const POS_RULE_TEST_ROWS: &[&str] = &[
-    "minecraft:always_true",
-    "minecraft:linear_pos",
-    "minecraft:axis_aligned_linear_pos",
-];
-
-const _: () = assert!(names_cover(
-    POS_RULE_TEST_ROWS,
-    &[],
-    crate::keys::PosRuleTestType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    PosRuleTest, key = "predicate_type", registry = crate::keys::PosRuleTestType,
+    {
+        AlwaysTrue => AlwaysTrue,
+        LinearPos => LinearPos,
+        AxisAlignedLinearPos => AxisAlignedLinearPos,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinearPos {
@@ -897,29 +835,22 @@ pub struct LinearPos {
 /// this crate has no NBT value type to hold one. A pack that uses it fails to
 /// load naming the type, which is the wanted behaviour until templates exist.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum RuleBlockEntityModifier {
-    #[serde(rename = "minecraft:clear")]
     Clear,
-    #[serde(rename = "minecraft:passthrough")]
     Passthrough,
-    #[serde(rename = "minecraft:append_loot")]
     AppendLoot { loot_table: ResourceLocation },
 }
 
-const RULE_BLOCK_ENTITY_MODIFIER_ROWS: &[&str] = &[
-    "minecraft:clear",
-    "minecraft:passthrough",
-    "minecraft:append_loot",
-];
-
-const RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED: &[&str] = &["minecraft:append_static"];
-
-const _: () = assert!(names_cover(
-    RULE_BLOCK_ENTITY_MODIFIER_ROWS,
-    RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-    crate::keys::RuleBlockEntityModifierType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    RuleBlockEntityModifier, key = "type", registry = crate::keys::RuleBlockEntityModifierType,
+    {
+        Clear => Clear,
+        Passthrough => Passthrough,
+        AppendLoot => AppendLoot,
+    }
+    unsupported { AppendStatic }
+}
 
 // ---------------------------------------------------------------------------
 // Bounded scalars, defaults and validators
@@ -972,7 +903,6 @@ fn non_empty_set<'de, D: Deserializer<'de>>(deserializer: D) -> Result<PlacedFea
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_minecraft_registry::static_rows::assert_dispatch;
     use mcrs_minecraft_worldgen_testing::round_trips;
 
     #[test]
@@ -980,50 +910,5 @@ mod tests {
         assert_eq!(round_trips::<Feature>("feature"), 241);
         assert_eq!(round_trips::<PlacedFeature>("placed_feature"), 274);
         assert_eq!(round_trips::<StructureProcessorList>("processor_list"), 40);
-    }
-
-    #[test]
-    fn feature_type_rows_select_their_variants() {
-        assert_dispatch::<Feature>(
-            FEATURE_TYPE_ROWS,
-            &[],
-            crate::keys::FeatureType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn pos_rule_test_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PosRuleTest>(
-            POS_RULE_TEST_ROWS,
-            &[],
-            crate::keys::PosRuleTestType::ENTRIES,
-            |name| serde_json::json!({ "predicate_type": name }),
-        );
-    }
-
-    #[test]
-    fn rule_block_entity_modifier_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<RuleBlockEntityModifier>(
-            RULE_BLOCK_ENTITY_MODIFIER_ROWS,
-            RULE_BLOCK_ENTITY_MODIFIER_UNSUPPORTED,
-            crate::keys::RuleBlockEntityModifierType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-
-    #[test]
-    fn structure_processor_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<StructureProcessor>(
-            STRUCTURE_PROCESSOR_ROWS,
-            &[],
-            crate::keys::StructureProcessorType::ENTRIES,
-            |name| serde_json::json!({ "processor_type": name }),
-        );
     }
 }

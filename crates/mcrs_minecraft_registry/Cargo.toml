@@ -10,6 +10,7 @@ doctest = false
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
 fixedbitset.workspace = true
 serde.workspace = true
 serde_json.workspace = true

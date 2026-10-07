@@ -177,7 +177,10 @@ fn errors_read_like_vanilla() {
             r#"{"type":"minecraft:teleport_randomly","diameter":-0.0}"#,
             "Value must be positive: -0.0",
         ),
-        (r#"{"type":"minecraft:nope"}"#, "unknown variant"),
+        (
+            r#"{"type":"minecraft:nope"}"#,
+            "Unknown registry key in ResourceKey[minecraft:root / minecraft:consume_effect_type]: minecraft:nope",
+        ),
         (
             r#"{"type":"minecraft:teleport_randomly","extra":1}"#,
             "unknown field",

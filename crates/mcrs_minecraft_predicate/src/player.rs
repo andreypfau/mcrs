@@ -87,26 +87,32 @@ impl<'de> Deserialize<'de> for GameModes {
 /// A statistic and the range its value must fall in, dispatched on the
 /// statistic's type, which names the registry the statistic is read from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum StatMatcher {
-    #[serde(rename = "minecraft:mined", alias = "mined")]
     Mined(StatOf<Block>),
-    #[serde(rename = "minecraft:crafted", alias = "crafted")]
     Crafted(StatOf<Item>),
-    #[serde(rename = "minecraft:used", alias = "used")]
     Used(StatOf<Item>),
-    #[serde(rename = "minecraft:broken", alias = "broken")]
     Broken(StatOf<Item>),
-    #[serde(rename = "minecraft:picked_up", alias = "picked_up")]
     PickedUp(StatOf<Item>),
-    #[serde(rename = "minecraft:dropped", alias = "dropped")]
     Dropped(StatOf<Item>),
-    #[serde(rename = "minecraft:killed", alias = "killed")]
     Killed(StatOf<EntityType>),
-    #[serde(rename = "minecraft:killed_by", alias = "killed_by")]
     KilledBy(StatOf<EntityType>),
-    #[serde(rename = "minecraft:custom", alias = "custom")]
     Custom(StatOf<CustomStat>),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    StatMatcher, key = "type", registry = crate::keys::StatType,
+    {
+        Mined => Mined,
+        Crafted => Crafted,
+        Used => Used,
+        Broken => Broken,
+        PickedUp => PickedUp,
+        Dropped => Dropped,
+        Killed => Killed,
+        KilledBy => KilledBy,
+        Custom => Custom,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

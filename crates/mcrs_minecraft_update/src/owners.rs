@@ -372,6 +372,31 @@ pub const OWNERS: &[Owner] = &[
         value: ValueType::Enum("BiomeSourceType"),
     },
     Owner {
+        registry: "minecraft:worldgen/chunk_generator",
+        krate: "mcrs_minecraft_dimension",
+        value: ValueType::Enum("ChunkGeneratorType"),
+    },
+    Owner {
+        registry: "minecraft:enchantment_provider_type",
+        krate: "mcrs_minecraft_enchantment",
+        value: ValueType::Enum("EnchantmentProviderType"),
+    },
+    Owner {
+        registry: "minecraft:test_environment_definition_type",
+        krate: "mcrs_minecraft_environment",
+        value: ValueType::Enum("TestEnvironmentDefinitionType"),
+    },
+    Owner {
+        registry: "minecraft:test_instance_type",
+        krate: "mcrs_minecraft_environment",
+        value: ValueType::Enum("TestInstanceType"),
+    },
+    Owner {
+        registry: "minecraft:dialog_action_type",
+        krate: "mcrs_minecraft_item",
+        value: ValueType::Enum("DialogActionType"),
+    },
+    Owner {
         registry: "minecraft:consume_effect_type",
         krate: "mcrs_minecraft_item",
         value: ValueType::Enum("ConsumeEffectType"),

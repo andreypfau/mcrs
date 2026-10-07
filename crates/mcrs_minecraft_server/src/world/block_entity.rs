@@ -86,7 +86,7 @@ pub fn packet_entry(
     Ok(ChunkDataBlockEntity {
         packed_xz: (((pos.x & 15) << 4) | (pos.z & 15)) as i8,
         y: pos.y as i16,
-        kind: RegistryId::from(entry.kind()),
+        kind: RegistryId::from(entry.kind().id()),
         data: Cow::Owned(to_nbt_compound(entry)?),
     })
 }

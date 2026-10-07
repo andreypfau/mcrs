@@ -30,39 +30,31 @@ pub struct PoolEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "element_type", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub enum PoolElement {
-    #[serde(rename = "minecraft:single_pool_element")]
     Single(SingleElement),
-    #[serde(rename = "minecraft:legacy_single_pool_element")]
     LegacySingle(SingleElement),
-    #[serde(rename = "minecraft:list_pool_element")]
     List {
         elements: Vec<PoolElement>,
         projection: Projection,
     },
-    #[serde(rename = "minecraft:feature_pool_element")]
     Feature {
         feature: Holder<PlacedFeature>,
         projection: Projection,
     },
-    #[serde(rename = "minecraft:empty_pool_element")]
     Empty {},
 }
 
-const STRUCTURE_POOL_ELEMENT_ROWS: &[&str] = &[
-    "minecraft:single_pool_element",
-    "minecraft:legacy_single_pool_element",
-    "minecraft:list_pool_element",
-    "minecraft:feature_pool_element",
-    "minecraft:empty_pool_element",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    STRUCTURE_POOL_ELEMENT_ROWS,
-    &[],
-    crate::keys::StructurePoolElementType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    PoolElement, key = "element_type", registry = crate::keys::StructurePoolElementType,
+    {
+        SinglePoolElement => Single,
+        ListPoolElement => List,
+        FeaturePoolElement => Feature,
+        EmptyPoolElement => Empty,
+        LegacySinglePoolElement => LegacySingle,
+    }
+}
 
 // The newtype variants hand this the whole map, so it must refuse unknown keys itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -94,20 +86,5 @@ impl SingleElement {
             projection,
             override_liquid_settings: None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn structure_pool_element_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PoolElement>(
-            STRUCTURE_POOL_ELEMENT_ROWS,
-            &[],
-            crate::keys::StructurePoolElementType::ENTRIES,
-            |name| serde_json::json!({ "element_type": name }),
-        );
     }
 }

@@ -29,17 +29,19 @@ impl From<VerticalDirection> for mcrs_minecraft_core::Direction {
 /// `BlockPredicate` as loaded, the compiled `Predicate` once every set it names
 /// is a mask.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "P: Deserialize<'de>", serialize = "P: Serialize"))]
 pub enum PlacementModifier<P = BlockPredicate> {
-    #[serde(rename = "minecraft:block_predicate_filter")]
-    BlockPredicateFilter { predicate: P },
-    #[serde(rename = "minecraft:rarity_filter")]
-    RarityFilter { chance: PositiveInt },
-    #[serde(rename = "minecraft:random_chance")]
-    RandomChance { chance: UnitFloat },
-    #[serde(rename = "minecraft:surface_relative_threshold_filter")]
+    BlockPredicateFilter {
+        predicate: P,
+    },
+    RarityFilter {
+        chance: PositiveInt,
+    },
+    RandomChance {
+        chance: UnitFloat,
+    },
     SurfaceRelativeThresholdFilter {
         heightmap: HeightmapName,
         #[serde(default, skip_serializing_if = "is_default")]
@@ -47,28 +49,27 @@ pub enum PlacementModifier<P = BlockPredicate> {
         #[serde(default, skip_serializing_if = "is_default")]
         max_inclusive: IntOr<{ i32::MAX }>,
     },
-    #[serde(rename = "minecraft:surface_water_depth_filter")]
-    SurfaceWaterDepthFilter { max_water_depth: i32 },
-    #[serde(rename = "minecraft:biome")]
+    SurfaceWaterDepthFilter {
+        max_water_depth: i32,
+    },
     Biome {},
-    #[serde(rename = "minecraft:count")]
-    Count { count: BoundedIntProvider<0, 4096> },
-    #[serde(rename = "minecraft:noise_based_count")]
+    Count {
+        count: BoundedIntProvider<0, 4096>,
+    },
     NoiseBasedCount {
         noise_to_count_ratio: i32,
         noise_factor: f64,
         #[serde(default, skip_serializing_if = "is_default")]
         noise_offset: f64,
     },
-    #[serde(rename = "minecraft:noise_threshold_count")]
     NoiseThresholdCount {
         noise_level: f64,
         below_noise: i32,
         above_noise: i32,
     },
-    #[serde(rename = "minecraft:count_on_every_layer")]
-    CountOnEveryLayer { count: BoundedIntProvider<0, 256> },
-    #[serde(rename = "minecraft:cuboid")]
+    CountOnEveryLayer {
+        count: BoundedIntProvider<0, 256>,
+    },
     Cuboid {
         xz_size: BoundedIntProvider<1, 16>,
         y_size: BoundedIntProvider<1, 16>,
@@ -77,7 +78,6 @@ pub enum PlacementModifier<P = BlockPredicate> {
         #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
         include_interior: bool,
     },
-    #[serde(rename = "minecraft:environment_scan")]
     EnvironmentScan {
         direction_of_search: VerticalDirection,
         target_condition: P,
@@ -87,56 +87,52 @@ pub enum PlacementModifier<P = BlockPredicate> {
         allowed_search_condition: Option<P>,
         max_steps: Bounded<1, 32>,
     },
-    #[serde(rename = "minecraft:heightmap")]
-    Heightmap { heightmap: HeightmapName },
-    #[serde(rename = "minecraft:height_range")]
-    HeightRange { height: HeightProvider },
-    #[serde(rename = "minecraft:in_square")]
+    Heightmap {
+        heightmap: HeightmapName,
+    },
+    HeightRange {
+        height: HeightProvider,
+    },
     InSquare {},
-    #[serde(rename = "minecraft:offset")]
     Offset {
         x: BoundedIntProvider<-16, 16>,
         y: BoundedIntProvider<-16, 16>,
         z: BoundedIntProvider<-16, 16>,
     },
-    #[serde(rename = "minecraft:randomly_selected")]
     RandomlySelected {
         #[serde(deserialize_with = "non_empty")]
         placements: Vec<PlacementModifier<P>>,
     },
-    #[serde(rename = "minecraft:fixed_placement")]
     FixedPlacement {
         #[serde(deserialize_with = "non_empty")]
         positions: Vec<[i32; 3]>,
     },
 }
 
-const PLACEMENT_MODIFIER_TYPE_ROWS: &[&str] = &[
-    "minecraft:block_predicate_filter",
-    "minecraft:rarity_filter",
-    "minecraft:random_chance",
-    "minecraft:surface_relative_threshold_filter",
-    "minecraft:surface_water_depth_filter",
-    "minecraft:biome",
-    "minecraft:count",
-    "minecraft:noise_based_count",
-    "minecraft:noise_threshold_count",
-    "minecraft:count_on_every_layer",
-    "minecraft:cuboid",
-    "minecraft:environment_scan",
-    "minecraft:heightmap",
-    "minecraft:height_range",
-    "minecraft:in_square",
-    "minecraft:offset",
-    "minecraft:randomly_selected",
-    "minecraft:fixed_placement",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    PLACEMENT_MODIFIER_TYPE_ROWS,
-    &[],
-    crate::keys::PlacementModifierType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    for<P> serialize { P: Serialize } deserialize { P: Deserialize<'de> }
+    PlacementModifier<P>, key = "type", registry = crate::keys::PlacementModifierType,
+    {
+        BlockPredicateFilter => BlockPredicateFilter,
+        RarityFilter => RarityFilter,
+        RandomChance => RandomChance,
+        SurfaceRelativeThresholdFilter => SurfaceRelativeThresholdFilter,
+        SurfaceWaterDepthFilter => SurfaceWaterDepthFilter,
+        Biome => Biome,
+        Count => Count,
+        NoiseBasedCount => NoiseBasedCount,
+        NoiseThresholdCount => NoiseThresholdCount,
+        CountOnEveryLayer => CountOnEveryLayer,
+        Cuboid => Cuboid,
+        EnvironmentScan => EnvironmentScan,
+        Heightmap => Heightmap,
+        HeightRange => HeightRange,
+        InSquare => InSquare,
+        Offset => Offset,
+        RandomlySelected => RandomlySelected,
+        FixedPlacement => FixedPlacement,
+    }
+}
 
 impl<P> PlacementModifier<P> {
     /// The same chain over another predicate type.
@@ -235,22 +231,6 @@ impl<P> PlacementModifier<P> {
         })
     }
 }
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn placement_modifier_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PlacementModifier>(
-            PLACEMENT_MODIFIER_TYPE_ROWS,
-            &[],
-            crate::keys::PlacementModifierType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
-        );
-    }
-}
-
 // Declaration order is the step index; keep it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

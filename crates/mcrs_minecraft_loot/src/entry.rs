@@ -10,26 +10,32 @@ use crate::table::LootTableFile;
 
 /// One way a pool can roll, dispatched on `loot_pool_entry_type`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum LootPoolEntry {
-    #[serde(rename = "minecraft:empty", alias = "empty")]
     Empty(Uniform),
-    #[serde(rename = "minecraft:item", alias = "item")]
     Item(ItemEntry),
-    #[serde(rename = "minecraft:loot_table", alias = "loot_table")]
     LootTable(NestedLootTable),
-    #[serde(rename = "minecraft:dynamic", alias = "dynamic")]
     Dynamic(DynamicEntry),
-    #[serde(rename = "minecraft:tag", alias = "tag")]
     Tag(TagEntry),
-    #[serde(rename = "minecraft:slots", alias = "slots")]
     Slots(SlotsEntry),
-    #[serde(rename = "minecraft:alternatives", alias = "alternatives")]
     Alternatives(Composite),
-    #[serde(rename = "minecraft:sequence", alias = "sequence")]
     Sequence(Composite),
-    #[serde(rename = "minecraft:group", alias = "group")]
     Group(Composite),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    LootPoolEntry, key = "type", registry = crate::keys::LootPoolEntryType,
+    {
+        Empty => Empty,
+        Item => Item,
+        LootTable => LootTable,
+        Dynamic => Dynamic,
+        Tag => Tag,
+        Slots => Slots,
+        Alternatives => Alternatives,
+        Sequence => Sequence,
+        Group => Group,
+    }
 }
 
 fn default_weight() -> i32 {

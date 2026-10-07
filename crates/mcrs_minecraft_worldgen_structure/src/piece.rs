@@ -707,9 +707,8 @@ impl PieceContext<'_> {
 /// `StructurePiece.createTag` plus each type's `addAdditionalSaveData`; `id`
 /// picks the type, so the save reads back whatever order its keys came in.
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "id", deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 enum PieceTag {
-    #[serde(rename = "minecraft:jigsaw")]
     Jigsaw {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -731,7 +730,6 @@ enum PieceTag {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         liquid_settings: Option<LiquidSettings>,
     },
-    #[serde(rename = "minecraft:tedp")]
     DesertPyramid {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -756,7 +754,6 @@ enum PieceTag {
         #[serde(rename = "hasPlacedChest3", deserialize_with = "nbt_flag")]
         has_placed_chest_3: bool,
     },
-    #[serde(rename = "minecraft:tejp")]
     JungleTemple {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -781,7 +778,6 @@ enum PieceTag {
         #[serde(rename = "placedTrap2", deserialize_with = "nbt_flag")]
         placed_trap_2: bool,
     },
-    #[serde(rename = "minecraft:tesh")]
     SwampHut {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -802,7 +798,6 @@ enum PieceTag {
         #[serde(rename = "Cat", deserialize_with = "nbt_flag")]
         cat: bool,
     },
-    #[serde(rename = "minecraft:btp")]
     BuriedTreasure {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -811,7 +806,6 @@ enum PieceTag {
         #[serde(rename = "GD")]
         gen_depth: i32,
     },
-    #[serde(rename = "minecraft:shipwreck")]
     Shipwreck {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -834,9 +828,7 @@ enum PieceTag {
         #[serde(deserialize_with = "nbt_flag")]
         height_adjusted: bool,
     },
-    #[serde(rename = "minecraft:nebcr")]
     FortressBridgeCrossing(GridTag),
-    #[serde(rename = "minecraft:nebef")]
     FortressBridgeEndFiller {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -847,17 +839,11 @@ enum PieceTag {
         #[serde(rename = "Seed")]
         seed: i32,
     },
-    #[serde(rename = "minecraft:nebs")]
     FortressBridgeStraight(GridTag),
-    #[serde(rename = "minecraft:neccs")]
     FortressCorridorStairs(GridTag),
-    #[serde(rename = "minecraft:nectb")]
     FortressCorridorBalcony(GridTag),
-    #[serde(rename = "minecraft:nece")]
     FortressCastleEntrance(GridTag),
-    #[serde(rename = "minecraft:nescsc")]
     FortressSmallCorridorCrossing(GridTag),
-    #[serde(rename = "minecraft:nesclt")]
     FortressSmallCorridorLeftTurn {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -868,9 +854,7 @@ enum PieceTag {
         #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
         chest: bool,
     },
-    #[serde(rename = "minecraft:nesc")]
     FortressSmallCorridor(GridTag),
-    #[serde(rename = "minecraft:nescrt")]
     FortressSmallCorridorRightTurn {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -881,9 +865,7 @@ enum PieceTag {
         #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
         chest: bool,
     },
-    #[serde(rename = "minecraft:necsr")]
     FortressStalkRoom(GridTag),
-    #[serde(rename = "minecraft:nemt")]
     FortressMonsterThrone {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -894,11 +876,8 @@ enum PieceTag {
         #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
         mob: bool,
     },
-    #[serde(rename = "minecraft:nerc")]
     FortressRoomCrossing(GridTag),
-    #[serde(rename = "minecraft:nesr")]
     FortressStairsRoom(GridTag),
-    #[serde(rename = "minecraft:orp")]
     OceanRuin {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -923,7 +902,6 @@ enum PieceTag {
         #[serde(rename = "IsLarge", deserialize_with = "nbt_flag")]
         large: bool,
     },
-    #[serde(rename = "minecraft:rupo")]
     RuinedPortal {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -948,9 +926,7 @@ enum PieceTag {
         #[serde(rename = "Properties")]
         properties: PortalProperties,
     },
-    #[serde(rename = "minecraft:omb")]
     OceanMonumentBuilding(GridTag),
-    #[serde(rename = "minecraft:msroom")]
     MineshaftRoom {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -963,7 +939,6 @@ enum PieceTag {
         #[serde(rename = "Entrances", serialize_with = "nbt_int_arrays")]
         entrances: Vec<[i32; 6]>,
     },
-    #[serde(rename = "minecraft:mscorridor")]
     MineshaftCorridor {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -982,7 +957,6 @@ enum PieceTag {
         #[serde(rename = "Num")]
         num_sections: i32,
     },
-    #[serde(rename = "minecraft:mscrossing")]
     MineshaftCrossing {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -997,7 +971,6 @@ enum PieceTag {
         #[serde(rename = "D")]
         direction: i8,
     },
-    #[serde(rename = "minecraft:msstairs")]
     MineshaftStairs {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1008,7 +981,6 @@ enum PieceTag {
         #[serde(rename = "MST")]
         mineshaft_type: i32,
     },
-    #[serde(rename = "minecraft:iglu")]
     Igloo {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1027,7 +999,6 @@ enum PieceTag {
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
-    #[serde(rename = "minecraft:nefos")]
     NetherFossil {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1046,7 +1017,6 @@ enum PieceTag {
         #[serde(rename = "Rot", with = "rotation::legacy")]
         rotation: Rotation,
     },
-    #[serde(rename = "minecraft:ecp")]
     EndCity {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1067,11 +1037,8 @@ enum PieceTag {
         #[serde(rename = "OW", deserialize_with = "nbt_flag")]
         overwrite: bool,
     },
-    #[serde(rename = "minecraft:shstart")]
     StrongholdStart(StairsDownTag),
-    #[serde(rename = "minecraft:shsd")]
     StrongholdStairsDown(StairsDownTag),
-    #[serde(rename = "minecraft:shs")]
     StrongholdStraight {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1086,13 +1053,9 @@ enum PieceTag {
         #[serde(rename = "Right", deserialize_with = "nbt_flag")]
         right: bool,
     },
-    #[serde(rename = "minecraft:shph")]
     StrongholdPrisonHall(DoorTag),
-    #[serde(rename = "minecraft:shlt")]
     StrongholdLeftTurn(DoorTag),
-    #[serde(rename = "minecraft:shrt")]
     StrongholdRightTurn(DoorTag),
-    #[serde(rename = "minecraft:shrc")]
     StrongholdRoomCrossing {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1105,9 +1068,7 @@ enum PieceTag {
         #[serde(rename = "Type")]
         variant: i32,
     },
-    #[serde(rename = "minecraft:shssd")]
     StrongholdStraightStairsDown(DoorTag),
-    #[serde(rename = "minecraft:sh5c")]
     StrongholdFiveCrossing {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1126,7 +1087,6 @@ enum PieceTag {
         #[serde(rename = "rightHigh", deserialize_with = "nbt_flag")]
         right_high: bool,
     },
-    #[serde(rename = "minecraft:shcc")]
     StrongholdChestCorridor {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1139,7 +1099,6 @@ enum PieceTag {
         #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
         chest: bool,
     },
-    #[serde(rename = "minecraft:shli")]
     StrongholdLibrary {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1152,7 +1111,6 @@ enum PieceTag {
         #[serde(rename = "Tall", deserialize_with = "nbt_flag")]
         tall: bool,
     },
-    #[serde(rename = "minecraft:shpr")]
     StrongholdPortalRoom {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1165,7 +1123,6 @@ enum PieceTag {
         #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
         mob: bool,
     },
-    #[serde(rename = "minecraft:shfc")]
     StrongholdFillerCorridor {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1178,7 +1135,6 @@ enum PieceTag {
         #[serde(rename = "Steps")]
         steps: i32,
     },
-    #[serde(rename = "minecraft:wmp")]
     WoodlandMansion {
         #[serde(rename = "BB", serialize_with = "nbt_int_array")]
         bounds: [i32; 6],
@@ -1201,73 +1157,56 @@ enum PieceTag {
     },
 }
 
-const STRUCTURE_PIECE_ROWS: &[&str] = &[
-    "minecraft:jigsaw",
-    "minecraft:tedp",
-    "minecraft:tejp",
-    "minecraft:tesh",
-    "minecraft:btp",
-    "minecraft:shipwreck",
-    "minecraft:nebcr",
-    "minecraft:nebef",
-    "minecraft:nebs",
-    "minecraft:neccs",
-    "minecraft:nectb",
-    "minecraft:nece",
-    "minecraft:nescsc",
-    "minecraft:nesclt",
-    "minecraft:nesc",
-    "minecraft:nescrt",
-    "minecraft:necsr",
-    "minecraft:nemt",
-    "minecraft:nerc",
-    "minecraft:nesr",
-    "minecraft:orp",
-    "minecraft:rupo",
-    "minecraft:omb",
-    "minecraft:msroom",
-    "minecraft:mscorridor",
-    "minecraft:mscrossing",
-    "minecraft:msstairs",
-    "minecraft:iglu",
-    "minecraft:nefos",
-    "minecraft:ecp",
-    "minecraft:shstart",
-    "minecraft:shsd",
-    "minecraft:shs",
-    "minecraft:shph",
-    "minecraft:shlt",
-    "minecraft:shrt",
-    "minecraft:shrc",
-    "minecraft:shssd",
-    "minecraft:sh5c",
-    "minecraft:shcc",
-    "minecraft:shli",
-    "minecraft:shpr",
-    "minecraft:shfc",
-    "minecraft:wmp",
-];
-
-const STRUCTURE_PIECE_UNSUPPORTED: &[&str] = &[
-    "minecraft:nestart",
-    "minecraft:omcr",
-    "minecraft:omdxr",
-    "minecraft:omdxyr",
-    "minecraft:omdyr",
-    "minecraft:omdyzr",
-    "minecraft:omdzr",
-    "minecraft:omentry",
-    "minecraft:ompenthouse",
-    "minecraft:omsimple",
-    "minecraft:omsimplet",
-    "minecraft:omwr",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    STRUCTURE_PIECE_ROWS,
-    STRUCTURE_PIECE_UNSUPPORTED,
-    crate::keys::StructurePieceType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    PieceTag, key = "id", registry = crate::keys::StructurePieceType,
+    {
+        Mscorridor => MineshaftCorridor,
+        Mscrossing => MineshaftCrossing,
+        Msroom => MineshaftRoom,
+        Msstairs => MineshaftStairs,
+        Nebcr => FortressBridgeCrossing,
+        Nebef => FortressBridgeEndFiller,
+        Nebs => FortressBridgeStraight,
+        Neccs => FortressCorridorStairs,
+        Nectb => FortressCorridorBalcony,
+        Nece => FortressCastleEntrance,
+        Nescsc => FortressSmallCorridorCrossing,
+        Nesclt => FortressSmallCorridorLeftTurn,
+        Nesc => FortressSmallCorridor,
+        Nescrt => FortressSmallCorridorRightTurn,
+        Necsr => FortressStalkRoom,
+        Nemt => FortressMonsterThrone,
+        Nerc => FortressRoomCrossing,
+        Nesr => FortressStairsRoom,
+        Shcc => StrongholdChestCorridor,
+        Shfc => StrongholdFillerCorridor,
+        Sh5c => StrongholdFiveCrossing,
+        Shlt => StrongholdLeftTurn,
+        Shli => StrongholdLibrary,
+        Shpr => StrongholdPortalRoom,
+        Shph => StrongholdPrisonHall,
+        Shrt => StrongholdRightTurn,
+        Shrc => StrongholdRoomCrossing,
+        Shsd => StrongholdStairsDown,
+        Shstart => StrongholdStart,
+        Shs => StrongholdStraight,
+        Shssd => StrongholdStraightStairsDown,
+        Tejp => JungleTemple,
+        Orp => OceanRuin,
+        Iglu => Igloo,
+        Rupo => RuinedPortal,
+        Tesh => SwampHut,
+        Tedp => DesertPyramid,
+        Omb => OceanMonumentBuilding,
+        Ecp => EndCity,
+        Wmp => WoodlandMansion,
+        Btp => BuriedTreasure,
+        Shipwreck => Shipwreck,
+        Nefos => NetherFossil,
+        Jigsaw => Jigsaw,
+    }
+    unsupported { Nestart, Omcr, Omdxr, Omdxyr, Omdyr, Omdyzr, Omdzr, Omentry, Ompenthouse, Omsimple, Omsimplet, Omwr }
+}
 
 /// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
 mod biome_type {
@@ -1794,7 +1733,7 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
     type Value = Piece;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Piece, D::Error> {
-        match PieceTag::deserialize(deserializer)? {
+        match <PieceTag as Deserialize>::deserialize(deserializer)? {
             PieceTag::Jigsaw {
                 bounds,
                 pos_x,
@@ -2898,20 +2837,5 @@ mod tests {
             let mut deserializer = serde_json::Deserializer::from_str(&json);
             assert!(PieceSeed(context).deserialize(&mut deserializer).is_err(), "{json}");
         }
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn structure_piece_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<PieceTag>(
-            STRUCTURE_PIECE_ROWS,
-            STRUCTURE_PIECE_UNSUPPORTED,
-            crate::keys::StructurePieceType::ENTRIES,
-            |name| serde_json::json!({ "id": name }),
-        );
     }
 }

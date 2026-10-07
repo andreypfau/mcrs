@@ -42,12 +42,18 @@ pub enum ScoreboardNameProvider {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 enum TypedScoreboardName {
-    #[serde(rename = "minecraft:fixed", alias = "fixed")]
     Fixed { name: String },
-    #[serde(rename = "minecraft:context", alias = "context")]
     Context { target: EntityTarget },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedScoreboardName, key = "type", registry = crate::keys::LootScoreProviderType,
+    {
+        Fixed => Fixed,
+        Context => Context,
+    }
 }
 
 impl Serialize for ScoreboardNameProvider {
@@ -79,8 +85,9 @@ impl<'de> Deserialize<'de> for ScoreboardNameProvider {
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 Ok(
-                    match TypedScoreboardName::deserialize(value::MapAccessDeserializer::new(map))?
-                    {
+                    match <TypedScoreboardName as Deserialize>::deserialize(
+                        value::MapAccessDeserializer::new(map),
+                    )? {
                         TypedScoreboardName::Fixed { name } => ScoreboardNameProvider::Fixed(name),
                         TypedScoreboardName::Context { target } => {
                             ScoreboardNameProvider::Context(target)
@@ -102,12 +109,18 @@ pub enum NbtProvider {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 enum TypedNbtProvider {
-    #[serde(rename = "minecraft:storage", alias = "storage")]
     Storage { source: ResourceLocation },
-    #[serde(rename = "minecraft:context", alias = "context")]
     Context { target: EntityOrBlock },
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedNbtProvider, key = "type", registry = crate::keys::LootNbtProviderType,
+    {
+        Storage => Storage,
+        Context => Context,
+    }
 }
 
 impl Serialize for NbtProvider {
@@ -139,7 +152,9 @@ impl<'de> Deserialize<'de> for NbtProvider {
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
                 Ok(
-                    match TypedNbtProvider::deserialize(value::MapAccessDeserializer::new(map))? {
+                    match <TypedNbtProvider as Deserialize>::deserialize(
+                        value::MapAccessDeserializer::new(map),
+                    )? {
                         TypedNbtProvider::Storage { source } => NbtProvider::Storage(source),
                         TypedNbtProvider::Context { target } => NbtProvider::Context(target),
                     },

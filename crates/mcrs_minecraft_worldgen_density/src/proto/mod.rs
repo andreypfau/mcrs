@@ -142,18 +142,13 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 #[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {
-    #[serde(rename = "minecraft:constant")]
     Constant(ConstantValue),
-    #[serde(rename = "minecraft:blend_alpha")]
     BlendAlpha,
-    #[serde(rename = "minecraft:blend_offset")]
     BlendOffset,
-    #[serde(rename = "minecraft:beardifier")]
     Beardifier,
-    #[serde(rename = "minecraft:noise")]
     Noise {
         noise: NoiseHolder,
         xz_scale: HashableF64,
@@ -165,76 +160,52 @@ pub enum ProtoDensityFunction {
         #[serde(default = "zero_holder", skip_serializing_if = "is_zero_holder")]
         shift_z: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:end_outer_islands")]
     EndOuterIslands,
-    #[serde(rename = "minecraft:distance_to_point")]
     DistanceToPoint {
         point: [i32; 3],
         metric: DistanceMetric,
     },
-    #[serde(rename = "minecraft:gradient")]
     Gradient(GradientArguments),
-    #[serde(rename = "minecraft:shift_a")]
-    ShiftA { noise: NoiseHolder },
-    #[serde(rename = "minecraft:shift_b")]
-    ShiftB { noise: NoiseHolder },
-    #[serde(rename = "minecraft:shift")]
-    Shift { noise: NoiseHolder },
-    #[serde(rename = "minecraft:abs")]
+    ShiftA {
+        noise: NoiseHolder,
+    },
+    ShiftB {
+        noise: NoiseHolder,
+    },
+    Shift {
+        noise: NoiseHolder,
+    },
     Abs(SingleArgumentFunction),
-    #[serde(rename = "minecraft:square")]
     Square(SingleArgumentFunction),
-    #[serde(rename = "minecraft:cube")]
     Cube(SingleArgumentFunction),
-    #[serde(rename = "minecraft:sqrt")]
     Sqrt(SingleArgumentFunction),
-    #[serde(rename = "minecraft:half_negative")]
     HalfNegative(SingleArgumentFunction),
-    #[serde(rename = "minecraft:quarter_negative")]
     QuarterNegative(SingleArgumentFunction),
-    #[serde(rename = "minecraft:reciprocal")]
     Reciprocal(SingleArgumentFunction),
-    #[serde(rename = "minecraft:negate")]
     Negate(SingleArgumentFunction),
-    #[serde(rename = "minecraft:squeeze")]
     Squeeze(SingleArgumentFunction),
-    #[serde(rename = "minecraft:log")]
     Log(SingleArgumentFunction),
-    #[serde(rename = "minecraft:sign")]
     Sign(SingleArgumentFunction),
-    #[serde(rename = "minecraft:floor")]
     Floor(RoundFunctionArguments),
-    #[serde(rename = "minecraft:round")]
     Round(RoundFunctionArguments),
-    #[serde(rename = "minecraft:ceil")]
     Ceil(RoundFunctionArguments),
-    #[serde(rename = "minecraft:truncate")]
     Truncate(RoundFunctionArguments),
-    #[serde(rename = "minecraft:add")]
     Add(TwoArgumentFunction),
-    #[serde(rename = "minecraft:sub")]
     Sub(TwoArgumentFunction),
-    #[serde(rename = "minecraft:mul")]
     Mul(TwoArgumentFunction),
-    #[serde(rename = "minecraft:div")]
     Div(TwoArgumentFunction),
-    #[serde(rename = "minecraft:min")]
     Min(TwoArgumentFunction),
-    #[serde(rename = "minecraft:max")]
     Max(TwoArgumentFunction),
-    #[serde(rename = "minecraft:pow")]
     Pow(PowFunctionArguments),
-    #[serde(rename = "minecraft:spline")]
-    Spline { spline: ProtoSpline },
-    #[serde(rename = "minecraft:lerp")]
+    Spline {
+        spline: ProtoSpline,
+    },
     Lerp {
         alpha: DensityFunctionHolder,
         first: DensityFunctionHolder,
         second: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:clamp")]
     Clamp(ClampArguments),
-    #[serde(rename = "minecraft:range_choice")]
     RangeChoice {
         input: DensityFunctionHolder,
         min_inclusive: NoiseValue,
@@ -242,82 +213,72 @@ pub enum ProtoDensityFunction {
         when_in_range: DensityFunctionHolder,
         when_out_of_range: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:interval_select")]
     IntervalSelect(IntervalSelectArguments),
-    #[serde(rename = "minecraft:cache")]
     Cache(SingleArgumentFunction),
-    #[serde(rename = "minecraft:blend_density")]
     BlendDensity(SingleArgumentFunction),
-    #[serde(rename = "minecraft:interpolated")]
     Interpolated {
         input: DensityFunctionHolder,
         cell_size_xz: NonZeroU32,
         cell_size_y: NonZeroU32,
     },
-    #[serde(rename = "minecraft:slice")]
     Slice {
         axis: Axis,
         coordinate: i32,
         input: DensityFunctionHolder,
     },
-    #[serde(rename = "minecraft:find_top_surface")]
     FindTopSurface(FindTopSurfaceArguments),
-    #[serde(rename = "minecraft:old_blended_noise")]
     OldBlendedNoise(BlendedNoiseArguments),
 }
 
-const DENSITY_FUNCTION_TYPE_ROWS: &[&str] = &[
-    "minecraft:constant",
-    "minecraft:blend_alpha",
-    "minecraft:blend_offset",
-    "minecraft:beardifier",
-    "minecraft:noise",
-    "minecraft:end_outer_islands",
-    "minecraft:distance_to_point",
-    "minecraft:gradient",
-    "minecraft:shift_a",
-    "minecraft:shift_b",
-    "minecraft:shift",
-    "minecraft:abs",
-    "minecraft:square",
-    "minecraft:cube",
-    "minecraft:sqrt",
-    "minecraft:half_negative",
-    "minecraft:quarter_negative",
-    "minecraft:reciprocal",
-    "minecraft:negate",
-    "minecraft:squeeze",
-    "minecraft:log",
-    "minecraft:sign",
-    "minecraft:floor",
-    "minecraft:round",
-    "minecraft:ceil",
-    "minecraft:truncate",
-    "minecraft:add",
-    "minecraft:sub",
-    "minecraft:mul",
-    "minecraft:div",
-    "minecraft:min",
-    "minecraft:max",
-    "minecraft:pow",
-    "minecraft:spline",
-    "minecraft:lerp",
-    "minecraft:clamp",
-    "minecraft:range_choice",
-    "minecraft:interval_select",
-    "minecraft:cache",
-    "minecraft:blend_density",
-    "minecraft:interpolated",
-    "minecraft:slice",
-    "minecraft:find_top_surface",
-    "minecraft:old_blended_noise",
-];
-
-const _: () = assert!(mcrs_minecraft_registry::static_rows::names_cover(
-    DENSITY_FUNCTION_TYPE_ROWS,
-    &[],
-    crate::keys::DensityFunctionType::ENTRIES
-));
+mcrs_minecraft_registry::dispatch! {
+    ProtoDensityFunction, key = "type", registry = crate::keys::DensityFunctionType,
+    {
+        Constant => Constant,
+        BlendAlpha => BlendAlpha,
+        BlendOffset => BlendOffset,
+        Beardifier => Beardifier,
+        Noise => Noise,
+        EndOuterIslands => EndOuterIslands,
+        DistanceToPoint => DistanceToPoint,
+        Gradient => Gradient,
+        ShiftA => ShiftA,
+        ShiftB => ShiftB,
+        Shift => Shift,
+        Abs => Abs,
+        Square => Square,
+        Cube => Cube,
+        Sqrt => Sqrt,
+        HalfNegative => HalfNegative,
+        QuarterNegative => QuarterNegative,
+        Reciprocal => Reciprocal,
+        Negate => Negate,
+        Squeeze => Squeeze,
+        Log => Log,
+        Sign => Sign,
+        Floor => Floor,
+        Round => Round,
+        Ceil => Ceil,
+        Truncate => Truncate,
+        Add => Add,
+        Sub => Sub,
+        Mul => Mul,
+        Div => Div,
+        Min => Min,
+        Max => Max,
+        Pow => Pow,
+        Spline => Spline,
+        Lerp => Lerp,
+        Clamp => Clamp,
+        RangeChoice => RangeChoice,
+        IntervalSelect => IntervalSelect,
+        Cache => Cache,
+        BlendDensity => BlendDensity,
+        Interpolated => Interpolated,
+        Slice => Slice,
+        FindTopSurface => FindTopSurface,
+        OldBlendedNoise => OldBlendedNoise,
+    }
+}
 
 fn zero_holder() -> DensityFunctionHolder {
     DensityFunctionHolder::ZERO
@@ -424,14 +385,19 @@ mod tests {
         );
     }
 
-    /// The corpus always writes the namespace. A datapack that leaves it off is
-    /// naming a kind this build does not have, not the `minecraft` one.
+    /// A type without a namespace is the `minecraft` one, as the game reads
+    /// it; one that names nothing is a load error.
     #[test]
     fn a_type_without_a_namespace_is_a_load_error() {
         assert!(
             serde_json::from_str::<ProtoDensityFunction>(r#"{"type":"constant","value":1.5}"#)
-                .is_err()
+                .is_ok()
         );
+        let error =
+            serde_json::from_str::<ProtoDensityFunction>(r#"{"type":"nonsense","value":1.5}"#)
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("minecraft:nonsense"), "{error}");
     }
 
     /// The three-way `noise` specialization tests structural equality against
@@ -456,21 +422,6 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&plain).unwrap(),
             r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0}"#
-        );
-    }
-}
-
-#[cfg(test)]
-mod dispatch_rows {
-    use super::*;
-
-    #[test]
-    fn density_function_type_rows_select_their_variants() {
-        mcrs_minecraft_registry::static_rows::assert_dispatch::<ProtoDensityFunction>(
-            DENSITY_FUNCTION_TYPE_ROWS,
-            &[],
-            crate::keys::DensityFunctionType::ENTRIES,
-            |name| serde_json::json!({ "type": name }),
         );
     }
 }

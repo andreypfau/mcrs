@@ -85,121 +85,127 @@ impl Provider for FloatExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum TypedIntExpression {
-    #[serde(rename = "minecraft:constant", alias = "constant")]
     Constant(IntConstant),
-    #[serde(rename = "minecraft:abs", alias = "abs")]
     Abs(Unary<IntExpression>),
-    #[serde(rename = "minecraft:avg", alias = "avg")]
     Average(Aggregate<IntExpression>),
-    #[serde(rename = "minecraft:binomial", alias = "binomial")]
     Binomial(Binomial),
-    #[serde(rename = "minecraft:conditional", alias = "conditional")]
     Conditional(Conditional<IntExpression>),
-    #[serde(rename = "minecraft:sub", alias = "sub")]
     Difference(Binary<IntExpression>),
-    #[serde(
-        rename = "minecraft:environment_attribute",
-        alias = "environment_attribute"
-    )]
     EnvironmentAttribute(IntAttribute),
-    #[serde(rename = "minecraft:from_float", alias = "from_float")]
     FromFloat(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:max", alias = "max")]
     Maximum(Aggregate<IntExpression>),
-    #[serde(rename = "minecraft:min", alias = "min")]
     Minimum(Aggregate<IntExpression>),
-    #[serde(rename = "minecraft:floor_mod", alias = "floor_mod")]
     FloorModulus(Binary<IntExpression>),
-    #[serde(rename = "minecraft:floor_div", alias = "floor_div")]
     FloorQuotient(Binary<IntExpression>),
-    #[serde(rename = "minecraft:mod", alias = "mod")]
     Modulus(Binary<IntExpression>),
-    #[serde(rename = "minecraft:div", alias = "div")]
     Quotient(Binary<IntExpression>),
-    #[serde(rename = "minecraft:negate", alias = "negate")]
     Negate(Unary<IntExpression>),
-    #[serde(rename = "minecraft:number_dispatcher", alias = "number_dispatcher")]
     NumberDispatcher(Dispatcher<IntExpression>),
-    #[serde(rename = "minecraft:pow", alias = "pow")]
     Power(Power<IntExpression>),
-    #[serde(rename = "minecraft:mul", alias = "mul")]
     Product(Aggregate<IntExpression>),
-    #[serde(rename = "minecraft:score", alias = "score")]
     Score(Score),
-    #[serde(rename = "minecraft:storage", alias = "storage")]
     Storage(Storage<IntExpression>),
-    #[serde(rename = "minecraft:add", alias = "add")]
     Sum(Aggregate<IntExpression>),
-    #[serde(rename = "minecraft:uniform", alias = "uniform")]
     Uniform(Range<IntExpression>),
-    #[serde(rename = "minecraft:weighted_list", alias = "weighted_list")]
     WeightedList(Distribution<IntExpression>),
 }
 
+mcrs_minecraft_registry::dispatch! {
+    TypedIntExpression, key = "type", registry = mcrs_minecraft_item::keys::ContextIntProviderType,
+    {
+        Abs => Abs,
+        Avg => Average,
+        Binomial => Binomial,
+        Conditional => Conditional,
+        Constant => Constant,
+        Sub => Difference,
+        EnvironmentAttribute => EnvironmentAttribute,
+        FromFloat => FromFloat,
+        Max => Maximum,
+        Min => Minimum,
+        FloorMod => FloorModulus,
+        FloorDiv => FloorQuotient,
+        Mod => Modulus,
+        Div => Quotient,
+        Negate => Negate,
+        NumberDispatcher => NumberDispatcher,
+        Pow => Power,
+        Mul => Product,
+        Score => Score,
+        Storage => Storage,
+        Add => Sum,
+        Uniform => Uniform,
+        WeightedList => WeightedList,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum TypedFloatExpression {
-    #[serde(rename = "minecraft:constant", alias = "constant")]
     Constant(FloatConstant),
-    #[serde(rename = "minecraft:abs", alias = "abs")]
     Abs(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:avg", alias = "avg")]
     Average(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:ceil", alias = "ceil")]
     Ceiling(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:conditional", alias = "conditional")]
     Conditional(Conditional<FloatExpression>),
-    #[serde(rename = "minecraft:cos", alias = "cos")]
     Cosine(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:sub", alias = "sub")]
     Difference(Binary<FloatExpression>),
-    #[serde(rename = "minecraft:enchantment_level", alias = "enchantment_level")]
     EnchantmentLevel(EnchantmentLevel),
-    #[serde(
-        rename = "minecraft:environment_attribute",
-        alias = "environment_attribute"
-    )]
     EnvironmentAttribute(FloatAttribute),
-    #[serde(rename = "minecraft:floor", alias = "floor")]
     Floor(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:from_int", alias = "from_int")]
     FromInt(Unary<IntExpression>),
-    #[serde(rename = "minecraft:length", alias = "length")]
     Length(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:max", alias = "max")]
     Maximum(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:min", alias = "min")]
     Minimum(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:mod", alias = "mod")]
     Modulus(Binary<FloatExpression>),
-    #[serde(rename = "minecraft:negate", alias = "negate")]
     Negate(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:number_dispatcher", alias = "number_dispatcher")]
     NumberDispatcher(Dispatcher<FloatExpression>),
-    #[serde(rename = "minecraft:pow", alias = "pow")]
     Power(Power<FloatExpression>),
-    #[serde(rename = "minecraft:mul", alias = "mul")]
     Product(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:div", alias = "div")]
     Quotient(Binary<FloatExpression>),
-    #[serde(rename = "minecraft:round", alias = "round")]
     Round(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:sin", alias = "sin")]
     Sine(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:sqrt", alias = "sqrt")]
     SquareRoot(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:storage", alias = "storage")]
     Storage(Storage<FloatExpression>),
-    #[serde(rename = "minecraft:add", alias = "add")]
     Sum(Aggregate<FloatExpression>),
-    #[serde(rename = "minecraft:truncate", alias = "truncate")]
     Truncate(Unary<FloatExpression>),
-    #[serde(rename = "minecraft:uniform", alias = "uniform")]
     Uniform(Range<FloatExpression>),
-    #[serde(rename = "minecraft:weighted_list", alias = "weighted_list")]
     WeightedList(Distribution<FloatExpression>),
+}
+
+mcrs_minecraft_registry::dispatch! {
+    TypedFloatExpression, key = "type", registry = mcrs_minecraft_item::keys::ContextFloatProviderType,
+    {
+        Abs => Abs,
+        Avg => Average,
+        Ceil => Ceiling,
+        Conditional => Conditional,
+        Constant => Constant,
+        Cos => Cosine,
+        Sub => Difference,
+        EnchantmentLevel => EnchantmentLevel,
+        EnvironmentAttribute => EnvironmentAttribute,
+        Floor => Floor,
+        FromInt => FromInt,
+        Length => Length,
+        Max => Maximum,
+        Min => Minimum,
+        Mod => Modulus,
+        Negate => Negate,
+        NumberDispatcher => NumberDispatcher,
+        Pow => Power,
+        Mul => Product,
+        Div => Quotient,
+        Round => Round,
+        Sin => Sine,
+        Sqrt => SquareRoot,
+        Storage => Storage,
+        Add => Sum,
+        Truncate => Truncate,
+        Uniform => Uniform,
+        WeightedList => WeightedList,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -263,7 +269,9 @@ impl<'de> Deserialize<'de> for IntExpression {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<IntExpression, A::Error> {
-                match TypedIntExpression::deserialize(value::MapAccessDeserializer::new(map))? {
+                match <TypedIntExpression as Deserialize>::deserialize(
+                    value::MapAccessDeserializer::new(map),
+                )? {
                     TypedIntExpression::Constant(constant) => {
                         Ok(IntExpression::Constant(constant.value))
                     }
@@ -301,7 +309,9 @@ impl<'de> Deserialize<'de> for FloatExpression {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<FloatExpression, A::Error> {
-                match TypedFloatExpression::deserialize(value::MapAccessDeserializer::new(map))? {
+                match <TypedFloatExpression as Deserialize>::deserialize(
+                    value::MapAccessDeserializer::new(map),
+                )? {
                     TypedFloatExpression::Constant(constant) => {
                         Ok(FloatExpression::Constant(constant.value))
                     }
