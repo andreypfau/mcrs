@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::{BlockPos, ColumnPos, Direction, RegionPos, SectionPos};
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
-use mcrs_minecraft_network::client::JoinedGame;
+use mcrs_minecraft_network::client::CurrentDimension;
 
 use super::DebugScreenDisplayer;
 use crate::player::Player;
@@ -13,7 +13,7 @@ pub const GROUP: ResourceLocation<&'static str> =
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     camera: Single<&PhysicsTransform, With<Player>>,
-    joined: Option<Single<&JoinedGame>>,
+    current: Option<Single<&CurrentDimension>>,
 ) {
     let position = camera.translation;
     let feet = BlockPos::from(position);
@@ -53,7 +53,7 @@ pub fn display(
             // Only a server force-loads chunks, and this client has none.
             format!(
                 "{} FC: 0",
-                joined.map_or_else(|| "-".to_owned(), |joined| joined.dimension.to_string())
+                current.map_or_else(|| "-".to_owned(), |current| current.key.to_string())
             ),
             format!(
                 "Section-relative: {:02} {:02} {:02}",
@@ -76,11 +76,15 @@ mod tests {
     fn the_group_reads_the_way_vanilla_prints_it() {
         let mut world = World::new();
         world.init_resource::<DebugScreenDisplayer>();
-        world.spawn(JoinedGame {
-            player_id: 1,
-            dimensions: Vec::new(),
-            dimension: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
-            dimension_type_id: 0,
+        let types =
+            mcrs_minecraft_registry::Registry::<mcrs_minecraft_dimension::DimensionType>::new(
+                mcrs_minecraft_dimension::keys::DIMENSION_TYPE,
+                [ResourceLocation::read("minecraft:overworld").unwrap()],
+            )
+            .unwrap();
+        world.spawn(CurrentDimension {
+            key: mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+            dimension_type: types.id(0).unwrap(),
         });
         world.spawn((
             Player,

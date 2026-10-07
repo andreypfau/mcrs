@@ -14,11 +14,9 @@ pub fn insert_block_catalog(client: &mut App) {
     client.insert_resource(mcrs_minecraft_worldgen_generator::tests::blocks().clone());
 }
 
-/// The numbers in a column's biome palette mean something only once the server's registries are
-/// mapped onto the local ones.
-pub fn insert_local_registries(client: &mut App) {
-    client.insert_resource(mcrs_minecraft_world::registries::test_registries().clone());
-    client.add_plugins(mcrs_minecraft_client::wire_id::WireIdPlugin);
+/// What the client reads the server's registries with once configuration ends.
+pub fn insert_session_inputs(client: &mut App) {
+    client.insert_resource(mcrs_minecraft_client::registries::session_inputs());
 }
 
 /// Returns the connection entity once every play-state packet the flow promises

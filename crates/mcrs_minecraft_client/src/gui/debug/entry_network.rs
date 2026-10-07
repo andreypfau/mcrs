@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheRadius, ClientConnection, JoinedGame, ServerProfile,
+    ChunkCacheRadius, ClientConnection, CurrentDimension, ServerProfile,
 };
 
 use super::DebugScreenDisplayer;
@@ -12,7 +12,7 @@ use super::DebugScreenDisplayer;
 type Connection<'a> = (
     &'a ServerProfile,
     &'a ConnectionState,
-    Option<&'a JoinedGame>,
+    Option<&'a CurrentDimension>,
     Option<&'a ChunkCacheRadius>,
 );
 
@@ -28,12 +28,12 @@ pub fn display(
         displayer.add_line("Server: not connected".to_owned());
         return;
     };
-    let (profile, state, joined, radius) = *connection;
+    let (profile, state, current, radius) = *connection;
     let columns = store.map_or(0, |store| store.len());
 
     displayer.add_line(format!("Server: {} as {}", phase(state), profile.username));
-    if let Some(joined) = joined {
-        displayer.add_line(format!("Dimension: {}", joined.dimension));
+    if let Some(current) = current {
+        displayer.add_line(format!("Dimension: {}", current.key));
     }
     displayer.add_line(match radius {
         Some(radius) => format!("Columns: {columns} resident, radius {}", radius.0),

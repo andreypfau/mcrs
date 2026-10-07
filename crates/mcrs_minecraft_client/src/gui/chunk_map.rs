@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use bevy::text::{FontSize, LineBreak};
 use mcrs_minecraft_core::{BlockPos, ColumnPos};
 use mcrs_minecraft_level::world::lifecycle::trace::{ColumnSample, ColumnStage, ColumnTraceSink};
-use mcrs_minecraft_network::client::{ClientConnection, JoinedGame};
+use mcrs_minecraft_network::client::{ClientConnection, CurrentDimension};
 
 use crate::player::Player;
 use mcrs_minecraft_level::entity::physics::Transform as PhysicsTransform;
@@ -71,13 +71,13 @@ pub struct ChunkMapPlugin;
 #[derive(SystemParam)]
 pub struct JoinedTraces<'w, 's> {
     traces: Res<'w, ColumnTraceSink>,
-    joined: Query<'w, 's, &'static JoinedGame, With<ClientConnection>>,
+    current: Query<'w, 's, &'static CurrentDimension, With<ClientConnection>>,
 }
 
 impl JoinedTraces<'_, '_> {
     pub fn snapshot(&self, out: &mut Vec<ColumnSample>) {
-        match self.joined.single() {
-            Ok(joined) => self.traces.snapshot(joined.dimension.as_str(), out),
+        match self.current.single() {
+            Ok(current) => self.traces.snapshot(current.key.as_str(), out),
             Err(_) => out.clear(),
         }
     }

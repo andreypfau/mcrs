@@ -10,10 +10,12 @@ use bevy::ecs::prelude::{IntoScheduleConfigs, Local, On, Query, Res, ResMut, Res
 use bevy::ecs::schedule::SystemSet;
 use bevy::log::error;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind};
 use mcrs_minecraft_core::{BlockPos, LocalPos, SectionPos};
+use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_protocol::chunk::{ChunkData, LightChunk, LightData};
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
@@ -28,12 +30,9 @@ use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 pub use mcrs_minecraft_mesh::{SECTION_SIZE, SECTION_VOLUME};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::Instant;
-use mcrs_minecraft_network::client::{
-    ClientConnection, ClientNetworkSystems, ReceivedRegistries, ReceivedRegistry,
-};
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, CurrentDimension};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
-
-use crate::wire_id::{WireIds, WireTable};
+use mcrs_minecraft_registry::{Registry, RegistrySet};
 
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
@@ -298,15 +297,10 @@ impl Column {
         light: &LightData<'_>,
         extent: Extent,
         block_state_count: usize,
-        wire: &WireIds,
+        biomes: &Registry<Biome>,
     ) -> Result<Column> {
-        let biome_registry_len = wire
-            .biomes
-            .as_ref()
-            .map(WireTable::len)
-            .context("the server sent no biome registry the local registries can name")?;
         let sections = data
-            .sections(extent.sections, block_state_count, biome_registry_len)?
+            .sections(extent.sections, block_state_count, biomes.len())?
             .into_iter()
             .map(|section| {
                 if section.non_empty_block_count == 0 {
@@ -322,7 +316,7 @@ impl Column {
                 };
                 Ok(Some(Section {
                     blocks,
-                    biomes: local_biomes(&section.biomes, wire)?,
+                    biomes: biome_ids(&section.biomes, biomes)?,
                     states,
                 }))
             })
@@ -418,16 +412,14 @@ fn write_nibbles(source: &LightChunk, out: &mut [u8; SECTION_VOLUME], shift: u32
     }
 }
 
-fn local_biomes(
+fn biome_ids(
     sent: &PalettedContainer<u8, { Biomes::SIZE }>,
-    wire: &WireIds,
+    biomes: &Registry<Biome>,
 ) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
     let local = |number: u8| -> Result<u8> {
-        let id = wire
-            .biomes
-            .as_ref()
-            .and_then(|table| table.get(u16::from(number)))
-            .with_context(|| format!("biome {number} is not one the local registries hold"))?;
+        let id = biomes
+            .id(u16::from(number))
+            .with_context(|| format!("biome {number} is not one the session registries hold"))?;
         Ok(id.narrow::<u8>()?)
     };
     match sent {
@@ -451,23 +443,12 @@ fn local_biomes(
     }
 }
 
-fn extent_of(registries: &[ReceivedRegistry], dimension_type: u16) -> Option<Extent> {
-    let data = registries
-        .iter()
-        .find(|registry| {
-            registry.registry
-                == mcrs_minecraft_dimension::keys::DIMENSION_TYPE
-                    .location()
-                    .as_static_str()
-        })?
-        .entries
-        .get(usize::from(dimension_type))?
-        .data
-        .as_ref()?
-        .extract_compound()?;
+fn extent_of(registries: &RegistrySet, current: &CurrentDimension) -> Option<Extent> {
+    let dimension_types = registries.entries::<DimensionType, DimensionType>()?;
+    let dimension_type = dimension_types.get(current.dimension_type)?;
     Some(Extent {
-        min_section_y: data.get_int("min_y")? >> SectionPos::BITS,
-        sections: usize::try_from(data.get_int("height")?).ok()? / SECTION_SIZE,
+        min_section_y: dimension_type.min_y >> SectionPos::BITS,
+        sections: usize::try_from(dimension_type.height).ok()? / SECTION_SIZE,
     })
 }
 
@@ -550,19 +531,21 @@ impl Arrivals {
         self.queue.len()
     }
 
-    fn enter(&mut self, registries: &[ReceivedRegistry], spawn: &PlayerSpawnInfo) {
-        let dimension_type = spawn.dimension_type_id.0;
-        match extent_of(registries, dimension_type) {
+    fn enter(&mut self, registries: &RegistrySet, spawn: &PlayerSpawnInfo) {
+        let Some(current) = CurrentDimension::named_by(registries, spawn) else {
+            return;
+        };
+        match extent_of(registries, &current) {
             Some(extent) => {
                 self.extent = Some(extent);
                 self.queue.push_back(Arrival::Enter(Dimension {
-                    name: spawn.dimension.to_string(),
+                    name: current.key.to_string(),
                     extent,
                 }));
             }
             None => error!(
-                "dimension type {} carries no min_y and height: columns have nowhere to sit",
-                dimension_type
+                "dimension type {} has no extent: columns have nowhere to sit",
+                spawn.dimension_type_id.0
             ),
         }
     }
@@ -586,28 +569,32 @@ impl Arrivals {
 
 fn receive_column_packets(
     event: On<ReceivedPacketEvent>,
-    connections: Query<(&ConnectionState, &ReceivedRegistries)>,
+    connections: Query<&ConnectionState>,
     blocks: Res<Blocks>,
-    wire: Option<Res<WireIds>>,
+    registries: Option<Res<RegistrySet>>,
     mut arrivals: ResMut<Arrivals>,
 ) {
-    let Ok((state, registries)) = connections.get(event.entity) else {
+    let Ok(ConnectionState::Game) = connections.get(event.entity) else {
         return;
     };
-    if *state != ConnectionState::Game {
-        return;
-    }
 
     if let Some(login) = event.decode::<ClientboundLogin>() {
-        arrivals.enter(&registries.0, &login.player_spawn_info);
+        if let Some(registries) = registries.as_deref() {
+            arrivals.enter(registries, &login.player_spawn_info);
+        }
     } else if let Some(respawn) = event.decode::<ClientboundRespawn>() {
-        arrivals.enter(&registries.0, &respawn.player_spawn_info);
+        if let Some(registries) = registries.as_deref() {
+            arrivals.enter(registries, &respawn.player_spawn_info);
+        }
     } else if event.id == ClientboundLevelChunkWithLight::ID {
         let Some(extent) = arrivals.extent else {
             return;
         };
-        let Some(wire) = wire.as_deref().cloned() else {
-            error!("a column arrived before the server's registries were mapped to the local ones");
+        let Some(biomes) = registries
+            .as_deref()
+            .and_then(RegistrySet::registry::<Biome>)
+        else {
+            error!("a column arrived before the server's biome registry was built");
             return;
         };
         let data = event.data.clone();
@@ -621,7 +608,7 @@ fn receive_column_packets(
                 &packet.light_data,
                 extent,
                 block_state_count,
-                &wire,
+                &biomes,
             )
             .with_context(|| format!("column {:?}", packet.pos))?;
             Ok((packet.pos, column))
@@ -692,14 +679,20 @@ fn settle_columns(
 mod tests {
     use super::*;
     use mcrs_minecraft_chunk::VoxelId;
-    use mcrs_minecraft_nbt::compound::NbtCompound;
-    use mcrs_minecraft_network::client::RegistryEntry;
     use mcrs_minecraft_protocol::chunk::{ChunkSection, encode_section};
     use mcrs_minecraft_protocol::section::{biome_direct_bits, block_direct_bits};
     use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
     use std::borrow::Cow;
 
-    use crate::wire_id::testing::{biome_names, identity_biomes, wire_ids_of};
+    fn session_biomes(len: usize) -> Registry<Biome> {
+        Registry::new(
+            mcrs_minecraft_biome::keys::BIOME,
+            (0..len).map(|n| {
+                mcrs_minecraft_core::ResourceLocation::read(&format!("minecraft:b{n}")).unwrap()
+            }),
+        )
+        .unwrap()
+    }
 
     const EXTENT: Extent = Extent {
         min_section_y: -1,
@@ -816,7 +809,7 @@ mod tests {
             &packet.light_data,
             EXTENT,
             BLOCK_STATE_COUNT,
-            &identity_biomes(BIOME_REGISTRY_LEN),
+            &session_biomes(BIOME_REGISTRY_LEN),
         )
         .expect("decode the column");
         store.insert(packet.pos, column);
@@ -852,7 +845,7 @@ mod tests {
         }
     }
 
-    fn decoded(sections: &[ChunkSection], wire: &WireIds) -> Result<Column> {
+    fn decoded(sections: &[ChunkSection], biomes: &Registry<Biome>) -> Result<Column> {
         let blob = sections.iter().flat_map(written).collect::<Vec<u8>>();
         Column::decode(
             &ChunkData {
@@ -862,7 +855,7 @@ mod tests {
             &LightData::default(),
             EXTENT,
             BLOCK_STATE_COUNT,
-            wire,
+            biomes,
         )
     }
 
@@ -873,18 +866,15 @@ mod tests {
     }
 
     #[test]
-    fn a_decoded_column_holds_the_local_ids_of_the_biomes_the_server_numbered() {
-        let local = biome_names(BIOME_REGISTRY_LEN);
-        let mut server = local.clone();
-        server.reverse();
-        let wire = wire_ids_of(&local, &server);
+    fn a_decoded_column_holds_the_session_ids_of_the_biome_numbers_it_carries() {
+        let biomes = session_biomes(BIOME_REGISTRY_LEN);
 
         let column = decoded(
             &[
                 stone_with(PalettedContainer::Homogeneous(3)),
                 biomes_with_one_cell(3, (3, 2, 1), 0),
             ],
-            &wire,
+            &biomes,
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);
@@ -892,35 +882,36 @@ mod tests {
         store.enter(EXTENT);
         store.insert(pos, column);
 
-        let last = (BIOME_REGISTRY_LEN - 1) as u8;
-        assert_eq!(store.biome(1, -1, -2, (0, 0, 0)), last - 3);
-        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), last - 3);
-        assert_eq!(store.biome(1, 0, -2, (3, 2, 1)), last);
+        assert_eq!(store.biome(1, -1, -2, (0, 0, 0)), 3);
+        assert_eq!(store.biome(1, 0, -2, (0, 0, 0)), 3);
+        assert_eq!(store.biome(1, 0, -2, (3, 2, 1)), 0);
+        assert_eq!(
+            biomes.name(biomes.id(3).unwrap()).map(ToString::to_string),
+            Some("minecraft:b3".to_owned())
+        );
     }
 
     #[test]
-    fn a_column_naming_a_biome_the_local_registries_lack_is_refused() {
-        let names = biome_names(BIOME_REGISTRY_LEN);
-        let wire = wire_ids_of(&names[..8], &names);
+    fn a_column_naming_a_biome_the_session_registries_lack_is_refused() {
+        let biomes = session_biomes(8);
 
         let held = stone_with(PalettedContainer::Homogeneous(7));
-        decoded(&[held.clone(), held.clone()], &wire).expect("every biome is held");
+        decoded(&[held.clone(), held.clone()], &biomes).expect("every biome is held");
 
         let lacking = stone_with(PalettedContainer::Homogeneous(12));
-        let Err(error) = decoded(&[held.clone(), lacking], &wire) else {
-            panic!("a biome the local registries lack was accepted");
+        let Err(error) = decoded(&[held.clone(), lacking], &biomes) else {
+            panic!("a biome the session registries lack was accepted");
         };
         assert!(format!("{error:#}").contains("biome 12"), "{error:#}");
 
         let lacking_in_one_cell = biomes_with_one_cell(7, (0, 3, 2), 12);
-        assert!(decoded(&[held, lacking_in_one_cell], &wire).is_err());
+        assert!(decoded(&[held, lacking_in_one_cell], &biomes).is_err());
     }
 
     #[test]
-    fn a_column_is_refused_when_the_server_sent_no_biomes_the_client_can_name() {
-        let wire = WireIds::default();
+    fn a_column_is_refused_when_the_session_has_no_biomes() {
         let held = stone_with(PalettedContainer::Homogeneous(0));
-        assert!(decoded(&[held.clone(), held], &wire).is_err());
+        assert!(decoded(&[held.clone(), held], &session_biomes(0)).is_err());
     }
 
     /// A column with sections -1 and 0 lit at one cell: sky 6 / block 1 below,
@@ -952,7 +943,7 @@ mod tests {
             &light,
             EXTENT,
             BLOCK_STATE_COUNT,
-            &identity_biomes(BIOME_REGISTRY_LEN),
+            &session_biomes(BIOME_REGISTRY_LEN),
         )
         .expect("decode the column");
         let pos = ColumnPos::new(1, -2);
@@ -1208,41 +1199,53 @@ mod tests {
 
     #[test]
     fn the_vertical_extent_comes_from_the_dimension_type_the_login_named() {
-        let mut overworld = NbtCompound::new();
-        overworld.put_int("min_y", -64);
-        overworld.put_int("height", 384);
-        let registries = vec![
-            ReceivedRegistry {
-                registry: "minecraft:biome".to_owned(),
-                entries: Vec::new(),
-            },
-            ReceivedRegistry {
-                registry: "minecraft:dimension_type".to_owned(),
-                entries: vec![
-                    RegistryEntry {
-                        id: "minecraft:the_nether".to_owned(),
-                        data: None,
-                    },
-                    RegistryEntry {
-                        id: "minecraft:overworld".to_owned(),
-                        data: Some(overworld.into()),
-                    },
-                ],
-            },
-        ];
+        use mcrs_minecraft_dimension::keys::dimension::{OVERWORLD, THE_NETHER};
+        use mcrs_minecraft_protocol::RegistryId;
 
+        let registries = mcrs_minecraft_world::registries::test_registries();
+        let types = registries.registry::<DimensionType>().unwrap();
+        let named = |key: &str, dimension: &str| {
+            let number = types.by_name(key).unwrap().index() as u16;
+            CurrentDimension::named_by(
+                registries,
+                &PlayerSpawnInfo {
+                    dimension: mcrs_minecraft_core::ResourceKey::from_location(
+                        mcrs_minecraft_core::ResourceLocation::read(dimension).unwrap(),
+                    ),
+                    dimension_type_id: RegistryId(number),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+
+        let overworld = named("minecraft:overworld", OVERWORLD.as_str());
         assert_eq!(
-            extent_of(&registries, 1),
+            extent_of(registries, &overworld),
             Some(Extent {
                 min_section_y: -4,
                 sections: 24,
             })
         );
+        let nether = named("minecraft:the_nether", THE_NETHER.as_str());
         assert_eq!(
-            extent_of(&registries, 0),
-            None,
-            "an entry sent without data"
+            extent_of(registries, &nether),
+            Some(Extent {
+                min_section_y: 0,
+                sections: 16,
+            })
         );
-        assert_eq!(extent_of(&registries, 9), None, "no such dimension type");
+        let past = RegistryId(u16::try_from(types.len()).unwrap());
+        assert!(
+            CurrentDimension::named_by(
+                registries,
+                &PlayerSpawnInfo {
+                    dimension_type_id: past,
+                    ..Default::default()
+                },
+            )
+            .is_none(),
+            "no such dimension type"
+        );
     }
 }

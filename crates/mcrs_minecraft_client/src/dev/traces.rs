@@ -1,17 +1,17 @@
 use bevy::prelude::*;
 use mcrs_minecraft_level::world::lifecycle::trace::ColumnTraceSink;
-use mcrs_minecraft_network::client::{ClientConnection, JoinedGame};
+use mcrs_minecraft_network::client::{ClientConnection, CurrentDimension};
 
 use crate::stream::Loader;
 
 pub fn record_traces(
     mut loader: ResMut<Loader>,
     traces: Option<Res<ColumnTraceSink>>,
-    joined: Option<Single<&JoinedGame, With<ClientConnection>>>,
+    current: Option<Single<&CurrentDimension, With<ClientConnection>>>,
 ) {
-    match (&traces, &joined) {
-        (Some(traces), Some(joined)) => {
-            traces.record(joined.dimension.as_str(), loader.trace.drain(..))
+    match (&traces, &current) {
+        (Some(traces), Some(current)) => {
+            traces.record(current.key.as_str(), loader.trace.drain(..))
         }
         _ => loader.trace.clear(),
     }

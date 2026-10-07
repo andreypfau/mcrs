@@ -30,6 +30,7 @@ pub mod light_volume;
 pub mod local_player;
 pub mod model;
 pub mod player;
+pub mod registries;
 pub mod render;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
@@ -37,7 +38,6 @@ pub mod sky;
 pub mod sky_state;
 pub mod stream;
 pub mod vanilla;
-pub mod wire_id;
 #[cfg(target_family = "wasm")]
 pub mod web;
 
@@ -68,7 +68,7 @@ impl PluginGroup for ClientPlugins {
             .add(gui::debug::DebugScreenPlugin)
             .add(gui::chunk_map::ChunkMapPlugin)
             .add(gui::light_levels::LightLevelsPlugin)
-            .add(wire_id::WireIdPlugin)
+            .add(registries::ClientRegistriesPlugin)
             .add(sky::SkyPlugin)
     }
 }
