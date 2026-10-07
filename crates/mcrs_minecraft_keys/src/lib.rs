@@ -9,8 +9,6 @@ pub mod creative_mode_tab;
 #[rustfmt::skip]
 pub mod debug_subscription;
 #[rustfmt::skip]
-pub mod density_function;
-#[rustfmt::skip]
 pub mod flat_level_generator_preset;
 #[rustfmt::skip]
 pub mod flat_level_generator_preset_tags;
@@ -20,8 +18,6 @@ pub mod game_event;
 pub mod game_event_tags;
 #[rustfmt::skip]
 pub mod incoming_rpc_methods;
-#[rustfmt::skip]
-pub mod material_condition;
 #[rustfmt::skip]
 pub mod memory_module_type;
 #[rustfmt::skip]

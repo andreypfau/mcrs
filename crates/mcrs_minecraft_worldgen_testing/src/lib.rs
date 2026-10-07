@@ -291,15 +291,40 @@ pub fn built_biomes() -> BTreeMap<ResourceLocation, Vec<u8>> {
     })
 }
 
+fn encoded<T: serde::Serialize>(
+    entries: BTreeMap<ResourceLocation, T>,
+) -> BTreeMap<ResourceLocation, Vec<u8>> {
+    entries
+        .into_iter()
+        .map(|(id, value)| {
+            let json = serde_json::to_vec(&value)
+                .unwrap_or_else(|e| panic!("{id} does not encode: {e}"));
+            (id, json)
+        })
+        .collect()
+}
+
+/// The built-in entries of one `minecraft/worldgen` folder as the JSON they
+/// encode to, for the tests that read the corpus as files.
+fn built_json(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
+    type Json = LazyLock<BTreeMap<ResourceLocation, Vec<u8>>>;
+    static NOISES: Json = LazyLock::new(|| encoded(builtin::noises()));
+    static DENSITY_FUNCTIONS: Json = LazyLock::new(|| encoded(builtin::density_functions()));
+    static NOISE_SETTINGS: Json = LazyLock::new(|| encoded(builtin::noise_settings()));
+    match folder {
+        "biome" => built_biomes(),
+        "noise" => NOISES.clone(),
+        "density_function" => DENSITY_FUNCTIONS.clone(),
+        "noise_settings" => NOISE_SETTINGS.clone(),
+        _ => builtin::assets(folder),
+    }
+}
+
 /// One `minecraft/worldgen` registry as the JSON each entry ships as: the
 /// built-in entries, overridden by the files of the vanilla tree and of every
 /// pack. An id two files ship is refused.
 fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
-    let mut entries = if folder == "biome" {
-        built_biomes()
-    } else {
-        builtin::assets(folder)
-    };
+    let mut entries = built_json(folder);
     let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
     for root in worldgen_roots() {
         let base = root.join(folder);
@@ -494,11 +519,7 @@ pub fn read<T: DeserializeOwned>(folder: &str, id: &ResourceLocation) -> T {
         .chain(packs())
         .find_map(|root| std::fs::read(root.join(&path)).ok())
         .or_else(|| builtin::asset(&path))
-        .or_else(|| {
-            (folder == "biome")
-                .then(|| built_biomes().remove(id))
-                .flatten()
-        })
+        .or_else(|| built_json(folder).remove(id))
         .unwrap_or_else(|| panic!("{path} is neither shipped nor built in"));
     corpus_set().scope(|| serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{path}: {e}")))
 }

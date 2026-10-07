@@ -1,6 +1,6 @@
 use crate::bevy::{
-    CarverConfigAsset, FeatureAsset, NoiseGeneratorSettingsAsset, PlacedFeatureAsset,
-    ProcessorListAsset, StructureAsset, StructureSetAsset, TemplatePoolAsset,
+    CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, ProcessorListAsset, StructureAsset,
+    StructureSetAsset, TemplatePoolAsset,
 };
 use bevy_asset::{Asset, AssetServer, Assets};
 use bevy_ecs::prelude::{Commands, Res, Resource};
@@ -9,7 +9,6 @@ use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::shared::SharedResource;
 use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
 use mcrs_minecraft_worldgen_feature::proto::Feature;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -29,7 +28,6 @@ pub struct WorldgenTables {
     pub structures: Entries<Structure, Option<StructureAsset>>,
     pub structure_sets: Entries<StructureSet, Option<StructureSet>>,
     pub template_pools: Entries<TemplatePool, Option<TemplatePoolAsset>>,
-    pub noise_settings: Entries<NoiseGeneratorSettings, Option<NoiseGeneratorSettingsAsset>>,
 }
 
 impl SharedResource for WorldgenTables {
@@ -41,7 +39,6 @@ impl SharedResource for WorldgenTables {
             && self.structures.shares_with(&other.structures)
             && self.structure_sets.shares_with(&other.structure_sets)
             && self.template_pools.shares_with(&other.template_pools)
-            && self.noise_settings.shares_with(&other.noise_settings)
     }
 }
 
@@ -60,7 +57,6 @@ impl Default for WorldgenTables {
             structures: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE),
             structure_sets: empty(mcrs_minecraft_worldgen_structure::keys::STRUCTURE_SET),
             template_pools: empty(mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL),
-            noise_settings: empty(mcrs_minecraft_worldgen_density::keys::NOISE_SETTINGS),
         }
     }
 }
@@ -160,7 +156,6 @@ pub fn build_worldgen_tables(
     structures: Res<Assets<StructureAsset>>,
     structure_sets: Res<Assets<StructureSetAsset>>,
     template_pools: Res<Assets<TemplatePoolAsset>>,
-    noise_settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
 ) {
     let server = &*asset_server;
     let tables = WorldgenTables {
@@ -171,14 +166,12 @@ pub fn build_worldgen_tables(
         structures: column(&set, server, &structures, Clone::clone),
         structure_sets: column(&set, server, &structure_sets, |asset| asset.set.clone()),
         template_pools: column(&set, server, &template_pools, Clone::clone),
-        noise_settings: column(&set, server, &noise_settings, Clone::clone),
     };
     tracing::info!(
         carvers = tables.carvers.as_slice().len(),
         features = tables.features.as_slice().len(),
         placed_features = tables.placed_features.as_slice().len(),
         processor_lists = tables.processor_lists.as_slice().len(),
-        noise_settings = tables.noise_settings.as_slice().len(),
         structures = tables.structures.as_slice().len(),
         structure_sets = tables.structure_sets.as_slice().len(),
         template_pools = tables.template_pools.as_slice().len(),

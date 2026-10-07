@@ -367,6 +367,24 @@ impl ProtoDensityFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::router::NoiseGeneratorSettings;
+    use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+    use mcrs_minecraft_worldgen_testing::round_trips;
+
+    #[test]
+    fn every_noise_round_trips() {
+        assert_eq!(round_trips::<NoiseParam>("noise"), 69);
+    }
+
+    #[test]
+    fn every_density_function_round_trips() {
+        assert_eq!(round_trips::<DensityFunctionHolder>("density_function"), 65);
+    }
+
+    #[test]
+    fn every_noise_settings_round_trips() {
+        assert_eq!(round_trips::<NoiseGeneratorSettings>("noise_settings"), 8);
+    }
 
     #[test]
     fn a_bare_constant_round_trips_as_a_number() {

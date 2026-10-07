@@ -39,6 +39,9 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
 
 static STATICS: LazyLock<RegistrySet> = LazyLock::new(|| build_static_registries().unwrap());
 
@@ -168,12 +171,23 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 5] = [
+const PARSED_WORLDGEN: [&str; 10] = [
     "minecraft:worldgen/biome",
     "minecraft:worldgen/block_state_provider",
+    "minecraft:worldgen/density_function",
+    "minecraft:worldgen/material_condition",
+    "minecraft:worldgen/material_rule",
     "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+    "minecraft:worldgen/noise",
+    "minecraft:worldgen/noise_settings",
     "minecraft:worldgen/placed_feature",
     "minecraft:worldgen/world_preset",
+];
+
+const BUILT_WORLDGEN: [&str; 3] = [
+    "minecraft:worldgen/density_function",
+    "minecraft:worldgen/noise",
+    "minecraft:worldgen/noise_settings",
 ];
 
 #[test]
@@ -245,6 +259,47 @@ fn vanilla_biomes_are_built_entries_not_files() {
     assert!(
         mcrs_minecraft_worldgen_builtin::paths("minecraft/worldgen/biome").is_empty(),
         "a built biome is listed as a file"
+    );
+}
+
+#[test]
+fn vanilla_noise_settings_are_built_entries_not_files() {
+    let set = test_registries();
+    for (registry, folder, vanilla, beta) in [
+        ("minecraft:worldgen/noise", "noise", 64, 5),
+        (
+            "minecraft:worldgen/density_function",
+            "density_function",
+            55,
+            10,
+        ),
+        ("minecraft:worldgen/noise_settings", "noise_settings", 7, 1),
+    ] {
+        let table = set.table(registry).expect(registry);
+        let from = |pack: &str| {
+            (0..table.len())
+                .filter(|&id| set.pack_of(registry, id) == Some(pack))
+                .count()
+        };
+        assert_eq!(
+            (from(VANILLA_PACK), from("beta")),
+            (vanilla, beta),
+            "{registry}"
+        );
+        assert!(
+            mcrs_minecraft_worldgen_builtin::paths(&format!("minecraft/worldgen/{folder}"))
+                .is_empty(),
+            "a built {folder} entry is listed as a file"
+        );
+        assert!(
+            mcrs_minecraft_worldgen_builtin::assets(folder).is_empty(),
+            "a built {folder} entry is served as JSON"
+        );
+    }
+    assert!(
+        mcrs_minecraft_worldgen_builtin::asset("minecraft/worldgen/noise_settings/overworld.json")
+            .is_none(),
+        "built noise settings are served as a file"
     );
 }
 
@@ -338,6 +393,28 @@ fn a_local_entry_comes_from_its_pack() {
             "minecraft:normal",
             "vanilla",
         ),
+        (
+            "minecraft:worldgen/noise_settings",
+            "minecraft:beta",
+            "beta",
+        ),
+        (
+            "minecraft:worldgen/noise_settings",
+            "minecraft:overworld",
+            "vanilla",
+        ),
+        (
+            "minecraft:worldgen/density_function",
+            "minecraft:overworld/continents",
+            "vanilla",
+        ),
+        (
+            "minecraft:worldgen/density_function",
+            "minecraft:beta/temperature",
+            "beta",
+        ),
+        ("minecraft:worldgen/noise", "mcrs:beta/temperature", "beta"),
+        ("minecraft:worldgen/noise", "minecraft:ridge", "vanilla"),
     ] {
         let id = set
             .table(registry)
@@ -520,6 +597,10 @@ fn shipped_file(
         .join(format!("{path}.json"))
 }
 
+fn read_back<T: serde::de::DeserializeOwned + serde::Serialize>(json: &str) -> serde_json::Value {
+    mcrs_minecraft_worldgen_testing::reencode(&serde_json::from_str::<T>(json).unwrap())
+}
+
 const SHIPPED_EMPTY: [&str; 1] = ["minecraft:dimension"];
 
 fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(String, usize)> {
@@ -543,11 +624,28 @@ fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(Strin
                 .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
                 .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
             let Ok(text) = shipped else {
+                let built_typed = BUILT_WORLDGEN.contains(&registry.as_str());
                 assert!(
-                    pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome",
-                    "{registry}/{name}: {} is not a file and the entry is not a built biome",
+                    (pack == VANILLA_PACK && registry.as_str() == "minecraft:worldgen/biome")
+                        || (built_typed && (pack == VANILLA_PACK || pack == "beta")),
+                    "{registry}/{name}: {} is not a file and the entry is not a built one",
                     file.display()
                 );
+                if built_typed {
+                    let read = set.scope(|| match registry.as_str() {
+                        "minecraft:worldgen/noise" => read_back::<NoiseParam>(&encoded),
+                        "minecraft:worldgen/density_function" => {
+                            read_back::<DensityFunctionHolder>(&encoded)
+                        }
+                        _ => read_back::<NoiseGeneratorSettings>(&encoded),
+                    });
+                    assert_eq!(
+                        read,
+                        serde_json::from_str::<serde_json::Value>(&encoded).unwrap(),
+                        "{registry}/{name} reads back changed"
+                    );
+                    continue;
+                }
                 let read: BiomeFile = set.scope(|| serde_json::from_str(&encoded).unwrap());
                 let stored = BiomeFile::join((
                     &set.column::<Biome>(registry.as_str()).unwrap()[index],
@@ -1947,12 +2045,7 @@ fn every_built_in_file_reads_through_the_layered_file_source() {
         .expect("default AssetSource missing")
         .reader();
 
-    for directory in [
-        "minecraft/worldgen/template_pool",
-        "minecraft/worldgen/noise",
-        "minecraft/worldgen/density_function",
-        "minecraft/worldgen/noise_settings",
-    ] {
+    for directory in ["minecraft/worldgen/template_pool"] {
         let paths = mcrs_minecraft_worldgen_builtin::paths(directory);
         assert!(!paths.is_empty(), "{directory}");
         for path in paths {

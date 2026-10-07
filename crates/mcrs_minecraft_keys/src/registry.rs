@@ -21,6 +21,4 @@ pub const TEST_FUNCTION: StaticResourceLocation = rl!("minecraft:test_function")
 pub const TICKET_TYPE: StaticResourceLocation = rl!("minecraft:ticket_type");
 pub const TRIAL_SPAWNER: StaticResourceLocation = rl!("minecraft:trial_spawner");
 pub const TRIGGER_TYPE: StaticResourceLocation = rl!("minecraft:trigger_type");
-pub const DENSITY_FUNCTION: StaticResourceLocation = rl!("minecraft:worldgen/density_function");
 pub const FLAT_LEVEL_GENERATOR_PRESET: StaticResourceLocation = rl!("minecraft:worldgen/flat_level_generator_preset");
-pub const MATERIAL_CONDITION: StaticResourceLocation = rl!("minecraft:worldgen/material_condition");

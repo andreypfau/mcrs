@@ -70,7 +70,13 @@ use mcrs_minecraft_registry::{Entries, Pack, PackFile, Registry};
 use mcrs_minecraft_registry::{LoadReport, Parts, RegistrySet, WorldRegistries};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK};
+use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
+use mcrs_minecraft_worldgen_noise::proto::NoiseParam;
+use mcrs_minecraft_worldgen_surface::proto::{
+    MaterialConditionHolder, MaterialRule, MaterialRuleHolder,
+};
 #[cfg(feature = "bevy")]
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::Serialize;
@@ -118,6 +124,11 @@ world_registry_table! {
         synced from parts as |parts| NetworkBiome::from(parts),
         received as NetworkBiome => NetworkBiome::into_parts;
     PlacedFeature => PlacedFeature;
+    NoiseParam => NoiseParam;
+    DensityFunctionHolder => DensityFunctionHolder;
+    NoiseGeneratorSettings => NoiseGeneratorSettings;
+    MaterialRule => MaterialRuleHolder;
+    MaterialConditionHolder => MaterialConditionHolder;
     crate::chat_type::ChatType => ChatType, synced as Clone::clone, received as ChatType => bare;
     mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone, received as TrimPattern => bare;
     mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone, received as TrimMaterial => bare;
@@ -341,8 +352,7 @@ async fn read_pack(
     statics: &RegistrySet,
     report: &mut LoadReport,
 ) -> Pack {
-    let vanilla = root.as_os_str().is_empty();
-    let mut scan = PackScan::new(vanilla, registries, statics);
+    let mut scan = PackScan::new(name, registries, statics);
     let mut namespaces = Vec::new();
     if let Ok(mut listing) = reader.read_directory(root).await {
         while let Some(entry) = listing.next().await {

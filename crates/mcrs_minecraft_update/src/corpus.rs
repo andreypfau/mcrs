@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Cursor;
@@ -79,6 +80,30 @@ pub fn stored_names(registries: &Path, names: &Path) -> Result<RegistrySet, Stri
         .map_err(|error| format!("{}: {error}", names.display()))
 }
 
+/// The entries the code builds as typed values for the folders the loader does
+/// not read from files, as the JSON each would ship as, keyed by its path in the
+/// jar. Only the update tool compares against them.
+fn typed_built_ins() -> BTreeMap<String, Vec<u8>> {
+    fn add<T: serde::Serialize>(
+        into: &mut BTreeMap<String, Vec<u8>>,
+        folder: &str,
+        entries: BTreeMap<ResourceLocation, T>,
+    ) {
+        for (id, value) in entries {
+            if id.namespace() == "minecraft" {
+                let json = serde_json::to_vec(&value)
+                    .unwrap_or_else(|error| panic!("{folder}/{id} does not encode: {error}"));
+                into.insert(format!("worldgen/{folder}/{}.json", id.path()), json);
+            }
+        }
+    }
+    let mut built = BTreeMap::new();
+    add(&mut built, "noise", builtin::noises());
+    add(&mut built, "density_function", builtin::density_functions());
+    add(&mut built, "noise_settings", builtin::noise_settings());
+    built
+}
+
 /// Splits off the jar entries the code builds itself. An entry the code builds
 /// identically is dropped, so no file is kept for it. One the code builds
 /// differently stays: the file then overrides the built-in at load, and its
@@ -92,6 +117,7 @@ pub fn without_built_in(
     names: &RegistrySet,
 ) -> Result<(Files, usize, Vec<String>), String> {
     let mut built_biomes = None;
+    let typed = LazyCell::new(typed_built_ins);
     let mut identical = 0;
     let mut diverged = Vec::new();
     let mut kept = Files::new();
@@ -110,8 +136,11 @@ pub fn without_built_in(
                     .and_then(|built| built.get(&name))
                     .map(|built| same_biome(names, built, &bytes))
             }
-            None => builtin::asset(&format!("minecraft/{path}"))
-                .map(|built| same_content(&path, &built, &bytes)),
+            None => match typed.get(&path) {
+                Some(built) => Some(same_content(&path, built, &bytes)),
+                None => builtin::asset(&format!("minecraft/{path}"))
+                    .map(|built| same_content(&path, &built, &bytes)),
+            },
         };
         match same {
             Some(true) => identical += 1,

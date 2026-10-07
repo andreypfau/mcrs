@@ -1,35 +1,18 @@
-use crate::beard::{BeardifierPlacement, beardifier_placement};
 use bevy_app::{App, Plugin};
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetApp, AssetLoader, Assets, Handle, LoadContext, UntypedAssetId,
-    VisitAssetDependencies,
+    Asset, AssetApp, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies,
 };
-use bevy_ecs::prelude::Res;
-use bevy_ecs::system::SystemParam;
 use bevy_reflect::TypePath;
 use mcrs_minecraft_assets::asset::{JsonLoader, read_all};
-use mcrs_minecraft_block::keys::Block;
-use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::provider::Holder;
-use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{ResourceLocation, VERSION};
-use mcrs_minecraft_registry::{RegistrySet, Tags};
+use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_worldgen_density::compile::CompileError;
-use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
-use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter, RouterBlocks};
 use mcrs_minecraft_worldgen_feature::pool::{PoolElement, TemplatePool};
 use mcrs_minecraft_worldgen_feature::proto::{Feature, PlacedFeature, StructureProcessorList};
 use mcrs_minecraft_worldgen_feature::template::Template;
-use mcrs_minecraft_worldgen_noise::proto::{NoiseHolder, NoiseParam};
 use mcrs_minecraft_worldgen_structure::{Structure, StructureSet};
-use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
-use mcrs_minecraft_worldgen_surface::compile::{MaterialProgram, build_router_and_material};
-use mcrs_minecraft_worldgen_surface::proto::{MaterialCondition, MaterialRule};
-use mcrs_minecraft_worldgen_surface::{
-    MaterialConditionHolder, MaterialInputs, MaterialRuleHolder,
-};
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
@@ -39,19 +22,11 @@ use thiserror::Error;
 /// registry entry, and nothing else. The loaders of the rest parse inside the
 /// loaded registry set's scope, so they are registered once that set exists, by
 /// [`register_worldgen_loaders`].
-///
-/// The world preset that names these settings is loaded by whoever owns the
-/// dimension list; this crate is handed the settings asset it produced.
 pub struct WorldgenAssetsPlugin;
 
 impl Plugin for WorldgenAssetsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<DensityFunctionAsset>()
-            .init_asset::<NoiseGeneratorSettingsAsset>()
-            .init_asset::<NoiseParamAsset>()
-            .init_asset::<CarverConfigAsset>()
-            .init_asset::<MaterialRuleAsset>()
-            .init_asset::<MaterialConditionAsset>()
+        app.init_asset::<CarverConfigAsset>()
             .init_asset::<FeatureAsset>()
             .init_asset::<PlacedFeatureAsset>()
             .init_asset::<StructureSetAsset>()
@@ -66,101 +41,30 @@ impl Plugin for WorldgenAssetsPlugin {
 /// Registers the loaders of the worldgen assets that parse names, each holding
 /// `registries` so it can read a file inside the set's scope.
 pub fn register_worldgen_loaders(app: &mut App, registries: &RegistrySet) {
-    app.register_asset_loader(WorldgenAssetLoader::<DensityFunctionAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(WorldgenAssetLoader::<NoiseGeneratorSettingsAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(JsonLoader::<NoiseParamAsset>::new(registries.clone()))
-    .register_asset_loader(JsonLoader::<CarverConfigAsset>::new(registries.clone()))
-    .register_asset_loader(WorldgenAssetLoader::<MaterialRuleAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(WorldgenAssetLoader::<MaterialConditionAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::new(registries.clone()))
-    .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(JsonLoader::<StructureSetAsset>::new(registries.clone()))
-    .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::new(
-        registries.clone(),
-    ))
-    .register_asset_loader(JsonLoader::<ProcessorListAsset>::new(registries.clone()));
+    app.register_asset_loader(JsonLoader::<CarverConfigAsset>::new(registries.clone()))
+        .register_asset_loader(WorldgenAssetLoader::<FeatureAsset>::new(registries.clone()))
+        .register_asset_loader(WorldgenAssetLoader::<PlacedFeatureAsset>::new(
+            registries.clone(),
+        ))
+        .register_asset_loader(JsonLoader::<StructureSetAsset>::new(registries.clone()))
+        .register_asset_loader(WorldgenAssetLoader::<StructureAsset>::new(
+            registries.clone(),
+        ))
+        .register_asset_loader(WorldgenAssetLoader::<TemplatePoolAsset>::new(
+            registries.clone(),
+        ))
+        .register_asset_loader(JsonLoader::<ProcessorListAsset>::new(registries.clone()));
 }
 
-/// Compiles one dimension's router and material rules from its loaded noise settings.
-///
-/// `block` resolves a datapack block state against the block registry this
-/// crate does not have, and `biome_tags` holds the biome tags a `biome_is` set
-/// may name, whose ids are the numbering the column's biome grid holds. Both
-/// are the caller's; the terrain block and the sea fluid come from the settings
-/// themselves, so they are per dimension rather than global.
-pub fn build_dimension_router(
-    settings: &NoiseGeneratorSettingsAsset,
-    assets: &WorldgenAssets<'_>,
-    seed: u64,
-    block: &dyn Fn(&BlockState) -> Option<VoxelId>,
-    biome_tags: &Tags<mcrs_minecraft_biome::Biome>,
-) -> Result<(NoiseRouter, MaterialProgram), CompileError> {
-    let mut loaded = Loaded::default();
-    loaded.collect(&settings.deps, assets);
-
-    let resolve = |state: &BlockState| {
-        block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
-    };
-    let stone = BlockState::from(Block::Stone);
-    let blocks = RouterBlocks {
-        default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
-        default_fluid: resolve(&settings.settings.default_fluid)?,
-        water: resolve(&Block::Water.into())?,
-        lava: resolve(&Block::Lava.into())?,
-    };
-
-    let material = MaterialInputs {
-        rules: &loaded.rules,
-        conditions: &loaded.conditions,
-        block,
-        biome_tags,
-    };
-    build_router_and_material(
-        &settings.settings,
-        &loaded.density_functions,
-        &loaded.noises,
-        seed,
-        blocks,
-        &material,
-    )
-}
-
-/// Where one dimension's loaded `final_density` places the beardifier, with
-/// its references resolved through the density functions the settings load.
-pub fn dimension_beardifier_placement(
-    settings: &NoiseGeneratorSettingsAsset,
-    assets: &WorldgenAssets<'_>,
-) -> BeardifierPlacement {
-    let mut loaded = Loaded::default();
-    loaded.collect(&settings.deps, assets);
-    beardifier_placement(
-        &settings.settings.noise_router.final_density,
-        &loaded.density_functions,
-    )
-}
-
-/// The four registries a worldgen asset can name. Each one is spelled here
-/// once and turned into the set of ids an asset names, the handles those ids
-/// load to, the values that arrive, and the walk that flattens them.
+/// The registries a worldgen asset can name. Each one is spelled here once and
+/// turned into the set of ids an asset names, the handles those ids load to, and
+/// the dependency visitor over them.
 ///
 /// `leaf` registries hold a value with no references of its own; `nested` ones
-/// carry their own [`AssetRefs`], so collecting one follows them.
+/// carry their own [`AssetRefs`].
 macro_rules! registries {
     (
-        leaf { $(($lname:ident, $lfolder:literal, $lasset:ty, $lvalue:ty, $lfield:ident)),* $(,)? }
+        leaf { $(($lname:ident, $lfolder:literal, $lasset:ty)),* $(,)? }
         nested {
             $(($nname:ident, $nfolder:literal, $nasset:ident, $nvalue:ty, $nfield:ident, $nvisit:ident)),* $(,)?
         }
@@ -197,8 +101,8 @@ macro_rules! registries {
         }
 
         /// The handles one asset's references resolve to. Every worldgen asset
-        /// names ids from the same four registries, so one dependency visitor
-        /// and one loader serve all of them.
+        /// names ids from the same registries, so one dependency visitor and one
+        /// loader serve all of them.
         #[derive(Default, Debug, Clone)]
         pub struct AssetRefs {
             $(pub $lname: BTreeMap<ResourceLocation, Handle<$lasset>>,)*
@@ -224,87 +128,15 @@ macro_rules! registries {
                 })*
             }
         }
-
-        /// Walks the loaded handle graph into the flat registries the compiler
-        /// takes. A referenced asset carries its own dependency handles, so the
-        /// walk follows them rather than assuming the settings asset named
-        /// everything.
-        #[derive(Default)]
-        struct Loaded {
-            $($lname: BTreeMap<ResourceLocation, $lvalue>,)*
-            $($nname: BTreeMap<ResourceLocation, $nvalue>,)*
-        }
-
-        /// The loaded worldgen registries a router is compiled out of, as the
-        /// asset collections themselves rather than a copy of their contents.
-        #[derive(SystemParam)]
-        pub struct WorldgenAssets<'w> {
-            $(pub $lname: Res<'w, Assets<$lasset>>,)*
-            $(pub $nname: Res<'w, Assets<$nasset>>,)*
-        }
-
-        impl Loaded {
-            /// An id is recorded before its own references are followed, so a
-            /// reference cycle in the corpus terminates here rather than
-            /// recursing forever.
-            fn collect(&mut self, refs: &AssetRefs, tables: &WorldgenAssets<'_>) {
-                $(for (id, handle) in &refs.$lname {
-                    if let Some(asset) = tables.$lname.get(handle) {
-                        self.$lname.insert(id.clone(), asset.$lfield.clone());
-                    }
-                })*
-                $(for (id, handle) in &refs.$nname {
-                    if self.$nname.contains_key(id) {
-                        continue;
-                    }
-                    let Some(asset) = tables.$nname.get(handle) else {
-                        continue;
-                    };
-                    self.$nname.insert(id.clone(), asset.$nfield.clone());
-                    self.collect(&asset.deps, tables);
-                })*
-            }
-        }
     };
 }
 
 registries! {
     leaf {
-        (noises, "worldgen/noise/{}.json", NoiseParamAsset, NoiseParam, noise),
-        (templates, "structure/{}.nbt", TemplateAsset, Template, template),
-        (
-            processor_lists,
-            "worldgen/processor_list/{}.json",
-            ProcessorListAsset,
-            StructureProcessorList,
-            list
-        ),
+        (templates, "structure/{}.nbt", TemplateAsset),
+        (processor_lists, "worldgen/processor_list/{}.json", ProcessorListAsset),
     }
     nested {
-        (
-            density_functions,
-            "worldgen/density_function/{}.json",
-            DensityFunctionAsset,
-            DensityFunctionHolder,
-            function,
-            visit_holder
-        ),
-        (
-            conditions,
-            "worldgen/material_condition/{}.json",
-            MaterialConditionAsset,
-            MaterialConditionHolder,
-            condition,
-            visit_condition_holder
-        ),
-        (
-            rules,
-            "worldgen/material_rule/{}.json",
-            MaterialRuleAsset,
-            MaterialRuleHolder,
-            rule,
-            visit_rule_holder
-        ),
         (features, "worldgen/feature/{}.json", FeatureAsset, Feature, feature, visit_feature),
         (
             placed_features,
@@ -323,19 +155,6 @@ registries! {
             visit_template_pool
         ),
     }
-}
-
-#[derive(Asset, TypePath, Debug, Clone)]
-pub struct NoiseGeneratorSettingsAsset {
-    pub settings: NoiseGeneratorSettings,
-    #[dependency]
-    pub deps: AssetRefs,
-}
-
-#[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
-#[serde(transparent)]
-pub struct NoiseParamAsset {
-    pub noise: NoiseParam,
 }
 
 #[derive(Asset, TypePath, Debug, Clone, serde::Deserialize)]
@@ -443,18 +262,6 @@ trait WorldgenAsset: Asset {
     fn build(proto: Self::Proto, deps: AssetRefs) -> Self;
 }
 
-impl WorldgenAsset for NoiseGeneratorSettingsAsset {
-    type Proto = NoiseGeneratorSettings;
-
-    fn references(settings: &Self::Proto) -> References {
-        References::of_settings(settings)
-    }
-
-    fn build(settings: Self::Proto, deps: AssetRefs) -> Self {
-        Self { settings, deps }
-    }
-}
-
 /// The JSON loader for an asset that names other worldgen assets: parse inside
 /// the loaded registry set's scope, turn the ids into handles, keep both. A leaf
 /// takes [`mcrs_minecraft_assets::asset::JsonLoader`] instead.
@@ -497,83 +304,6 @@ impl<A: WorldgenAsset> AssetLoader for WorldgenAssetLoader<A> {
 }
 
 impl References {
-    /// What the noise settings themselves name: the density roots, the material
-    /// rule, and the nine noises the surface stage samples that no datapack file
-    /// names.
-    pub(crate) fn of_settings(settings: &NoiseGeneratorSettings) -> Self {
-        let mut refs = Self::default();
-        for root in settings.noise_router.roots() {
-            refs.visit_holder(root);
-        }
-        if let Some(aquifers) = &settings.aquifers {
-            for holder in [
-                &aquifers.barrier,
-                &aquifers.exclusion,
-                &aquifers.fluid_level_floodedness,
-                &aquifers.fluid_level_spread,
-                &aquifers.lava,
-                &aquifers.surface_level,
-            ] {
-                refs.visit_holder(holder);
-            }
-        }
-        refs.rules.insert(settings.material_rule.clone());
-        refs.noises
-            .extend(SURFACE_NOISE_NAMES.map(|noise| noise.location().to_arc()));
-        refs
-    }
-
-    pub(crate) fn visit_holder(&mut self, holder: &DensityFunctionHolder) {
-        match holder {
-            DensityFunctionHolder::Value(_) => {}
-            DensityFunctionHolder::Reference(id) => {
-                self.density_functions.insert(id.clone());
-            }
-            DensityFunctionHolder::Owned(function) => self.visit_function(function),
-        }
-    }
-
-    fn visit_function(&mut self, function: &ProtoDensityFunction) {
-        if let Some(NoiseHolder::Reference(id)) = noise_holder(function) {
-            self.noises.insert(id.clone());
-        }
-        function.visit_children(&mut |child| self.visit_holder(child));
-    }
-
-    pub(crate) fn visit_rule_holder(&mut self, holder: &MaterialRuleHolder) {
-        match holder {
-            MaterialRuleHolder::Reference(id) => {
-                self.rules.insert(id.clone());
-            }
-            MaterialRuleHolder::Owned(rule) => self.visit_rule(rule),
-        }
-    }
-
-    fn visit_rule(&mut self, rule: &MaterialRule) {
-        match rule {
-            MaterialRule::Block { .. } | MaterialRule::Bandlands => {}
-            MaterialRule::Sequence { sequence } => {
-                for member in sequence {
-                    self.visit_rule_holder(member);
-                }
-            }
-            MaterialRule::Condition { if_true, then_run } => {
-                self.visit_condition_holder(if_true);
-                self.visit_rule_holder(then_run);
-            }
-            MaterialRule::OreVein {
-                density,
-                richness,
-                filler_gap,
-                ..
-            } => {
-                for function in [density, richness, filler_gap] {
-                    self.visit_holder(function);
-                }
-            }
-        }
-    }
-
     pub(crate) fn visit_feature(&mut self, feature: &Feature) {
         self.templates.extend(feature.templates().cloned());
         let processors = match feature {
@@ -635,25 +365,6 @@ impl References {
             PoolElement::Empty {} => {}
         }
     }
-
-    pub(crate) fn visit_condition_holder(&mut self, holder: &MaterialConditionHolder) {
-        match holder {
-            MaterialConditionHolder::Reference(id) => {
-                self.conditions.insert(id.clone());
-            }
-            MaterialConditionHolder::Owned(condition) => self.visit_condition(condition),
-        }
-    }
-
-    fn visit_condition(&mut self, condition: &MaterialCondition) {
-        match condition {
-            MaterialCondition::NoiseThreshold { noise, .. } => {
-                self.noises.insert(noise.clone());
-            }
-            MaterialCondition::Not { invert } => self.visit_condition_holder(invert),
-            _ => {}
-        }
-    }
 }
 
 /// Vanilla's corpus names templates it does not ship (26.3's ancient city pools list a fifth wall
@@ -688,298 +399,4 @@ fn handles<A: Asset>(
             (id.clone(), handle)
         })
         .collect()
-}
-
-fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
-    match function {
-        ProtoDensityFunction::Noise { noise, .. }
-        | ProtoDensityFunction::Shift { noise }
-        | ProtoDensityFunction::ShiftA { noise }
-        | ProtoDensityFunction::ShiftB { noise } => Some(noise),
-        _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::References;
-    use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
-    use mcrs_minecraft_worldgen_surface::compile::SURFACE_NOISE_NAMES;
-    use mcrs_minecraft_worldgen_surface::{MaterialConditionHolder, MaterialRuleHolder};
-    use std::collections::{BTreeMap, BTreeSet};
-
-    use mcrs_minecraft_worldgen_testing::{corpus_set, json_files, read, registry, worldgen_dir};
-
-    /// The transitive closure of the loader's one-level walk, driven off disk
-    /// the way the asset server drives it through the dependency handles.
-    fn closure(settings: &NoiseGeneratorSettings) -> References {
-        let mut all = References::of_settings(settings);
-        let mut expanded = References::default();
-        loop {
-            let rules: Vec<_> = all.rules.difference(&expanded.rules).cloned().collect();
-            let conditions: Vec<_> = all
-                .conditions
-                .difference(&expanded.conditions)
-                .cloned()
-                .collect();
-            let functions: Vec<_> = all
-                .density_functions
-                .difference(&expanded.density_functions)
-                .cloned()
-                .collect();
-            if rules.is_empty() && conditions.is_empty() && functions.is_empty() {
-                return all;
-            }
-            for id in rules {
-                all.visit_rule_holder(&read::<MaterialRuleHolder>("material_rule", &id));
-                expanded.rules.insert(id);
-            }
-            for id in conditions {
-                all.visit_condition_holder(&read::<MaterialConditionHolder>(
-                    "material_condition",
-                    &id,
-                ));
-                expanded.conditions.insert(id);
-            }
-            for id in functions {
-                all.visit_holder(&read("density_function", &id));
-                expanded.density_functions.insert(id);
-            }
-        }
-    }
-
-    /// The ids the shipped material rules and conditions name, read out of the
-    /// raw JSON so the expectation does not come from the same walk under test.
-    fn corpus_references() -> (BTreeSet<String>, BTreeSet<String>) {
-        fn scan(
-            value: &serde_json::Value,
-            noises: &mut BTreeSet<String>,
-            functions: &mut BTreeSet<String>,
-        ) {
-            match value {
-                serde_json::Value::Array(items) => {
-                    for item in items {
-                        scan(item, noises, functions);
-                    }
-                }
-                serde_json::Value::Object(fields) => {
-                    match fields.get("type").and_then(|t| t.as_str()) {
-                        Some("minecraft:noise_threshold") => {
-                            noises.insert(fields["noise"].as_str().unwrap().to_owned());
-                        }
-                        Some("minecraft:ore_vein") => {
-                            for slot in ["density", "richness", "filler_gap"] {
-                                if let Some(id) = fields[slot].as_str() {
-                                    functions.insert(id.to_owned());
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    for field in fields.values() {
-                        scan(field, noises, functions);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let mut paths = json_files(&worldgen_dir().join("material_rule"));
-        paths.extend(json_files(&worldgen_dir().join("material_condition")));
-        let (mut noises, mut functions) = (BTreeSet::new(), BTreeSet::new());
-        for path in paths {
-            let value: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-            scan(&value, &mut noises, &mut functions);
-        }
-        (noises, functions)
-    }
-
-    /// The dependency walk is what makes the surface stage reachable at runtime:
-    /// every asset it misses is on disk and never loaded, and no test that reads
-    /// the corpus off disk itself would notice.
-    #[test]
-    fn the_settings_walk_reaches_every_asset_the_material_rules_name() {
-        let mut reached = References::default();
-        for settings in registry::<NoiseGeneratorSettings>("noise_settings").into_values() {
-            let found = closure(&settings);
-            reached.noises.extend(found.noises);
-            reached.density_functions.extend(found.density_functions);
-            reached.rules.extend(found.rules);
-            reached.conditions.extend(found.conditions);
-        }
-
-        let ids: BTreeSet<String> = reached
-            .noises
-            .iter()
-            .map(|id| id.as_str().to_owned())
-            .collect();
-        let functions: BTreeSet<String> = reached
-            .density_functions
-            .iter()
-            .map(|id| id.as_str().to_owned())
-            .collect();
-
-        let (corpus_noises, corpus_functions) = corpus_references();
-        assert!(!corpus_noises.is_empty() && !corpus_functions.is_empty());
-        assert!(
-            corpus_noises.is_subset(&ids),
-            "noises the material rules name but the walk misses: {:?}",
-            corpus_noises.difference(&ids).collect::<Vec<_>>()
-        );
-        assert!(
-            corpus_functions.is_subset(&functions),
-            "ore vein density functions the walk misses: {:?}",
-            corpus_functions.difference(&functions).collect::<Vec<_>>()
-        );
-        for hardcoded in SURFACE_NOISE_NAMES {
-            assert!(
-                ids.contains(&hardcoded.to_string()),
-                "the walk misses the hardcoded surface noise {hardcoded}"
-            );
-        }
-
-        let rules = json_files(&worldgen_dir().join("material_rule"));
-        assert_eq!(reached.rules.len(), rules.len());
-    }
-
-    /// Drives a real asset server over the shipped corpus until the named noise
-    /// settings and everything they reference have landed.
-    fn load_settings(name: &str) -> bevy_app::App {
-        use super::{NoiseGeneratorSettingsAsset, WorldgenAssetsPlugin};
-        use bevy_app::App;
-        use bevy_asset::{
-            AssetApp, AssetPlugin, AssetServer, Handle, RecursiveDependencyLoadState,
-        };
-
-        let mut app = App::new();
-        app.add_plugins(bevy_app::TaskPoolPlugin::default());
-        app.register_asset_source(
-            bevy_asset::io::AssetSourceId::Default,
-            mcrs_minecraft_assets::packs::layered_file_source(
-                "assets",
-                mcrs_minecraft_worldgen_builtin::asset,
-            ),
-        );
-        app.add_plugins(AssetPlugin {
-            watch_for_changes_override: Some(false),
-            ..AssetPlugin::default()
-        });
-        app.add_plugins(WorldgenAssetsPlugin);
-        super::register_worldgen_loaders(&mut app, corpus_set());
-
-        let handle: Handle<NoiseGeneratorSettingsAsset> = app
-            .world()
-            .resource::<AssetServer>()
-            .load(format!("minecraft/worldgen/noise_settings/{name}.json"));
-        app.insert_resource(SettingsHandle(handle.clone()));
-
-        for _ in 0..10_000 {
-            app.update();
-            match app
-                .world()
-                .resource::<AssetServer>()
-                .recursive_dependency_load_state(handle.id())
-            {
-                RecursiveDependencyLoadState::Loaded => return app,
-                RecursiveDependencyLoadState::Failed(error) => panic!("{error}"),
-                _ => std::thread::sleep(std::time::Duration::from_millis(1)),
-            }
-        }
-        panic!("the {name} noise settings never finished loading");
-    }
-
-    #[derive(bevy_ecs::prelude::Resource)]
-    struct SettingsHandle(bevy_asset::Handle<super::NoiseGeneratorSettingsAsset>);
-
-    /// The registries as the system that builds a router receives them.
-    fn assets_of(
-        app: &mut bevy_app::App,
-    ) -> bevy_ecs::system::SystemState<super::WorldgenAssets<'static>> {
-        bevy_ecs::system::SystemState::new(app.world_mut())
-    }
-
-    /// End to end over the shipped corpus: what the asset pipeline delivers is
-    /// what the compiler needs, the terrain block and the sea fluid included —
-    /// those come from the settings asset itself, so each dimension gets its
-    /// own rather than whichever settings loaded last.
-    ///
-    /// The walk above proves the ids are named; the overworld pass proves they
-    /// arrive. A handle map left out of `visit_dependencies` or a branch missing
-    /// from the collect walk loses the assets with no error anywhere.
-    #[test]
-    fn the_loaded_settings_compile_into_a_router() {
-        use super::{Loaded, NoiseGeneratorSettingsAsset, build_dimension_router};
-        use bevy_asset::Assets;
-        use mcrs_minecraft_block_predicate::block_state::BlockState;
-        use mcrs_minecraft_chunk::VoxelId;
-
-        let biomes = corpus_set()
-            .tags::<mcrs_minecraft_biome::Biome>()
-            .expect("the corpus holds the biome registry");
-        for name in ["overworld", "nether", "end", "beta"] {
-            let mut app = load_settings(name);
-            let mut state = assets_of(&mut app);
-            let world = app.world();
-            let handle = world.resource::<SettingsHandle>().0.clone();
-            let asset = world
-                .resource::<Assets<NoiseGeneratorSettingsAsset>>()
-                .get(&handle)
-                .unwrap();
-            let registries = state.get(world).unwrap();
-
-            if name == "overworld" {
-                let mut collected = Loaded::default();
-                collected.collect(&asset.deps, &registries);
-
-                for name in SURFACE_NOISE_NAMES {
-                    let id = name.to_string();
-                    assert!(
-                        collected.noises.contains_key(id.as_str()),
-                        "the hardcoded surface noise {name} did not arrive"
-                    );
-                }
-                for id in [
-                    "minecraft:overworld/ore_vein/iron_density",
-                    "minecraft:overworld/ore_vein/copper_density",
-                    "minecraft:overworld/ore_vein/richness",
-                    "minecraft:overworld/ore_vein/gap",
-                ] {
-                    assert!(
-                        collected.density_functions.contains_key(id),
-                        "{id} did not arrive"
-                    );
-                }
-
-                fn ids<V>(map: &BTreeMap<ResourceLocation, V>) -> BTreeSet<ResourceLocation> {
-                    map.keys().cloned().collect()
-                }
-                let expected = closure(&asset.settings);
-                assert_eq!(ids(&collected.rules), expected.rules);
-                assert_eq!(ids(&collected.conditions), expected.conditions);
-                assert_eq!(
-                    ids(&collected.density_functions),
-                    expected.density_functions
-                );
-                assert_eq!(ids(&collected.noises), expected.noises);
-            }
-
-            // Every distinct state gets a distinct id, so a router that mixed
-            // the terrain block up with the sea fluid would not compare equal.
-            let states = std::cell::RefCell::new(BTreeMap::<String, VoxelId>::new());
-            let block = |state: &BlockState| {
-                let mut states = states.borrow_mut();
-                let next = VoxelId(states.len() as u16 + 1);
-                Some(*states.entry(state.name.as_str().to_owned()).or_insert(next))
-            };
-            let (router, _) = build_dimension_router(asset, &registries, 0, &block, &biomes)
-                .unwrap_or_else(|error| panic!("{name}: {error}"));
-
-            assert_ne!(
-                router.default_block_state, router.default_fluid_state,
-                "{name} resolved the terrain block and the sea fluid to one id"
-            );
-        }
-    }
 }
