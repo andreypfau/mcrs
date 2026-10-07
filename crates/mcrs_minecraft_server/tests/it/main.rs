@@ -21,6 +21,7 @@ mod bridge_outbound;
 mod bus_e2e;
 mod channel_overload;
 mod channel_readiness;
+mod configuration_registries;
 mod configuration_start;
 mod configuration_tags;
 mod confirmed_move_roundtrip;

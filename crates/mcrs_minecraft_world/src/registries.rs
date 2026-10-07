@@ -64,15 +64,21 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 macro_rules! world_registry_table {
-    ($($key:ty => $value:ty $([$non_empty:ident])? $(, synced as $project:expr)?;)*) => {
-        fn parse_world_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
+    ($(
+        $key:ty => $value:ty $([$non_empty:ident])?
+            $(as $parts:ty, $split:expr, $join:expr $(, synced from parts as $part_project:expr)?)?
+            $(, synced as $project:expr)?;
+    )*) => {
+        fn declare_world_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
             $(
                 parse::<$key, $value>(world, report);
-                $(
-                    if world.parses(<$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str()) {
-                        world.$non_empty(<$key as mcrs_minecraft_registry::Registered>::REGISTRY.location());
-                    }
-                )?
+                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
+                if world.parses(registry.as_static_str()) {
+                    $(world.split::<$value, $parts>(registry, $split, $join);)?
+                    $(world.$non_empty(registry);)?
+                    $($(world.sync_parts::<$parts, _>(registry, $part_project);)?)?
+                    $(world.sync_value::<$value, _>(registry, $project);)?
+                }
             )*
         }
 
@@ -86,90 +92,86 @@ macro_rules! world_registry_table {
                 );
             )?)*
         }
-    };
-}
-
-macro_rules! split_registry_table {
-    ($($key:ty => $file:ty as $parts:ty $([$non_empty:ident])?, $split:expr, $join:expr $(, synced as $project:expr)?;)*) => {
-        fn parse_split_registries(world: &mut WorldRegistries, report: &mut LoadReport) {
-            $(
-                parse::<$key, $file>(world, report);
-                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
-                if world.parses(registry.as_static_str()) {
-                    world.split::<$file, $parts>(registry, $split, $join);
-                    $(world.$non_empty(registry);)?
-                }
-            )*
-        }
 
         pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
-            $($(
+            $($($(
                 register_joined::<$parts, _>(
                     access,
                     set,
                     <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
-                    $project,
+                    $part_project,
                 );
-            )?)*
+            )?)?)*
         }
     };
 }
 
-split_registry_table! {
-    WolfVariant => WolfVariantFile as (WolfVariant, Vec<SpawnSelector>) [non_empty],
-        WolfVariantFile::split, WolfVariantFile::join, synced as |(variant, _)| variant.clone();
-    PigVariant => PigVariantFile as (PigVariant, Vec<SpawnSelector>) [non_empty],
-        PigVariantFile::split, PigVariantFile::join, synced as |(variant, _)| variant.clone();
-    CowVariant => CowVariantFile as (CowVariant, Vec<SpawnSelector>) [non_empty],
-        CowVariantFile::split, CowVariantFile::join, synced as |(variant, _)| variant.clone();
-    ChickenVariant => ChickenVariantFile as (ChickenVariant, Vec<SpawnSelector>) [non_empty],
-        ChickenVariantFile::split, ChickenVariantFile::join, synced as |(variant, _)| variant.clone();
-    CatVariant => CatVariantFile as (CatVariant, Vec<SpawnSelector>) [non_empty],
-        CatVariantFile::split, CatVariantFile::join, synced as |(variant, _)| variant.clone();
-    FrogVariant => FrogVariantFile as (FrogVariant, Vec<SpawnSelector>) [non_empty],
-        FrogVariantFile::split, FrogVariantFile::join, synced as |(variant, _)| variant.clone();
-    ZombieNautilusVariant => ZombieNautilusVariantFile as (ZombieNautilusVariant, Vec<SpawnSelector>) [non_empty],
-        ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join, synced as |(variant, _)| variant.clone();
-    mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
-        EnchantmentFile::split, EnchantmentFile::join, synced as EnchantmentFile::join;
-    Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
-        BiomeFile::split, BiomeFile::join,
-        synced as |parts| NetworkBiome::from(parts);
-    DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
-        DimensionTypeFile::split, DimensionTypeFile::join,
-        synced as |parts| DimensionTypeFile::join(parts).synced();
-    Dimension => DimensionEntry as (Dimension, ChunkGenerator),
-        DimensionEntry::split, DimensionEntry::join;
-}
-
 world_registry_table! {
-    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone;
-    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone;
-    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone;
-    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
-    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
-    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
+    Biome => BiomeFile
+        as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
+        BiomeFile::split, BiomeFile::join,
+        synced from parts as |parts| NetworkBiome::from(parts);
     crate::chat_type::ChatType => ChatType, synced as Clone::clone;
+    mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
+    mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
+    WolfVariant => WolfVariantFile [non_empty]
+        as (WolfVariant, Vec<SpawnSelector>),
+        WolfVariantFile::split, WolfVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    WolfSoundVariant => WolfSoundVariant [non_empty], synced as Clone::clone;
+    PigVariant => PigVariantFile [non_empty]
+        as (PigVariant, Vec<SpawnSelector>),
+        PigVariantFile::split, PigVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    PigSoundVariant => PigSoundVariant [non_empty], synced as Clone::clone;
+    FrogVariant => FrogVariantFile [non_empty]
+        as (FrogVariant, Vec<SpawnSelector>),
+        FrogVariantFile::split, FrogVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    CatVariant => CatVariantFile [non_empty]
+        as (CatVariant, Vec<SpawnSelector>),
+        CatVariantFile::split, CatVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    CatSoundVariant => CatSoundVariant [non_empty], synced as Clone::clone;
+    CowSoundVariant => CowSoundVariant [non_empty], synced as Clone::clone;
+    CowVariant => CowVariantFile [non_empty]
+        as (CowVariant, Vec<SpawnSelector>),
+        CowVariantFile::split, CowVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    ChickenSoundVariant => ChickenSoundVariant [non_empty], synced as Clone::clone;
+    ChickenVariant => ChickenVariantFile [non_empty]
+        as (ChickenVariant, Vec<SpawnSelector>),
+        ChickenVariantFile::split, ChickenVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    ZombieNautilusVariant => ZombieNautilusVariantFile [non_empty]
+        as (ZombieNautilusVariant, Vec<SpawnSelector>),
+        ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join,
+        synced from parts as |(variant, _)| variant.clone();
+    mcrs_minecraft_item::PaintingVariantValue => PaintingVariantValue [non_empty], synced as Clone::clone;
+    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    DimensionType => DimensionTypeFile
+        as (DimensionType, DimensionTypeEnvironment),
+        DimensionTypeFile::split, DimensionTypeFile::join,
+        synced from parts as |parts| DimensionTypeFile::join(parts).synced();
+    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
+    mcrs_minecraft_item::BannerPattern => BannerPattern, synced as Clone::clone;
+    mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile
+        as (EnchantmentData, Option<EnchantmentEffects>),
+        EnchantmentFile::split, EnchantmentFile::join,
+        synced from parts as EnchantmentFile::join;
+    mcrs_minecraft_item::JukeboxSong => JukeboxSong, synced as Clone::clone;
+    mcrs_minecraft_item::InstrumentValue => InstrumentValue, synced as Clone::clone;
     crate::test_types::TestEnvironment => TestEnvironment, synced as Clone::clone;
     crate::test_types::TestInstance => TestInstance, synced as Clone::clone;
     mcrs_minecraft_item::dialog::Dialog => Dialog, synced as Clone::clone;
-    mcrs_minecraft_item::damage_type::DamageType => DamageType, synced as Clone::clone;
-    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
-    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
-    WolfSoundVariant => WolfSoundVariant [non_empty],
-        synced as Clone::clone;
-    PigSoundVariant => PigSoundVariant [non_empty],
-        synced as Clone::clone;
-    CowSoundVariant => CowSoundVariant [non_empty],
-        synced as Clone::clone;
-    ChickenSoundVariant => ChickenSoundVariant [non_empty],
-        synced as Clone::clone;
-    CatSoundVariant => CatSoundVariant [non_empty],
-        synced as Clone::clone;
     WorldClock => WorldClock, synced as Clone::clone;
     Timeline => Timeline, synced as |timeline| NetworkTimeline::from(timeline);
-    crate::sulfur_cube_archetype::SulfurCubeArchetype => SulfurCubeArchetype, synced as Clone::clone;
+    mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern => DecoratedPotPattern, synced as Clone::clone;
+    mcrs_minecraft_item::block_transformer::BlockTransformer => BlockTransformer, synced as Clone::clone;
     mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider => DirectBlockStateProvider, synced as Clone::clone;
+    Dimension => DimensionEntry
+        as (Dimension, ChunkGenerator),
+        DimensionEntry::split, DimensionEntry::join;
     mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList => MultiNoiseBiomeSourceParameterList;
     crate::worldgen::world_preset::WorldPreset => WorldPreset;
     crate::enchantment_provider::EnchantmentProvider => EnchantmentProvider;
@@ -219,8 +221,7 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
     let mut world =
         WorldRegistries::from_datapack_report(datapack_report).map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
-    parse_world_registries(&mut world, &mut undeclared);
-    parse_split_registries(&mut world, &mut undeclared);
+    declare_world_registries(&mut world, &mut undeclared);
     if world.parses(
         mcrs_minecraft_environment::keys::TIMELINE
             .location()
