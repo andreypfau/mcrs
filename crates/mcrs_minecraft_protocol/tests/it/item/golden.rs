@@ -1,9 +1,10 @@
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, CreativeSlotLock, CustomName, Damage, DecodeCtx, EncodeCtx, HashedPatchMap,
-    ItemComponentKind, ItemComponentValue, Lore, MaxStackSize, Template, Unbreakable,
-    decode_delimited_patch, encode_delimited_patch, hash_ops,
+    ItemComponentValue, Lore, MaxStackSize, Template, Unbreakable, decode_delimited_patch,
+    encode_delimited_patch, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode};
@@ -28,8 +29,8 @@ fn patch(with_transient: bool) -> ComponentPatch {
     if with_transient {
         patch.set(CreativeSlotLock);
     }
-    patch.remove(ItemComponentKind::RepairCost);
-    patch.remove(ItemComponentKind::Enchantments);
+    patch.remove(DataComponentType::RepairCost);
+    patch.remove(DataComponentType::Enchantments);
     patch
 }
 
@@ -109,7 +110,7 @@ fn diamond_sword() -> ResourceKey<Item> {
 
 /// Vanilla emits its hash maps in hash-iteration order, so the entries are
 /// compared as sets.
-fn sorted(map: &HashedPatchMap) -> (Vec<(ItemComponentKind, i32)>, Vec<ItemComponentKind>) {
+fn sorted(map: &HashedPatchMap) -> (Vec<(DataComponentType, i32)>, Vec<DataComponentType>) {
     let mut added = map.added.clone();
     added.sort();
     let mut removed = map.removed.clone();
@@ -122,16 +123,16 @@ fn the_hashed_map_wire_is_the_vanilla_layout() {
     let hashed = HashedPatchMap::decode(&mut &hex(HASHED_WIRE)[..]).unwrap();
     let expected = HashedPatchMap {
         added: vec![
-            (ItemComponentKind::MaxStackSize, 1769065625),
-            (ItemComponentKind::CustomData, 1148427506),
-            (ItemComponentKind::Lore, -476441620),
-            (ItemComponentKind::CustomName, -756126370),
-            (ItemComponentKind::Damage, -1726626450),
-            (ItemComponentKind::Unbreakable, -982207288),
+            (DataComponentType::MaxStackSize, 1769065625),
+            (DataComponentType::CustomData, 1148427506),
+            (DataComponentType::Lore, -476441620),
+            (DataComponentType::CustomName, -756126370),
+            (DataComponentType::Damage, -1726626450),
+            (DataComponentType::Unbreakable, -982207288),
         ],
         removed: vec![
-            ItemComponentKind::RepairCost,
-            ItemComponentKind::Enchantments,
+            DataComponentType::RepairCost,
+            DataComponentType::Enchantments,
         ],
     };
     assert_eq!(sorted(&hashed), sorted(&expected));

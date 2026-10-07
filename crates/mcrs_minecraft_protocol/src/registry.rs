@@ -28,6 +28,45 @@ impl<R> From<Id<R>> for RegistryId {
     }
 }
 
+macro_rules! static_registry_wire {
+    ($ty:ty, $what:literal) => {
+        impl crate::Encode for $ty {
+            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+                crate::registry::encode_registry_id(*self as u16, w)
+            }
+        }
+
+        impl crate::Decode<'_> for $ty {
+            fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+                let id = crate::registry::decode_registry_id(r)?;
+                <$ty>::from_protocol_id(id)
+                    .ok_or_else(|| anyhow::anyhow!(concat!("unknown ", $what, " {}"), id))
+            }
+        }
+    };
+    ($($ty:ty),* $(,)?) => {$(
+        impl crate::Encode for $ty {
+            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
+                crate::registry::encode_registry_id(*self as u16, w)
+            }
+        }
+
+        impl<'a> crate::Decode<'a> for $ty {
+            fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+                let id = <crate::VarInt as crate::Decode>::decode(r)?.0;
+                u16::try_from(id)
+                    .ok()
+                    .and_then(<$ty>::from_protocol_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("unexpected enum discriminant {id} in `{}`", stringify!($ty))
+                    })
+            }
+        }
+    )*};
+}
+
+pub(crate) use static_registry_wire;
+
 pub fn encode_registry_id(id: u16, w: impl Write) -> anyhow::Result<()> {
     VarInt(i32::from(id)).encode(w)
 }
@@ -102,10 +141,9 @@ impl<'a> Decode<'a> for Holder {
 mod tests {
     use super::*;
     use crate::entity::OptionalBlockState;
-    use crate::item::component::predicate::ComponentPredicateType;
-    use crate::item::kind::ItemComponentKind;
-    use mcrs_minecraft_item::keys::Item;
-    use mcrs_minecraft_particle::ParticleKind;
+    use mcrs_minecraft_item::keys::DataComponentType;
+    use mcrs_minecraft_item::keys::{DataComponentPredicateType, Item};
+    use mcrs_minecraft_particle::keys::ParticleType;
     use mcrs_minecraft_registry::{BlockStateId, Id};
 
     type Decoder = fn(&mut &[u8]) -> anyhow::Result<()>;
@@ -117,12 +155,12 @@ mod tests {
         ("optional block state", |r| {
             OptionalBlockState::decode(r).map(drop)
         }),
-        ("particle kind", |r| ParticleKind::decode(r).map(drop)),
+        ("particle type", |r| ParticleType::decode(r).map(drop)),
         ("data component type", |r| {
-            ItemComponentKind::decode(r).map(drop)
+            DataComponentType::decode(r).map(drop)
         }),
         ("component predicate type", |r| {
-            ComponentPredicateType::decode(r).map(drop)
+            DataComponentPredicateType::decode(r).map(drop)
         }),
         ("holder", |r| Holder::decode(r).map(drop)),
     ];

@@ -2,12 +2,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::{Op, Slot, TransactionError};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     DroppedItem, Held, ItemStack, SlotTable, same_item_same_components, stack_to_value,
 };
-use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, ItemComponentKind, Lore, MaxStackSize, Unbreakable,
-};
+use mcrs_minecraft_protocol::item::{ComponentPatch, Damage, Lore, MaxStackSize, Unbreakable};
 
 use crate::common::{apply, holder, items, place, remove, revision, set_count, spawn, world};
 
@@ -85,22 +84,22 @@ fn insert_equal_to_the_prototype_leaves_no_patch() {
 fn remove_tombstones_a_prototype_value_and_clears_the_rest() {
     let mut world = world();
     let stone = spawn(&mut world, "stone", 1);
-    remove(&mut world, stone, ItemComponentKind::Lore);
+    remove(&mut world, stone, DataComponentType::Lore);
     assert_eq!(world.get::<Lore>(stone), None);
     let patch = stack_to_value(&world, stone, items()).components;
     assert!(patch.added.is_empty());
-    assert_eq!(patch.removed, [ItemComponentKind::Lore]);
+    assert_eq!(patch.removed, [DataComponentType::Lore]);
     insert(&mut world, stone, Unbreakable);
     assert_eq!(world.get::<Unbreakable>(stone), Some(&Unbreakable));
     assert_eq!(
         stack_to_value(&world, stone, items()).components.added,
         [Unbreakable.into()]
     );
-    remove(&mut world, stone, ItemComponentKind::Unbreakable);
+    remove(&mut world, stone, DataComponentType::Unbreakable);
     assert_eq!(world.get::<Unbreakable>(stone), None);
     assert_eq!(
         stack_to_value(&world, stone, items()).components.removed,
-        [ItemComponentKind::Lore]
+        [DataComponentType::Lore]
     );
 }
 
@@ -111,12 +110,12 @@ fn a_child_kind_is_never_a_component() {
         &mut world,
         vec![Op::Remove {
             stack: shulker,
-            kind: ItemComponentKind::Container,
+            kind: DataComponentType::Container,
         }],
     );
     assert!(matches!(
         refused,
-        Err(TransactionError::ChildKind(ItemComponentKind::Container))
+        Err(TransactionError::ChildKind(DataComponentType::Container))
     ));
 }
 

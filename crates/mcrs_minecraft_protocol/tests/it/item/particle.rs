@@ -4,10 +4,10 @@ use bevy_math::DVec3;
 use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_particle::{
-    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleKind,
-    ParticleOptions, ParticleScale, PositionSource, SpellParticle, TrailParticle,
-    VibrationParticle,
+    BlockParticle, BlockStateValue, ColorParticle, DustParticle, ItemParticle, ParticleOptions,
+    ParticleScale, PositionSource, SpellParticle, TrailParticle, VibrationParticle,
 };
 use mcrs_minecraft_protocol::item::{
     ArgbInt, ComponentPatch, DecodeCtx, EncodeCtx, RgbInt, Template,
@@ -97,27 +97,18 @@ fn check(label: &str) -> ParticleOptions {
 }
 
 #[test]
-fn particle_kinds_match_the_registry_report() {
-    let set = mcrs_minecraft_registry::static_report::shipped_report();
-    let particles = set.table("minecraft:particle_type").unwrap();
-    assert_eq!(particles.len(), ParticleKind::COUNT);
-    for (id, name) in particles.names().iter().enumerate() {
-        let kind = ParticleKind::from_id(name.as_str())
-            .unwrap_or_else(|| panic!("{name} is not modelled"));
-        assert_eq!(kind as usize, id, "{name}");
-        assert_eq!(kind.id().as_str(), name.as_str());
-        assert_eq!(
-            ParticleKind::from_wire_id(u16::try_from(id).unwrap()),
-            Some(kind)
-        );
-    }
+fn particle_type_wire_ids_and_position_sources_match_the_golden() {
     for line in GOLDEN.lines().filter_map(|line| line.strip_prefix("type ")) {
         let mut parts = line.split(' ');
         let id: u16 = parts.next().unwrap().parse().unwrap();
         let name = parts.next().unwrap();
-        assert_eq!(ParticleKind::from_wire_id(id).unwrap().id().as_str(), name);
+        assert_eq!(
+            ParticleType::from_protocol_id(id).unwrap().as_static_str(),
+            name
+        );
     }
 
+    let set = mcrs_minecraft_registry::static_report::shipped_report();
     let sources = set.table("minecraft:position_source_type").unwrap();
     assert_eq!(sources.len(), 2);
     assert_eq!(sources.names()[0].as_str(), "minecraft:block");

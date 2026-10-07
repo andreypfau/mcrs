@@ -1,10 +1,11 @@
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container, DecodeCtx,
-    EncodeCtx, Holder, ItemComponentKind, ItemComponentValue, ItemStackValue, PotDecorations,
-    ProtoStack, RawStack, SulfurCubeContent, Template, UseRemainder,
+    EncodeCtx, Holder, ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, RawStack,
+    SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_registry::DenseId;
@@ -30,10 +31,10 @@ const ITEMS: [(&str, u16); 4] = [
 // are generated fresh, so scalar kinds are exercised in combination, not with
 // random field values. Upgrade path: a Gen impl per value type.
 macro_rules! sample_pool {
-    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
-        fn sample_pool() -> Vec<(ItemComponentKind, Vec<ItemComponentValue>)> {
+    ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        fn sample_pool() -> Vec<(DataComponentType, Vec<ItemComponentValue>)> {
             vec![$((
-                ItemComponentKind::$ty,
+                DataComponentType::$kind,
                 <mcrs_minecraft_protocol::item::$ty as Sample>::samples()
                     .into_iter()
                     .map(Into::into)
@@ -47,7 +48,7 @@ for_each_data_component!(sample_pool);
 
 struct Gen {
     rng: StdRng,
-    pool: Vec<(ItemComponentKind, Vec<ItemComponentValue>)>,
+    pool: Vec<(DataComponentType, Vec<ItemComponentValue>)>,
 }
 
 impl Gen {
@@ -77,18 +78,18 @@ impl Gen {
         (0..n).map(|_| self.template(depth)).collect()
     }
 
-    fn nested(&mut self, kind: ItemComponentKind, depth: u8) -> Option<ItemComponentValue> {
+    fn nested(&mut self, kind: DataComponentType, depth: u8) -> Option<ItemComponentValue> {
         let depth = depth.checked_sub(1)?;
         Some(match kind {
-            ItemComponentKind::UseRemainder => UseRemainder(self.template(depth)).into(),
-            ItemComponentKind::SulfurCubeContent => SulfurCubeContent(self.template(depth)).into(),
-            ItemComponentKind::BundleContents => BundleContents(self.templates(depth, 4)).into(),
-            ItemComponentKind::ChargedProjectiles => {
+            DataComponentType::UseRemainder => UseRemainder(self.template(depth)).into(),
+            DataComponentType::SulfurCubeContent => SulfurCubeContent(self.template(depth)).into(),
+            DataComponentType::BundleContents => BundleContents(self.templates(depth, 4)).into(),
+            DataComponentType::ChargedProjectiles => {
                 ChargedProjectiles::new(self.templates(depth, 3))
                     .unwrap()
                     .into()
             }
-            ItemComponentKind::PotDecorations => {
+            DataComponentType::PotDecorations => {
                 let mut side = || {
                     self.rng
                         .random_bool(0.5)
@@ -102,7 +103,7 @@ impl Gen {
                 }
                 .into()
             }
-            ItemComponentKind::Container => {
+            DataComponentType::Container => {
                 let n = self.rng.random_range(0..=5);
                 let mut slots: Vec<Option<Template>> = (0..n)
                     .map(|_| self.rng.random_bool(0.6).then(|| self.template(depth)))
@@ -118,7 +119,7 @@ impl Gen {
         })
     }
 
-    fn value(&mut self, kind: ItemComponentKind, depth: u8) -> ItemComponentValue {
+    fn value(&mut self, kind: DataComponentType, depth: u8) -> ItemComponentValue {
         if self.rng.random_bool(0.5)
             && let Some(value) = self.nested(kind, depth)
         {
@@ -129,7 +130,7 @@ impl Gen {
     }
 
     fn patch(&mut self, depth: u8, persistent_only: bool) -> ComponentPatch {
-        let kinds: Vec<ItemComponentKind> = ItemComponentKind::ALL
+        let kinds: Vec<DataComponentType> = DataComponentType::ALL
             .iter()
             .copied()
             .filter(|kind| !persistent_only || kind.is_persistent())
@@ -159,13 +160,13 @@ fn persistent_round_trips(value: &ItemComponentValue) {
     assert_eq!(
         &from_json(kind, &json),
         value,
-        "{kind}: JSON round trip of {json}"
+        "{kind:?}: JSON round trip of {json}"
     );
 
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(value, &mut nbt)
-        .unwrap_or_else(|e| panic!("{kind}: to NBT {value:?}: {e}"));
-    assert_eq!(&from_nbt(kind, &nbt), value, "{kind}: NBT round trip");
+        .unwrap_or_else(|e| panic!("{kind:?}: to NBT {value:?}: {e}"));
+    assert_eq!(&from_nbt(kind, &nbt), value, "{kind:?}: NBT round trip");
 }
 
 fn raw_stack_round_trip(lookup: &TestLookup, slot: &ProtoStack) {
@@ -186,15 +187,15 @@ fn raw_stack_round_trip(lookup: &TestLookup, slot: &ProtoStack) {
     assert_eq!(&back, slot, "raw stack round trip");
 }
 
-fn check_kind(kind: ItemComponentKind, iterations: usize) {
+fn check_kind(kind: DataComponentType, iterations: usize) {
     let lookup = TestLookup::new();
-    let mut generator = Gen::new(kind.wire_id() as u64);
+    let mut generator = Gen::new(kind as u64);
     for _ in 0..iterations {
         let value = generator.value(kind, 2);
         assert_eq!(
             decode(&lookup, kind, &wire(&lookup, &value)),
             value,
-            "{kind}: wire round trip"
+            "{kind:?}: wire round trip"
         );
         if kind.is_persistent() {
             persistent_round_trips(&value);
@@ -206,11 +207,11 @@ fn check_kind(kind: ItemComponentKind, iterations: usize) {
 }
 
 mod exhaustive {
-    use mcrs_minecraft_protocol::item::ItemComponentKind;
+    use mcrs_minecraft_item::keys::DataComponentType;
 
     #[test]
     fn random_values_of_every_kind_round_trip() {
-        for &kind in ItemComponentKind::ALL.iter() {
+        for &kind in DataComponentType::ALL.iter() {
             super::check_kind(kind, super::ITERATIONS);
         }
     }

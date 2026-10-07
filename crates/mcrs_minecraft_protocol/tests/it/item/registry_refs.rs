@@ -3,8 +3,9 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, hash_ops};
+use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 
 use crate::item::harness::{
     TestLookup, from_nbt, hex, in_samples, json_value, nbt_tree, persistent_json,
@@ -13,7 +14,7 @@ use crate::item::harness::{
 const GOLDEN: &str = include_str!("../../fixtures/item/registry_refs_golden.txt");
 
 struct Golden {
-    kind: ItemComponentKind,
+    kind: DataComponentType,
     input: String,
     outcome: Outcome,
 }
@@ -36,7 +37,7 @@ fn parse_fixture() -> (TestLookup, Vec<Golden>) {
             continue;
         };
         let (kind, input) = rest.split_once(' ').unwrap();
-        let kind = ItemComponentKind::from_id(kind).unwrap_or_else(|| panic!("{kind}"));
+        let kind = DataComponentType::read(kind).unwrap_or_else(|| panic!("{kind}"));
         let mut fields: BTreeMap<&str, &str> = BTreeMap::new();
         while let Some(next) = lines.peek() {
             let Some(field) = next.strip_prefix("  ") else {
@@ -64,7 +65,7 @@ fn parse_fixture() -> (TestLookup, Vec<Golden>) {
     (TestLookup::with_id_lines(GOLDEN), samples)
 }
 
-fn from_json(kind: ItemComponentKind, json: &str) -> Result<ItemComponentValue, String> {
+fn from_json(kind: DataComponentType, json: &str) -> Result<ItemComponentValue, String> {
     let mut d = serde_json::Deserializer::from_str(json);
     ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())
 }
@@ -89,9 +90,9 @@ fn every_golden_sample_matches_vanilla_in_scope() {
         kinds_seen.insert(*kind);
         match outcome {
             Outcome::Error(message) => {
-                let error = from_json(*kind, input)
-                    .err()
-                    .unwrap_or_else(|| panic!("{kind} accepted {input}, vanilla said: {message}"));
+                let error = from_json(*kind, input).err().unwrap_or_else(|| {
+                    panic!("{kind:?} accepted {input}, vanilla said: {message}")
+                });
                 let prefix = message
                     .split(" missed input")
                     .next()
@@ -101,7 +102,7 @@ fn every_golden_sample_matches_vanilla_in_scope() {
                     .unwrap();
                 assert!(
                     error.starts_with(prefix),
-                    "{kind} {input}: expected {prefix:?}, got {error:?}"
+                    "{kind:?} {input}: expected {prefix:?}, got {error:?}"
                 );
             }
             Outcome::Value {
@@ -112,39 +113,39 @@ fn every_golden_sample_matches_vanilla_in_scope() {
             } => {
                 if input.contains(r#""extra":"#) {
                     let error = from_json(*kind, input).unwrap_err();
-                    assert!(error.contains("unknown field `extra`"), "{kind}: {error}");
+                    assert!(error.contains("unknown field `extra`"), "{kind:?}: {error}");
                     continue;
                 }
                 let value = from_json(*kind, input)
-                    .unwrap_or_else(|e| panic!("{kind} rejected {input}: {e}"));
+                    .unwrap_or_else(|e| panic!("{kind:?} rejected {input}: {e}"));
                 let theirs: serde_json::Value = serde_json::from_str(json).unwrap();
-                assert_eq!(json_value(&value), theirs, "{kind} {input}: JSON");
+                assert_eq!(json_value(&value), theirs, "{kind:?} {input}: JSON");
                 assert_eq!(
                     persistent_json(&from_json(*kind, json).unwrap()),
                     persistent_json(&value),
-                    "{kind}: vanilla's JSON reads back the same"
+                    "{kind:?}: vanilla's JSON reads back the same"
                 );
 
                 let mut our_nbt = Vec::new();
                 mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut our_nbt).unwrap();
-                assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind} {input}: NBT");
+                assert_eq!(nbt_tree(&our_nbt), nbt_tree(nbt), "{kind:?} {input}: NBT");
 
                 let mut our_wire = Vec::new();
                 value.encode_ctx(&lookup, &mut our_wire).unwrap();
-                assert_eq!(our_wire, *wire, "{kind} {input}: wire");
+                assert_eq!(our_wire, *wire, "{kind:?} {input}: wire");
                 let mut r = &wire[..];
                 let decoded = decode_component_value(*kind, &lookup, &mut r).unwrap();
-                assert!(r.is_empty(), "{kind}: trailing wire bytes");
+                assert!(r.is_empty(), "{kind:?}: trailing wire bytes");
                 assert_eq!(
                     persistent_json(&decoded),
                     persistent_json(&value),
-                    "{kind} {input}: wire decode"
+                    "{kind:?} {input}: wire decode"
                 );
 
                 assert_eq!(
                     hash_ops::hash(&value).unwrap(),
                     *hash,
-                    "{kind} {input}: hash"
+                    "{kind:?} {input}: hash"
                 );
             }
         }
@@ -155,7 +156,7 @@ fn every_golden_sample_matches_vanilla_in_scope() {
 #[test]
 fn a_lenient_stew_duration_falls_back_without_consuming_the_next_field() {
     let value = from_json(
-        ItemComponentKind::SuspiciousStewEffects,
+        DataComponentType::SuspiciousStewEffects,
         r#"[{"id":"minecraft:speed","duration":{"nested":[1,2]}},{"id":"minecraft:haste","duration":7}]"#,
     )
     .unwrap();
@@ -169,25 +170,25 @@ fn a_lenient_stew_duration_falls_back_without_consuming_the_next_field() {
 fn unknown_fields_are_rejected_at_load() {
     for (kind, json) in [
         (
-            ItemComponentKind::AttributeModifiers,
+            DataComponentType::AttributeModifiers,
             r#"[{"type":"minecraft:armor","id":"mcrs:x","amount":1,"operation":"add_value","extra":1}]"#,
         ),
-        (ItemComponentKind::Tool, r#"{"rules":[],"speed":1}"#),
+        (DataComponentType::Tool, r#"{"rules":[],"speed":1}"#),
         (
-            ItemComponentKind::Equippable,
+            DataComponentType::Equippable,
             r#"{"slot":"head","sound":"x"}"#,
         ),
         (
-            ItemComponentKind::PotionContents,
+            DataComponentType::PotionContents,
             r#"{"potion":"minecraft:water","color":1}"#,
         ),
         (
-            ItemComponentKind::Bees,
+            DataComponentType::Bees,
             r#"[{"entity_data":{"id":"minecraft:pig"},"ticks_in_hive":1,"min_ticks_in_hive":1,"x":1}]"#,
         ),
     ] {
         let error = from_json(kind, json).unwrap_err();
-        assert!(error.contains("unknown field"), "{kind}: {error}");
+        assert!(error.contains("unknown field"), "{kind:?}: {error}");
     }
 }
 
@@ -197,20 +198,20 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     use mcrs_minecraft_protocol::item::{AttributeDisplay, AttributeOperation, Equippable};
 
     let lookup = TestLookup::new();
-    let head = from_json(ItemComponentKind::Equippable, r#"{"slot":"head"}"#).unwrap();
+    let head = from_json(DataComponentType::Equippable, r#"{"slot":"head"}"#).unwrap();
     let mut wire = Vec::new();
     head.encode_ctx(&lookup, &mut wire).unwrap();
     assert_eq!(wire[0], 4);
     wire[0] = 9;
     let decoded =
-        decode_component_value(ItemComponentKind::Equippable, &lookup, &mut &wire[..]).unwrap();
+        decode_component_value(DataComponentType::Equippable, &lookup, &mut &wire[..]).unwrap();
     let ItemComponentValue::Equippable(Equippable { slot, .. }) = decoded else {
         unreachable!()
     };
     assert_eq!(slot, EquipmentSlot::MainHand);
 
     let entry = from_json(
-        ItemComponentKind::AttributeModifiers,
+        DataComponentType::AttributeModifiers,
         r#"[{"type":"minecraft:armor","id":"mcrs:x","amount":1,"operation":"add_multiplied_total","slot":"saddle","display":{"type":"hidden"}}]"#,
     )
     .unwrap();
@@ -222,7 +223,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     wire[len - 2] = 11;
     wire[len - 1] = 3;
     let decoded = decode_component_value(
-        ItemComponentKind::AttributeModifiers,
+        DataComponentType::AttributeModifiers,
         &lookup,
         &mut &wire[..],
     )
@@ -251,7 +252,7 @@ fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
 
     let lookup = TestLookup::new();
     let enchantments = from_json(
-        ItemComponentKind::Enchantments,
+        DataComponentType::Enchantments,
         r#"{"minecraft:sharpness":5,"minecraft:unbreaking":3}"#,
     )
     .unwrap();
@@ -282,7 +283,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
     let lookup = TestLookup::new();
     let decode = |wire: &[u8]| {
         let mut r = wire;
-        decode_component_value(ItemComponentKind::Enchantments, &lookup, &mut r)
+        decode_component_value(DataComponentType::Enchantments, &lookup, &mut r)
             .map(|value| persistent_json(&value))
             .map_err(|e| e.to_string())
     };
@@ -297,7 +298,7 @@ fn wire_enchantment_levels_follow_the_constructor_not_the_codec() {
     );
     assert!(
         from_json(
-            ItemComponentKind::Enchantments,
+            DataComponentType::Enchantments,
             r#"{"minecraft:sharpness":0}"#
         )
         .unwrap_err()
@@ -313,7 +314,7 @@ fn nbt_floats_keep_vanillas_number_semantics() {
 fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     use mcrs_minecraft_nbt::tag::NbtTag;
 
-    fn from_tag(kind: ItemComponentKind, tag: NbtTag) -> Result<String, String> {
+    fn from_tag(kind: DataComponentType, tag: NbtTag) -> Result<String, String> {
         let mut bytes = Vec::new();
         mcrs_minecraft_nbt::to_bytes_unnamed(&tag, &mut bytes).unwrap();
         let mut cursor = std::io::Cursor::new(&bytes[..]);
@@ -340,11 +341,11 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
         )])
     };
     for speed in [f32::INFINITY, f32::NAN, -0.0] {
-        let error = from_tag(ItemComponentKind::Tool, tool(speed)).unwrap_err();
+        let error = from_tag(DataComponentType::Tool, tool(speed)).unwrap_err();
         assert!(error.contains("Value must be positive: "), "{error}");
     }
     assert!(
-        from_tag(ItemComponentKind::Tool, tool(f32::MAX))
+        from_tag(DataComponentType::Tool, tool(f32::MAX))
             .unwrap()
             .contains(r#""speed":3.4028235e"#)
     );
@@ -359,14 +360,14 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
         ])
     };
     assert_eq!(
-        from_tag(ItemComponentKind::MobVisibility, visibility(-0.0)).unwrap(),
+        from_tag(DataComponentType::MobVisibility, visibility(-0.0)).unwrap(),
         r#"{"targeting_entity_types":"minecraft:zombie","visibility":0.0}"#
     );
-    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(f32::NAN)).is_err());
-    assert!(from_tag(ItemComponentKind::MobVisibility, visibility(0.0)).is_ok());
+    assert!(from_tag(DataComponentType::MobVisibility, visibility(f32::NAN)).is_err());
+    assert!(from_tag(DataComponentType::MobVisibility, visibility(0.0)).is_ok());
     assert!(
         from_json(
-            ItemComponentKind::MobVisibility,
+            DataComponentType::MobVisibility,
             r#"{"targeting_entity_types":"minecraft:zombie","visibility":-0.0}"#
         )
         .unwrap_err()
@@ -375,12 +376,12 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
 
     let color = |tag: NbtTag| compound(vec![("custom_color", tag)]);
     assert_eq!(
-        from_tag(ItemComponentKind::PotionContents, color(NbtTag::Float(1.9))).unwrap(),
+        from_tag(DataComponentType::PotionContents, color(NbtTag::Float(1.9))).unwrap(),
         r#"{"custom_color":1}"#
     );
     assert_eq!(
         from_tag(
-            ItemComponentKind::PotionContents,
+            DataComponentType::PotionContents,
             color(NbtTag::Long(2147483648))
         )
         .unwrap(),
@@ -388,7 +389,7 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     );
     assert_eq!(
         from_tag(
-            ItemComponentKind::PotionContents,
+            DataComponentType::PotionContents,
             color(NbtTag::Double(3e9))
         )
         .unwrap(),
@@ -403,7 +404,7 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     };
     assert_eq!(
         from_tag(
-            ItemComponentKind::SuspiciousStewEffects,
+            DataComponentType::SuspiciousStewEffects,
             stew(NbtTag::Double(3e9))
         )
         .unwrap(),
@@ -411,7 +412,7 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     );
     assert_eq!(
         from_tag(
-            ItemComponentKind::SuspiciousStewEffects,
+            DataComponentType::SuspiciousStewEffects,
             stew(NbtTag::Byte(1))
         )
         .unwrap(),
@@ -419,7 +420,7 @@ fn nbt_floats_keep_vanillas_number_semantics_in_scope() {
     );
     assert_eq!(
         from_tag(
-            ItemComponentKind::SuspiciousStewEffects,
+            DataComponentType::SuspiciousStewEffects,
             stew(NbtTag::List(vec![NbtTag::Int(1), NbtTag::Int(2)]))
         )
         .unwrap(),
@@ -436,12 +437,12 @@ fn a_negative_zero_from_the_wire_reloads_from_its_own_save_in_scope() {
     let (lookup, _) = parse_fixture();
     let wire = [0x02, 0x9a, 0x01, 0x80, 0x00, 0x00, 0x00];
     let value =
-        decode_component_value(ItemComponentKind::MobVisibility, &lookup, &mut &wire[..]).unwrap();
+        decode_component_value(DataComponentType::MobVisibility, &lookup, &mut &wire[..]).unwrap();
     assert!(persistent_json(&value).ends_with(r#""visibility":-0.0}"#));
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
     assert!(nbt.ends_with(&[0x00, 0x00, 0x00, 0x00, 0x00]));
-    let reloaded = from_nbt(ItemComponentKind::MobVisibility, &nbt);
+    let reloaded = from_nbt(DataComponentType::MobVisibility, &nbt);
     assert!(persistent_json(&reloaded).ends_with(r#""visibility":0.0}"#));
 }
 
@@ -450,12 +451,12 @@ fn non_finite_floats_cross_the_wire() {
     let (lookup, _) = parse_fixture();
     for (kind, wire, json) in [
         (
-            ItemComponentKind::Tool,
+            DataComponentType::Tool,
             hex("010201013f800000007f8000000101"),
             r#"{"rules":[{"blocks":"minecraft:stone","speed":1.0}],"default_mining_speed":null}"#,
         ),
         (
-            ItemComponentKind::AttributeModifiers,
+            DataComponentType::AttributeModifiers,
             hex("011e066d6372733a787ff0000000000000000000"),
             r#"[{"type":"minecraft:scale","id":"mcrs:x","amount":null,"operation":"add_value"}]"#,
         ),
@@ -463,15 +464,15 @@ fn non_finite_floats_cross_the_wire() {
         let mut r = &wire[..];
         let value = decode_component_value(kind, &lookup, &mut r).unwrap();
         assert!(r.is_empty());
-        assert_eq!(persistent_json(&value), json, "{kind}");
+        assert_eq!(persistent_json(&value), json, "{kind:?}");
         let mut encoded = Vec::new();
         value.encode_ctx(&lookup, &mut encoded).unwrap();
-        assert_eq!(encoded, wire, "{kind}");
+        assert_eq!(encoded, wire, "{kind:?}");
     }
     let mut nbt = Vec::new();
     mcrs_minecraft_nbt::to_bytes_unnamed(
         &from_json(
-            ItemComponentKind::Tool,
+            DataComponentType::Tool,
             r#"{"rules":[],"default_mining_speed":1e40}"#,
         )
         .unwrap(),
@@ -491,7 +492,7 @@ fn two_spellings_of_one_enchantment_are_still_a_duplicate() {
     assert_eq!(
         persistent_json(
             &from_json(
-                ItemComponentKind::Enchantments,
+                DataComponentType::Enchantments,
                 r#"{"minecraft:sharpness":1,"minecraft:unbreaking":3,"minecraft:sharpness":2}"#
             )
             .unwrap()
@@ -500,7 +501,7 @@ fn two_spellings_of_one_enchantment_are_still_a_duplicate() {
     );
     assert!(
         from_json(
-            ItemComponentKind::Enchantments,
+            DataComponentType::Enchantments,
             r#"{"minecraft:sharpness":1,"sharpness":2}"#
         )
         .unwrap_err()
@@ -519,12 +520,12 @@ fn a_one_entry_list_is_the_bare_entry_in_scope() {
 
     let lookup = TestLookup::new();
     let bare = from_json(
-        ItemComponentKind::DamageResistant,
+        DataComponentType::DamageResistant,
         r#"{"types":"minecraft:lava"}"#,
     )
     .unwrap();
     let list = from_json(
-        ItemComponentKind::DamageResistant,
+        DataComponentType::DamageResistant,
         r#"{"types":["minecraft:lava"]}"#,
     )
     .unwrap();
@@ -532,7 +533,7 @@ fn a_one_entry_list_is_the_bare_entry_in_scope() {
     let mut wire = Vec::new();
     bare.encode_ctx(&lookup, &mut wire).unwrap();
     let decoded =
-        decode_component_value(ItemComponentKind::DamageResistant, &lookup, &mut &wire[..])
+        decode_component_value(DataComponentType::DamageResistant, &lookup, &mut &wire[..])
             .unwrap();
     assert_eq!(decoded, bare);
     let ItemComponentValue::DamageResistant(DamageResistant { types }) = decoded else {

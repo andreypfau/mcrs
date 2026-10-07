@@ -4,9 +4,10 @@ use anyhow::Context;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_core::codec;
 use mcrs_minecraft_item::component::RgbInt;
+use mcrs_minecraft_particle::keys::ParticleType;
 use mcrs_minecraft_particle::{
     BlockParticle, BlockStateValue, ColorParticle, DustColorTransitionParticle, DustParticle,
-    GeyserBaseParticle, GeyserParticle, ItemParticle, ParticleKind, ParticleOptions, ParticleScale,
+    GeyserBaseParticle, GeyserParticle, ItemParticle, ParticleOptions, ParticleScale,
     PositionSource, PowerParticle, SculkChargeParticle, ShriekParticle, SpellParticle,
     TrailParticle, VibrationParticle,
 };
@@ -14,11 +15,11 @@ use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
 use crate::item::wire::record_ctx_wire;
-use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
 use crate::{Decode, Encode, VarInt};
 
 macro_rules! particle_wire {
-    ($($id:literal $full:literal $bare:literal : $variant:ident $(($payload:ty))?),* $(,)?) => {
+    ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         fn encode_payload(
             options: &ParticleOptions,
             ctx: &dyn RegistryLookup,
@@ -32,12 +33,12 @@ macro_rules! particle_wire {
         }
 
         fn decode_payload(
-            kind: ParticleKind,
+            kind: ParticleType,
             ctx: &dyn RegistryLookup,
             r: &mut &[u8],
         ) -> anyhow::Result<ParticleOptions> {
             Ok(match kind {
-                $(ParticleKind::$variant => decode_arm!(ParticleOptions::$variant, ctx, r $(, $payload)?)),*
+                $(ParticleType::$variant => decode_arm!(ParticleOptions::$variant, ctx, r $(, $payload)?)),*
             })
         }
     };
@@ -72,18 +73,7 @@ macro_rules! decode_arm {
 
 mcrs_minecraft_particle::for_each_particle_type!(particle_wire);
 
-impl Encode for ParticleKind {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_registry_id(*self as u16, w)
-    }
-}
-
-impl Decode<'_> for ParticleKind {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = decode_registry_id(r)?;
-        Self::from_wire_id(id).with_context(|| format!("unknown particle type {id}"))
-    }
-}
+static_registry_wire!(ParticleType, "particle type");
 
 impl EncodeCtx for ParticleOptions {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -94,7 +84,7 @@ impl EncodeCtx for ParticleOptions {
 
 impl DecodeCtx<'_> for ParticleOptions {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &[u8]) -> anyhow::Result<Self> {
-        let kind = ParticleKind::decode(r)?;
+        let kind = ParticleType::decode(r)?;
         decode_payload(kind, ctx, r)
     }
 }

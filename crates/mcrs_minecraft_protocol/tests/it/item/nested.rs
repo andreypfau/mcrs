@@ -3,10 +3,11 @@ use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::BTreeMap;
 
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentKind,
-    ItemComponentValue, PotDecorations, Template, hash_ops,
+    BundleContents, ChargedProjectiles, Container, DecodeCtx, ItemComponentValue, PotDecorations,
+    Template, hash_ops,
 };
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::Deserialize;
@@ -38,7 +39,7 @@ fn nested_kinds_match_vanilla_in_every_form() {
     let golden = golden();
     let lookup = TestLookup::from_ids(&golden.lookup);
     for case in &golden.cases {
-        let kind = ItemComponentKind::from_id(&case.kind).unwrap();
+        let kind = DataComponentType::read(&case.kind).unwrap();
         let value = from_json(kind, &case.json);
         assert_eq!(persistent_json(&value), case.json, "{} json", case.name);
 
@@ -93,7 +94,7 @@ fn a_container_reads_sparse_slots_and_writes_the_dense_wire() {
     assert_eq!(persistent_json(&sparse.clone().into()), case.json);
 
     let mut r = &hex("02010101000000")[..];
-    let trailing = decode_component_value(ItemComponentKind::Container, &lookup, &mut r).unwrap();
+    let trailing = decode_component_value(DataComponentType::Container, &lookup, &mut r).unwrap();
     let ItemComponentValue::Container(trailing) = trailing else {
         panic!("not a container");
     };
@@ -116,7 +117,7 @@ fn bundles_in_bundles_stop_at_the_depth_bound_instead_of_overflowing() {
     let bundle = lookup
         .id("item", &rl!("minecraft:bundle").to_arc())
         .unwrap() as u8;
-    let bundle_contents = ItemComponentKind::BundleContents.wire_id() as u8;
+    let bundle_contents = DataComponentType::BundleContents as u8;
     let wrapped = |levels: u32| {
         let mut wire = [bundle, 1, 1, 0, bundle_contents, 1].repeat(levels as usize);
         wire.extend([bundle, 1, 0, 0]);
@@ -218,17 +219,17 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
             .map_err(|e| e.to_string())
     };
 
-    let air = decode(ItemComponentKind::UseRemainder, "00010000").unwrap_err();
+    let air = decode(DataComponentType::UseRemainder, "00010000").unwrap_err();
     assert_eq!(air.to_string(), "Item must not be minecraft:air");
-    let zero = decode(ItemComponentKind::UseRemainder, "01000000").unwrap_err();
+    let zero = decode(DataComponentType::UseRemainder, "01000000").unwrap_err();
     assert_eq!(zero.to_string(), "Item must be non-empty");
 
-    let hundred = decode(ItemComponentKind::UseRemainder, "01640000").unwrap();
+    let hundred = decode(DataComponentType::UseRemainder, "01640000").unwrap();
     assert_eq!(
         json(&hundred),
         Err("Value must be within range [1;99]: 100".into())
     );
-    let negative = decode(ItemComponentKind::ChargedProjectiles, "0101ffffffff0f0000").unwrap();
+    let negative = decode(DataComponentType::ChargedProjectiles, "0101ffffffff0f0000").unwrap();
     assert_eq!(
         json(&negative),
         Err("Value must be within range [1;99]: -1".into())
@@ -239,7 +240,7 @@ fn wire_templates_are_checked_like_the_vanilla_constructor() {
 
     for flag in ["02", "ff"] {
         let back = decode(
-            ItemComponentKind::PotDecorations,
+            DataComponentType::PotDecorations,
             &format!("{flag}01010000000000"),
         )
         .unwrap();

@@ -4,10 +4,11 @@ use anyhow::ensure;
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx};
-use crate::item::kind::{ItemComponentKind, ItemComponentValue};
+use crate::item::kind::ItemComponentValue;
 use crate::item::patch::{ComponentMap, ComponentPatch};
 use crate::item::wire::decode_component_value;
 use crate::{Decode, Encode, VarInt};
+use mcrs_minecraft_item::keys::DataComponentType;
 
 fn encode_with(
     patch: &ComponentPatch,
@@ -35,7 +36,7 @@ fn decode_with<'a>(
     ctx: &dyn RegistryLookup,
     r: &mut &'a [u8],
     mut value: impl FnMut(
-        ItemComponentKind,
+        DataComponentType,
         &dyn RegistryLookup,
         &mut &'a [u8],
     ) -> anyhow::Result<ItemComponentValue>,
@@ -45,11 +46,11 @@ fn decode_with<'a>(
     ensure!(added >= 0 && removed >= 0, "negative component count");
     let mut patch = ComponentPatch::EMPTY;
     for _ in 0..added {
-        let kind = ItemComponentKind::decode(r)?;
+        let kind = DataComponentType::decode(r)?;
         patch.set_value(value(kind, ctx, r)?);
     }
     for _ in 0..removed {
-        patch.remove(ItemComponentKind::decode(r)?);
+        patch.remove(DataComponentType::decode(r)?);
     }
     Ok(patch)
 }
@@ -80,7 +81,8 @@ pub fn decode_delimited_patch(
         let len = len as usize;
         ensure!(
             len <= r.len(),
-            "component {kind} declares {len} bytes but {} remain",
+            "component {} declares {len} bytes but {} remain",
+            kind.location(),
             r.len()
         );
         let (mut slice, rest) = r.split_at(len);
@@ -120,7 +122,7 @@ impl<'a> DecodeCtx<'a> for ComponentMap {
         ensure!(len >= 0, "attempt to decode a list with negative length");
         let mut map = ComponentMap::default();
         for _ in 0..len {
-            let kind = ItemComponentKind::decode(r)?;
+            let kind = DataComponentType::decode(r)?;
             map.set_value(decode_component_value(kind, ctx, r)?);
         }
         Ok(map)

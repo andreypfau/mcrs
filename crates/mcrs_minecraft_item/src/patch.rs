@@ -6,14 +6,15 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::deserialize_unit;
-use crate::kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
+use crate::keys::DataComponentType;
+use crate::kind::{ItemComponentValue, ItemDataComponent};
 
 /// Values set on top of an item's prototype and kinds removed from it; a kind
 /// appears at most once across both lists.
 #[derive(Clone, Debug, Default)]
 pub struct ComponentPatch {
     pub added: Vec<ItemComponentValue>,
-    pub removed: Vec<ItemComponentKind>,
+    pub removed: Vec<DataComponentType>,
 }
 
 /// Order is not part of the value.
@@ -43,11 +44,11 @@ impl ComponentPatch {
         self.added.iter().find_map(T::from_value)
     }
 
-    pub fn get_value(&self, kind: ItemComponentKind) -> Option<&ItemComponentValue> {
+    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue> {
         self.added.iter().find(|value| value.kind() == kind)
     }
 
-    pub fn is_removed(&self, kind: ItemComponentKind) -> bool {
+    pub fn is_removed(&self, kind: DataComponentType) -> bool {
         self.removed.contains(&kind)
     }
 
@@ -64,7 +65,7 @@ impl ComponentPatch {
         }
     }
 
-    pub fn remove(&mut self, kind: ItemComponentKind) {
+    pub fn remove(&mut self, kind: DataComponentType) {
         self.added.retain(|added| added.kind() != kind);
         if !self.removed.contains(&kind) {
             self.removed.push(kind);
@@ -82,13 +83,13 @@ impl<'de> DeserializeSeed<'de> for EmptyMapSeed {
     }
 }
 
-fn persistent_kind<E: serde::de::Error>(id: &str) -> Result<ItemComponentKind, E> {
-    let kind = ItemComponentKind::from_id(id)
-        .ok_or_else(|| E::custom(ItemComponentKind::unknown_id_error(id)))?;
+fn persistent_kind<E: serde::de::Error>(id: &str) -> Result<DataComponentType, E> {
+    let kind = DataComponentType::read(id)
+        .ok_or_else(|| E::custom(crate::kind::unknown_component_error(id)))?;
     if !kind.is_persistent() {
         return Err(E::custom(format_args!(
             "'{}' is not a persistent component",
-            kind.id()
+            kind.location()
         )));
     }
     Ok(kind)
@@ -99,12 +100,15 @@ impl Serialize for ComponentPatch {
         let mut map = s.serialize_map(None)?;
         for added in &self.added {
             if added.kind().is_persistent() {
-                map.serialize_entry(added.kind().id().as_str(), added)?;
+                map.serialize_entry(added.kind().as_static_str(), added)?;
             }
         }
         for removed in &self.removed {
             if removed.is_persistent() {
-                map.serialize_entry(&format!("!{}", removed.id()), &BTreeMap::<&str, ()>::new())?;
+                map.serialize_entry(
+                    &format!("!{}", removed.location()),
+                    &BTreeMap::<&str, ()>::new(),
+                )?;
             }
         }
         map.end()
@@ -160,7 +164,7 @@ impl ComponentMap {
         self.0.iter().find_map(T::from_value)
     }
 
-    pub fn get_value(&self, kind: ItemComponentKind) -> Option<&ItemComponentValue> {
+    pub fn get_value(&self, kind: DataComponentType) -> Option<&ItemComponentValue> {
         self.0.iter().find(|value| value.kind() == kind)
     }
 
@@ -203,7 +207,7 @@ impl Serialize for ComponentMap {
         let mut map = s.serialize_map(None)?;
         for value in &self.0 {
             if value.kind().is_persistent() {
-                map.serialize_entry(value.kind().id().as_str(), value)?;
+                map.serialize_entry(value.kind().as_static_str(), value)?;
             }
         }
         map.end()

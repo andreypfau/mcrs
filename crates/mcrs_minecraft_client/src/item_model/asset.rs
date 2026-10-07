@@ -7,10 +7,9 @@ use mcrs_minecraft_core::codec::{Validate, default_true, is_default};
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_item::TrimMaterial;
-use mcrs_minecraft_item::{
-    ComponentPredicate, ComponentPredicateType, DyeColor, ItemComponentKind, ItemComponentValue,
-    RgbInt,
-};
+use mcrs_minecraft_item::keys::DataComponentPredicateType;
+use mcrs_minecraft_item::keys::DataComponentType;
+use mcrs_minecraft_item::{ComponentPredicate, DyeColor, ItemComponentValue, RgbInt};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::{DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor, value};
 use serde::ser::SerializeMap;
@@ -191,7 +190,7 @@ pub enum ConditionProperty {
     Broken,
     #[serde(rename = "minecraft:has_component", alias = "has_component")]
     HasComponent {
-        component: ItemComponentKind,
+        component: DataComponentType,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         ignore_default: bool,
     },
@@ -232,7 +231,7 @@ pub struct ComponentMatches {
 impl Serialize for ComponentMatches {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(Some(2))?;
-        map.serialize_entry("predicate", self.predicate.kind().id().as_str())?;
+        map.serialize_entry("predicate", self.predicate.kind().as_static_str())?;
         map.serialize_entry("value", &self.predicate)?;
         map.end()
     }
@@ -244,10 +243,10 @@ impl<'de> Deserialize<'de> for ComponentMatches {
             kind_key: "predicate",
             value_key: "value",
             parse_kind: |id: &str| {
-                ComponentPredicateType::from_id(id)
+                DataComponentPredicateType::read(id)
                     .ok_or_else(|| format!("unknown data component predicate type `{id}`"))
             },
-            seed: |kind: ComponentPredicateType| kind,
+            seed: |kind: DataComponentPredicateType| kind,
         })?;
         Ok(ComponentMatches { predicate })
     }
@@ -541,14 +540,14 @@ impl Validate for SelectSwitch {
 /// kind's own codec.
 #[derive(Debug, Clone)]
 pub struct ComponentSwitch {
-    pub component: ItemComponentKind,
+    pub component: DataComponentType,
     pub cases: Vec<Case<ItemComponentValue>>,
 }
 
 impl Serialize for ComponentSwitch {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(Some(2))?;
-        map.serialize_entry("component", self.component.id().as_str())?;
+        map.serialize_entry("component", self.component.as_static_str())?;
         map.serialize_entry("cases", &self.cases)?;
         map.end()
     }
@@ -560,7 +559,7 @@ impl<'de> Deserialize<'de> for ComponentSwitch {
             kind_key: "component",
             value_key: "cases",
             parse_kind: |id: &str| {
-                let kind = ItemComponentKind::from_id(id)
+                let kind = DataComponentType::read(id)
                     .ok_or_else(|| format!("unknown data component `{id}`"))?;
                 if !kind.is_persistent() {
                     return Err("Component can't be serialized".to_owned());
@@ -573,13 +572,13 @@ impl<'de> Deserialize<'de> for ComponentSwitch {
     }
 }
 
-struct CasesSeed(ItemComponentKind);
+struct CasesSeed(DataComponentType);
 
 impl<'de> DeserializeSeed<'de> for CasesSeed {
-    type Value = (ItemComponentKind, Vec<Case<ItemComponentValue>>);
+    type Value = (DataComponentType, Vec<Case<ItemComponentValue>>);
 
     fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
-        struct Cases(ItemComponentKind);
+        struct Cases(DataComponentType);
 
         impl<'de> Visitor<'de> for Cases {
             type Value = Vec<Case<ItemComponentValue>>;
@@ -951,7 +950,7 @@ mod tests {
         else {
             panic!("{:?}", item.model);
         };
-        assert_eq!(switch.component, ItemComponentKind::DyedColor);
+        assert_eq!(switch.component, DataComponentType::DyedColor);
         assert_eq!(
             switch.cases[0].when,
             [

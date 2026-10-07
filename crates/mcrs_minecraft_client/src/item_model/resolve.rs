@@ -298,9 +298,10 @@ mod tests {
     use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
     use mcrs_minecraft_inventory::{Op, Slot, Transaction};
     use mcrs_minecraft_item::SlotTable;
+    use mcrs_minecraft_item::keys::DataComponentType;
     use mcrs_minecraft_protocol::item::{
         BundleContents, ChargedProjectiles, ComponentPatch, Damage, DyedColor, Enchantments,
-        FireworkExplosion, FireworkShape, ItemComponentKind, ItemStackValue, RgbInt, Template,
+        FireworkExplosion, FireworkShape, ItemStackValue, RgbInt, Template,
     };
     use mcrs_minecraft_world::item::test_corpus;
 
@@ -488,11 +489,11 @@ mod tests {
         let mut world = world();
         let stone = spawn(&mut world, "stone", 1, ComponentPatch::EMPTY);
         let max_stack = |ignore_default| ConditionProperty::HasComponent {
-            component: ItemComponentKind::MaxStackSize,
+            component: DataComponentType::MaxStackSize,
             ignore_default,
         };
         let dyed = |ignore_default| ConditionProperty::HasComponent {
-            component: ItemComponentKind::DyedColor,
+            component: DataComponentType::DyedColor,
             ignore_default,
         };
         let e = eval(&world, stone);
@@ -503,7 +504,7 @@ mod tests {
         set(&mut world, stone, DyedColor(RgbInt(0xFF0000)));
         Transaction(vec![Op::Remove {
             stack: stone,
-            kind: ItemComponentKind::MaxStackSize,
+            kind: DataComponentType::MaxStackSize,
         }])
         .apply(&mut world);
         let e = eval(&world, stone);

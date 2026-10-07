@@ -4,15 +4,15 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::{ResourceLocation, rl};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::{
     AttackRange, BlockState, BrewingFuel, BucketEntityData, Compostable, ContainerLoot,
-    CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, Food, ItemComponentKind,
-    ItemComponentValue, ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations,
-    NoteBlockSound, Profile, ProfileIdentity, Recipes, ResolvableFloat, ResolvableInt, SignText,
-    SignTextBack, SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon,
-    hash_ops,
+    CookingFuel, CustomData, CustomModelData, DebugStickState, Fireworks, Food, ItemComponentValue,
+    ItemDataComponent, ItemModel, LodestoneTracker, MapDecorations, NoteBlockSound, Profile,
+    ProfileIdentity, Recipes, ResolvableFloat, ResolvableInt, SignText, SignTextBack,
+    SignTextFront, TooltipDisplay, TooltipStyle, UseCooldown, UseEffects, Weapon, hash_ops,
 };
 use mcrs_minecraft_protocol::profile::Property;
 
@@ -90,7 +90,7 @@ fn error<T: ItemDataComponent>(json: &str) -> String {
     let mut d = serde_json::Deserializer::from_str(json);
     ItemComponentValue::deserialize_value(T::KIND, &mut d)
         .err()
-        .unwrap_or_else(|| panic!("{} accepted {json}", T::KIND))
+        .unwrap_or_else(|| panic!("{:?} accepted {json}", T::KIND))
         .to_string()
 }
 
@@ -103,7 +103,7 @@ fn json_error(value: impl Into<ItemComponentValue>) -> String {
         .to_string()
 }
 
-fn wire_error(kind: ItemComponentKind, wire: &str) -> String {
+fn wire_error(kind: DataComponentType, wire: &str) -> String {
     let mut r = &hex(wire)[..];
     format!(
         "{:#}",

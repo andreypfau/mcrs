@@ -3,12 +3,13 @@ use bevy_ecs::system::Command;
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::dropped::{DEFAULT_HEALTH, THROWN_PICKUP_DELAY};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::value::{is_child_kind, ops};
 use mcrs_minecraft_item::{
     DroppedItem, Held, ItemStack, Items, SlotTable, StackError, StackRevision, Thrower,
     max_stack_size, same_item_same_components, stack_to_value,
 };
-use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemComponentValue, ItemStackValue};
+use mcrs_minecraft_protocol::item::{ItemComponentValue, ItemStackValue};
 
 use crate::slot::{Slot, stack_in};
 use crate::value::{apply_value, spawn_stack, spawn_stack_into};
@@ -68,7 +69,7 @@ pub enum Op {
     },
     Remove {
         stack: Entity,
-        kind: ItemComponentKind,
+        kind: DataComponentType,
     },
     Despawn {
         stack: Entity,
@@ -139,8 +140,8 @@ pub enum TransactionError {
     OutOfRange { holder: Entity, index: u16 },
     #[error("{0:?} would hold itself")]
     Cycle(Entity),
-    #[error("{0} is derived from child stacks")]
-    ChildKind(ItemComponentKind),
+    #[error("{} is derived from child stacks", .0.location())]
+    ChildKind(DataComponentType),
     #[error(transparent)]
     Stack(#[from] StackError),
 }

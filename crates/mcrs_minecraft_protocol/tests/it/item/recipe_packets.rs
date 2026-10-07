@@ -5,14 +5,15 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, rl};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
 use mcrs_minecraft_item::recipe::Ingredient;
 use mcrs_minecraft_protocol::item::component::common::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
 use mcrs_minecraft_protocol::item::{
-    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentKind, ItemComponentValue,
-    Raw, Template, TrimPattern,
+    ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentValue, Raw, Template,
+    TrimPattern,
 };
 use mcrs_minecraft_protocol::keys::{RecipeDisplayType, SlotDisplayType};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -133,7 +134,7 @@ fn expected_entries() -> Vec<RecipeBookEntry> {
                 fuel: SlotDisplay::AnyFuel,
                 result: SlotDisplay::OnlyWithComponent {
                     contents: Box::new(item("diamond_sword")),
-                    component: ItemComponentKind::Damage,
+                    component: DataComponentType::Damage,
                 },
                 crafting_station: item("furnace"),
                 duration: 200,

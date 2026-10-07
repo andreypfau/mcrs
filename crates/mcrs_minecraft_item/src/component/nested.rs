@@ -11,7 +11,7 @@ use crate::component::book::size_limited;
 use crate::component::common::key;
 use crate::component::{CustomName, Damage, MaxStackSize, Unbreakable};
 use crate::harness::Sample;
-use crate::kind::ItemComponentKind;
+use crate::keys::DataComponentType;
 use crate::patch::ComponentPatch;
 use crate::stack::Template;
 use mcrs_minecraft_core::Bounded;
@@ -182,7 +182,7 @@ fn patched_sword() -> Template {
     patch.set(Damage(codec::Bounded(7)));
     patch.set(CustomName(Text::text("named")));
     patch.set(Unbreakable);
-    patch.remove(ItemComponentKind::RepairCost);
+    patch.remove(DataComponentType::RepairCost);
     Template::new(key("diamond_sword"), 3, patch).unwrap()
 }
 

@@ -2,10 +2,11 @@ use bevy::ecs::world::EntityRef;
 use bevy::prelude::Entity;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_item::TrimMaterial;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Bees, BlockState, CustomModelData, Damage, DyedColor, EnchantmentGlintOverride, Enchantments,
-    FireworkExplosion, Holder, ItemComponentKind, ItemComponentValue, ItemDataComponent, MaxDamage,
-    MaxStackSize, PotionContents, Trim,
+    FireworkExplosion, Holder, ItemComponentValue, ItemDataComponent, MaxDamage, MaxStackSize,
+    PotionContents, Trim,
 };
 use mcrs_minecraft_item::{
     ItemStack, Items, children, component_value, has_component, has_non_default,
@@ -41,17 +42,17 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
             .map_or(0, |stack| stack.count)
     }
 
-    fn value(&self, kind: ItemComponentKind) -> Option<ItemComponentValue> {
+    fn value(&self, kind: DataComponentType) -> Option<ItemComponentValue> {
         component_value(self.entity, kind)
     }
 
-    fn has(&self, kind: ItemComponentKind) -> bool {
+    fn has(&self, kind: DataComponentType) -> bool {
         has_component(self.entity, self.items, kind)
     }
 
     /// Vanilla's `hasNonDefault`: the value is not the prototype's, a
     /// tombstone included.
-    fn has_non_default(&self, kind: ItemComponentKind) -> bool {
+    fn has_non_default(&self, kind: DataComponentType) -> bool {
         has_non_default(self.entity, self.items, kind)
     }
 
@@ -75,9 +76,9 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
     }
 
     fn is_damageable(&self) -> bool {
-        self.has(ItemComponentKind::MaxDamage)
-            && self.has(ItemComponentKind::Damage)
-            && !self.has(ItemComponentKind::Unbreakable)
+        self.has(DataComponentType::MaxDamage)
+            && self.has(DataComponentType::Damage)
+            && !self.has(DataComponentType::Unbreakable)
     }
 
     fn max_damage(&self) -> i32 {
@@ -110,7 +111,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         // chisle: the only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
         if self.item().as_str() == Item::Compass.as_static_str()
-            && self.has(ItemComponentKind::LodestoneTracker)
+            && self.has(DataComponentType::LodestoneTracker)
         {
             return true;
         }
@@ -123,7 +124,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         self.children()
             .iter()
             .map(|child| {
-                let weight = if child.has(ItemComponentKind::BundleContents) {
+                let weight = if child.has(DataComponentType::BundleContents) {
                     child.bundle_weight() + 1.0 / 16.0
                 } else if child.get::<Bees>().is_some_and(|bees| !bees.0.is_empty()) {
                     1.0

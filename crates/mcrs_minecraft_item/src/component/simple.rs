@@ -13,8 +13,8 @@ use crate::component::consume::{
     unit_float, zero,
 };
 use crate::harness::Sample;
+use crate::keys::DataComponentType;
 use crate::keys::Item;
-use crate::kind::ItemComponentKind;
 
 float_default! {
     speed_multiplier / is_speed_multiplier = 0.2f32,
@@ -120,7 +120,7 @@ impl Sample for CustomModelData {
 }
 
 /// A linked set: the order is kept, a repeat is dropped.
-fn distinct(kinds: Vec<ItemComponentKind>) -> Vec<ItemComponentKind> {
+fn distinct(kinds: Vec<DataComponentType>) -> Vec<DataComponentType> {
     let mut seen = Vec::with_capacity(kinds.len());
     for kind in kinds {
         if !seen.contains(&kind) {
@@ -132,11 +132,11 @@ fn distinct(kinds: Vec<ItemComponentKind>) -> Vec<ItemComponentKind> {
 
 /// An unknown kind is worded as a registry lookup failure, unlike a patch's
 /// unknown key.
-fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<ItemComponentKind>, D::Error> {
+fn distinct_kinds<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<DataComponentType>, D::Error> {
     Vec::<ResourceLocation>::deserialize(d)?
         .iter()
         .map(|id| {
-            ItemComponentKind::from_id(id.as_str()).ok_or_else(|| {
+            DataComponentType::read(id.as_str()).ok_or_else(|| {
                 D::Error::custom(format_args!(
                     "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_type]: {id}"
                 ))
@@ -156,11 +156,11 @@ pub struct TooltipDisplay {
         deserialize_with = "distinct_kinds",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub hidden_components: Vec<ItemComponentKind>,
+    pub hidden_components: Vec<DataComponentType>,
 }
 
 impl TooltipDisplay {
-    pub fn new(hide_tooltip: bool, hidden_components: Vec<ItemComponentKind>) -> Self {
+    pub fn new(hide_tooltip: bool, hidden_components: Vec<DataComponentType>) -> Self {
         TooltipDisplay {
             hide_tooltip,
             hidden_components: distinct(hidden_components),
@@ -183,9 +183,9 @@ impl Sample for TooltipDisplay {
             TooltipDisplay::new(
                 true,
                 vec![
-                    ItemComponentKind::Enchantments,
-                    ItemComponentKind::Lore,
-                    ItemComponentKind::CreativeSlotLock,
+                    DataComponentType::Enchantments,
+                    DataComponentType::Lore,
+                    DataComponentType::CreativeSlotLock,
                 ],
             ),
         ]

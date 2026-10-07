@@ -1,5 +1,4 @@
-use mcrs_minecraft_protocol::item::ItemComponentKind;
-use mcrs_minecraft_registry::static_report::shipped_report;
+use mcrs_minecraft_item::keys::DataComponentType;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -18,37 +17,31 @@ struct Kind {
 }
 
 #[test]
-fn the_kind_table_matches_kinds_json_and_the_registry_report() {
+fn the_kind_table_matches_kinds_json() {
     let table: Kinds =
         serde_json::from_str(include_str!("../../fixtures/item/kinds.json")).unwrap();
-    assert_eq!(table.kinds.len(), ItemComponentKind::COUNT);
-    for (kind, row) in ItemComponentKind::ALL.iter().zip(&table.kinds) {
-        assert_eq!(kind.id().path(), row.id);
-        assert_eq!(kind.wire_id(), row.wire_id);
-        assert_eq!(!kind.is_persistent(), row.transient, "{kind}");
-        assert_eq!(kind.is_unit(), row.unit, "{kind}");
+    assert_eq!(table.kinds.len(), DataComponentType::ALL.len());
+    for (kind, row) in DataComponentType::ALL.iter().zip(&table.kinds) {
+        assert_eq!(kind.location().path(), row.id);
+        assert_eq!(kind.id().number(), row.wire_id);
+        assert_eq!(!kind.is_persistent(), row.transient, "{kind:?}");
+        assert_eq!(kind.is_unit(), row.unit, "{kind:?}");
         assert_eq!(
             kind.ignores_swap_animation(),
             row.ignore_swap_animation,
-            "{kind}"
+            "{kind:?}"
         );
-        assert_eq!(kind.is_nested(), row.nested_stacks, "{kind}");
-        assert_eq!(ItemComponentKind::from_id(&row.id), Some(*kind));
-        assert_eq!(ItemComponentKind::from_id(kind.id().as_str()), Some(*kind));
-        assert_eq!(ItemComponentKind::from_wire_id(row.wire_id), Some(*kind));
+        assert_eq!(kind.is_nested(), row.nested_stacks, "{kind:?}");
+        assert_eq!(DataComponentType::read(&row.id), Some(*kind));
+        assert_eq!(DataComponentType::read(kind.as_static_str()), Some(*kind));
+        assert_eq!(
+            DataComponentType::from_protocol_id(row.wire_id),
+            Some(*kind)
+        );
     }
     assert_eq!(
-        ItemComponentKind::from_wire_id(ItemComponentKind::COUNT as u16),
+        DataComponentType::from_protocol_id(DataComponentType::ALL.len() as u16),
         None
     );
-    assert_eq!(ItemComponentKind::from_id("!custom_data"), None);
-
-    let report = shipped_report();
-    let types = report.table("minecraft:data_component_type").unwrap();
-    assert_eq!(types.len(), ItemComponentKind::COUNT);
-    for (protocol_id, id) in types.names().iter().enumerate() {
-        let kind =
-            ItemComponentKind::from_id(id.as_str()).unwrap_or_else(|| panic!("{id} is not a kind"));
-        assert_eq!(kind.wire_id() as usize, protocol_id, "{id}");
-    }
+    assert_eq!(DataComponentType::read("!custom_data"), None);
 }

@@ -5,12 +5,12 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::{
-    Consumable, ConsumeEffect, DecodeCtx, Holder, HolderWireOnly, ItemComponentKind,
-    ItemComponentValue, JukeboxPlayable, JukeboxSong, PaintingVariant, PaintingVariantValue,
-    hash_ops,
+    Consumable, ConsumeEffect, DecodeCtx, Holder, HolderWireOnly, ItemComponentValue,
+    JukeboxPlayable, JukeboxSong, PaintingVariant, PaintingVariantValue, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 
@@ -43,11 +43,10 @@ fn golden() -> Golden {
     }
 }
 
-fn kind_of(label: &str) -> ItemComponentKind {
+fn kind_of(label: &str) -> DataComponentType {
     std::iter::successors(Some(label), |l| l.rsplit_once('_').map(|(head, _)| head))
         .find_map(|l| {
-            ItemComponentKind::from_id(l)
-                .or_else(|| ItemComponentKind::from_id(&l.replace('_', "/")))
+            DataComponentType::read(l).or_else(|| DataComponentType::read(&l.replace('_', "/")))
         })
         .unwrap_or_else(|| panic!("no kind for {label}"))
 }
@@ -203,22 +202,22 @@ fn errors_read_like_vanilla() {
     for (input, kind, message) in [
         (
             r#"{"contact_cooldown_ticks":-1}"#,
-            ItemComponentKind::KineticWeapon,
+            DataComponentType::KineticWeapon,
             "Value must be non-negative: -1",
         ),
         (
             r#"{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":1.0,"durability_damage":-1,"description":"x"}"#,
-            ItemComponentKind::Instrument,
+            DataComponentType::Instrument,
             "Value must be non-negative: -1",
         ),
         (
             r#"{"sound_event":"minecraft:entity.item.break","use_duration":1.0,"range":3.5e38,"durability_damage":1,"description":"x"}"#,
-            ItemComponentKind::Instrument,
+            DataComponentType::Instrument,
             "Value must be positive: Infinity",
         ),
         (
             r#"{"sound_event":"minecraft:entity.item.break","use_duration":-3.5e38,"range":1.0,"durability_damage":1,"description":"x"}"#,
-            ItemComponentKind::Instrument,
+            DataComponentType::Instrument,
             "Value must be non-negative: -Infinity",
         ),
     ] {

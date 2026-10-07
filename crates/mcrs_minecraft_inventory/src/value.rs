@@ -1,11 +1,12 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::value::{
     CHILD_KINDS, child_kind, child_targets, children, container_slots, entry, item_of, named_entry,
     ops,
 };
 use mcrs_minecraft_item::{ItemEntry, ItemStack, Items, SlotTable, StackError, StackRevision};
-use mcrs_minecraft_protocol::item::{ItemComponentKind, ItemStackValue, MAX_CHARGED_PROJECTILES};
+use mcrs_minecraft_protocol::item::{ItemStackValue, MAX_CHARGED_PROJECTILES};
 
 use crate::transaction::{attach, bump, touch};
 
@@ -87,7 +88,7 @@ fn check(entry: &ItemEntry, value: &ItemStackValue, items: &Items) -> Result<(),
         }
         // chisle: vanilla keeps container slots past the block's size on the
         // item and drops them on placement; the fixed table refuses them here.
-        if kind == ItemComponentKind::Container && targets.len() > container_slots(entry) {
+        if kind == DataComponentType::Container && targets.len() > container_slots(entry) {
             return Err(StackError::ContainerOverflow {
                 item: entry.identifier.as_str().to_owned(),
                 slots: container_slots(entry),
@@ -128,7 +129,7 @@ fn write_value(
     let own_child_kind = child_kind(entry);
     let effective = entry.prototype.apply(&value.components);
     let mut entity = world.entity_mut(stack);
-    for kind in ItemComponentKind::ALL {
+    for kind in DataComponentType::ALL.iter().copied() {
         if Some(kind) == own_child_kind {
             continue;
         }
@@ -156,15 +157,15 @@ fn write_value(
 fn reconcile_children(
     world: &mut World,
     stack: Entity,
-    kind: ItemComponentKind,
+    kind: DataComponentType,
     entry: &ItemEntry,
     targets: &[Option<&ItemStackValue>],
     items: &Items,
 ) {
     if !world.entity(stack).contains::<SlotTable>() {
         let table = match kind {
-            ItemComponentKind::Container => SlotTable::fixed(container_slots(entry)),
-            ItemComponentKind::ChargedProjectiles => SlotTable::fixed(MAX_CHARGED_PROJECTILES),
+            DataComponentType::Container => SlotTable::fixed(container_slots(entry)),
+            DataComponentType::ChargedProjectiles => SlotTable::fixed(MAX_CHARGED_PROJECTILES),
             _ => SlotTable::list(),
         };
         world.entity_mut(stack).insert(table);
