@@ -5,7 +5,7 @@ use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, serialize_optional_set};
+use crate::component::common::Holder;
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
@@ -39,11 +39,7 @@ pub struct BlocksAttacks {
     pub damage_reductions: Vec<DamageReduction>,
     #[serde(default, skip_serializing_if = "ItemDamageFunction::is_default")]
     pub item_damage: ItemDamageFunction,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bypassed_by: Option<HolderSet<DamageType>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_sound: Option<Holder<SoundEvent>>,
@@ -92,12 +88,7 @@ pub struct DamageReduction {
         skip_serializing_if = "is_ninety"
     )]
     pub horizontal_blocking_angle: f32,
-    #[serde(
-        default,
-        rename = "type",
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
     pub types: Option<HolderSet<DamageType>>,
     pub base: f32,
     pub factor: f32,

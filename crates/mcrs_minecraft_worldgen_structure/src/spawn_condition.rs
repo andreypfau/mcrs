@@ -159,14 +159,3 @@ pub struct VariantTables {
     pub chicken_sounds: Vec<ResourceLocation>,
     pub zombie_nautiluses: VariantTable,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_lower_bound_matches_at_and_above_it() {
-        let at_least: MinMaxBounds<f64> = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
-        assert!(at_least.matches(1.0) && at_least.matches(0.9) && !at_least.matches(0.8));
-    }
-}

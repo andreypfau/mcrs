@@ -14,7 +14,6 @@ use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
 
 use crate::dimension_type::DimensionTypeEnvironment;
-use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_dimension::{Dimension, DimensionType, Skybox};
 use mcrs_minecraft_environment::attribute::{
     AttributeEntry, AttributeError, AttributeSpec, AttributeValue, ENVIRONMENT_ATTRIBUTES,
@@ -57,8 +56,8 @@ enum Layer {
         sampler: AttributeTrackSampler,
     },
     Weather {
-        rain: Option<(Operation, AttributeValue)>,
-        thunder: Option<(Operation, AttributeValue)>,
+        rain: WeatherEntry,
+        thunder: WeatherEntry,
     },
 }
 
@@ -73,11 +72,6 @@ pub struct AttributeStack {
 }
 
 impl AttributeStack {
-    /// The value with only the layers that never change for this dimension.
-    pub fn base(&self) -> &AttributeValue {
-        &self.base
-    }
-
     /// Whether anything below the biome layer can still move this value.
     pub fn is_dynamic(&self) -> bool {
         self.layers
@@ -104,8 +98,8 @@ impl AttributeStack {
     /// thunder is measured out of the rain level rather than on top of it.
     fn apply_weather(
         &self,
-        rain: &Option<(Operation, AttributeValue)>,
-        thunder: &Option<(Operation, AttributeValue)>,
+        rain: &WeatherEntry,
+        thunder: &WeatherEntry,
         value: AttributeValue,
         ctx: &EnvironmentContext,
     ) -> AttributeValue {
@@ -113,10 +107,7 @@ impl AttributeStack {
         let rain_level = ctx.weather.rain - thunder_level;
         let lerp = self.spec.ty.state_change_lerp();
         let mut value = value;
-        for (entry, level) in [(rain, rain_level), (thunder, thunder_level)] {
-            let Some((op, argument)) = entry else {
-                continue;
-            };
+        for ((op, argument), level) in [(rain, rain_level), (thunder, thunder_level)] {
             if level <= 0.0 {
                 continue;
             }
@@ -214,7 +205,7 @@ impl EnvironmentAttributes {
         }
 
         if dimension.can_have_weather {
-            for (id, rain, thunder) in weather_layers()? {
+            for (id, rain, thunder) in weather_layers() {
                 stacks[index_of(id)?]
                     .layers
                     .push(Layer::Weather { rain, thunder });
@@ -321,6 +312,7 @@ fn index_of(id: &str) -> Result<usize, EnvironmentError> {
 /// The colours are the reference's float literals pushed through
 /// `ARGB.as8BitChannel`, which floors: 0.6 is `0x99`, not `0x9a`.
 static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
+    use mcrs_minecraft_environment::keys::EnvironmentAttribute as A;
     let level = |sky_gray: (f32, f32), cloud_gray: (f32, f32), tint: u32, alpha: f32| {
         let blend_to_gray = |(brightness, factor)| AttributeEntry {
             argument: AttributeValue::BlendToGray { brightness, factor },
@@ -337,48 +329,33 @@ static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
         let sky_light_alpha = (alpha * 255.0) as u32;
         EnvironmentAttributeMap(
             [
+                (A::VisualSkyColor.location(), blend_to_gray(sky_gray)),
+                (A::VisualFogColor.location(), multiply(0xFF00_0000 | tint)),
+                (A::VisualCloudColor.location(), blend_to_gray(cloud_gray)),
+                (A::GameplaySkyLightLevel.location(), alpha_blend(4.0)),
                 (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyColor.as_static_str(),
-                    blend_to_gray(sky_gray),
-                ),
-                (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualFogColor.as_static_str(),
-                    multiply(0xFF00_0000 | tint),
-                ),
-                (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualCloudColor.as_static_str(),
-                    blend_to_gray(cloud_gray),
-                ),
-                (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::GameplaySkyLightLevel.as_static_str(),
-                    alpha_blend(4.0),
-                ),
-                (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightColor.as_static_str(),
+                    A::VisualSkyLightColor.location(),
                     AttributeEntry {
                         argument: AttributeValue::Color(sky_light_alpha << 24 | 0x7a_7aff),
                         modifier: Operation::AlphaBlend,
                     },
                 ),
+                (A::VisualSkyLightFactor.location(), alpha_blend(0.24)),
                 (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightFactor.as_static_str(),
-                    alpha_blend(0.24),
-                ),
-                (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualStarBrightness.as_static_str(),
+                    A::VisualStarBrightness.location(),
                     AttributeEntry::override_value(AttributeValue::Float(0.0)),
                 ),
                 (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSunriseSunsetColor.as_static_str(),
+                    A::VisualSunriseSunsetColor.location(),
                     multiply(0xFF00_0000 | tint),
                 ),
                 (
-                    mcrs_minecraft_environment::keys::EnvironmentAttribute::GameplayBeesStayInHive.as_static_str(),
+                    A::GameplayBeesStayInHive.location(),
                     AttributeEntry::override_value(AttributeValue::Bool(true)),
                 ),
             ]
             .into_iter()
-            .map(|(id, entry)| (ResourceLocation::new_static(id).into(), entry))
+            .map(|(id, entry)| (id.into(), entry))
             .collect(),
         )
     };
@@ -388,31 +365,16 @@ static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
     ]
 });
 
-type WeatherEntry = Option<(Operation, AttributeValue)>;
-
-fn weather_layers() -> Result<Vec<(&'static str, WeatherEntry, WeatherEntry)>, EnvironmentError> {
+fn weather_layers() -> impl Iterator<Item = (&'static str, WeatherEntry, WeatherEntry)> {
     let [rain, thunder] = &*WEATHER;
-    let mut ids: Vec<&str> = rain
-        .0
-        .keys()
-        .chain(thunder.0.keys())
-        .map(|id| id.as_str())
-        .collect();
-    ids.sort_unstable();
-    ids.dedup();
-
-    ids.into_iter()
-        .map(|id| {
-            let spec = mcrs_minecraft_environment::attribute::attribute(id)
-                .ok_or_else(|| EnvironmentError::UnknownAttribute(id.to_owned()))?;
-            let entry = |map: &EnvironmentAttributeMap| {
-                map.get(id)
-                    .map(|entry| (entry.modifier, entry.argument.clone()))
-            };
-            Ok((spec.id, entry(rain), entry(thunder)))
-        })
-        .collect()
+    let entry = |entry: &AttributeEntry| (entry.modifier, entry.argument.clone());
+    rain.0
+        .iter()
+        .zip(thunder.0.values())
+        .map(move |((id, rain), thunder)| (id.as_str(), entry(rain), entry(thunder)))
 }
+
+type WeatherEntry = (Operation, AttributeValue);
 
 #[cfg(test)]
 mod tests;

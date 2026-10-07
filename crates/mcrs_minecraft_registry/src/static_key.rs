@@ -80,21 +80,6 @@ macro_rules! static_keys {
 
         pub const ENTRIES: &[$crate::static_key::StaticLocation] =
             &[$($crate::static_key::__rl!($location)),*];
-
-        pub const fn at(id: $crate::Id<$registry>) -> Option<$crate::StaticKey<$registry>> {
-            if id.index() < ENTRIES.len() {
-                Some($crate::StaticKey::new(id.number(), ENTRIES[id.index()]))
-            } else {
-                None
-            }
-        }
-
-        pub fn find(location: &str) -> Option<$crate::StaticKey<$registry>> {
-            ENTRIES
-                .iter()
-                .position(|entry| entry.as_static_str() == location)
-                .map(|position| $crate::StaticKey::new(position as u16, ENTRIES[position]))
-        }
     };
 }
 
@@ -123,7 +108,7 @@ macro_rules! static_registry {
                 &[$($crate::static_key::__rl!($location),)+];
 
             pub const fn id(self) -> $crate::Id<$name> {
-                $crate::Id::from_static_position(self as u16)
+                $crate::Id::from_raw(self as u16)
             }
 
             pub const fn location(self) -> $crate::static_key::StaticLocation {
@@ -135,11 +120,7 @@ macro_rules! static_registry {
             }
 
             pub const fn from_id(id: $crate::Id<$name>) -> Option<$name> {
-                if id.index() < Self::ALL.len() {
-                    Some(Self::ALL[id.index()])
-                } else {
-                    None
-                }
+                Self::from_protocol_id(id.number())
             }
 
             pub const fn from_protocol_id(id: u16) -> Option<$name> {
@@ -287,14 +268,5 @@ mod tests {
             fixed::ENTRIES[fixed::STONE.id().index()],
             fixed::STONE.location()
         );
-    }
-
-    #[test]
-    fn a_key_is_found_by_id_and_by_location() {
-        assert_eq!(fixed::at(fixed::STONE.id()), Some(fixed::STONE));
-        assert_eq!(fixed::find("minecraft:air"), Some(fixed::AIR));
-        assert_eq!(fixed::find("minecraft:dirt"), None);
-        let beyond: Id<Fixed> = Id::from_raw(2);
-        assert_eq!(fixed::at(beyond), None);
     }
 }

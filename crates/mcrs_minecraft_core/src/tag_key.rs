@@ -59,12 +59,6 @@ impl<R> TagKey<R, &'static str> {
             _marker: PhantomData,
         }
     }
-
-    /// The `ResourceLocation` of the tag itself. Zero-alloc, `Copy`.
-    #[inline]
-    pub fn resource_location(&self) -> ResourceLocation<&'static str> {
-        self.rl
-    }
 }
 
 // ── Arc variant (runtime-parsed) ──
@@ -92,22 +86,6 @@ impl<R, S: AsRef<str>> TagKey<R, S> {
     #[inline]
     pub fn location(&self) -> &ResourceLocation<S> {
         &self.rl
-    }
-
-    /// Convert to the `Arc<str>` variant (heap-allocates if not already `Arc`).
-    pub fn to_arc(&self) -> TagKey<R, Arc<str>> {
-        TagKey {
-            rl: self.rl.to_arc(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-// ── From static → Arc ──
-
-impl<R> From<TagKey<R, &'static str>> for TagKey<R, Arc<str>> {
-    fn from(key: TagKey<R, &'static str>) -> Self {
-        key.to_arc()
     }
 }
 

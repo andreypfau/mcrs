@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use crc32c::{crc32c, crc32c_append};
+use mcrs_minecraft_nbt::NBT_ARRAY_TAG;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::ser::{self, Error as _, Impossible, Serialize};
 
@@ -23,8 +24,6 @@ const INT_ARRAY_START: u8 = 16;
 const INT_ARRAY_END: u8 = 17;
 const LONG_ARRAY_START: u8 = 18;
 const LONG_ARRAY_END: u8 = 19;
-
-const NBT_ARRAY_TAG: &str = "__nbt_array";
 
 #[derive(Debug, thiserror::Error)]
 pub enum HashError {

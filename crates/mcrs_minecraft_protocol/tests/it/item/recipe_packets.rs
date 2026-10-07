@@ -392,13 +392,11 @@ fn nested_displays_stop_at_the_depth_bound_instead_of_overflowing() {
 
 #[test]
 fn displays_round_trip_through_json() {
-    in_samples(displays_round_trip_through_json_in_scope);
-}
-
-fn displays_round_trip_through_json_in_scope() {
-    for entry in expected_entries() {
-        let json = serde_json::to_string(&entry.display).unwrap();
-        let back: RecipeDisplay = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, entry.display, "{json}");
-    }
+    in_samples(|| {
+        for entry in expected_entries() {
+            let json = serde_json::to_string(&entry.display).unwrap();
+            let back: RecipeDisplay = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, entry.display, "{json}");
+        }
+    });
 }

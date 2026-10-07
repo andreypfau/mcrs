@@ -19,9 +19,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
-    CompactList, EquipmentSlotGroup, Folded, MinMaxBounds, NbtPredicate, ValueMatcher,
-    deserialize_unit, key, map_only, serialize_entries, serialize_optional_set, serialize_set,
-    serialize_unit, transparent_newtype,
+    CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
+    key, map_only, serialize_entries, serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
@@ -75,7 +74,7 @@ impl Serialize for BlockPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         if let Some(blocks) = &self.blocks {
-            map.serialize_entry("blocks", &Folded(blocks))?;
+            map.serialize_entry("blocks", blocks)?;
         }
         if let Some(state) = &self.state {
             map.serialize_entry("state", state)?;
@@ -130,7 +129,7 @@ impl Serialize for ItemPredicate {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut map = s.serialize_map(None)?;
         if let Some(items) = &self.items {
-            map.serialize_entry("items", &Folded(items))?;
+            map.serialize_entry("items", items)?;
         }
         if !self.count.is_any() {
             map.serialize_entry("count", &self.count)?;
@@ -385,10 +384,6 @@ macro_rules! predicate_types {
     };
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct VillagerVariants(#[serde(serialize_with = "serialize_set")] pub HolderSet<VillagerType>);
-
 predicate_types! {
     Damage(DamagePredicate),
     Enchantments(EnchantmentsPredicate),
@@ -404,7 +399,7 @@ predicate_types! {
     AttributeModifiers(AttributeModifiersPredicate),
     Trim(TrimPredicate),
     JukeboxPlayable(JukeboxPlayablePredicate),
-    VillagerVariant(VillagerVariants),
+    VillagerVariant(HolderSet<VillagerType>),
 }
 
 record_codec! {
@@ -441,11 +436,7 @@ pub struct EnchantmentsPredicate(pub Vec<EnchantmentPredicate>);
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct EnchantmentPredicate {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enchantments: Option<HolderSet<EnchantmentData>>,
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub levels: MinMaxBounds<i32>,
@@ -454,11 +445,7 @@ pub struct EnchantmentPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct PotionsPredicate {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub potions: Option<HolderSet<Potion>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effects: Option<CollectionPredicate<MobEffectsPredicate>>,
@@ -592,11 +579,7 @@ pub struct AttributeModifiersPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct AttributeModifierPredicate {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribute: Option<HolderSet<Attribute>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<ResourceLocation>,
@@ -611,28 +594,16 @@ pub struct AttributeModifierPredicate {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct TrimPredicate {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<HolderSet<TrimMaterial>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<HolderSet<TrimPattern>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
 pub struct JukeboxPlayablePredicate {
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub song: Option<HolderSet<JukeboxSong>>,
 }
 
@@ -906,9 +877,7 @@ fn sample_matchers() -> DataComponentMatchers {
                     damage: exactly(3),
                 }),
                 ComponentPredicate::CustomData(NbtPredicate(predicate_data)),
-                ComponentPredicate::VillagerVariant(VillagerVariants(list_set(&[
-                    "plains", "desert",
-                ]))),
+                ComponentPredicate::VillagerVariant(list_set(&["plains", "desert"])),
                 ComponentPredicate::Enchantments(EnchantmentsPredicate(vec![
                     EnchantmentPredicate {
                         enchantments: Some(one_set("sharpness")),

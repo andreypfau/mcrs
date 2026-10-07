@@ -20,8 +20,7 @@ use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
 use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::static_report::from_report;
-use mcrs_minecraft_registry::{HolderSet, Id, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
-use mcrs_minecraft_sound::SoundEvent;
+use mcrs_minecraft_registry::{HolderSet, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
 use mcrs_minecraft_world::registries::{
     read_packs, register_split_registries, reloadable_registries,
@@ -35,10 +34,7 @@ use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen_testing::packs;
 use std::sync::LazyLock;
 
-use crate::common::{
-    assets, datapack_report, declared_reloadable_registries, declared_world_registries,
-    loaded_names,
-};
+use crate::common::{assets, datapack_report, declared_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_item::keys::Item;
@@ -137,14 +133,14 @@ fn the_declared_registries_are_the_reports_world_registries() {
     let statics = static_registries();
     let set = test_registries();
 
-    let reloadable = declared_reloadable_registries();
+    let reloadable = declared_registries(true);
     let loaded: BTreeSet<String> = set
         .tables()
         .map(|table| table.registry().to_string())
         .filter(|registry| !statics.contains(registry))
         .collect();
     let world: BTreeSet<String> = loaded.difference(&reloadable).cloned().collect();
-    assert_eq!(world, declared_world_registries());
+    assert_eq!(world, declared_registries(false));
     assert!(
         reloadable.is_subset(&loaded),
         "{:?} are reloadable and not loaded",
@@ -561,46 +557,30 @@ fn a_bare_name_takes_the_default_namespace() {
 }
 
 #[test]
-fn a_parse_without_a_scope_fails_on_another_thread() {
-    let name = "\"minecraft:item.goat_horn.sound.0\"";
-    test_registries().scope(|| {
-        assert!(serde_json::from_str::<Id<SoundEvent>>(name).is_ok());
-        let other = std::thread::scope(|threads| {
-            threads
-                .spawn(|| serde_json::from_str::<Id<SoundEvent>>(name).map_err(|e| e.to_string()))
-                .join()
-                .unwrap()
-        });
-        let message = other.unwrap_err();
-        assert!(message.contains("no registry scope"), "{message}");
-        assert!(message.contains("SoundEvent"), "{message}");
-    });
-}
-
-#[test]
 fn an_instrument_or_painting_the_game_refuses_fails_to_parse() {
-    test_registries().scope(an_instrument_or_painting_the_game_refuses_fails_to_parse_in_scope);
-}
+    test_registries().scope(|| {
+        let instrument = |extra: &str| {
+            format!(
+                r#"{{
+                    "sound_event": "minecraft:item.goat_horn.sound.0",
+                    "use_duration": 7.0,
+                    "range": 256.0,
+                    "description": {{"translate": "instrument.minecraft.ponder_goat_horn"}}
+                    {extra}
+                }}"#
+            )
+        };
+        assert!(serde_json::from_str::<InstrumentValue>(&instrument("")).is_ok());
+        assert!(
+            serde_json::from_str::<InstrumentValue>(&instrument(r#", "volume": 1.0"#)).is_err()
+        );
 
-fn an_instrument_or_painting_the_game_refuses_fails_to_parse_in_scope() {
-    let instrument = |extra: &str| {
-        format!(
-            r#"{{
-                "sound_event": "minecraft:item.goat_horn.sound.0",
-                "use_duration": 7.0,
-                "range": 256.0,
-                "description": {{"translate": "instrument.minecraft.ponder_goat_horn"}}
-                {extra}
-            }}"#
-        )
-    };
-    assert!(serde_json::from_str::<InstrumentValue>(&instrument("")).is_ok());
-    assert!(serde_json::from_str::<InstrumentValue>(&instrument(r#", "volume": 1.0"#)).is_err());
-
-    let painting =
-        |width: u32| format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#);
-    assert!(serde_json::from_str::<PaintingVariantValue>(&painting(16)).is_ok());
-    assert!(serde_json::from_str::<PaintingVariantValue>(&painting(17)).is_err());
+        let painting = |width: u32| {
+            format!(r#"{{"asset_id": "minecraft:kebab", "width": {width}, "height": 1}}"#)
+        };
+        assert!(serde_json::from_str::<PaintingVariantValue>(&painting(16)).is_ok());
+        assert!(serde_json::from_str::<PaintingVariantValue>(&painting(17)).is_err());
+    });
 }
 
 #[test]

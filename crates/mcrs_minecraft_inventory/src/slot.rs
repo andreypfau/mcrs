@@ -113,13 +113,10 @@ fn admits_player(world: &World, equippable: &Equippable) -> bool {
     let Some(allowed) = &equippable.allowed_entities else {
         return true;
     };
-    let Some(registries) = world.get_resource::<RegistrySet>() else {
-        return false;
-    };
-    let Some(tags) = registries.tags::<EntityType>() else {
-        return false;
-    };
-    allowed.contains(EntityType::Player.id(), &tags)
+    world
+        .get_resource::<RegistrySet>()
+        .and_then(RegistrySet::tags::<EntityType>)
+        .is_some_and(|tags| allowed.contains(EntityType::Player.id(), &tags))
 }
 
 /// A stack the planners move that sits in no slot: a dropped item.

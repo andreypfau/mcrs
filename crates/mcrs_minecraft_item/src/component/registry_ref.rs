@@ -16,9 +16,7 @@ use mcrs_minecraft_registry::HolderSet;
 use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{
-    is_one, key, one, serialize_entries, serialize_set, transparent_newtype,
-};
+use crate::component::common::{is_one, key, one, serialize_entries, transparent_newtype};
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
 use crate::harness::{list_set, one_set, tag_set};
@@ -60,7 +58,7 @@ macro_rules! null_as_default {
 }
 pub(crate) use null_as_default;
 
-/// EnchantmentData id to level in 1..=255, kept in read order because vanilla's
+/// Enchantment id to level in 1..=255, kept in read order because vanilla's
 /// own order is hash order.
 #[derive(Clone, Debug, Eq, Default)]
 pub struct Enchantments(pub Vec<(ResourceKey<EnchantmentData>, i32)>);
@@ -175,7 +173,6 @@ transparent_newtype!(StoredEnchantments(Enchantments) => [Clone, Debug, PartialE
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DamageResistant {
-    #[serde(serialize_with = "serialize_set")]
     pub types: HolderSet<DamageType>,
 }
 
@@ -251,7 +248,6 @@ impl Default for Tool {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, remote = "Self")]
 pub struct ToolRule {
-    #[serde(serialize_with = "serialize_set")]
     pub blocks: HolderSet<Block>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speed: Option<f32>,
@@ -322,7 +318,6 @@ impl Sample for Tool {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Repairable {
-    #[serde(serialize_with = "serialize_set")]
     pub items: HolderSet<Item>,
 }
 
@@ -351,7 +346,6 @@ pub const MAX_MOB_VISIBILITY: f32 = 10.0;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MobVisibility {
-    #[serde(serialize_with = "serialize_set")]
     pub targeting_entity_types: HolderSet<EntityType>,
     #[serde(deserialize_with = "visibility")]
     pub visibility: f32,
@@ -393,9 +387,7 @@ impl Sample for MobVisibility {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ProvidesBannerPatterns(
-    #[serde(serialize_with = "serialize_set")] pub HolderSet<BannerPattern>,
-);
+pub struct ProvidesBannerPatterns(pub HolderSet<BannerPattern>);
 
 impl Sample for ProvidesBannerPatterns {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {

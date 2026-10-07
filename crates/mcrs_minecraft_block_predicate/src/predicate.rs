@@ -38,7 +38,7 @@ impl<'de> Deserialize<'de> for Offset {
     }
 }
 
-pub use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::Direction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]
@@ -151,18 +151,13 @@ impl Validate for VolumeMatch {
 validated!(VolumeMatch);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum HeightmapName {
-    #[serde(rename = "WORLD_SURFACE_WG")]
     WorldSurfaceWg,
-    #[serde(rename = "WORLD_SURFACE")]
     WorldSurface,
-    #[serde(rename = "OCEAN_FLOOR_WG")]
     OceanFloorWg,
-    #[serde(rename = "OCEAN_FLOOR")]
     OceanFloor,
-    #[serde(rename = "MOTION_BLOCKING")]
     MotionBlocking,
-    #[serde(rename = "MOTION_BLOCKING_NO_LEAVES")]
     MotionBlockingNoLeaves,
 }
 

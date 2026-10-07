@@ -126,7 +126,6 @@ fn processors(
     p: &PortalProperties,
     features_cannot_replace: &HolderSet<Block>,
 ) -> Vec<StructureProcessor> {
-    let block = |block: Block| BlockState::bare(block.location().to_arc());
     let replace = |source: Block, probability: Option<f32>, target: Block| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
@@ -139,7 +138,7 @@ fn processors(
         },
         location_predicate: RuleTest::AlwaysTrue,
         position_predicate: None,
-        output_state: block(target),
+        output_state: target.into(),
         block_entity_modifier: None,
     };
     let mut rules = vec![replace(Block::GoldBlock, Some(GOLD_GONE), Block::Air)];
@@ -157,9 +156,9 @@ fn processors(
             Block::MagmaBlock,
         ));
     }
-    let mut ignored = vec![block(Block::StructureBlock)];
+    let mut ignored = vec![BlockState::from(Block::StructureBlock)];
     if !p.air_pocket {
-        ignored.push(block(Block::Air));
+        ignored.push(Block::Air.into());
     }
     let mut chain = vec![
         StructureProcessor::BlockIgnore { blocks: ignored },

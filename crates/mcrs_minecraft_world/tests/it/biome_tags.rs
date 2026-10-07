@@ -1,28 +1,12 @@
 use bevy_app::App;
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_biome::Biome;
-use mcrs_minecraft_core::TagKey;
-use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 
+use crate::common::tag_members;
+
 fn members(app: &App, tag: &str) -> Vec<String> {
-    let tags = app
-        .world()
-        .resource::<RegistrySet>()
-        .tags::<Biome>()
-        .expect("the load builds the biome tags");
-    let biomes = app.world().resource::<Registry<Biome>>();
-    let key = TagKey::<Biome, _>::from_location(ResourceLocation::read(tag).unwrap());
-    let mut names: Vec<String> = tags
-        .members(tags.get(&key).expect("the tag is resolved"))
-        .map(|id| {
-            biomes
-                .name(id)
-                .expect("a member id maps back")
-                .as_str()
-                .to_owned()
-        })
-        .collect();
+    let mut names = tag_members::<Biome>(app.world().resource::<RegistrySet>(), tag);
     names.sort();
     names
 }

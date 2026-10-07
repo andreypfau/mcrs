@@ -417,6 +417,25 @@ pub fn block_mask(
     states_of(blocks, StateQuery::Blocks(&HolderSet::List(ids)))
 }
 
+pub fn state(
+    blocks: &dyn BlockResolver,
+    block: Block,
+    properties: &[(&str, &str)],
+) -> Result<VoxelId, FeatureCompileError> {
+    state_of(
+        blocks,
+        &BlockState {
+            name: block.location().to_arc(),
+            properties: (!properties.is_empty()).then(|| {
+                properties
+                    .iter()
+                    .map(|(name, value)| (name.to_string(), value.to_string()))
+                    .collect()
+            }),
+        },
+    )
+}
+
 pub fn compile_chain(
     list: &[StructureProcessor],
     kind: ChainKind,
@@ -513,7 +532,7 @@ fn compile_processor(
         BlackstoneReplace => CompiledProcessor::BlackstoneReplace(
             BLACKSTONE_REPLACEMENTS
                 .iter()
-                .map(|&(from, to)| Ok((block_mask(blocks, &[from])?, default_state(blocks, to)?)))
+                .map(|&(from, to)| Ok((block_mask(blocks, &[from])?, state(blocks, to, &[])?)))
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
@@ -530,25 +549,21 @@ fn compile_processor(
                 slabs: tag(mcrs_minecraft_block::keys::block_tags::SLABS)?,
                 walls: tag(mcrs_minecraft_block::keys::block_tags::WALLS)?,
                 obsidian: block_mask(blocks, &[Block::Obsidian])?,
-                cracked_stone_bricks: default_state(blocks, Block::CrackedStoneBricks)?,
-                mossy_stone_bricks: default_state(blocks, Block::MossyStoneBricks)?,
-                stone_brick_stairs: default_state(blocks, Block::StoneBrickStairs)?,
-                mossy_stone_brick_stairs: default_state(blocks, Block::MossyStoneBrickStairs)?,
-                stone_slab: default_state(blocks, Block::StoneSlab)?,
-                stone_brick_slab: default_state(blocks, Block::StoneBrickSlab)?,
-                mossy_stone_brick_slab: default_state(blocks, Block::MossyStoneBrickSlab)?,
-                mossy_stone_brick_wall: default_state(blocks, Block::MossyStoneBrickWall)?,
-                crying_obsidian: default_state(blocks, Block::CryingObsidian)?,
+                cracked_stone_bricks: state(blocks, Block::CrackedStoneBricks, &[])?,
+                mossy_stone_bricks: state(blocks, Block::MossyStoneBricks, &[])?,
+                stone_brick_stairs: state(blocks, Block::StoneBrickStairs, &[])?,
+                mossy_stone_brick_stairs: state(blocks, Block::MossyStoneBrickStairs, &[])?,
+                stone_slab: state(blocks, Block::StoneSlab, &[])?,
+                stone_brick_slab: state(blocks, Block::StoneBrickSlab, &[])?,
+                mossy_stone_brick_slab: state(blocks, Block::MossyStoneBrickSlab, &[])?,
+                mossy_stone_brick_wall: state(blocks, Block::MossyStoneBrickWall, &[])?,
+                crying_obsidian: state(blocks, Block::CryingObsidian, &[])?,
             })
         }
         LavaSubmergedBlock => CompiledProcessor::LavaSubmergedBlock {
             full_outline: states_of(blocks, StateQuery::FullOutline)?,
         },
     }))
-}
-
-fn default_state(blocks: &dyn BlockResolver, block: Block) -> Result<VoxelId, FeatureCompileError> {
-    state_of(blocks, &BlockState::bare(block.location().to_arc()))
 }
 
 fn compile_processor_rule(

@@ -160,7 +160,7 @@ pub(super) fn dimension_with(
     });
     let ctx = FillContext {
         blocks: blocks().0.clone(),
-        biome: Some((source, registry.clone())),
+        biome: Some(source),
         predicates: Some(heightmap_predicates(blocks(), block_tags())),
         saved: None,
         program: ColumnProgram {

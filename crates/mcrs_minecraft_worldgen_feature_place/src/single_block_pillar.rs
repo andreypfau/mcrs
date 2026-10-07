@@ -1,5 +1,5 @@
-use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_worldgen_feature::placer::{Predicate, WorldGenVolume};

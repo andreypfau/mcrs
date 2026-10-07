@@ -1,3 +1,4 @@
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::resource_location::InvalidResourceLocation;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,12 @@ pub struct BlockState {
     /// `None` where the file named the block alone, which is not the same as an
     /// empty property map: the two must serialize back to what they came from.
     pub properties: Option<BTreeMap<String, String>>,
+}
+
+impl From<Block> for BlockState {
+    fn from(block: Block) -> Self {
+        Self::bare(block.location().to_arc())
+    }
 }
 
 impl BlockState {

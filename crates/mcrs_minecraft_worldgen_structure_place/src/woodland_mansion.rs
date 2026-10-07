@@ -8,11 +8,11 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::{FrozenTemplate, TemplateManifest, data_markers};
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, allays, evoker, vindicator};
-use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
+use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::piece::WoodlandMansionPiece;
 
 use crate::canvas::ChestStates;
-use crate::{block_mask, place_positional, state};
+use crate::{ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone)]
@@ -27,10 +27,7 @@ pub struct WoodlandMansionBlocks {
 impl WoodlandMansionBlocks {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(WoodlandMansionBlocks {
-            chain: vec![CompiledProcessor::BlockIgnore(block_mask(
-                blocks,
-                &[Block::StructureBlock],
-            )?)],
+            chain: ignore_blocks(blocks, &[Block::StructureBlock])?,
             chest: ChestStates::compile(blocks)?,
             cobblestone: state(blocks, Block::Cobblestone, &[])?,
         })

@@ -191,9 +191,13 @@ pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
 }
 
 pub fn from_json(kind: DataComponentType, json: &str) -> ItemComponentValue {
+    try_from_json(kind, json).expect("deserialize_value")
+}
+
+pub fn try_from_json(kind: DataComponentType, json: &str) -> Result<ItemComponentValue, String> {
     in_samples(|| {
         let mut d = serde_json::Deserializer::from_str(json);
-        ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
+        ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())
     })
 }
 

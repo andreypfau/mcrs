@@ -1,9 +1,9 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use bevy_math::IVec3;
-use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_random::Random;

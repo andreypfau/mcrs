@@ -820,14 +820,6 @@ pub fn resolve_carver_biomes(
     }
 }
 
-/// [`resolve_carver_biomes`] for a Beta source.
-pub fn resolve_beta_carver_biomes(
-    source: &BiomeSource,
-    carvers: &Entries<Biome, Arc<[CarverConfig]>>,
-) -> Option<CarverBiomeTable> {
-    CarverBiomeTable::beta(source, |biome| carvers[biome].clone())
-}
-
 #[cfg(test)]
 mod source_tiles {
     use super::*;

@@ -134,7 +134,7 @@ split_registry_table! {
         EnchantmentFile::split, EnchantmentFile::join, synced as EnchantmentFile::join;
     Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join,
-        synced as |parts| NetworkBiome::from(&BiomeFile::join(parts));
+        synced as |parts| NetworkBiome::from(parts);
     DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
         synced as |parts| DimensionTypeFile::join(parts).synced();
@@ -398,7 +398,7 @@ pub fn load_registries(
     reloadable.load(&loaded, &packs)
 }
 
-pub fn register_loaded<T: 'static, N: Serialize>(
+fn register_loaded<T: 'static, N: Serialize>(
     access: &mut RegistryAccess,
     set: &RegistrySet,
     registry: &str,

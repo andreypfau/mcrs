@@ -114,13 +114,12 @@ pub fn build_dimension_router(
     let resolve = |state: &BlockState| {
         block(state).ok_or_else(|| CompileError::UnknownBlockState(state.name.as_str().to_string()))
     };
-    let plain = |block: Block| BlockState::bare(block.location().to_arc());
-    let stone = plain(Block::Stone);
+    let stone = BlockState::from(Block::Stone);
     let blocks = RouterBlocks {
         default_block: resolve(settings.settings.default_block.as_ref().unwrap_or(&stone))?,
         default_fluid: resolve(&settings.settings.default_fluid)?,
-        water: resolve(&plain(Block::Water))?,
-        lava: resolve(&plain(Block::Lava))?,
+        water: resolve(&Block::Water.into())?,
+        lava: resolve(&Block::Lava.into())?,
     };
 
     let material = MaterialInputs {

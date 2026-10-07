@@ -116,15 +116,15 @@ impl SavedColumns {
     /// stopped at whatever status the player's view reached. Their sections
     /// hold no blocks, so anything short of `full` is absent too and the
     /// generator fills the column instead of the save handing back a hole.
-    pub fn read(
-        &self,
-        pos: ColumnPos,
-        blocks: &BlockDefinitions,
-        biomes: &Registry<Biome>,
-    ) -> Option<Chunk> {
+    pub fn read(&self, pos: ColumnPos, blocks: &BlockDefinitions) -> Option<Chunk> {
+        let biomes = self
+            .0
+            .registries
+            .registry::<Biome>()
+            .expect("a dimension's registries hold the biome registry");
         let region = self.region(RegionPos::from(pos))?;
         let chunk =
-            match region.read_chunk(pos, &CorpusBlockStates(blocks), &RegistryBiomes(biomes)) {
+            match region.read_chunk(pos, &CorpusBlockStates(blocks), &RegistryBiomes(&biomes)) {
                 Ok(chunk) => chunk?,
                 Err(err) => {
                     error!(%err, ?pos, "reading a saved column");

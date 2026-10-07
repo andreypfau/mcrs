@@ -9,9 +9,7 @@ use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_worldgen_feature::template::{EntityKind, FrozenEntity, VillagerData};
-pub use mcrs_minecraft_worldgen_structure::spawn_condition::{
-    Condition, IdSet, SpawnContext, VariantTable, VariantTables,
-};
+use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnContext, VariantTables};
 use serde::{Deserialize, Serialize};
 
 use crate::block_entity::nbt_flag;
@@ -133,12 +131,6 @@ mcrs_minecraft_registry::dispatch! {
         ZombieVillager => ZombieVillager,
     }
     wildcard unsupported
-}
-
-impl GeneratedKind {
-    pub fn id(&self) -> &'static str {
-        self.kind().as_static_str()
-    }
 }
 
 use mcrs_minecraft_item::keys::Item;
@@ -269,7 +261,7 @@ fn placed(
     kind: GeneratedKind,
     rng: &WorldgenRandom,
 ) -> GeneratedEntity {
-    let mut own = own_random(rng, kind.id(), pos);
+    let mut own = own_random(rng, kind.kind().as_static_str(), pos);
     GeneratedEntity {
         pos: pos.to_array(),
         rotation,
@@ -372,7 +364,7 @@ pub fn allays(at: BlockPos, rng: &mut WorldgenRandom) -> Vec<GeneratedEntity> {
 pub fn shulker(at: BlockPos, rng: &WorldgenRandom) -> GeneratedEntity {
     let pos = bottom_centre(at);
     let kind = GeneratedKind::Shulker { left_handed: false };
-    let mut own = own_random(rng, kind.id(), pos);
+    let mut own = own_random(rng, kind.kind().as_static_str(), pos);
     let uuid = uuid(&mut own);
     let yaw = own.next_f32() * std::f32::consts::TAU;
     GeneratedEntity {
@@ -593,7 +585,9 @@ mod tests {
     use mcrs_minecraft_core::{TagKey, rl};
     use mcrs_minecraft_nbt::to_nbt_compound;
     use mcrs_minecraft_registry::HolderSet;
-    use mcrs_minecraft_worldgen_structure::spawn_condition::{SpawnCondition, SpawnSelector};
+    use mcrs_minecraft_worldgen_structure::spawn_condition::{
+        IdSet, SpawnCondition, SpawnSelector, VariantTable,
+    };
     use mcrs_minecraft_worldgen_testing::corpus_set;
     use std::sync::Arc;
 
@@ -973,7 +967,7 @@ mod tests {
         for entity in all {
             let compound = to_nbt_compound(&entity).unwrap();
             let id = compound.get_string("id").unwrap();
-            assert_eq!(entity.kind.id(), id);
+            assert_eq!(entity.kind.kind().as_static_str(), id);
             seen.insert(id.to_owned());
             assert_eq!(
                 GeneratedEntity::from_compound(&compound).unwrap(),

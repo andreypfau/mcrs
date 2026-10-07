@@ -264,6 +264,19 @@ fn local_tags<R: Registered>(ctx: &dyn RegistryLookup) -> anyhow::Result<Tags<R>
         .with_context(|| format!("registry {} has no tags", R::REGISTRY))
 }
 
+fn wire_id<R: Registered>(
+    local: &Registry<R>,
+    id: Id<R>,
+    ctx: &dyn RegistryLookup,
+) -> anyhow::Result<u16> {
+    let registry = R::REGISTRY.path();
+    let name = local
+        .name(id)
+        .with_context(|| format!("{id:?} is not in registry {registry}"))?;
+    ctx.id(registry, name)
+        .with_context(|| format!("{name} is not in registry {registry}"))
+}
+
 impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V>
 where
     V::Registry: Registered,
@@ -271,15 +284,8 @@ where
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
         match self {
             Holder::Reference(id) => {
-                let registry = V::Registry::REGISTRY.path();
                 let local = local_registry::<V::Registry>(ctx)?;
-                let name = local
-                    .name(*id)
-                    .with_context(|| format!("{id:?} is not in registry {registry}"))?;
-                let wire = ctx
-                    .id(registry, name)
-                    .with_context(|| format!("{name} is not in registry {registry}"))?;
-                encode_holder_id(Some(wire), w)
+                encode_holder_id(Some(wire_id(&local, *id, ctx)?), w)
             }
             Holder::Direct(value) => {
                 encode_holder_id(None, &mut w)?;
@@ -316,19 +322,18 @@ where
 
 impl<R: Registered> EncodeCtx for HolderSet<R> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        let tags = local_tags::<R>(ctx)?;
-        if let Some(tag) = self.tag() {
-            VarInt(0).encode(&mut w)?;
-            return tags.name(tag).encode(w);
-        }
-        let registry = local_registry::<R>(ctx)?;
-        let entries = self.ids(&tags).collect::<Vec<_>>();
+        let entries = match self {
+            HolderSet::Named(tag) => {
+                VarInt(0).encode(&mut w)?;
+                return local_tags::<R>(ctx)?.name(*tag).encode(w);
+            }
+            HolderSet::One(entry) => std::slice::from_ref(entry),
+            HolderSet::List(entries) => &entries[..],
+        };
+        let local = local_registry::<R>(ctx)?;
         VarInt(entries.len() as i32 + 1).encode(&mut w)?;
-        for id in entries {
-            let name = registry
-                .name(id)
-                .with_context(|| format!("{id:?} is not in registry {}", R::REGISTRY))?;
-            ResourceKey::<R>::from_location(name.clone()).encode_ctx(ctx, &mut w)?;
+        for &id in entries {
+            encode_registry_id(wire_id(&local, id, ctx)?, &mut w)?;
         }
         Ok(())
     }

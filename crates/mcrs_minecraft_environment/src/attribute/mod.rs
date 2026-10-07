@@ -332,49 +332,47 @@ mod tests {
 
     #[test]
     fn round_trips_both_entry_shapes() {
-        mcrs_minecraft_worldgen_testing::corpus_set().scope(round_trips_both_entry_shapes_in_scope);
-    }
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+            let json = json!({
+                "minecraft:visual/sky_color": "#78a7ff",
+                "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"},
+                "minecraft:audio/background_music": {
+                    "default": {"sound": "minecraft:music.game", "min_delay": 12000, "max_delay": 24000},
+                },
+                "minecraft:gameplay/increased_fire_burnout": true,
+            });
+            let map: EnvironmentAttributeMap = serde_json::from_value(json.clone()).unwrap();
 
-    fn round_trips_both_entry_shapes_in_scope() {
-        let json = json!({
-            "minecraft:visual/sky_color": "#78a7ff",
-            "minecraft:visual/water_fog_end_distance": {"argument": 0.85, "modifier": "multiply"},
-            "minecraft:audio/background_music": {
-                "default": {"sound": "minecraft:music.game", "min_delay": 12000, "max_delay": 24000},
-            },
-            "minecraft:gameplay/increased_fire_burnout": true,
+            assert_eq!(
+                map.get("minecraft:visual/sky_color").unwrap().modifier,
+                Operation::Override
+            );
+            assert_eq!(
+                map.get("minecraft:visual/water_fog_end_distance")
+                    .unwrap()
+                    .modifier,
+                Operation::Multiply
+            );
+            // a value that is itself an object must not be mistaken for the full shape
+            assert_eq!(
+                map.get("minecraft:audio/background_music")
+                    .unwrap()
+                    .modifier,
+                Operation::Override
+            );
+
+            let written: serde_json::Value =
+                serde_json::from_str(&serde_json::to_string(&map).unwrap()).unwrap();
+            assert_eq!(written, json);
+
+            let syncable = map.filter_syncable();
+            assert!(
+                syncable
+                    .get("minecraft:gameplay/increased_fire_burnout")
+                    .is_none()
+            );
+            assert_eq!(syncable.0.len(), 3);
         });
-        let map: EnvironmentAttributeMap = serde_json::from_value(json.clone()).unwrap();
-
-        assert_eq!(
-            map.get("minecraft:visual/sky_color").unwrap().modifier,
-            Operation::Override
-        );
-        assert_eq!(
-            map.get("minecraft:visual/water_fog_end_distance")
-                .unwrap()
-                .modifier,
-            Operation::Multiply
-        );
-        // a value that is itself an object must not be mistaken for the full shape
-        assert_eq!(
-            map.get("minecraft:audio/background_music")
-                .unwrap()
-                .modifier,
-            Operation::Override
-        );
-
-        let written: serde_json::Value =
-            serde_json::from_str(&serde_json::to_string(&map).unwrap()).unwrap();
-        assert_eq!(written, json);
-
-        let syncable = map.filter_syncable();
-        assert!(
-            syncable
-                .get("minecraft:gameplay/increased_fire_burnout")
-                .is_none()
-        );
-        assert_eq!(syncable.0.len(), 3);
     }
 
     fn tag_at<'a>(
@@ -394,46 +392,43 @@ mod tests {
 
     #[test]
     fn background_music_is_typed_and_writes_ints() {
-        mcrs_minecraft_worldgen_testing::corpus_set()
-            .scope(background_music_is_typed_and_writes_ints_in_scope);
-    }
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+            use mcrs_minecraft_nbt::tag::NbtTag;
 
-    fn background_music_is_typed_and_writes_ints_in_scope() {
-        use mcrs_minecraft_nbt::tag::NbtTag;
-
-        let map: EnvironmentAttributeMap = serde_json::from_value(json!({
-            "minecraft:audio/background_music": {
-                "default": {"sound": "minecraft:music.game", "min_delay": 12000, "max_delay": 24000},
-                "creative": {
-                    "sound": "minecraft:music.creative",
-                    "min_delay": 1,
-                    "max_delay": 2,
-                    "replace_current_music": true
+            let map: EnvironmentAttributeMap = serde_json::from_value(json!({
+                "minecraft:audio/background_music": {
+                    "default": {"sound": "minecraft:music.game", "min_delay": 12000, "max_delay": 24000},
+                    "creative": {
+                        "sound": "minecraft:music.creative",
+                        "min_delay": 1,
+                        "max_delay": 2,
+                        "replace_current_music": true
+                    },
                 },
-            },
-        }))
-        .unwrap();
+            }))
+            .unwrap();
 
-        let AttributeValue::BackgroundMusic(music) =
-            map.argument("minecraft:audio/background_music").unwrap()
-        else {
-            panic!("background music is typed");
-        };
-        assert_eq!(music.default.as_ref().unwrap().min_delay.0, 12000);
-        assert!(music.creative.as_ref().unwrap().replace_current_music);
-        assert!(music.underwater.is_none());
+            let AttributeValue::BackgroundMusic(music) =
+                map.argument("minecraft:audio/background_music").unwrap()
+            else {
+                panic!("background music is typed");
+            };
+            assert_eq!(music.default.as_ref().unwrap().min_delay.0, 12000);
+            assert!(music.creative.as_ref().unwrap().replace_current_music);
+            assert!(music.underwater.is_none());
 
-        let tag = mcrs_minecraft_nbt::to_nbt_tag(&map).unwrap();
-        let music = ["minecraft:audio/background_music"];
-        let at = |rest: &[&str]| tag_at(&tag, &[&music[..], rest].concat());
-        assert_eq!(at(&["default", "min_delay"]), Some(&NbtTag::Int(12000)));
-        assert_eq!(at(&["default", "max_delay"]), Some(&NbtTag::Int(24000)));
-        assert_eq!(at(&["creative", "min_delay"]), Some(&NbtTag::Int(1)));
-        assert_eq!(
-            at(&["creative", "replace_current_music"]),
-            Some(&NbtTag::Byte(1))
-        );
-        assert_eq!(at(&["default", "replace_current_music"]), None);
+            let tag = mcrs_minecraft_nbt::to_nbt_tag(&map).unwrap();
+            let music = ["minecraft:audio/background_music"];
+            let at = |rest: &[&str]| tag_at(&tag, &[&music[..], rest].concat());
+            assert_eq!(at(&["default", "min_delay"]), Some(&NbtTag::Int(12000)));
+            assert_eq!(at(&["default", "max_delay"]), Some(&NbtTag::Int(24000)));
+            assert_eq!(at(&["creative", "min_delay"]), Some(&NbtTag::Int(1)));
+            assert_eq!(
+                at(&["creative", "replace_current_music"]),
+                Some(&NbtTag::Byte(1))
+            );
+            assert_eq!(at(&["default", "replace_current_music"]), None);
+        });
     }
 
     #[test]
@@ -535,34 +530,33 @@ mod tests {
 
     #[test]
     fn every_shipped_attribute_value_round_trips() {
-        mcrs_minecraft_worldgen_testing::corpus_set()
-            .scope(every_shipped_attribute_value_round_trips_in_scope);
-    }
-
-    fn every_shipped_attribute_value_round_trips_in_scope() {
-        let mut maps: Vec<(String, serde_json::Value)> = Vec::new();
-        for (path, file) in mcrs_minecraft_worldgen_testing::parse_all::<serde_json::Value>(
-            "minecraft/dimension_type",
-        ) {
-            maps.push((path.display().to_string(), file["attributes"].clone()));
-        }
-        for (id, biome) in mcrs_minecraft_worldgen_testing::registry::<serde_json::Value>("biome") {
-            maps.push((id.to_string(), biome["attributes"].clone()));
-        }
-
-        let mut entries = 0;
-        for (name, attributes) in maps {
-            if attributes.is_null() {
-                continue;
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+            let mut maps: Vec<(String, serde_json::Value)> = Vec::new();
+            for (path, file) in mcrs_minecraft_worldgen_testing::parse_all::<serde_json::Value>(
+                "minecraft/dimension_type",
+            ) {
+                maps.push((path.display().to_string(), file["attributes"].clone()));
             }
-            let typed: EnvironmentAttributeMap = serde_json::from_value(attributes.clone())
-                .unwrap_or_else(|error| panic!("{name}: {error}"));
-            let written: serde_json::Value =
-                serde_json::from_str(&serde_json::to_string(&typed).unwrap()).unwrap();
-            assert_eq!(written, attributes, "{name}");
-            entries += typed.0.len();
-        }
-        assert!(entries > 200, "{entries} attribute entries");
+            for (id, biome) in
+                mcrs_minecraft_worldgen_testing::registry::<serde_json::Value>("biome")
+            {
+                maps.push((id.to_string(), biome["attributes"].clone()));
+            }
+
+            let mut entries = 0;
+            for (name, attributes) in maps {
+                if attributes.is_null() {
+                    continue;
+                }
+                let typed: EnvironmentAttributeMap = serde_json::from_value(attributes.clone())
+                    .unwrap_or_else(|error| panic!("{name}: {error}"));
+                let written: serde_json::Value =
+                    serde_json::from_str(&serde_json::to_string(&typed).unwrap()).unwrap();
+                assert_eq!(written, attributes, "{name}");
+                entries += typed.0.len();
+            }
+            assert!(entries > 200, "{entries} attribute entries");
+        });
     }
 
     #[test]

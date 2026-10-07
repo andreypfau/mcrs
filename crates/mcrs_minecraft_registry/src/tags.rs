@@ -9,7 +9,6 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::any::type_name;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::marker::PhantomData;
@@ -147,15 +146,7 @@ impl<R: 'static> Tags<R> {
         parsing: &'static str,
         run: impl FnOnce(&Tags<R>) -> T,
     ) -> Result<T, ScopeError> {
-        let set = set::current().ok_or(ScopeError::NoScope {
-            parsing,
-            registry: type_name::<R>().to_owned(),
-        })?;
-        let tags = set.tags::<R>().ok_or(ScopeError::MissingRegistry {
-            parsing,
-            registry: set::label::<R>(),
-        })?;
-        Ok(run(&tags))
+        set::in_scope::<R, _, _>(parsing, |set| set.tags::<R>(), run)
     }
 }
 
@@ -347,15 +338,11 @@ impl Serialize for TagEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct TagFile {
-    pub values: Vec<TagEntry>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub replace: bool,
-}
-
-fn is_false(value: &bool) -> bool {
-    !value
+#[derive(Deserialize)]
+struct TagFile {
+    values: Vec<TagEntry>,
+    #[serde(default)]
+    replace: bool,
 }
 
 pub fn number_tags(current: &BTreeSet<Name>, prior: Option<&[Name]>) -> Vec<Name> {

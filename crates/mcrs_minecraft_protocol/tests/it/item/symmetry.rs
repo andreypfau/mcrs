@@ -218,42 +218,40 @@ mod exhaustive {
 
 #[test]
 fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt() {
-    in_samples(random_stacks_round_trip_on_the_wire_and_in_json_and_nbt_in_scope);
-}
+    in_samples(|| {
+        let lookup = TestLookup::new();
+        let mut generator = Gen::new(0x5107);
+        for _ in 0..ITERATIONS {
+            let slot = generator.slot(2);
+            raw_stack_round_trip(&lookup, &slot);
 
-fn random_stacks_round_trip_on_the_wire_and_in_json_and_nbt_in_scope() {
-    let lookup = TestLookup::new();
-    let mut generator = Gen::new(0x5107);
-    for _ in 0..ITERATIONS {
-        let slot = generator.slot(2);
-        raw_stack_round_trip(&lookup, &slot);
+            let template = generator.template(2);
+            let json = serde_json::to_string(&template).unwrap();
+            let back: Template = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("template from JSON {json}: {e}"));
+            assert_eq!(back, template, "template JSON round trip of {json}");
+            assert_eq!(
+                serde_json::to_string(&back).unwrap(),
+                json,
+                "template JSON is stable"
+            );
 
-        let template = generator.template(2);
-        let json = serde_json::to_string(&template).unwrap();
-        let back: Template = serde_json::from_str(&json)
-            .unwrap_or_else(|e| panic!("template from JSON {json}: {e}"));
-        assert_eq!(back, template, "template JSON round trip of {json}");
-        assert_eq!(
-            serde_json::to_string(&back).unwrap(),
-            json,
-            "template JSON is stable"
-        );
+            let mut nbt = Vec::new();
+            mcrs_minecraft_nbt::to_bytes_unnamed(&template.0, &mut nbt).unwrap();
+            let back: ItemStackValue =
+                mcrs_minecraft_nbt::from_bytes_unnamed(std::io::Cursor::new(&nbt))
+                    .unwrap_or_else(|e| panic!("stack from NBT {nbt:02x?} of {template:?}: {e}"));
+            assert_eq!(back, template.0, "stack NBT round trip");
 
-        let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&template.0, &mut nbt).unwrap();
-        let back: ItemStackValue =
-            mcrs_minecraft_nbt::from_bytes_unnamed(std::io::Cursor::new(&nbt))
-                .unwrap_or_else(|e| panic!("stack from NBT {nbt:02x?} of {template:?}: {e}"));
-        assert_eq!(back, template.0, "stack NBT round trip");
-
-        let mut wire = Vec::new();
-        template.encode_ctx(&lookup, &mut wire).unwrap();
-        let mut r = &wire[..];
-        let back = Template::decode_ctx(&lookup, &mut r)
-            .unwrap_or_else(|e| panic!("template from wire {wire:02x?}: {e}"));
-        assert!(r.is_empty());
-        assert_eq!(back, template, "template wire round trip");
-    }
+            let mut wire = Vec::new();
+            template.encode_ctx(&lookup, &mut wire).unwrap();
+            let mut r = &wire[..];
+            let back = Template::decode_ctx(&lookup, &mut r)
+                .unwrap_or_else(|e| panic!("template from wire {wire:02x?}: {e}"));
+            assert!(r.is_empty());
+            assert_eq!(back, template, "template wire round trip");
+        }
+    });
 }
 
 #[test]

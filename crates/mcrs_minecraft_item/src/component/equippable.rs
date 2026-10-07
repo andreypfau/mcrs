@@ -6,7 +6,7 @@ use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, serialize_optional_set};
+use crate::component::common::Holder;
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
 use crate::harness::{list_set, one_set, tag_set};
@@ -89,11 +89,7 @@ pub struct Equippable {
     pub asset_id: Option<ResourceLocation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera_overlay: Option<ResourceLocation>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_optional_set"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allowed_entities: Option<HolderSet<EntityType>>,
     #[serde(
         default = "default_true",

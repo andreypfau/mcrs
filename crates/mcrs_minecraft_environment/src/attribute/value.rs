@@ -208,22 +208,19 @@ mod tests {
 
     #[test]
     fn one_ambient_addition_is_written_bare_and_two_as_a_list() {
-        mcrs_minecraft_worldgen_testing::corpus_set()
-            .scope(one_ambient_addition_is_written_bare_and_two_as_a_list_in_scope);
-    }
-
-    fn one_ambient_addition_is_written_bare_and_two_as_a_list_in_scope() {
-        let one = r#"{"additions":{"sound":"minecraft:ambient.cave","tick_chance":0.5}}"#;
-        let two = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5},{"sound":"minecraft:ambient.cave","tick_chance":0.25}]}"#;
-        let listed = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5}]}"#;
-        for (text, count) in [(one, 1), (two, 2), (listed, 1)] {
-            let read: AmbientSounds = serde_json::from_str(text).unwrap();
-            assert_eq!(read.additions.len(), count);
-            let expected = if count == 1 { one } else { two };
-            assert_eq!(serde_json::to_string(&read).unwrap(), expected);
-        }
-        let none = AmbientSounds::default();
-        assert_eq!(serde_json::to_string(&none).unwrap(), "{}");
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+            let one = r#"{"additions":{"sound":"minecraft:ambient.cave","tick_chance":0.5}}"#;
+            let two = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5},{"sound":"minecraft:ambient.cave","tick_chance":0.25}]}"#;
+            let listed = r#"{"additions":[{"sound":"minecraft:ambient.cave","tick_chance":0.5}]}"#;
+            for (text, count) in [(one, 1), (two, 2), (listed, 1)] {
+                let read: AmbientSounds = serde_json::from_str(text).unwrap();
+                assert_eq!(read.additions.len(), count);
+                let expected = if count == 1 { one } else { two };
+                assert_eq!(serde_json::to_string(&read).unwrap(), expected);
+            }
+            let none = AmbientSounds::default();
+            assert_eq!(serde_json::to_string(&none).unwrap(), "{}");
+        });
     }
 
     #[test]

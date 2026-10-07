@@ -1,5 +1,4 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BlockPos, BoundingBox, Mirror};
@@ -56,7 +55,6 @@ impl OceanRuinBlocks {
                 mcrs_minecraft_item::keys::loot_table::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
-        let bare = |block: Block| BlockState::bare(block.location().to_arc());
         let chains = INTEGRITIES
             .into_iter()
             .map(|integrity| {
@@ -66,7 +64,7 @@ impl OceanRuinBlocks {
                         integrity: UnitFloat(f64::from(integrity)),
                     },
                     StructureProcessor::BlockIgnore {
-                        blocks: vec![bare(Block::StructureBlock), bare(Block::Air)],
+                        blocks: vec![Block::StructureBlock.into(), Block::Air.into()],
                     },
                     StructureProcessor::Capped {
                         delegate: Box::new(StructureProcessor::Rule {
@@ -76,7 +74,7 @@ impl OceanRuinBlocks {
                                 },
                                 location_predicate: RuleTest::AlwaysTrue,
                                 position_predicate: None,
-                                output_state: bare(replacement),
+                                output_state: replacement.into(),
                                 block_entity_modifier: Some(RuleBlockEntityModifier::AppendLoot {
                                     loot_table: loot.location().to_arc(),
                                 }),

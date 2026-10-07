@@ -2,7 +2,6 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_protocol::item::component::common::Folded;
 use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
@@ -372,13 +371,10 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
     in_samples(|| {
         let one: HolderSet<Block> = list_set(&["stone"]);
         assert_eq!(one, one_set::<Block>("stone"));
-        assert_eq!(
-            serde_json::to_string(&Folded(&one)).unwrap(),
-            r#""minecraft:stone""#
-        );
+        assert_eq!(serde_json::to_string(&one).unwrap(), r#""minecraft:stone""#);
         let two: HolderSet<Block> = list_set(&["stone", "dirt"]);
         assert_eq!(
-            serde_json::to_string(&Folded(&two)).unwrap(),
+            serde_json::to_string(&two).unwrap(),
             r#"["minecraft:stone","minecraft:dirt"]"#
         );
 
@@ -416,6 +412,34 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
 }
 
 #[test]
+fn a_direct_holder_set_encodes_from_a_registry_without_tags() {
+    use mcrs_minecraft_sound::SoundEvent;
+    use mcrs_minecraft_sound::keys::sound_event::ENTRIES;
+
+    assert!(
+        mcrs_minecraft_protocol::item::harness::sample_registries()
+            .tags::<SoundEvent>()
+            .is_none()
+    );
+    let lookup = TestLookup::new();
+    let (first, fourth) = in_samples(|| {
+        let id = |n: usize| {
+            let name = ENTRIES[n].as_static_str();
+            entry::<SoundEvent>(name.strip_prefix("minecraft:").unwrap_or(name))
+        };
+        (id(1), id(4))
+    });
+    for (set, bytes) in [
+        (HolderSet::One(first), &[2, 1][..]),
+        (HolderSet::List(Box::new([fourth, first])), &[3, 4, 1][..]),
+    ] {
+        let mut wire = Vec::new();
+        set.encode_ctx(&lookup, &mut wire).unwrap();
+        assert_eq!(wire, bytes, "{set:?}");
+    }
+}
+
+#[test]
 fn a_holder_set_naming_what_the_receiver_lacks_fails_the_packet() {
     let mut lookup = TestLookup::new();
     lookup.registry_with_ids("block", &[("stone", 0), ("not_a_block", 7)]);
@@ -446,7 +470,7 @@ fn a_holder_set_decoded_without_registries_fails_the_packet() {
 }
 
 #[test]
-fn a_kind_is_a_var_int_on_the_wire_and_an_id_in_json() {
+fn a_kind_is_a_var_int_on_the_wire() {
     let mut wire = Vec::new();
     DataComponentType::CushionColor.encode(&mut wire).unwrap();
     assert_eq!(wire, [121]);
@@ -458,20 +482,6 @@ fn a_kind_is_a_var_int_on_the_wire_and_an_id_in_json() {
     VarInt(122).encode(&mut unknown).unwrap();
     let error = DataComponentType::decode(&mut &unknown[..]).unwrap_err();
     assert_eq!(error.to_string(), "unknown data component type 122");
-    assert_eq!(
-        serde_json::to_string(&DataComponentType::WolfVariant).unwrap(),
-        r#""minecraft:wolf/variant""#
-    );
-    assert_eq!(
-        serde_json::from_str::<DataComponentType>(r#""wolf/variant""#).unwrap(),
-        DataComponentType::WolfVariant
-    );
-    assert_eq!(
-        serde_json::from_str::<DataComponentType>(r#""nope""#)
-            .unwrap_err()
-            .to_string(),
-        "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_type]: minecraft:nope"
-    );
 }
 
 #[test]

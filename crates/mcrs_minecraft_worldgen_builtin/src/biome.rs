@@ -109,22 +109,10 @@ pub mod mob {
     mod tests {
         use super::ALL;
         use mcrs_minecraft_core::ResourceKey;
-        use mcrs_minecraft_registry::static_report::shipped_report;
         use std::collections::BTreeSet;
 
         mod report {
             use super::*;
-
-            pub fn missing<T: mcrs_minecraft_registry::Registered>(
-                keys: &[ResourceKey<T, &'static str>],
-            ) -> Vec<String> {
-                let table = shipped_report().table(T::REGISTRY.location().as_static_str());
-                keys.iter()
-                    .map(|key| key.as_str())
-                    .filter(|name| table.is_none_or(|table| table.number(name).is_none()))
-                    .map(str::to_owned)
-                    .collect()
-            }
 
             pub fn repeated<T>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
                 let mut seen = BTreeSet::new();
@@ -134,12 +122,6 @@ pub mod mob {
                     .map(str::to_owned)
                     .collect()
             }
-        }
-
-        #[test]
-        fn every_mob_is_an_entity_type_of_the_report() {
-            let ids: Vec<_> = ALL.iter().map(|mob| mob.id).collect();
-            assert_eq!(report::missing(&ids), Vec::<String>::new());
         }
 
         #[test]

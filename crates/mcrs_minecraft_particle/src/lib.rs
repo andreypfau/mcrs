@@ -22,7 +22,7 @@ macro_rules! particle_types {
         mcrs_minecraft_registry::dispatch! {
             ParticleOptions, key = "type", registry = crate::keys::ParticleType,
             {
-                $($variant => $variant),*
+                $($variant),*
             }
         }
     };
@@ -361,8 +361,8 @@ enum PositionSourceRepr {
 mcrs_minecraft_registry::dispatch! {
     reads_only PositionSourceRepr, key = "type", registry = crate::keys::PositionSourceType,
     {
-        Block => Block,
-        Entity => Entity,
+        Block,
+        Entity,
     }
 }
 

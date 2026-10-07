@@ -2,8 +2,8 @@ use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
-use mcrs_minecraft_block_predicate::provider::{UnitFloat, non_empty};
-use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default};
+use mcrs_minecraft_block_predicate::provider::UnitFloat;
+use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default, non_empty};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, HeightProvider};
 
 /// `Codec.INT.optionalFieldOf(name, DEFAULT)`.

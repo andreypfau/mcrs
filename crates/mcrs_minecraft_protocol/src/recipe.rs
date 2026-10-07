@@ -84,17 +84,17 @@ pub enum SlotDisplay {
 mcrs_minecraft_registry::dispatch! {
     SlotDisplay, key = "type", registry = crate::keys::SlotDisplayType,
     {
-        Empty => Empty,
-        AnyFuel => AnyFuel,
-        WithAnyPotion => WithAnyPotion,
-        OnlyWithComponent => OnlyWithComponent,
-        Item => Item,
-        ItemStack => ItemStack,
-        Tag => Tag,
-        Dyed => Dyed,
-        SmithingTrim => SmithingTrim,
-        WithRemainder => WithRemainder,
-        Composite => Composite,
+        Empty,
+        AnyFuel,
+        WithAnyPotion,
+        OnlyWithComponent,
+        Item,
+        ItemStack,
+        Tag,
+        Dyed,
+        SmithingTrim,
+        WithRemainder,
+        Composite,
     }
 }
 
@@ -221,11 +221,11 @@ pub enum RecipeDisplay {
 mcrs_minecraft_registry::dispatch! {
     validated RecipeDisplay, key = "type", registry = crate::keys::RecipeDisplayType,
     {
-        CraftingShapeless => CraftingShapeless,
-        CraftingShaped => CraftingShaped,
-        Furnace => Furnace,
-        Stonecutter => Stonecutter,
-        Smithing => Smithing,
+        CraftingShapeless,
+        CraftingShaped,
+        Furnace,
+        Stonecutter,
+        Smithing,
     }
 }
 

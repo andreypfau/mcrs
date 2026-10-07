@@ -2,6 +2,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+use mcrs_minecraft_core::codec::{PositiveFloat, non_empty};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{Direction, ResourceKey, ResourceLocation};
 use mcrs_minecraft_registry::HolderSet;
@@ -20,35 +21,6 @@ mcrs_minecraft_worldgen_noise::bounded_float! {
     UnitFloat as f32 in [0.0, 1.0];
     /// `Codec.floatRange(-1.0F, 1.0F)`.
     SignedUnitFloat as f32 in [-1.0, 1.0];
-}
-
-/// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "f64")]
-pub struct PositiveFloat(pub f64);
-
-impl TryFrom<f64> for PositiveFloat {
-    type Error = String;
-
-    fn try_from(value: f64) -> Result<Self, String> {
-        let narrowed = value as f32;
-        if narrowed.is_nan() || narrowed <= 0.0 {
-            return Err(format!("Value must be positive: {value}"));
-        }
-        Ok(PositiveFloat(value))
-    }
-}
-
-pub fn non_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    let values = Vec::<T>::deserialize(deserializer)?;
-    if values.is_empty() {
-        return Err(D::Error::custom("List must have contents"));
-    }
-    Ok(values)
 }
 
 /// `RegistryCodecs.holderSet(Registries.BLOCK)`.

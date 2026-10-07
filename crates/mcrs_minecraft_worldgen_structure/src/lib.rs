@@ -20,9 +20,11 @@ use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::predicate::Offset;
-use mcrs_minecraft_block_predicate::provider::{PositiveFloat, UnitFloat, non_empty};
+use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, PositiveInt, is_default};
+use mcrs_minecraft_core::codec::{
+    Bounded, NonNegativeInt, PositiveFloat, PositiveInt, is_default, non_empty,
+};
 use mcrs_minecraft_entity::spawn::{MobCategory, SpawnerData};
 use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::{HeightProvider, Weighted};

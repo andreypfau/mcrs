@@ -15,20 +15,19 @@ pub mod template_piece;
 pub mod woodland_mansion;
 
 use bevy_math::IVec3;
-use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError, state_of};
+use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError};
 use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
-pub use mcrs_minecraft_worldgen_feature_place::template::block_mask;
 use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, Placement, SettingsRandom, mirror_state, place_template, rotate_state,
+    CompiledChain, CompiledProcessor, Placement, SettingsRandom, block_mask, mirror_state,
+    place_template, rotate_state, state,
 };
 use mcrs_minecraft_worldgen_structure::orient::Orientation;
 use mcrs_minecraft_block::keys::Block;
@@ -66,23 +65,13 @@ impl Oriented {
     }
 }
 
-pub fn state(
+pub(crate) fn ignore_blocks(
     blocks: &dyn BlockResolver,
-    block: Block,
-    properties: &[(&str, &str)],
-) -> Result<VoxelId, FeatureCompileError> {
-    state_of(
-        blocks,
-        &BlockState {
-            name: block.location().to_arc(),
-            properties: (!properties.is_empty()).then(|| {
-                properties
-                    .iter()
-                    .map(|(name, value)| (name.to_string(), value.to_string()))
-                    .collect()
-            }),
-        },
-    )
+    names: &[Block],
+) -> Result<CompiledChain, FeatureCompileError> {
+    Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
+        blocks, names,
+    )?)])
 }
 
 /// `TemplateStructurePiece.postProcess`: the palette drawn from the piece's

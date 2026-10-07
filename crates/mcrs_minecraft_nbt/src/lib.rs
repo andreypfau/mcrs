@@ -186,7 +186,7 @@ pub fn get_nbt_string<R: Read + Seek>(bytes: &mut NbtReadHelper<R>) -> Result<St
 }
 
 // TODO: This is a bit hacky
-pub(crate) const NBT_ARRAY_TAG: &str = "__nbt_array";
+pub const NBT_ARRAY_TAG: &str = "__nbt_array";
 pub(crate) const NBT_INT_ARRAY_TAG: &str = "__nbt_int_array";
 pub(crate) const NBT_LONG_ARRAY_TAG: &str = "__nbt_long_array";
 pub(crate) const NBT_BYTE_ARRAY_TAG: &str = "__nbt_byte_array";
@@ -235,9 +235,6 @@ impl ArrayKind {
         }
     }
 }
-
-/// The newtype name a reader asks for an array under; see [`nbt_array`].
-pub const NBT_ARRAY_NEWTYPE: &str = NBT_ARRAY_TAG;
 
 pub trait ArrayVisitor<'de>: Sized {
     type Value;

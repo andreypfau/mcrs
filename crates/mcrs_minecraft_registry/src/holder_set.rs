@@ -3,7 +3,7 @@ use crate::tags::{TagId, Tags};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use serde::de::{SeqAccess, Visitor, value};
-use serde::ser::{Error as _, SerializeSeq};
+use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::Cell;
 use std::fmt;
@@ -133,13 +133,23 @@ impl<R: 'static> Serialize for HolderSet<R> {
                 serializer.serialize_str(&format!("#{}", name.as_str()))
             }
             HolderSet::One(entry) => entry.serialize(serializer),
-            HolderSet::List(entries) => {
-                let mut seq = serializer.serialize_seq(Some(entries.len()))?;
-                for entry in entries {
-                    seq.serialize_element(entry)?;
-                }
-                seq.end()
-            }
+            HolderSet::List(entries) => match &**entries {
+                [entry] => entry.serialize(serializer),
+                entries => serializer.collect_seq(entries),
+            },
+        }
+    }
+}
+
+/// Writes a direct set as a list even when it holds one entry.
+pub struct AlwaysList<'a, R>(pub &'a HolderSet<R>);
+
+impl<R: 'static> Serialize for AlwaysList<'_, R> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0 {
+            HolderSet::Named(_) => self.0.serialize(serializer),
+            HolderSet::One(entry) => serializer.collect_seq(std::slice::from_ref(entry)),
+            HolderSet::List(entries) => serializer.collect_seq(entries.iter()),
         }
     }
 }
@@ -270,10 +280,9 @@ mod tests {
         let tags = set.tags::<Marker>().unwrap();
         let (a, b) = (id("minecraft:a"), id("minecraft:b"));
         set.scope(|| {
-            let cases: [(&str, Set); 5] = [
+            let cases: [(&str, Set); 4] = [
                 (r##""#minecraft:t""##, Set::Named(tag(&tags, "minecraft:t"))),
                 (r#""minecraft:a""#, Set::One(a)),
-                (r#"["minecraft:a"]"#, Set::List(Box::new([a]))),
                 (
                     r#"["minecraft:a","minecraft:b"]"#,
                     Set::List(Box::new([a, b])),
@@ -296,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn a_one_entry_list_equals_the_bare_entry_and_is_written_as_read() {
+    fn a_one_entry_list_equals_the_bare_entry_and_is_written_bare() {
         let a = id("minecraft:a");
         let bare = Set::One(a);
         let listed = Set::List(Box::new([a]));
@@ -305,10 +314,9 @@ mod tests {
         assert_ne!(bare, Set::List(Box::new([])));
         set().scope(|| {
             assert_eq!(serde_json::to_string(&bare).unwrap(), r#""minecraft:a""#);
-            assert_eq!(
-                serde_json::to_string(&listed).unwrap(),
-                r#"["minecraft:a"]"#
-            );
+            assert_eq!(serde_json::to_string(&listed).unwrap(), r#""minecraft:a""#);
+            let read: Set = serde_json::from_str(r#"["minecraft:a"]"#).unwrap();
+            assert_eq!(serde_json::to_string(&read).unwrap(), r#""minecraft:a""#);
         });
     }
 

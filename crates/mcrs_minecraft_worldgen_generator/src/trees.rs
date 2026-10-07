@@ -7,12 +7,12 @@ use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::block_tags;
-use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_block_predicate::provider::{
     BlockStateProvider, DirectBlockStateProvider, TypedBlockStateProvider,
 };
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::{
     FACE_MASK_EMPTY, FACE_MASK_FULL, FACE_RESOLUTION, FaceMask, VoxelShape,
 };
@@ -26,6 +26,7 @@ use mcrs_minecraft_worldgen_feature::tree::{
     RootPlacer as ProtoRootPlacer, TreeConfig, TreeDecorator as ProtoDecorator,
     TrunkPlacer as ProtoTrunk,
 };
+use mcrs_minecraft_worldgen_feature_place::template::block_mask;
 use mcrs_minecraft_worldgen_feature_place::tree::decorator::{CompiledTreeDecorator, TreePalette};
 use mcrs_minecraft_worldgen_feature_place::tree::foliage::Foliage;
 use mcrs_minecraft_worldgen_feature_place::tree::provider::{
@@ -75,7 +76,7 @@ pub(super) fn state_of(
 
 pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
     let blocks = resolver.blocks;
-    let air = resolver.block_mask_of(Block::Air)?;
+    let air = block_mask(resolver, &[Block::Air])?;
     let logs = resolver.tag_mask(block_tags::LOGS)?;
     let leaves = resolver.tag_mask(block_tags::LEAVES)?;
     let replaceable_by_trees = resolver.tag_mask(block_tags::REPLACEABLE_BY_TREES)?;
@@ -104,8 +105,8 @@ pub fn build_tree_tables(resolver: &Resolver<'_>) -> Compiled<TreeTables> {
         )
     };
     let palette = TreePalette {
-        vines: resolver.block_mask_of(Block::Vine)?,
-        shelf_mushrooms: resolver.block_mask_of(Block::ShelfMushroom)?,
+        vines: block_mask(resolver, &[Block::Vine])?,
+        shelf_mushrooms: block_mask(resolver, &[Block::ShelfMushroom])?,
         vine_side,
         bee_nest: state(Block::BeeNest, &[("facing", "south")])?,
         cocoa: aged_facings(blocks, Block::Cocoa.id()),
@@ -383,7 +384,7 @@ fn rule_of(
             }
         }
         SurviveFamily::SugarCane => SurviveRule::SugarCane {
-            sugar_cane: resolver.block_mask_of(Block::SugarCane)?.as_ref().clone(),
+            sugar_cane: block_mask(resolver, &[Block::SugarCane])?.as_ref().clone(),
             supports: tag(ids.supports_sugar_cane),
             adjacent: {
                 let mut adjacent = tag(ids.supports_sugar_cane_adjacently);
@@ -395,7 +396,7 @@ fn rule_of(
             let mut blocked = resolver.world.sturdy_up.as_ref().clone();
             blocked.union_with(&resolver.world.lava_fluid);
             let mut supports = tag(ids.supports_cactus);
-            let cactus = resolver.block_mask_of(Block::Cactus)?;
+            let cactus = block_mask(resolver, &[Block::Cactus])?;
             supports.union_with(&cactus);
             SurviveRule::Cactus {
                 supports,

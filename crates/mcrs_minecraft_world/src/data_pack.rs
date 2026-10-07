@@ -5,6 +5,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use bevy_tasks::futures_lite::StreamExt;
 use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_core::RegistryKey;
 use mcrs_minecraft_registry::RegistrySet;
 
 pub(crate) fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
@@ -57,23 +58,19 @@ fn list_registry_files(
     files.into_iter().collect()
 }
 
-fn request_registry<T: Asset>(
+fn request_registry<T: Asset, V>(
     asset_server: &AssetServer,
     set: &RegistrySet,
     loaded: &mut LoadedRegistryAssets,
-    registry: &str,
-    extension: &str,
+    key: RegistryKey<V>,
 ) {
+    let registry = key.location().as_static_str();
     let table = set
         .table(registry)
         .unwrap_or_else(|| panic!("{registry} is not a loaded registry"));
     let directory = table.registry().path();
     for name in table.names() {
-        let path = format!(
-            "{}/{directory}/{}.{extension}",
-            name.namespace(),
-            name.path()
-        );
+        let path = format!("{}/{directory}/{}.json", name.namespace(), name.path());
         loaded.handles.push(asset_server.load::<T>(path).untyped());
     }
     tracing::info!(
@@ -107,61 +104,21 @@ pub(crate) fn request_data_pack_assets(
     set: Res<RegistrySet>,
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
-    request_registry::<mcrs_minecraft_worldgen::bevy::CarverConfigAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_carver::keys::CARVER
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::FeatureAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_feature::keys::FEATURE
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::PlacedFeatureAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_feature::keys::PLACED_FEATURE
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::StructureSetAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_structure::keys::STRUCTURE_SET
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::StructureAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_structure::keys::STRUCTURE
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_registry::<mcrs_minecraft_worldgen::bevy::TemplatePoolAsset>(
-        &asset_server,
-        &set,
-        &mut loaded,
-        mcrs_minecraft_worldgen_feature::keys::TEMPLATE_POOL
-            .location()
-            .as_static_str(),
-        "json",
-    );
-    request_templates(&asset_server, &mut loaded);
+    use mcrs_minecraft_worldgen::bevy::{
+        CarverConfigAsset, FeatureAsset, PlacedFeatureAsset, StructureAsset, StructureSetAsset,
+        TemplatePoolAsset,
+    };
+    use mcrs_minecraft_worldgen_carver::keys::CARVER;
+    use mcrs_minecraft_worldgen_feature::keys::{FEATURE, PLACED_FEATURE, TEMPLATE_POOL};
+    use mcrs_minecraft_worldgen_structure::keys::{STRUCTURE, STRUCTURE_SET};
+    let (server, loaded) = (&asset_server, &mut *loaded);
+    request_registry::<CarverConfigAsset, _>(server, &set, loaded, CARVER);
+    request_registry::<FeatureAsset, _>(server, &set, loaded, FEATURE);
+    request_registry::<PlacedFeatureAsset, _>(server, &set, loaded, PLACED_FEATURE);
+    request_registry::<StructureSetAsset, _>(server, &set, loaded, STRUCTURE_SET);
+    request_registry::<StructureAsset, _>(server, &set, loaded, STRUCTURE);
+    request_registry::<TemplatePoolAsset, _>(server, &set, loaded, TEMPLATE_POOL);
+    request_templates(server, loaded);
 }
 
 pub(crate) async fn walk_files(

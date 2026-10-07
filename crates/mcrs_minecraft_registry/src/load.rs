@@ -116,11 +116,7 @@ struct Flags {
 #[derive(Clone, Copy)]
 enum Source<'a> {
     File(Option<&'a [u8]>),
-    Built {
-        built: &'a Built,
-        index: usize,
-        label: &'a str,
-    },
+    Built { built: &'a Built, index: usize },
 }
 
 enum Input<'a> {
@@ -460,11 +456,7 @@ impl WorldRegistries {
                             namespace: name.namespace(),
                             pack: pack as u32,
                             path: &labels[pack],
-                            source: Source::Built {
-                                built,
-                                index,
-                                label: &labels[pack],
-                            },
+                            source: Source::Built { built, index },
                         });
                 }
             }
@@ -665,8 +657,8 @@ struct Loaded<'a> {
 impl<'a> Loaded<'a> {
     fn inputs(&self, set: &RegistrySet, report: &mut LoadReport) -> Vec<Input<'a>> {
         let mut outputs: HashMap<*const Built, Option<Vec<Option<BuiltValue>>>> = HashMap::new();
-        for source in &self.inputs {
-            let Source::Built { built, label, .. } = source else {
+        for (source, path) in self.inputs.iter().zip(&self.paths) {
+            let Source::Built { built, .. } = source else {
                 continue;
             };
             outputs
@@ -675,12 +667,7 @@ impl<'a> Loaded<'a> {
                     Ok(values) => Some(values.into_iter().map(Some).collect()),
                     Err(failures) => {
                         for (index, message) in failures {
-                            report.entry(
-                                self.registry,
-                                built.names[index].as_str(),
-                                label,
-                                message,
-                            );
+                            report.entry(self.registry, built.names[index].as_str(), path, message);
                         }
                         None
                     }

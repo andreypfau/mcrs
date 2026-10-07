@@ -1,10 +1,10 @@
 use std::sync::{Arc, LazyLock};
 
 use bevy_math::IVec3;
-use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::BlockPos;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;

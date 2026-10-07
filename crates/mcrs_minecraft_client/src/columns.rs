@@ -33,7 +33,7 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
-use crate::wire_id::WireIds;
+use crate::wire_id::{WireIds, WireTable};
 
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
@@ -301,7 +301,9 @@ impl Column {
         wire: &WireIds,
     ) -> Result<Column> {
         let biome_registry_len = wire
-            .sent_biomes()
+            .biomes
+            .as_ref()
+            .map(WireTable::len)
             .context("the server sent no biome registry the local registries can name")?;
         let sections = data
             .sections(extent.sections, block_state_count, biome_registry_len)?
@@ -422,7 +424,9 @@ fn local_biomes(
 ) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
     let local = |number: u8| -> Result<u8> {
         let id = wire
-            .biome(u16::from(number))
+            .biomes
+            .as_ref()
+            .and_then(|table| table.get(u16::from(number)))
             .with_context(|| format!("biome {number} is not one the local registries hold"))?;
         Ok(id.narrow::<u8>()?)
     };

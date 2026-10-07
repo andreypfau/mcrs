@@ -1,12 +1,12 @@
+use mcrs_minecraft_item::component::ValueMatcher;
 use mcrs_minecraft_item::component::predicate::{
     BlockPredicate, ComponentPredicate, ComponentPredicateEntry, EnchantmentPredicate,
     EnchantmentsPredicate, ItemPredicate,
 };
-use mcrs_minecraft_item::component::{MinMaxBounds, ValueMatcher};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_loot::condition::EntityProperties;
 use mcrs_minecraft_loot::{EntityTarget, LootCondition};
-use mcrs_minecraft_registry::{Holder, HolderList, HolderSet, Id, Tags};
+use mcrs_minecraft_registry::{Holder, HolderList, Id};
 
 use crate::world::loot::LootRegistries;
 use crate::world::loot::context::BlockBreakContext;
@@ -82,11 +82,12 @@ fn enchantment_matches(required: &EnchantmentPredicate, ctx: &BlockBreakContext)
             .map_or(0, |(_, level)| *level)
     };
     match &required.enchantments {
-        Some(set) => members(set, &ctx.loot.enchantment_tags)
-            .any(|id| within(&required.levels, level_of(id))),
+        Some(set) => set
+            .ids(&ctx.loot.enchantment_tags)
+            .any(|id| required.levels.matches(level_of(id))),
         None if !required.levels.is_any() => held
             .iter()
-            .any(|(_, level)| within(&required.levels, *level)),
+            .any(|(_, level)| required.levels.matches(*level)),
         None => !held.is_empty(),
     }
 }
@@ -107,24 +108,6 @@ fn block_matches(predicate: &BlockPredicate, ctx: &BlockBreakContext) -> bool {
         })
         && (predicate.nbt.is_none() || UNDECIDABLE)
         && (predicate.matchers.is_empty() || UNDECIDABLE)
-}
-
-fn within(bounds: &MinMaxBounds<i32>, value: i32) -> bool {
-    bounds.min.is_none_or(|min| value >= min) && bounds.max.is_none_or(|max| value <= max)
-}
-
-fn members<'a, R: 'static>(
-    set: &'a HolderSet<R>,
-    tags: &'a Tags<R>,
-) -> impl Iterator<Item = Id<R>> + 'a {
-    let (ids, tag) = match set {
-        HolderSet::Named(tag) => (&[][..], Some(*tag)),
-        HolderSet::One(id) => (std::slice::from_ref(id), None),
-        HolderSet::List(ids) => (&ids[..], None),
-    };
-    ids.iter()
-        .copied()
-        .chain(tag.into_iter().flat_map(|tag| tags.members(tag)))
 }
 
 impl LootRegistries {

@@ -84,7 +84,7 @@ pub fn spawn_generated_entities(
             // chisle: an entity of a section the column delivered without is dropped, as a
             // block entity is; keep them in the store per section if a late section must
             // carry them.
-            tracing::debug!(pos = ?entity.pos, id = entity.kind.id(), "an entity outside the delivered sections");
+            tracing::debug!(pos = ?entity.pos, id = entity.kind.kind().as_static_str(), "an entity outside the delivered sections");
             continue;
         };
         spawn_one(commands, dim, section, registry, entity, None);

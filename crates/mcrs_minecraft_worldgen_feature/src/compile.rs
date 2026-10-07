@@ -16,9 +16,10 @@ use super::sort::build_features_per_step;
 use crate::template::Template;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Direction, Offset};
+use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Offset};
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_registry::HolderSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

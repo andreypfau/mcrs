@@ -23,7 +23,6 @@ pub use mcrs_minecraft_core::codec::{
     unsigned_byte,
 };
 
-use mcrs_minecraft_registry::HolderSet;
 pub use mcrs_minecraft_registry::holder::*;
 
 /// `{raw, filtered?}`, read leniently from a bare value.
@@ -251,35 +250,6 @@ pub(crate) fn is_one(value: &NonNegativeInt) -> bool {
 
 pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
     ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
-}
-
-/// Vanilla writes a one-entry set as the bare entry.
-pub fn serialize_set<R: 'static, S: Serializer>(
-    set: &HolderSet<R>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    match set {
-        HolderSet::List(entries) if entries.len() == 1 => entries[0].serialize(s),
-        _ => set.serialize(s),
-    }
-}
-
-pub fn serialize_optional_set<R: 'static, S: Serializer>(
-    set: &Option<HolderSet<R>>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    match set {
-        Some(set) => serialize_set(set, s),
-        None => s.serialize_none(),
-    }
-}
-
-pub struct Folded<'a, R>(pub &'a HolderSet<R>);
-
-impl<R: 'static> Serialize for Folded<'_, R> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        serialize_set(self.0, s)
-    }
 }
 
 /// A map kept in the order read, refusing a repeated key.
@@ -655,3 +625,23 @@ macro_rules! transparent_newtype {
     )*};
 }
 pub(crate) use transparent_newtype;
+
+#[cfg(test)]
+mod tests {
+    use super::MinMaxBounds;
+
+    #[test]
+    fn bounds_write_back_as_read() {
+        for json in ["0.9", r#"{"min":0.9}"#, r#"{"min":0.1,"max":0.5}"#, "{}"] {
+            let bounds: MinMaxBounds<f64> = serde_json::from_str(json).unwrap();
+            assert_eq!(serde_json::to_string(&bounds).unwrap(), json);
+        }
+        assert!(serde_json::from_str::<MinMaxBounds<f64>>(r#"{"min":2,"max":1}"#).is_err());
+    }
+
+    #[test]
+    fn a_lower_bound_matches_at_and_above_it() {
+        let at_least: MinMaxBounds<f64> = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
+        assert!(at_least.matches(1.0) && at_least.matches(0.9) && !at_least.matches(0.8));
+    }
+}

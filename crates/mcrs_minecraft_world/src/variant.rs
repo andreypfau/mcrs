@@ -97,7 +97,7 @@ spawning_variant! {
     }
 }
 
-/// A variant registry's spawn conditions by variant, in registry order.
+/// A variant registry's spawn conditions by variant name.
 pub fn spawn_selectors<R>(
     registries: &RegistrySet,
     registry: RegistryKey<R>,
