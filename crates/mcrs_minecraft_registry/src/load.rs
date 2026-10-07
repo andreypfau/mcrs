@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 type Name = ResourceLocation<Arc<str>>;
 type Failures = Vec<(usize, String)>;
-type Validator = Box<dyn Fn(&(dyn Any + Send + Sync), &RegistrySet) -> Failures + Send + Sync>;
+type Validator = Box<dyn Fn(&RegistrySet) -> Failures + Send + Sync>;
 type Parse = fn(Vec<Input<'_>>) -> Result<Column, Failures>;
 type EncodeResult = Result<String, serde_json::Error>;
 type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
@@ -283,7 +283,7 @@ impl WorldRegistries {
     }
 
     /// Stores what `parse::<T>` read as the columns of the parts `split`
-    /// returns, in place of `T`. Validators still see `T`; `join` rebuilds `T`
+    /// returns, in place of `T`. Validators read the parts; `join` rebuilds `T`
     /// from the parts to encode an entry.
     pub fn split<T, P>(
         &mut self,
@@ -396,6 +396,9 @@ impl WorldRegistries {
         self
     }
 
+    /// Runs `check` once every registry has parsed, against the complete set.
+    /// `T` is a type the registry stores a column of: its value, or a part of
+    /// it when the registry is split.
     pub fn validate<T>(
         &mut self,
         registry: ResourceLocation<&'static str>,
@@ -409,10 +412,10 @@ impl WorldRegistries {
             .codec
             .as_mut()
             .unwrap_or_else(|| panic!("registry {registry} parses no values to validate"));
-        codec.validators.push(Box::new(move |column, set| {
-            let values = column
-                .downcast_ref::<Arc<[T]>>()
-                .unwrap_or_else(|| panic!("registry {registry} does not parse the validated type"));
+        codec.validators.push(Box::new(move |set| {
+            let values = set
+                .column::<T>(registry.as_str())
+                .unwrap_or_else(|| panic!("registry {registry} does not store the validated type"));
             check(values, set)
         }));
         self
@@ -670,6 +673,7 @@ impl WorldRegistries {
         }
 
         let set = set.with_values(values.clone());
+        let mut every_column_parsed = true;
         set.scope(|| {
             for loaded in &world {
                 let Some(codec) = loaded.codec else {
@@ -677,11 +681,6 @@ impl WorldRegistries {
                 };
                 match (codec.parse)(loaded.inputs(&set, &mut report)) {
                     Ok(column) => {
-                        for validator in &codec.validators {
-                            for (index, message) in validator(&*column, &set) {
-                                loaded.report(&mut report, index, message);
-                            }
-                        }
                         let columns = match &codec.split {
                             Some(split) => (split.columns)(&*column),
                             None => vec![(codec.value_type, column)],
@@ -691,9 +690,27 @@ impl WorldRegistries {
                             .insert(loaded.registry.clone(), columns.into_iter().collect());
                     }
                     Err(failures) => {
+                        every_column_parsed = false;
                         for (index, message) in failures {
                             loaded.report(&mut report, index, message);
                         }
+                    }
+                }
+            }
+        });
+        if !every_column_parsed {
+            return Err(report);
+        }
+
+        let set = set.with_values(values.clone());
+        set.scope(|| {
+            for loaded in &world {
+                let Some(codec) = loaded.codec else {
+                    continue;
+                };
+                for validator in &codec.validators {
+                    for (index, message) in validator(&set) {
+                        loaded.report(&mut report, index, message);
                     }
                 }
             }
@@ -702,7 +719,6 @@ impl WorldRegistries {
             return Err(report);
         }
 
-        let set = set.with_values(values.clone());
         set.scope(|| {
             for registry in &self.sync_order {
                 let project = self.declared[registry.as_str()]
@@ -862,6 +878,16 @@ mod tests {
         const KEY: RegistryKey<Variant> = RegistryKey::new(rl!("minecraft:test_variant"));
     }
 
+    #[derive(Debug, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct Pointer {
+        variant: Id<Variant>,
+    }
+
+    impl Pointer {
+        const KEY: RegistryKey<Pointer> = RegistryKey::new(rl!("minecraft:test_pointer"));
+    }
+
     struct Marker;
 
     impl Marker {
@@ -901,6 +927,7 @@ mod tests {
         RegistrySet::new()
             .with_types([
                 Variant::KEY.binding(),
+                Pointer::KEY.binding(),
                 Marker::KEY.binding(),
                 Linked::KEY.binding(),
                 FixedLinked::KEY.binding(),
@@ -1052,8 +1079,8 @@ mod tests {
         )];
         let mut registries = registries();
         registries
-            .validate::<Variant>(Variant::KEY.location(), |values, _| {
-                assert_eq!(values[0].asset_id, "plain");
+            .validate::<String>(Variant::KEY.location(), |values, _| {
+                assert_eq!(values[0], "plain");
                 Vec::new()
             })
             .split::<Variant, (String, Id<Variant>)>(
@@ -1514,6 +1541,123 @@ mod tests {
                 "registry load failed: 2 errors in 1 registries\n{prefix}bad asset\n{prefix}second complaint"
             )
         );
+    }
+
+    fn pointer_registries() -> WorldRegistries {
+        let mut registries = WorldRegistries::new(
+            [Variant::KEY.location(), Pointer::KEY.location()]
+                .map(ResourceLocation::<Arc<str>>::from),
+        );
+        registries
+            .parse::<Variant>(Variant::KEY.location())
+            .parse::<Pointer>(Pointer::KEY.location());
+        registries
+    }
+
+    fn pointer(name: &str, variant: &str) -> PackFile {
+        data(
+            &format!("minecraft/test_pointer/{name}.json"),
+            &format!(r#"{{"variant":"{variant}"}}"#),
+        )
+    }
+
+    #[test]
+    fn a_validator_reads_another_registrys_column() {
+        let mut registries = pointer_registries();
+        registries
+            .validate::<Pointer>(Pointer::KEY.location(), |pointers, set| {
+                let variants = set
+                    .column::<Variant>(VARIANT)
+                    .expect("the variant column is stored before any validator runs");
+                pointers
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, pointer)| variants[pointer.variant.index()].asset_id == "rejected")
+                    .map(|(index, _)| (index, "points at a rejected variant".to_owned()))
+                    .collect()
+            })
+            .validate::<Variant>(Variant::KEY.location(), |variants, _| {
+                variants
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, variant)| variant.asset_id == "rejected")
+                    .map(|(index, _)| (index, "is rejected".to_owned()))
+                    .collect()
+            });
+        let packs = [pack(
+            "vanilla",
+            vec![
+                variant("minecraft/test_variant/fine.json", "fine", "minecraft:fine"),
+                variant(
+                    "minecraft/test_variant/no.json",
+                    "rejected",
+                    "minecraft:fine",
+                ),
+                pointer("to_fine", "minecraft:fine"),
+                pointer("to_no", "minecraft:no"),
+            ],
+        )];
+        let text = registries
+            .load(&typed(), &packs)
+            .err()
+            .expect("the validators refuse the load")
+            .to_string();
+        assert_eq!(
+            text,
+            "registry load failed: 2 errors in 2 registries\n\
+             minecraft:test_pointer/minecraft:to_no (minecraft/test_pointer/to_no.json): points at a rejected variant\n\
+             minecraft:test_variant/minecraft:no (minecraft/test_variant/no.json): is rejected"
+        );
+    }
+
+    #[test]
+    fn a_parse_failure_runs_no_validator() {
+        let mut registries = pointer_registries();
+        registries.validate::<Pointer>(Pointer::KEY.location(), |_, _| {
+            panic!("a validator ran although a column failed to parse")
+        });
+        let packs = [pack(
+            "vanilla",
+            vec![
+                variant("minecraft/test_variant/fine.json", "fine", "minecraft:fine"),
+                data("minecraft/test_variant/broken.json", "{"),
+                pointer("to_fine", "minecraft:fine"),
+            ],
+        )];
+        let text = registries
+            .load(&typed(), &packs)
+            .err()
+            .expect("the parse failure refuses the load")
+            .to_string();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 2, "{text}");
+        assert!(
+            lines[1].starts_with(
+                "minecraft:test_variant/minecraft:broken (minecraft/test_variant/broken.json): "
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_validator_of_an_empty_registry_reports_nothing() {
+        static RUNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let mut registries = pointer_registries();
+        registries.validate::<Pointer>(Pointer::KEY.location(), |pointers, _| {
+            assert!(pointers.is_empty());
+            RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Vec::new()
+        });
+        let packs = [pack(
+            "vanilla",
+            vec![variant(
+                "minecraft/test_variant/fine.json",
+                "fine",
+                "minecraft:fine",
+            )],
+        )];
+        registries.load(&typed(), &packs).unwrap();
+        assert_eq!(RUNS.load(std::sync::atomic::Ordering::Relaxed), 1);
     }
 
     #[test]

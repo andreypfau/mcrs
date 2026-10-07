@@ -238,6 +238,16 @@ impl RegistryValue for PlacedFeature {
     type Registry = Self;
 }
 
+impl PlacedFeature {
+    /// The horizontal range around its chunk's corner that the feature can
+    /// place into.
+    pub fn xz_domain(&self) -> std::ops::RangeInclusive<i32> {
+        self.placement
+            .iter()
+            .fold(0..=0, |domain, modifier| modifier.xz_domain(domain))
+    }
+}
+
 /// The 58 entries of `FeatureTypes`, and Beta's populate step. A 26.3 feature
 /// writes its configuration into the same object as its `type`; there is no
 /// `config` wrapper.

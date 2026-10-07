@@ -10,6 +10,10 @@ use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 
+mod validate;
+
+pub use validate::check_feature_domains;
+
 pub type CarverSet = HolderSet<CarverConfig>;
 pub type FeatureSteps = Vec<HolderSet<PlacedFeature>>;
 
