@@ -1,10 +1,15 @@
+#[cfg(feature = "bevy")]
 use bevy_asset::AssetServer;
+#[cfg(feature = "bevy")]
 use bevy_asset::io::AssetSourceId;
+#[cfg(feature = "bevy")]
 use mcrs_minecraft_assets::asset::{CorpusReadError, read_json_corpus};
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_core::ResourceKey;
+#[cfg(feature = "bevy")]
+use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
+use mcrs_minecraft_item::definition::FORMAT_VERSION;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
-use mcrs_minecraft_item::definition::{CORPUS_DIRECTORY, FORMAT_VERSION};
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{ItemDefinitions, ItemEntry, ItemTableError};
 use mcrs_minecraft_registry::RegistrySet;
@@ -81,10 +86,12 @@ pub fn from_files(
 
 #[derive(Debug, thiserror::Error)]
 pub enum ItemCorpusError {
+    #[cfg(feature = "bevy")]
     #[error("no default asset source")]
     NoAssetSource,
     #[error("the registry set holds no item registry")]
     NoItemRegistry,
+    #[cfg(feature = "bevy")]
     #[error(transparent)]
     Corpus(#[from] CorpusReadError),
     #[error("`{path}` read as zero bytes")]
@@ -110,6 +117,7 @@ pub enum ItemCorpusError {
     DuplicateIdentifier { item: String, file: String },
 }
 
+#[cfg(feature = "bevy")]
 pub fn load_item_definitions(
     asset_server: &AssetServer,
     registries: &RegistrySet,

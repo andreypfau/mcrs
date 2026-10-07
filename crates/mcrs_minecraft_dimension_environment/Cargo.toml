@@ -10,15 +10,25 @@ doctest = false
 [dependencies]
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_dimension.workspace = true
-bevy_ecs.workspace = true
+bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 mcrs_minecraft_block.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_registry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+[features]
+default = []
+bevy = [
+    "dep:bevy_ecs",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_environment/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dev-dependencies]
+mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_testing.workspace = true

@@ -1,20 +1,22 @@
+#[cfg(feature = "bevy")]
 use bevy_ecs::prelude::Component;
 
 const SPRINT_SPEED_MULTIPLIER: f64 = 2.0;
 
-#[derive(Component, Default, Debug, Clone, Copy)]
-#[component(storage = "SparseSet")]
+#[derive(Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(Component), component(storage = "SparseSet"))]
 pub struct InstantBuild;
 
 /// Membership rather than a flag: `Abilities.flying` flips a handful of times a
 /// session, so the archetype split costs less than a boolean that every
 /// consumer of every entity has to read past.
-#[derive(Component, Default, Debug, Clone, Copy)]
-#[component(storage = "SparseSet")]
+#[derive(Default, Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(Component), component(storage = "SparseSet"))]
 pub struct Flying;
 
 /// `Abilities.flyingSpeed`, at its `Abilities.java` default.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(Component))]
 pub struct FlyingSpeed(pub f64);
 
 impl Default for FlyingSpeed {
