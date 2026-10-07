@@ -20,7 +20,9 @@ use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, VANILLA_PACK, layered_file_source, pack_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList;
-use mcrs_minecraft_biome_file::{BiomeFile, BiomeGenerationSettings, NetworkBiome};
+use mcrs_minecraft_biome_file::{
+    BiomeFile, BiomeGenerationSettings, NetworkBiome, check_feature_domains,
+};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
@@ -55,6 +57,7 @@ use mcrs_minecraft_registry::shared::share;
 use mcrs_minecraft_registry::{
     Entries, LoadReport, Pack, PackFile, Parts, Registry, RegistrySet, WorldRegistries,
 };
+use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -88,6 +91,7 @@ world_registry_table! {
         as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
         BiomeFile::split, BiomeFile::join,
         synced from parts as |parts| NetworkBiome::from(parts);
+    PlacedFeature => PlacedFeature;
     crate::chat_type::ChatType => ChatType, synced as Clone::clone;
     mcrs_minecraft_item::TrimPattern => TrimPattern, synced as Clone::clone;
     mcrs_minecraft_item::TrimMaterial => TrimMaterial, synced as Clone::clone;
@@ -207,6 +211,12 @@ pub fn world_registries(datapack_report: &[u8]) -> Result<WorldRegistries, LoadR
         world.validate::<Timeline>(
             mcrs_minecraft_environment::keys::TIMELINE.location(),
             check_time_markers,
+        );
+    }
+    if world.parses(mcrs_minecraft_biome::keys::BIOME.location().as_static_str()) {
+        world.validate::<BiomeGenerationSettings>(
+            mcrs_minecraft_biome::keys::BIOME.location(),
+            check_feature_domains,
         );
     }
     if undeclared.is_empty() {

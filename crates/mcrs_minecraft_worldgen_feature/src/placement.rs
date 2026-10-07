@@ -5,6 +5,7 @@ use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_block_predicate::provider::UnitFloat;
 use mcrs_minecraft_core::codec::{Bounded, PositiveInt, default_true, is_default, non_empty};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, HeightProvider};
+use std::ops::RangeInclusive;
 
 /// `Codec.INT.optionalFieldOf(name, DEFAULT)`.
 pub type IntOr<const DEFAULT: i32> = Bounded<{ i32::MIN }, { i32::MAX }, DEFAULT>;
@@ -135,6 +136,49 @@ mcrs_minecraft_registry::dispatch! {
 }
 
 impl<P> PlacementModifier<P> {
+    /// The horizontal block range, relative to the chunk's own corner, that
+    /// a position placed through this modifier can reach when it is handed
+    /// positions inside `domain`.
+    pub fn xz_domain(&self, domain: RangeInclusive<i32>) -> RangeInclusive<i32> {
+        use PlacementModifier::*;
+        let (min, max) = domain.into_inner();
+        match self {
+            InSquare {} | CountOnEveryLayer { .. } => min..=max + 15,
+            Cuboid { xz_size, .. } => min..=max + xz_size.bounds().1 - 1,
+            Offset { x, z, .. } => {
+                let (x, z) = (x.bounds(), z.bounds());
+                min + x.0.min(z.0)..=max + x.1.max(z.1)
+            }
+            RandomlySelected { placements } => placements
+                .iter()
+                .map(|placement| placement.xz_domain(min..=max))
+                .reduce(|a, b| *a.start().min(b.start())..=*a.end().max(b.end()))
+                .expect("a random selection holds a placement"),
+            FixedPlacement { positions } => {
+                let (min_section, max_section) = (min >> 4 << 4, max >> 4 << 4);
+                positions
+                    .iter()
+                    .map(|&[x, _, z]| (x & 15, z & 15))
+                    .map(|(x, z)| (min_section + x.min(z), max_section + x.max(z)))
+                    .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
+                    .map(|(low, high)| low..=high)
+                    .expect("a fixed placement holds a position")
+            }
+            BlockPredicateFilter { .. }
+            | RarityFilter { .. }
+            | RandomChance { .. }
+            | SurfaceRelativeThresholdFilter { .. }
+            | SurfaceWaterDepthFilter { .. }
+            | Biome {}
+            | Count { .. }
+            | NoiseBasedCount { .. }
+            | NoiseThresholdCount { .. }
+            | EnvironmentScan { .. }
+            | Heightmap { .. }
+            | HeightRange { .. } => min..=max,
+        }
+    }
+
     /// The same chain over another predicate type.
     pub fn try_map<Q, E>(
         &self,
@@ -246,4 +290,89 @@ pub enum DecorationStep {
     FluidSprings,
     VegetalDecoration,
     TopLayerModification,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SWING: &str = r#"{"type":"minecraft:uniform","min_inclusive":-16,"max_inclusive":16}"#;
+
+    #[test]
+    fn the_xz_domain_of_each_modifier_follows_the_reference() {
+        let square = r#"{"type":"minecraft:in_square"}"#;
+        let offset =
+            |x: &str, z: &str| format!(r#"{{"type":"minecraft:offset","x":{x},"y":0,"z":{z}}}"#);
+        let uniform = |low: i32, high: i32| {
+            format!(
+                r#"{{"type":"minecraft:uniform","min_inclusive":{low},"max_inclusive":{high}}}"#
+            )
+        };
+        let cuboid = |xz_size: &str| {
+            format!(r#"{{"type":"minecraft:cuboid","xz_size":{xz_size},"y_size":1}}"#)
+        };
+        let selected = |branches: &[&str]| {
+            format!(
+                r#"{{"type":"minecraft:randomly_selected","placements":[{}]}}"#,
+                branches.join(",")
+            )
+        };
+        let fixed = |positions: &str| {
+            format!(r#"{{"type":"minecraft:fixed_placement","positions":{positions}}}"#)
+        };
+        let filters = [
+            r#"{"type":"minecraft:rarity_filter","chance":4}"#,
+            r#"{"type":"minecraft:count","count":3}"#,
+            r#"{"type":"minecraft:heightmap","heightmap":"MOTION_BLOCKING"}"#,
+            r#"{"type":"minecraft:biome"}"#,
+            r#"{"type":"minecraft:surface_water_depth_filter","max_water_depth":0}"#,
+        ];
+
+        let cases: Vec<(String, (i32, i32))> = vec![
+            (String::new(), (0, 0)),
+            (square.into(), (0, 15)),
+            (format!("{square},{square}"), (0, 30)),
+            (
+                r#"{"type":"minecraft:count_on_every_layer","count":1}"#.into(),
+                (0, 15),
+            ),
+            (cuboid("1"), (0, 0)),
+            (cuboid(&uniform(1, 16)), (0, 15)),
+            (format!("{square},{}", cuboid("16")), (0, 30)),
+            (offset(&uniform(-3, 2), &uniform(-5, 7)), (-5, 7)),
+            (offset("-4", "-2"), (-4, -2)),
+            (offset("3", "5"), (3, 5)),
+            (
+                format!("{square},{}", offset(&uniform(-5, 7), "0")),
+                (-5, 22),
+            ),
+            (format!("{square},{}", offset(SWING, SWING)), (-16, 31)),
+            (selected(&[square, &offset("-7", "-7")]), (-7, 15)),
+            (
+                format!("{square},{}", selected(&[square, &offset("-7", "-7")])),
+                (-7, 30),
+            ),
+            (fixed("[[0,64,0],[17,64,5]]"), (0, 5)),
+            (
+                format!("{square},{square},{}", fixed("[[3,0,9],[-1,0,20]]")),
+                (3, 31),
+            ),
+            (
+                format!("{},{}", offset("-16", "-16"), fixed("[[1,0,2]]")),
+                (-15, -14),
+            ),
+            (format!("{square},{}", filters.join(",")), (0, 15)),
+        ];
+
+        mcrs_minecraft_worldgen_testing::corpus_set().scope(|| {
+            for (placement, expected) in cases {
+                let chain: Vec<PlacementModifier> = serde_json::from_str(&format!("[{placement}]"))
+                    .unwrap_or_else(|error| panic!("{placement}: {error}"));
+                let domain = chain
+                    .iter()
+                    .fold(0..=0, |domain, modifier| modifier.xz_domain(domain));
+                assert_eq!((*domain.start(), *domain.end()), expected, "{placement}");
+            }
+        });
+    }
 }

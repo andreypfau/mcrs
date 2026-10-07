@@ -167,10 +167,11 @@ fn the_declared_registries_are_the_reports_world_registries() {
     }
 }
 
-const PARSED_WORLDGEN: [&str; 4] = [
+const PARSED_WORLDGEN: [&str; 5] = [
     "minecraft:worldgen/biome",
     "minecraft:worldgen/block_state_provider",
     "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+    "minecraft:worldgen/placed_feature",
     "minecraft:worldgen/world_preset",
 ];
 
@@ -272,6 +273,40 @@ fn a_biome_naming_a_missing_carver_or_placed_feature_fails_the_load() {
         assert!(line.contains(registry), "{field}: {line}");
         assert!(line.contains("test:no_such_"), "{field}: {line}");
     }
+}
+
+#[test]
+fn a_biome_placing_a_feature_outside_the_allowed_range_fails_the_load() {
+    let in_square = r#"{"type":"minecraft:in_square"}"#;
+    let swing = r#"{"type":"minecraft:uniform","min_inclusive":-16,"max_inclusive":16}"#;
+    let placed = |placement: String| {
+        format!(r#"{{"feature":"minecraft:test_feature","placement":[{placement}]}}"#)
+    };
+    let far = placed(format!("{in_square},{in_square},{in_square}"));
+    let edge = placed(format!(
+        r#"{in_square},{{"type":"minecraft:offset","x":{swing},"y":0,"z":{swing}}}"#
+    ));
+    let biome = r##"{"temperature":0.5,"downfall":0.5,"has_precipitation":true,"effects":{"water_color":"#3f76e4"},
+        "features":[["minecraft:test_far","minecraft:test_edge"]]}"##;
+    let refused = load_text(&[
+        ("minecraft/worldgen/feature/test_feature.json", "{}"),
+        ("minecraft/worldgen/placed_feature/test_far.json", &far),
+        ("minecraft/worldgen/placed_feature/test_edge.json", &edge),
+        ("minecraft/worldgen/biome/test_biome.json", biome),
+    ]);
+    let line = refused
+        .lines()
+        .find(|line| line.contains("test_biome"))
+        .unwrap_or_else(|| panic!("no line names the biome: {refused}"));
+    assert!(
+        line.contains("cover too large domain in XZ plane, must be at most [-16, 31]"),
+        "{line}"
+    );
+    assert!(
+        line.contains("test_far (features[0][0]) has [0, 45]"),
+        "{line}"
+    );
+    assert!(!line.contains("test_edge"), "{line}");
 }
 
 #[test]
