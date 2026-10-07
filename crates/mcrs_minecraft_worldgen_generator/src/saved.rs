@@ -211,7 +211,8 @@ pub fn saved_block_entities(
             .filter(|compound| {
                 compound
                     .get_string("id")
-                    .is_some_and(|id| GeneratedBlockEntity::IDS.contains(&id))
+                    .and_then(GeneratedBlockEntity::kind_of)
+                    .is_some()
             })
             .map(GeneratedBlockEntity::from_compound)
             .collect()

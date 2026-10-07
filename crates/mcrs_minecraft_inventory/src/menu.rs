@@ -1,5 +1,6 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{HashedStack, RawStack};
 use mcrs_minecraft_registry::Id;
@@ -97,59 +98,37 @@ const fn own(own: u16) -> MenuSlots {
     }
 }
 
-const MENU_SLOTS: [Option<MenuSlots>; mcrs_minecraft_item::keys::MenuType::ENTRIES.len()] = {
-    let mut table = [None; mcrs_minecraft_item::keys::MenuType::ENTRIES.len()];
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x1.id().index()] = Some(own(9));
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x2.id().index()] = Some(own(18));
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x3.id().index()] = Some(own(27));
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x4.id().index()] = Some(own(36));
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x5.id().index()] = Some(own(45));
-    table[mcrs_minecraft_item::keys::MenuType::Generic9x6.id().index()] = Some(own(54));
-    table[mcrs_minecraft_item::keys::MenuType::Generic3x3.id().index()] = Some(own(9));
-    table[mcrs_minecraft_item::keys::MenuType::Crafter3x3.id().index()] = Some(MenuSlots {
-        own: 9,
-        player_slots: true,
-        trailing_result: true,
-    });
-    table[mcrs_minecraft_item::keys::MenuType::Anvil.id().index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::Beacon.id().index()] = Some(own(1));
-    table[mcrs_minecraft_item::keys::MenuType::BlastFurnace
-        .id()
-        .index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::BrewingStand
-        .id()
-        .index()] = Some(own(5));
-    table[mcrs_minecraft_item::keys::MenuType::Crafting.id().index()] = Some(own(10));
-    table[mcrs_minecraft_item::keys::MenuType::Enchantment
-        .id()
-        .index()] = Some(own(2));
-    table[mcrs_minecraft_item::keys::MenuType::Furnace.id().index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::Grindstone.id().index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::Hopper.id().index()] = Some(own(5));
-    table[mcrs_minecraft_item::keys::MenuType::Lectern.id().index()] = Some(MenuSlots {
-        own: 1,
-        player_slots: false,
-        trailing_result: false,
-    });
-    table[mcrs_minecraft_item::keys::MenuType::Loom.id().index()] = Some(own(4));
-    table[mcrs_minecraft_item::keys::MenuType::Merchant.id().index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::ShulkerBox.id().index()] = Some(own(27));
-    table[mcrs_minecraft_item::keys::MenuType::Smithing.id().index()] = Some(own(4));
-    table[mcrs_minecraft_item::keys::MenuType::Smoker.id().index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::CartographyTable
-        .id()
-        .index()] = Some(own(3));
-    table[mcrs_minecraft_item::keys::MenuType::Stonecutter
-        .id()
-        .index()] = Some(own(2));
-    table
-};
-
 /// Vanilla menus add their own slots first, then the player's main and hotbar
 /// rows; the lectern adds none of the player's and the crafter appends a
 /// non-interactive result slot after them.
-pub fn menu_slots(menu: Id<mcrs_minecraft_item::keys::MenuType>) -> Option<MenuSlots> {
-    MENU_SLOTS.get(menu.index()).copied().flatten()
+pub fn menu_slots(menu: Id<MenuType>) -> Option<MenuSlots> {
+    use MenuType::*;
+    Some(match MenuType::from_id(menu)? {
+        Generic9x1 | Generic3x3 => own(9),
+        Generic9x2 => own(18),
+        Generic9x3 | ShulkerBox => own(27),
+        Generic9x4 => own(36),
+        Generic9x5 => own(45),
+        Generic9x6 => own(54),
+        Crafter3x3 => MenuSlots {
+            own: 9,
+            player_slots: true,
+            trailing_result: true,
+        },
+        Anvil | BlastFurnace | Furnace | Grindstone | Merchant | Smoker | CartographyTable => {
+            own(3)
+        }
+        Beacon => own(1),
+        BrewingStand | Hopper => own(5),
+        Crafting => own(10),
+        Enchantment | Stonecutter => own(2),
+        Lectern => MenuSlots {
+            own: 1,
+            player_slots: false,
+            trailing_result: false,
+        },
+        Loom | Smithing => own(4),
+    })
 }
 
 /// The container's own slots, then the player's main and hotbar rows.

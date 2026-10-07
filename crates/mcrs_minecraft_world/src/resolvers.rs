@@ -8,7 +8,7 @@ type Insert = Box<dyn FnOnce(&mut World)>;
 type Resolver = Box<dyn Fn(&RegistrySet, &mut LoadReport) -> Option<Insert> + Send + Sync>;
 
 #[derive(Resource, Default)]
-pub struct RegistryResolvers(Vec<Resolver>);
+pub(crate) struct RegistryResolvers(Vec<Resolver>);
 
 pub trait AddRegistryResolver {
     fn add_registry_resolver<T: SharedResource>(

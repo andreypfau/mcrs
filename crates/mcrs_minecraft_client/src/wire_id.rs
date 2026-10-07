@@ -1,116 +1,63 @@
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::prelude::{
     Changed, Commands, IntoScheduleConfigs, Query, Res, Resource, resource_exists,
 };
+use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientNetworkSystems, ReceivedRegistries};
-use mcrs_minecraft_registry::{Id, RegistrySet};
-
-pub struct WireId<R> {
-    number: u16,
-    _marker: PhantomData<fn() -> R>,
-}
-
-impl<R> WireId<R> {
-    pub fn received(number: u16) -> Self {
-        WireId {
-            number,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn number(self) -> u16 {
-        self.number
-    }
-}
-
-impl<R> Clone for WireId<R> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<R> Copy for WireId<R> {}
-impl<R> PartialEq for WireId<R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.number == other.number
-    }
-}
-impl<R> Eq for WireId<R> {}
-impl<R> Hash for WireId<R> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.number.hash(state);
-    }
-}
-impl<R> fmt::Debug for WireId<R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WireId({})", self.number)
-    }
-}
-
-type Table<R> = Box<[Option<Id<R>>]>;
+use mcrs_minecraft_registry::{Id, Registered, RegistrySet};
 
 /// What the server's registry numbers mean in the local registries, mapped by name when
 /// configuration ends and replaced whole when it is entered again. `Id<R>` has no public
 /// constructor from a number, so this is the only way a received number becomes one.
 #[derive(Resource, Clone, Default)]
 pub struct WireIds {
-    tables: Arc<HashMap<TypeId, Box<dyn Any + Send + Sync>>>,
+    biomes: Option<Arc<[Option<Id<Biome>>]>>,
+    dimension_types: Option<Arc<[Option<Id<DimensionType>>]>>,
 }
 
 impl WireIds {
     pub fn build(received: &ReceivedRegistries, local: &RegistrySet) -> Self {
-        let mut tables = HashMap::new();
-        // chisle: only the registries whose numbers the client reads; one more is a line here
-        // when something starts decoding its numbers.
-        insert::<mcrs_minecraft_biome::Biome>(&mut tables, received, local);
-        insert::<DimensionType>(&mut tables, received, local);
         WireIds {
-            tables: Arc::new(tables),
+            biomes: table(received, local),
+            dimension_types: table(received, local),
         }
     }
 
-    pub fn get<R: mcrs_minecraft_registry::Registered>(&self, wire: WireId<R>) -> Option<Id<R>> {
-        self.table::<R>()?.get(usize::from(wire.number)).copied()?
+    pub fn biome(&self, number: u16) -> Option<Id<Biome>> {
+        self.biomes.as_ref()?.get(usize::from(number)).copied()?
     }
 
-    pub fn sent_len<R: mcrs_minecraft_registry::Registered>(&self) -> Option<usize> {
-        Some(self.table::<R>()?.len())
+    pub fn dimension_type(&self, number: u16) -> Option<Id<DimensionType>> {
+        self.dimension_types
+            .as_ref()?
+            .get(usize::from(number))
+            .copied()?
     }
 
-    fn table<R: mcrs_minecraft_registry::Registered>(&self) -> Option<&Table<R>> {
-        self.tables.get(&TypeId::of::<R>())?.downcast_ref()
+    pub fn sent_biomes(&self) -> Option<usize> {
+        Some(self.biomes.as_ref()?.len())
     }
 }
 
-fn insert<R: mcrs_minecraft_registry::Registered>(
-    tables: &mut HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+fn table<R: Registered>(
     received: &ReceivedRegistries,
     local: &RegistrySet,
-) {
-    let Some(registry) = local.registry::<R>() else {
-        return;
-    };
-    let Some(sent) = received
+) -> Option<Arc<[Option<Id<R>>]>> {
+    let registry = local.registry::<R>()?;
+    let sent = received
         .0
         .iter()
-        .find(|sent| sent.registry == R::REGISTRY.location().as_static_str())
-    else {
-        return;
-    };
-    let table: Table<R> = sent
-        .entries
-        .iter()
-        .map(|entry| registry.by_name(&entry.id))
-        .collect();
-    tables.insert(TypeId::of::<R>(), Box::new(table));
+        .find(|sent| sent.registry == R::REGISTRY.location().as_static_str())?;
+    Some(
+        sent.entries
+            .iter()
+            .map(|entry| registry.by_name(&entry.id))
+            .collect(),
+    )
 }
 
 pub struct WireIdPlugin;
@@ -209,15 +156,14 @@ mod tests {
         let local = local_biomes(&["minecraft:a", "minecraft:b"]);
         let received = received_biomes(&["minecraft:b", "minecraft:a", "minecraft:gone"]);
         let ids = WireIds::build(&received, &local);
-        let biomes = local.registry::<mcrs_minecraft_biome::Biome>().unwrap();
-        let wire = WireId::<mcrs_minecraft_biome::Biome>::received;
+        let biomes = local.registry::<Biome>().unwrap();
 
         assert!(biomes.by_name("minecraft:b").is_some());
-        assert_eq!(ids.get(wire(0)), biomes.by_name("minecraft:b"));
-        assert_eq!(ids.get(wire(1)), biomes.by_name("minecraft:a"));
-        assert_eq!(ids.get(wire(2)), None, "a name the local set lacks");
-        assert_eq!(ids.get(wire(3)), None, "past the list the server sent");
-        assert_eq!(ids.sent_len::<mcrs_minecraft_biome::Biome>(), Some(3));
+        assert_eq!(ids.biome(0), biomes.by_name("minecraft:b"));
+        assert_eq!(ids.biome(1), biomes.by_name("minecraft:a"));
+        assert_eq!(ids.biome(2), None, "a name the local set lacks");
+        assert_eq!(ids.biome(3), None, "past the list the server sent");
+        assert_eq!(ids.sent_biomes(), Some(3));
     }
 
     #[test]
@@ -244,10 +190,7 @@ mod tests {
 
         enter(&mut app, ConnectionState::Game);
         let ids = app.world().resource::<WireIds>();
-        assert!(
-            ids.get(WireId::<mcrs_minecraft_biome::Biome>::received(0))
-                .is_some()
-        );
+        assert!(ids.biome(0).is_some());
 
         enter(&mut app, ConnectionState::Configuration);
         assert!(!app.world().contains_resource::<WireIds>());
@@ -259,10 +202,7 @@ mod tests {
             &ReceivedRegistries::default(),
             &local_biomes(&["minecraft:a"]),
         );
-        assert_eq!(ids.sent_len::<mcrs_minecraft_biome::Biome>(), None);
-        assert_eq!(
-            ids.get(WireId::<mcrs_minecraft_biome::Biome>::received(0)),
-            None
-        );
+        assert_eq!(ids.sent_biomes(), None);
+        assert_eq!(ids.biome(0), None);
     }
 }

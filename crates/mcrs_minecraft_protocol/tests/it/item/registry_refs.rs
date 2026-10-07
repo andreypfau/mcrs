@@ -1,6 +1,5 @@
 use mcrs_minecraft_protocol::item::EncodeCtx;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 
 use mcrs_minecraft_item::keys::DataComponentType;

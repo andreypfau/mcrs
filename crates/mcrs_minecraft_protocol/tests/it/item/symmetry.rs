@@ -8,7 +8,6 @@ use mcrs_minecraft_protocol::item::{
     SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::Id;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;

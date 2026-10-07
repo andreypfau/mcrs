@@ -6,7 +6,6 @@ pub use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_core::codec::{
     Bounded, NonNegativeInt, default_true, float_value, int_value, is_default, optional_flag,
 };
-use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -24,8 +23,8 @@ pub use mcrs_minecraft_core::codec::{
     unsigned_byte,
 };
 
+use mcrs_minecraft_registry::HolderSet;
 pub use mcrs_minecraft_registry::holder::*;
-use mcrs_minecraft_registry::{HolderSet, Id, Registry, Tags};
 
 /// `{raw, filtered?}`, read leniently from a bare value.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -254,20 +253,19 @@ pub(crate) fn key<R>(path: &str) -> ResourceKey<R> {
     ResourceKey::from_location(ResourceLocation::minecraft(path).unwrap())
 }
 
-/// Vanilla writes a one-entry set as the bare entry unless it is told to
-/// always write a list.
-pub fn serialize_set<R: 'static, const ALWAYS_LIST: bool, S: Serializer>(
-    set: &HolderSet<R, ALWAYS_LIST>,
+/// Vanilla writes a one-entry set as the bare entry.
+pub fn serialize_set<R: 'static, S: Serializer>(
+    set: &HolderSet<R>,
     s: S,
 ) -> Result<S::Ok, S::Error> {
     match set {
-        HolderSet::List(entries) if !ALWAYS_LIST && entries.len() == 1 => entries[0].serialize(s),
+        HolderSet::List(entries) if entries.len() == 1 => entries[0].serialize(s),
         _ => set.serialize(s),
     }
 }
 
-pub fn serialize_optional_set<R: 'static, const ALWAYS_LIST: bool, S: Serializer>(
-    set: &Option<HolderSet<R, ALWAYS_LIST>>,
+pub fn serialize_optional_set<R: 'static, S: Serializer>(
+    set: &Option<HolderSet<R>>,
     s: S,
 ) -> Result<S::Ok, S::Error> {
     match set {
@@ -276,35 +274,12 @@ pub fn serialize_optional_set<R: 'static, const ALWAYS_LIST: bool, S: Serializer
     }
 }
 
-pub struct Folded<'a, R, const ALWAYS_LIST: bool = false>(pub &'a HolderSet<R, ALWAYS_LIST>);
+pub struct Folded<'a, R>(pub &'a HolderSet<R>);
 
-impl<R: 'static, const ALWAYS_LIST: bool> Serialize for Folded<'_, R, ALWAYS_LIST> {
+impl<R: 'static> Serialize for Folded<'_, R> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         serialize_set(self.0, s)
     }
-}
-
-pub fn entry<R: 'static>(path: &str) -> Id<R> {
-    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path).unwrap());
-    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&key))
-        .unwrap_or_else(|error| panic!("{error}"))
-        .unwrap_or_else(|error| panic!("{error}"))
-}
-
-pub fn tag_set<R: 'static, const ALWAYS_LIST: bool>(path: &str) -> HolderSet<R, ALWAYS_LIST> {
-    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path).unwrap());
-    let tag = Tags::<R>::in_scope("a sample tag", |tags| tags.get(&key))
-        .unwrap_or_else(|error| panic!("{error}"))
-        .unwrap_or_else(|| panic!("the sample registries hold no tag {path}"));
-    HolderSet::Named(tag)
-}
-
-pub fn one_set<R: 'static, const ALWAYS_LIST: bool>(path: &str) -> HolderSet<R, ALWAYS_LIST> {
-    HolderSet::One(entry(path))
-}
-
-pub fn list_set<R: 'static, const ALWAYS_LIST: bool>(paths: &[&str]) -> HolderSet<R, ALWAYS_LIST> {
-    HolderSet::List(paths.iter().map(|path| entry(path)).collect())
 }
 
 /// A map kept in the order read, refusing a repeated key.
@@ -428,6 +403,13 @@ impl<T> MinMaxBounds<T> {
 
     pub fn is_any(&self) -> bool {
         self.min.is_none() && self.max.is_none()
+    }
+
+    pub fn matches(&self, value: T) -> bool
+    where
+        T: PartialOrd + Copy,
+    {
+        !self.min.is_some_and(|min| min > value) && !self.max.is_some_and(|max| max < value)
     }
 }
 

@@ -106,44 +106,20 @@ impl<'de> Deserialize<'de> for Pattern {
     }
 }
 
-impl Pattern {
-    /// The rows with the blank border trimmed, as the grid matches them.
-    pub fn shrunk(&self) -> Vec<String> {
-        let rows: Vec<Vec<char>> = self.0.iter().map(|row| row.chars().collect()).collect();
-        let filled = |row: &Vec<char>| row.iter().any(|&c| c != ' ');
-        let Some(top) = rows.iter().position(filled) else {
-            return Vec::new();
-        };
-        let bottom = rows.iter().rposition(filled).unwrap_or(top);
-        let left = rows
-            .iter()
-            .filter_map(|row| row.iter().position(|&c| c != ' '))
-            .min()
-            .unwrap_or(0);
-        let right = rows
-            .iter()
-            .filter_map(|row| row.iter().rposition(|&c| c != ' '))
-            .max()
-            .unwrap_or(0);
-        rows[top..=bottom]
-            .iter()
-            .map(|row| row[left..=right].iter().collect())
-            .collect()
-    }
-}
-
 /// A shaped recipe's key and pattern agree: every symbol of the pattern is in
 /// the key, and every symbol of the key is used.
 pub fn check_pattern(key: &PatternKey, pattern: &Pattern) -> Result<(), String> {
-    let shrunk = pattern.shrunk();
-    if shrunk.is_empty() {
+    let mut symbols = pattern
+        .0
+        .iter()
+        .flat_map(|row| row.chars())
+        .filter(|&symbol| symbol != ' ')
+        .peekable();
+    if symbols.peek().is_none() {
         return Err("Invalid pattern: empty pattern not allowed".into());
     }
     let mut unused: Vec<char> = key.0.iter().map(|(symbol, _)| *symbol).collect();
-    for symbol in shrunk.iter().flat_map(|row| row.chars()) {
-        if symbol == ' ' {
-            continue;
-        }
+    for symbol in symbols {
         if key.get(symbol).is_none() {
             return Err(format!(
                 "Pattern references symbol '{symbol}' but it's not defined in the key"

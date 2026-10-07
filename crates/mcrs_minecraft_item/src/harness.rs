@@ -12,14 +12,14 @@ pub trait Sample: Sized {
 use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::IntArray;
-use mcrs_minecraft_core::{RegistryKey, ResourceLocation, rl};
+use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation, TagKey, rl};
 use mcrs_minecraft_nbt::{COMPOUND_ID, INT_ARRAY_ID, LIST_ID, STRING_ID};
 use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
 use mcrs_minecraft_registry::tags::TagSource;
-use mcrs_minecraft_registry::{Registry, RegistrySet, TagRules, build_tags};
+use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, TagRules, Tags, build_tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -102,18 +102,16 @@ impl Sample for Profile {
     }
 }
 
-type Name = ResourceLocation;
-
 fn registry_with_tags<R: 'static>(
     set: RegistrySet,
     key: RegistryKey<R>,
     names: &[&str],
     tags: &[(&str, &[&str])],
 ) -> RegistrySet {
-    let name = |path: &str| -> Name { ResourceLocation::minecraft(path).unwrap() };
+    let name = |path: &str| -> ResourceLocation { ResourceLocation::minecraft(path).unwrap() };
     let registry = Registry::new(key, names.iter().map(|path| name(path)))
         .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"));
-    let files: Vec<(Name, String)> = tags
+    let files: Vec<(ResourceLocation, String)> = tags
         .iter()
         .map(|(tag, members)| {
             let values: Vec<String> = members
@@ -126,7 +124,7 @@ fn registry_with_tags<R: 'static>(
             )
         })
         .collect();
-    let sources: Vec<(Name, Vec<TagSource<'_>>)> = files
+    let sources: Vec<(ResourceLocation, Vec<TagSource<'_>>)> = files
         .iter()
         .map(|(tag, json)| {
             let source = TagSource {
@@ -214,4 +212,27 @@ fn build_sample_registries() -> RegistrySet {
 pub fn sample_registries() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(build_sample_registries);
     &SET
+}
+
+pub fn entry<R: 'static>(path: &str) -> Id<R> {
+    let key = ResourceKey::<R>::from_location(ResourceLocation::minecraft(path).unwrap());
+    Registry::<R>::in_scope("a sample entry", |registry| registry.require(&key))
+        .unwrap_or_else(|error| panic!("{error}"))
+        .unwrap_or_else(|error| panic!("{error}"))
+}
+
+pub fn tag_set<R: 'static>(path: &str) -> HolderSet<R> {
+    let key = TagKey::<R, _>::from_location(ResourceLocation::minecraft(path).unwrap());
+    let tag = Tags::<R>::in_scope("a sample tag", |tags| tags.get(&key))
+        .unwrap_or_else(|error| panic!("{error}"))
+        .unwrap_or_else(|| panic!("the sample registries hold no tag {path}"));
+    HolderSet::Named(tag)
+}
+
+pub fn one_set<R: 'static>(path: &str) -> HolderSet<R> {
+    HolderSet::One(entry(path))
+}
+
+pub fn list_set<R: 'static>(paths: &[&str]) -> HolderSet<R> {
+    HolderSet::List(paths.iter().map(|path| entry(path)).collect())
 }

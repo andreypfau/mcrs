@@ -17,24 +17,6 @@ use crate::buffer::MapEntries;
 use crate::condition::LootCondition;
 use crate::provider::ScoreboardNameProvider;
 
-macro_rules! validated_inputs {
-    ($name:ident) => {
-        impl<'de, V: Provider> Deserialize<'de> for $name<V> {
-            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                let value = $name::<V>::deserialize(d)?;
-                value.check().map_err(D::Error::custom)?;
-                Ok(value)
-            }
-        }
-
-        impl<V: Provider> Serialize for $name<V> {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                $name::<V>::serialize(self, s)
-            }
-        }
-    };
-}
-
 /// A number a loot context computes, as an int or a float provider states it.
 pub trait Provider:
     RegistryValue + Clone + PartialEq + fmt::Debug + Serialize + DeserializeOwned + 'static
@@ -330,12 +312,21 @@ pub struct Unary<V: Provider> {
     pub input: Holder<V>,
 }
 
-validated_inputs!(Aggregate);
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields, bound = "")]
+#[serde(deny_unknown_fields, bound = "")]
 pub struct Aggregate<V: Provider> {
+    #[serde(deserialize_with = "non_empty_inputs")]
     pub inputs: HolderList<V>,
+}
+
+fn non_empty_inputs<'de, D: Deserializer<'de>, V: Provider>(
+    d: D,
+) -> Result<HolderList<V>, D::Error> {
+    let inputs = HolderList::deserialize(d)?;
+    if matches!(&inputs, HolderList::List(inputs) if inputs.is_empty()) {
+        return Err(D::Error::custom("inputs: must have at least 1 element"));
+    }
+    Ok(inputs)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -383,12 +374,21 @@ pub struct DispatchCase<V: Provider> {
     pub value: Holder<V>,
 }
 
-validated_inputs!(Distribution);
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields, bound = "")]
+#[serde(deny_unknown_fields, bound = "")]
 pub struct Distribution<V: Provider> {
+    #[serde(deserialize_with = "non_empty_distribution")]
     pub distribution: Vec<Weighted<Holder<V>>>,
+}
+
+fn non_empty_distribution<'de, D: Deserializer<'de>, V: Provider>(
+    d: D,
+) -> Result<Vec<Weighted<Holder<V>>>, D::Error> {
+    let distribution = Vec::deserialize(d)?;
+    if distribution.is_empty() {
+        return Err(D::Error::custom("distribution: must not be empty"));
+    }
+    Ok(distribution)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -539,7 +539,7 @@ macro_rules! range_predicate {
                         // A provider written inline is a map with a type; a range never has one.
                         let entries = MapEntries::read(map)?;
                         if entries.has("type") {
-                            entries.into_holder().map($name::Point)
+                            entries.into_value().map($name::Point)
                         } else {
                             let line: RangeLine<$provider> = entries.into_value()?;
                             Ok($name::Line {
@@ -568,59 +568,12 @@ struct RangeLine<V: Provider> {
 range_predicate!(IntRangePredicate, IntExpression);
 range_predicate!(FloatRangePredicate, FloatExpression);
 
-impl<V: Provider> Aggregate<V> {
-    fn check(&self) -> Result<(), String> {
-        match &self.inputs {
-            HolderList::List(inputs) if inputs.is_empty() => {
-                Err("inputs: must have at least 1 element".into())
-            }
-            _ => Ok(()),
-        }
-    }
-}
-
-impl<V: Provider> Distribution<V> {
-    fn check(&self) -> Result<(), String> {
-        if self.distribution.is_empty() {
-            Err("distribution: must not be empty".into())
-        } else {
-            Ok(())
-        }
-    }
-}
-
 impl IntExpression {
     /// The type of the expression at the root, the part an item can name.
     pub fn kind(&self) -> ContextIntProviderType {
         match self {
             IntExpression::Constant(_) => ContextIntProviderType::Constant,
-            IntExpression::Typed(typed) => match **typed {
-                TypedIntExpression::Constant(_) => ContextIntProviderType::Constant,
-                TypedIntExpression::Abs(_) => ContextIntProviderType::Abs,
-                TypedIntExpression::Average(_) => ContextIntProviderType::Avg,
-                TypedIntExpression::Binomial(_) => ContextIntProviderType::Binomial,
-                TypedIntExpression::Conditional(_) => ContextIntProviderType::Conditional,
-                TypedIntExpression::Difference(_) => ContextIntProviderType::Sub,
-                TypedIntExpression::EnvironmentAttribute(_) => {
-                    ContextIntProviderType::EnvironmentAttribute
-                }
-                TypedIntExpression::FromFloat(_) => ContextIntProviderType::FromFloat,
-                TypedIntExpression::Maximum(_) => ContextIntProviderType::Max,
-                TypedIntExpression::Minimum(_) => ContextIntProviderType::Min,
-                TypedIntExpression::FloorModulus(_) => ContextIntProviderType::FloorMod,
-                TypedIntExpression::FloorQuotient(_) => ContextIntProviderType::FloorDiv,
-                TypedIntExpression::Modulus(_) => ContextIntProviderType::Mod,
-                TypedIntExpression::Quotient(_) => ContextIntProviderType::Div,
-                TypedIntExpression::Negate(_) => ContextIntProviderType::Negate,
-                TypedIntExpression::NumberDispatcher(_) => ContextIntProviderType::NumberDispatcher,
-                TypedIntExpression::Power(_) => ContextIntProviderType::Pow,
-                TypedIntExpression::Product(_) => ContextIntProviderType::Mul,
-                TypedIntExpression::Score(_) => ContextIntProviderType::Score,
-                TypedIntExpression::Storage(_) => ContextIntProviderType::Storage,
-                TypedIntExpression::Sum(_) => ContextIntProviderType::Add,
-                TypedIntExpression::Uniform(_) => ContextIntProviderType::Uniform,
-                TypedIntExpression::WeightedList(_) => ContextIntProviderType::WeightedList,
-            },
+            IntExpression::Typed(typed) => typed.kind(),
         }
     }
 
@@ -643,42 +596,7 @@ impl FloatExpression {
     pub fn kind(&self) -> ContextFloatProviderType {
         match self {
             FloatExpression::Constant(_) => ContextFloatProviderType::Constant,
-            FloatExpression::Typed(typed) => match **typed {
-                TypedFloatExpression::Constant(_) => ContextFloatProviderType::Constant,
-                TypedFloatExpression::Abs(_) => ContextFloatProviderType::Abs,
-                TypedFloatExpression::Average(_) => ContextFloatProviderType::Avg,
-                TypedFloatExpression::Ceiling(_) => ContextFloatProviderType::Ceil,
-                TypedFloatExpression::Conditional(_) => ContextFloatProviderType::Conditional,
-                TypedFloatExpression::Cosine(_) => ContextFloatProviderType::Cos,
-                TypedFloatExpression::Difference(_) => ContextFloatProviderType::Sub,
-                TypedFloatExpression::EnchantmentLevel(_) => {
-                    ContextFloatProviderType::EnchantmentLevel
-                }
-                TypedFloatExpression::EnvironmentAttribute(_) => {
-                    ContextFloatProviderType::EnvironmentAttribute
-                }
-                TypedFloatExpression::Floor(_) => ContextFloatProviderType::Floor,
-                TypedFloatExpression::FromInt(_) => ContextFloatProviderType::FromInt,
-                TypedFloatExpression::Length(_) => ContextFloatProviderType::Length,
-                TypedFloatExpression::Maximum(_) => ContextFloatProviderType::Max,
-                TypedFloatExpression::Minimum(_) => ContextFloatProviderType::Min,
-                TypedFloatExpression::Modulus(_) => ContextFloatProviderType::Mod,
-                TypedFloatExpression::Negate(_) => ContextFloatProviderType::Negate,
-                TypedFloatExpression::NumberDispatcher(_) => {
-                    ContextFloatProviderType::NumberDispatcher
-                }
-                TypedFloatExpression::Power(_) => ContextFloatProviderType::Pow,
-                TypedFloatExpression::Product(_) => ContextFloatProviderType::Mul,
-                TypedFloatExpression::Quotient(_) => ContextFloatProviderType::Div,
-                TypedFloatExpression::Round(_) => ContextFloatProviderType::Round,
-                TypedFloatExpression::Sine(_) => ContextFloatProviderType::Sin,
-                TypedFloatExpression::SquareRoot(_) => ContextFloatProviderType::Sqrt,
-                TypedFloatExpression::Storage(_) => ContextFloatProviderType::Storage,
-                TypedFloatExpression::Sum(_) => ContextFloatProviderType::Add,
-                TypedFloatExpression::Truncate(_) => ContextFloatProviderType::Truncate,
-                TypedFloatExpression::Uniform(_) => ContextFloatProviderType::Uniform,
-                TypedFloatExpression::WeightedList(_) => ContextFloatProviderType::WeightedList,
-            },
+            FloatExpression::Typed(typed) => typed.kind(),
         }
     }
 

@@ -1,4 +1,3 @@
-use mcrs_minecraft_registry::DenseId;
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_inventory::{
     Click, Drag, Feed, MenuSnapshot, Op, Planner, SLOT_CLICKED_OUTSIDE, Slot, Source, StackKey,

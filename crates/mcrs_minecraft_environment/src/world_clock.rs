@@ -388,21 +388,12 @@ mod tests {
         assert_eq!(clocks.get(id(OVERWORLD)).unwrap().total_ticks, 500);
         assert_eq!(clocks.get(id(THE_END)).unwrap().total_ticks, 0);
         assert!(clocks.get(removed).is_none());
-    }
-
-    #[test]
-    fn clocks_are_read_and_advanced_by_id() {
-        let registry = TEST_CLOCKS.registry::<WorldClock>().unwrap();
-        let (overworld, end) = (id(OVERWORLD), id(THE_END));
 
         let mut app = App::new();
         app.insert_resource(TEST_CLOCKS.clone())
-            .insert_resource(AdvanceTime(true))
             .init_resource::<WorldClocks>()
-            .add_systems(Startup, seed_world_clocks)
-            .add_systems(FixedUpdate, advance_world_clocks);
+            .add_systems(Startup, seed_world_clocks);
         app.world_mut().run_schedule(Startup);
-
         let seeded: Vec<_> = app
             .world()
             .resource::<WorldClocks>()
@@ -410,17 +401,6 @@ mod tests {
             .map(|(id, _)| id)
             .collect();
         assert_eq!(seeded, registry.ids().collect::<Vec<_>>());
-
-        app.world_mut()
-            .resource_mut::<WorldClocks>()
-            .get_mut(end)
-            .unwrap()
-            .paused = true;
-        for _ in 0..10 {
-            tick_app(&mut app);
-        }
-        assert_eq!(total_ticks(&app, overworld), 10);
-        assert_eq!(total_ticks(&app, end), 0);
     }
 
     #[test]

@@ -6,9 +6,10 @@ use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
+use crate::component::common::{Holder, serialize_optional_set};
 use crate::component::registry_ref::null_as_default;
 use crate::harness::Sample;
+use crate::harness::{list_set, one_set, tag_set};
 use mcrs_minecraft_sound::SoundEvent;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

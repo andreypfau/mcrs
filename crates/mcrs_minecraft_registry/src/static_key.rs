@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(Fruit::from_id(Fruit::Apple.id()), Some(Fruit::Apple));
         assert_eq!(Fruit::find("minecraft:zebra"), Some(Fruit::Zebra));
         assert_eq!(Fruit::find("minecraft:mango"), None);
-        let beyond: Id<Fruit> = crate::bitset::DenseId::from_raw(2);
+        let beyond: Id<Fruit> = Id::from_raw(2);
         assert_eq!(Fruit::from_id(beyond), None);
         assert_eq!(Fruit::from_protocol_id(1), Some(Fruit::Apple));
         assert_eq!(Fruit::from_protocol_id(2), None);
@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(fixed::at(fixed::STONE.id()), Some(fixed::STONE));
         assert_eq!(fixed::find("minecraft:air"), Some(fixed::AIR));
         assert_eq!(fixed::find("minecraft:dirt"), None);
-        let beyond: Id<Fixed> = crate::bitset::DenseId::from_raw(2);
+        let beyond: Id<Fixed> = Id::from_raw(2);
         assert_eq!(fixed::at(beyond), None);
     }
 }

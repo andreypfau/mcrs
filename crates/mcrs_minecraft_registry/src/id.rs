@@ -72,6 +72,11 @@ impl<R> Id<R> {
     }
 
     #[doc(hidden)]
+    pub const fn from_raw(raw: u16) -> Self {
+        Self::from_number(raw)
+    }
+
+    #[doc(hidden)]
     pub const fn from_static_position(position: u16) -> Self {
         Self::from_number(position)
     }
@@ -104,13 +109,22 @@ impl fmt::Display for NarrowError {
 
 impl std::error::Error for NarrowError {}
 
-impl<R: 'static> Id<R> {
-    pub fn narrow<N: TryFrom<u16>>(self) -> Result<N, NarrowError> {
+impl<R> Id<R> {
+    pub(crate) fn narrow_in<N: TryFrom<u16>>(
+        self,
+        registry: impl FnOnce() -> String,
+    ) -> Result<N, NarrowError> {
         N::try_from(self.number).map_err(|_| NarrowError {
-            registry: crate::set::label::<R>(),
+            registry: registry(),
             id: self.number,
             bits: (std::mem::size_of::<N>() * 8) as u32,
         })
+    }
+}
+
+impl<R: 'static> Id<R> {
+    pub fn narrow<N: TryFrom<u16>>(self) -> Result<N, NarrowError> {
+        self.narrow_in(crate::set::label::<R>)
     }
 }
 

@@ -463,24 +463,16 @@ fn apply_saved_clocks(
 }
 
 fn log_registry_counts(registries: Res<RegistrySet>) {
-    let loaded = |registry: &str| registries.table(registry).map_or(0, |table| table.len());
+    fn count<R: 'static>(registries: &RegistrySet) -> usize {
+        registries
+            .registry::<R>()
+            .map_or(0, |registry| registry.len())
+    }
     info!(
-        dimension_types = loaded(
-            mcrs_minecraft_dimension::keys::DIMENSION_TYPE
-                .location()
-                .as_static_str()
-        ),
-        biomes = loaded(mcrs_minecraft_biome::keys::BIOME.location().as_static_str()),
-        timelines = loaded(
-            mcrs_minecraft_environment::keys::TIMELINE
-                .location()
-                .as_static_str()
-        ),
-        world_clocks = loaded(
-            mcrs_minecraft_environment::keys::WORLD_CLOCK
-                .location()
-                .as_static_str()
-        ),
+        dimension_types = count::<mcrs_minecraft_dimension::DimensionType>(&registries),
+        biomes = count::<mcrs_minecraft_biome::Biome>(&registries),
+        timelines = count::<mcrs_minecraft_environment::timeline::Timeline>(&registries),
+        world_clocks = count::<WorldClock>(&registries),
         "registry assets loaded"
     );
 }

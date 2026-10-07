@@ -8,9 +8,10 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
-    Folded, Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance, list_set, one_set,
+    Folded, Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance,
 };
 use crate::harness::Sample;
+use crate::harness::{list_set, one_set};
 use mcrs_minecraft_sound::SoundEvent;
 
 /// A ranged float field with vanilla's error wording; the bounds order `-0.0`

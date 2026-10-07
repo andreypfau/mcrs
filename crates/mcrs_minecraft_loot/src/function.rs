@@ -2,7 +2,7 @@ use std::fmt;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{
-    BoundedString, CompactList, NonNegativeInt, Validate, default_true, is_true,
+    BoundedString, CompactList, NonNegativeInt, Validate, default_true, is_default, is_true,
 };
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, validated};
@@ -16,6 +16,7 @@ use mcrs_minecraft_item::keys::{DataComponentType, Item, MapDecorationType, MobE
 use mcrs_minecraft_item::loot::LootTable;
 use mcrs_minecraft_item::patch::ComponentPatch;
 use mcrs_minecraft_item::{AttributeOperation, InstrumentValue, Text};
+use mcrs_minecraft_predicate::UniqueMap;
 use mcrs_minecraft_registry::{Holder, HolderList, HolderSet, Id};
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::de::{Error as _, MapAccess, SeqAccess, Visitor, value};
@@ -246,51 +247,7 @@ function! {
 }
 
 /// Levels by enchantment, in the order read.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Enchantments(pub Vec<(Id<EnchantmentData>, Holder<IntExpression>)>);
-
-impl Enchantments {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl Serialize for Enchantments {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(self.0.len()))?;
-        for (enchantment, level) in &self.0 {
-            map.serialize_entry(enchantment, level)?;
-        }
-        map.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Enchantments {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct EnchantmentsVisitor;
-
-        impl<'de> Visitor<'de> for EnchantmentsVisitor {
-            type Value = Enchantments;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a map of enchantments to levels")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Enchantments, A::Error> {
-                let mut entries: Vec<(Id<EnchantmentData>, Holder<IntExpression>)> = Vec::new();
-                while let Some(enchantment) = map.next_key::<Id<EnchantmentData>>()? {
-                    if entries.iter().any(|(seen, _)| *seen == enchantment) {
-                        return Err(A::Error::custom("Duplicate enchantment"));
-                    }
-                    entries.push((enchantment, map.next_value()?));
-                }
-                Ok(Enchantments(entries))
-            }
-        }
-
-        d.deserialize_map(EnchantmentsVisitor)
-    }
-}
+pub type Enchantments = UniqueMap<Id<EnchantmentData>, Holder<IntExpression>>;
 
 function! {
     pub struct SetCustomData {
@@ -315,13 +272,9 @@ function! {
     pub struct EnchantedCountIncrease {
         pub enchantment: Id<EnchantmentData>,
         pub count: Holder<FloatExpression>,
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default, skip_serializing_if = "is_default")]
         pub limit: i32,
     }
-}
-
-fn is_zero(value: &i32) -> bool {
-    *value == 0
 }
 
 function! {
@@ -376,7 +329,7 @@ function! {
         pub name: Option<Text>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub entity: Option<EntityTarget>,
-        #[serde(default, skip_serializing_if = "mcrs_minecraft_core::codec::is_default")]
+        #[serde(default, skip_serializing_if = "is_default")]
         pub target: NameTarget,
     }
 }
@@ -509,9 +462,9 @@ pub struct IntLimit {
 /// and parameterised by `parameters` where the formula takes any.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BonusFormula {
-    BinomialWithBonusCount { extra: i32, probability: f32 },
+    BinomialWithBonusCount(BinomialParameters),
     OreDrops,
-    UniformBonusCount { bonus_multiplier: i32 },
+    UniformBonusCount(UniformParameters),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -521,18 +474,18 @@ pub struct ApplyBonus {
     pub formula: BonusFormula,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct BinomialParameters {
-    extra: i32,
-    probability: f32,
+pub struct BinomialParameters {
+    pub extra: i32,
+    pub probability: f32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct UniformParameters {
+pub struct UniformParameters {
     #[serde(rename = "bonusMultiplier")]
-    bonus_multiplier: i32,
+    pub bonus_multiplier: i32,
 }
 
 #[derive(Deserialize)]
@@ -554,25 +507,14 @@ impl Serialize for ApplyBonus {
         }
         map.serialize_entry("enchantment", &self.enchantment)?;
         match &self.formula {
-            BonusFormula::BinomialWithBonusCount { extra, probability } => {
+            BonusFormula::BinomialWithBonusCount(parameters) => {
                 map.serialize_entry("formula", "minecraft:binomial_with_bonus_count")?;
-                map.serialize_entry(
-                    "parameters",
-                    &BinomialParameters {
-                        extra: *extra,
-                        probability: *probability,
-                    },
-                )?;
+                map.serialize_entry("parameters", parameters)?;
             }
             BonusFormula::OreDrops => map.serialize_entry("formula", "minecraft:ore_drops")?,
-            BonusFormula::UniformBonusCount { bonus_multiplier } => {
+            BonusFormula::UniformBonusCount(parameters) => {
                 map.serialize_entry("formula", "minecraft:uniform_bonus_count")?;
-                map.serialize_entry(
-                    "parameters",
-                    &UniformParameters {
-                        bonus_multiplier: *bonus_multiplier,
-                    },
-                )?;
+                map.serialize_entry("parameters", parameters)?;
             }
         }
         map.end()
@@ -590,22 +532,15 @@ impl<'de> Deserialize<'de> for ApplyBonus {
         };
         let formula = match repr.formula.as_str() {
             "minecraft:binomial_with_bonus_count" => {
-                let p = BinomialParameters::deserialize(
+                BonusFormula::BinomialWithBonusCount(BinomialParameters::deserialize(
                     parameters("binomial_with_bonus_count")?.into_deserializer(),
-                )?;
-                BonusFormula::BinomialWithBonusCount {
-                    extra: p.extra,
-                    probability: p.probability,
-                }
+                )?)
             }
             "minecraft:ore_drops" => BonusFormula::OreDrops,
             "minecraft:uniform_bonus_count" => {
-                let p = UniformParameters::deserialize(
+                BonusFormula::UniformBonusCount(UniformParameters::deserialize(
                     parameters("uniform_bonus_count")?.into_deserializer(),
-                )?;
-                BonusFormula::UniformBonusCount {
-                    bonus_multiplier: p.bonus_multiplier,
-                }
+                )?)
             }
             other => {
                 return Err(D::Error::custom(format_args!(
@@ -624,13 +559,9 @@ impl<'de> Deserialize<'de> for ApplyBonus {
 function! {
     pub struct SetLootTable {
         pub loot_table_id: ResourceKey<LootTable>,
-        #[serde(default, skip_serializing_if = "is_zero_long")]
+        #[serde(default, skip_serializing_if = "is_default")]
         pub seed: i64,
     }
-}
-
-fn is_zero_long(value: &i64) -> bool {
-    *value == 0
 }
 
 function! {
@@ -786,48 +717,7 @@ function! {
 }
 
 /// Whether each component shows in the tooltip, in the order read.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Toggles(pub Vec<(DataComponentType, bool)>);
-
-impl Serialize for Toggles {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(self.0.len()))?;
-        for (component, shown) in &self.0 {
-            map.serialize_entry(component, shown)?;
-        }
-        map.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Toggles {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct TogglesVisitor;
-
-        impl<'de> Visitor<'de> for TogglesVisitor {
-            type Value = Toggles;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a map of components to booleans")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Toggles, A::Error> {
-                let mut entries: Vec<(DataComponentType, bool)> = Vec::new();
-                while let Some(component) = map.next_key::<DataComponentType>()? {
-                    if entries.iter().any(|(seen, _)| *seen == component) {
-                        return Err(A::Error::custom(format_args!(
-                            "Duplicate key '{}'",
-                            component.as_static_str()
-                        )));
-                    }
-                    entries.push((component, map.next_value()?));
-                }
-                Ok(Toggles(entries))
-            }
-        }
-
-        d.deserialize_map(TogglesVisitor)
-    }
-}
+pub type Toggles = UniqueMap<DataComponentType, bool>;
 
 function! {
     pub struct SetOminousBottleAmplifier {

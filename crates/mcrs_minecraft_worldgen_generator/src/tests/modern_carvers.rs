@@ -166,15 +166,10 @@ fn carvers_by_biome() -> (
             .collect();
     let registry = super::corpus_biomes();
     let lists = registry
-        .ids()
-        .map(|id| {
-            let name = mcrs_minecraft_core::ResourceLocation::read(
-                registry
-                    .name(id)
-                    .expect("an id of the registry has a name")
-                    .as_str(),
-            )
-            .expect("a corpus biome id");
+        .iter()
+        .map(|(_, name)| {
+            let name = mcrs_minecraft_core::ResourceLocation::read(name.as_str())
+                .expect("a corpus biome id");
             mcrs_minecraft_worldgen_testing::names_of(&biomes[&name].carvers)
                 .iter()
                 .map(|carver| {

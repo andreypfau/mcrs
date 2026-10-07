@@ -35,13 +35,13 @@ pub fn skipping_sets() -> bool {
     WALKING.get()
 }
 
-pub enum HolderSet<R, const ALWAYS_LIST: bool = false> {
+pub enum HolderSet<R> {
     Named(TagId<R>),
     One(Id<R>),
     List(Box<[Id<R>]>),
 }
 
-impl<R, const ALWAYS_LIST: bool> HolderSet<R, ALWAYS_LIST> {
+impl<R> HolderSet<R> {
     pub fn tag(&self) -> Option<TagId<R>> {
         match self {
             HolderSet::Named(tag) => Some(*tag),
@@ -73,13 +73,13 @@ impl<R, const ALWAYS_LIST: bool> HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> Default for HolderSet<R, ALWAYS_LIST> {
+impl<R> Default for HolderSet<R> {
     fn default() -> Self {
         HolderSet::List(Box::new([]))
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> Clone for HolderSet<R, ALWAYS_LIST> {
+impl<R> Clone for HolderSet<R> {
     fn clone(&self) -> Self {
         match self {
             HolderSet::Named(tag) => HolderSet::Named(*tag),
@@ -89,7 +89,7 @@ impl<R, const ALWAYS_LIST: bool> Clone for HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> fmt::Debug for HolderSet<R, ALWAYS_LIST> {
+impl<R> fmt::Debug for HolderSet<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             HolderSet::Named(tag) => f.debug_tuple("Named").field(tag).finish(),
@@ -99,7 +99,7 @@ impl<R, const ALWAYS_LIST: bool> fmt::Debug for HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> PartialEq for HolderSet<R, ALWAYS_LIST> {
+impl<R> PartialEq for HolderSet<R> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (HolderSet::Named(a), HolderSet::Named(b)) => a == b,
@@ -112,9 +112,9 @@ impl<R, const ALWAYS_LIST: bool> PartialEq for HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R, const ALWAYS_LIST: bool> Eq for HolderSet<R, ALWAYS_LIST> {}
+impl<R> Eq for HolderSet<R> {}
 
-impl<R, const ALWAYS_LIST: bool> Hash for HolderSet<R, ALWAYS_LIST> {
+impl<R> Hash for HolderSet<R> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             HolderSet::Named(tag) => tag.hash(state),
@@ -124,7 +124,7 @@ impl<R, const ALWAYS_LIST: bool> Hash for HolderSet<R, ALWAYS_LIST> {
     }
 }
 
-impl<R: 'static, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST> {
+impl<R: 'static> Serialize for HolderSet<R> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             HolderSet::Named(tag) => {
@@ -132,12 +132,7 @@ impl<R: 'static, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST
                     .map_err(S::Error::custom)?;
                 serializer.serialize_str(&format!("#{}", name.as_str()))
             }
-            HolderSet::One(entry) if !ALWAYS_LIST => entry.serialize(serializer),
-            HolderSet::One(entry) => {
-                let mut seq = serializer.serialize_seq(Some(1))?;
-                seq.serialize_element(entry)?;
-                seq.end()
-            }
+            HolderSet::One(entry) => entry.serialize(serializer),
             HolderSet::List(entries) => {
                 let mut seq = serializer.serialize_seq(Some(entries.len()))?;
                 for entry in entries {
@@ -149,19 +144,15 @@ impl<R: 'static, const ALWAYS_LIST: bool> Serialize for HolderSet<R, ALWAYS_LIST
     }
 }
 
-impl<'de, R: 'static, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSet<R, ALWAYS_LIST> {
+impl<'de, R: 'static> Deserialize<'de> for HolderSet<R> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct SetVisitor<R, const ALWAYS_LIST: bool>(PhantomData<fn() -> R>);
+        struct SetVisitor<R>(PhantomData<fn() -> R>);
 
-        impl<'de, R: 'static, const ALWAYS_LIST: bool> Visitor<'de> for SetVisitor<R, ALWAYS_LIST> {
-            type Value = HolderSet<R, ALWAYS_LIST>;
+        impl<'de, R: 'static> Visitor<'de> for SetVisitor<R> {
+            type Value = HolderSet<R>;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str(if ALWAYS_LIST {
-                    "a tag or a list of entries"
-                } else {
-                    "a tag, an entry, or a list of entries"
-                })
+                f.write_str("a tag, an entry, or a list of entries")
             }
 
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Self::Value, E> {
@@ -169,9 +160,6 @@ impl<'de, R: 'static, const ALWAYS_LIST: bool> Deserialize<'de> for HolderSet<R,
                     return Ok(HolderSet::default());
                 }
                 let Some(tag) = text.strip_prefix('#') else {
-                    if ALWAYS_LIST {
-                        return Err(E::custom(format_args!("Not a tag id: {text}")));
-                    }
                     return Id::deserialize(value::StrDeserializer::new(text)).map(HolderSet::One);
                 };
                 let key =
@@ -220,7 +208,6 @@ mod tests {
 
     type Name = ResourceLocation<Arc<str>>;
     type Set = HolderSet<Marker>;
-    type Listed = HolderSet<Marker, true>;
 
     fn name(text: &str) -> Name {
         ResourceLocation::read(text).unwrap()
@@ -305,19 +292,6 @@ mod tests {
                 serde_json::to_string(&short).unwrap(),
                 r##""#minecraft:x""##
             );
-
-            let listed: Listed = serde_json::from_str(r#"["minecraft:a"]"#).unwrap();
-            assert_eq!(listed, Listed::List(Box::new([a])));
-            let named: Listed = serde_json::from_str(r##""#x""##).unwrap();
-            assert_eq!(named, Listed::Named(tag(&tags, "minecraft:x")));
-            assert_eq!(
-                serde_json::to_string(&Listed::One(a)).unwrap(),
-                r#"["minecraft:a"]"#
-            );
-            let message = serde_json::from_str::<Listed>(r#""minecraft:a""#)
-                .unwrap_err()
-                .to_string();
-            assert!(message.contains("Not a tag id"), "{message}");
         });
     }
 

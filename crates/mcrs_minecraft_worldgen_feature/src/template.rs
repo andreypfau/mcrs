@@ -184,26 +184,6 @@ mcrs_minecraft_registry::dispatch! {
     wildcard unsupported
 }
 
-impl EntityKind {
-    pub const IDS: [&'static str; 15] = [
-        mcrs_minecraft_entity::keys::EntityType::Allay.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ArmorStand.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Camel.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Cat.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Cow.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Cushion.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Hoglin.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Horse.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::IronGolem.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Pig.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Piglin.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::PiglinBrute.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Sheep.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Villager.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ZombieVillager.as_static_str(),
-    ];
-}
-
 #[derive(Deserialize)]
 struct EntityTag {
     #[serde(rename = "Rotation", default)]
@@ -1561,7 +1541,13 @@ mod tests {
                 }));
             }
             assert_eq!(count, 288);
-            assert_eq!(found.into_iter().collect::<Vec<_>>(), EntityKind::IDS);
+            assert_eq!(
+                found.into_iter().collect::<Vec<_>>(),
+                EntityKind::KINDS
+                    .iter()
+                    .map(|kind| kind.as_static_str())
+                    .collect::<Vec<_>>()
+            );
         }
     }
 }

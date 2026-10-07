@@ -1,6 +1,6 @@
 use std::fmt;
 
-use mcrs_minecraft_core::codec::Validate;
+use mcrs_minecraft_core::codec::{Validate, is_default};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_environment::attribute::Operation;
 use mcrs_minecraft_environment::attribute::spec::{AttributeSpec, AttributeValue, attribute};
@@ -9,13 +9,15 @@ use mcrs_minecraft_environment::world_clock::WorldClock;
 use mcrs_minecraft_item::component::predicate::{BlockPredicate, ItemPredicate};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
 use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
-use mcrs_minecraft_predicate::{DamageSourcePredicate, EntityPredicate, LocationPredicate};
+use mcrs_minecraft_predicate::{
+    DamageSourcePredicate, EntityPredicate, LocationPredicate, UniqueMap,
+};
 use mcrs_minecraft_registry::{Holder, HolderList, Id};
-use serde::de::{Error as _, MapAccess, Visitor};
+use serde::de::{DeserializeSeed, Error as _, IntoDeserializer, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::buffer::{MapEntries, read_seeded};
+use crate::buffer::MapEntries;
 use crate::number::{FloatExpression, FloatRangePredicate, IntExpression, IntRangePredicate};
 
 /// A test of the loot context, registered in `predicate` or written inline.
@@ -143,47 +145,7 @@ pub struct EntityScores {
     pub entity: EntityTarget,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Scores(pub Vec<(String, IntRangePredicate)>);
-
-impl Serialize for Scores {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(self.0.len()))?;
-        for (objective, range) in &self.0 {
-            map.serialize_entry(objective, range)?;
-        }
-        map.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Scores {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct ScoresVisitor;
-
-        impl<'de> Visitor<'de> for ScoresVisitor {
-            type Value = Scores;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a map of objectives to ranges")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Scores, A::Error> {
-                let mut scores: Vec<(String, IntRangePredicate)> = Vec::new();
-                while let Some(objective) = map.next_key::<String>()? {
-                    if scores.iter().any(|(seen, _)| *seen == objective) {
-                        return Err(A::Error::custom(format_args!(
-                            "Duplicate key '{objective}'"
-                        )));
-                    }
-                    scores.push((objective, map.next_value()?));
-                }
-                Ok(Scores(scores))
-            }
-        }
-
-        d.deserialize_map(ScoresVisitor)
-    }
-}
+pub type Scores = UniqueMap<String, IntRangePredicate>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -223,16 +185,12 @@ pub struct DamageSourceProperties {
 pub struct LocationCheck {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predicate: Option<LocationPredicate>,
-    #[serde(rename = "offsetX", default, skip_serializing_if = "is_zero")]
+    #[serde(rename = "offsetX", default, skip_serializing_if = "is_default")]
     pub offset_x: i32,
-    #[serde(rename = "offsetY", default, skip_serializing_if = "is_zero")]
+    #[serde(rename = "offsetY", default, skip_serializing_if = "is_default")]
     pub offset_y: i32,
-    #[serde(rename = "offsetZ", default, skip_serializing_if = "is_zero")]
+    #[serde(rename = "offsetZ", default, skip_serializing_if = "is_default")]
     pub offset_z: i32,
-}
-
-fn is_zero(value: &i32) -> bool {
-    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -322,15 +280,16 @@ impl<'de> Deserialize<'de> for EnvironmentAttributeCheck {
                 let attribute = entries
                     .take("attribute")
                     .ok_or_else(|| A::Error::missing_field("attribute"))?;
-                let attribute: EnvironmentAttribute =
-                    read_seeded(std::marker::PhantomData::<EnvironmentAttribute>, attribute)?;
+                let attribute = EnvironmentAttribute::deserialize(
+                    IntoDeserializer::<A::Error>::into_deserializer(attribute),
+                )?;
                 let value = entries
                     .take("value")
                     .ok_or_else(|| A::Error::missing_field("value"))?;
-                let value = read_seeded(spec_of(attribute).value_seed(), value)?;
-                let rest: std::collections::BTreeMap<String, serde::de::IgnoredAny> =
-                    entries.into_value()?;
-                if let Some(unknown) = rest.keys().next() {
+                let value = spec_of(attribute)
+                    .value_seed()
+                    .deserialize(IntoDeserializer::<A::Error>::into_deserializer(value))?;
+                if let Some((unknown, _)) = entries.0.first() {
                     return Err(A::Error::unknown_field(unknown, &["attribute", "value"]));
                 }
                 Ok(EnvironmentAttributeCheck { attribute, value })

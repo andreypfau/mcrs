@@ -4,9 +4,10 @@ use mcrs_minecraft_core::rl;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly, entry};
+use crate::component::common::{Holder, HolderWireOnly};
 use crate::component::consume::{non_negative_float, positive_float};
 use crate::harness::Sample;
+use crate::harness::entry;
 use mcrs_minecraft_sound::SoundEvent;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

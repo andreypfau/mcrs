@@ -1,4 +1,5 @@
-use mcrs_minecraft_worldgen_structure::spawn_condition::{DoubleBounds, SpawnSelector};
+use mcrs_minecraft_item::component::common::MinMaxBounds;
+use mcrs_minecraft_worldgen_structure::spawn_condition::SpawnSelector;
 use mcrs_minecraft_worldgen_testing::corpus_set;
 use serde::Serialize;
 
@@ -10,10 +11,10 @@ fn bounds_and_selectors_write_back_as_read() {
         serde_json::to_string(&serde_json::from_str::<T>(json).unwrap()).unwrap()
     }
     let cases: &[Case] = &[
-        (codec::<DoubleBounds>, "0.9"),
-        (codec::<DoubleBounds>, r#"{"min":0.9}"#),
-        (codec::<DoubleBounds>, r#"{"min":0.1,"max":0.5}"#),
-        (codec::<DoubleBounds>, "{}"),
+        (codec::<MinMaxBounds<f64>>, "0.9"),
+        (codec::<MinMaxBounds<f64>>, r#"{"min":0.9}"#),
+        (codec::<MinMaxBounds<f64>>, r#"{"min":0.1,"max":0.5}"#),
+        (codec::<MinMaxBounds<f64>>, "{}"),
         (codec::<SpawnSelector>, r#"{"priority":0}"#),
         (
             codec::<SpawnSelector>,
@@ -25,5 +26,5 @@ fn bounds_and_selectors_write_back_as_read() {
             assert_eq!(codec(json), *json);
         }
     });
-    assert!(serde_json::from_str::<DoubleBounds>(r#"{"min":2,"max":1}"#).is_err());
+    assert!(serde_json::from_str::<MinMaxBounds<f64>>(r#"{"min":2,"max":1}"#).is_err());
 }

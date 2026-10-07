@@ -11,8 +11,6 @@ use mcrs_minecraft_registry::{Holder, HolderSet, Id};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-const AIR_INDEX: usize = 0;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TradeSet {
@@ -103,7 +101,7 @@ impl<'de> Deserialize<'de> for GivenStack {
 
 fn item_id<'de, D: Deserializer<'de>>(d: D) -> Result<Id<Item>, D::Error> {
     let id = Id::<Item>::deserialize(d)?;
-    if id.index() == AIR_INDEX {
+    if id == Item::Air.id() {
         return Err(D::Error::custom("Item must not be minecraft:air"));
     }
     Ok(id)

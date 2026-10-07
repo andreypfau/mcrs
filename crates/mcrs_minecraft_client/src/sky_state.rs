@@ -5,6 +5,7 @@ use mcrs_minecraft_dimension_environment::environment::{
     EnvironmentAttributes, EnvironmentContext,
 };
 use mcrs_minecraft_environment::attribute::AttributeValue;
+use mcrs_minecraft_environment::keys::EnvironmentAttribute;
 
 use mcrs_minecraft_render::sky::SkyEffects;
 
@@ -61,96 +62,31 @@ impl SkyField {
         SkyField::WaterFogStartDistance,
     ];
 
-    pub fn attribute(self) -> &'static str {
+    pub fn attribute(self) -> EnvironmentAttribute {
+        use EnvironmentAttribute as A;
         match self {
-            SkyField::SkyColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyColor
-                    .as_static_str()
-            }
-            SkyField::FogColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualFogColor
-                    .as_static_str()
-            }
-            SkyField::CloudColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualCloudColor
-                    .as_static_str()
-            }
-            SkyField::SkyLightColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightColor
-                    .as_static_str()
-            }
-            SkyField::SkyLightFactor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyLightFactor
-                    .as_static_str()
-            }
-            SkyField::SunriseSunsetColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSunriseSunsetColor
-                    .as_static_str()
-            }
-            SkyField::StarBrightness => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualStarBrightness
-                    .as_static_str()
-            }
-            SkyField::SunAngle => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSunAngle
-                    .as_static_str()
-            }
-            SkyField::MoonAngle => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualMoonAngle
-                    .as_static_str()
-            }
-            SkyField::StarAngle => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualStarAngle
-                    .as_static_str()
-            }
-            SkyField::MoonPhase => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualMoonPhase
-                    .as_static_str()
-            }
-            SkyField::AmbientLightColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualAmbientLightColor
-                    .as_static_str()
-            }
-            SkyField::BlockLightTint => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualBlockLightTint
-                    .as_static_str()
-            }
-            SkyField::NightVisionColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualNightVisionColor
-                    .as_static_str()
-            }
-            SkyField::WaterFogColor => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualWaterFogColor
-                    .as_static_str()
-            }
-            SkyField::CloudFogEndDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualCloudFogEndDistance
-                    .as_static_str()
-            }
-            SkyField::CloudHeight => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualCloudHeight
-                    .as_static_str()
-            }
-            SkyField::FogEndDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualFogEndDistance
-                    .as_static_str()
-            }
-            SkyField::FogStartDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualFogStartDistance
-                    .as_static_str()
-            }
-            SkyField::SkyFogEndDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualSkyFogEndDistance
-                    .as_static_str()
-            }
-            SkyField::WaterFogEndDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualWaterFogEndDistance
-                    .as_static_str()
-            }
-            SkyField::WaterFogStartDistance => {
-                mcrs_minecraft_environment::keys::EnvironmentAttribute::VisualWaterFogStartDistance
-                    .as_static_str()
-            }
+            SkyField::SkyColor => A::VisualSkyColor,
+            SkyField::FogColor => A::VisualFogColor,
+            SkyField::CloudColor => A::VisualCloudColor,
+            SkyField::SkyLightColor => A::VisualSkyLightColor,
+            SkyField::SkyLightFactor => A::VisualSkyLightFactor,
+            SkyField::SunriseSunsetColor => A::VisualSunriseSunsetColor,
+            SkyField::StarBrightness => A::VisualStarBrightness,
+            SkyField::SunAngle => A::VisualSunAngle,
+            SkyField::MoonAngle => A::VisualMoonAngle,
+            SkyField::StarAngle => A::VisualStarAngle,
+            SkyField::MoonPhase => A::VisualMoonPhase,
+            SkyField::AmbientLightColor => A::VisualAmbientLightColor,
+            SkyField::BlockLightTint => A::VisualBlockLightTint,
+            SkyField::NightVisionColor => A::VisualNightVisionColor,
+            SkyField::WaterFogColor => A::VisualWaterFogColor,
+            SkyField::CloudFogEndDistance => A::VisualCloudFogEndDistance,
+            SkyField::CloudHeight => A::VisualCloudHeight,
+            SkyField::FogEndDistance => A::VisualFogEndDistance,
+            SkyField::FogStartDistance => A::VisualFogStartDistance,
+            SkyField::SkyFogEndDistance => A::VisualSkyFogEndDistance,
+            SkyField::WaterFogEndDistance => A::VisualWaterFogEndDistance,
+            SkyField::WaterFogStartDistance => A::VisualWaterFogStartDistance,
         }
     }
 }
@@ -212,7 +148,7 @@ impl SkyLayout {
         };
         let (frame, constant) = SkyField::ALL
             .into_iter()
-            .map(|field| (field, index(field.attribute())))
+            .map(|field| (field, index(field.attribute().as_static_str())))
             .partition(|(_, stack)| attributes.stack(*stack).is_dynamic());
 
         SkyLayout { frame, constant }
@@ -287,7 +223,7 @@ fn effects(
         effects |= SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
         // A tracked colour can be transparent at this tick and opaque at the next, so only a
         // constant one can rule the clouds out.
-        let clouds = EnvironmentAttributes::index(SkyField::CloudColor.attribute())
+        let clouds = EnvironmentAttributes::index(SkyField::CloudColor.attribute().as_static_str())
             .map(|index| attributes.stack(index))
             .is_some_and(|stack| {
                 stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0

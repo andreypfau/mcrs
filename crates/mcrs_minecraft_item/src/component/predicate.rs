@@ -20,12 +20,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     CompactList, EquipmentSlotGroup, Folded, MinMaxBounds, NbtPredicate, ValueMatcher,
-    deserialize_unit, key, list_set, map_only, one_set, serialize_entries, serialize_optional_set,
-    serialize_set, serialize_unit, tag_set, transparent_newtype,
+    deserialize_unit, key, map_only, serialize_entries, serialize_optional_set, serialize_set,
+    serialize_unit, transparent_newtype,
 };
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
 use crate::harness::Sample;
+use crate::harness::{list_set, one_set, tag_set};
 use crate::keys::DataComponentType;
 use crate::patch::ComponentMap;
 use mcrs_minecraft_text::IntoText;
@@ -384,20 +385,9 @@ macro_rules! predicate_types {
     };
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct VillagerVariants(pub HolderSet<VillagerType>);
-
-impl Serialize for VillagerVariants {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        serialize_set(&self.0, s)
-    }
-}
-
-impl<'de> Deserialize<'de> for VillagerVariants {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        HolderSet::deserialize(d).map(VillagerVariants)
-    }
-}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct VillagerVariants(#[serde(serialize_with = "serialize_set")] pub HolderSet<VillagerType>);
 
 predicate_types! {
     Damage(DamagePredicate),

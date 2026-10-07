@@ -319,13 +319,6 @@ fn identity(registry: &str) -> Result<(String, String), String> {
         .strip_prefix("worldgen/")
         .unwrap_or(path)
         .replace('/', "_");
-    let word = |word: &str| {
-        let mut chars = word.chars();
-        chars
-            .next()
-            .map(|first| first.to_ascii_uppercase().to_string() + chars.as_str())
-            .unwrap_or_default()
-    };
     let valid = module.starts_with(|first: char| first.is_ascii_lowercase())
         && module
             .chars()
@@ -333,7 +326,7 @@ fn identity(registry: &str) -> Result<(String, String), String> {
     if !valid {
         return Err(format!("{registry}: no module name can be made of it"));
     }
-    let marker = module.split('_').map(word).collect();
+    let marker = variant(&module.to_ascii_uppercase());
     Ok((module, marker))
 }
 

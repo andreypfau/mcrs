@@ -16,7 +16,6 @@ bevy_ecs = { workspace = true, optional = true }
 bevy_math.workspace = true
 bytes.workspace = true
 mcrs_minecraft_core.workspace = true
-mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registry.workspace = true

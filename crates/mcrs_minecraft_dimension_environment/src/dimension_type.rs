@@ -166,56 +166,11 @@ impl DimensionTypeFile {
             default_clock: environment.default_clock,
         }
     }
-}
 
-/// DimensionType data subset for NETWORK_CODEC.
-#[derive(Debug, Clone, Serialize)]
-pub struct NetworkDimensionType {
-    pub has_skylight: bool,
-    pub has_ceiling: bool,
-    pub has_ender_dragon_fight: bool,
-    pub coordinate_scale: f64,
-    pub min_y: i32,
-    pub height: u32,
-    pub logical_height: u32,
-    pub infiniburn: HolderSet<Block>,
-    pub ambient_light: f32,
-    pub monster_spawn_block_light_limit: u32,
-    pub monster_spawn_light_level: IntProvider,
-    #[serde(skip_serializing_if = "is_default")]
-    pub skybox: Skybox,
-    #[serde(skip_serializing_if = "is_default")]
-    pub cardinal_light: CardinalLight,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub has_fixed_time: Option<bool>,
-    #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
-    pub attributes: EnvironmentAttributeMap,
-    #[serde(skip_serializing_if = "is_default")]
-    pub timelines: HolderSet<Timeline>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_clock: Option<Id<WorldClock>>,
-}
-
-impl From<&DimensionTypeFile> for NetworkDimensionType {
-    fn from(dt: &DimensionTypeFile) -> Self {
-        NetworkDimensionType {
-            has_skylight: dt.has_skylight,
-            has_ceiling: dt.has_ceiling,
-            has_ender_dragon_fight: dt.has_ender_dragon_fight,
-            coordinate_scale: dt.coordinate_scale,
-            min_y: dt.min_y,
-            height: dt.height,
-            logical_height: dt.logical_height,
-            infiniburn: dt.infiniburn.clone(),
-            ambient_light: dt.ambient_light,
-            monster_spawn_block_light_limit: dt.monster_spawn_block_light_limit,
-            monster_spawn_light_level: dt.monster_spawn_light_level.clone(),
-            skybox: dt.skybox,
-            cardinal_light: dt.cardinal_light.clone(),
-            has_fixed_time: dt.has_fixed_time,
-            attributes: dt.attributes.filter_syncable(),
-            timelines: dt.timelines.clone(),
-            default_clock: dt.default_clock,
+    pub fn synced(&self) -> Self {
+        DimensionTypeFile {
+            attributes: self.attributes.filter_syncable(),
+            ..self.clone()
         }
     }
 }
@@ -250,7 +205,7 @@ mod tests {
     fn the_network_dimension_type_is_the_games() {
         let sent = |name: &str| {
             dimension_type_set()
-                .scope(|| serde_json::to_value(NetworkDimensionType::from(&read(name))))
+                .scope(|| serde_json::to_value(read(name).synced()))
                 .unwrap()
         };
 

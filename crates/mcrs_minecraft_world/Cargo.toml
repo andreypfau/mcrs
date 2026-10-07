@@ -27,7 +27,6 @@ mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
@@ -55,7 +54,4 @@ mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true
-mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_density.workspace = true
-mcrs_minecraft_worldgen_surface.workspace = true
-mcrs_minecraft_anvil.workspace = true

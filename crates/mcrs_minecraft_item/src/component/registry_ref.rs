@@ -17,11 +17,11 @@ use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{
-    is_one, key, list_set, one, one_set, serialize_entries, serialize_set, tag_set,
-    transparent_newtype,
+    is_one, key, one, serialize_entries, serialize_set, transparent_newtype,
 };
 use crate::component::consume::checked_float;
 use crate::harness::Sample;
+use crate::harness::{list_set, one_set, tag_set};
 
 /// An id string, one raw VarInt on the wire, never inline.
 macro_rules! registry_key_component {
@@ -520,10 +520,9 @@ impl Sample for SuspiciousStewEffects {
     }
 }
 
-fn holder_set_tag<T, const L: bool>(set: &HolderSet<T, L>) -> u8 {
+fn holder_set_tag<T>(set: &HolderSet<T>) -> u8 {
     match set {
-        HolderSet::List(entries) if L || entries.len() != 1 => LIST_ID,
-        HolderSet::One(_) if L => LIST_ID,
+        HolderSet::List(entries) if entries.len() != 1 => LIST_ID,
         _ => STRING_ID,
     }
 }

@@ -143,7 +143,6 @@ mod tests {
     use super::*;
     use crate::ComponentMap;
     use mcrs_minecraft_core::rl;
-    use mcrs_minecraft_registry::DenseId;
 
     fn entry(name: &str) -> ItemEntry {
         ItemEntry {

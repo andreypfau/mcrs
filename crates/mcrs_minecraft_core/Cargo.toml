@@ -14,7 +14,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-mcrs_minecraft_random.workspace = true
 mcrs_minecraft_nbt.workspace = true
 derive_more = { workspace = true, features = ["from", "deref"] }
 

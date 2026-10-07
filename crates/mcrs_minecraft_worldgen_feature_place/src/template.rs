@@ -10,6 +10,7 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_value_provider::IntProvider;
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, StateQuery, compile_rule, state_of, states_of,
@@ -408,8 +409,12 @@ pub enum ChainKind {
     Feature,
 }
 
-fn block_mask(blocks: &dyn BlockResolver, block: Block) -> Result<StateMask, FeatureCompileError> {
-    states_of(blocks, StateQuery::Block(&block.location().to_arc()))
+pub fn block_mask(
+    blocks: &dyn BlockResolver,
+    list: &[Block],
+) -> Result<StateMask, FeatureCompileError> {
+    let ids = list.iter().map(|block| block.id()).collect();
+    states_of(blocks, StateQuery::Blocks(&HolderSet::List(ids)))
 }
 
 pub fn compile_chain(
@@ -423,11 +428,11 @@ pub fn compile_chain(
         if !legacy {
             processors.push(CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                Block::StructureBlock,
+                &[Block::StructureBlock],
             )?));
         }
         processors.push(CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, Block::Jigsaw)?,
+            jigsaw: block_mask(blocks, &[Block::Jigsaw])?,
         });
     }
     for (index, processor) in list.iter().enumerate() {
@@ -445,12 +450,9 @@ pub fn compile_chain(
             });
         }
         if legacy {
-            processors.push(CompiledProcessor::BlockIgnore(states_of(
+            processors.push(CompiledProcessor::BlockIgnore(block_mask(
                 blocks,
-                StateQuery::Names(&[
-                    Block::Air.location().to_arc(),
-                    Block::StructureBlock.location().to_arc(),
-                ]),
+                &[Block::Air, Block::StructureBlock],
             )?));
         }
     }
@@ -475,7 +477,7 @@ fn compile_processor(
             ),
         )?),
         JigsawReplacement => CompiledProcessor::JigsawReplacement {
-            jigsaw: block_mask(blocks, Block::Jigsaw)?,
+            jigsaw: block_mask(blocks, &[Block::Jigsaw])?,
         },
         Rule { rules } => CompiledProcessor::Rule(
             rules
@@ -511,7 +513,7 @@ fn compile_processor(
         BlackstoneReplace => CompiledProcessor::BlackstoneReplace(
             BLACKSTONE_REPLACEMENTS
                 .iter()
-                .map(|&(from, to)| Ok((block_mask(blocks, from)?, default_state(blocks, to)?)))
+                .map(|&(from, to)| Ok((block_mask(blocks, &[from])?, default_state(blocks, to)?)))
                 .collect::<Result<_, FeatureCompileError>>()?,
         ),
         BlockAge { mossiness } => {
@@ -520,18 +522,14 @@ fn compile_processor(
             };
             CompiledProcessor::BlockAge(BlockAgeTables {
                 mossiness: *mossiness as f32,
-                full_stone: states_of(
+                full_stone: block_mask(
                     blocks,
-                    StateQuery::Names(&[
-                        Block::StoneBricks.location().to_arc(),
-                        Block::Stone.location().to_arc(),
-                        Block::ChiseledStoneBricks.location().to_arc(),
-                    ]),
+                    &[Block::StoneBricks, Block::Stone, Block::ChiseledStoneBricks],
                 )?,
                 stairs: tag(mcrs_minecraft_block::keys::block_tags::STAIRS)?,
                 slabs: tag(mcrs_minecraft_block::keys::block_tags::SLABS)?,
                 walls: tag(mcrs_minecraft_block::keys::block_tags::WALLS)?,
-                obsidian: block_mask(blocks, Block::Obsidian)?,
+                obsidian: block_mask(blocks, &[Block::Obsidian])?,
                 cracked_stone_bricks: default_state(blocks, Block::CrackedStoneBricks)?,
                 mossy_stone_bricks: default_state(blocks, Block::MossyStoneBricks)?,
                 stone_brick_stairs: default_state(blocks, Block::StoneBrickStairs)?,
@@ -582,12 +580,11 @@ fn compile_processor_rule(
                 {
                     BlockEntityType::BrushableBlock.as_static_str()
                 }
-                name => *GeneratedBlockEntity::IDS
-                    .iter()
-                    .find(|id| **id == name)
+                name => GeneratedBlockEntity::kind_of(name)
                     .ok_or_else(|| {
                         FeatureCompileError::Unsupported(format!("append_loot onto {name}"))
-                    })?,
+                    })?
+                    .as_static_str(),
             };
             Some(AppendLoot {
                 loot_table: loot_table.to_string(),
@@ -979,7 +976,7 @@ mod tests {
     use super::*;
     use mcrs_minecraft_chunk::{Blocks, BlocksMut};
     use mcrs_minecraft_core::rl;
-    use mcrs_minecraft_registry::{DenseId, Id};
+    use mcrs_minecraft_registry::Id;
     use mcrs_minecraft_worldgen_feature::placer::{BoxRegion, PropertyLayout, mask_of};
     use mcrs_minecraft_worldgen_feature::template::FrozenBlock;
 

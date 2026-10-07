@@ -432,9 +432,8 @@ impl FeatureProgram {
             .registry::<Biome>()
             .expect("the loaded registries hold the biome registry");
         let climate: Vec<BiomeClimate> = biomes
-            .ids()
-            .map(|id| {
-                let name = biomes.name(id).expect("an id of the registry has a name");
+            .iter()
+            .map(|(_, name)| {
                 tables
                     .climate
                     .get(name.as_str())
@@ -2759,7 +2758,7 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn tag_mask(&self, tag: TagKey<Block, &'static str>) -> Compiled<StateMask> {
-        self.mask(StateQuery::BlockTag(&tag.location().to_arc()))
+        self.mask(StateQuery::Blocks(&self.block_tag(tag)?))
     }
 
     pub fn tag_states(&self, tag: TagId<Block>) -> FixedBitSet {
@@ -2771,19 +2770,15 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn blocks_mask(&self, blocks: &[Block]) -> Compiled<StateMask> {
-        let ids: Vec<ResourceLocation> = blocks
-            .iter()
-            .map(|block| location(block.as_static_str()))
-            .collect();
-        self.mask(StateQuery::Names(&ids))
+        let ids = blocks.iter().map(|block| block.id()).collect();
+        self.mask(StateQuery::Blocks(&HolderSet::List(ids)))
     }
 
     pub fn block_tag(&self, tag: TagKey<Block, &'static str>) -> Compiled<HolderSet<Block>> {
-        named_tag(&self.tags, tag).map(HolderSet::Named)
-    }
-
-    pub fn fluid_tag(&self, tag: TagKey<Fluid, &'static str>) -> Compiled<HolderSet<Fluid>> {
-        named_tag(&self.fluid_tags, tag).map(HolderSet::Named)
+        self.tags
+            .get(&tag)
+            .map(HolderSet::Named)
+            .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))
     }
 
     pub fn default_state_of(&self, block: Id<Block>) -> VoxelId {
@@ -2824,7 +2819,7 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn block_mask_of(&self, block: Block) -> Compiled<StateMask> {
-        self.block_mask(block.as_static_str())
+        self.mask(StateQuery::Blocks(&HolderSet::One(block.id())))
     }
 
     /// The default state of every block of a set, in the set's own order — what
@@ -2869,14 +2864,6 @@ impl<'a> Resolver<'a> {
             Self::add_entry(mask, &self.blocks[id]);
         }
     }
-}
-
-fn named_tag<R: 'static>(
-    tags: &Tags<R>,
-    tag: TagKey<R, &'static str>,
-) -> Compiled<mcrs_minecraft_registry::TagId<R>> {
-    tags.get(&tag)
-        .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))
 }
 
 impl BlockResolver for Resolver<'_> {

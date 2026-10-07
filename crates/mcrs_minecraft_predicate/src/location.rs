@@ -8,8 +8,6 @@ use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_worldgen_structure::Structure;
 use serde::{Deserialize, Serialize};
 
-use crate::{is_any_double, is_any_int};
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocationPredicate {
@@ -36,18 +34,18 @@ pub struct LocationPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PositionPredicate {
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub x: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub y: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub z: MinMaxBounds<f64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LightPredicate {
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub light: MinMaxBounds<i32>,
 }
 

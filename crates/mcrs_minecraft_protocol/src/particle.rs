@@ -14,7 +14,7 @@ use mcrs_minecraft_particle::{
 use mcrs_minecraft_registry::RegistryLookup;
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Raw, ctx_free};
-use crate::item::wire::record_ctx_wire;
+use crate::item::wire::{record_ctx_wire, record_wire};
 use crate::registry::{decode_registry_id, encode_registry_id, static_registry_wire};
 use crate::{Decode, Encode, VarInt};
 
@@ -160,97 +160,18 @@ impl Decode<'_> for ParticleScale {
     }
 }
 
-impl Encode for PowerParticle {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.power.encode(w)
-    }
-}
-
-impl Decode<'_> for PowerParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(PowerParticle {
-            power: f32::decode(r)?,
-        })
-    }
-}
-
-impl Encode for DustParticle {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.color.encode(&mut w)?;
-        self.scale.encode(w)
-    }
-}
-
-impl Decode<'_> for DustParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(DustParticle {
-            color: RgbInt::decode(r)?,
-            scale: ParticleScale::decode(r)?,
-        })
-    }
-}
-
-impl Encode for DustColorTransitionParticle {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.from_color.encode(&mut w)?;
-        self.to_color.encode(&mut w)?;
-        self.scale.encode(w)
-    }
-}
-
-impl Decode<'_> for DustColorTransitionParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(DustColorTransitionParticle {
-            from_color: RgbInt::decode(r)?,
-            to_color: RgbInt::decode(r)?,
-            scale: ParticleScale::decode(r)?,
-        })
-    }
-}
-
-impl Encode for SpellParticle {
-    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        self.color.encode(&mut w)?;
-        self.power.encode(w)
-    }
-}
-
-impl Decode<'_> for SpellParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(SpellParticle {
-            color: RgbInt::decode(r)?,
-            power: f32::decode(r)?,
-        })
-    }
-}
-
-impl Encode for ColorParticle {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.color.encode(w)
-    }
-}
-
-impl Decode<'_> for ColorParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(ColorParticle {
-            color: Decode::decode(r)?,
-        })
-    }
-}
-
-impl Encode for SculkChargeParticle {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.roll.encode(w)
-    }
-}
-
-impl Decode<'_> for SculkChargeParticle {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        Ok(SculkChargeParticle {
-            roll: f32::decode(r)?,
-        })
-    }
-}
+record_wire!(
+    PowerParticle { power },
+    DustParticle { color, scale },
+    DustColorTransitionParticle {
+        from_color,
+        to_color,
+        scale
+    },
+    SpellParticle { color, power },
+    ColorParticle { color },
+    SculkChargeParticle { roll },
+);
 
 impl Encode for ShriekParticle {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
@@ -337,12 +258,6 @@ impl Decode<'_> for TrailParticle {
 ctx_free!(
     GeyserParticle,
     GeyserBaseParticle,
-    PowerParticle,
-    DustParticle,
-    DustColorTransitionParticle,
-    SpellParticle,
-    ColorParticle,
-    SculkChargeParticle,
     ShriekParticle,
     VibrationParticle,
     TrailParticle,

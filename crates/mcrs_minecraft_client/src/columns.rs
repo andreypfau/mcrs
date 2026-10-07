@@ -33,8 +33,7 @@ use mcrs_minecraft_network::client::{
 };
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 
-use crate::wire_id::{WireId, WireIds};
-use mcrs_minecraft_biome::Biome;
+use crate::wire_id::WireIds;
 
 /// Block state 0. The network palette is the server's global one, so no remap
 /// stands between a stored value and the block catalog.
@@ -302,7 +301,7 @@ impl Column {
         wire: &WireIds,
     ) -> Result<Column> {
         let biome_registry_len = wire
-            .sent_len::<Biome>()
+            .sent_biomes()
             .context("the server sent no biome registry the local registries can name")?;
         let sections = data
             .sections(extent.sections, block_state_count, biome_registry_len)?
@@ -423,7 +422,7 @@ fn local_biomes(
 ) -> Result<PalettedContainer<u8, { Biomes::SIZE }>> {
     let local = |number: u8| -> Result<u8> {
         let id = wire
-            .get(WireId::<Biome>::received(u16::from(number)))
+            .biome(u16::from(number))
             .with_context(|| format!("biome {number} is not one the local registries hold"))?;
         Ok(id.narrow::<u8>()?)
     };
@@ -448,10 +447,7 @@ fn local_biomes(
     }
 }
 
-fn extent_of(
-    registries: &[ReceivedRegistry],
-    dimension_type: WireId<mcrs_minecraft_dimension::DimensionType>,
-) -> Option<Extent> {
+fn extent_of(registries: &[ReceivedRegistry], dimension_type: u16) -> Option<Extent> {
     let data = registries
         .iter()
         .find(|registry| {
@@ -461,7 +457,7 @@ fn extent_of(
                     .as_static_str()
         })?
         .entries
-        .get(usize::from(dimension_type.number()))?
+        .get(usize::from(dimension_type))?
         .data
         .as_ref()?
         .extract_compound()?;
@@ -551,7 +547,7 @@ impl Arrivals {
     }
 
     fn enter(&mut self, registries: &[ReceivedRegistry], spawn: &PlayerSpawnInfo) {
-        let dimension_type = WireId::received(spawn.dimension_type_id.0);
+        let dimension_type = spawn.dimension_type_id.0;
         match extent_of(registries, dimension_type) {
             Some(extent) => {
                 self.extent = Some(extent);
@@ -562,7 +558,7 @@ impl Arrivals {
             }
             None => error!(
                 "dimension type {} carries no min_y and height: columns have nowhere to sit",
-                dimension_type.number()
+                dimension_type
             ),
         }
     }
@@ -1231,23 +1227,18 @@ mod tests {
             },
         ];
 
-        let wire = WireId::<mcrs_minecraft_dimension::DimensionType>::received;
         assert_eq!(
-            extent_of(&registries, wire(1)),
+            extent_of(&registries, 1),
             Some(Extent {
                 min_section_y: -4,
                 sections: 24,
             })
         );
         assert_eq!(
-            extent_of(&registries, wire(0)),
+            extent_of(&registries, 0),
             None,
             "an entry sent without data"
         );
-        assert_eq!(
-            extent_of(&registries, wire(9)),
-            None,
-            "no such dimension type"
-        );
+        assert_eq!(extent_of(&registries, 9), None, "no such dimension type");
     }
 }

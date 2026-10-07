@@ -2,7 +2,8 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
 use mcrs_minecraft_item::keys::DataComponentType;
-use mcrs_minecraft_protocol::item::component::common::{Folded, entry, list_set, one_set, tag_set};
+use mcrs_minecraft_protocol::item::component::common::Folded;
+use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
     HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
@@ -10,7 +11,6 @@ use mcrs_minecraft_protocol::item::{
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{HolderSet, Id, NoRegistries};
 
 use crate::item::harness::{TestLookup, custom_data, in_samples};
@@ -371,7 +371,7 @@ fn a_component_map_applies_and_diffs_against_its_prototype() {
 fn a_one_entry_holder_set_is_the_bare_entry() {
     in_samples(|| {
         let one: HolderSet<Block> = list_set(&["stone"]);
-        assert_eq!(one, one_set::<Block, false>("stone"));
+        assert_eq!(one, one_set::<Block>("stone"));
         assert_eq!(
             serde_json::to_string(&Folded(&one)).unwrap(),
             r#""minecraft:stone""#
@@ -380,11 +380,6 @@ fn a_one_entry_holder_set_is_the_bare_entry() {
         assert_eq!(
             serde_json::to_string(&Folded(&two)).unwrap(),
             r#"["minecraft:stone","minecraft:dirt"]"#
-        );
-        let always: HolderSet<Block, true> = list_set(&["stone"]);
-        assert_eq!(
-            serde_json::to_string(&Folded(&always)).unwrap(),
-            r#"["minecraft:stone"]"#
         );
 
         let lookup = TestLookup::new();

@@ -113,6 +113,7 @@ struct Flags {
     tags: bool,
 }
 
+#[derive(Clone, Copy)]
 enum Source<'a> {
     File(Option<&'a [u8]>),
     Built {
@@ -514,18 +515,7 @@ impl WorldRegistries {
                     Ok(name) => {
                         names.push(name);
                         origins.push(candidate.pack);
-                        inputs.push(match &candidate.source {
-                            Source::File(bytes) => Source::File(*bytes),
-                            Source::Built {
-                                built,
-                                index,
-                                label,
-                            } => Source::Built {
-                                built,
-                                index: *index,
-                                label,
-                            },
-                        });
+                        inputs.push(candidate.source);
                         paths.push(candidate.path);
                     }
                     Err(error) => report.entry(registry, &entry, candidate.path, error),

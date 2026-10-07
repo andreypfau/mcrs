@@ -644,38 +644,10 @@ pub struct EndGatewayData {
 }
 
 impl GeneratedBlockEntity {
-    /// The `id` each variant is tagged with; a save entry naming any other kind
-    /// is one this type does not describe.
-    pub const IDS: [&'static str; 28] = [
-        BlockEntityType::Beehive.as_static_str(),
-        BlockEntityType::Chest.as_static_str(),
-        BlockEntityType::TrappedChest.as_static_str(),
-        BlockEntityType::EnderChest.as_static_str(),
-        BlockEntityType::MobSpawner.as_static_str(),
-        BlockEntityType::EndGateway.as_static_str(),
-        BlockEntityType::Barrel.as_static_str(),
-        BlockEntityType::Dispenser.as_static_str(),
-        BlockEntityType::Hopper.as_static_str(),
-        BlockEntityType::Furnace.as_static_str(),
-        BlockEntityType::BlastFurnace.as_static_str(),
-        BlockEntityType::Smoker.as_static_str(),
-        BlockEntityType::BrewingStand.as_static_str(),
-        BlockEntityType::Campfire.as_static_str(),
-        BlockEntityType::Comparator.as_static_str(),
-        BlockEntityType::Bell.as_static_str(),
-        BlockEntityType::CopperGolemStatue.as_static_str(),
-        BlockEntityType::Lectern.as_static_str(),
-        BlockEntityType::Jigsaw.as_static_str(),
-        BlockEntityType::CreakingHeart.as_static_str(),
-        BlockEntityType::DecoratedPot.as_static_str(),
-        BlockEntityType::BrushableBlock.as_static_str(),
-        BlockEntityType::Banner.as_static_str(),
-        BlockEntityType::Sign.as_static_str(),
-        BlockEntityType::Skull.as_static_str(),
-        BlockEntityType::SculkSensor.as_static_str(),
-        BlockEntityType::TrialSpawner.as_static_str(),
-        BlockEntityType::Vault.as_static_str(),
-    ];
+    /// The kind a save entry's `id` names when a variant describes it.
+    pub fn kind_of(id: &str) -> Option<BlockEntityType> {
+        BlockEntityType::find(id).filter(|kind| Self::KINDS.contains(kind))
+    }
 
     /// The kinds that are a `RandomizableContainer`: a template placing one
     /// draws its `LootTableSeed` from the placement random.
@@ -744,10 +716,7 @@ impl GeneratedBlockEntity {
         pos: BlockPos,
         loot_seed: Option<i64>,
     ) -> Result<Option<Self>, mcrs_minecraft_nbt::Error> {
-        if !nbt
-            .get_string("id")
-            .is_some_and(|id| Self::IDS.contains(&id))
-        {
+        if nbt.get_string("id").and_then(Self::kind_of).is_none() {
             return Ok(None);
         }
         let mut compound = nbt.clone();
@@ -1112,11 +1081,10 @@ mod tests {
     #[test]
     fn every_kind_round_trips_and_is_named_by_its_id() {
         let all = one_of_each();
-        assert_eq!(all.len(), GeneratedBlockEntity::IDS.len());
+        assert_eq!(all.len(), GeneratedBlockEntity::KINDS.len());
         for entity in all {
             let compound = to_nbt_compound(&entity).unwrap();
             let id = compound.get_string("id").unwrap();
-            assert!(GeneratedBlockEntity::IDS.contains(&id), "{id}");
             assert_eq!(entity.position(), POS);
             assert_eq!(entity.kind().as_static_str(), id);
             assert_eq!(

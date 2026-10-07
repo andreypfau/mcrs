@@ -420,19 +420,16 @@ pub fn emit_initial_player_spawn(
                 .ok()
                 .flatten()
         });
-        let live = |key: &str| {
+        let live = |key: &ResourceKey<mcrs_minecraft_dimension::Dimension>| {
             live_dims
                 .iter()
-                .find(|(_, live)| live.as_str() == key)
+                .find(|(_, live)| *live == key)
                 .map(|(label, _)| label)
         };
         let Some(dim_label) = saved
             .as_ref()
-            .and_then(|dat| live(dat.dimension.as_str()))
-            .or_else(|| {
-                let first = dimension_list.as_ref()?.keys().first()?;
-                live(first.as_str())
-            })
+            .and_then(|dat| live(&dat.dimension))
+            .or_else(|| live(dimension_list.as_ref()?.keys().first()?))
         else {
             continue;
         };

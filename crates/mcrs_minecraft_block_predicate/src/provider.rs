@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -12,7 +11,7 @@ use serde::de::Error as _;
 use serde::de::{MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::block_state::BlockState;
+use crate::block_state::{BlockState, serialize_stated};
 use crate::predicate::BlockPredicate;
 use mcrs_minecraft_block::keys::Block;
 
@@ -161,27 +160,8 @@ pub type BlockStateProvider = Holder<DirectBlockStateProvider>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirectBlockStateProvider {
-    State(FullBlockState),
+    State(#[serde(serialize_with = "serialize_stated")] BlockState),
     Typed(TypedBlockStateProvider),
-}
-
-/// `BlockState.FULL_CODEC`. A singleton block writes no `properties`, which
-/// must not come back as an empty map.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct FullBlockState {
-    pub id: ResourceLocation,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub properties: Option<BTreeMap<String, String>>,
-}
-
-impl FullBlockState {
-    pub fn state(&self) -> BlockState {
-        BlockState {
-            name: self.id.clone(),
-            properties: self.properties.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

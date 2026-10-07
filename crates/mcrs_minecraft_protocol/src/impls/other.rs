@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::registry::{decode_registry_id, encode_registry_id};
 use crate::{Decode, Encode};
 use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_registry::{DenseId, Id};
+use mcrs_minecraft_registry::Id;
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {

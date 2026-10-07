@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::{Entries, Registry};
+use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -34,23 +34,12 @@ use mcrs_minecraft_worldgen_testing::{corpus_set_numbered, registry, registry_in
 use support::{corpus, router_blocks};
 use mcrs_minecraft_biome::Biome;
 
-fn parameter_lists() -> (
-    Registry<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList>,
-    Entries<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList, MultiNoiseBiomeSourceParameterList>,
-) {
-    let names = Registry::new(
+fn parameter_lists() -> Registry<MultiNoiseBiomeSourceParameterList> {
+    Registry::new(
         mcrs_minecraft_biome::keys::MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
         Preset::ALL.map(|preset| ResourceLocation::read(preset.name()).unwrap()),
     )
-    .unwrap();
-    let lists = Entries::new(
-        &names,
-        Preset::ALL
-            .map(|preset| MultiNoiseBiomeSourceParameterList { preset })
-            .to_vec(),
-    )
-    .unwrap();
-    (names, lists)
+    .unwrap()
 }
 
 const NETHER: [&str; 5] = [
@@ -148,11 +137,7 @@ fn surface_ids(biomes: &Registry<Biome>) -> Ids {
             frozen_ocean: id("frozen_ocean"),
             deep_frozen_ocean: id("deep_frozen_ocean"),
         },
-        states: SurfaceStates {
-            snow_block: corpus().default_state("minecraft:snow_block").0.into(),
-            packed_ice: corpus().default_state("minecraft:packed_ice").0.into(),
-            dirt: corpus().default_state("minecraft:dirt").0.into(),
-        },
+        states: SurfaceStates::new(corpus()),
     }
 }
 
@@ -371,7 +356,7 @@ fn natural(
     side: i32,
     offset: i32,
 ) {
-    let (list_names, _) = parameter_lists();
+    let list_names = parameter_lists();
     let multi = MultiNoiseBiomeSource {
         preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
         biomes: None,

@@ -5,6 +5,7 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
+use mcrs_minecraft_item::AttributeOperation;
 use mcrs_minecraft_item::enchantment::value::LevelBasedValue;
 use mcrs_minecraft_loot::LootCondition;
 use mcrs_minecraft_particle::ParticleOptions;
@@ -287,14 +288,6 @@ impl<'de> Deserialize<'de> for BlockState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AttributeOperation {
-    AddValue,
-    AddMultipliedBase,
-    AddMultipliedTotal,
-}
-
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnchantmentAttributeEffect {
@@ -396,12 +389,7 @@ effect_enum! {
 
 effect_enum! {
     EnchantmentLocationBasedEffect {
-        Attribute {
-            id: String,
-            attribute: String,
-            amount: LevelBasedValue,
-            operation: AttributeOperation,
-        },
+        Attribute(EnchantmentAttributeEffect),
     }
 }
 

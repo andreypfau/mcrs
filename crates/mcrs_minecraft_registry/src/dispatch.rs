@@ -1046,6 +1046,9 @@ macro_rules! dispatch {
     (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], []) => {
         impl<$($gp),*> $ty {
             #[allow(dead_code)]
+            pub const KINDS: &[$gen] = &[$(<$gen>::$g),+];
+
+            #[allow(dead_code)]
             pub fn kind(&self) -> $gen {
                 match self {
                     $( Self::$d { .. } => <$gen>::$g, )+

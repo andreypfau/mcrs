@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::climate::ParameterPoint;
@@ -43,17 +44,18 @@ fn carvers_by_biome(
     table: &Entries<CarverConfig, Option<CarverConfig>>,
 ) -> Entries<Biome, Arc<[CarverConfig]>> {
     let lists = biomes
-        .ids()
-        .map(|id| {
-            let biome = || biomes.name(id).expect("an id of the registry has a name");
+        .iter()
+        .map(|(id, biome)| {
             values[id]
                 .carvers
                 .ids(carver_tags)
                 .filter_map(|carver| match &table[carver] {
                     Some(config) => Some(config.clone()),
                     None => {
-                        let carver = carvers.name(carver).expect("an id of the registry has a name");
-                        tracing::error!(biome = %biome(), %carver, "a carver of this biome is unavailable");
+                        let carver = carvers
+                            .name(carver)
+                            .expect("an id of the registry has a name");
+                        tracing::error!(%biome, %carver, "a carver of this biome is unavailable");
                         None
                     }
                 })
@@ -77,18 +79,11 @@ fn build_modern_carver_biomes(
 ) {
     let Some(sources) = sources else { return };
 
-    let biomes = registries
-        .registry::<Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let values = registries
-        .entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let carver_names = registries
-        .registry::<CarverConfig>()
-        .expect("the data pack declares minecraft:worldgen/carver");
-    let carver_tags = registries
-        .tags::<CarverConfig>()
-        .expect("the data pack loader builds the carver tags");
+    let biomes = registries.loaded_registry::<Biome>();
+    let values =
+        registries.loaded_entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>();
+    let carver_names = registries.loaded_registry::<CarverConfig>();
+    let carver_tags = registries.loaded_tags::<CarverConfig>();
     let carvers = carvers_by_biome(
         &biomes,
         &values,

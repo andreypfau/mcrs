@@ -38,10 +38,6 @@ macro_rules! spawning_variant {
                     spawn_conditions: spawn_conditions.clone(),
                 }
             }
-
-            pub fn synced(file: &Self) -> $value {
-                Self::split(file).0
-            }
         }
     };
 }

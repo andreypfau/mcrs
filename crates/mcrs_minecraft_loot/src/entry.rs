@@ -1,4 +1,5 @@
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::codec::is_default;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::{Holder, HolderList, HolderSet};
 use serde::{Deserialize, Serialize};
@@ -46,25 +47,6 @@ fn is_default_weight(weight: &i32) -> bool {
     *weight == 1
 }
 
-fn is_zero(value: &i32) -> bool {
-    *value == 0
-}
-
-/// An entry with nothing to roll beyond its weight, quality, condition and
-/// modifier.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Uniform {
-    #[serde(default = "default_weight", skip_serializing_if = "is_default_weight")]
-    pub weight: i32,
-    #[serde(default, skip_serializing_if = "is_zero")]
-    pub quality: i32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub condition: Option<Holder<LootCondition>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub modifier: Option<Holder<LootItemFunction>>,
-}
-
 macro_rules! entry {
     ($(#[$meta:meta])* pub struct $name:ident { $($(#[$fmeta:meta])* pub $field:ident : $ty:ty,)* }) => {
         $(#[$meta])*
@@ -74,7 +56,7 @@ macro_rules! entry {
             $($(#[$fmeta])* pub $field: $ty,)*
             #[serde(default = "default_weight", skip_serializing_if = "is_default_weight")]
             pub weight: i32,
-            #[serde(default, skip_serializing_if = "is_zero")]
+            #[serde(default, skip_serializing_if = "is_default")]
             pub quality: i32,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             pub condition: Option<Holder<LootCondition>>,
@@ -82,6 +64,12 @@ macro_rules! entry {
             pub modifier: Option<Holder<LootItemFunction>>,
         }
     };
+}
+
+entry! {
+    /// An entry with nothing to roll beyond its weight, quality, condition and
+    /// modifier.
+    pub struct Uniform {}
 }
 
 entry! {

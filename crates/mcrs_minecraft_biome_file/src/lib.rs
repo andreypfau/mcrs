@@ -4,9 +4,7 @@ use mcrs_minecraft_biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureM
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
-use mcrs_minecraft_environment::attribute::{
-    AttributeValue, EnvironmentAttributeMap, MobSpawnSettings, Operation,
-};
+use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
 use mcrs_minecraft_registry::{HolderSet, Id, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -34,18 +32,6 @@ pub struct BiomeFile<C = CarverSet, F = FeatureSteps> {
 /// A biome described in code, before any registry has ids: carvers and
 /// placed features are still keys.
 pub type BiomeDraft = BiomeFile<Vec<StaticResourceLocation>, Vec<Vec<PlacedFeatureKey>>>;
-
-impl<C, F> BiomeFile<C, F> {
-    pub fn natural_mob_spawns(&self) -> Option<&MobSpawnSettings> {
-        match self
-            .attributes
-            .argument(id::NATURAL_MOB_SPAWNS.id.as_str())?
-        {
-            AttributeValue::MobSpawns(spawns) => Some(spawns),
-            _ => None,
-        }
-    }
-}
 
 /// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
 ///

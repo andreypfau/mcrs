@@ -293,7 +293,7 @@ fn compiled(feature: &str, b: &Blocks, corpus: &[(String, Feature)]) -> Option<C
     };
     let simple = |provider: &BlockStateProvider| match provider {
         Holder::Inline(direct) => match &**direct {
-            DirectBlockStateProvider::State(state) => state.id.to_string(),
+            DirectBlockStateProvider::State(state) => state.name.to_string(),
             DirectBlockStateProvider::Typed(TypedBlockStateProvider::Simple { state }) => {
                 state.name.to_string()
             }

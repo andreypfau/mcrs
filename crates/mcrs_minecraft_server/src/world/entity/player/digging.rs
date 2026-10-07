@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use crate::world::bus::to;
 use crate::world::entity::item::BlockDrop;
 use crate::world::entity::player::ability::InstantBuild;
@@ -143,7 +144,7 @@ fn player_start_destroy_block(
     if reader.is_empty() {
         return;
     }
-    let tags = block_tags(&registries);
+    let tags = registries.loaded_tags::<Block>();
     reader.read().for_each(|event| {
         let player = event.player;
         let Ok((dim, _pos, _instant_build, table, selected)) = players.get_mut(player) else {
@@ -306,12 +307,6 @@ impl SendDestroyBlockProgress<'_, '_> {
     }
 }
 
-fn block_tags(registries: &RegistrySet) -> Tags<Block> {
-    registries
-        .tags::<Block>()
-        .expect("the loaded registries hold the block tags")
-}
-
 const MINING_EFFICIENCY: f32 = 0.0;
 const BLOCK_BREAK_SPEED: f32 = 1.0;
 
@@ -398,7 +393,7 @@ fn handle_player_will_destroy_block(
     if reader.is_empty() {
         return;
     }
-    let tags = block_tags(&registries);
+    let tags = registries.loaded_tags::<Block>();
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
         // TODO: anger piglin if block is guarded by piglins

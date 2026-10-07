@@ -221,7 +221,7 @@ impl<'a> Interner<'a> {
 /// nothing looks a name up again while a column generates.
 pub enum StateQuery<'a> {
     Blocks(&'a HolderSet<mcrs_minecraft_block::keys::Block>),
-    /// The blocks a program names itself, by id, rather than a datapack value's set.
+    /// Blocks a datapack value lists by name rather than as a holder set.
     Names(&'a [ResourceLocation]),
     Block(&'a ResourceLocation),
     BlockTag(&'a ResourceLocation),

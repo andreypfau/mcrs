@@ -401,31 +401,23 @@ fn shipped_file(
 
 const SHIPPED_EMPTY: [&str; 1] = ["minecraft:dimension"];
 
-#[test]
-fn every_shipped_file_of_a_parsed_registry_round_trips() {
+fn assert_shipped_entries_round_trip(registries: &WorldRegistries) -> Vec<(String, usize)> {
     let set = test_registries();
-    let world = &*WORLD;
-    let mut parsed = 0;
-    for registry in world.declared().filter(|r| world.parses(r.as_str())) {
-        parsed += 1;
+    let mut parsed = Vec::new();
+    for registry in registries
+        .declared()
+        .filter(|r| registries.parses(r.as_str()))
+    {
         let table = set
             .table(registry.as_str())
             .unwrap_or_else(|| panic!("{registry} has no table"));
-        if SHIPPED_EMPTY.contains(&registry.as_str()) {
-            assert!(
-                table.is_empty(),
-                "{registry} is shipped empty and has entries"
-            );
-            continue;
-        }
-        assert!(!table.is_empty(), "{registry} parses and has no entries");
         for (index, name) in table.names().iter().enumerate() {
             let pack = set
                 .pack_of(registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
             let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
             let shipped = std::fs::read_to_string(&file);
-            let encoded = world
+            let encoded = registries
                 .encode(set, registry.as_str(), index)
                 .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
                 .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
@@ -455,8 +447,23 @@ fn every_shipped_file_of_a_parsed_registry_round_trips() {
                 file.display()
             );
         }
+        parsed.push((registry.to_string(), table.len()));
     }
-    assert!(parsed > 0, "the loader parses no registry");
+    parsed.sort();
+    parsed
+}
+
+#[test]
+fn every_shipped_file_of_a_parsed_registry_round_trips() {
+    let parsed = assert_shipped_entries_round_trip(&WORLD);
+    assert!(!parsed.is_empty(), "the loader parses no registry");
+    for (registry, len) in parsed {
+        if SHIPPED_EMPTY.contains(&registry.as_str()) {
+            assert_eq!(len, 0, "{registry} is shipped empty and has entries");
+        } else {
+            assert!(len > 0, "{registry} parses and has no entries");
+        }
+    }
 }
 
 static RELOADABLE: LazyLock<WorldRegistries> = LazyLock::new(|| {
@@ -466,39 +473,7 @@ static RELOADABLE: LazyLock<WorldRegistries> = LazyLock::new(|| {
 
 #[test]
 fn every_shipped_file_of_a_parsed_reloadable_registry_round_trips() {
-    let set = test_registries();
-    let reloadable = &*RELOADABLE;
-    let mut parsed = Vec::new();
-    for registry in reloadable
-        .declared()
-        .filter(|r| reloadable.parses(r.as_str()))
-    {
-        let table = set
-            .table(registry.as_str())
-            .unwrap_or_else(|| panic!("{registry} has no table"));
-        for (index, name) in table.names().iter().enumerate() {
-            let pack = set
-                .pack_of(registry.as_str(), index)
-                .unwrap_or_else(|| panic!("{registry}/{name} names no pack"));
-            let file = shipped_file(pack, registry.path(), name.namespace(), name.path());
-            let text = std::fs::read_to_string(&file)
-                .unwrap_or_else(|e| panic!("{registry}/{name}: {}: {e}", file.display()));
-            let encoded = reloadable
-                .encode(set, registry.as_str(), index)
-                .unwrap_or_else(|| panic!("{registry}/{name} has no encoding"))
-                .unwrap_or_else(|e| panic!("{registry}/{name} does not encode: {e}"));
-            let from_file: serde_json::Value = serde_json::from_str(&text).unwrap();
-            let from_entry: serde_json::Value = serde_json::from_str(&encoded).unwrap();
-            assert_eq!(
-                from_entry,
-                from_file,
-                "{registry}/{name} ({})",
-                file.display()
-            );
-        }
-        parsed.push((registry.to_string(), table.len()));
-    }
-    parsed.sort();
+    let parsed = assert_shipped_entries_round_trip(&RELOADABLE);
     let counts: Vec<(&str, bool)> = parsed
         .iter()
         .map(|(registry, len)| (registry.as_str(), *len > 0))

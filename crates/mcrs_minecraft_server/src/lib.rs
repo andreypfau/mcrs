@@ -11,6 +11,7 @@ pub mod configuration;
 pub mod dim;
 pub mod disconnect;
 mod keep_alive;
+mod loaded;
 pub mod login;
 pub mod ops;
 pub mod world;

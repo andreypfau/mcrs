@@ -1142,7 +1142,7 @@ mod tests {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
                     ))),
-                    carvers: Some(Arc::new(beta_carver_table(&source, &registry))),
+                    carvers: Some(Arc::new(beta_carver_table(&source))),
                     features: None,
                 },
                 router,

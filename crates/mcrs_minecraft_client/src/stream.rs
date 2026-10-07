@@ -128,7 +128,6 @@ pub struct BlockCatalog {
     baking: Option<Task<Baked>>,
     foreign_states: bool,
     failures: usize,
-    biomes: Vec<String>,
     sprites: usize,
     sent: Vec<u32>,
     items_baked: bool,
@@ -855,7 +854,6 @@ impl BlockCatalog {
             baking: None,
             foreign_states: false,
             failures: 0,
-            biomes: Vec::new(),
             sprites: 0,
             sent: Vec::new(),
             items_baked: false,
@@ -926,7 +924,6 @@ impl BlockCatalog {
             return;
         };
         let states = std::mem::take(&mut self.to_bake);
-        let biomes = self.biomes.clone();
         let known = self.sprites;
         let sent = self.sent.clone();
         let definitions = definitions.clone();
@@ -935,7 +932,7 @@ impl BlockCatalog {
         let bake_items_too = !self.items_baked;
         self.items_baked = true;
         self.baking = Some(pool.spawn(async move {
-            blocks::extend(&pack, &mut catalog, &definitions, &states, &loaded, &biomes);
+            blocks::extend(&pack, &mut catalog, &definitions, &states, &loaded);
             let items = bake_items_too.then(|| {
                 let started = std::time::Instant::now();
                 let items = bake_items(&pack, &mut catalog.sprites)
@@ -1368,9 +1365,6 @@ fn bake_catalog(
 ) {
     let catalog = &mut *catalog;
     let pack = catalog.poll_pack(&assets);
-    if catalog.biomes.is_empty() {
-        catalog.biomes = local_biome_names(&loaded);
-    }
     if let Some(task) = catalog.baking.as_mut()
         && let Some(baked) = check_ready(task)
     {
@@ -1382,7 +1376,9 @@ fn bake_catalog(
     if let Some(pack) = pack
         && catalog.baking.is_none()
         && (!catalog.to_bake.is_empty() || !catalog.items_baked)
-        && !catalog.biomes.is_empty()
+        && loaded
+            .registry::<mcrs_minecraft_biome::Biome>()
+            .is_some_and(|biomes| !biomes.is_empty())
     {
         catalog.start_baking(&pack, &definitions, &loaded, AsyncComputeTaskPool::get());
     }
@@ -1531,21 +1527,6 @@ fn admit_meshing(
     }
 }
 
-/// In local id order: the tint table is indexed by the local biome id a decoded column holds.
-fn local_biome_names(registries: &RegistrySet) -> Vec<String> {
-    registries
-        .registry::<mcrs_minecraft_biome::Biome>()
-        .map(|biomes| {
-            biomes
-                .table()
-                .names()
-                .iter()
-                .map(ToString::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1553,7 +1534,8 @@ mod tests {
     use mcrs_minecraft_mesh::StreamSpan;
     use mcrs_minecraft_world::registries::test_registries;
 
-    fn tints_for(names: &[String]) -> Vec<crate::blocks::BiomeTint> {
+    #[test]
+    fn the_tint_table_holds_one_tint_per_local_biome() {
         let mut catalog = blocks::empty();
         blocks::extend(
             Pack::corpus(),
@@ -1561,32 +1543,12 @@ mod tests {
             blocks::corpus(),
             &[],
             test_registries(),
-            names,
         );
         assert!(catalog.failures.is_empty(), "{:?}", catalog.failures);
-        catalog.tints
-    }
-
-    #[test]
-    fn the_tint_table_is_indexed_by_local_biome_id() {
-        let names = local_biome_names(test_registries());
-        let tints = tints_for(&names);
         let biomes = test_registries()
             .registry::<mcrs_minecraft_biome::Biome>()
             .unwrap();
-        assert_eq!(tints.len(), biomes.len());
-        for name in [
-            "minecraft:plains",
-            "minecraft:swamp",
-            "minecraft:beta_desert",
-        ] {
-            let id = biomes.by_name(name).unwrap();
-            assert_eq!(
-                tints[id.index()],
-                tints_for(&[name.to_owned()])[0],
-                "{name}"
-            );
-        }
+        assert_eq!(catalog.tints.len(), biomes.len());
     }
 
     fn loader() -> Loader {

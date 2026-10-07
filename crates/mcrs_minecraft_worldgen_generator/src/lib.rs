@@ -1,4 +1,3 @@
-use crate::beta_land_surface::beta_surface_blocks;
 use crate::biome_upscale::upscale_biomes;
 use crate::heightmap::{HeightmapKinds, HeightmapPredicates};
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
@@ -13,7 +12,7 @@ use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_level::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_registry::Id;
+use mcrs_minecraft_registry::{BlockStateId, Id};
 use mcrs_minecraft_worldgen::beard::Beard;
 use mcrs_minecraft_worldgen_density::aquifer::{FluidField, FluidStatus};
 use mcrs_minecraft_worldgen_density::cell::{CELL_BOUNDS_SLACK, corner_bounds, sampled_bounds};
@@ -1094,7 +1093,23 @@ pub fn apply_beta_surface(
     }
 }
 
-mod beta_land_surface;
+fn beta_surface_blocks(
+    biome: BetaLandBiome,
+    blocks: &BlockDefinitions,
+) -> (BlockStateId, BlockStateId) {
+    match biome {
+        BetaLandBiome::Desert | BetaLandBiome::IceDesert => {
+            let sand = blocks.default_state_of(Block::Sand.id());
+            (sand, sand)
+        }
+        _ => {
+            let grass = blocks.default_state_of(Block::GrassBlock.id());
+            let dirt = blocks.default_state_of(Block::Dirt.id());
+            (grass, dirt)
+        }
+    }
+}
+
 pub mod block_state;
 pub mod column_blocks;
 pub mod heightmap;

@@ -228,18 +228,11 @@ fn a_biome_id_beyond_the_narrow_width_is_refused() {
     );
 }
 
-fn shipped_tables() -> PresetBiomeTables {
-    let (names, lists) = super::parameter_lists();
-    let mut report = LoadReport::new();
-    PresetBiomeTables::build(names, lists, super::corpus_biomes(), &mut report)
-        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {report}"))
-}
-
 #[test]
 fn table_of_picks_the_named_or_inline_table() {
     use mcrs_minecraft_biome::climate::ParameterRange;
 
-    let tables = shipped_tables();
+    let tables = super::preset_tables();
     let overworld = super::parameter_list_id("minecraft:overworld");
     let named = MultiNoiseBiomeSource {
         preset: Some(overworld),
@@ -430,7 +423,7 @@ fn a_parameter_list_the_loader_does_not_hold_is_not_resolved() {
         biomes: None,
     };
     assert!(matches!(
-        shipped_tables().table_of(&source),
+        super::preset_tables().table_of(&source),
         Err(BiomeTableError::NoTable(_))
     ));
 }

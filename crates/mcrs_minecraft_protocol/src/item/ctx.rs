@@ -9,7 +9,7 @@ use mcrs_minecraft_core::{RegistryValue, ResourceKey, ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{
-    DenseId, HolderSet, Id, Registry, RegistryLookup, skip_sets, skipping_sets,
+    HolderSet, Id, Registry, RegistryLookup, Tags, skip_sets, skipping_sets,
 };
 use uuid::Uuid;
 
@@ -258,6 +258,12 @@ fn local_registry<R: Registered>(ctx: &dyn RegistryLookup) -> anyhow::Result<Reg
         .with_context(|| format!("registry {} is not loaded", R::REGISTRY))
 }
 
+fn local_tags<R: Registered>(ctx: &dyn RegistryLookup) -> anyhow::Result<Tags<R>> {
+    ctx.registries()
+        .and_then(|set| set.tags::<R>())
+        .with_context(|| format!("registry {} has no tags", R::REGISTRY))
+}
+
 impl<V: RegistryValue + EncodeCtx> EncodeCtx for Holder<V>
 where
     V::Registry: Registered,
@@ -308,21 +314,14 @@ where
     }
 }
 
-impl<R: Registered, const L: bool> EncodeCtx for HolderSet<R, L> {
+impl<R: Registered> EncodeCtx for HolderSet<R> {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
-        let set = ctx.registries().with_context(|| {
-            format!("no registries to resolve a set of {} against", R::REGISTRY)
-        })?;
-        let tags = set
-            .tags::<R>()
-            .with_context(|| format!("registry {} has no tags", R::REGISTRY))?;
+        let tags = local_tags::<R>(ctx)?;
         if let Some(tag) = self.tag() {
             VarInt(0).encode(&mut w)?;
             return tags.name(tag).encode(w);
         }
-        let registry = set
-            .registry::<R>()
-            .with_context(|| format!("registry {} is not loaded", R::REGISTRY))?;
+        let registry = local_registry::<R>(ctx)?;
         let entries = self.ids(&tags).collect::<Vec<_>>();
         VarInt(entries.len() as i32 + 1).encode(&mut w)?;
         for id in entries {
@@ -335,7 +334,7 @@ impl<R: Registered, const L: bool> EncodeCtx for HolderSet<R, L> {
     }
 }
 
-impl<'a, R: Registered, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
+impl<'a, R: Registered> DecodeCtx<'a> for HolderSet<R> {
     fn decode_ctx(ctx: &dyn RegistryLookup, r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let raw = VarInt::decode(r)?.0;
         ensure!(raw >= 0, "holder set with negative length");
@@ -348,22 +347,14 @@ impl<'a, R: Registered, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
             }
             return Ok(HolderSet::default());
         }
-        let set = ctx.registries().with_context(|| {
-            format!("no registries to resolve a set of {} against", R::REGISTRY)
-        })?;
         if raw == 0 {
             let name = ResourceLocation::<Arc<str>>::decode(r)?;
-            let tags = set
-                .tags::<R>()
-                .with_context(|| format!("registry {} has no tags", R::REGISTRY))?;
-            return tags
+            return local_tags::<R>(ctx)?
                 .get(&TagKey::<R, _>::from_location(name.clone()))
                 .map(HolderSet::Named)
                 .with_context(|| format!("Missing tag: '{name}' in '{}'", R::REGISTRY));
         }
-        let registry = set
-            .registry::<R>()
-            .with_context(|| format!("registry {} is not loaded", R::REGISTRY))?;
+        let registry = local_registry::<R>(ctx)?;
         let len = raw as usize - 1;
         let mut entries = Vec::with_capacity(len.min(r.len()));
         for _ in 0..len {
@@ -374,7 +365,7 @@ impl<'a, R: Registered, const L: bool> DecodeCtx<'a> for HolderSet<R, L> {
                     .with_context(|| format!("{key} is not in registry {}", R::REGISTRY))?,
             );
         }
-        if let ([only], false) = (&entries[..], L) {
+        if let [only] = &entries[..] {
             return Ok(HolderSet::One(*only));
         }
         Ok(HolderSet::List(entries.into()))

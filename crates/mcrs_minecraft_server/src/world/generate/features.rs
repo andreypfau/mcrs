@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use crate::world::generate::routers::DimensionBiomeSources;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
 use crate::world_options::WorldSeed;
@@ -95,16 +96,13 @@ fn build_dimension_features(
 ) {
     let Some(sources) = sources else { return };
 
-    let provider_registry = registries
-        .registry::<mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider>()
-        .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
-    let providers = registries
-        .entries::<mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider, DirectBlockStateProvider>()
-        .expect("the data pack loader parses minecraft:worldgen/block_state_provider");
+    let provider_registry = registries.loaded_registry::<DirectBlockStateProvider>();
+    let providers =
+        registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
 
-    let features = named(&registries, &tables.features, |asset| asset);
-    let placed_features = named(&registries, &tables.placed_features, |asset| asset);
-    let pools = named(&registries, &tables.template_pools, |asset| asset);
+    let features = named(&registries, &tables.features);
+    let placed_features = named(&registries, &tables.placed_features);
+    let pools = named(&registries, &tables.template_pools);
 
     // A template is `structure/<id>.nbt`, which is no registry, so the ids come
     // off the handles the feature, placed-feature and pool values declared: a
@@ -130,44 +128,24 @@ fn build_dimension_features(
             .map(|(id, asset)| (id.clone(), asset.placed_feature.clone()))
             .collect(),
         templates: template_values,
-        processor_lists: named(&registries, &tables.processor_lists, |list| list)
+        processor_lists: named(&registries, &tables.processor_lists)
             .into_iter()
             .map(|(id, list)| (id, list.clone()))
             .collect(),
         block_state_providers: provider_registry
-            .ids()
-            .map(|id| {
-                let name = provider_registry
-                    .name(id)
-                    .expect("an id of the registry has a name");
-                (name.clone(), providers[id].clone())
-            })
+            .iter()
+            .map(|(id, name)| (name.clone(), providers[id].clone()))
             .collect(),
     };
 
-    let placed_names = registries
-        .registry::<PlacedFeature>()
-        .expect("the data pack loader declares minecraft:worldgen/placed_feature");
-    let placed_tags = registries
-        .tags::<PlacedFeature>()
-        .expect("the data pack loader builds the placed feature tags");
-    let biome_registry = registries
-        .registry::<Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let biomes = registries
-        .entries::<Biome, Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let generation = registries
-        .entries::<Biome, BiomeGenerationSettings>()
-        .expect("the data pack loader splits minecraft:worldgen/biome");
+    let placed_names = registries.loaded_registry::<PlacedFeature>();
+    let placed_tags = registries.loaded_tags::<PlacedFeature>();
+    let biome_registry = registries.loaded_registry::<Biome>();
+    let biomes = registries.loaded_entries::<Biome, Biome>();
+    let generation = registries.loaded_entries::<Biome, BiomeGenerationSettings>();
     let by_id: BTreeMap<ResourceLocation, (&Biome, &BiomeGenerationSettings)> = biome_registry
-        .ids()
-        .map(|id| {
-            let name = biome_registry
-                .name(id)
-                .expect("an id of the registry has a name");
-            (name.clone(), (&biomes[id], &generation[id]))
-        })
+        .iter()
+        .map(|(id, name)| (name.clone(), (&biomes[id], &generation[id])))
         .collect();
 
     let climate: BTreeMap<ResourceLocation, BiomeClimate> = by_id
