@@ -17,23 +17,7 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_assets::packs::VANILLA_PACK;
-use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_entity::keys::EntityType;
-use mcrs_minecraft_entity::variant::CatVariant;
-use mcrs_minecraft_entity::variant::WolfVariant;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_item::BannerPattern;
-use mcrs_minecraft_item::InstrumentValue;
-use mcrs_minecraft_item::JukeboxSong;
-use mcrs_minecraft_item::PaintingVariantValue;
-use mcrs_minecraft_item::TrimMaterial;
-use mcrs_minecraft_item::TrimPattern;
-use mcrs_minecraft_item::damage_type::DamageType;
-use mcrs_minecraft_item::dialog::Dialog;
-use mcrs_minecraft_item::enchantment::EnchantmentData;
-use mcrs_minecraft_item::keys::Item;
-use mcrs_minecraft_keys as keys;
 use mcrs_minecraft_level::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_level::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
@@ -43,7 +27,7 @@ use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::common::Brand;
 use mcrs_minecraft_protocol::packets::common::clientbound::Payload;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
-    ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags,
+    ClientboundSelectKnownPacks, ClientboundUpdateTags,
 };
 use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
@@ -54,7 +38,7 @@ use mcrs_minecraft_protocol::packets::configuration::{
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_minecraft_protocol::registry::Entry;
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
-use mcrs_minecraft_protocol::tags::tags_payload;
+use mcrs_minecraft_protocol::tags::tags_payload_of;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
@@ -63,13 +47,6 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 use crate::world_options::{DimensionList, bake_dimensions, request_dimension_noise_settings};
-
-/// Registries the client expects in `ClientboundUpdateTags` whose tags the server does not send.
-const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
-    mcrs_minecraft_block::keys::FLUID.location(),
-    keys::GAME_EVENT,
-    mcrs_minecraft_biome::keys::BIOME.location(),
-];
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -146,38 +123,21 @@ fn on_configuration_enter(
     }
 }
 
-fn tags_of<R: mcrs_minecraft_registry::Registered>(
-    set: &RegistrySet,
-) -> Option<RegistryTags<'static>> {
-    let payload = tags_payload(&set.tags::<R>()?);
-    (!payload.tags.is_empty()).then_some(payload)
-}
-
 pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
-    let registries = [
-        tags_of::<Block>(set),
-        tags_of::<Item>(set),
-        tags_of::<EnchantmentData>(set),
-        tags_of::<EntityType>(set),
-        tags_of::<DamageType>(set),
-        tags_of::<Dialog>(set),
-        tags_of::<Timeline>(set),
-        tags_of::<BannerPattern>(set),
-        tags_of::<InstrumentValue>(set),
-        tags_of::<PaintingVariantValue>(set),
-        tags_of::<CatVariant>(set),
-        tags_of::<WolfVariant>(set),
-        tags_of::<TrimMaterial>(set),
-        tags_of::<TrimPattern>(set),
-        tags_of::<JukeboxSong>(set),
-    ]
-    .into_iter()
-    .flatten()
-    .chain(EMPTY_TAG_REGISTRIES.map(|registry| RegistryTags {
-        registry: registry.into(),
-        tags: Vec::new(),
-    }))
-    .collect();
+    let mut statics: Vec<&str> = set
+        .tables()
+        .map(|table| table.registry().as_str())
+        .filter(|registry| !set.is_world_registry(registry))
+        .collect();
+    statics.sort_unstable();
+    let registries = set
+        .synced()
+        .map(|(table, _)| table.registry().as_str())
+        .chain(statics)
+        .filter_map(|registry| set.tag_table(registry))
+        .filter(|table| !table.is_empty())
+        .map(|table| tags_payload_of(table))
+        .collect();
     ClientboundUpdateTags { registries }
 }
 

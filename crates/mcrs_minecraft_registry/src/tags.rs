@@ -82,6 +82,10 @@ impl TagTable {
     pub fn names(&self) -> &[Name] {
         &self.names
     }
+
+    pub fn members(&self, tag: usize) -> &[u16] {
+        &self.members[tag]
+    }
 }
 
 pub struct Tags<R> {

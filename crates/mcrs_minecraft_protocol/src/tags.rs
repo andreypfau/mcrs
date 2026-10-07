@@ -1,16 +1,22 @@
 use crate::RegistryId;
 use crate::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_registry::Registered;
-use mcrs_minecraft_registry::{Registry, Tags};
+use mcrs_minecraft_registry::{Registry, TagTable, Tags};
 
 pub fn tags_payload<R: Registered>(tags: &Tags<R>) -> RegistryTags<'static> {
+    tags_payload_of(tags.table())
+}
+
+pub fn tags_payload_of(table: &TagTable) -> RegistryTags<'static> {
     RegistryTags {
-        registry: R::REGISTRY.location().into(),
-        tags: tags
-            .tag_ids()
-            .map(|tag| TagGroup {
-                name: tags.name(tag).clone().into(),
-                entries: tags.members(tag).map(RegistryId::from).collect(),
+        registry: table.registry().clone().into(),
+        tags: table
+            .names()
+            .iter()
+            .enumerate()
+            .map(|(tag, name)| TagGroup {
+                name: name.clone().into(),
+                entries: table.members(tag).iter().copied().map(RegistryId).collect(),
             })
             .collect(),
     }
