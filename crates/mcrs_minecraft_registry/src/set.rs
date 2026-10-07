@@ -257,6 +257,22 @@ pub(crate) fn current() -> Option<RegistrySet> {
     CURRENT.with_borrow(Clone::clone)
 }
 
+pub(crate) fn in_scope<R: 'static, V, T>(
+    parsing: &'static str,
+    select: impl FnOnce(&RegistrySet) -> Option<V>,
+    run: impl FnOnce(&V) -> T,
+) -> Result<T, ScopeError> {
+    let set = current().ok_or(ScopeError::NoScope {
+        parsing,
+        registry: type_name::<R>().to_owned(),
+    })?;
+    let selected = select(&set).ok_or(ScopeError::MissingRegistry {
+        parsing,
+        registry: label::<R>(),
+    })?;
+    Ok(run(&selected))
+}
+
 pub(crate) fn label<R: 'static>() -> String {
     CURRENT.with_borrow(|current| {
         current

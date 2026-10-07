@@ -10,7 +10,7 @@ use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::registries::test_registries;
 
-use crate::common::workspace_root;
+use crate::common::{tag_members, workspace_root};
 
 pub fn tags_load_resolve_and_freeze_on_the_way_to_playing(app: &App) {
     let tags = app
@@ -101,25 +101,10 @@ pub fn entity_type_tags_are_numbered_by_the_report(app: &App) {
     assert_eq!(members, expected);
 }
 
-fn loaded_members<R: mcrs_minecraft_registry::Registered>(tag: &str) -> Vec<String> {
-    let set = test_registries();
-    let registry = set.registry::<R>().expect("the registry is loaded");
-    let tags = set
-        .tags::<R>()
-        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::REGISTRY));
-    let key = TagKey::<R, _>::from_location(ResourceLocation::read(tag).unwrap());
-    let id = tags
-        .get(&key)
-        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::REGISTRY));
-    tags.members(id)
-        .map(|member| registry.name(member).unwrap().as_str().to_owned())
-        .collect()
-}
-
 #[test]
 fn the_loaded_set_holds_ordered_tags_of_every_registry() {
     assert_eq!(
-        loaded_members::<Block>("minecraft:mineable/pickaxe")[..4],
+        tag_members::<Block>(test_registries(), "minecraft:mineable/pickaxe")[..4],
         [
             "minecraft:stone",
             "minecraft:granite",
@@ -128,7 +113,7 @@ fn the_loaded_set_holds_ordered_tags_of_every_registry() {
         ]
     );
     assert_eq!(
-        loaded_members::<Timeline>("minecraft:in_overworld"),
+        tag_members::<Timeline>(test_registries(), "minecraft:in_overworld"),
         [
             "minecraft:villager_schedule",
             "minecraft:day",
@@ -137,7 +122,7 @@ fn the_loaded_set_holds_ordered_tags_of_every_registry() {
         ]
     );
     assert_eq!(
-        loaded_members::<Biome>("minecraft:is_savanna"),
+        tag_members::<Biome>(test_registries(), "minecraft:is_savanna"),
         [
             "minecraft:savanna",
             "minecraft:savanna_plateau",

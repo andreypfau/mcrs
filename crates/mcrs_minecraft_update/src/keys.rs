@@ -183,7 +183,7 @@ pub fn generate(
             (None, Some(entries))
                 if !entries.is_empty() && !NO_CONSTANTS.contains(&registry.as_str()) =>
             {
-                Some(data_module(registry, value, entries)?)
+                Some(named_constants(registry, value, "ResourceKey", entries)?)
             }
             _ => None,
         };
@@ -216,7 +216,7 @@ pub fn generate(
             let value = target.owned().then_some(target.value.as_str());
             files.insert(
                 target.source(&format!("{tag_module}.rs")),
-                tag_module_text(registry, value, tags)?,
+                named_constants(registry, value, "TagKey", tags)?,
             );
             target.modules.push(tag_module);
         }
@@ -503,24 +503,6 @@ fn variant(constant: &str) -> String {
                 .unwrap_or_default()
         })
         .collect()
-}
-
-/// Keys of a data registry's entries, or bare locations when no crate keys the
-/// registry by a type.
-fn data_module(
-    registry: &str,
-    value: Option<&str>,
-    entries: &BTreeSet<String>,
-) -> Result<String, String> {
-    named_constants(registry, value, "ResourceKey", entries)
-}
-
-fn tag_module_text(
-    registry: &str,
-    value: Option<&str>,
-    tags: &BTreeSet<String>,
-) -> Result<String, String> {
-    named_constants(registry, value, "TagKey", tags)
 }
 
 fn named_constants(
@@ -1262,7 +1244,7 @@ mod tests {
         registry: mcrs_minecraft_core::RegistryKey<R>,
         tag: mcrs_minecraft_core::TagKey<R, &'static str>,
     ) -> String {
-        let location = tag.resource_location();
+        let location = tag.location();
         format!(
             "{}/tags/{}/{}.json",
             location.namespace(),

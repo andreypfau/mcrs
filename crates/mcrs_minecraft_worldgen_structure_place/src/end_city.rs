@@ -6,12 +6,12 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::data_markers;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::{GeneratedEntity, elytra_frame, shulker};
-use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
+use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::frozen::FrozenStructures;
 use mcrs_minecraft_worldgen_structure::piece::EndCityPiece;
 
 use crate::template_piece::seed_container_loot;
-use crate::{block_mask, place_positional};
+use crate::{ignore_blocks, place_positional};
 use mcrs_minecraft_block::keys::Block;
 
 /// `EndCityPiece.makeSettings`: the two processor chains its pieces place
@@ -25,14 +25,8 @@ pub struct EndCityChains {
 impl EndCityChains {
     pub fn compile(blocks: &dyn BlockResolver) -> Result<Self, FeatureCompileError> {
         Ok(EndCityChains {
-            overwrite: vec![CompiledProcessor::BlockIgnore(block_mask(
-                blocks,
-                &[Block::StructureBlock],
-            )?)],
-            keep_air: vec![CompiledProcessor::BlockIgnore(block_mask(
-                blocks,
-                &[Block::Air, Block::StructureBlock],
-            )?)],
+            overwrite: ignore_blocks(blocks, &[Block::StructureBlock])?,
+            keep_air: ignore_blocks(blocks, &[Block::Air, Block::StructureBlock])?,
         })
     }
 }

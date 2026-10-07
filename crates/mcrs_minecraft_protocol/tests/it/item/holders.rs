@@ -53,43 +53,41 @@ fn kind_of(label: &str) -> DataComponentType {
 
 #[test]
 fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire() {
-    in_samples(every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire_in_scope);
-}
+    in_samples(|| {
+        let Golden { lookup, samples } = golden();
+        let mut checked = 0;
+        for (label, fields) in &samples {
+            let Some(input) = fields.get("in") else {
+                continue;
+            };
+            let kind = kind_of(label);
+            let value = from_json(kind, input);
+            assert_eq!(&persistent_json(&value), &fields["json"], "{label} json");
+            assert_eq!(from_json(kind, &fields["json"]), value, "{label} reparse");
 
-fn every_persistent_sample_matches_vanilla_in_json_nbt_hash_and_wire_in_scope() {
-    let Golden { lookup, samples } = golden();
-    let mut checked = 0;
-    for (label, fields) in &samples {
-        let Some(input) = fields.get("in") else {
-            continue;
-        };
-        let kind = kind_of(label);
-        let value = from_json(kind, input);
-        assert_eq!(&persistent_json(&value), &fields["json"], "{label} json");
-        assert_eq!(from_json(kind, &fields["json"]), value, "{label} reparse");
+            let mut nbt = Vec::new();
+            mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
+            assert_eq!(
+                nbt_tree(&nbt),
+                nbt_tree(&hex(&fields["nbt"])),
+                "{label} nbt"
+            );
 
-        let mut nbt = Vec::new();
-        mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
-        assert_eq!(
-            nbt_tree(&nbt),
-            nbt_tree(&hex(&fields["nbt"])),
-            "{label} nbt"
-        );
+            let hash: i32 = fields["hash"].parse().unwrap();
+            assert_eq!(hash_ops::hash(&value).unwrap(), hash, "{label} hash");
 
-        let hash: i32 = fields["hash"].parse().unwrap();
-        assert_eq!(hash_ops::hash(&value).unwrap(), hash, "{label} hash");
-
-        let wire = hex(&fields["wire"]);
-        let mut out = Vec::new();
-        value.encode_ctx(&lookup, &mut out).unwrap();
-        assert_eq!(out, wire, "{label} wire");
-        let mut r = &wire[..];
-        let back = decode_component_value(kind, &lookup, &mut r).unwrap();
-        assert!(r.is_empty(), "{label} trailing bytes");
-        assert_eq!(back, value, "{label} wire decode");
-        checked += 1;
-    }
-    assert_eq!(checked, 39);
+            let wire = hex(&fields["wire"]);
+            let mut out = Vec::new();
+            value.encode_ctx(&lookup, &mut out).unwrap();
+            assert_eq!(out, wire, "{label} wire");
+            let mut r = &wire[..];
+            let back = decode_component_value(kind, &lookup, &mut r).unwrap();
+            assert!(r.is_empty(), "{label} trailing bytes");
+            assert_eq!(back, value, "{label} wire decode");
+            checked += 1;
+        }
+        assert_eq!(checked, 39);
+    });
 }
 
 fn wire_only(label: &str, value: impl Into<ItemComponentValue>) {

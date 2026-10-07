@@ -9,7 +9,7 @@ pub trait Sample: Sized {
     }
 }
 
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 
 use mcrs_minecraft_core::codec::IntArray;
 use mcrs_minecraft_core::{RegistryKey, ResourceKey, ResourceLocation, TagKey, rl};
@@ -18,8 +18,7 @@ use mcrs_minecraft_profile::{
     GameProfileValue, PlayerModelType, PlayerName, Profile, ProfileIdentity, Property, SkinPatch,
     ints_uuid,
 };
-use mcrs_minecraft_registry::tags::TagSource;
-use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, TagRules, Tags, build_tags};
+use mcrs_minecraft_registry::{HolderSet, Id, Registry, RegistrySet, Tags};
 
 impl Sample for Profile {
     fn nbt_tags(&self) -> Vec<(&'static str, u8)> {
@@ -111,35 +110,24 @@ fn registry_with_tags<R: 'static>(
     let name = |path: &str| -> ResourceLocation { ResourceLocation::minecraft(path).unwrap() };
     let registry = Registry::new(key, names.iter().map(|path| name(path)))
         .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"));
-    let files: Vec<(ResourceLocation, String)> = tags
+    let members = tags
         .iter()
         .map(|(tag, members)| {
-            let values: Vec<String> = members
+            let ids = members
                 .iter()
-                .map(|member| format!("minecraft:{member}"))
+                .map(|member| {
+                    registry
+                        .by_name(&format!("minecraft:{member}"))
+                        .unwrap_or_else(|| panic!("the sample {key} tag {tag} names {member}"))
+                })
                 .collect();
-            (
-                name(tag),
-                serde_json::json!({ "values": values }).to_string(),
-            )
+            (name(tag), ids)
         })
         .collect();
-    let sources: Vec<(ResourceLocation, Vec<TagSource<'_>>)> = files
-        .iter()
-        .map(|(tag, json)| {
-            let source = TagSource {
-                pack: "sample",
-                path: "sample.json",
-                bytes: json.as_bytes(),
-            };
-            (tag.clone(), vec![source])
-        })
-        .collect();
-    let (table, problems) = build_tags(registry.table(), TagRules::World, &sources, None);
-    assert!(problems.is_empty(), "the sample {key} tags: {problems:?}");
+    let tags = Tags::from_members(&registry, members);
     set.with(registry)
         .unwrap_or_else(|error| panic!("the sample {key} registry: {error}"))
-        .with_tags(Arc::new(table))
+        .with_tags(tags.table().clone())
 }
 
 macro_rules! sample_registries_table {

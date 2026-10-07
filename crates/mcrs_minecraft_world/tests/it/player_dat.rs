@@ -41,99 +41,97 @@ fn sorted(tag: &NbtTag) -> NbtTag {
 
 #[test]
 fn the_vanilla_file_round_trips_through_the_typed_shape() {
-    test_registries().scope(the_vanilla_file_round_trips_through_the_typed_shape_in_scope);
-}
+    test_registries().scope(|| {
+        let world = temp_world("round_trip");
+        let uuid = Uuid::from_u128(0x1234);
+        std::fs::write(
+            world
+                .join("players/data")
+                .join(format!("{}.dat", uuid.hyphenated())),
+            VANILLA,
+        )
+        .unwrap();
 
-fn the_vanilla_file_round_trips_through_the_typed_shape_in_scope() {
-    let world = temp_world("round_trip");
-    let uuid = Uuid::from_u128(0x1234);
-    std::fs::write(
-        world
-            .join("players/data")
-            .join(format!("{}.dat", uuid.hyphenated())),
-        VANILLA,
-    )
-    .unwrap();
-
-    let dat = read_player_dat(&world, uuid)
-        .unwrap()
-        .expect("the file exists");
-    assert_eq!(dat.data_version, VERSION.world_version);
-    assert_eq!(dat.pos, [12.5, 64.0, -7.25]);
-    assert_eq!(dat.rotation, [90.0, -12.5]);
-    assert_eq!(
-        dat.dimension,
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD
-    );
-    assert_eq!(dat.selected_item_slot, 3);
-    assert_eq!(
-        dat.inventory
+        let dat = read_player_dat(&world, uuid)
+            .unwrap()
+            .expect("the file exists");
+        assert_eq!(dat.data_version, VERSION.world_version);
+        assert_eq!(dat.pos, [12.5, 64.0, -7.25]);
+        assert_eq!(dat.rotation, [90.0, -12.5]);
+        assert_eq!(
+            dat.dimension,
+            mcrs_minecraft_dimension::keys::dimension::OVERWORLD
+        );
+        assert_eq!(dat.selected_item_slot, 3);
+        assert_eq!(
+            dat.inventory
+                .iter()
+                .map(|entry| entry.slot)
+                .collect::<Vec<_>>(),
+            [0, 3, 9, 10, 20, 35]
+        );
+        assert_eq!(
+            dat.inventory[0].stack.item.as_str(),
+            "minecraft:diamond_sword"
+        );
+        assert_eq!(dat.inventory[2].stack.count.0, 64);
+        assert!(
+            dat.inventory[3]
+                .stack
+                .components
+                .is_removed(mcrs_minecraft_item::keys::DataComponentType::Lore)
+        );
+        assert_eq!(
+            dat.equipment.keys().cloned().collect::<Vec<_>>(),
+            ["chest", "offhand"]
+        );
+        assert_eq!(
+            dat.equipment["chest"].item.as_str(),
+            "minecraft:leather_chestplate"
+        );
+        let mut rest: Vec<&str> = dat
+            .rest
+            .child_tags
             .iter()
-            .map(|entry| entry.slot)
-            .collect::<Vec<_>>(),
-        [0, 3, 9, 10, 20, 35]
-    );
-    assert_eq!(
-        dat.inventory[0].stack.item.as_str(),
-        "minecraft:diamond_sword"
-    );
-    assert_eq!(dat.inventory[2].stack.count.0, 64);
-    assert!(
-        dat.inventory[3]
-            .stack
-            .components
-            .is_removed(mcrs_minecraft_item::keys::DataComponentType::Lore)
-    );
-    assert_eq!(
-        dat.equipment.keys().cloned().collect::<Vec<_>>(),
-        ["chest", "offhand"]
-    );
-    assert_eq!(
-        dat.equipment["chest"].item.as_str(),
-        "minecraft:leather_chestplate"
-    );
-    let mut rest: Vec<&str> = dat
-        .rest
-        .child_tags
-        .iter()
-        .map(|(key, _)| key.as_str())
-        .collect();
-    rest.sort_unstable();
-    assert_eq!(
-        rest,
-        [
-            "EnderItems",
-            "Fire",
-            "Motion",
-            "OnGround",
-            "UUID",
-            "XpLevel",
-            "abilities",
-            "foodLevel",
-            "foodSaturationLevel",
-        ]
-    );
-    assert_eq!(dat.rest.get_short("Fire"), Some(-20));
+            .map(|(key, _)| key.as_str())
+            .collect();
+        rest.sort_unstable();
+        assert_eq!(
+            rest,
+            [
+                "EnderItems",
+                "Fire",
+                "Motion",
+                "OnGround",
+                "UUID",
+                "XpLevel",
+                "abilities",
+                "foodLevel",
+                "foodSaturationLevel",
+            ]
+        );
+        assert_eq!(dat.rest.get_short("Fire"), Some(-20));
 
-    let other = Uuid::from_u128(0x5678);
-    write_player_dat(&world, other, &dat).unwrap();
-    let rewritten = std::fs::read(
-        world
-            .join("players/data")
-            .join(format!("{}.dat", other.hyphenated())),
-    )
-    .unwrap();
+        let other = Uuid::from_u128(0x5678);
+        write_player_dat(&world, other, &dat).unwrap();
+        let rewritten = std::fs::read(
+            world
+                .join("players/data")
+                .join(format!("{}.dat", other.hyphenated())),
+        )
+        .unwrap();
 
-    let original: NbtCompound = from_gzip_bytes(VANILLA).unwrap();
-    let ours: NbtCompound = from_gzip_bytes(rewritten.as_slice()).unwrap();
-    assert_eq!(
-        sorted(&NbtTag::Compound(original.clone())),
-        sorted(&NbtTag::Compound(ours.clone()))
-    );
+        let original: NbtCompound = from_gzip_bytes(VANILLA).unwrap();
+        let ours: NbtCompound = from_gzip_bytes(rewritten.as_slice()).unwrap();
+        assert_eq!(
+            sorted(&NbtTag::Compound(original.clone())),
+            sorted(&NbtTag::Compound(ours.clone()))
+        );
 
-    let again = read_player_dat(&world, other).unwrap().unwrap();
-    assert_eq!(again, dat);
-    let _ = std::fs::remove_dir_all(world);
+        let again = read_player_dat(&world, other).unwrap().unwrap();
+        assert_eq!(again, dat);
+        let _ = std::fs::remove_dir_all(world);
+    });
 }
 
 #[test]

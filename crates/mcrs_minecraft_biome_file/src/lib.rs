@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use mcrs_minecraft_biome::{Biome, BiomeEffects, GrassColorModifier, TemperatureModifier};
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_core::{ResourceKey, StaticResourceLocation};
 use mcrs_minecraft_environment::attribute::id::{self, Attribute};
 use mcrs_minecraft_environment::attribute::{EnvironmentAttributeMap, MobSpawnSettings, Operation};
-use mcrs_minecraft_registry::{HolderSet, Id, RegistrySet};
+use mcrs_minecraft_registry::{AlwaysList, HolderSet, Id, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
@@ -14,6 +14,7 @@ pub type CarverSet = HolderSet<CarverConfig>;
 pub type FeatureSteps = Vec<HolderSet<PlacedFeature>>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(serialize = "C: Serialize, F: AsRef<[HolderSet<PlacedFeature>]>"))]
 pub struct BiomeFile<C = CarverSet, F = FeatureSteps> {
     pub temperature: f32,
     pub downfall: f32,
@@ -25,8 +26,15 @@ pub struct BiomeFile<C = CarverSet, F = FeatureSteps> {
     pub attributes: EnvironmentAttributeMap,
     #[serde(default)]
     pub carvers: C,
-    #[serde(default)]
+    #[serde(default, serialize_with = "serialize_steps")]
     pub features: F,
+}
+
+fn serialize_steps<F: AsRef<[HolderSet<PlacedFeature>]>, S: Serializer>(
+    steps: &F,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    s.collect_seq(steps.as_ref().iter().map(AlwaysList))
 }
 
 /// A biome described in code, before any registry has ids: carvers and
@@ -48,14 +56,16 @@ pub struct NetworkBiome {
     pub effects: BiomeEffects,
 }
 
-impl From<&BiomeFile> for NetworkBiome {
-    fn from(biome: &BiomeFile) -> Self {
+impl From<(&Biome, &EnvironmentAttributeMap, &BiomeGenerationSettings)> for NetworkBiome {
+    fn from(
+        (biome, attributes, _): (&Biome, &EnvironmentAttributeMap, &BiomeGenerationSettings),
+    ) -> Self {
         NetworkBiome {
             temperature: biome.temperature,
             downfall: biome.downfall,
             has_precipitation: biome.has_precipitation,
             temperature_modifier: biome.temperature_modifier,
-            attributes: biome.attributes.filter_syncable(),
+            attributes: attributes.filter_syncable(),
             effects: biome.effects.clone(),
         }
     }

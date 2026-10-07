@@ -89,7 +89,7 @@ The steps, in order:
    rules) with what the dump wrote, including the README of the block
    definitions.
 8. Write `assets/mcrs/reports/names.json` from the jar (see below), then
-   regenerate the sources of `crates/mcrs_minecraft_keys` from the three reports.
+   regenerate the registry key sources from the three reports.
 
 Three diffs are printed, and each is computed before the files it describes are
 replaced:
@@ -128,34 +128,46 @@ the descriptor, prints the names diff and writes the report. It touches neither
 task. A second run over the same jar prints `names diff: 0 rows` and leaves the
 file unchanged.
 
-## The keys crate
+## The registry key sources
 
-After the names report, the same command writes `src/` of
-`crates/mcrs_minecraft_keys` from `registries.json`, `datapack.json` and
-`names.json`, and deletes a source file there that the generator no longer
-produces. Only `Cargo.toml` of that crate is written by hand; never edit a
-source by hand.
+```sh
+cargo run -p mcrs_minecraft_update -- keys
+```
 
-Every registry of `datapack.json` gets a marker type at the crate root. A
-registry of `registries.json` also gets a module of `Id` constants numbered by
-protocol id and a `NAMES` table in id order. A registry with entries in
-`names.json` gets a module of `ResourceKey` constants, except `minecraft:recipe`
-and `minecraft:advancement`. A constant is the entry path in upper case with
-`/`, `.` and `-` as `_`; the jukebox songs `5`, `11` and `13` become `FIVE`,
-`ELEVEN` and `THIRTEEN`, and a `brigadier:` entry takes the prefix `BRIGADIER_`.
-Any other digit-leading name, a namespace without a rule and two names that make
-one constant stop the generator with the name.
+The update and the `names` command end by writing the registry key sources
+from `registries.json`, `datapack.json` and `names.json`; `keys` writes them
+from the stored reports alone. A source file the generator no longer produces
+is deleted. Never edit a generated source by hand.
 
-`STATIC_REGISTRIES` at the crate root lists every registry of `registries.json`
-with its `NAMES`. The server builds its static registries from it, so
-`registries.json` is read only by this tool and by tests.
+`OWNERS` in `src/owners.rs` names, per registry, the crate that owns it and its
+value type: a type the crate defines, or, for a static registry with entries, an
+enum the generator writes. An owned registry is keyed in `src/keys` of its
+owner, which holds the `RegistryKey`, its type binding and one module per
+registry:
 
-A registry with tags in `names.json` also gets a `<module>_tags` module of
-`TagKey` constants named the same way, so `block_tags::LOGS` and
-`item_tags::LOGS` are two constants of two registries.
+- a static registry keyed by an enum is a `static_registry!` enum of its
+  entries, numbered by protocol id, with their locations in `ENTRIES`;
+- another static registry is a `static_keys!` module of constants and
+  `ENTRIES`, in protocol id order;
+- a data registry with entries in `names.json` is a module of `ResourceKey`
+  constants, except `minecraft:recipe` and `minecraft:advancement`.
 
-A test of this crate regenerates the files from the stored reports and fails,
-naming the first file that differs, if the checked-in crate is not what the
+`crates/mcrs_minecraft_keys` keys only the registries no crate owns, with
+locations in place of typed keys. A registry with tags in `names.json` also
+gets a `<module>_tags` module of `TagKey` constants, so `block_tags::LOGS` and
+`item_tags::LOGS` are two constants of two registries. A constant is the entry
+path in upper case with `/`, `.` and `-` as `_`; the jukebox songs `5`, `11`
+and `13` become `FIVE`, `ELEVEN` and `THIRTEEN`, and a `brigadier:` entry takes
+the prefix `BRIGADIER_`. Any other digit-leading name, a namespace without a
+rule and two names that make one constant stop the generator with the name.
+
+`crates/mcrs_minecraft_registry_catalog`, manifest included, is generated as
+well: `STATIC_REGISTRIES` lists every static registry with its `ENTRIES`, and
+`bindings()` chains the owners' type bindings. An owner that depends on the catalog is left out of it and binds
+its own types.
+
+A test of this crate regenerates the sources from the stored reports and fails,
+naming the first file that differs, if a checked-in source is not what the
 generator writes.
 
 ## Recapturing fixtures

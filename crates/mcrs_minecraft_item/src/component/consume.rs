@@ -7,9 +7,7 @@ use mcrs_minecraft_sound::keys::sound_event;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::common::{
-    Folded, Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance,
-};
+use crate::component::common::{Holder, ItemUseAnimation, MobEffectDetails, MobEffectInstance};
 use crate::harness::Sample;
 use crate::harness::{list_set, one_set};
 use mcrs_minecraft_sound::SoundEvent;
@@ -107,7 +105,7 @@ impl Serialize for ConsumeEffect {
                     map.serialize_entry("probability", probability)?;
                 }
             }
-            Self::RemoveEffects { effects } => map.serialize_entry("effects", &Folded(effects))?,
+            Self::RemoveEffects { effects } => map.serialize_entry("effects", effects)?,
             Self::ClearAllEffects => {}
             Self::TeleportRandomly {
                 diameter,

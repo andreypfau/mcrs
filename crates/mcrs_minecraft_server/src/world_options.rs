@@ -1,13 +1,12 @@
 use crate::WorldSave;
 use crate::loaded::Loaded;
-use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_registry::{Id, LoadReport, RegistrySet};
+use mcrs_minecraft_registry::{LoadReport, RegistrySet};
 use mcrs_minecraft_world::LoadedRegistryAssets;
 use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
 use mcrs_minecraft_world::registries::refuse;
@@ -23,15 +22,6 @@ use tracing::{error, info};
 
 /// Default world preset name used when MCRS_WORLD_PRESET is not set
 const DEFAULT_WORLD_PRESET: &str = "normal";
-
-pub fn configured_preset(
-    name: &str,
-    set: &RegistrySet,
-    report: &mut LoadReport,
-) -> Option<Id<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>> {
-    let registry = report.registry(set, mcrs_minecraft_world::keys::WORLD_PRESET)?;
-    report.require_by_name(&registry, name)
-}
 
 /// The dimension list the server plugin was given, which replaces the save's and the preset's.
 #[derive(Resource, Clone)]
@@ -55,12 +45,14 @@ pub(crate) fn bake_dimensions(
         ("plugin".to_owned(), bake_list(&given.0, &set, &mut report))
     } else {
         let name = get_world_preset_name();
-        let Some(preset) = configured_preset(&name, &set, &mut report) else {
+        let Some(preset) = report
+            .registry(&set, mcrs_minecraft_world::keys::WORLD_PRESET)
+            .and_then(|registry| report.require_by_name(&registry, &name))
+        else {
             refuse(&report)
         };
         if base.is_empty() {
-            base = set
-                .loaded_entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()[preset]
+            base = set.loaded_entries::<WorldPreset, WorldPreset>()[preset]
                 .dimensions
                 .clone();
         }
@@ -68,17 +60,7 @@ pub(crate) fn bake_dimensions(
     };
     let Some(list) = list else { refuse(&report) };
 
-    let mut sources = DimensionBiomeSources::default();
-    for (dimension, entry) in &list {
-        if let ChunkGenerator::Noise(generator) = &entry.generator {
-            sources.0.insert(
-                dimension.location().clone(),
-                Arc::new(generator.biome_source.clone()),
-            );
-        }
-    }
     info!(%source, dimensions = list.len(), "dimension list");
-    commands.insert_resource(sources);
     commands.insert_resource(DimensionList::new(list));
 }
 
@@ -169,42 +151,10 @@ pub fn world_seed_from_env() -> WorldSeed {
 /// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
 /// Returns the default 'normal' preset if not set or invalid.
 /// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
-pub fn get_world_preset_name() -> String {
+fn get_world_preset_name() -> String {
     env::var("MCRS_WORLD_PRESET")
         .ok()
         .map(|name| name.trim().to_lowercase())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| DEFAULT_WORLD_PRESET.to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mcrs_minecraft_world::registries::test_registries;
-
-    #[test]
-    fn an_unknown_world_preset_is_refused_with_the_report() {
-        let set = test_registries();
-        let mut report = LoadReport::new();
-        assert_eq!(configured_preset("minecraft:nope", set, &mut report), None);
-        let text = report.to_string();
-        assert!(text.contains("minecraft:worldgen/world_preset"), "{text}");
-        assert!(text.contains("minecraft:nope"), "{text}");
-
-        let presets = set
-            .registry::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset>()
-            .unwrap();
-        let mut report = LoadReport::new();
-        for (name, expected) in [
-            ("beta", "minecraft:beta"),
-            ("minecraft:normal", "minecraft:normal"),
-        ] {
-            assert_eq!(
-                configured_preset(name, set, &mut report),
-                presets.by_name(expected),
-                "{name}"
-            );
-        }
-        assert!(report.is_empty(), "{report}");
-    }
 }

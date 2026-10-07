@@ -222,7 +222,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     };
     let ctx = FillContext {
         blocks: blocks().0.clone(),
-        biome: source.clone().map(|src| (src, registry.clone())),
+        biome: source.clone(),
         // The modern vein probes `OCEAN_FLOOR_WG`, which is a terrain map, so
         // without the table it would place nothing at all.
         predicates: Some(heightmap_predicates(blocks(), block_tags())),

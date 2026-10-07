@@ -6,19 +6,16 @@ use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_core::TagKey;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_registry::{Registered, RegistrySet};
 use mcrs_minecraft_world::MinecraftWorldPlugin;
 use mcrs_minecraft_world::item::test_corpus;
 use serde::Deserialize;
 
-pub fn corpus() -> &'static (Blocks, Items) {
-    test_corpus()
-}
-
 pub fn items() -> &'static Items {
-    &corpus().1
+    &test_corpus().1
 }
 
 pub fn workspace_root() -> PathBuf {
@@ -49,20 +46,11 @@ pub fn datapack_report() -> DatapackReport {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-pub fn declared_world_registries() -> BTreeSet<String> {
+pub fn declared_registries(stable: bool) -> BTreeSet<String> {
     datapack_report()
         .registries
         .into_iter()
-        .filter(|(_, flags)| flags.elements && !flags.stable)
-        .map(|(registry, _)| registry)
-        .collect()
-}
-
-pub fn declared_reloadable_registries() -> BTreeSet<String> {
-    datapack_report()
-        .registries
-        .into_iter()
-        .filter(|(_, flags)| flags.elements && flags.stable)
+        .filter(|(_, flags)| flags.elements && flags.stable == stable)
         .map(|(registry, _)| registry)
         .collect()
 }
@@ -73,6 +61,20 @@ pub fn loaded_names(set: &RegistrySet, registry: &str) -> Vec<String> {
         .names()
         .iter()
         .map(ToString::to_string)
+        .collect()
+}
+
+pub fn tag_members<R: Registered>(set: &RegistrySet, tag: &str) -> Vec<String> {
+    let registry = set.registry::<R>().expect("the registry is loaded");
+    let tags = set
+        .tags::<R>()
+        .unwrap_or_else(|| panic!("the load builds the tags of {}", R::REGISTRY));
+    let key = TagKey::<R, _>::from_location(ResourceLocation::read(tag).unwrap());
+    let id = tags
+        .get(&key)
+        .unwrap_or_else(|| panic!("{tag} is a loaded tag of {}", R::REGISTRY));
+    tags.members(id)
+        .map(|member| registry.name(member).unwrap().as_str().to_owned())
         .collect()
 }
 

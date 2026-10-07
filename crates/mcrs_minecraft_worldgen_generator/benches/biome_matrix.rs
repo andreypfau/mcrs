@@ -15,7 +15,8 @@ use std::time::{Duration, Instant};
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_minecraft_registry::Registry;
+use mcrs_minecraft_registry::shared::Resolved;
+use mcrs_minecraft_registry::{LoadReport, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_density::router::{NoiseGeneratorSettings, NoiseRouter};
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::MultiNoiseBiomeTable;
 use mcrs_minecraft_worldgen_generator::task::CancellationToken;
@@ -121,22 +122,19 @@ fn material_router(seed: u64, names: &[String]) -> (NoiseRouter, MaterialProgram
 }
 
 struct Ids {
-    surface: SurfaceIds,
+    surface: Resolved<SurfaceIds>,
     states: SurfaceStates,
 }
 
 fn surface_ids(biomes: &Registry<Biome>) -> Ids {
-    let id = |name: &str| {
-        biomes
-            .require_by_name(&format!("minecraft:{name}"))
-            .unwrap()
-    };
+    let set = RegistrySet::new()
+        .with(biomes.clone())
+        .expect("one biome registry");
+    let mut report = LoadReport::new();
+    let surface = SurfaceIds::resolve(&set, &mut report)
+        .unwrap_or_else(|| panic!("the corpus holds the surface biomes: {report}"));
     Ids {
-        surface: SurfaceIds {
-            eroded_badlands: id("eroded_badlands"),
-            frozen_ocean: id("frozen_ocean"),
-            deep_frozen_ocean: id("deep_frozen_ocean"),
-        },
+        surface,
         states: SurfaceStates::new(corpus()),
     }
 }

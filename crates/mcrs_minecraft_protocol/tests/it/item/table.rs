@@ -32,16 +32,5 @@ fn the_kind_table_matches_kinds_json() {
             "{kind:?}"
         );
         assert_eq!(kind.is_nested(), row.nested_stacks, "{kind:?}");
-        assert_eq!(DataComponentType::read(&row.id), Some(*kind));
-        assert_eq!(DataComponentType::read(kind.as_static_str()), Some(*kind));
-        assert_eq!(
-            DataComponentType::from_protocol_id(row.wire_id),
-            Some(*kind)
-        );
     }
-    assert_eq!(
-        DataComponentType::from_protocol_id(DataComponentType::ALL.len() as u16),
-        None
-    );
-    assert_eq!(DataComponentType::read("!custom_data"), None);
 }

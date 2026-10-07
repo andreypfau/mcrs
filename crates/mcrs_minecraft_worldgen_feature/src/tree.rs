@@ -1,11 +1,9 @@
-use mcrs_minecraft_block_predicate::provider::{
-    BlockSet, BlockStateProvider, UnitFloat, non_empty,
-};
+use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use mcrs_minecraft_block_predicate::predicate::Direction;
-use mcrs_minecraft_core::codec::{Bounded, is_default};
+use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_core::codec::{Bounded, is_default, non_empty};
 use mcrs_minecraft_core::{codec::Validate, validated};
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
 

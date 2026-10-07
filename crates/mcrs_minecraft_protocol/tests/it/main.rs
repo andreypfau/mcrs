@@ -6,7 +6,6 @@ mod decoder_advances_reader;
 mod entity_movement_codecs;
 mod entity_packets;
 mod frames_golden;
-mod global_pos;
 mod inventory_packets;
 mod item;
 mod join_packets;

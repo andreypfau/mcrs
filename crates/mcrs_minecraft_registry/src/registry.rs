@@ -4,7 +4,6 @@ use crate::set::{self, ScopeError};
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_key::ResourceKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use std::any::type_name;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -207,15 +206,7 @@ impl<R: 'static> Registry<R> {
         parsing: &'static str,
         run: impl FnOnce(&Registry<R>) -> T,
     ) -> Result<T, ScopeError> {
-        let set = set::current().ok_or(ScopeError::NoScope {
-            parsing,
-            registry: type_name::<R>().to_owned(),
-        })?;
-        let registry = set.registry::<R>().ok_or(ScopeError::MissingRegistry {
-            parsing,
-            registry: set::label::<R>(),
-        })?;
-        Ok(run(&registry))
+        set::in_scope::<R, _, _>(parsing, |set| set.registry::<R>(), run)
     }
 }
 

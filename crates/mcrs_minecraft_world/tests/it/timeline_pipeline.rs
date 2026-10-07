@@ -187,7 +187,7 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
     let mut seen = 0;
     for (index, rl) in table.names().iter().enumerate() {
         let dimension_type =
-            &DimensionTypeFile::join((&dimension_types[index], &environments[index]));
+            DimensionTypeFile::join((&dimension_types[index], &environments[index]));
         let pack = set
             .pack_of("minecraft:dimension_type", index)
             .unwrap_or_else(|| panic!("{rl} has no pack"));

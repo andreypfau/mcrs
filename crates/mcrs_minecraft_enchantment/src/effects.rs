@@ -42,7 +42,7 @@ pub struct TargetedConditionalEffect<T> {
     pub requirements: Option<Holder<LootCondition>>,
 }
 
-/// Java's `Unit`: the component's presence is the whole statement.
+/// The component's presence is the whole statement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unit {}
@@ -80,8 +80,8 @@ mcrs_minecraft_registry::dispatch! {
 }
 
 impl EnchantmentValueEffect {
-    /// Java's `EnchantmentValueEffect.process`. `binomial` draws the removals
-    /// `RemoveBinomial` needs; every other variant ignores it.
+    /// `binomial` draws the removals `RemoveBinomial` needs; every other
+    /// variant ignores it.
     pub fn process(
         &self,
         level: i32,
@@ -297,9 +297,8 @@ pub struct EnchantmentAttributeEffect {
     pub operation: AttributeOperation,
 }
 
-/// Java keeps two registries here: location-based effects are the entity
-/// effects and `attribute`, so the two enums share their variants and the
-/// location one adds its own.
+/// Location-based effects are the entity effects and `attribute`, so the two
+/// enums share their variants and the location one adds its own.
 macro_rules! effect_enum {
     ($(#[$meta:meta])* $name:ident { $($extra:tt)* }) => {
         $(#[$meta])*
@@ -445,8 +444,7 @@ pub struct ChargingSounds {
 }
 
 dispatched_map! {
-    /// Java's `EnchantmentEffectComponents`: the key names the component and so
-    /// chooses the type of its value.
+    /// The key names the component and so chooses the type of its value.
     EnchantmentEffects on crate::keys::EnchantmentEffectComponentType {
         DamageProtection => damage_protection: Vec<ConditionalEffect<EnchantmentValueEffect>>,
         DamageImmunity => damage_immunity: Vec<ConditionalEffect<Unit>>,

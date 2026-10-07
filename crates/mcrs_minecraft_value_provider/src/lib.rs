@@ -15,7 +15,6 @@ pub struct HeightContext {
 }
 
 impl HeightContext {
-    /// `Level.isOutsideBuildHeight`, negated.
     #[inline]
     pub fn contains(self, y: i32) -> bool {
         y >= self.min_y && y < self.min_y + self.depth
@@ -126,8 +125,8 @@ pub fn pick_weighted_by<'a, T, R: Random>(
     })
 }
 
-/// `Codec.either` reads a bare value first and falls through to the dispatch, where
-/// `constant` names a map codec over a single `value` field.
+/// A bare value is tried first, then the dispatch, where `constant` names a
+/// map over a single `value` field.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ConstantOrDispatch<V, D> {
@@ -138,7 +137,6 @@ enum ConstantOrDispatch<V, D> {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum IntProvider {
-    /// A bare number, which `Codec.either` reads as the constant form.
     Constant(i32),
     Dispatched(DispatchedIntProvider),
 }
@@ -260,8 +258,8 @@ mcrs_minecraft_registry::dispatch! {
     }
 }
 
-/// `IntProviders.codec(min, max)`: a provider whose whole range must sit inside
-/// `[MIN, MAX]`, refused at load the way the reference's codec refuses it.
+/// A provider whose whole range must sit inside `[MIN, MAX]`, refused at load
+/// otherwise.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct BoundedIntProvider<const MIN: i32, const MAX: i32>(pub IntProvider);
@@ -309,8 +307,6 @@ impl IntProvider {
         }
     }
 
-    /// `getMinValue` / `getMaxValue`, which a few features read rather than
-    /// sample.
     pub fn bounds(&self) -> (i32, i32) {
         use DispatchedIntProvider::*;
         match self {

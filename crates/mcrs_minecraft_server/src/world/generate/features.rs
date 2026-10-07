@@ -1,7 +1,6 @@
 use crate::loaded::Loaded;
-use crate::world::generate::routers::DimensionBiomeSources;
 use crate::world::generate::structures::{DimensionStructures, build_dimension_structures};
-use crate::world_options::WorldSeed;
+use crate::world_options::{DimensionList, WorldSeed};
 use bevy_app::{App, Plugin};
 use bevy_asset::Assets;
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
@@ -16,6 +15,7 @@ use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::compile::{LoadedFeatures, build_feature_steps};
@@ -85,17 +85,15 @@ fn decoration_steps(
 #[allow(clippy::too_many_arguments)]
 fn build_dimension_features(
     mut commands: Commands,
-    sources: Option<Res<DimensionBiomeSources>>,
+    dimensions: Res<DimensionList>,
     tables: Res<WorldgenTables>,
     templates: Res<Assets<TemplateAsset>>,
-    structures: Option<Res<DimensionStructures>>,
+    structures: Res<DimensionStructures>,
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
     survival: Res<Resolved<SurvivalIds>>,
 ) {
-    let Some(sources) = sources else { return };
-
     let provider_registry = registries.loaded_registry::<DirectBlockStateProvider>();
     let providers =
         registries.loaded_entries::<DirectBlockStateProvider, DirectBlockStateProvider>();
@@ -164,8 +162,13 @@ fn build_dimension_features(
 
     let parameter_lists = parameter_lists_of(&registries);
     let mut programs = DimensionFeaturePrograms::default();
-    for (dimension, source) in &sources.0 {
-        let biome_order = possible_biomes(source, &biome_registry, &parameter_lists);
+    for (dimension, entry) in dimensions.iter() {
+        let ChunkGenerator::Noise(generator) = &entry.generator else {
+            continue;
+        };
+        let dimension = dimension.location();
+        let biome_order =
+            possible_biomes(&generator.biome_source, &biome_registry, &parameter_lists);
         let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {
@@ -202,10 +205,7 @@ fn build_dimension_features(
             &blocks.0,
             &registries,
             seed.0 as i64,
-            structures
-                .as_ref()
-                .and_then(|structures| structures.0.get(dimension))
-                .map(|tables| &*tables.frozen),
+            structures.0.get(dimension).map(|tables| &*tables.frozen),
             survival.clone(),
         )
         .unwrap_or_else(|error| {

@@ -112,12 +112,12 @@ pub fn noise_settings() -> (ResourceLocation, NoiseGeneratorSettings) {
         )
     };
     let settings = NoiseGeneratorSettings {
-        default_block: Some(BlockState::bare(Block::Stone.location().to_arc())),
+        default_block: Some(Block::Stone.into()),
         disable_mob_generation: true,
         legacy_random_source: true,
         ..NoiseGeneratorSettings::new(
             NoiseSettings::new(0, 128),
-            BlockState::bare(Block::Water.location().to_arc()).with("level", "0"),
+            BlockState::from(Block::Water).with("level", "0"),
             router,
             mcrs_minecraft_worldgen_surface::keys::material_rule::OVERWORLD
                 .location()

@@ -163,7 +163,7 @@ impl PresetBiomeTables {
                     report.missing(
                         MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
                         name,
-                        refusal(preset, error),
+                        format!("the preset {}: {error}", preset.name()),
                     );
                 }
             }
@@ -218,17 +218,5 @@ impl PresetBiomeTables {
                 "a multi-noise source names neither biomes nor a preset".to_owned(),
             )),
         }
-    }
-}
-
-fn refusal(preset: Preset, error: &BiomeTableError) -> String {
-    match error {
-        BiomeTableError::Unknown(missing) => format!(
-            "the preset {} names the biome {}, which {} does not hold",
-            preset.name(),
-            missing.name,
-            missing.registry,
-        ),
-        other => other.to_string(),
     }
 }

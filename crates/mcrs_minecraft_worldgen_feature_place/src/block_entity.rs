@@ -16,11 +16,11 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
 use mcrs_minecraft_protocol::item::ItemStackWithSlot;
 use mcrs_minecraft_value_provider::Weighted;
-use mcrs_minecraft_worldgen_feature::template::Joint;
+use mcrs_minecraft_worldgen_feature::template::{EMPTY_LABEL, Joint};
 use serde::{Deserialize, Serialize};
 
 fn empty_id() -> String {
-    "minecraft:empty".to_owned()
+    EMPTY_LABEL.as_str().to_owned()
 }
 
 fn empty_pool() -> String {

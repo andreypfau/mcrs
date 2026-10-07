@@ -19,16 +19,6 @@ use crate::world_options::{DimensionList, WorldSeed};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
-/// Every dimension's biome source, keyed by the id the world preset gave it.
-///
-/// The source decides which biome a column reports and therefore which surface
-/// rules and carvers it runs, so it belongs to the same dimension as the router
-/// it is sampled beside.
-#[derive(Resource, Default, Clone)]
-pub struct DimensionBiomeSources(
-    pub BTreeMap<ResourceLocation, Arc<mcrs_minecraft_biome::source::BiomeSource>>,
-);
-
 /// Every dimension's compiled router, keyed by the id the world preset gave it.
 ///
 /// A router is immutable once compiled, so the host builds each one and hands
@@ -59,7 +49,7 @@ pub(crate) fn build_dimension_routers(
     assets: WorldgenAssets,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
-    structures: Option<Res<DimensionStructures>>,
+    structures: Res<DimensionStructures>,
 ) {
     let biome_tags = registries.loaded_tags::<Biome>();
     let noise_settings = registries.loaded_registry::<NoiseGeneratorSettings>();
@@ -83,7 +73,7 @@ pub(crate) fn build_dimension_routers(
         let settings_name = noise_settings
             .name(generator.settings)
             .expect("an id of the registry has a name");
-        if let Some(tables) = structures.as_ref().and_then(|s| s.0.get(dimension)) {
+        if let Some(tables) = structures.0.get(dimension) {
             refuse_misplaced_beardifier(dimension, settings_name, settings, &assets, tables);
         }
         match build_router(settings, &assets, seed.0, &blocks, &biome_tags) {

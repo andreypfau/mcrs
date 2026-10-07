@@ -10,21 +10,12 @@ use mcrs_minecraft_worldgen_feature::template::{
 };
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
-use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, CompiledProcessor};
+use mcrs_minecraft_worldgen_feature_place::template::CompiledChain;
 use mcrs_minecraft_worldgen_structure::hardcoded::igloo::IglooTemplate;
 use mcrs_minecraft_worldgen_structure::piece::{IglooPiece, ShipwreckPiece};
 
-use crate::{block_mask, place_positional, state};
+use crate::{block_mask, ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::keys::Block;
-
-fn ignore_blocks(
-    blocks: &dyn BlockResolver,
-    names: &[Block],
-) -> Result<CompiledChain, FeatureCompileError> {
-    Ok(vec![CompiledProcessor::BlockIgnore(block_mask(
-        blocks, names,
-    )?)])
-}
 
 /// `BlockIgnoreProcessor.STRUCTURE_AND_AIR` as a chain of its own.
 pub fn ignore_structure_and_air(

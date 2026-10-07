@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::{fmt, ops};
 
-use mcrs_minecraft_core::codec::int_value;
+use mcrs_minecraft_core::codec::{int_value, non_empty};
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -409,14 +409,6 @@ impl<'de, I: TextTypes> Deserialize<'de> for TranslateArg<I> {
 
         d.deserialize_any(ArgVisitor(PhantomData))
     }
-}
-
-fn non_empty<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Vec<T>, D::Error> {
-    let list = Vec::deserialize(d)?;
-    if list.is_empty() {
-        return Err(de::Error::custom("List must have contents"));
-    }
-    Ok(list)
 }
 
 /// The text content of a Text object.

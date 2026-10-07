@@ -79,23 +79,6 @@ const EMPTY_TAG_REGISTRIES: [ResourceLocation<&str>; 3] = [
 #[component(storage = "SparseSet")]
 pub struct AwaitingKnownPacks;
 
-/// True iff the entry's NBT body should be omitted from `ClientboundRegistryData`
-/// because the client already has the pack that sourced it.
-///
-/// The check has two guards: the entry must actually carry data (keys-only
-/// registries like `block`/`item` always send `data: None`), and the entry's
-/// pack source must match one the client confirmed in its known-packs list.
-fn should_skip_nbt(
-    entry_has_data: bool,
-    pack_source: Option<(&str, &str)>,
-    client_known: &HashSet<(&str, &str)>,
-) -> bool {
-    entry_has_data
-        && pack_source
-            .map(|ps| client_known.contains(&ps))
-            .unwrap_or(false)
-}
-
 pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
@@ -244,7 +227,7 @@ fn on_known_packs_response(
                     .pack_source
                     .as_ref()
                     .map(|ps| (ps.namespace.as_ref(), ps.id.as_ref()));
-                let skip_nbt = should_skip_nbt(e.data.is_some(), pack, &client_known);
+                let skip_nbt = e.data.is_some() && pack.is_some_and(|p| client_known.contains(&p));
 
                 Entry {
                     id: ResourceLocation::read_cow(e.location.as_str()).unwrap(),
@@ -395,7 +378,7 @@ pub fn emit_initial_player_spawn(
         With<DimSubAppHandle>,
     >,
     dim_channels: Res<DimChannelsResource>,
-    dimension_list: Option<Res<DimensionList>>,
+    dimension_list: Res<DimensionList>,
     save: Option<Res<WorldSave>>,
     registries: Res<RegistrySet>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
@@ -429,7 +412,7 @@ pub fn emit_initial_player_spawn(
         let Some(dim_label) = saved
             .as_ref()
             .and_then(|dat| live(&dat.dimension))
-            .or_else(|| live(dimension_list.as_ref()?.keys().first()?))
+            .or_else(|| live(dimension_list.keys().first()?))
         else {
             continue;
         };
@@ -449,9 +432,7 @@ pub fn emit_initial_player_spawn(
                 .map(|info| info.view_distance)
                 .unwrap_or(VIEW_DISTANCE_FALLBACK),
         };
-        let dimensions = dimension_list
-            .as_ref()
-            .map_or_else(|| Arc::from([]), |list| Arc::clone(list.keys()));
+        let dimensions = Arc::clone(dimension_list.keys());
         placement.set(Place::Joining(dim_label));
         send_control_or_teardown(
             &chan.control_sender,
@@ -464,19 +445,5 @@ pub fn emit_initial_player_spawn(
             }),
             &mut despawn_queue,
         );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // ── should_skip_nbt: KnownPacks NBT-skip logic ──
-
-    #[test]
-    fn skip_nbt_when_pack_known_and_data_present() {
-        let mut known = HashSet::new();
-        known.insert(("minecraft", "core"));
-        assert!(should_skip_nbt(true, Some(("minecraft", "core")), &known));
     }
 }

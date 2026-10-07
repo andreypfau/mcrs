@@ -1,5 +1,5 @@
 use crate::loaded::Loaded;
-use crate::world::generate::routers::DimensionBiomeSources;
+use crate::world_options::DimensionList;
 use bevy_app::{App, Plugin};
 use bevy_asset::{Assets, Handle};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
@@ -13,6 +13,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_entity::keys::{CAT_VARIANT, CHICKEN_VARIANT, ZOMBIE_NAUTILUS_VARIANT};
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::variant::spawn_selectors;
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, named};
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
@@ -34,12 +35,16 @@ pub fn dimension_tables(
     frozen: Arc<FrozenStructures>,
     biomes: &Registry<Biome>,
     lists: &ParameterLists,
-    sources: &DimensionBiomeSources,
+    dimensions: &DimensionList,
 ) -> DimensionStructures {
     let mut tables = DimensionStructures::default();
-    for (dimension, source) in &sources.0 {
+    for (dimension, entry) in dimensions.iter() {
+        let ChunkGenerator::Noise(generator) = &entry.generator else {
+            continue;
+        };
+        let dimension = dimension.location();
         let mut mask = FixedBitSet::with_capacity(biomes.len());
-        for name in possible_biomes(source, biomes, lists) {
+        for name in possible_biomes(&generator.biome_source, biomes, lists) {
             if let Some(id) = biomes.by_name(name.as_str()) {
                 mask.insert(id.index());
             }
@@ -76,13 +81,12 @@ impl Plugin for StructurePlugin {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_dimension_structures(
     mut commands: Commands,
-    sources: Option<Res<DimensionBiomeSources>>,
+    dimensions: Res<DimensionList>,
     tables: Res<WorldgenTables>,
     templates: Res<Assets<TemplateAsset>>,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
 ) {
-    let Some(sources) = sources else { return };
     let biomes = registries.loaded_registry::<Biome>();
     let biome_tags = registries.loaded_tags::<Biome>();
     let structure_registry = registries.loaded_registry::<Structure>();
@@ -164,6 +168,6 @@ pub(crate) fn build_dimension_structures(
         Arc::new(frozen),
         &biomes,
         &parameter_lists_of(&registries),
-        &sources,
+        &dimensions,
     ));
 }

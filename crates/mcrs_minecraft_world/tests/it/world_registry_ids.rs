@@ -6,7 +6,7 @@ use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_registry::{Registry, RegistrySet};
 use mcrs_minecraft_world::registries::test_registries;
 
-use crate::common::{declared_world_registries, loaded_names};
+use crate::common::{declared_registries, loaded_names};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_environment::timeline::Timeline;
 use mcrs_minecraft_worldgen_structure::Structure;
@@ -30,7 +30,7 @@ fn names_in_registry<T: 'static + Send + Sync + 'static>(app: &App) -> Vec<Strin
 
 pub fn the_running_app_numbers_world_registries_as_the_loader_does(app: &App) {
     let set = app.world().resource::<RegistrySet>();
-    let world_registries = declared_world_registries();
+    let world_registries = declared_registries(false);
 
     let mut snapshots = 0;
     for snapshot in app

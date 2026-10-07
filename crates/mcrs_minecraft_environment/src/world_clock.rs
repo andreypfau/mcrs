@@ -186,18 +186,6 @@ impl ClockTimeMarkers {
         self.0.get(&clock).into_iter().flat_map(BTreeMap::iter)
     }
 
-    pub fn clocks(&self) -> impl Iterator<Item = Id<WorldClock>> {
-        self.0.keys().copied()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.values().map(BTreeMap::len).sum()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.values().all(BTreeMap::is_empty)
-    }
-
     /// A marker id may be reused on another clock but not on the same one; every
     /// repeat is returned with the index of the timeline that repeated it.
     pub fn derive(

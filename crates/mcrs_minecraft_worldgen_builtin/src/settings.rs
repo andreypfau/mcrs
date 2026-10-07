@@ -67,7 +67,7 @@ fn overworld(climate: &str, terrain: &str) -> NoiseGeneratorSettings {
         ],
         ..NoiseGeneratorSettings::new(
             OVERWORLD,
-            BlockState::bare(Block::Water.location().to_arc()),
+            BlockState::from(Block::Water),
             router,
             id("overworld"),
             63,
@@ -91,7 +91,7 @@ fn nether() -> NoiseGeneratorSettings {
         ],
         ..NoiseGeneratorSettings::new(
             bounds,
-            BlockState::bare(Block::Lava.location().to_arc()),
+            BlockState::from(Block::Lava),
             router,
             id("nether"),
             32,
@@ -113,13 +113,7 @@ fn end() -> NoiseGeneratorSettings {
             DebugFunction::new("N", &router.final_density),
             DebugFunction::new("IS", &router.erosion),
         ],
-        ..NoiseGeneratorSettings::new(
-            bounds,
-            BlockState::bare(Block::Air.location().to_arc()),
-            router,
-            id("end"),
-            0,
-        )
+        ..NoiseGeneratorSettings::new(bounds, BlockState::from(Block::Air), router, id("end"), 0)
     }
 }
 
@@ -137,7 +131,7 @@ fn density_only(
         debug_functions: vec![DebugFunction::new("N", &router.final_density)],
         ..NoiseGeneratorSettings::new(
             bounds,
-            BlockState::bare(Block::Water.location().to_arc()),
+            BlockState::from(Block::Water),
             router,
             id(material_rule),
             sea_level,

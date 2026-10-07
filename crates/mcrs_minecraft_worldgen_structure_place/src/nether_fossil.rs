@@ -9,13 +9,11 @@ use mcrs_minecraft_worldgen_feature::placer::WorldGenVolume;
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
-use mcrs_minecraft_worldgen_feature_place::template::{
-    CompiledChain, CompiledProcessor, rotate_state,
-};
+use mcrs_minecraft_worldgen_feature_place::template::{CompiledChain, rotate_state};
 use mcrs_minecraft_worldgen_structure::orient::random_rotation;
 use mcrs_minecraft_worldgen_structure::piece::NetherFossilPiece;
 
-use crate::{block_mask, place_positional, state};
+use crate::{ignore_blocks, place_positional, state};
 use mcrs_minecraft_block::keys::Block;
 
 #[derive(Clone, Debug)]
@@ -31,10 +29,7 @@ impl NetherFossilBlocks {
         world_seed: i64,
     ) -> Result<Self, FeatureCompileError> {
         Ok(NetherFossilBlocks {
-            chain: vec![CompiledProcessor::BlockIgnore(block_mask(
-                blocks,
-                &[Block::Air, Block::StructureBlock],
-            )?)],
+            chain: ignore_blocks(blocks, &[Block::Air, Block::StructureBlock])?,
             dried_ghast: state(blocks, Block::DriedGhast, &[])?,
             world_seed,
         })

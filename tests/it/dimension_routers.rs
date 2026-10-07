@@ -3,10 +3,11 @@ use bevy_state::state::State;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::MinecraftServerPlugin;
-use mcrs_minecraft_server::world::generate::{DimensionBiomeSources, DimensionRouters};
+use mcrs_minecraft_server::world::generate::DimensionRouters;
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_server::world_options::DimensionList;
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// The preset is loaded once, in the host, and every dimension's router is
@@ -61,7 +62,17 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
         "the overworld and the nether were given the same terrain block and fluid"
     );
 
-    let sources = app.world().resource::<DimensionBiomeSources>().clone();
+    let sources: Vec<_> = app
+        .world()
+        .resource::<DimensionList>()
+        .iter()
+        .filter_map(|(key, entry)| match &entry.generator {
+            ChunkGenerator::Noise(generator) => {
+                Some((key.location().clone(), generator.biome_source.clone()))
+            }
+            _ => None,
+        })
+        .collect();
     // A sub-app is keyed by an entity, so the router it was handed is what says
     // which dimension it is: the terrain block pair is distinct per dimension,
     // which the assertion above holds to.
@@ -112,12 +123,17 @@ fn every_noise_dimension_reaches_its_sub_app_with_a_router() {
             .find(|(pair, _)| *pair == key)
             .map(|(_, id)| id)
             .expect("a sub-app carries a router no dimension compiled");
-        let (held, _) = context
+        let held = context
             .biome
             .as_ref()
             .unwrap_or_else(|| panic!("{dimension} reached its sub-app with no biome source"));
+        let expected_source = sources
+            .iter()
+            .find(|(key, _)| key == dimension)
+            .map(|(_, source)| source)
+            .unwrap_or_else(|| panic!("{dimension} has no noise generator in the list"));
         assert!(
-            Arc::ptr_eq(held, &sources.0[dimension]),
+            **held == *expected_source,
             "{dimension} was given another dimension's biome source"
         );
         checked += 1;

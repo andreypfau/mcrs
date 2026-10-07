@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::vec;
 
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_nbt::{ArrayKind, NBT_ARRAY_NEWTYPE};
+use mcrs_minecraft_nbt::{ArrayKind, NBT_ARRAY_TAG};
 use serde::de::{
     self, DeserializeSeed, EnumAccess, Error as _, IntoDeserializer, MapAccess, SeqAccess,
     Unexpected, VariantAccess, Visitor,
@@ -44,7 +44,7 @@ pub enum Buffered {
 
 impl<'de> Deserialize<'de> for Buffered {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_newtype_struct(NBT_ARRAY_NEWTYPE, Capture)
+        deserializer.deserialize_newtype_struct(NBT_ARRAY_TAG, Capture)
     }
 }
 
@@ -461,7 +461,7 @@ impl<'de, E: de::Error> Deserializer<'de> for BufferedDeserializer<E> {
     ) -> Result<V::Value, E> {
         let human_readable = self.human_readable;
         match self.value {
-            Buffered::Array(kind, payload) if name == NBT_ARRAY_NEWTYPE => {
+            Buffered::Array(kind, payload) if name == NBT_ARRAY_TAG => {
                 visitor.visit_enum(ArrayVariant {
                     kind,
                     payload,
@@ -1059,6 +1059,14 @@ macro_rules! dispatch {
     (@kind [$($gp:ident),*] $ty:ty, $gen:ty, [$($g:ident => $d:ident),+], [$($ext:literal)+]) => {};
     (@write true { $($item:item)* }) => { $($item)* };
     (@write false { $($item:item)* }) => {};
+    (@build $flags:tt $gps:tt $sb:tt $db:tt $ty:ty,
+        key = $key:literal, registry = $gen:ty,
+        { $($g:ident),+ $(,)? }
+        $($tail:tt)*
+    ) => {
+        $crate::dispatch!(@build $flags $gps $sb $db $ty,
+            key = $key, registry = $gen, { $($g => $g),+ } $($tail)*);
+    };
     (@build [$validated:tt $write:tt] [$($gp:ident),*] [$($sb:tt)*] [$($db:tt)*] $ty:ty,
         key = $key:literal, registry = $gen:ty,
         { $($g:ident => $d:ident),+ $(,)? }

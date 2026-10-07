@@ -1,4 +1,5 @@
 use std::fmt;
+use std::marker::PhantomData;
 
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::{Number, int_value};
@@ -473,87 +474,76 @@ impl<'de> Deserialize<'de> for FloatAttribute {
     }
 }
 
-/// An int that must lie in a range, both ends computed in the loot context.
+/// A value that must lie in a range, both ends computed in the loot context.
 #[derive(Debug, Clone, PartialEq)]
-pub enum IntRangePredicate {
-    Point(Holder<IntExpression>),
+pub enum RangePredicate<V: Provider> {
+    Point(Holder<V>),
     Line {
-        min: Option<Holder<IntExpression>>,
-        max: Option<Holder<IntExpression>>,
+        min: Option<Holder<V>>,
+        max: Option<Holder<V>>,
     },
 }
 
-/// A float that must lie in a range, both ends computed in the loot context.
-#[derive(Debug, Clone, PartialEq)]
-pub enum FloatRangePredicate {
-    Point(Holder<FloatExpression>),
-    Line {
-        min: Option<Holder<FloatExpression>>,
-        max: Option<Holder<FloatExpression>>,
-    },
+pub type IntRangePredicate = RangePredicate<IntExpression>;
+pub type FloatRangePredicate = RangePredicate<FloatExpression>;
+
+impl<V: Provider> Serialize for RangePredicate<V> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            RangePredicate::Point(value) => value.serialize(s),
+            RangePredicate::Line { min, max } => RangeLine {
+                min: min.clone(),
+                max: max.clone(),
+            }
+            .serialize(s),
+        }
+    }
 }
 
-macro_rules! range_predicate {
-    ($name:ident, $provider:ty) => {
-        impl Serialize for $name {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                match self {
-                    $name::Point(value) => value.serialize(s),
-                    $name::Line { min, max } => RangeLine {
-                        min: min.clone(),
-                        max: max.clone(),
-                    }
-                    .serialize(s),
+impl<'de, V: Provider> Deserialize<'de> for RangePredicate<V> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct PointOrLine<V>(PhantomData<V>);
+
+        impl<'de, V: Provider> Visitor<'de> for PointOrLine<V> {
+            type Value = RangePredicate<V>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a value or a {min, max} range")
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                Holder::deserialize(value::I64Deserializer::new(v)).map(RangePredicate::Point)
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                Holder::deserialize(value::U64Deserializer::new(v)).map(RangePredicate::Point)
+            }
+
+            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Self::Value, E> {
+                Holder::deserialize(value::F64Deserializer::new(v)).map(RangePredicate::Point)
+            }
+
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                Holder::deserialize(value::StrDeserializer::new(v)).map(RangePredicate::Point)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                // A provider written inline is a map with a type; a range never has one.
+                let entries = MapEntries::read(map)?;
+                if entries.has("type") {
+                    entries.into_value().map(RangePredicate::Point)
+                } else {
+                    let line: RangeLine<V> = entries.into_value()?;
+                    Ok(RangePredicate::Line {
+                        min: line.min,
+                        max: line.max,
+                    })
                 }
             }
         }
 
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                struct PointOrLine;
-
-                impl<'de> Visitor<'de> for PointOrLine {
-                    type Value = $name;
-
-                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        f.write_str("a value or a {min, max} range")
-                    }
-
-                    fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<$name, E> {
-                        Holder::deserialize(value::I64Deserializer::new(v)).map($name::Point)
-                    }
-
-                    fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<$name, E> {
-                        Holder::deserialize(value::U64Deserializer::new(v)).map($name::Point)
-                    }
-
-                    fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<$name, E> {
-                        Holder::deserialize(value::F64Deserializer::new(v)).map($name::Point)
-                    }
-
-                    fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<$name, E> {
-                        Holder::deserialize(value::StrDeserializer::new(v)).map($name::Point)
-                    }
-
-                    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<$name, A::Error> {
-                        // A provider written inline is a map with a type; a range never has one.
-                        let entries = MapEntries::read(map)?;
-                        if entries.has("type") {
-                            entries.into_value().map($name::Point)
-                        } else {
-                            let line: RangeLine<$provider> = entries.into_value()?;
-                            Ok($name::Line {
-                                min: line.min,
-                                max: line.max,
-                            })
-                        }
-                    }
-                }
-
-                d.deserialize_any(PointOrLine)
-            }
-        }
-    };
+        d.deserialize_any(PointOrLine(PhantomData))
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -564,9 +554,6 @@ struct RangeLine<V: Provider> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max: Option<Holder<V>>,
 }
-
-range_predicate!(IntRangePredicate, IntExpression);
-range_predicate!(FloatRangePredicate, FloatExpression);
 
 impl IntExpression {
     /// The type of the expression at the root, the part an item can name.

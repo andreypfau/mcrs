@@ -1,11 +1,12 @@
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::rl;
+use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
 use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload};
 use mcrs_minecraft_registry::Registered;
-use mcrs_minecraft_registry::{Registry, Tags};
+use mcrs_minecraft_registry::{Registry, TagId, Tags};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -29,19 +30,19 @@ fn registry(count: usize) -> Registry<TestRegistry> {
     .unwrap()
 }
 
+fn tag_id(tags: &Tags<TestRegistry>, tag: &str) -> TagId<TestRegistry> {
+    tags.get(&TagKey::from_location(name(tag)))
+        .unwrap_or_else(|| panic!("no tag {tag}"))
+}
+
 fn numbers(tags: &Tags<TestRegistry>, tag: &str) -> Vec<u16> {
-    let id = tags
-        .tag_ids()
-        .find(|&id| tags.name(id).as_str() == tag)
-        .unwrap_or_else(|| panic!("no tag {tag}"));
-    tags.members(id).map(|member| member.number()).collect()
+    tags.members(tag_id(tags, tag))
+        .map(|member| member.number())
+        .collect()
 }
 
 fn contained(tags: &Tags<TestRegistry>, registry: &Registry<TestRegistry>, tag: &str) -> Vec<u16> {
-    let id = tags
-        .tag_ids()
-        .find(|&id| tags.name(id).as_str() == tag)
-        .unwrap_or_else(|| panic!("no tag {tag}"));
+    let id = tag_id(tags, tag);
     registry
         .ids()
         .filter(|&member| tags.contains(id, member))

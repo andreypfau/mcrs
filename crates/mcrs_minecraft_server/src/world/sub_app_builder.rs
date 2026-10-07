@@ -10,6 +10,7 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use std::collections::VecDeque;
 use tracing::{debug, error, warn};
 
@@ -80,7 +81,6 @@ use crate::world::generate::DimensionRouters;
 use crate::world::heightmap::DimHeightmapPlugin;
 use crate::world::light::DimLightPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_dimension::DimensionType;
@@ -107,7 +107,6 @@ use mcrs_minecraft_worldgen_generator::stages::{FillContext, dimension_y_section
 pub struct DimRegistryBundle {
     pub light_registry: Option<std::sync::Arc<mcrs_minecraft_light::block::LightRegistry>>,
     pub heightmap_predicates: Option<HeightmapPredicates>,
-    pub biome_sources: crate::world::generate::routers::DimensionBiomeSources,
     pub modern_carver_biomes: crate::world::generate::modern_carvers::DimensionCarverBiomes,
     pub features: crate::world::generate::features::DimensionFeaturePrograms,
     pub structures: crate::world::generate::structures::DimensionStructures,
@@ -121,10 +120,6 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
             .get_resource::<mcrs_minecraft_light::block_light::BlockLightRegistry>()
             .map(|registry| registry.0.clone()),
         heightmap_predicates: world.get_resource::<HeightmapPredicates>().cloned(),
-        biome_sources: world
-            .get_resource::<crate::world::generate::routers::DimensionBiomeSources>()
-            .cloned()
-            .unwrap_or_default(),
         modern_carver_biomes: world
             .get_resource::<crate::world::generate::modern_carvers::DimensionCarverBiomes>()
             .cloned()
@@ -215,6 +210,16 @@ pub fn spawn_dim_subapp(
 
     let column_traces = app.world().get_resource::<ColumnTraceSink>().cloned();
     let trace_dimension = request.dimension.as_str().to_owned();
+    let biome_source = app
+        .world()
+        .get_resource::<crate::world_options::DimensionList>()
+        .and_then(|list| list.iter().find(|(key, _)| **key == request.dimension))
+        .and_then(|(_, entry)| match &entry.generator {
+            ChunkGenerator::Noise(generator) => {
+                Some(std::sync::Arc::new(generator.biome_source.clone()))
+            }
+            _ => None,
+        });
 
     let mut sub_app = SubApp::new();
     if let Some(shared) = app.world().get_resource::<SharedRegistries>() {
@@ -429,10 +434,6 @@ pub fn spawn_dim_subapp(
     match registries.noise_routers.0.get(dimension) {
         Some(dimension_router) => {
             let router = &dimension_router.router;
-            let biome_registry = sub_app
-                .world()
-                .resource::<RegistrySet>()
-                .loaded_registry::<Biome>();
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
             let block_tags = sub_app
                 .world()
@@ -459,11 +460,7 @@ pub fn spawn_dim_subapp(
                 Some(std::sync::Arc::clone(&dimension_router.material)),
                 blocks,
                 dimension_y_sections(router, type_config.min_y, type_config.section_count),
-                registries
-                    .biome_sources
-                    .0
-                    .get(dimension)
-                    .map(|source| (std::sync::Arc::clone(source), biome_registry)),
+                biome_source,
                 &preset_tables,
                 registries.heightmap_predicates.clone(),
                 registries.world_save.as_ref().and_then(|save| {

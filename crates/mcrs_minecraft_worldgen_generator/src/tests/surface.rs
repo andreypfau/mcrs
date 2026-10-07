@@ -572,7 +572,7 @@ pub fn fill_context(
         _ => None,
     };
     crate::stages::FillContext {
-        biome: Some((std::sync::Arc::new(source), registry)),
+        biome: Some(std::sync::Arc::new(source)),
         program: crate::stages::ColumnProgram {
             generator: crate::stages::ColumnGenerator::Modern {
                 multi_noise,

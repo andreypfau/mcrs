@@ -15,11 +15,11 @@ use mcrs_minecraft_block::definition::{
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_block::keys::Fluid;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
-use mcrs_minecraft_block_predicate::predicate::Direction;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_chunk::VoxelId;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_core::voxel_shape::{FACE_MASK_FULL, VoxelShape};
@@ -124,7 +124,7 @@ use mcrs_minecraft_worldgen_feature_place::stepped_column::{
 };
 use mcrs_minecraft_worldgen_feature_place::tables::BlockTables;
 use mcrs_minecraft_worldgen_feature_place::template::{
-    ChainKind, CompiledChain, Placement, SettingsRandom, compile_chain, place_template,
+    ChainKind, CompiledChain, Placement, SettingsRandom, block_mask, compile_chain, place_template,
 };
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::{
     BiomeClimate, CompiledBlueIce, CompiledDisk, CompiledFreezeTopLayer, CompiledUnderwaterMagma,
@@ -1385,7 +1385,7 @@ fn compile_generator(
         })),
         Feature::BlockPile { state_provider } => Generator::BlockPile(CompiledBlockPile {
             state_provider: compile_provider(state_provider, resolver)?,
-            dirt_path: resolver.block_mask_of(Block::DirtPath)?,
+            dirt_path: block_mask(resolver, &[Block::DirtPath])?,
         }),
         Feature::MultifaceGrowth {
             block,
@@ -1474,7 +1474,7 @@ fn compile_generator(
             state,
             radius,
         } => Generator::ReplaceBlobs(CompiledReplaceBlobs {
-            target: resolver.block_mask(target.name.as_str())?,
+            target: resolver.block_mask(&target.name)?,
             state: resolver.resolve(state)?,
             radius: radius.0.clone(),
         }),
@@ -1485,7 +1485,7 @@ fn compile_generator(
             rim_size,
         } => Generator::Delta(Box::new(CompiledDelta {
             contents: resolver.resolve(contents)?,
-            contents_block: resolver.block_mask(contents.name.as_str())?,
+            contents_block: resolver.block_mask(&contents.name)?,
             rim: resolver.resolve(rim)?,
             size: size.0.clone(),
             rim_size: rim_size.0.clone(),
@@ -1514,7 +1514,7 @@ fn compile_generator(
                 ice: resolver.default_state_of(Block::Ice.id()),
                 snow: VoxelId::from(snow.default_state_id.0),
                 snow_layers_8: VoxelId::from(set(snow, snow.default_state_id, "layers", "8")?.0),
-                snow_states: resolver.block_mask_of(Block::Snow)?,
+                snow_states: block_mask(resolver, &[Block::Snow])?,
                 cannot_support_snow: resolver
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::CANNOT_SUPPORT_SNOW_LAYER)?,
                 support_override_snow: resolver.tag_mask(
@@ -1544,8 +1544,8 @@ fn compile_generator(
                 horizontal_facings(resolver.blocks, Block::Chest.id()),
                 Block::Chest.as_static_str(),
             )?,
-            chest_states: resolver.block_mask_of(Block::Chest)?,
-            spawner_states: resolver.block_mask_of(Block::Spawner)?,
+            chest_states: block_mask(resolver, &[Block::Chest])?,
+            spawner_states: block_mask(resolver, &[Block::Spawner])?,
             cannot_replace: resolver
                 .tag_mask(mcrs_minecraft_block::keys::block_tags::FEATURES_CANNOT_REPLACE)?,
         })),
@@ -1656,7 +1656,7 @@ fn compile_generator(
             max_distance_from_edge_affecting_chance_of_speleothem,
             max_distance_from_center_affecting_height_bias,
         } => {
-            let base_block_states = resolver.block_mask(base_block.name.as_str())?;
+            let base_block_states = resolver.block_mask(&base_block.name)?;
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
             Generator::SpeleothemCluster(Box::new(CompiledSpeleothemCluster {
                 base_block: resolver.resolve(base_block)?,
@@ -1666,7 +1666,7 @@ fn compile_generator(
                     PointedStates::resolve(pointed_block, resolver),
                     state_named(pointed_block),
                 )?,
-                pointed_block_states: resolver.block_mask(pointed_block.name.as_str())?,
+                pointed_block_states: resolver.block_mask(&pointed_block.name)?,
                 replaceable_blocks: replaceable,
                 floor_to_ceiling_search_range: floor_to_ceiling_search_range.0,
                 height: height.0.clone(),
@@ -1699,7 +1699,7 @@ fn compile_generator(
             min_bluntness_for_wind,
         } => {
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
-            let dripstone = resolver.block_mask_of(Block::DripstoneBlock)?;
+            let dripstone = block_mask(resolver, &[Block::DripstoneBlock])?;
             let (column_radius_min, column_radius_max) = column_radius.bounds();
             Generator::LargeDripstone(Box::new(CompiledLargeDripstone {
                 dripstone: resolver.default_state_of(Block::DripstoneBlock.id()),
@@ -1770,9 +1770,9 @@ fn compile_generator(
         } => {
             let weeping = resolver.block_of(Block::WeepingVines.id());
             Generator::HugeFungus(Box::new(CompiledHugeFungus {
-                valid_base: resolver.block_mask(valid_base_block.name.as_str())?,
+                valid_base: resolver.block_mask(&valid_base_block.name)?,
                 stem_state: resolver.resolve(stem_state)?,
-                hat_block: resolver.block_mask(hat_state.name.as_str())?,
+                hat_block: resolver.block_mask(&hat_state.name)?,
                 place_vines: resolver.blocks.id_of(hat_state.name.as_str())
                     == Some(Block::NetherWartBlock.id()),
                 hat_state: resolver.resolve(hat_state)?,
@@ -1815,10 +1815,10 @@ fn compile_generator(
         })),
         Feature::Iceberg { state } => Generator::Iceberg(CompiledIceberg {
             state: resolver.resolve(state)?,
-            ice_mask: resolver.block_mask_of(Block::Ice)?,
+            ice_mask: block_mask(resolver, &[Block::Ice])?,
             snow_block: resolver.default_state_of(Block::SnowBlock.id()),
-            snow_block_mask: resolver.block_mask_of(Block::SnowBlock)?,
-            snow_layer_mask: resolver.block_mask_of(Block::Snow)?,
+            snow_block_mask: block_mask(resolver, &[Block::SnowBlock])?,
+            snow_layer_mask: block_mask(resolver, &[Block::Snow])?,
             iceberg_mask: resolver.blocks_mask(&[
                 Block::PackedIce,
                 Block::SnowBlock,
@@ -1890,7 +1890,7 @@ fn compile_generator(
             chance_of_spread_radius2,
             chance_of_spread_radius3,
         } => {
-            let base_block_states = resolver.block_mask(base_block.name.as_str())?;
+            let base_block_states = resolver.block_mask(&base_block.name)?;
             let replaceable = resolver.mask(StateQuery::Blocks(replaceable_blocks))?;
             Generator::Speleothem(Box::new(CompiledSpeleothem {
                 base_block: resolver.resolve(base_block)?,
@@ -1979,7 +1979,7 @@ fn compile_generator(
                 Block::SculkVein.as_static_str(),
             )?,
             sculk: resolver.default_state_of(Block::Sculk.id()),
-            sculk_states: resolver.block_mask_of(Block::Sculk)?,
+            sculk_states: block_mask(resolver, &[Block::Sculk])?,
             blocks_vein: resolver.blocks_mask(&[
                 Block::Sculk,
                 Block::SculkCatalyst,
@@ -2203,10 +2203,6 @@ const DELTA_CANNOT_REPLACE: &[Block] = &[
     Block::Chest,
     Block::Spawner,
 ];
-
-fn location(id: &str) -> ResourceLocation {
-    ResourceLocation::read(id).expect("a literal id")
-}
 
 pub(super) fn union_masks(masks: &[&StateMask]) -> StateMask {
     let mut out = FixedBitSet::new();
@@ -2702,7 +2698,7 @@ impl<'a> Resolver<'a> {
     fn world_states(&self) -> WorldStates {
         let water = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Water.id())));
         let lava = self.states(StateQuery::Fluids(&HolderSet::One(Fluid::Lava.id())));
-        let block = |block: Block| self.block_mask_of(block).unwrap_or_default();
+        let block = |block: Block| block_mask(self, &[block]).unwrap_or_default();
         WorldStates {
             air: self.default_state_of(Block::Air.id()),
             cave_air: self.default_state_of(Block::CaveAir.id()),
@@ -2763,9 +2759,7 @@ impl<'a> Resolver<'a> {
 
     pub fn tag_states(&self, tag: TagId<Block>) -> FixedBitSet {
         let mut mask = FixedBitSet::with_capacity(self.blocks.state_count());
-        for id in self.tags.members(tag) {
-            Self::add_entry(&mut mask, &self.blocks[id]);
-        }
+        self.add_set(&mut mask, &HolderSet::Named(tag));
         mask
     }
 
@@ -2783,12 +2777,6 @@ impl<'a> Resolver<'a> {
 
     pub fn default_state_of(&self, block: Id<Block>) -> VoxelId {
         VoxelId::from(self.blocks.default_state_of(block).0)
-    }
-
-    pub fn default_state(&self, block: &str) -> Compiled<VoxelId> {
-        Ok(VoxelId::from(
-            missing(self.blocks.block(block), block)?.default_state_id.0,
-        ))
     }
 
     /// Every state `keep` answers for.
@@ -2814,12 +2802,8 @@ impl<'a> Resolver<'a> {
         self.state_mask(|state| state.flags.contains(flag))
     }
 
-    pub fn block_mask(&self, block: &str) -> Compiled<StateMask> {
-        self.mask(StateQuery::Block(&location(block)))
-    }
-
-    pub fn block_mask_of(&self, block: Block) -> Compiled<StateMask> {
-        self.mask(StateQuery::Blocks(&HolderSet::One(block.id())))
+    pub fn block_mask(&self, block: &ResourceLocation) -> Compiled<StateMask> {
+        self.mask(StateQuery::Block(block))
     }
 
     /// The default state of every block of a set, in the set's own order — what
@@ -2853,9 +2837,7 @@ impl<'a> Resolver<'a> {
         let tag = self
             .tags
             .get(&TagKey::<Block, Arc<str>>::from_location(tag.clone()))?;
-        for id in self.tags.members(tag) {
-            Self::add_entry(mask, &self.blocks[id]);
-        }
+        self.add_set(mask, &HolderSet::Named(tag));
         Some(())
     }
 

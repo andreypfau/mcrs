@@ -13,8 +13,8 @@ use mcrs_minecraft_chunk::{Blocks, BlocksMut, Volume, VoxelId};
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
+use mcrs_minecraft_registry::Tags;
 use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_value_provider::HeightContext;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::NoiseRouter;
@@ -50,7 +50,6 @@ use crate::{
     apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
     spans_dimension,
 };
-use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 
 /// Everything a column stage reads that is the same for every column of one
@@ -66,9 +65,8 @@ pub struct FillContext {
     /// delta names a cell by its index in it, so it is one list, not one per
     /// dispatch.
     pub y_sections: Arc<[i32]>,
-    pub biome: Option<(Arc<BiomeSource>, Registry<Biome>)>,
+    pub biome: Option<Arc<BiomeSource>>,
     pub predicates: Option<HeightmapPredicates>,
-    /// Read only where `biome` names the registry the save is decoded against.
     pub saved: Option<SavedColumns>,
     pub program: ColumnProgram,
     pub structures: Option<Arc<StructureIndex>>,
@@ -118,7 +116,7 @@ impl FillContext {
         material: Option<Arc<MaterialProgram>>,
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
-        biome: Option<(Arc<BiomeSource>, Registry<Biome>)>,
+        biome: Option<Arc<BiomeSource>>,
         preset_tables: &PresetBiomeTables,
         predicates: Option<HeightmapPredicates>,
         saved: Option<SavedColumns>,
@@ -129,7 +127,7 @@ impl FillContext {
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
-        let multi_noise = biome.as_ref().and_then(|(source, _)| {
+        let multi_noise = biome.as_ref().and_then(|source| {
             let BiomeSource::MultiNoise(multi) = source.as_ref() else {
                 return None;
             };
@@ -144,7 +142,7 @@ impl FillContext {
         let structures = structures.map(|tables| {
             let biome_lookup = match (&multi_noise, &biome) {
                 (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
-                (None, Some((source, _))) => match source.as_ref() {
+                (None, Some(source)) => match source.as_ref() {
                     BiomeSource::Fixed { biome } => BiomeLookup::Fixed(biome.number()),
                     BiomeSource::TheEnd => BiomeLookup::TheEnd(fill_ids.end),
                     _ => BiomeLookup::None,
@@ -175,7 +173,7 @@ impl FillContext {
             ))
         });
         let generator = match &biome {
-            Some((source, _)) if matches!(source.as_ref(), BiomeSource::Beta { .. }) => {
+            Some(source) if matches!(source.as_ref(), BiomeSource::Beta { .. }) => {
                 ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks)))
             }
             _ => ColumnGenerator::Modern {
@@ -208,7 +206,7 @@ impl FillContext {
     }
 
     fn biome_source(&self) -> Option<&BiomeSource> {
-        self.biome.as_ref().map(|(source, _)| source.as_ref())
+        self.biome.as_deref()
     }
 
     pub fn features(&self) -> Option<&FeatureProgram> {
@@ -263,24 +261,20 @@ pub fn fill_column(
     let router = ctx.router.as_ref();
     let y_sections = &ctx.y_sections;
 
-    let loaded = ctx
-        .saved
-        .as_ref()
-        .zip(ctx.biome.as_ref())
-        .and_then(|(saved, (_, biomes))| {
-            let chunk = {
-                let _read = info_span!("world::column_read_saved").entered();
-                saved.read(col, &ctx.blocks, biomes)?
-            };
-            let _decode = info_span!("world::column_decode_saved").entered();
-            match saved_block_entities(&chunk, saved.registries()) {
-                Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
-                Err(err) => {
-                    error!(%err, x = col.x, z = col.z, "decoding a saved column");
-                    None
-                }
+    let loaded = ctx.saved.as_ref().and_then(|saved| {
+        let chunk = {
+            let _read = info_span!("world::column_read_saved").entered();
+            saved.read(col, &ctx.blocks)?
+        };
+        let _decode = info_span!("world::column_decode_saved").entered();
+        match saved_block_entities(&chunk, saved.registries()) {
+            Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
+            Err(err) => {
+                error!(%err, x = col.x, z = col.z, "decoding a saved column");
+                None
             }
-        });
+        }
+    });
 
     if let Some((sections, block_entities)) = loaded {
         let maps = ctx
@@ -1130,12 +1124,12 @@ mod tests {
             use crate::tests::{beta_carver_table, block_tags, blocks};
 
             let router = Arc::new(build_beta_router());
-            let (source, registry) = crate::tests::beta_surface::build_beta_biome_source();
+            let (source, _) = crate::tests::beta_surface::build_beta_biome_source();
             let source = Arc::new(source);
             let carved = FillContext {
                 y_sections: dimension_y_sections(&router, -64, 24),
                 blocks: blocks().0.clone(),
-                biome: Some((Arc::clone(&source), registry.clone())),
+                biome: Some(Arc::clone(&source)),
                 predicates: Some(heightmap_predicates(blocks(), block_tags())),
                 saved: None,
                 program: ColumnProgram {

@@ -76,11 +76,6 @@ impl<R> Id<R> {
         Self::from_number(raw)
     }
 
-    #[doc(hidden)]
-    pub const fn from_static_position(position: u16) -> Self {
-        Self::from_number(position)
-    }
-
     pub const fn index(self) -> usize {
         self.number as usize
     }

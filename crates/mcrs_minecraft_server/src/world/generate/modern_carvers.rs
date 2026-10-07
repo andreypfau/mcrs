@@ -5,10 +5,11 @@ use mcrs_minecraft_biome::climate::ParameterPoint;
 use mcrs_minecraft_biome::source::BiomeSource;
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{Entries, Registry, RegistrySet, Tags};
+use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::tables::{WorldgenTables, build_worldgen_tables};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_generator::modern_carvers::{
-    CarverBiomeTable, resolve_beta_carver_biomes, resolve_carver_biomes, whole_climate_space,
+    CarverBiomeTable, resolve_carver_biomes, whole_climate_space,
 };
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
 use std::sync::Arc;
@@ -72,13 +73,11 @@ fn carvers_by_biome(
 /// datapack that retunes either is picked up here.
 fn build_modern_carver_biomes(
     mut commands: bevy_ecs::prelude::Commands,
-    sources: Option<bevy_ecs::prelude::Res<crate::world::generate::routers::DimensionBiomeSources>>,
+    dimensions: bevy_ecs::prelude::Res<crate::world_options::DimensionList>,
     registries: bevy_ecs::prelude::Res<RegistrySet>,
     worldgen: bevy_ecs::prelude::Res<WorldgenTables>,
     preset_tables: bevy_ecs::prelude::Res<Resolved<PresetBiomeTables>>,
 ) {
-    let Some(sources) = sources else { return };
-
     let biomes = registries.loaded_registry::<Biome>();
     let values =
         registries.loaded_entries::<Biome, mcrs_minecraft_biome_file::BiomeGenerationSettings>();
@@ -93,9 +92,14 @@ fn build_modern_carver_biomes(
     );
 
     let mut tables = DimensionCarverBiomes::default();
-    for (dimension, source) in &sources.0 {
-        if let BiomeSource::Beta { .. } = source.as_ref() {
-            let table = resolve_beta_carver_biomes(source, &carvers)
+    for (dimension, entry) in dimensions.iter() {
+        let ChunkGenerator::Noise(generator) = &entry.generator else {
+            continue;
+        };
+        let dimension = dimension.location();
+        let source = &generator.biome_source;
+        if let BiomeSource::Beta { .. } = source {
+            let table = CarverBiomeTable::beta(source, |biome| carvers[biome].clone())
                 .expect("a Beta source resolves to a Beta table");
             tracing::info!(%dimension, "resolved the Beta carver table");
             tables.0.insert(dimension.clone(), Arc::new(table));
@@ -106,7 +110,7 @@ fn build_modern_carver_biomes(
         // biome's carvers under a point covering the whole climate space: with a
         // single candidate the nearest-entry search returns it whatever the
         // climate.
-        let (climate, explicit) = match source.as_ref() {
+        let (climate, explicit) = match source {
             BiomeSource::MultiNoise(multi) => (
                 multi.preset.map(|list| {
                     preset_tables

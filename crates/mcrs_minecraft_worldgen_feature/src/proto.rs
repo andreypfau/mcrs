@@ -10,15 +10,14 @@ use super::placement::{PlacementModifier, VerticalDirection};
 use super::rule_test::RuleTest;
 use super::tree::TreeConfig;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
+use mcrs_minecraft_block_predicate::predicate::BlockPredicate;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
-use mcrs_minecraft_block_predicate::predicate::{BlockPredicate, Direction};
-use mcrs_minecraft_block_predicate::provider::{
-    BlockSet, BlockStateProvider, UnitFloat, non_empty,
-};
+use mcrs_minecraft_block_predicate::provider::{BlockSet, BlockStateProvider, UnitFloat};
 use mcrs_minecraft_core::Axis;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::Rotation;
-use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, default_true, is_default, non_empty};
 use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, FloatProvider, IntProvider, Weighted};
 use mcrs_minecraft_worldgen_density::proto::Either;

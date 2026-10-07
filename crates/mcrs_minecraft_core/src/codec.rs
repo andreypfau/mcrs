@@ -214,6 +214,35 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<M
 pub type NonNegativeInt = Bounded<0, { i32::MAX }>;
 pub type PositiveInt = Bounded<1, { i32::MAX }>;
 
+/// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "f64")]
+pub struct PositiveFloat(pub f64);
+
+impl TryFrom<f64> for PositiveFloat {
+    type Error = String;
+
+    fn try_from(value: f64) -> Result<Self, String> {
+        let narrowed = value as f32;
+        if narrowed.is_nan() || narrowed <= 0.0 {
+            return Err(format!("Value must be positive: {value}"));
+        }
+        Ok(PositiveFloat(value))
+    }
+}
+
+pub fn non_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let values = Vec::<T>::deserialize(deserializer)?;
+    if values.is_empty() {
+        return Err(D::Error::custom("List must have contents"));
+    }
+    Ok(values)
+}
+
 /// A codec bound the field list alone does not express. The shape is derived as
 /// usual and `validated!` hangs the check on the way in, so the fields are
 /// spelled once rather than once more in a shadow struct that has to be kept in

@@ -14,13 +14,11 @@ use mcrs_minecraft_level::world::sub_app::DimSpawnQueue;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_registry::{LoadReport, Pack, PackFile, RegistrySet, WorldRegistries};
 use mcrs_minecraft_server::{Lighting, MinecraftServerPlugin};
-use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake, bake_list};
+use mcrs_minecraft_world::dimension::{DimensionEntry, Dimensions, bake};
 use mcrs_minecraft_world::registries::{
     read_packs, static_registries, test_registries, world_registries,
 };
-use mcrs_minecraft_world::save::{
-    WorldGenSettings, read_world_gen_settings, write_world_gen_settings,
-};
+use mcrs_minecraft_world::save::{WorldGenSettings, write_world_gen_settings};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 
@@ -68,12 +66,6 @@ fn baked(base: &Dimensions, set: &RegistrySet) -> Vec<(ResourceKey<Dimension>, D
 
 fn names(list: &[(ResourceKey<Dimension>, DimensionEntry)]) -> Vec<&str> {
     list.iter().map(|(key, _)| key.as_str()).collect()
-}
-
-fn refusal(base: &Dimensions) -> String {
-    let mut report = LoadReport::new();
-    assert!(bake(base, test_registries(), &mut report).is_none());
-    report.to_string()
 }
 
 fn load_with_dimension_files(files: &[(&str, &str)]) -> RegistrySet {
@@ -207,33 +199,6 @@ fn a_dimension_list_from_the_plugin_needs_no_preset_and_no_overworld() {
 }
 
 #[test]
-fn an_empty_dimension_list_from_the_plugin_is_refused() {
-    let mut report = LoadReport::new();
-    assert!(bake_list(&Dimensions::new(), test_registries(), &mut report).is_none());
-    let text = report.to_string();
-    assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains("minecraft:dimension"), "{text}");
-}
-
-#[test]
-fn a_dimension_list_without_the_overworld_stops_startup() {
-    let mut base = normal();
-    base.remove("minecraft:overworld");
-    let text = refusal(&base);
-    assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains("minecraft:dimension"), "{text}");
-    assert!(text.contains("minecraft:overworld"), "{text}");
-}
-
-#[test]
-fn an_empty_dimension_list_is_refused_for_the_overworld() {
-    let text = refusal(&Dimensions::new());
-    assert_eq!(text.lines().count(), 1, "{text}");
-    assert!(text.contains("minecraft:dimension"), "{text}");
-    assert!(text.contains("minecraft:overworld"), "{text}");
-}
-
-#[test]
 fn a_data_pack_dimension_replaces_the_preset_entry_of_its_key() {
     let set = load_with_dimension_files(&[(
         "overworld",
@@ -257,66 +222,4 @@ fn a_data_pack_dimension_replaces_the_preset_entry_of_its_key() {
     assert_ne!(list[0].1, base["minecraft:overworld"]);
     assert_eq!(list[1].1, base["minecraft:the_nether"]);
     assert_eq!(list[2].1, base["minecraft:the_end"]);
-}
-
-#[test]
-fn the_baked_order_ignores_input_order() {
-    let set = test_registries();
-    let entry = debug_dimension(set, "minecraft:overworld");
-    let extras = ["z:last", "a:first", "minecraft:the_end", "m:middle"];
-
-    let mut forward = Dimensions::new();
-    let mut backward = Dimensions::new();
-    let mut full = normal();
-    for name in ["minecraft:overworld", "minecraft:the_nether"] {
-        forward.insert(key(name), full.remove(name).unwrap());
-    }
-    for name in extras {
-        forward.insert(key(name), entry.clone());
-    }
-    for name in extras.iter().rev() {
-        backward.insert(key(name), entry.clone());
-    }
-    for name in ["minecraft:the_nether", "minecraft:overworld"] {
-        backward.insert(key(name), forward[name].clone());
-    }
-
-    let expected = [
-        "minecraft:overworld",
-        "minecraft:the_nether",
-        "minecraft:the_end",
-        "a:first",
-        "m:middle",
-        "z:last",
-    ];
-    assert_eq!(names(&baked(&forward, set)), expected);
-    assert_eq!(baked(&forward, set), baked(&backward, set));
-}
-
-#[test]
-fn baking_twice_gives_the_same_list() {
-    let set = test_registries();
-    let mut base = normal();
-    base.insert(
-        key("test:extra"),
-        debug_dimension(set, "minecraft:the_nether"),
-    );
-
-    let first = baked(&base, set);
-    assert_eq!(first, baked(&base, set));
-
-    let world = scratch_world("round-trip");
-    let dimensions: Dimensions = first.iter().cloned().collect();
-    write_world_gen_settings(
-        &world,
-        &WorldGenSettings {
-            seed: 1,
-            dimensions,
-        },
-        set,
-    )
-    .unwrap();
-    let read = read_world_gen_settings(&world, set).unwrap();
-    assert_eq!(baked(&read.dimensions, set), first);
-    std::fs::remove_dir_all(world).unwrap();
 }

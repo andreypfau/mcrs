@@ -15,49 +15,55 @@ use mcrs_minecraft_registry::{Id, Registered, RegistrySet};
 /// constructor from a number, so this is the only way a received number becomes one.
 #[derive(Resource, Clone, Default)]
 pub struct WireIds {
-    biomes: Option<Arc<[Option<Id<Biome>>]>>,
-    dimension_types: Option<Arc<[Option<Id<DimensionType>>]>>,
+    pub biomes: Option<WireTable<Biome>>,
+    pub dimension_types: Option<WireTable<DimensionType>>,
 }
 
 impl WireIds {
     pub fn build(received: &ReceivedRegistries, local: &RegistrySet) -> Self {
         WireIds {
-            biomes: table(received, local),
-            dimension_types: table(received, local),
+            biomes: WireTable::build(received, local),
+            dimension_types: WireTable::build(received, local),
         }
-    }
-
-    pub fn biome(&self, number: u16) -> Option<Id<Biome>> {
-        self.biomes.as_ref()?.get(usize::from(number)).copied()?
-    }
-
-    pub fn dimension_type(&self, number: u16) -> Option<Id<DimensionType>> {
-        self.dimension_types
-            .as_ref()?
-            .get(usize::from(number))
-            .copied()?
-    }
-
-    pub fn sent_biomes(&self) -> Option<usize> {
-        Some(self.biomes.as_ref()?.len())
     }
 }
 
-fn table<R: Registered>(
-    received: &ReceivedRegistries,
-    local: &RegistrySet,
-) -> Option<Arc<[Option<Id<R>>]>> {
-    let registry = local.registry::<R>()?;
-    let sent = received
-        .0
-        .iter()
-        .find(|sent| sent.registry == R::REGISTRY.location().as_static_str())?;
-    Some(
-        sent.entries
+pub struct WireTable<R>(Arc<[Option<Id<R>>]>);
+
+impl<R> Clone for WireTable<R> {
+    fn clone(&self) -> Self {
+        WireTable(Arc::clone(&self.0))
+    }
+}
+
+impl<R: Registered> WireTable<R> {
+    fn build(received: &ReceivedRegistries, local: &RegistrySet) -> Option<Self> {
+        let registry = local.registry::<R>()?;
+        let sent = received
+            .0
             .iter()
-            .map(|entry| registry.by_name(&entry.id))
-            .collect(),
-    )
+            .find(|sent| sent.registry == R::REGISTRY.location().as_static_str())?;
+        Some(WireTable(
+            sent.entries
+                .iter()
+                .map(|entry| registry.by_name(&entry.id))
+                .collect(),
+        ))
+    }
+}
+
+impl<R> WireTable<R> {
+    pub fn get(&self, number: u16) -> Option<Id<R>> {
+        self.0.get(usize::from(number)).copied()?
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 pub struct WireIdPlugin;
@@ -158,12 +164,13 @@ mod tests {
         let ids = WireIds::build(&received, &local);
         let biomes = local.registry::<Biome>().unwrap();
 
+        let table = ids.biomes.unwrap();
         assert!(biomes.by_name("minecraft:b").is_some());
-        assert_eq!(ids.biome(0), biomes.by_name("minecraft:b"));
-        assert_eq!(ids.biome(1), biomes.by_name("minecraft:a"));
-        assert_eq!(ids.biome(2), None, "a name the local set lacks");
-        assert_eq!(ids.biome(3), None, "past the list the server sent");
-        assert_eq!(ids.sent_biomes(), Some(3));
+        assert_eq!(table.get(0), biomes.by_name("minecraft:b"));
+        assert_eq!(table.get(1), biomes.by_name("minecraft:a"));
+        assert_eq!(table.get(2), None, "a name the local set lacks");
+        assert_eq!(table.get(3), None, "past the list the server sent");
+        assert_eq!(table.len(), 3);
     }
 
     #[test]
@@ -190,7 +197,7 @@ mod tests {
 
         enter(&mut app, ConnectionState::Game);
         let ids = app.world().resource::<WireIds>();
-        assert!(ids.biome(0).is_some());
+        assert!(ids.biomes.as_ref().and_then(|table| table.get(0)).is_some());
 
         enter(&mut app, ConnectionState::Configuration);
         assert!(!app.world().contains_resource::<WireIds>());
@@ -202,7 +209,6 @@ mod tests {
             &ReceivedRegistries::default(),
             &local_biomes(&["minecraft:a"]),
         );
-        assert_eq!(ids.sent_biomes(), None);
-        assert_eq!(ids.biome(0), None);
+        assert!(ids.biomes.is_none());
     }
 }

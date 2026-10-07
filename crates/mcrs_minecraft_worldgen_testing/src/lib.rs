@@ -358,11 +358,8 @@ pub fn dimension_type_set() -> &'static RegistrySet {
         let blocks = report
             .table(mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
             .expect("the report holds the block registry");
-        let timelines = Registry::<Timeline>::new(mcrs_minecraft_environment::keys::TIMELINE, shipped_ids("timeline"))
-            .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
-        let clocks =
-            Registry::<WorldClock>::new(mcrs_minecraft_environment::keys::WORLD_CLOCK, shipped_ids("world_clock"))
-                .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
+        let timelines = shipped_registry::<Timeline>("timeline");
+        let clocks = shipped_registry::<WorldClock>("world_clock");
         let tables = report
             .tables()
             .cloned()

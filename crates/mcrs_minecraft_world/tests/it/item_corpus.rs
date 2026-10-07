@@ -16,7 +16,8 @@ use mcrs_minecraft_registry::static_report::from_report;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
-use crate::common::{corpus, items};
+use crate::common::items;
+use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::test_registries;
 
 fn files() -> Vec<(String, Vec<u8>)> {
@@ -126,7 +127,7 @@ fn every_prototype_kind_is_round_tripped_by_the_protocol() {
 }
 
 fn block_placers_and_remainders_resolve() {
-    let (blocks, items) = corpus();
+    let (blocks, items) = test_corpus();
     let shulker = items
         .get(items.id_of("minecraft:shulker_box").unwrap())
         .unwrap();
@@ -198,7 +199,7 @@ fn the_plainest_item_carries_the_common_components() {
 }
 
 fn a_repeated_identifier_fails_to_load() {
-    let (blocks, _) = corpus();
+    let (blocks, _) = test_corpus();
     let mut files = files();
     let stick = files
         .iter()

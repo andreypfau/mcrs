@@ -167,11 +167,9 @@ impl DimensionTypeFile {
         }
     }
 
-    pub fn synced(&self) -> Self {
-        DimensionTypeFile {
-            attributes: self.attributes.filter_syncable(),
-            ..self.clone()
-        }
+    pub fn synced(mut self) -> Self {
+        self.attributes = self.attributes.filter_syncable();
+        self
     }
 }
 
