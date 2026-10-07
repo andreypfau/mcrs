@@ -1,3 +1,4 @@
+use crate::ColumnBiomes;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::heightmap::{HeightmapKinds, build_terrain_heightmaps, heightmap_predicates};
@@ -27,8 +28,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             chunk_z,
             &y_sections,
             &router,
-            None,
-            None,
+            &ColumnBiomes::None,
             None,
             &CancellationToken::new(),
         )

@@ -143,6 +143,7 @@ mcrs_minecraft_client.workspace = true
 mcrs_minecraft_assets.workspace = true
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_dimension.workspace = true
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]

@@ -523,6 +523,18 @@ pub fn spawn_dim_subapp(
         .copied()
         .unwrap_or_default();
     sub_app.insert_resource(default_op_level);
+    let default_game_mode = app
+        .world()
+        .get_resource::<crate::world::entity::player::DefaultGameMode>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(default_game_mode);
+    let slow_column_threshold = app
+        .world()
+        .get_resource::<crate::world::chunk::SlowColumnThreshold>()
+        .copied()
+        .unwrap_or_default();
+    sub_app.insert_resource(slow_column_threshold);
     if let Some(registry) = &registries.light_registry {
         sub_app.add_plugins(DimLightPlugin {
             registry: std::sync::Arc::clone(registry),

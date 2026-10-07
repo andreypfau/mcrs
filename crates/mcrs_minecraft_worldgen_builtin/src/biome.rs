@@ -108,26 +108,17 @@ pub mod mob {
     #[cfg(test)]
     mod tests {
         use super::ALL;
-        use mcrs_minecraft_core::ResourceKey;
         use std::collections::BTreeSet;
-
-        mod report {
-            use super::*;
-
-            pub fn repeated<T>(keys: &[ResourceKey<T, &'static str>]) -> Vec<String> {
-                let mut seen = BTreeSet::new();
-                keys.iter()
-                    .map(|key| key.as_str())
-                    .filter(|name| !seen.insert(*name))
-                    .map(str::to_owned)
-                    .collect()
-            }
-        }
 
         #[test]
         fn no_entity_type_is_listed_twice() {
-            let ids: Vec<_> = ALL.iter().map(|mob| mob.id).collect();
-            assert_eq!(report::repeated(&ids), Vec::<String>::new());
+            let mut seen = BTreeSet::new();
+            let repeated: Vec<&str> = ALL
+                .iter()
+                .map(|mob| mob.id.as_str())
+                .filter(|name| !seen.insert(*name))
+                .collect();
+            assert_eq!(repeated, Vec::<&str>::new());
         }
     }
 }

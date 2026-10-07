@@ -48,12 +48,12 @@ pub fn site(
     rng: &mut LegacyRandom,
 ) -> Option<(IVec3, Stub)> {
     let setup = if setups.len() > 1 {
-        let total: f32 = setups.iter().map(|s| s.weight.0 as f32).sum();
+        let total: f32 = setups.iter().map(|s| s.weight.0).sum();
         let mut pick = rng.next_f32();
         setups
             .iter()
             .position(|s| {
-                pick -= s.weight.0 as f32 / total;
+                pick -= s.weight.0 / total;
                 pick < 0.0
             })
             .expect("a draw below one lands on a setup")

@@ -14,16 +14,9 @@ use mcrs_minecraft_mesh::block::{
 use mcrs_minecraft_mesh::pack::MODEL_STEPS;
 use mcrs_minecraft_mesh::tint::Tint;
 
-const IMPLICITLY_WATERLOGGED: [&str; 5] = [
-    Block::BubbleColumn.as_static_str(),
-    Block::Kelp.as_static_str(),
-    Block::KelpPlant.as_static_str(),
-    Block::Seagrass.as_static_str(),
-    Block::TallSeagrass.as_static_str(),
-];
-
 fn fluid_of(
     pack: &Pack,
+    block: Block,
     state: &BlockStateKey,
     data: &BlockStateData,
     sprites: &mut SpriteRegistry,
@@ -35,14 +28,18 @@ fn fluid_of(
             .find(|(name, _)| name == key)
             .map(|(_, value)| value.as_str())
     };
-    let (lava, amount) = match state.name.as_str() {
-        name if name == Block::Water.as_static_str() || name == Block::Lava.as_static_str() => {
+    let (lava, amount) = match block {
+        Block::Water | Block::Lava => {
             let fluid = data
                 .fluid
                 .ok_or_else(|| format!("{} states no fluid", state.name))?;
-            (name == Block::Lava.as_static_str(), fluid.level)
+            (block == Block::Lava, fluid.level)
         }
-        name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
+        Block::BubbleColumn
+        | Block::Kelp
+        | Block::KelpPlant
+        | Block::Seagrass
+        | Block::TallSeagrass => (false, 8),
         _ if prop("waterlogged") == Some("true") => (false, 8),
         _ => return Ok(None),
     };
@@ -66,20 +63,18 @@ fn fluid_of(
 
 pub(super) fn build_one(
     pack: &Pack,
+    block: Block,
     state: &BlockStateKey,
     data: &BlockStateData,
     occlusion: &[Aabb],
     sprites: &mut SpriteRegistry,
 ) -> Result<BlockInfo, String> {
-    if state.name == Block::Air.as_static_str()
-        || state.name == Block::CaveAir.as_static_str()
-        || state.name == Block::VoidAir.as_static_str()
-    {
+    if matches!(block, Block::Air | Block::CaveAir | Block::VoidAir) {
         return Ok(BlockInfo::default());
     }
 
     let emission = data.light_emission;
-    let fluid = fluid_of(pack, state, data, sprites)?;
+    let fluid = fluid_of(pack, block, state, data, sprites)?;
 
     let solid_render = data.flags.contains(BlockStateFlags::IS_SOLID_RENDER);
     let neighbour = Neighbour {
@@ -523,7 +518,7 @@ mod tests {
         assert_eq!(bake_state("minecraft:stone", &[]).emission, 0);
     }
 
-    use super::{BlockStateKey, Pack, cube_corner, face_group, split_cube};
+    use super::{Block, BlockStateKey, Pack, cube_corner, face_group, split_cube};
     use crate::atlas::SpriteRegistry;
     use crate::bake::{self, Dir};
     use bevy::math::Vec3;
@@ -546,6 +541,7 @@ mod tests {
         }
         super::build_one(
             Pack::corpus(),
+            Block::from_id(corpus.block_index(id)).expect("a corpus block is a registry entry"),
             &state,
             corpus.state(id),
             corpus.shape(corpus.state(id).occlusion_shape),

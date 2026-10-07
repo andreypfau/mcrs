@@ -147,6 +147,72 @@ pub fn open_to_lan() -> bool {
     flag("OPEN_TO_LAN", false)
 }
 
+/// `WORLD_SEED` is written signed, as the Java long it is, or unsigned; the router hashes the
+/// same bits either way.
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub fn world_seed() -> u64 {
+    let Some(raw) = knob("WORLD_SEED") else {
+        return 0;
+    };
+    let raw = raw.trim();
+    raw.parse::<i64>()
+        .map(|seed| seed as u64)
+        .or_else(|_| raw.parse::<u64>())
+        .unwrap_or_else(|error| {
+            eprintln!("MCRS_WORLD_SEED={raw} is not a number ({error}); generating with seed 0");
+            0
+        })
+}
+
+/// `WORLD_PRESET` takes a short name (`normal`) or a namespaced one (`minecraft:normal`).
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub fn world_preset() -> String {
+    knob("WORLD_PRESET")
+        .map(|name| name.trim().to_lowercase())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "normal".to_owned())
+}
+
+/// `NO_LIGHTING=1` turns light propagation off.
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub fn lighting() -> mcrs_minecraft_server::Lighting {
+    if flag("NO_LIGHTING", false) {
+        mcrs_minecraft_server::Lighting::FullSky
+    } else {
+        mcrs_minecraft_server::Lighting::Propagated
+    }
+}
+
+/// `DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case; unset
+/// or anything else is creative.
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub fn default_game_mode() -> mcrs_minecraft_server::GameMode {
+    use mcrs_minecraft_server::GameMode;
+    let Some(mode) = knob("DEFAULT_GAMEMODE") else {
+        return GameMode::Creative;
+    };
+    match mode.trim().to_ascii_lowercase().as_str() {
+        "survival" => GameMode::Survival,
+        "creative" => GameMode::Creative,
+        "adventure" => GameMode::Adventure,
+        "spectator" => GameMode::Spectator,
+        other => {
+            eprintln!("MCRS_DEFAULT_GAMEMODE={other} is not a game mode; defaulting to creative");
+            GameMode::Creative
+        }
+    }
+}
+
+/// `SLOW_CHUNK_MS` is the latency above which the integrated server logs a column.
+#[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
+pub fn slow_column_threshold() -> std::time::Duration {
+    std::time::Duration::from_millis(
+        knob("SLOW_CHUNK_MS")
+            .and_then(|ms| ms.parse().ok())
+            .unwrap_or(250),
+    )
+}
+
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 pub fn integrated_bind_address(open_to_lan: bool) -> SocketAddr {
     let ip = if open_to_lan {

@@ -1,8 +1,9 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use bevy_app::App;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft_server::MinecraftServerPlugin;
+use mcrs_minecraft_server::{GameMode, Lighting, MinecraftServerPlugin};
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_server::world::entity::player::digging=trace,mcrs_minecraft_server::world::entity::player::column_view=trace,mcrs_minecraft_level::entity::player::chunk_view=trace,mcrs_minecraft_level::world::storage::chunk=debug,mcrs_minecraft_network=debug,mcrs_lighting::case_a_cave=warn,mcrs_lighting::chimney_to_floor=warn,mcrs_lighting::needs_full_reseed=warn,mcrs_lighting::consume_reseed=warn";
 
@@ -28,10 +29,19 @@ async fn main() {
     ));
     app.add_plugins(MinecraftServerPlugin {
         world: world_folder(),
-        announce_on_lan: lan_announce(std::env::var("MCRS_LAN_ANNOUNCE").ok().as_deref()),
+        announce_on_lan: lan_announce(variable("MCRS_LAN_ANNOUNCE").as_deref()),
+        seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
+        preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
+        lighting: lighting(variable("MCRS_NO_LIGHTING").as_deref()),
+        default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
+        slow_column_threshold: slow_column_threshold(variable("MCRS_SLOW_CHUNK_MS").as_deref()),
         ..Default::default()
     });
     mcrs_minecraft_server::run_server_loop(app);
+}
+
+fn variable(name: &str) -> Option<String> {
+    std::env::var(name).ok()
 }
 
 /// The first argument names a world folder whose saved chunks the server reads; without one it
@@ -61,9 +71,70 @@ fn lan_announce(value: Option<&str>) -> bool {
     }
 }
 
+/// `MCRS_WORLD_SEED` is written signed, as the Java long it is, or unsigned; the router hashes
+/// the same bits either way.
+fn world_seed(value: Option<&str>) -> u64 {
+    let Some(raw) = value.map(str::trim) else {
+        return 0;
+    };
+    if let Ok(seed) = raw.parse::<i64>() {
+        return seed as u64;
+    }
+    match raw.parse::<u64>() {
+        Ok(seed) => seed,
+        Err(error) => {
+            bevy_log::error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
+            0
+        }
+    }
+}
+
+/// `MCRS_WORLD_PRESET` takes a short name (`normal`) or a namespaced one (`minecraft:normal`).
+fn world_preset(value: Option<&str>) -> String {
+    value
+        .map(|name| name.trim().to_lowercase())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "normal".to_owned())
+}
+
+/// `MCRS_NO_LIGHTING=1` turns propagation off.
+fn lighting(value: Option<&str>) -> Lighting {
+    match value {
+        Some("1" | "true" | "on" | "yes") => Lighting::FullSky,
+        _ => Lighting::Propagated,
+    }
+}
+
+/// `MCRS_DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case;
+/// unset or anything else is creative.
+fn game_mode(value: Option<&str>) -> GameMode {
+    let Some(value) = value else {
+        return GameMode::Creative;
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "survival" => GameMode::Survival,
+        "creative" => GameMode::Creative,
+        "adventure" => GameMode::Adventure,
+        "spectator" => GameMode::Spectator,
+        other => {
+            bevy_log::warn!(
+                value = other,
+                "MCRS_DEFAULT_GAMEMODE unrecognized, defaulting to creative"
+            );
+            GameMode::Creative
+        }
+    }
+}
+
+/// `MCRS_SLOW_CHUNK_MS` is the latency in milliseconds above which a column is logged.
+fn slow_column_threshold(value: Option<&str>) -> Duration {
+    Duration::from_millis(value.and_then(|ms| ms.parse().ok()).unwrap_or(250))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::lan_announce;
+    use super::{game_mode, lan_announce, world_seed};
+    use mcrs_minecraft_server::GameMode;
 
     #[test]
     fn the_lan_setting_reads_its_spellings_in_any_case() {
@@ -76,5 +147,31 @@ mod tests {
             assert!(lan_announce(Some(on)), "{on:?}");
         }
         assert!(lan_announce(None));
+    }
+
+    #[test]
+    fn a_seed_reads_as_a_signed_or_an_unsigned_long() {
+        for (value, seed) in [
+            (None, 0),
+            (Some(" 42 "), 42),
+            (Some("-1"), u64::MAX),
+            (Some("18446744073709551615"), u64::MAX),
+            (Some("seed"), 0),
+        ] {
+            assert_eq!(world_seed(value), seed, "{value:?}");
+        }
+    }
+
+    #[test]
+    fn the_game_mode_reads_its_names_in_any_case_and_falls_back_to_creative() {
+        for (value, mode) in [
+            (None, GameMode::Creative),
+            (Some(" Survival "), GameMode::Survival),
+            (Some("ADVENTURE"), GameMode::Adventure),
+            (Some("spectator"), GameMode::Spectator),
+            (Some("hardcore"), GameMode::Creative),
+        ] {
+            assert_eq!(game_mode(value), mode, "{value:?}");
+        }
     }
 }

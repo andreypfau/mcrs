@@ -9,7 +9,6 @@ doctest = false
 
 [dependencies]
 mcrs_minecraft_loot.workspace = true
-mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
@@ -49,7 +48,6 @@ bevy_state.workspace = true
 bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_asset.workspace = true
-bevy_reflect.workspace = true
 tokio.workspace = true
 rand.workspace = true
 serde_json.workspace = true
@@ -68,7 +66,6 @@ mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_worldgen_feature = { workspace = true, features = ["test-support"] }
-tracing-subscriber = "0.3"
 criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]

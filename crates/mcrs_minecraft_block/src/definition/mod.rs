@@ -628,7 +628,7 @@ impl Builder {
                     component,
                 });
             }
-            let mut data = self.resolve(&resolved)?;
+            let mut data = self.resolve(&resolved);
             data.flags.set(BlockStateFlags::IS_AIR, air);
             self.states[state] = data;
         }
@@ -656,7 +656,7 @@ impl Builder {
 
     /// Every component a state may not leave unstated is present here:
     /// [`Components::missing`] has already run against these components.
-    fn resolve(&mut self, components: &Components) -> Result<BlockStateData, BlockError> {
+    fn resolve(&mut self, components: &Components) -> BlockStateData {
         let shape = |builder: &mut Self, boxes: &Option<schema::BoxList>| {
             builder.intern_shape(&boxes.as_ref().unwrap().0)
         };
@@ -747,24 +747,13 @@ impl Builder {
             .experience_drop
             .clone()
             .map(|drop| self.intern_experience(drop));
-        let fluid = components
-            .fluid_state
-            .as_ref()
-            .map(|fluid| {
-                Ok::<_, BlockError>(FluidState {
-                    fluid: Fluid::find(fluid.fluid.as_str())
-                        .ok_or_else(|| UnknownEntry {
-                            registry: crate::keys::FLUID.location().into(),
-                            name: fluid.fluid.as_str().to_owned(),
-                        })?
-                        .id(),
-                    level: fluid.level,
-                    source: fluid.source,
-                })
-            })
-            .transpose()?;
+        let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
+            fluid: fluid.fluid.id(),
+            level: fluid.level,
+            source: fluid.source,
+        });
 
-        Ok(BlockStateData {
+        BlockStateData {
             light_emission: components.light_emission.unwrap(),
             light_dampening: components.light_dampening.unwrap(),
             friction: components.friction.unwrap(),
@@ -784,7 +773,7 @@ impl Builder {
             experience,
             fluid,
             flags,
-        })
+        }
     }
 
     fn finish(&mut self) -> Result<BlockDefinitions, LoadError> {

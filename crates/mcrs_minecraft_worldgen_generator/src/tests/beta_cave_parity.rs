@@ -1,3 +1,4 @@
+use crate::ColumnBiomes;
 use mcrs_minecraft_core::LocalPos;
 use std::collections::BTreeMap;
 
@@ -467,8 +468,7 @@ mod exhaustive {
             chunk_z,
             &y_sections,
             &router,
-            Some(&biome_source),
-            None,
+            &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
             &cancel,
         );
 
@@ -573,8 +573,7 @@ mod exhaustive {
                     chunk_z,
                     &y_sections,
                     &router,
-                    Some(&biome_source),
-                    None,
+                    &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
                     &cancel,
                 );
                 let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);

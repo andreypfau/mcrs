@@ -216,15 +216,14 @@ pub type PositiveInt = Bounded<1, { i32::MAX }>;
 
 /// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "f64")]
-pub struct PositiveFloat(pub f64);
+#[serde(try_from = "f32")]
+pub struct PositiveFloat(pub f32);
 
-impl TryFrom<f64> for PositiveFloat {
+impl TryFrom<f32> for PositiveFloat {
     type Error = String;
 
-    fn try_from(value: f64) -> Result<Self, String> {
-        let narrowed = value as f32;
-        if narrowed.is_nan() || narrowed <= 0.0 {
+    fn try_from(value: f32) -> Result<Self, String> {
+        if !(value > 0.0 && value <= f32::MAX) {
             return Err(format!("Value must be positive: {value}"));
         }
         Ok(PositiveFloat(value))
@@ -239,6 +238,28 @@ where
     let values = Vec::<T>::deserialize(deserializer)?;
     if values.is_empty() {
         return Err(D::Error::custom("List must have contents"));
+    }
+    Ok(values)
+}
+
+pub fn sized_list<'de, const MIN: usize, const MAX: usize, D, T>(
+    deserializer: D,
+) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let values = Vec::<T>::deserialize(deserializer)?;
+    let size = values.len();
+    if size < MIN {
+        return Err(D::Error::custom(format_args!(
+            "List is too short: {size}, expected range [{MIN}-{MAX}]"
+        )));
+    }
+    if size > MAX {
+        return Err(D::Error::custom(format_args!(
+            "List is too long: {size}, expected range [{MIN}-{MAX}]"
+        )));
     }
     Ok(values)
 }
@@ -293,6 +314,20 @@ mod tests {
             "Value must be non-negative: -1294967296"
         );
         assert_eq!(read("1e300").unwrap().0, 0);
+    }
+
+    #[test]
+    fn a_positive_float_is_a_float_up_to_the_largest_finite_one() {
+        let read = |json: &str| serde_json::from_str::<PositiveFloat>(json).map(|value| value.0);
+        assert_eq!(read("0.5").unwrap(), 0.5);
+        assert_eq!(read("3.4028235e38").unwrap(), f32::MAX);
+        for out_of_range in ["0", "-0.0", "-1", "1e39"] {
+            assert!(read(out_of_range).is_err(), "{out_of_range}");
+        }
+        assert_eq!(
+            mcrs_minecraft_nbt::to_nbt_tag(&PositiveFloat(0.5)).unwrap(),
+            NbtTag::Float(0.5)
+        );
     }
 }
 

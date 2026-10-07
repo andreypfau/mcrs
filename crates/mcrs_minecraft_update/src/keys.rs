@@ -32,7 +32,6 @@ const CATALOG_CRATE: &str = "mcrs_minecraft_registry_catalog";
 
 struct Target {
     krate: String,
-    value: String,
     definitions: String,
     bindings: Vec<String>,
     modules: Vec<String>,
@@ -40,10 +39,9 @@ struct Target {
 }
 
 impl Target {
-    fn new(krate: &str, value: String) -> Self {
+    fn new(krate: &str) -> Self {
         Target {
             krate: krate.to_owned(),
-            value,
             definitions: String::new(),
             bindings: Vec::new(),
             modules: Vec::new(),
@@ -105,23 +103,17 @@ pub fn generate(
 
     let mut files = Files::new();
     let mut targets: BTreeMap<String, Target> = BTreeMap::new();
-    targets.insert(
-        KEYS_CRATE.to_owned(),
-        Target::new(KEYS_CRATE, String::new()),
-    );
+    targets.insert(KEYS_CRATE.to_owned(), Target::new(KEYS_CRATE));
     let mut statics = Vec::new();
     let mut claimed: BTreeMap<String, &str> = ["registry", "lib", "keys"]
         .into_iter()
         .map(|name| (name.to_owned(), "src"))
         .collect();
     for (registry, flags) in &datapack.registries {
-        let (module, marker) = identity(registry)?;
+        let module = identity(registry)?;
         let tags = names.tags.get(registry).filter(|tags| !tags.is_empty());
         let tag_module = tags.map(|_| format!("{module}_tags"));
-        for claim in [Some(&module), Some(&marker), tag_module.as_ref()]
-            .into_iter()
-            .flatten()
-        {
+        for claim in [Some(&module), tag_module.as_ref()].into_iter().flatten() {
             if let Some(other) = claimed.insert(claim.clone(), registry) {
                 return Err(format!("{other} and {registry} are both named {claim}"));
             }
@@ -138,7 +130,8 @@ pub fn generate(
             return Err(format!("{registry}: names.json lists no entries for it"));
         }
 
-        let enumerated = match owner_of.get(registry.as_str()).map(|owner| &owner.value) {
+        let owner = owner_of.get(registry.as_str());
+        let enumerated = match owner.map(|owner| &owner.value) {
             Some(ValueType::Enum(name))
                 if report.is_some_and(|report| !report.entries.is_empty()) =>
             {
@@ -151,24 +144,21 @@ pub fn generate(
             }
             _ => None,
         };
-        let (krate, value) = match owner_of.get(registry.as_str()) {
-            Some(owner) => match owner.value {
-                ValueType::Defined(value) => (owner.krate, value.to_owned()),
-                ValueType::Enum(name) => (owner.krate, format!("crate::keys::{name}")),
-            },
-            None => (KEYS_CRATE, String::new()),
-        };
+        let krate = owner.map_or(KEYS_CRATE, |owner| owner.krate);
+        let value = owner.map(|owner| match owner.value {
+            ValueType::Defined(value) => value.to_owned(),
+            ValueType::Enum(name) => format!("crate::keys::{name}"),
+        });
+        let value = value.as_deref();
         let target = targets
             .entry(krate.to_owned())
-            .or_insert_with(|| Target::new(krate, String::new()));
-        target.value = value;
+            .or_insert_with(|| Target::new(krate));
         let key = module.to_ascii_uppercase();
-        definition_text(target, registry, &key);
+        definition_text(&mut target.definitions, registry, &key, value);
         if target.owned() {
             target.bindings.push(key.clone());
         }
 
-        let value = target.owned().then_some(target.value.as_str());
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
                 if let Some(name) = enumerated {
@@ -213,7 +203,6 @@ pub fn generate(
             target.modules.push(module);
         }
         if let (Some(tags), Some(tag_module)) = (tags, tag_module) {
-            let value = target.owned().then_some(target.value.as_str());
             files.insert(
                 target.source(&format!("{tag_module}.rs")),
                 named_constants(registry, value, "TagKey", tags)?,
@@ -272,21 +261,23 @@ pub fn write(root: &Path, files: &Files) -> Result<(), String> {
         written += usize::from(corpus::write_if_changed(root, path, text.as_bytes())?);
     }
 
+    let stale = stale(root, files)?;
+    for path in &stale {
+        let full = root.join(path);
+        fs::remove_file(&full).map_err(|error| corpus::io(&full, error))?;
+        println!("deleted {path}");
+    }
+    println!("keys: {written} written, {} deleted", stale.len());
+    Ok(())
+}
+
+fn stale(root: &Path, files: &Files) -> Result<Vec<String>, String> {
     let mut on_disk = Vec::new();
     for dir in generated_dirs(root)? {
         corpus::files_below(root, &dir, &mut on_disk)?;
     }
-    let mut deleted = 0;
-    for path in on_disk {
-        if path.ends_with(".rs") && !files.contains_key(&path) {
-            let full = root.join(&path);
-            fs::remove_file(&full).map_err(|error| corpus::io(&full, error))?;
-            println!("deleted {path}");
-            deleted += 1;
-        }
-    }
-    println!("keys: {written} written, {deleted} deleted");
-    Ok(())
+    on_disk.retain(|path| path.ends_with(".rs") && !files.contains_key(path));
+    Ok(on_disk)
 }
 
 pub fn generated_dirs(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
@@ -309,7 +300,7 @@ pub fn generated_dirs(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
     Ok(dirs)
 }
 
-fn identity(registry: &str) -> Result<(String, String), String> {
+fn identity(registry: &str) -> Result<String, String> {
     let location = location(registry, registry)?;
     let path = location
         .as_str()
@@ -326,8 +317,7 @@ fn identity(registry: &str) -> Result<(String, String), String> {
     if !valid {
         return Err(format!("{registry}: no module name can be made of it"));
     }
-    let marker = variant(&module.to_ascii_uppercase());
-    Ok((module, marker))
+    Ok(module)
 }
 
 fn location(context: &str, name: &str) -> Result<ResourceLocation<std::sync::Arc<str>>, String> {
@@ -394,14 +384,11 @@ fn constants<'n>(
     Ok(constants)
 }
 
-fn definition_text(target: &mut Target, registry: &str, key: &str) {
-    let owned = target.owned();
-    let out = &mut target.definitions;
-    if !out.is_empty() && owned {
-        out.push('\n');
-    }
-    if owned {
-        let value = &target.value;
+fn definition_text(out: &mut String, registry: &str, key: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        if !out.is_empty() {
+            out.push('\n');
+        }
         out.push_str(&format!(
             "pub const {key}: RegistryKey<{value}> = RegistryKey::new(rl!(\"{registry}\"));\n\
              impl Registered for {value} {{\n    \
@@ -1178,16 +1165,6 @@ mod tests {
             &["minecraft:carver", "minecraft:worldgen/carver"],
         );
         assert_refused(
-            generated(
-                &[],
-                &[
-                    ("minecraft:a_b", &["minecraft:x"]),
-                    ("minecraft:a__b", &["minecraft:x"]),
-                ],
-            ),
-            &["minecraft:a_b", "minecraft:a__b", "AB"],
-        );
-        assert_refused(
             generated(&[], &[("other:thing", &["minecraft:x"])]),
             &["other:thing"],
         );
@@ -1291,22 +1268,8 @@ mod tests {
 
     #[test]
     fn the_key_sources_are_what_the_generator_writes() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let reports = root.join("assets/mcrs/reports");
-        let registries = registries::read(&reports.join("registries.json")).unwrap();
-        let datapack =
-            names::Datapack::parse(&fs::read_to_string(reports.join("datapack.json")).unwrap())
-                .unwrap();
-        let names = names::read(&reports.join("names.json")).unwrap();
-
-        let files = generate(
-            &registries,
-            &datapack,
-            &names,
-            crate::owners::OWNERS,
-            &above_catalog(&root, crate::owners::OWNERS).unwrap(),
-        )
-        .unwrap();
+        let root = crate::workspace_root();
+        let files = crate::keys_files(&root, None).unwrap();
         for (path, text) in &files {
             match fs::read_to_string(root.join(path)) {
                 Ok(held) => assert!(
@@ -1316,16 +1279,11 @@ mod tests {
                 Err(error) => panic!("{path} cannot be read ({error}); run `{COMMAND}`"),
             }
         }
-        let mut on_disk = Vec::new();
-        for dir in generated_dirs(&root).unwrap() {
-            corpus::files_below(&root, &dir, &mut on_disk).unwrap();
-        }
-        for path in on_disk {
-            assert!(
-                !path.ends_with(".rs") || files.contains_key(&path),
-                "{path} is not written by the generator any more; run `{COMMAND}`"
-            );
-        }
+        let stale = stale(&root, &files).unwrap();
+        assert!(
+            stale.is_empty(),
+            "{stale:?} are not written by the generator any more; run `{COMMAND}`"
+        );
     }
 
     #[test]

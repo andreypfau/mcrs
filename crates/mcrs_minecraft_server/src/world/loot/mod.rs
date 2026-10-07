@@ -3,8 +3,7 @@ pub mod context;
 pub mod entry;
 
 use crate::loaded::Loaded;
-use bevy_app::{App, Plugin, PostStartup};
-use bevy_ecs::prelude::{Commands, Res};
+use bevy_app::{App, Plugin};
 use bevy_ecs::resource::Resource;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks, LootId};
 use mcrs_minecraft_item::enchantment::EnchantmentData;
@@ -49,7 +48,7 @@ impl LootRegistries {
 }
 
 /// The loot table of each table the block corpus names, by the id it interned.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct BlockLootTables {
     tables: Box<[Option<Id<LootTable>>]>,
 }
@@ -74,10 +73,6 @@ impl BlockLootTables {
     }
 }
 
-fn index_block_loot_tables(mut commands: Commands, blocks: Res<Blocks>, loot: Res<LootRegistries>) {
-    commands.insert_resource(BlockLootTables::new(&blocks, &loot.tables));
-}
-
 pub struct LootPlugin;
 
 impl Plugin for LootPlugin {
@@ -87,8 +82,11 @@ impl Plugin for LootPlugin {
             .get_resource::<RegistrySet>()
             .expect("the loaded registries precede the loot plugin");
         let loot = LootRegistries::from_set(registries);
+        let blocks = app
+            .world()
+            .get_resource::<Blocks>()
+            .expect("the block corpus precedes the loot plugin");
+        app.insert_resource(BlockLootTables::new(blocks, &loot.tables));
         app.insert_resource(loot);
-        app.init_resource::<BlockLootTables>();
-        app.add_systems(PostStartup, index_block_loot_tables);
     }
 }

@@ -41,7 +41,6 @@ bevy_platform.workspace = true
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-bevy_reflect.workspace = true
 thiserror.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_feature.workspace = true
@@ -54,4 +53,3 @@ mcrs_minecraft_registry = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true

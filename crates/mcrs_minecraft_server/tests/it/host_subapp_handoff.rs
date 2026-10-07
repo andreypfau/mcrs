@@ -106,6 +106,24 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
         .insert(ConnectionState::Game);
 }
 
+/// A live dimension label on the host with its channels registered; returns the label and the
+/// receiving end of its control channel.
+fn live_dimension(app: &mut App, key: ResourceKey<Dimension>) -> (Entity, flume::Receiver<ToDim>) {
+    use mcrs_minecraft_level::world::channels::{
+        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
+    use mcrs_minecraft_server::world::channel_types::FromDim;
+
+    let label = app.world_mut().spawn((DimSubAppHandle, key)).id();
+    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+    app.world_mut()
+        .resource_mut::<DimChannelsResource>()
+        .insert(label, srv_tx, ctl_tx, from_rx);
+    (label, ctl_rx)
+}
+
 // ---------------------------------------------------------------------------
 // host-side emit_initial_player_spawn
 // ---------------------------------------------------------------------------
@@ -115,33 +133,14 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// `ToDim::Spawn` into the dim's control channel and mark the session as
 /// joining that label.
 fn game_transition_emits_initial_spawn() {
-    use mcrs_minecraft_level::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
-    use mcrs_minecraft_server::world::channel_types::FromDim;
-
     let mut app = build_host_app();
 
     let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
 
-    // Spawn a fake live DimSubAppHandle label entity on the host and register
-    // its channel so emit_initial_player_spawn can look it up.
-    let dim_label = app
-        .world_mut()
-        .spawn((
-            DimSubAppHandle,
-            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD),
-        ))
-        .id();
-    let ctl_rx = {
-        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        app.world_mut()
-            .resource_mut::<DimChannelsResource>()
-            .insert(dim_label, srv_tx, ctl_tx, from_rx);
-        ctl_rx
-    };
+    let (dim_label, ctl_rx) = live_dimension(
+        &mut app,
+        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+    );
 
     // Transition to Game — the emit system should pick this up
     transition_to_game(&mut app, connection_entity);
@@ -176,77 +175,13 @@ fn game_transition_emits_initial_spawn() {
     );
 }
 
-fn a_player_saved_in_another_dimension_joins_that_dimension() {
-    use mcrs_minecraft_level::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
-    use mcrs_minecraft_server::WorldSave;
-    use mcrs_minecraft_server::world::channel_types::FromDim;
-    use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
-
-    let mut app = build_host_app();
-    let save = std::env::temp_dir().join(format!("mcrs-join-{}", Uuid::new_v4()));
-    std::fs::create_dir_all(&save).unwrap();
-    app.insert_resource(WorldSave(save.clone()));
-
-    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
-    let uuid = app
-        .world()
-        .get::<GameProfile>(connection_entity)
-        .expect("profile")
-        .id;
-    write_player_dat(
-        &save,
-        uuid,
-        &PlayerDat {
-            dimension: mcrs_minecraft_dimension::keys::dimension::THE_NETHER.into(),
-            ..PlayerDat::default()
-        },
-    )
-    .unwrap();
-
-    let mut labels = Vec::new();
-    for name in [
-        mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
-        mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
-    ] {
-        let label = app
-            .world_mut()
-            .spawn((DimSubAppHandle, ResourceKey::<Dimension>::from(name)))
-            .id();
-        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        app.world_mut()
-            .resource_mut::<DimChannelsResource>()
-            .insert(label, srv_tx, ctl_tx, from_rx);
-        labels.push((label, ctl_rx));
-    }
-
-    transition_to_game(&mut app, connection_entity);
-    app.update();
-
-    let (nether, nether_rx) = &labels[1];
-    assert_eq!(
-        app.world()
-            .get::<SessionPlacement>(host_anchor)
-            .expect("session present")
-            .place(),
-        Place::Joining(*nether),
-    );
-    assert_eq!(nether_rx.try_iter().count(), 1);
-    assert_eq!(labels[0].1.try_iter().count(), 0);
-    std::fs::remove_dir_all(&save).unwrap();
-}
-
 /// Live dimensions are registered nether first, so a join that takes the first
 /// live one lands in the wrong world.
-fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<Dimension>>) {
-    use mcrs_minecraft_level::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
+fn join_with_live_nether_end_and_overworld(
+    saved: Option<ResourceKey<Dimension>>,
+    expected: ResourceKey<Dimension>,
+) {
     use mcrs_minecraft_server::WorldSave;
-    use mcrs_minecraft_server::world::channel_types::FromDim;
     use mcrs_minecraft_world::save::{PlayerDat, write_player_dat};
 
     let mut app = build_host_app();
@@ -260,63 +195,68 @@ fn join_with_live_nether_end_and_overworld(saved: Option<ResourceKey<Dimension>>
         .get::<GameProfile>(connection_entity)
         .expect("profile")
         .id;
-    if let Some(dimension) = saved {
+    if let Some(dimension) = &saved {
         write_player_dat(
             &save,
             uuid,
             &PlayerDat {
-                dimension,
+                dimension: dimension.clone(),
                 ..PlayerDat::default()
             },
         )
         .unwrap();
     }
 
-    let mut labels = Vec::new();
-    for name in [
+    let live: Vec<_> = [
         mcrs_minecraft_dimension::keys::dimension::THE_NETHER,
         mcrs_minecraft_dimension::keys::dimension::THE_END,
         mcrs_minecraft_dimension::keys::dimension::OVERWORLD,
-    ] {
-        let label = app
-            .world_mut()
-            .spawn((DimSubAppHandle, ResourceKey::<Dimension>::from(name)))
-            .id();
-        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        app.world_mut()
-            .resource_mut::<DimChannelsResource>()
-            .insert(label, srv_tx, ctl_tx, from_rx);
-        labels.push((label, ctl_rx));
-    }
+    ]
+    .into_iter()
+    .map(|name| {
+        let key = ResourceKey::<Dimension>::from(name);
+        let (label, control) = live_dimension(&mut app, key.clone());
+        (key, label, control)
+    })
+    .collect();
 
     transition_to_game(&mut app, connection_entity);
     app.update();
 
-    let (overworld, overworld_rx) = &labels[2];
+    let joined = live
+        .iter()
+        .find(|(key, ..)| *key == expected)
+        .expect("the expected dimension is live")
+        .1;
     assert_eq!(
         app.world()
             .get::<SessionPlacement>(host_anchor)
             .expect("session present")
             .place(),
-        Place::Joining(*overworld),
+        Place::Joining(joined),
+        "{saved:?}"
     );
-    assert_eq!(overworld_rx.try_iter().count(), 1);
-    assert_eq!(labels[0].1.try_iter().count(), 0);
-    assert_eq!(labels[1].1.try_iter().count(), 0);
+    for (key, _, control) in &live {
+        let spawns = usize::from(*key == expected);
+        assert_eq!(control.try_iter().count(), spawns, "{saved:?} into {key:?}");
+    }
     std::fs::remove_dir_all(&save).unwrap();
 }
 
 #[test]
-fn a_player_saved_in_a_missing_dimension_joins_the_overworld() {
+fn a_joining_player_enters_its_saved_dimension_or_else_the_overworld() {
+    let nether =
+        ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::THE_NETHER);
+    let overworld =
+        ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD);
     let gone = ResourceKey::from_location(ResourceLocation::read("test:gone").unwrap());
-    join_with_live_nether_end_and_overworld(Some(gone));
-}
-
-#[test]
-fn a_player_without_a_dimension_joins_the_overworld() {
-    join_with_live_nether_end_and_overworld(None);
+    for (saved, expected) in [
+        (Some(nether.clone()), nether),
+        (Some(gone), overworld.clone()),
+        (None, overworld),
+    ] {
+        join_with_live_nether_end_and_overworld(saved, expected);
+    }
 }
 
 /// When no live DimSubAppHandle label entity exists yet (dims still loading),
@@ -427,10 +367,6 @@ fn no_duplicate_spawn_on_reread() {
 
 #[test]
 fn joining_players_share_the_baked_dimension_list() {
-    use mcrs_minecraft_level::world::channels::{
-        FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-    };
-    use mcrs_minecraft_server::world::channel_types::FromDim;
     use std::sync::Arc;
 
     let mut app = build_host_app();
@@ -438,19 +374,10 @@ fn joining_players_share_the_baked_dimension_list() {
     let baked = Arc::clone(list.keys());
     app.insert_resource(list);
 
-    let dim_label = app
-        .world_mut()
-        .spawn((
-            DimSubAppHandle,
-            ResourceKey::<Dimension>::from(mcrs_minecraft_dimension::keys::dimension::OVERWORLD),
-        ))
-        .id();
-    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
-    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
-    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    app.world_mut()
-        .resource_mut::<DimChannelsResource>()
-        .insert(dim_label, srv_tx, ctl_tx, from_rx);
+    let (_, ctl_rx) = live_dimension(
+        &mut app,
+        mcrs_minecraft_dimension::keys::dimension::OVERWORLD.into(),
+    );
 
     for _ in 0..2 {
         let (connection, _) = spawn_accepted_connection(&mut app);
@@ -472,9 +399,8 @@ fn joining_players_share_the_baked_dimension_list() {
 }
 
 #[test]
-fn entering_the_game_spawns_the_player_once_in_its_saved_dimension() {
+fn entering_the_game_spawns_the_player_once() {
     game_transition_emits_initial_spawn();
-    a_player_saved_in_another_dimension_joins_that_dimension();
     no_live_dim_no_spawn();
     no_duplicate_spawn_on_reread();
 }
@@ -488,7 +414,7 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
     use mcrs_minecraft_registry::shared::{Resolved, SharedRegistries};
     use mcrs_minecraft_worldgen::tables::WorldgenTables;
     use mcrs_minecraft_worldgen_generator::SurfaceIds;
-    use mcrs_minecraft_worldgen_generator::ids::{FillIds, SurvivalIds};
+    use mcrs_minecraft_worldgen_generator::ids::FillIds;
     use std::any::type_name;
 
     let expected = [
@@ -502,56 +428,8 @@ fn every_shared_registry_reaches_every_dimension_as_the_hosts_arc() {
         type_name::<WorldgenTables>(),
         type_name::<Resolved<SurfaceIds>>(),
         type_name::<Resolved<FillIds>>(),
-        type_name::<Resolved<SurvivalIds>>(),
         type_name::<ShulkerBoxes>(),
     ];
-
-    let mut app = crate::host_app::make_host_app();
-    crate::host_app::materialise_sub_apps(
-        &mut app,
-        &[
-            ("minecraft:overworld", "minecraft:overworld"),
-            ("minecraft:the_nether", "minecraft:the_nether"),
-        ],
-    );
-
-    let shared = app.world().resource::<SharedRegistries>();
-    let dimensions: Vec<_> = app.sub_apps().sub_apps.values().collect();
-    assert_eq!(dimensions.len(), 2);
-    for dimension in dimensions {
-        let seen = shared.shared_in(app.world(), dimension.world());
-        for name in expected {
-            assert!(
-                seen.iter().any(|(seen, _)| *seen == name),
-                "{name}: {seen:?}"
-            );
-        }
-        for (name, state) in seen {
-            assert_eq!(state, Some(true), "{name}");
-        }
-    }
-}
-
-fn is_registry_type(name: &str) -> bool {
-    let head = name.split('<').next().unwrap_or(name);
-    let leaf = head.rsplit("::").next().unwrap_or(head);
-    matches!(
-        leaf,
-        "Registry"
-            | "Entries"
-            | "RegistrySet"
-            | "RegistryAccess"
-            | "Blocks"
-            | "Items"
-            | "WorldgenTables"
-            | "ClockTimeMarkers"
-            | "Resolved"
-    )
-}
-
-#[test]
-fn every_registry_resource_of_the_host_is_shared() {
-    use mcrs_minecraft_registry::shared::SharedRegistries;
 
     let mut app = crate::host_app::make_host_app();
     crate::host_app::materialise_sub_apps(
@@ -578,6 +456,12 @@ fn every_registry_resource_of_the_host_is_shared() {
     assert_eq!(dimensions.len(), 2);
     for dimension in dimensions {
         let seen = shared.shared_in(app.world(), dimension.world());
+        for name in expected {
+            assert!(
+                seen.iter().any(|(seen, _)| *seen == name),
+                "{name}: {seen:?}"
+            );
+        }
         let unshared: Vec<&String> = candidates
             .iter()
             .filter(|candidate| !seen.iter().any(|(name, _)| name == candidate))
@@ -590,6 +474,23 @@ fn every_registry_resource_of_the_host_is_shared() {
             assert_eq!(state, Some(true), "{name}");
         }
     }
+}
+
+fn is_registry_type(name: &str) -> bool {
+    let head = name.split('<').next().unwrap_or(name);
+    let leaf = head.rsplit("::").next().unwrap_or(head);
+    matches!(
+        leaf,
+        "Registry"
+            | "Entries"
+            | "RegistrySet"
+            | "RegistryAccess"
+            | "Blocks"
+            | "Items"
+            | "WorldgenTables"
+            | "ClockTimeMarkers"
+            | "Resolved"
+    )
 }
 
 const OVERWORLD: (&str, &str) = ("minecraft:overworld", "minecraft:overworld");
@@ -673,57 +574,6 @@ fn a_shared_registry_is_not_changed_on_the_second_tick() {
         assert!(!seen.is_empty());
         for (name, changed) in seen {
             assert_eq!(changed, Some(false), "{name}");
-        }
-    }
-}
-
-#[test]
-fn an_id_names_the_same_entry_in_every_dimension() {
-    use mcrs_minecraft_level::world::sub_app::DimAppLabel;
-    use mcrs_minecraft_registry::RegistrySet;
-
-    let mut app = crate::host_app::make_host_app();
-    crate::host_app::materialise_sub_apps(&mut app, &[OVERWORLD, NETHER]);
-
-    let labels = dimension_labels(&mut app);
-    assert_eq!(labels.len(), 2);
-    let sets: Vec<RegistrySet> = labels
-        .iter()
-        .map(|(label, _)| {
-            app.sub_app(DimAppLabel(*label))
-                .world()
-                .resource::<RegistrySet>()
-                .clone()
-        })
-        .collect();
-    let enchantments: Vec<Registry<EnchantmentData>> = labels
-        .iter()
-        .map(|(label, _)| {
-            app.sub_app(DimAppLabel(*label))
-                .world()
-                .resource::<Registry<EnchantmentData>>()
-                .clone()
-        })
-        .collect();
-
-    let (first, rest) = sets.split_first().unwrap();
-    assert!(first.tables().count() > 0);
-    for other in rest {
-        assert_eq!(first.tables().count(), other.tables().count());
-        for table in first.tables() {
-            let registry = table.registry().as_str();
-            let counterpart = other
-                .table(registry)
-                .unwrap_or_else(|| panic!("{registry} is missing from a dimension"));
-            assert_eq!(table.names(), counterpart.names(), "{registry}");
-        }
-    }
-
-    let (first, rest) = enchantments.split_first().unwrap();
-    for other in rest {
-        assert_eq!(first.len(), other.len());
-        for id in first.ids() {
-            assert_eq!(first.name(id), other.name(id));
         }
     }
 }

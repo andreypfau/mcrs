@@ -13,7 +13,6 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::{HolderSet, Registry, RegistrySet, Tags};
 use mcrs_minecraft_world::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_worldgen::bevy::TemplateAsset;
@@ -24,7 +23,6 @@ use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_generator::feature_program::FeatureProgram;
 use mcrs_minecraft_worldgen_generator::features::{FeatureTables, possible_biomes};
-use mcrs_minecraft_worldgen_generator::ids::SurvivalIds;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -92,7 +90,6 @@ fn build_dimension_features(
     seed: Res<WorldSeed>,
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
-    survival: Res<Resolved<SurvivalIds>>,
 ) {
     let provider_registry = registries.loaded_registry::<DirectBlockStateProvider>();
     let providers =
@@ -139,6 +136,7 @@ fn build_dimension_features(
     let placed_names = registries.loaded_registry::<PlacedFeature>();
     let placed_tags = registries.loaded_tags::<PlacedFeature>();
     let biome_registry = registries.loaded_registry::<Biome>();
+    let biome_tags = registries.loaded_tags::<Biome>();
     let biomes = registries.loaded_entries::<Biome, Biome>();
     let generation = registries.loaded_entries::<Biome, BiomeGenerationSettings>();
     let by_id: BTreeMap<ResourceLocation, (&Biome, &BiomeGenerationSettings)> = biome_registry
@@ -167,8 +165,12 @@ fn build_dimension_features(
             continue;
         };
         let dimension = dimension.location();
-        let biome_order =
-            possible_biomes(&generator.biome_source, &biome_registry, &parameter_lists);
+        let biome_order = possible_biomes(
+            &generator.biome_source,
+            &biome_registry,
+            &biome_tags,
+            &parameter_lists,
+        );
         let mut steps = Vec::with_capacity(biome_order.len());
         for id in &biome_order {
             match by_id.get(id) {
@@ -206,7 +208,6 @@ fn build_dimension_features(
             &registries,
             seed.0 as i64,
             structures.0.get(dimension).map(|tables| &*tables.frozen),
-            survival.clone(),
         )
         .unwrap_or_else(|error| {
             panic!("{dimension}: the feature program does not resolve: {error}")

@@ -1,8 +1,9 @@
 use std::fmt;
 
+use crate::component::consume::positive_float;
 use crate::{Template, Text};
 use mcrs_minecraft_core::codec::{
-    Bounded, CompactList, Validate, default_true, is_default, is_true,
+    self, Bounded, CompactList, Validate, default_true, is_default, is_true,
 };
 use mcrs_minecraft_core::{ResourceLocation, validated};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -165,17 +166,20 @@ pub struct NumberRangeInput {
     pub end: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initial: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "positive_step",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub step: Option<f32>,
+}
+
+fn positive_step<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f32>, D::Error> {
+    positive_float(d).map(Some)
 }
 
 impl Validate for NumberRangeInput {
     fn validate(&self) -> Result<(), String> {
-        if let Some(step) = self.step
-            && !(step >= f32::from_bits(1) && step <= f32::MAX)
-        {
-            return Err(format!("Value must be positive: {step}"));
-        }
         if let Some(initial) = self.initial {
             let low = self.start.min(self.end);
             let high = self.start.max(self.end);
@@ -241,6 +245,7 @@ pub struct SingleOptionInput {
     pub key: InputKey,
     #[serde(default, skip_serializing_if = "is_default")]
     pub width: ControlWidth,
+    #[serde(deserialize_with = "codec::non_empty")]
     pub options: Vec<OptionEntry>,
     pub label: Text,
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
@@ -249,9 +254,6 @@ pub struct SingleOptionInput {
 
 impl Validate for SingleOptionInput {
     fn validate(&self) -> Result<(), String> {
-        if self.options.is_empty() {
-            return Err("List must have contents".into());
-        }
         if self.options.iter().filter(|option| option.initial).count() > 1 {
             return Err("Multiple initial values".into());
         }
@@ -491,7 +493,7 @@ fn is_ok_button(button: &ActionButton) -> bool {
 }
 
 macro_rules! dialog_type {
-    ($name:ident { $($field:tt)* } $(check($this:ident) $check:block)?) => {
+    ($name:ident { $($field:tt)* }) => {
         validated!($name);
 
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -521,7 +523,6 @@ macro_rules! dialog_type {
                             .into(),
                     );
                 }
-                $(let $this = self; $check)?
                 Ok(())
             }
         }
@@ -539,15 +540,12 @@ dialog_type!(Confirmation {
 });
 
 dialog_type!(MultiAction {
+    #[serde(deserialize_with = "codec::non_empty")]
     pub actions: Vec<ActionButton>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_action: Option<ActionButton>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub columns: Columns,
-} check(dialog) {
-    if dialog.actions.is_empty() {
-        return Err("List must have contents".into());
-    }
 });
 
 dialog_type!(ServerLinks {

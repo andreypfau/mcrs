@@ -16,47 +16,44 @@ use mcrs_minecraft_world::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 use mcrs_minecraft_worldgen::tables::asset_path;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
-use std::env;
 use std::sync::Arc;
 use tracing::{error, info};
-
-/// Default world preset name used when MCRS_WORLD_PRESET is not set
-const DEFAULT_WORLD_PRESET: &str = "normal";
 
 /// The dimension list the server plugin was given, which replaces the save's and the preset's.
 #[derive(Resource, Clone)]
 pub(crate) struct PluginDimensions(pub Dimensions);
+
+#[derive(Resource)]
+pub(crate) struct WorldPresetName(pub String);
 
 pub(crate) fn bake_dimensions(
     mut commands: Commands,
     set: Res<RegistrySet>,
     save: Option<Res<WorldSave>>,
     given: Option<Res<PluginDimensions>>,
+    preset: Res<WorldPresetName>,
     mut seed: ResMut<WorldSeed>,
 ) {
     let mut report = LoadReport::new();
-    let mut base = Dimensions::new();
-    if let Some(save) = save {
+    let saved = save.map(|save| {
         let settings = read_world_gen_settings(&save.0, &set).unwrap_or_else(|err| panic!("{err}"));
         seed.0 = settings.seed as u64;
-        base = settings.dimensions;
-    }
+        settings.dimensions
+    });
     let (source, list) = if let Some(given) = given {
         ("plugin".to_owned(), bake_list(&given.0, &set, &mut report))
+    } else if let Some(saved) = saved {
+        ("save".to_owned(), bake(&saved, &set, &mut report))
     } else {
-        let name = get_world_preset_name();
+        let name = &preset.0;
         let Some(preset) = report
             .registry(&set, mcrs_minecraft_world::keys::WORLD_PRESET)
-            .and_then(|registry| report.require_by_name(&registry, &name))
+            .and_then(|registry| report.require_by_name(&registry, name))
         else {
             refuse(&report)
         };
-        if base.is_empty() {
-            base = set.loaded_entries::<WorldPreset, WorldPreset>()[preset]
-                .dimensions
-                .clone();
-        }
-        (name, bake(&base, &set, &mut report))
+        let base = &set.loaded_entries::<WorldPreset, WorldPreset>()[preset].dimensions;
+        (name.clone(), bake(base, &set, &mut report))
     };
     let Some(list) = list else { refuse(&report) };
 
@@ -126,35 +123,3 @@ impl DimensionList {
 /// the host; the routers carry it into the sub-apps.
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct WorldSeed(pub u64);
-
-/// The seed `MCRS_WORLD_SEED` names. A save overrides it with the one stored in
-/// its level data.
-pub fn world_seed_from_env() -> WorldSeed {
-    let Ok(raw) = env::var("MCRS_WORLD_SEED") else {
-        return WorldSeed(0);
-    };
-    let raw = raw.trim();
-    // A seed is a Java long, so it is written signed; the router hashes the
-    // same bits either way.
-    if let Ok(seed) = raw.parse::<i64>() {
-        return WorldSeed(seed as u64);
-    }
-    match raw.parse::<u64>() {
-        Ok(seed) => WorldSeed(seed),
-        Err(error) => {
-            error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
-            WorldSeed(0)
-        }
-    }
-}
-
-/// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
-/// Returns the default 'normal' preset if not set or invalid.
-/// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
-fn get_world_preset_name() -> String {
-    env::var("MCRS_WORLD_PRESET")
-        .ok()
-        .map(|name| name.trim().to_lowercase())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| DEFAULT_WORLD_PRESET.to_string())
-}

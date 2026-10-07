@@ -219,10 +219,9 @@ fn biome_registry(dimension: Dimension) -> Registry<Biome> {
 fn carving_context(dimension: Dimension, seed: u64) -> FillContext {
     let registry = biome_registry(dimension);
     let (router, material) = material_router(dimension, seed, &registry);
-    let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-        preset: Some(super::parameter_list_id(dimension.preset().name())),
-        biomes: None,
-    });
+    let source = BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(super::parameter_list_id(
+        dimension.preset().name(),
+    )));
     let mut context = fill_context(router, material, registry, source);
     let (_, table) = world(dimension, seed);
     context.program.carvers = Some(Arc::new(table));

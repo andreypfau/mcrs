@@ -1,33 +1,15 @@
 use mcrs_minecraft_block_predicate::provider::BlockStateProvider;
-use mcrs_minecraft_core::codec::{NonNegativeInt, default_true, is_default, is_true};
+use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default, is_true};
 use mcrs_minecraft_core::{Direction, ResourceLocation};
 use mcrs_minecraft_registry::Holder;
 use mcrs_minecraft_sound::SoundEvent;
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BlockTransformer(pub Vec<BlockTransformData>);
-
-impl BlockTransformer {
-    const TRANSFORMS: std::ops::RangeInclusive<usize> = 1..=200;
-}
-
-impl<'de> Deserialize<'de> for BlockTransformer {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let transforms = Vec::<BlockTransformData>::deserialize(deserializer)?;
-        if !Self::TRANSFORMS.contains(&transforms.len()) {
-            return Err(D::Error::custom(format_args!(
-                "expected between {} and {} transforms, got {}",
-                Self::TRANSFORMS.start(),
-                Self::TRANSFORMS.end(),
-                transforms.len()
-            )));
-        }
-        Ok(Self(transforms))
-    }
-}
+pub struct BlockTransformer(
+    #[serde(deserialize_with = "codec::sized_list::<1, 200, _, _>")] pub Vec<BlockTransformData>,
+);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -7,7 +7,6 @@ use mcrs_minecraft_core::BlockPos;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-pub use mcrs_minecraft_value_provider::Weighted;
 use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume};
 use mcrs_minecraft_worldgen_feature::tree::TreeDecorator;
 

@@ -17,9 +17,6 @@ tracing.workspace = true
 mcrs_minecraft_nbt.workspace = true
 derive_more = { workspace = true, features = ["from", "deref"] }
 
-[dev-dependencies]
-mcrs_minecraft_protocol.workspace = true
-
 [features]
 default = []
 bevy = ["dep:bevy_ecs"]

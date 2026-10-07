@@ -84,7 +84,6 @@ pub struct LevelDat {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorldGenSettings {
     pub seed: i64,
-    #[serde(default)]
     pub dimensions: Dimensions,
 }
 

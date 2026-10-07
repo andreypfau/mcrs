@@ -23,7 +23,12 @@ fn overworld() -> StructureIndex {
     let frozen = frozen_shared();
     let source = preset("minecraft:overworld");
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(&source, corpus_biomes(), &crate::tests::parameter_lists().1) {
+    for name in possible_biomes(
+        &source,
+        corpus_biomes(),
+        &super::biome_tags(),
+        &crate::tests::parameter_lists().1,
+    ) {
         mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_enchantment::effects::{EnchantmentEffects, EnchantmentValueEffect};
+use mcrs_minecraft_entity::keys::Attribute;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_item::damage_type::DamageType;
@@ -123,7 +124,7 @@ fn level_based_effects_scale_with_the_level() {
     let efficiency = effects_of("efficiency.json")
         .attributes
         .expect("efficiency has attributes");
-    assert_eq!(efficiency[0].attribute, "minecraft:mining_efficiency");
+    assert_eq!(efficiency[0].attribute, Attribute::MiningEfficiency);
     assert_eq!(efficiency[0].amount.calculate(3), 10.0);
 
     let charge_time = effects_of("quick_charge.json")
@@ -132,4 +133,72 @@ fn level_based_effects_scale_with_the_level() {
     let mut binomial = |value: f32, _chance: f32| value;
     assert_eq!(charge_time.process(1, 1.0, &mut binomial), 0.75);
     assert_eq!(charge_time.process(3, 1.0, &mut binomial), 0.25);
+}
+
+#[test]
+fn an_exponential_value_effect_raises_the_base_to_the_exponent() {
+    let effect: EnchantmentValueEffect = serde_json::from_str(
+        r#"{"type":"minecraft:exponential","base":2.0,"exponent":{"type":"minecraft:linear","base":1.0,"per_level_above_first":1.0}}"#,
+    )
+    .unwrap();
+    let mut binomial = |value: f32, _chance: f32| value;
+    assert_eq!(effect.process(1, 3.0, &mut binomial), 6.0);
+    assert_eq!(effect.process(3, 3.0, &mut binomial), 24.0);
+}
+
+#[test]
+fn an_explode_effect_reads_its_block_particles() {
+    let effects = r#"{"minecraft:hit_block":[{"effect":{"type":"minecraft:explode","block_interaction":"trigger","radius":3.5,"small_particle":{"type":"minecraft:gust_emitter_small"},"large_particle":{"type":"minecraft:gust_emitter_large"},"block_particles":[{"particle":{"type":"minecraft:poof"},"scaling":0.5,"weight":3},{"particle":{"type":"minecraft:smoke"},"weight":1}],"sound":"minecraft:entity.wind_charge.wind_burst"}}]}"#;
+    let json: serde_json::Value = serde_json::from_str(effects).unwrap();
+    let encoded = scope().scope(|| {
+        let parsed: EnchantmentEffects = serde_json::from_value(json.clone()).unwrap();
+        serde_json::to_value(&parsed).unwrap()
+    });
+    assert_eq!(as_f32(&encoded), as_f32(&json));
+}
+
+#[test]
+fn a_malformed_registry_reference_is_a_load_error() {
+    let explode = |sound: &str| {
+        format!(
+            r#"{{"minecraft:hit_block":[{{"effect":{{"type":"minecraft:explode","block_interaction":"trigger","radius":1.0,"small_particle":{{"type":"minecraft:poof"}},"large_particle":{{"type":"minecraft:poof"}},"sound":"{sound}"}}}}]}}"#
+        )
+    };
+    let attribute = |id: &str, attribute: &str| {
+        format!(
+            r#"{{"minecraft:attributes":[{{"id":"{id}","attribute":"{attribute}","amount":1.0,"operation":"add_value"}}]}}"#
+        )
+    };
+    let damage = |damage_type: &str| {
+        format!(
+            r#"{{"minecraft:hit_block":[{{"effect":{{"type":"minecraft:damage_entity","min_damage":1.0,"max_damage":2.0,"damage_type":"{damage_type}"}}}}]}}"#
+        )
+    };
+    let valid = [
+        explode("minecraft:entity.wind_charge.wind_burst"),
+        attribute("minecraft:test", "minecraft:max_health"),
+        damage("minecraft:magic"),
+        r#"{"minecraft:crossbow_charging_sounds":[{"start":"minecraft:item.crossbow.quick_charge_1"}]}"#.to_owned(),
+        r#"{"minecraft:trident_sound":["minecraft:item.trident.riptide_1"]}"#.to_owned(),
+    ];
+    let malformed = [
+        explode("Not A Sound"),
+        attribute("Not An Id", "minecraft:max_health"),
+        attribute("minecraft:test", "minecraft:not_an_attribute"),
+        damage("minecraft:not_a_damage_type"),
+        r#"{"minecraft:crossbow_charging_sounds":[{"start":"Not A Sound"}]}"#.to_owned(),
+        r#"{"minecraft:trident_sound":["Not A Sound"]}"#.to_owned(),
+    ];
+    scope().scope(|| {
+        for json in valid {
+            serde_json::from_str::<EnchantmentEffects>(&json)
+                .unwrap_or_else(|error| panic!("{json}: {error}"));
+        }
+        for json in malformed {
+            assert!(
+                serde_json::from_str::<EnchantmentEffects>(&json).is_err(),
+                "{json} loaded"
+            );
+        }
+    });
 }

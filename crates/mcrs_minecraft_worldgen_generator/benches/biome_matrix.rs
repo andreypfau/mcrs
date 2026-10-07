@@ -9,7 +9,9 @@
 //!   mode = matrix   per-biome surface cost over one fixed patch of terrain
 //!        = natural  same columns with the real biomes vs. the pinned biome
 
+use mcrs_minecraft_worldgen_generator::ColumnBiomes;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mcrs_minecraft_biome::parameter_list::{MultiNoiseBiomeSourceParameterList, Preset};
@@ -231,8 +233,7 @@ fn run_pinned(
                 cz,
                 y_sections,
                 router,
-                Some(source),
-                None,
+                &ColumnBiomes::new(Some(source), None).unwrap(),
                 None,
                 cancel,
             ) else {
@@ -355,13 +356,12 @@ fn natural(
     offset: i32,
 ) {
     let list_names = parameter_lists();
-    let multi = MultiNoiseBiomeSource {
-        preset: Some(list_names.require_by_name("minecraft:overworld").unwrap()),
-        biomes: None,
-    };
+    let multi =
+        MultiNoiseBiomeSource::Preset(list_names.require_by_name("minecraft:overworld").unwrap());
     let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, registry)
         .expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
+    let natural = ColumnBiomes::new(Some(&natural_source), Some(Arc::new(table))).unwrap();
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut scratch = MaterialScratch::default();
@@ -377,8 +377,7 @@ fn natural(
                 cz,
                 y_sections,
                 router,
-                Some(&natural_source),
-                Some(&table),
+                &natural,
                 None,
                 cancel,
             ) else {
@@ -429,8 +428,7 @@ fn natural(
                 cz,
                 y_sections,
                 router,
-                Some(&source),
-                None,
+                &ColumnBiomes::new(Some(&source), None).unwrap(),
                 None,
                 cancel,
             )

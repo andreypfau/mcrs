@@ -1,3 +1,4 @@
+use crate::ColumnBiomes;
 use bevy_math::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_core::ColumnPos;
@@ -35,8 +36,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
         section_z,
         &y_sections,
         &router,
-        None,
-        None,
+        &ColumnBiomes::None,
         None,
         &CancellationToken::new(),
     )
@@ -142,8 +142,7 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
                 col.z,
                 y_sections,
                 router,
-                None,
-                None,
+                &ColumnBiomes::None,
                 beard,
                 &CancellationToken::new(),
             )

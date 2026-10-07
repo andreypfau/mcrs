@@ -1,6 +1,5 @@
 use crate::beta_ores::{BetaOreBlockIds, apply_beta_ores_in};
 use crate::features::FeatureTables;
-use crate::ids::SurvivalIds;
 use crate::structures::{check_block_entity_ids, resolve_palette_state};
 use crate::trees::{
     build_tree_tables, compile_decorator, compile_provider, compile_tree, state_of, with_property,
@@ -28,8 +27,7 @@ use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
-use mcrs_minecraft_registry::shared::Resolved;
-use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, TagId, Tags};
+use mcrs_minecraft_registry::{BlockStateId, HolderSet, Id, Registry, RegistrySet, Tags};
 use mcrs_minecraft_value_provider::{IntProvider as IntProviderRef, pick_weighted_by};
 use mcrs_minecraft_worldgen_feature::compile::{
     BlockResolver, FeatureCompileError, LoadedFeatures, StateQuery, compile_placement,
@@ -426,7 +424,6 @@ impl FeatureProgram {
         registries: &RegistrySet,
         world_seed: i64,
         structures: Option<&FrozenStructures>,
-        survival: Resolved<SurvivalIds>,
     ) -> Result<Self, FeatureCompileError> {
         let biomes = registries
             .registry::<Biome>()
@@ -447,7 +444,6 @@ impl FeatureProgram {
             world_seed,
             &climate,
             &corpus.block_state_providers,
-            survival,
         )?;
         let trees = Arc::new(build_tree_tables(&resolver).map_err(|e| e.within("tree tables"))?);
         let mut steps = Vec::with_capacity(tables.features.steps.len());
@@ -1489,7 +1485,7 @@ fn compile_generator(
             rim: resolver.resolve(rim)?,
             size: size.0.clone(),
             rim_size: rim_size.0.clone(),
-            cannot_replace: resolver.blocks_mask(DELTA_CANNOT_REPLACE)?,
+            cannot_replace: block_mask(resolver, DELTA_CANNOT_REPLACE)?,
         })),
         Feature::UnderwaterMagma {
             floor_search_range,
@@ -1754,8 +1750,7 @@ fn compile_generator(
             Generator::ChorusPlant(Box::new(CompiledChorusPlant {
                 supports: resolver
                     .tag_mask(mcrs_minecraft_block::keys::block_tags::SUPPORTS_CHORUS_PLANT)?,
-                plant_or_flower: resolver
-                    .blocks_mask(&[Block::ChorusPlant, Block::ChorusFlower])?,
+                plant_or_flower: block_mask(resolver, &[Block::ChorusPlant, Block::ChorusFlower])?,
                 plant_by_connections,
                 flower_age5: VoxelId::from(set(flower, flower.default_state_id, "age", "5")?.0),
             }))
@@ -1819,11 +1814,10 @@ fn compile_generator(
             snow_block: resolver.default_state_of(Block::SnowBlock.id()),
             snow_block_mask: block_mask(resolver, &[Block::SnowBlock])?,
             snow_layer_mask: block_mask(resolver, &[Block::Snow])?,
-            iceberg_mask: resolver.blocks_mask(&[
-                Block::PackedIce,
-                Block::SnowBlock,
-                Block::BlueIce,
-            ])?,
+            iceberg_mask: block_mask(
+                resolver,
+                &[Block::PackedIce, Block::SnowBlock, Block::BlueIce],
+            )?,
         }),
         Feature::Spike {
             state,
@@ -1980,11 +1974,10 @@ fn compile_generator(
             )?,
             sculk: resolver.default_state_of(Block::Sculk.id()),
             sculk_states: block_mask(resolver, &[Block::Sculk])?,
-            blocks_vein: resolver.blocks_mask(&[
-                Block::Sculk,
-                Block::SculkCatalyst,
-                Block::MovingPiston,
-            ])?,
+            blocks_vein: block_mask(
+                resolver,
+                &[Block::Sculk, Block::SculkCatalyst, Block::MovingPiston],
+            )?,
             fire: resolver.tag_mask(mcrs_minecraft_block::keys::block_tags::FIRE)?,
             replaceable_world_gen: resolver
                 .tag_mask(mcrs_minecraft_block::keys::block_tags::SCULK_REPLACEABLE_WORLD_GEN)?,
@@ -2593,7 +2586,6 @@ pub struct Resolver<'a> {
     /// Indexed by the biome id [`WorldGenVolume::biome`] answers with.
     pub climate: &'a [BiomeClimate],
     pub block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
-    pub survival: Resolved<SurvivalIds>,
     shape_masks: ShapeMasks,
 }
 
@@ -2650,11 +2642,9 @@ impl<'a> Resolver<'a> {
         world_seed: i64,
         climate: &'a [BiomeClimate],
         block_state_providers: &'a BTreeMap<ResourceLocation, DirectBlockStateProvider>,
-        survival: Resolved<SurvivalIds>,
     ) -> Compiled<Self> {
         let mut resolver = Resolver {
             block_state_providers,
-            survival,
             blocks,
             world: WorldStates::default(),
             tables: Arc::new(BlockTables::default()),
@@ -2757,15 +2747,13 @@ impl<'a> Resolver<'a> {
         self.mask(StateQuery::Blocks(&self.block_tag(tag)?))
     }
 
-    pub fn tag_states(&self, tag: TagId<Block>) -> FixedBitSet {
-        let mut mask = FixedBitSet::with_capacity(self.blocks.state_count());
-        self.add_set(&mut mask, &HolderSet::Named(tag));
-        mask
-    }
-
-    pub fn blocks_mask(&self, blocks: &[Block]) -> Compiled<StateMask> {
-        let ids = blocks.iter().map(|block| block.id()).collect();
-        self.mask(StateQuery::Blocks(&HolderSet::List(ids)))
+    pub fn fluid_tag_mask(&self, tag: TagKey<Fluid, &'static str>) -> Compiled<StateMask> {
+        let set = self
+            .fluid_tags
+            .get(&tag)
+            .map(HolderSet::Named)
+            .ok_or_else(|| FeatureCompileError::UnknownBlockSet(format!("#{}", tag.as_str())))?;
+        self.mask(StateQuery::Fluids(&set))
     }
 
     pub fn block_tag(&self, tag: TagKey<Block, &'static str>) -> Compiled<HolderSet<Block>> {

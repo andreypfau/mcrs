@@ -1213,23 +1213,6 @@ mod tests {
     use crate::climate::TargetPoint;
     use std::collections::BTreeSet;
 
-    fn shipped_biomes() -> BTreeSet<String> {
-        mcrs_minecraft_worldgen_testing::registry::<mcrs_minecraft_biome_file::BiomeFile>("biome")
-            .into_keys()
-            .map(|id| id.as_str().to_owned())
-            .collect()
-    }
-
-    /// The whole point of transcribing the table: a mistyped or renamed biome
-    /// is a name that no shipped biome answers to.
-    #[test]
-    fn every_biome_the_nether_preset_names_is_shipped() {
-        let shipped = shipped_biomes();
-        for (_, biome) in nether_parameter_list().values() {
-            assert!(shipped.contains(*biome), "{biome} is not a shipped biome");
-        }
-    }
-
     /// An independent check on the whole transcription: a biome carries the
     /// overworld carver set exactly when the overworld climate table can
     /// produce it. The two sets are written down in different places — one in

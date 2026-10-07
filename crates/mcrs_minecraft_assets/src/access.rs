@@ -37,19 +37,18 @@ pub struct SyncedRegistry {
 }
 
 impl SyncedRegistry {
-    pub fn from_entries(
+    pub fn from_names(
         key: &str,
-        entries: Vec<(ResourceLocation<Arc<str>>, Option<NbtTag>)>,
-        pack_source: Option<PackSource>,
+        names: impl IntoIterator<Item = ResourceLocation<Arc<str>>>,
     ) -> Self {
         Self {
             key: key.to_string(),
-            entries: entries
+            entries: names
                 .into_iter()
-                .map(|(location, data)| RegistryEntry {
+                .map(|location| RegistryEntry {
                     location,
-                    data,
-                    pack_source: pack_source.clone(),
+                    data: None,
+                    pack_source: None,
                 })
                 .collect(),
         }
@@ -94,7 +93,7 @@ impl SyncedRegistry {
 pub struct RegistryAccess(Arc<RegistryAccessInner>);
 
 #[derive(Default)]
-pub struct RegistryAccessInner {
+struct RegistryAccessInner {
     registries: Vec<SyncedRegistry>,
     lookup: OnceLock<LookupIndex>,
 }
@@ -183,13 +182,9 @@ mod tests {
     #[test]
     fn lookup_resolves_names_and_ids_by_position() {
         let mut access = RegistryAccess::default();
-        access.register(SyncedRegistry::from_entries(
+        access.register(SyncedRegistry::from_names(
             "minecraft:item",
-            vec![
-                (make_location("stone"), None),
-                (make_location("dirt"), None),
-            ],
-            None,
+            [make_location("stone"), make_location("dirt")],
         ));
         assert_eq!(access.name("item", 1), Some(&make_location("dirt")));
         assert_eq!(access.name("item", 2), None);
@@ -207,10 +202,9 @@ mod tests {
         let _clone = original.clone();
         // The clone holds an Arc reference; Arc::get_mut inside register now
         // returns None and the expect panics with the documented message.
-        original.register(SyncedRegistry::from_entries(
+        original.register(SyncedRegistry::from_names(
             "minecraft:biome",
-            vec![(make_location("plains"), None)],
-            None,
+            [make_location("plains")],
         ));
     }
 }

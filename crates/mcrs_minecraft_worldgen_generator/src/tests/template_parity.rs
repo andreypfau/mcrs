@@ -955,7 +955,6 @@ mod exhaustive {
             WORLD_SEED,
             &[],
             &crate::tests::corpus_features().block_state_providers,
-            crate::tests::survival_ids(&registries),
         )
         .expect("the corpus resolves");
         let mut templates: BTreeMap<

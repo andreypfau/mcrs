@@ -283,7 +283,12 @@ fn every_template_a_structure_names_is_loaded_and_the_pools_expand() {
 fn live_set_names(source: &BiomeSource) -> Vec<String> {
     let frozen = frozen();
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(source, corpus_biomes(), &crate::tests::parameter_lists().1) {
+    for name in possible_biomes(
+        source,
+        corpus_biomes(),
+        &super::biome_tags(),
+        &crate::tests::parameter_lists().1,
+    ) {
         mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     live_sets(frozen, &mask)
@@ -293,10 +298,9 @@ fn live_set_names(source: &BiomeSource) -> Vec<String> {
 }
 
 pub(super) fn preset(name: &str) -> BiomeSource {
-    BiomeSource::MultiNoise(MultiNoiseBiomeSource {
-        preset: Some(crate::tests::parameter_list_id(name)),
-        biomes: None,
-    })
+    BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(
+        crate::tests::parameter_list_id(name),
+    ))
 }
 
 fn each_dimension_source_keeps_the_sets_its_biomes_admit() {

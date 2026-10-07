@@ -10,7 +10,7 @@ use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::RegistryAccess;
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PACKS_ROOT, PackLayers, VANILLA_PACK, layered_file_source};
-use mcrs_minecraft_biome::source::BiomeSource;
+use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceLocation, TagKey, rl};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -1287,7 +1287,7 @@ fn a_dialog_value_outside_its_range_fails() {
         ),
         (
             input(r#""type":"minecraft:number_range","start":0.0,"end":1.0,"step":0.0"#),
-            "positive",
+            "Value must be positive: 0.0",
         ),
         (
             input(r#""type":"minecraft:number_range","start":0.0,"end":1.0,"initial":2.0"#),
@@ -1841,7 +1841,10 @@ fn timeline_file(clock: &str, markers: &str) -> String {
     format!(r#"{{"clock":"{clock}","period_ticks":24000,"time_markers":{markers}}}"#)
 }
 
-fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String> {
+pub(crate) fn load_shipped_and(
+    directory: &str,
+    files: &[(&str, String)],
+) -> Result<RegistrySet, String> {
     let mut app = App::new();
     app.register_asset_source(
         AssetSourceId::Default,
@@ -1856,10 +1859,10 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
     let mut packs = read_packs(&asset_server, &WORLD, &STATICS);
     packs.push(Pack {
         name: "extra".to_owned(),
-        files: timelines
+        files: files
             .iter()
             .map(|(name, json)| PackFile {
-                path: format!("test/timeline/{name}.json"),
+                path: format!("{directory}/{name}.json"),
                 bytes: Some(json.clone().into_bytes()),
             })
             .collect(),
@@ -1872,7 +1875,7 @@ fn load_shipped_and(timelines: &[(&str, String)]) -> Result<RegistrySet, String>
 
 #[test]
 fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
-    let refused = load_shipped_and(&[
+    let refused = load_shipped_and("test/timeline", &[
         (
             "first",
             timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
@@ -1898,7 +1901,7 @@ fn a_time_marker_defined_twice_for_one_clock_fails_the_load() {
 
 #[test]
 fn a_marker_reused_on_two_clocks_loads() {
-    let set = load_shipped_and(&[
+    let set = load_shipped_and("test/timeline", &[
         (
             "first",
             timeline_file("minecraft:overworld", r#"{"test:marker":1000}"#),
@@ -1920,9 +1923,12 @@ fn a_marker_reused_on_two_clocks_loads() {
 
 #[test]
 fn a_timeline_naming_an_unknown_clock_fails() {
-    let refused = load_shipped_and(&[("lost", timeline_file("minecraft:nowhere", "{}"))])
-        .err()
-        .expect("a clock the registry does not hold is refused");
+    let refused = load_shipped_and(
+        "test/timeline",
+        &[("lost", timeline_file("minecraft:nowhere", "{}"))],
+    )
+    .err()
+    .expect("a clock the registry does not hold is refused");
 
     assert!(refused.contains("minecraft:world_clock"), "{refused}");
     assert!(refused.contains("minecraft:nowhere"), "{refused}");
@@ -2017,6 +2023,17 @@ fn tag_in<R: mcrs_minecraft_registry::Registered>(set: &RegistrySet, name: &str)
             ResourceLocation::read(name).unwrap(),
         ))
         .unwrap_or_else(|| panic!("{name} is a loaded tag"))
+}
+
+#[test]
+fn a_dimension_type_sends_has_fixed_time_only_when_set() {
+    for (json, sent) in [("false", None), ("true", Some(NbtTag::Byte(1)))] {
+        let read = overworld_dimension_type_with(&[("has_fixed_time", Some(json))]).unwrap();
+        let nbt = test_registries()
+            .scope(|| mcrs_minecraft_nbt::to_nbt_compound(&read))
+            .unwrap();
+        assert_eq!(nbt.get("has_fixed_time").cloned(), sent, "{json}");
+    }
 }
 
 #[test]
@@ -2132,11 +2149,11 @@ fn every_preset_parses_in_registry_context() {
     let ChunkGenerator::Noise(normal) = overworld("minecraft:normal") else {
         panic!("the normal overworld is a noise generator");
     };
-    let BiomeSource::MultiNoise(source) = &normal.biome_source else {
-        panic!("the normal overworld uses a multi-noise biome source");
+    let BiomeSource::MultiNoise(MultiNoiseBiomeSource::Preset(list)) = &normal.biome_source else {
+        panic!("the normal overworld uses a multi-noise preset");
     };
     assert_eq!(
-        source.preset.map(|list| list.number()),
+        Some(list.number()),
         Some(id_in(
             "minecraft:worldgen/multi_noise_biome_source_parameter_list",
             "minecraft:overworld"
@@ -2300,6 +2317,27 @@ fn a_preset_naming_something_the_registries_lack_fails_the_load() {
             .unwrap_or_else(|| panic!("{registry}: no line names the preset: {refused}"));
         assert!(line.contains(registry), "{registry}: {line}");
         assert!(line.contains("test:no_such_name"), "{registry}: {line}");
+    }
+}
+
+#[test]
+fn a_flat_world_taller_than_the_build_height_fails_the_load() {
+    let cases = [
+        (
+            r#"[{"block":"minecraft:stone","height":4065}]"#,
+            "[0;4064]: 4065",
+        ),
+        (
+            r#"[{"block":"minecraft:stone","height":4000},{"block":"minecraft:dirt","height":65}]"#,
+            "Sum of layer heights is > 4064",
+        ),
+    ];
+    for (layers, expected) in cases {
+        let preset = format!(
+            r#"{{"dimensions":{{"minecraft:overworld":{{"generator":{{"type":"minecraft:flat","settings":{{"layers":{layers}}}}},"type":"minecraft:overworld"}}}}}}"#
+        );
+        let refused = refused_by_the_loader("worldgen/world_preset", "test_preset", &preset);
+        assert!(refused.contains(expected), "{layers}: {refused}");
     }
 }
 

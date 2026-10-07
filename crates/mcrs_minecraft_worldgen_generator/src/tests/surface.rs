@@ -1,4 +1,5 @@
 use super::{corpus, router_blocks};
+use crate::ColumnBiomes;
 use crate::modern_carvers::{ModernCarverBlockIds, TerrainCarving};
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
 use crate::surface::{Visit, descend_strip, set_block};
@@ -219,8 +220,7 @@ pub(super) fn surfaced_column(
         section_z,
         y_sections,
         router,
-        None,
-        None,
+        &ColumnBiomes::None,
         None,
         &CancellationToken::new(),
     )
@@ -370,8 +370,7 @@ fn a_carved_top_bares_dirt_that_is_surfaced_again_and_water_is_never_carved() {
             section_z,
             &y_sections,
             &router,
-            None,
-            None,
+            &ColumnBiomes::None,
             None,
             &CancellationToken::new(),
         )
@@ -544,7 +543,7 @@ pub fn fill_context(
     registry: Registry<Biome>,
     source: mcrs_minecraft_biome::source::BiomeSource,
 ) -> crate::stages::FillContext {
-    use mcrs_minecraft_biome::source::BiomeSource;
+    use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 
     use super::blocks;
     let surface = (
@@ -553,8 +552,8 @@ pub fn fill_context(
     );
     let multi_noise = match &source {
         BiomeSource::MultiNoise(multi) => {
-            let table = match (&multi.preset, &multi.biomes) {
-                (Some(list), _) => {
+            let table = match multi {
+                MultiNoiseBiomeSource::Preset(list) => {
                     let preset = crate::tests::parameter_lists()
                         .1
                         .get(*list)
@@ -562,8 +561,9 @@ pub fn fill_context(
                         .preset;
                     MultiNoiseBiomeTable::of_preset(preset, &registry)
                 }
-                (None, Some(entries)) => MultiNoiseBiomeTable::from_entries(&registry, entries),
-                (None, None) => panic!("a multi-noise source names neither biomes nor a preset"),
+                MultiNoiseBiomeSource::Biomes(entries) => {
+                    MultiNoiseBiomeTable::from_entries(&registry, entries)
+                }
             };
             Some(std::sync::Arc::new(
                 table.expect("the source resolves a table"),
@@ -571,16 +571,17 @@ pub fn fill_context(
         }
         _ => None,
     };
+    let biomes = crate::ColumnBiomes::new(Some(&source), multi_noise).unwrap();
     crate::stages::FillContext {
         biome: Some(std::sync::Arc::new(source)),
         program: crate::stages::ColumnProgram {
             generator: crate::stages::ColumnGenerator::Modern {
-                multi_noise,
                 surface: Some(surface),
                 carver_blocks: std::sync::Arc::new(
                     crate::modern_carvers::ModernCarverBlockIds::for_test(Vec::new()),
                 ),
             },
+            biomes,
             carvers: None,
             features: None,
         },
@@ -690,8 +691,7 @@ fn surfaced_column_fixed(
         section_z,
         y_sections,
         router,
-        None,
-        None,
+        &ColumnBiomes::None,
         None,
         &CancellationToken::new(),
     )

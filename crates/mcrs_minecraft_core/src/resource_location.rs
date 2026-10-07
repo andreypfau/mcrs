@@ -188,16 +188,7 @@ impl ResourceLocation<Arc<str>> {
     /// A missing or empty namespace is `minecraft`; the namespace is the text
     /// before the first `:` and the path everything after it.
     pub fn read(text: &str) -> Result<Self, InvalidResourceLocation> {
-        let parts = split(text)?;
-        let string = if parts.canonical {
-            Arc::from(text)
-        } else {
-            Arc::from(format!("{}:{}", parts.namespace, parts.path))
-        };
-        Ok(ResourceLocation {
-            string,
-            colon_pos: parts.namespace.len() as u16,
-        })
+        ResourceLocation::read_cow(text).map(Into::into)
     }
 }
 

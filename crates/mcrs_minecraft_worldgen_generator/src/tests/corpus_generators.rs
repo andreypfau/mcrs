@@ -205,7 +205,6 @@ fn the_noise_state_providers_resolve_to_a_sampler() {
                 0,
                 &[],
                 &corpus_features().block_state_providers,
-                super::survival_ids(&registries),
             )
             .expect("the corpus resolves"),
         )

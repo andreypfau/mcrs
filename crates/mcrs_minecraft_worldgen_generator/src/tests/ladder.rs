@@ -18,7 +18,7 @@ use crate::saved::SectionData;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
-use crate::{BetaCaveBlockIds, ColumnBlocks, SurfaceStates};
+use crate::{BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceStates};
 use bevy_app::App;
 use bevy_math::IVec3;
 use fixedbitset::FixedBitSet;
@@ -188,6 +188,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     let program = match consumer {
         Consumer::BetaOre => ColumnProgram {
             generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
+            biomes: ColumnBiomes::new(source.as_deref(), None).unwrap(),
             carvers: source
                 .as_deref()
                 .map(|source| Arc::new(super::beta_carver_table(source))),
@@ -198,7 +199,6 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
         },
         _ => ColumnProgram {
             generator: ColumnGenerator::Modern {
-                multi_noise: None,
                 // Derived from the registry alone, exactly as the dispatcher derives
                 // it. Neither consumer reaches the material surface — it needs a
                 // biome grid, which only a multi-noise or fixed source builds — but
@@ -216,6 +216,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
                     ),
                 )),
             },
+            biomes: ColumnBiomes::new(source.as_deref(), None).unwrap(),
             carvers: None,
             features: tables.as_ref().map(|tables| Arc::new(ore_program(tables))),
         },

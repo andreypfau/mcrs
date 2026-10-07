@@ -179,7 +179,12 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = &dimension.source;
     let mut mask = FixedBitSet::with_capacity(corpus_biomes().len());
-    for name in possible_biomes(source, corpus_biomes(), &crate::tests::parameter_lists().1) {
+    for name in possible_biomes(
+        source,
+        corpus_biomes(),
+        &super::biome_tags(),
+        &crate::tests::parameter_lists().1,
+    ) {
         mask.insert(corpus_biomes().by_name(name.as_str()).unwrap().index());
     }
     let tables = DimensionStructureTables {
@@ -221,7 +226,6 @@ fn world_states() -> &'static Arc<WorldStates> {
             0,
             &[],
             &super::corpus_features().block_state_providers,
-            super::survival_ids(&registries),
         )
         .expect("the corpus resolves");
         Arc::new(resolver.world)

@@ -37,7 +37,7 @@ use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
 };
-use crate::multi_noise_biomes::{MultiNoiseBiomeTable, PresetBiomeTables};
+use crate::multi_noise_biomes::PresetBiomeTables;
 use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, cell_index, rank, region_column, region_slot,
@@ -46,7 +46,7 @@ use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::place::{column_clip, place_structures};
 use crate::task::{CancellationToken, ColumnSource};
 use crate::{
-    BetaCaveBlockIds, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
+    BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceIds, SurfaceStates, apply_beta_carvers,
     apply_beta_surface, apply_material_surface, beta_surface_rng, fill_column_dense_any,
     spans_dimension,
 };
@@ -76,6 +76,7 @@ pub struct FillContext {
 #[derive(Clone)]
 pub struct ColumnProgram {
     pub generator: ColumnGenerator,
+    pub biomes: ColumnBiomes,
     pub carvers: Option<Arc<CarverBiomeTable>>,
     pub features: Option<Arc<FeatureProgram>>,
 }
@@ -86,7 +87,6 @@ pub struct ColumnProgram {
 pub enum ColumnGenerator {
     Beta(Arc<BetaCaveBlockIds>),
     Modern {
-        multi_noise: Option<Arc<MultiNoiseBiomeTable>>,
         surface: Option<(Resolved<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
@@ -97,10 +97,10 @@ impl ColumnProgram {
     pub fn modern(features: Option<Arc<FeatureProgram>>) -> Self {
         ColumnProgram {
             generator: ColumnGenerator::Modern {
-                multi_noise: None,
                 surface: None,
                 carver_blocks: Arc::new(ModernCarverBlockIds::for_test(Vec::new())),
             },
+            biomes: ColumnBiomes::None,
             carvers: None,
             features,
         }
@@ -177,7 +177,6 @@ impl FillContext {
                 ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks)))
             }
             _ => ColumnGenerator::Modern {
-                multi_noise,
                 surface: biome
                     .as_ref()
                     .map(|_| (surface_ids.clone(), SurfaceStates::new(&blocks))),
@@ -187,8 +186,13 @@ impl FillContext {
                 )),
             },
         };
+        let biomes = ColumnBiomes::new(biome.as_deref(), multi_noise).unwrap_or_else(|error| {
+            error!(%error, "a biome of the source does not fit the palette");
+            ColumnBiomes::None
+        });
         let program = ColumnProgram {
             generator,
+            biomes,
             carvers: carver_biomes.filter(|_| biome.is_some()),
             features,
         };
@@ -305,18 +309,13 @@ pub fn fill_column(
     });
     let mut filled = {
         let _gen = info_span!("world::column_gen").entered();
-        let multi_noise = match &ctx.program.generator {
-            ColumnGenerator::Modern { multi_noise, .. } => multi_noise.as_deref(),
-            ColumnGenerator::Beta(_) => None,
-        };
         fill_column_dense_any(
             column,
             col.x,
             col.z,
             y_sections,
             router,
-            ctx.biome_source(),
-            multi_noise,
+            &ctx.program.biomes,
             beard.as_ref(),
             cancel,
         )?
@@ -1136,6 +1135,7 @@ mod tests {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
                     ))),
+                    biomes: ColumnBiomes::new(Some(&source), None).unwrap(),
                     carvers: Some(Arc::new(beta_carver_table(&source))),
                     features: None,
                 },

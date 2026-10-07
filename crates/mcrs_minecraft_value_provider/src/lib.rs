@@ -3,8 +3,11 @@ pub mod keys;
 
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, is_default};
 use mcrs_minecraft_random::Random;
-use serde::de::Error as _;
+use mcrs_minecraft_registry::dispatch::Buffered;
+use serde::de::{self, Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
+use std::marker::PhantomData;
 
 /// Where a vertical anchor sits, given the dimension's own extent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,13 +128,71 @@ pub fn pick_weighted_by<'a, T, R: Random>(
     })
 }
 
-/// A bare value is tried first, then the dispatch, where `constant` names a
-/// map over a single `value` field.
-#[derive(Deserialize)]
-#[serde(untagged)]
+/// A bare value or the dispatch, where `constant` names a map over a single
+/// `value` field.
 enum ConstantOrDispatch<V, D> {
     Bare(V),
     Dispatched(D),
+}
+
+impl<'de, V: Deserialize<'de>, D: Deserialize<'de>> ConstantOrDispatch<V, D> {
+    /// A bare value that is itself a map is told from the dispatch by the
+    /// dispatch's `type` key.
+    fn deserialize<De: Deserializer<'de>>(
+        deserializer: De,
+        bare_is_map: bool,
+    ) -> Result<Self, De::Error> {
+        struct ConstantOrDispatchVisitor<V, D> {
+            bare_is_map: bool,
+            human_readable: bool,
+            shape: PhantomData<(V, D)>,
+        }
+
+        impl<'de, V: Deserialize<'de>, D: Deserialize<'de>> Visitor<'de>
+            for ConstantOrDispatchVisitor<V, D>
+        {
+            type Value = ConstantOrDispatch<V, D>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a constant or a typed provider")
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                V::deserialize(value::I64Deserializer::new(v)).map(ConstantOrDispatch::Bare)
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                V::deserialize(value::U64Deserializer::new(v)).map(ConstantOrDispatch::Bare)
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Self::Value, E> {
+                V::deserialize(value::F64Deserializer::new(v)).map(ConstantOrDispatch::Bare)
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+                if !self.bare_is_map {
+                    return D::deserialize(value::MapAccessDeserializer::new(map))
+                        .map(ConstantOrDispatch::Dispatched);
+                }
+                let buffered = Buffered::deserialize(value::MapAccessDeserializer::new(map))?;
+                let typed = matches!(&buffered, Buffered::Map(entries)
+                    if entries.iter().any(|(key, _)| matches!(key, Buffered::Str(key) if key == "type")));
+                let deserializer = buffered.deserializer(self.human_readable);
+                if typed {
+                    D::deserialize(deserializer).map(ConstantOrDispatch::Dispatched)
+                } else {
+                    V::deserialize(deserializer).map(ConstantOrDispatch::Bare)
+                }
+            }
+        }
+
+        let human_readable = deserializer.is_human_readable();
+        deserializer.deserialize_any(ConstantOrDispatchVisitor {
+            bare_is_map,
+            human_readable,
+            shape: PhantomData,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -143,7 +204,7 @@ pub enum IntProvider {
 
 impl<'de> Deserialize<'de> for IntProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::<i32, DispatchedIntProvider>::deserialize(deserializer)? {
+        match ConstantOrDispatch::<i32, DispatchedIntProvider>::deserialize(deserializer, false)? {
             ConstantOrDispatch::Bare(value)
             | ConstantOrDispatch::Dispatched(DispatchedIntProvider::Constant { value }) => {
                 Ok(Self::Constant(value))
@@ -188,6 +249,10 @@ impl DispatchedIntProvider {
                 min_inclusive,
                 max_inclusive,
             }
+            | VeryBiasedToBottom {
+                min_inclusive,
+                max_inclusive,
+            }
             | Clamped {
                 min_inclusive,
                 max_inclusive,
@@ -199,7 +264,7 @@ impl DispatchedIntProvider {
                 ..
             } => Some((*min_inclusive, *max_inclusive, None)),
             Trapezoid { min, max, plateau } => Some((*min, *max, Some(*plateau))),
-            Constant { .. } | VeryBiasedToBottom { .. } | WeightedList { .. } => None,
+            Constant { .. } | WeightedList { .. } => None,
         }
     }
 }
@@ -419,7 +484,7 @@ pub enum FloatProvider {
 
 impl<'de> Deserialize<'de> for FloatProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::deserialize(deserializer)? {
+        match ConstantOrDispatch::deserialize(deserializer, false)? {
             ConstantOrDispatch::Bare(value)
             | ConstantOrDispatch::Dispatched(DispatchedFloatProvider::Constant { value }) => {
                 Ok(Self::Constant(value))
@@ -520,7 +585,7 @@ pub enum HeightProvider {
 
 impl<'de> Deserialize<'de> for HeightProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::deserialize(deserializer)? {
+        match ConstantOrDispatch::deserialize(deserializer, true)? {
             ConstantOrDispatch::Bare(value)
             | ConstantOrDispatch::Dispatched(DispatchedHeightProvider::Constant { value }) => {
                 Ok(Self::Constant(value))
@@ -899,6 +964,37 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_malformed_typed_provider_reports_its_own_error() {
+        fn error<T: for<'de> Deserialize<'de> + std::fmt::Debug>(json: &str) -> String {
+            serde_json::from_str::<T>(json).unwrap_err().to_string()
+        }
+        for (json, message) in [
+            (
+                error::<IntProvider>(
+                    r#"{"type":"minecraft:very_biased_to_bottom","min_inclusive":5,"max_inclusive":2}"#,
+                ),
+                "Max must be at least min: [5, 2]",
+            ),
+            (
+                error::<IntProvider>(r#"{"type":"minecraft:uniform","min_inclusive":0}"#),
+                "missing field `max_inclusive`",
+            ),
+            (
+                error::<FloatProvider>(r#"{"type":"minecraft:uniform","min_inclusive":0.0}"#),
+                "missing field `max_exclusive`",
+            ),
+            (
+                error::<HeightProvider>(
+                    r#"{"type":"minecraft:uniform","min_inclusive":{"absolute":0}}"#,
+                ),
+                "missing field `max_inclusive`",
+            ),
+        ] {
+            assert!(json.contains(message), "{json:?} lacks {message:?}");
+        }
     }
 
     #[test]

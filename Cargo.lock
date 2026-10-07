@@ -3431,6 +3431,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_client",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
  "mcrs_minecraft_network",
  "mcrs_minecraft_server",
  "mcrs_minecraft_world",
@@ -3450,7 +3451,6 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registry",
  "serde",
- "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -3520,7 +3520,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -3625,7 +3624,6 @@ dependencies = [
  "bevy_math",
  "derive_more",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -4113,7 +4111,6 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_math",
- "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
  "bevy_time",
@@ -4164,7 +4161,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4230,7 +4226,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_platform",
- "bevy_reflect",
  "bevy_state",
  "bevy_tasks",
  "bytes",
@@ -4336,7 +4331,6 @@ name = "mcrs_minecraft_worldgen_carver"
 version = "0.4.6"
 dependencies = [
  "bevy_reflect",
- "bytes",
  "fixedbitset",
  "mcrs_minecraft_core",
  "mcrs_minecraft_random",
@@ -4344,7 +4338,6 @@ dependencies = [
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_worldgen_testing",
  "serde",
- "serde_json",
 ]
 
 [[package]]

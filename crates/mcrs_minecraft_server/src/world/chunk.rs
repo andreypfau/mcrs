@@ -206,26 +206,21 @@ impl ColumnScheduler {
     }
 }
 
-/// A column slower than `threshold` from queue to hand-off gets a line naming the
-/// stage that cost the time. `MCRS_SLOW_CHUNK_MS` moves the bar.
-pub(crate) struct SlowColumns {
-    threshold: Duration,
-    reported: Option<Instant>,
-    unreported: u64,
+/// A column slower than this from queue to hand-off gets a line naming the stage
+/// that cost the time.
+#[derive(Resource, Clone, Copy, Debug)]
+pub(crate) struct SlowColumnThreshold(pub Duration);
+
+impl Default for SlowColumnThreshold {
+    fn default() -> Self {
+        Self(Duration::from_millis(250))
+    }
 }
 
-impl Default for SlowColumns {
-    fn default() -> Self {
-        let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
-            .ok()
-            .and_then(|ms| ms.parse().ok())
-            .unwrap_or(250);
-        Self {
-            threshold: Duration::from_millis(ms),
-            reported: None,
-            unreported: 0,
-        }
-    }
+#[derive(Default)]
+pub(crate) struct SlowColumns {
+    reported: Option<Instant>,
+    unreported: u64,
 }
 
 /// The sections a delivery owes, copied out of the whole column it generated.
@@ -263,9 +258,16 @@ pub(crate) fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32
 impl SlowColumns {
     /// The whole ladder's latency, reported once a second with the count of the
     /// columns the sample stands for.
-    fn report(&mut self, col: ColumnPos, queued: Instant, sections: usize, source: ColumnSource) {
+    fn report(
+        &mut self,
+        threshold: Duration,
+        col: ColumnPos,
+        queued: Instant,
+        sections: usize,
+        source: ColumnSource,
+    ) {
         let total = queued.elapsed();
-        if total < self.threshold {
+        if total < threshold {
             return;
         }
         // A stall is a property of the whole load, not of one column, and a line per
@@ -385,6 +387,7 @@ pub(crate) fn deliver_merged_columns(
     ctx: Option<Res<FillContext>>,
     registry: Option<Res<RegistryAccess>>,
     mut commands: Commands,
+    slow_threshold: Option<Res<SlowColumnThreshold>>,
     mut slow: Local<SlowColumns>,
     mut traces: Option<ResMut<ColumnTraceLog>>,
     mut ready: Local<Vec<ColumnKey>>,
@@ -451,7 +454,13 @@ pub(crate) fn deliver_merged_columns(
             ),
         }
 
-        slow.report(col, entry.queued, entry.sections.len(), source);
+        slow.report(
+            slow_threshold.as_deref().copied().unwrap_or_default().0,
+            col,
+            entry.queued,
+            entry.sections.len(),
+            source,
+        );
         column_trace::mark(&mut traces, col, ColumnStage::Loaded);
         column_trace::set_source(&mut traces, col, source.label());
         if let Some(maps) = maps {
