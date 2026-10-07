@@ -15,10 +15,10 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::{OnEnter, in_state};
-use mcrs_minecraft_assets::{AppState, RegistryAccess};
+use mcrs_minecraft_assets::AppState;
+use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::{ResourceKey, ResourceLocation, VERSION};
-use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeEnvironment;
 use mcrs_minecraft_entity::keys::EntityType;
 use mcrs_minecraft_entity::variant::CatVariant;
 use mcrs_minecraft_entity::variant::WolfVariant;
@@ -58,7 +58,6 @@ use mcrs_minecraft_protocol::tags::tags_payload;
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_world::save::read_player_dat;
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -182,17 +181,44 @@ pub fn update_tags(set: &RegistrySet) -> ClientboundUpdateTags<'static> {
     ClientboundUpdateTags { registries }
 }
 
+pub fn registry_data<'a>(
+    set: &'a RegistrySet,
+    client_known: &HashSet<(&str, &str)>,
+) -> Vec<ClientboundRegistryData<'a>> {
+    let knows_vanilla = client_known.contains(&("minecraft", "core"));
+    set.synced()
+        .map(|(table, column)| {
+            let registry = table.registry().as_str();
+            let entries = table
+                .names()
+                .iter()
+                .zip(column)
+                .enumerate()
+                .map(|(id, (name, network))| {
+                    let from_vanilla = set.pack_of(registry, id) == Some(VANILLA_PACK);
+                    Entry {
+                        id: ResourceLocation::read_cow(name.as_str()).unwrap(),
+                        data: (!(knows_vanilla && from_vanilla))
+                            .then_some(Cow::Borrowed(&network.0)),
+                    }
+                })
+                .collect();
+            ClientboundRegistryData {
+                registry: ResourceLocation::read_cow(registry).unwrap(),
+                entries,
+            }
+        })
+        .collect()
+}
+
 /// Step 2 of the Configuration handshake: triggered by
-/// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
-/// 30 synced registries (alphabetical order), the `environment_attribute`
-/// special case, `ClientboundUpdateTags` from the set's tags,
-/// and finally `ClientboundFinishConfiguration`. Removes the
-/// `AwaitingKnownPacks` marker so the connection is eligible for future
-/// reconfiguration.
+/// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for every
+/// synced registry, `ClientboundUpdateTags` from the set's tags, and finally
+/// `ClientboundFinishConfiguration`. Removes the `AwaitingKnownPacks` marker so
+/// the connection is eligible for future reconfiguration.
 fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
-    access: Res<RegistryAccess>,
     set: Res<RegistrySet>,
     mut commands: Commands,
 ) {
@@ -214,67 +240,9 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    // `RegistryAccess` holds exactly the registries with a network projection,
-    // which is the set the game synchronizes.
-    let mut registries: Vec<_> = access.iter().collect();
-    registries.sort_by_key(|r| r.registry_key());
-
-    for registry in &registries {
-        let entries: Vec<Entry> = registry
-            .iter_entries()
-            .map(|e| {
-                let pack = e
-                    .pack_source
-                    .as_ref()
-                    .map(|ps| (ps.namespace.as_ref(), ps.id.as_ref()));
-                let skip_nbt = e.data.is_some() && pack.is_some_and(|p| client_known.contains(&p));
-
-                Entry {
-                    id: ResourceLocation::read_cow(e.location.as_str()).unwrap(),
-                    data: if skip_nbt {
-                        None
-                    } else {
-                        e.data.as_ref().map(Cow::Borrowed)
-                    },
-                }
-            })
-            .collect();
-
-        con.write_packet(&ClientboundRegistryData {
-            registry: ResourceLocation::read_cow(registry.registry_key()).unwrap(),
-            entries,
-        });
-    }
-
-    // environment_attribute is not a registry in RegistryAccess; it is a
-    // synthetic registry built from referenced attribute keys in the
-    // dimension types. The vanilla protocol still expects it to be sent.
-    {
-        let attr_keys: BTreeSet<&str> = set
-            .column::<DimensionTypeEnvironment>(
-                mcrs_minecraft_dimension::keys::DIMENSION_TYPE
-                    .location()
-                    .as_static_str(),
-            )
-            .unwrap_or_default()
-            .iter()
-            .flat_map(|environment| environment.attributes.0.keys().map(|key| key.as_str()))
-            .collect();
-        if !attr_keys.is_empty() {
-            let entries: Vec<Entry> = attr_keys
-                .iter()
-                .map(|key| Entry {
-                    id: ResourceLocation::read_cow(*key).unwrap(),
-                    data: None,
-                })
-                .collect();
-            con.write_packet(&ClientboundRegistryData {
-                registry: mcrs_minecraft_environment::keys::ENVIRONMENT_ATTRIBUTE
-                    .location()
-                    .into(),
-                entries,
-            });
-        }
+    let registries = registry_data(&set, &client_known);
+    for packet in &registries {
+        con.write_packet(packet);
     }
 
     let update_tags = update_tags(&set);

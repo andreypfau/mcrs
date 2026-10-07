@@ -851,6 +851,17 @@ this one at 71, so the difference cannot be told from the load and is not called
 This is the baseline the work that moves the worldgen registries onto the loader compares
 against.
 
+### Synced registry column
+
+The load encodes the network form of every synced registry entry once and keeps it as a column of
+the registry set; every connection's registry packets borrow that column. Measured with
+`the_registry_packets_carry_the_synced_registries_in_declared_order`, which encodes the 32
+`registry_data` packets of the shipped data pack for a client that knows no packs, so every entry
+carries its data: 160260 bytes on the wire, on the tree of the change that adds the column over
+`484cf4f5d`. A client that selects `minecraft:core` is sent the entries of the vanilla pack without
+data, so this is the largest the packets get. The in-memory size of the column and the added load
+time were not measured.
+
 ## Keys crate
 
 Scenario: `mcrs_minecraft_keys`, the checked-in crate of generated registry markers, static ids and

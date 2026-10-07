@@ -337,29 +337,38 @@ macro_rules! eq_by_bits {
     };
 }
 
-/// A bounded `f64`, held as `serde_json` parses it so a re-encode is the
-/// decimal the pack shipped. `$as` is the type the reference compares in:
-/// `f32` for a `floatRange`, `f64` for a `doubleRange`. The `eq_by_bits` form
-/// compares like [`eq_by_bits!`] instead of deriving `PartialEq`.
+/// A bounded `f64`, held as `serde_json` parses it. `$as` is the type the
+/// reference compares and writes in: `f32` for a `floatRange`, `f64` for a
+/// `doubleRange`. The `eq_by_bits` form compares like [`eq_by_bits!`] instead
+/// of deriving `PartialEq`.
 #[macro_export]
 macro_rules! bounded_float {
     (eq_by_bits $($(#[$doc:meta])* $name:ident as $as:ident in [$min:expr, $max:expr];)*) => {$(
         $(#[$doc])*
-        #[derive(Debug, Clone, Copy, ::serde::Serialize, ::serde::Deserialize)]
+        #[derive(Debug, Clone, Copy, ::serde::Deserialize)]
         #[serde(try_from = "f64")]
         pub struct $name(pub f64);
 
         $crate::eq_by_bits!($name);
         $crate::bounded_float!(@try_from $name, $as, $min, $max);
+        $crate::bounded_float!(@serialize $name, $as);
     )*};
     ($($(#[$doc:meta])* $name:ident as $as:ident in [$min:expr, $max:expr];)*) => {$(
         $(#[$doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, ::serde::Deserialize)]
         #[serde(try_from = "f64")]
         pub struct $name(pub f64);
 
         $crate::bounded_float!(@try_from $name, $as, $min, $max);
+        $crate::bounded_float!(@serialize $name, $as);
     )*};
+    (@serialize $name:ident, $as:ident) => {
+        impl ::serde::Serialize for $name {
+            fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                ::serde::Serialize::serialize(&(self.0 as $as), serializer)
+            }
+        }
+    };
     (@try_from $name:ident, $as:ident, $min:expr, $max:expr) => {
         impl TryFrom<f64> for $name {
             type Error = String;

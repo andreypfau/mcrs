@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use bevy_app::App;
-use mcrs_minecraft_assets::{PackSource, RegistryAccess};
+use mcrs_minecraft_assets::packs::VANILLA_PACK;
 use mcrs_minecraft_nbt::snbt::parse_tag;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registry::RegistrySet;
+use mcrs_minecraft_world::registries::test_registries;
 
 const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:banner_pattern",
@@ -13,41 +14,6 @@ const UNTYPED_COPIES: [&str; 6] = [
     "minecraft:painting_variant",
     "minecraft:trim_material",
     "minecraft:trim_pattern",
-];
-
-const SYNCHRONIZED_BY_THE_GAME: [&str; 32] = [
-    "minecraft:banner_pattern",
-    "minecraft:block_transformer",
-    "minecraft:cat_sound_variant",
-    "minecraft:cat_variant",
-    "minecraft:chat_type",
-    "minecraft:chicken_sound_variant",
-    "minecraft:chicken_variant",
-    "minecraft:cow_sound_variant",
-    "minecraft:cow_variant",
-    "minecraft:damage_type",
-    "minecraft:decorated_pot_pattern",
-    "minecraft:dialog",
-    "minecraft:dimension_type",
-    "minecraft:enchantment",
-    "minecraft:frog_variant",
-    "minecraft:instrument",
-    "minecraft:jukebox_song",
-    "minecraft:painting_variant",
-    "minecraft:pig_sound_variant",
-    "minecraft:pig_variant",
-    "minecraft:sulfur_cube_archetype",
-    "minecraft:test_environment",
-    "minecraft:test_instance",
-    "minecraft:timeline",
-    "minecraft:trim_material",
-    "minecraft:trim_pattern",
-    "minecraft:wolf_sound_variant",
-    "minecraft:wolf_variant",
-    "minecraft:world_clock",
-    "minecraft:worldgen/biome",
-    "minecraft:worldgen/block_state_provider",
-    "minecraft:zombie_nautilus_variant",
 ];
 
 fn crate_path(relative: &str) -> PathBuf {
@@ -183,21 +149,20 @@ fn walk(ours: &NbtTag, game: &NbtTag) -> Vec<Difference> {
 const SECTION_UNTYPED_COPIES: &str = "[registries whose untyped copies are replaced]";
 const SECTION_OTHERS: &str = "[other compared registries]";
 
-fn from_app(app: &App, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
-    let access = app.world().resource::<RegistryAccess>();
-    let snapshot = access
-        .iter()
-        .find(|snapshot| snapshot.registry_key() == registry)?;
-    let vanilla = PackSource::vanilla_core();
-    snapshot
-        .iter_entries()
-        .filter(|entry| {
-            entry.pack_source.as_ref().is_some_and(|source| {
-                source.namespace == vanilla.namespace && source.id == vanilla.id
-            })
-        })
-        .map(|entry| Some((entry.location.to_string(), entry.data.clone()?)))
-        .collect()
+fn from_set(set: &RegistrySet, registry: &str) -> Option<BTreeMap<String, NbtTag>> {
+    let (table, column) = set
+        .synced()
+        .find(|(table, _)| table.registry().as_str() == registry)?;
+    Some(
+        table
+            .names()
+            .iter()
+            .zip(column)
+            .enumerate()
+            .filter(|(id, _)| set.pack_of(registry, *id) == Some(VANILLA_PACK))
+            .map(|(_, (name, network))| (name.to_string(), network.0.clone()))
+            .collect(),
+    )
 }
 
 fn render(registry: &str, entry: &str, difference: &Difference) -> String {
@@ -256,13 +221,15 @@ fn sections(text: &str) -> BTreeMap<String, Vec<String>> {
     sections
 }
 
-pub fn the_synced_values_differ_from_the_game_as_recorded(app: &App) {
+#[test]
+fn the_synced_values_differ_from_the_game_as_recorded() {
+    let set = test_registries();
     let golden = golden();
 
     let mut untyped_copies = BTreeSet::new();
     let mut others = BTreeSet::new();
     for (registry, game) in &golden.registries {
-        let Some(ours) = from_app(app, registry) else {
+        let Some(ours) = from_set(set, registry) else {
             continue;
         };
         let lines = compare_registry(registry, &ours, game);
@@ -297,14 +264,4 @@ pub fn the_synced_values_differ_from_the_game_as_recorded(app: &App) {
         computed,
         "the recorded differences and the computed ones disagree"
     );
-}
-
-pub fn the_app_projects_exactly_the_registries_the_game_synchronizes(app: &App) {
-    let projected: BTreeSet<&str> = app
-        .world()
-        .resource::<RegistryAccess>()
-        .iter()
-        .map(|snapshot| snapshot.registry_key())
-        .collect();
-    assert_eq!(projected, BTreeSet::from(SYNCHRONIZED_BY_THE_GAME));
 }

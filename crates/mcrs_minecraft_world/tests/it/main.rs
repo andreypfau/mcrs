@@ -9,6 +9,7 @@ mod playing;
 mod registry_values;
 mod resolvers;
 mod structure_assets;
+mod synced_registries;
 mod tag_pipeline;
 mod timeline_pipeline;
 mod tool_rules;

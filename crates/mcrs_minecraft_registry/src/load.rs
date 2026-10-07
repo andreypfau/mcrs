@@ -3,6 +3,7 @@ use crate::report::LoadReport;
 use crate::set::{Column, RegistrySet};
 use crate::tags::{TagProblem, TagRules, TagSource, build_tags};
 use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
@@ -17,6 +18,13 @@ type Parse = fn(Vec<Input<'_>>) -> Result<Column, Failures>;
 type EncodeResult = Result<String, serde_json::Error>;
 type Encode = fn(&(dyn Any + Send + Sync), usize) -> Option<EncodeResult>;
 type Check<T> = fn(&[T], &RegistrySet) -> Failures;
+type Project = Box<
+    dyn Fn(&RegistrySet, &str, usize) -> Option<Result<NbtTag, mcrs_minecraft_nbt::Error>>
+        + Send
+        + Sync,
+>;
+
+pub struct SyncedNbt(pub NbtTag);
 
 pub struct PackFile {
     pub path: String,
@@ -90,10 +98,12 @@ struct Split {
 struct Declaration {
     codec: Option<Codec>,
     non_empty: bool,
+    sync: Option<Project>,
 }
 
 pub struct WorldRegistries {
     declared: BTreeMap<Name, Declaration>,
+    sync_order: Vec<Name>,
 }
 
 #[derive(Deserialize)]
@@ -204,10 +214,12 @@ impl WorldRegistries {
                         Declaration {
                             codec: None,
                             non_empty: false,
+                            sync: None,
                         },
                     )
                 })
                 .collect(),
+            sync_order: Vec::new(),
         }
     }
 
@@ -237,6 +249,10 @@ impl WorldRegistries {
 
     pub fn declared(&self) -> impl Iterator<Item = &Name> {
         self.declared.keys()
+    }
+
+    pub fn synced(&self) -> impl Iterator<Item = &Name> {
+        self.sync_order.iter()
     }
 
     pub fn parses(&self, registry: &str) -> bool {
@@ -305,6 +321,78 @@ impl WorldRegistries {
 
     pub fn non_empty(&mut self, registry: ResourceLocation<&'static str>) -> &mut Self {
         self.declaration(registry).non_empty = true;
+        self
+    }
+
+    pub fn sync_value<T, N>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        project: fn(&T) -> N,
+    ) -> &mut Self
+    where
+        T: Send + Sync + 'static,
+        N: Serialize + 'static,
+    {
+        let codec = self.codec(registry, "sync");
+        assert_eq!(
+            codec.value_type,
+            TypeId::of::<T>(),
+            "registry {registry} does not parse the synced type"
+        );
+        assert!(
+            codec.split.is_none(),
+            "registry {registry} is split: sync its parts"
+        );
+        self.sync_with(
+            registry,
+            Box::new(move |set, registry, index| {
+                let value = set.column::<T>(registry)?.get(index)?;
+                Some(mcrs_minecraft_nbt::to_nbt_tag(&project(value)))
+            }),
+        )
+    }
+
+    pub fn sync_parts<P, N>(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        project: for<'a> fn(P::Refs<'a>) -> N,
+    ) -> &mut Self
+    where
+        P: Parts,
+        N: Serialize + 'static,
+    {
+        assert!(
+            self.codec(registry, "sync").split.is_some(),
+            "registry {registry} is not split: sync its value"
+        );
+        self.sync_with(
+            registry,
+            Box::new(move |set, registry, index| {
+                let parts = P::refs(set, registry, index)?;
+                Some(mcrs_minecraft_nbt::to_nbt_tag(&project(parts)))
+            }),
+        )
+    }
+
+    fn codec(&mut self, registry: ResourceLocation<&'static str>, to: &str) -> &Codec {
+        self.declaration(registry)
+            .codec
+            .as_ref()
+            .unwrap_or_else(|| panic!("registry {registry} parses no values to {to}"))
+    }
+
+    fn sync_with(
+        &mut self,
+        registry: ResourceLocation<&'static str>,
+        project: Project,
+    ) -> &mut Self {
+        let declaration = self.declaration(registry);
+        assert!(
+            declaration.sync.is_none(),
+            "registry {registry} is synced twice"
+        );
+        declaration.sync = Some(project);
+        self.sync_order.push(registry.into());
         self
     }
 
@@ -614,6 +702,37 @@ impl WorldRegistries {
             return Err(report);
         }
 
+        let set = set.with_values(values.clone());
+        set.scope(|| {
+            for registry in &self.sync_order {
+                let project = self.declared[registry.as_str()]
+                    .sync
+                    .as_ref()
+                    .expect("a registry in the sync order has a projection");
+                let loaded = world
+                    .iter()
+                    .find(|loaded| loaded.registry == registry)
+                    .expect("a synced registry is loaded");
+                let mut column = Vec::with_capacity(loaded.table.len());
+                for index in 0..loaded.table.len() {
+                    match project(&set, registry.as_str(), index)
+                        .expect("a loaded registry holds the columns its projection reads")
+                    {
+                        Ok(tag) => column.push(SyncedNbt(tag)),
+                        Err(error) => loaded.report(&mut report, index, error),
+                    }
+                }
+                values.columns.entry(registry.clone()).or_default().insert(
+                    TypeId::of::<SyncedNbt>(),
+                    Arc::new(Arc::<[SyncedNbt]>::from(column)),
+                );
+            }
+        });
+        if !report.is_empty() {
+            return Err(report);
+        }
+        values.synced.extend(self.sync_order.iter().cloned());
+
         values.packs = packs.iter().map(|pack| pack.name.as_str().into()).collect();
         for loaded in world {
             values
@@ -730,6 +849,7 @@ mod tests {
     use mcrs_minecraft_core::registry_key::RegistryKey;
     use mcrs_minecraft_core::rl;
     use mcrs_minecraft_core::tag_key::TagKey;
+    use mcrs_minecraft_nbt::tag::NbtTag;
 
     #[derive(Debug, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
@@ -1635,5 +1755,70 @@ mod tests {
             }
         }
         assert_eq!(names(&first, VARIANT).len(), 3);
+    }
+
+    #[test]
+    fn a_synced_registry_is_encoded_once_at_load_in_declared_order() {
+        let packs = [pack(
+            "vanilla",
+            vec![variant(
+                "minecraft/test_variant/plain.json",
+                "plain",
+                "minecraft:plain",
+            )],
+        )];
+        let mut registries = registries();
+        registries
+            .sync_value::<Variant, _>(Variant::KEY.location(), |variant| variant.asset_id.clone())
+            .sync_value::<Linked, _>(Linked::KEY.location(), |_| 7_i32);
+        let set = registries.load(&typed(), &packs).unwrap();
+
+        let synced: Vec<(&str, Vec<&NbtTag>)> = set
+            .synced()
+            .map(|(table, column)| {
+                (
+                    table.registry().as_str(),
+                    column.iter().map(|nbt| &nbt.0).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            synced,
+            [
+                (VARIANT, vec![&NbtTag::String("plain".to_owned())]),
+                (LINKED, vec![]),
+            ]
+        );
+        assert_eq!(
+            registries
+                .synced()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>(),
+            [VARIANT, LINKED]
+        );
+    }
+
+    #[test]
+    fn a_value_that_does_not_encode_fails_the_load() {
+        let packs = [pack(
+            "vanilla",
+            vec![variant(
+                "minecraft/test_variant/plain.json",
+                "plain",
+                "minecraft:plain",
+            )],
+        )];
+        let mut registries = registries();
+        registries.sync_value::<Variant, _>(Variant::KEY.location(), |_| 'x');
+        let text = registries
+            .load(&typed(), &packs)
+            .err()
+            .expect("the load is refused")
+            .to_string();
+        assert!(
+            text.contains("minecraft:test_variant/minecraft:plain"),
+            "{text}"
+        );
+        assert!(text.contains("char"), "{text}");
     }
 }

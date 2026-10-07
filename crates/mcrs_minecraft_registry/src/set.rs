@@ -1,4 +1,5 @@
 use crate::entries::Entries;
+use crate::load::SyncedNbt;
 use crate::names::NameTable;
 use crate::registry::{Registry, RegistryError};
 use crate::tags::{TagTable, Tags};
@@ -21,6 +22,7 @@ pub(crate) struct Values {
     pub(crate) columns: HashMap<ResourceLocation<Arc<str>>, HashMap<TypeId, Column>>,
     pub(crate) origins: HashMap<ResourceLocation<Arc<str>>, Box<[u32]>>,
     pub(crate) packs: Box<[Box<str>]>,
+    pub(crate) synced: Vec<ResourceLocation<Arc<str>>>,
 }
 
 #[derive(Clone, Default)]
@@ -208,6 +210,15 @@ impl RegistrySet {
     pub fn entries<R: 'static, T: 'static>(&self) -> Option<Entries<R, T>> {
         self.shared_column::<T>(self.name_of::<R>()?.as_str())
             .map(|values| Entries::from_shared(Arc::clone(values)))
+    }
+
+    pub fn synced(&self) -> impl Iterator<Item = (&NameTable, &[SyncedNbt])> {
+        self.values.synced.iter().filter_map(|registry| {
+            Some((
+                &**self.tables.get(registry.as_str())?,
+                self.column::<SyncedNbt>(registry.as_str())?,
+            ))
+        })
     }
 
     pub fn pack_of(&self, registry: &str, id: usize) -> Option<&str> {
