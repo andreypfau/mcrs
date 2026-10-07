@@ -8,13 +8,13 @@ use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_registry::{Id, RegistryLookup};
 
 use crate::item::ctx::{DecodeCtx, EncodeCtx, Opaque, Raw, nested, scoped};
-use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentPatch;
 use crate::item::stack::{
     HashedPatchMap, ItemStackValue, MAX_HASHED_COMPONENTS, ProtoStack, Template,
 };
 use crate::item::wire::{decode_delimited_patch, encode_delimited_patch};
 use crate::{Decode, Encode, VarInt};
+use mcrs_minecraft_item::keys::DataComponentType;
 
 impl EncodeCtx for Template {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -247,7 +247,7 @@ impl Decode<'_> for HashedPatchMap {
         let added = count(r)?;
         let mut map = HashedPatchMap::default();
         for _ in 0..added {
-            let kind = ItemComponentKind::decode(r)?;
+            let kind = DataComponentType::decode(r)?;
             let hash = i32::decode(r)?;
             match map.added.iter_mut().find(|(k, _)| *k == kind) {
                 Some(entry) => entry.1 = hash,
@@ -256,7 +256,7 @@ impl Decode<'_> for HashedPatchMap {
         }
         let removed = count(r)?;
         for _ in 0..removed {
-            let kind = ItemComponentKind::decode(r)?;
+            let kind = DataComponentType::decode(r)?;
             if !map.removed.contains(&kind) {
                 map.removed.push(kind);
             }

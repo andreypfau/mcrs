@@ -11,7 +11,6 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::int_value;
 use mcrs_minecraft_item::Text;
 use mcrs_minecraft_particle::ParticleOptions;
-use mcrs_minecraft_registry::static_rows::{numbered, rows_match};
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -20,6 +19,7 @@ use super::value::{
     AmbientParticle, AmbientSounds, BackgroundMusic, BedRule, BedRuleCondition, MoonPhase, TriState,
 };
 use crate::attribute::MobSpawnSettings;
+use crate::keys::EnvironmentAttribute;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeValue {
@@ -483,7 +483,7 @@ fn read_draft<'de, D: Deserializer<'de>>(ty: AttributeType, d: D) -> Result<Draf
         T::MoonPhase => V::MoonPhase(MoonPhase::deserialize(d)?),
         T::Activity => V::Activity(ResourceLocation::deserialize(d)?),
         T::BedRule => V::BedRule(BedRule::deserialize(d)?),
-        T::Particle => V::Particle(Box::new(ParticleOptions::deserialize(d)?)),
+        T::Particle => V::Particle(Box::new(<ParticleOptions as Deserialize>::deserialize(d)?)),
         T::AmbientParticles => V::AmbientParticles(Vec::deserialize(d)?),
         T::BackgroundMusic => V::BackgroundMusic(Box::new(BackgroundMusic::deserialize(d)?)),
         T::AmbientSounds => V::AmbientSounds(Box::new(AmbientSounds::deserialize(d)?)),
@@ -715,86 +715,85 @@ fn bed_rule(can_set_spawn: BedRuleCondition, destroy_on_leave: bool) -> Attribut
 }
 
 macro_rules! table {
-    ($(row($id:literal, $($rest:tt)*)),* $(,)?) => {
-        const IDS: [&str; [$($id),*].len()] = [$($id),*];
-
-        const _: () = assert!(
-            rows_match(
-                &numbered(IDS),
-                crate::keys::EnvironmentAttribute::ENTRIES,
-                true,
-            ),
-            "the attribute table must equal the generated environment_attribute names row by row",
-        );
-
-        fn table() -> Vec<AttributeSpec> {
+    ($(row($variant:ident, $($rest:tt)*)),* $(,)?) => {
+        fn spec(attribute: EnvironmentAttribute) -> AttributeSpec {
             use AttributeRange as R;
             use AttributeType as T;
             use AttributeValue as V;
 
-            vec![$(row($id, $($rest)*)),*]
+            match attribute {
+                $(EnvironmentAttribute::$variant => {
+                    row(attribute.as_static_str(), $($rest)*)
+                })*
+            }
         }
     };
 }
 
+fn table() -> Vec<AttributeSpec> {
+    EnvironmentAttribute::ALL
+        .iter()
+        .map(|attribute| spec(*attribute))
+        .collect()
+}
+
 table! {
-        row("minecraft:visual/fog_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/fog_start_distance", T::Float, float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/fog_end_distance", T::Float, float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/sky_fog_end_distance", T::Float, float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/cloud_fog_end_distance", T::Float, float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/water_fog_color", T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
-        row("minecraft:visual/water_fog_start_distance", T::Float, float(-8.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/water_fog_end_distance", T::Float, float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
-        row("minecraft:visual/sky_color", T::RgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sunrise_sunset_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/cloud_color", T::ArgbColor, color(0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/cloud_height", T::Float, float(192.33), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sun_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/moon_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/star_angle", T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
-        row("minecraft:visual/moon_phase", T::MoonPhase, V::MoonPhase(MoonPhase::FullMoon), R::Any, SYNC),
-        row("minecraft:visual/star_brightness", T::Float, float(0.0), R::UNIT, SYNC | INTERP),
-        row("minecraft:visual/has_sky_occluder", T::Boolean, flag(false), R::Any, SYNC),
-        row("minecraft:visual/block_light_tint", T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sky_light_color", T::RgbColor, color(-1), R::Any, SYNC | INTERP),
-        row("minecraft:visual/sky_light_factor", T::Float, float(1.0), R::UNIT, SYNC | INTERP),
-        row("minecraft:visual/night_vision_color", T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
-        row("minecraft:visual/ambient_light_color", T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
-        row("minecraft:visual/default_dripstone_particle", T::Particle, V::Particle(Box::new(ParticleOptions::DrippingDripstoneWater)), R::Any, SYNC),
-        row("minecraft:visual/ambient_particles", T::AmbientParticles, V::AmbientParticles(Vec::new()), R::Any, SYNC),
-        row("minecraft:audio/background_music", T::BackgroundMusic, V::BackgroundMusic(Box::default()), R::Any, SYNC),
-        row("minecraft:audio/music_volume", T::Float, float(1.0), R::UNIT, SYNC),
-        row("minecraft:audio/ambient_sounds", T::AmbientSounds, V::AmbientSounds(Box::default()), R::Any, SYNC),
-        row("minecraft:audio/firefly_bush_sounds", T::Boolean, flag(false), R::Any, SYNC),
-        row("minecraft:gameplay/sky_light_level", T::Float, float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/can_start_raid", T::Boolean, flag(true), R::Any, 0),
-        row("minecraft:gameplay/water_evaporates", T::Boolean, flag(false), R::Any, SYNC),
-        row("minecraft:gameplay/bed_rule", T::BedRule, bed_rule(BedRuleCondition::Always, false), R::Any, 0),
-        row("minecraft:gameplay/straw_bed_rule", T::BedRule, bed_rule(BedRuleCondition::Never, true), R::Any, 0),
-        row("minecraft:gameplay/respawn_anchor_works", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/nether_portal_spawns_piglin", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/fast_lava", T::Boolean, flag(false), R::Any, SYNC | NOT_POSITIONAL),
-        row("minecraft:gameplay/increased_fire_burnout", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/eyeblossom_open", T::TriState, V::TriState(TriState::Default), R::Any, 0),
-        row("minecraft:gameplay/turtle_egg_hatch_chance", T::Float, float(0.002), R::UNIT, 0),
-        row("minecraft:gameplay/piglins_zombify", T::Boolean, flag(true), R::Any, SYNC),
-        row("minecraft:gameplay/snow_golem_melts", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/creaking_active", T::Boolean, flag(false), R::Any, SYNC),
-        row("minecraft:gameplay/surface_slime_spawn_chance", T::Float, float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/cat_waking_up_gift_chance", T::Float, float(0.0), R::UNIT, 0),
-        row("minecraft:gameplay/bees_stay_in_hive", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/monsters_burn", T::Boolean, flag(false), R::Any, 0),
-        row("minecraft:gameplay/can_pillager_patrol_spawn", T::Boolean, flag(true), R::Any, 0),
-        row("minecraft:gameplay/natural_mob_spawns", T::MobSpawnSettings, V::MobSpawns(Box::default()), R::Any, 0),
-        row("minecraft:gameplay/creature_world_gen_spawn_probability", T::Float, float(0.1), R::UNIT_EPSILON, 0),
-        row("minecraft:gameplay/villager_activity", T::Activity, activity(), R::Any, 0),
-        row("minecraft:gameplay/baby_villager_activity", T::Activity, activity(), R::Any, 0),
+        row(VisualFogColor, T::RgbColor, color(0), R::Any, SYNC | INTERP),
+        row(VisualFogStartDistance, T::Float, float(0.0), R::Any, SYNC | INTERP),
+        row(VisualFogEndDistance, T::Float, float(1024.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row(VisualSkyFogEndDistance, T::Float, float(512.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row(VisualCloudFogEndDistance, T::Float, float(2048.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row(VisualWaterFogColor, T::RgbColor, color(-16448205), R::Any, SYNC | INTERP),
+        row(VisualWaterFogStartDistance, T::Float, float(-8.0), R::Any, SYNC | INTERP),
+        row(VisualWaterFogEndDistance, T::Float, float(96.0), R::NON_NEGATIVE, SYNC | INTERP),
+        row(VisualSkyColor, T::RgbColor, color(0), R::Any, SYNC | INTERP),
+        row(VisualSunriseSunsetColor, T::ArgbColor, color(0), R::Any, SYNC | INTERP),
+        row(VisualCloudColor, T::ArgbColor, color(0), R::Any, SYNC | INTERP),
+        row(VisualCloudHeight, T::Float, float(192.33), R::Any, SYNC | INTERP),
+        row(VisualSunAngle, T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row(VisualMoonAngle, T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row(VisualStarAngle, T::AngleDegrees, float(0.0), R::Any, SYNC | INTERP),
+        row(VisualMoonPhase, T::MoonPhase, V::MoonPhase(MoonPhase::FullMoon), R::Any, SYNC),
+        row(VisualStarBrightness, T::Float, float(0.0), R::UNIT, SYNC | INTERP),
+        row(VisualHasSkyOccluder, T::Boolean, flag(false), R::Any, SYNC),
+        row(VisualBlockLightTint, T::RgbColor, color(-10100), R::Any, SYNC | INTERP),
+        row(VisualSkyLightColor, T::RgbColor, color(-1), R::Any, SYNC | INTERP),
+        row(VisualSkyLightFactor, T::Float, float(1.0), R::UNIT, SYNC | INTERP),
+        row(VisualNightVisionColor, T::RgbColor, color(-6710887), R::Any, SYNC | INTERP),
+        row(VisualAmbientLightColor, T::RgbColor, color(-16777216), R::Any, SYNC | INTERP),
+        row(VisualDefaultDripstoneParticle, T::Particle, V::Particle(Box::new(ParticleOptions::DrippingDripstoneWater)), R::Any, SYNC),
+        row(VisualAmbientParticles, T::AmbientParticles, V::AmbientParticles(Vec::new()), R::Any, SYNC),
+        row(AudioBackgroundMusic, T::BackgroundMusic, V::BackgroundMusic(Box::default()), R::Any, SYNC),
+        row(AudioMusicVolume, T::Float, float(1.0), R::UNIT, SYNC),
+        row(AudioAmbientSounds, T::AmbientSounds, V::AmbientSounds(Box::default()), R::Any, SYNC),
+        row(AudioFireflyBushSounds, T::Boolean, flag(false), R::Any, SYNC),
+        row(GameplaySkyLightLevel, T::Float, float(15.0), R::Bounded { min: 0.0, max: 15.0 }, SYNC | NOT_POSITIONAL),
+        row(GameplayCanStartRaid, T::Boolean, flag(true), R::Any, 0),
+        row(GameplayWaterEvaporates, T::Boolean, flag(false), R::Any, SYNC),
+        row(GameplayBedRule, T::BedRule, bed_rule(BedRuleCondition::Always, false), R::Any, 0),
+        row(GameplayStrawBedRule, T::BedRule, bed_rule(BedRuleCondition::Never, true), R::Any, 0),
+        row(GameplayRespawnAnchorWorks, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayNetherPortalSpawnsPiglin, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayFastLava, T::Boolean, flag(false), R::Any, SYNC | NOT_POSITIONAL),
+        row(GameplayIncreasedFireBurnout, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayEyeblossomOpen, T::TriState, V::TriState(TriState::Default), R::Any, 0),
+        row(GameplayTurtleEggHatchChance, T::Float, float(0.002), R::UNIT, 0),
+        row(GameplayPiglinsZombify, T::Boolean, flag(true), R::Any, SYNC),
+        row(GameplaySnowGolemMelts, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayCreakingActive, T::Boolean, flag(false), R::Any, SYNC),
+        row(GameplaySurfaceSlimeSpawnChance, T::Float, float(0.0), R::UNIT, 0),
+        row(GameplayCatWakingUpGiftChance, T::Float, float(0.0), R::UNIT, 0),
+        row(GameplayBeesStayInHive, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayMonstersBurn, T::Boolean, flag(false), R::Any, 0),
+        row(GameplayCanPillagerPatrolSpawn, T::Boolean, flag(true), R::Any, 0),
+        row(GameplayNaturalMobSpawns, T::MobSpawnSettings, V::MobSpawns(Box::default()), R::Any, 0),
+        row(GameplayCreatureWorldGenSpawnProbability, T::Float, float(0.1), R::UNIT_EPSILON, 0),
+        row(GameplayVillagerActivity, T::Activity, activity(), R::Any, 0),
+        row(GameplayBabyVillagerActivity, T::Activity, activity(), R::Any, 0),
 }
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_registry::static_report::from_report;
     use serde_json::json;
 
     use super::*;
@@ -842,27 +841,6 @@ mod tests {
                 spec.id
             );
         }
-    }
-
-    #[test]
-    fn the_table_is_the_registry_in_names_and_order() {
-        let report = from_report(
-            &std::fs::read(
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../assets/mcrs/reports/registries.json"),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let registry: Vec<String> = report
-            .table("minecraft:environment_attribute")
-            .unwrap()
-            .names()
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        let ours: Vec<String> = table().iter().map(|spec| spec.id.to_owned()).collect();
-        assert_eq!(ours, registry);
     }
 
     #[test]

@@ -9,8 +9,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::map_only;
 use crate::hash_ops;
+use crate::keys::DataComponentType;
 use crate::keys::Item;
-use crate::kind::ItemComponentKind;
 use crate::patch::ComponentPatch;
 
 validated!(ItemStackValue);
@@ -115,8 +115,8 @@ pub const MAX_HASHED_COMPONENTS: usize = 256;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct HashedPatchMap {
-    pub added: Vec<(ItemComponentKind, i32)>,
-    pub removed: Vec<ItemComponentKind>,
+    pub added: Vec<(DataComponentType, i32)>,
+    pub removed: Vec<DataComponentType>,
 }
 
 impl HashedPatchMap {

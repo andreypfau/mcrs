@@ -1,8 +1,9 @@
 use crate::component::*;
+use crate::keys::DataComponentType;
 use crate::keys::Item;
 use crate::{
-    ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent, ItemStackValue,
-    ProtoStack, Template, for_each_data_component,
+    ComponentPatch, ItemComponentValue, ItemDataComponent, ItemStackValue, ProtoStack, Template,
+    for_each_data_component,
 };
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -15,13 +16,13 @@ use crate::definition::{ItemEntry, Items};
 use crate::held::SlotTable;
 use crate::item_stack::ItemStack;
 
-pub const CHILD_KINDS: [ItemComponentKind; 3] = [
-    ItemComponentKind::Container,
-    ItemComponentKind::BundleContents,
-    ItemComponentKind::ChargedProjectiles,
+pub const CHILD_KINDS: [DataComponentType; 3] = [
+    DataComponentType::Container,
+    DataComponentType::BundleContents,
+    DataComponentType::ChargedProjectiles,
 ];
 
-pub fn is_child_kind(kind: ItemComponentKind) -> bool {
+pub fn is_child_kind(kind: DataComponentType) -> bool {
     CHILD_KINDS.contains(&kind)
 }
 
@@ -37,10 +38,10 @@ pub enum StackError {
         held: String,
         given: String,
     },
-    #[error("{item} cannot carry {kind}")]
+    #[error("{item} cannot carry {}", .kind.location())]
     UnsupportedChildKind {
         item: String,
-        kind: ItemComponentKind,
+        kind: DataComponentType,
     },
     #[error("{item} has {slots} container slots, the value needs {needed}")]
     ContainerOverflow {
@@ -82,7 +83,7 @@ fn insert_plain<K: ItemDataComponent + Component>(
     value: &ItemComponentValue,
 ) {
     let value = K::from_value(value)
-        .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND, value.kind()))
+        .unwrap_or_else(|| panic!("{} written as {:?}", K::KIND.location(), value.kind()))
         .clone();
     entity.insert(value);
 }
@@ -103,17 +104,20 @@ fn differs_plain<K: ItemDataComponent + Component>(
 }
 
 macro_rules! kind_ops {
-    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
-        static OPS: [KindOps; ItemComponentKind::COUNT] = [$(KindOps::plain::<$ty>()),*];
+    ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        #[doc(hidden)]
+        pub fn ops(kind: DataComponentType) -> &'static KindOps {
+            match kind {
+                $(DataComponentType::$kind => {
+                    const OPS: KindOps = KindOps::plain::<$ty>();
+                    &OPS
+                })*
+            }
+        }
     };
 }
 
 for_each_data_component!(kind_ops);
-
-#[doc(hidden)]
-pub fn ops(kind: ItemComponentKind) -> &'static KindOps {
-    &OPS[kind as usize]
-}
 
 pub fn entry<'a>(
     world: &World,
@@ -139,7 +143,7 @@ pub fn named_entry<'a>(
         .ok_or_else(|| StackError::UnknownItem(value.item.as_str().to_owned()))
 }
 
-pub fn child_kind(entry: &ItemEntry) -> Option<ItemComponentKind> {
+pub fn child_kind(entry: &ItemEntry) -> Option<DataComponentType> {
     CHILD_KINDS
         .into_iter()
         .find(|kind| entry.prototype.get_value(*kind).is_some())
@@ -167,7 +171,7 @@ pub fn children(world: &World, stack: Entity) -> Vec<Option<Entity>> {
 fn child_value(
     world: &World,
     stack: Entity,
-    kind: ItemComponentKind,
+    kind: DataComponentType,
     items: &Items,
 ) -> ItemComponentValue {
     let mut templates: Vec<Option<Template>> = children(world, stack)
@@ -176,7 +180,7 @@ fn child_value(
         .collect();
     let dense = || templates.iter().flatten().cloned().collect();
     match kind {
-        ItemComponentKind::Container => {
+        DataComponentType::Container => {
             let occupied = templates
                 .iter()
                 .rposition(Option::is_some)
@@ -186,11 +190,11 @@ fn child_value(
                 .expect("a slot table never outgrows the container bound")
                 .into()
         }
-        ItemComponentKind::BundleContents => BundleContents(dense()).into(),
-        ItemComponentKind::ChargedProjectiles => ChargedProjectiles::new(dense())
+        DataComponentType::BundleContents => BundleContents(dense()).into(),
+        DataComponentType::ChargedProjectiles => ChargedProjectiles::new(dense())
             .expect("a slot table never outgrows the projectile bound")
             .into(),
-        other => unreachable!("{other} holds no child stacks"),
+        other => unreachable!("{} holds no child stacks", other.location()),
     }
 }
 
@@ -211,7 +215,7 @@ pub fn child_targets(value: &ItemComponentValue) -> Vec<Option<&ItemStackValue>>
             .iter()
             .map(|template| Some(&template.0))
             .collect(),
-        other => unreachable!("{} holds no child stacks", other.kind()),
+        other => unreachable!("{} holds no child stacks", other.kind().location()),
     }
 }
 
@@ -221,7 +225,7 @@ pub fn stack_to_value(world: &World, stack: Entity, items: &Items) -> ItemStackV
     let entity = world.entity(stack);
     let own_child_kind = child_kind(entry);
     let mut components = ComponentPatch::EMPTY;
-    for kind in ItemComponentKind::ALL {
+    for kind in DataComponentType::ALL.iter().copied() {
         let prototype = entry.prototype.get_value(kind);
         if Some(kind) == own_child_kind {
             if !entity.contains::<SlotTable>() {

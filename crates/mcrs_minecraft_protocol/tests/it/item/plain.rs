@@ -1,8 +1,9 @@
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item::decode_component_value;
 use mcrs_minecraft_protocol::item::{
-    AdditionalTradeCost, CreativeSlotLock, ItemComponentKind, ItemComponentValue,
-    MapPostProcessing, MinimumAttackCharge, PotionDurationScale, hash_ops,
+    AdditionalTradeCost, CreativeSlotLock, ItemComponentValue, MapPostProcessing,
+    MinimumAttackCharge, PotionDurationScale, hash_ops,
 };
 use serde::Deserialize;
 
@@ -54,19 +55,19 @@ fn golden() -> Golden {
     serde_json::from_str(include_str!("../../fixtures/item/plain_golden.json")).unwrap()
 }
 
-fn kind(id: &str) -> ItemComponentKind {
-    ItemComponentKind::from_id(id).unwrap_or_else(|| panic!("{id} is not a kind"))
+fn kind(id: &str) -> DataComponentType {
+    DataComponentType::read(id).unwrap_or_else(|| panic!("{id} is not a kind"))
 }
 
-fn transient_value(kind: ItemComponentKind, text: &str) -> ItemComponentValue {
+fn transient_value(kind: DataComponentType, text: &str) -> ItemComponentValue {
     match (kind, text) {
-        (ItemComponentKind::AdditionalTradeCost, n) => {
+        (DataComponentType::AdditionalTradeCost, n) => {
             AdditionalTradeCost(n.parse().unwrap()).into()
         }
-        (ItemComponentKind::CreativeSlotLock, _) => CreativeSlotLock.into(),
-        (ItemComponentKind::MapPostProcessing, "LOCK") => MapPostProcessing::Lock.into(),
-        (ItemComponentKind::MapPostProcessing, "SCALE") => MapPostProcessing::Scale.into(),
-        _ => panic!("no transient value for {kind} = {text}"),
+        (DataComponentType::CreativeSlotLock, _) => CreativeSlotLock.into(),
+        (DataComponentType::MapPostProcessing, "LOCK") => MapPostProcessing::Lock.into(),
+        (DataComponentType::MapPostProcessing, "SCALE") => MapPostProcessing::Scale.into(),
+        _ => panic!("no transient value for {kind:?} = {text}"),
     }
 }
 
@@ -82,29 +83,29 @@ fn persistent_values_match_vanilla_in_json_nbt_hash_and_wire() {
         assert_eq!(
             json_value(&value),
             serde_json::from_str::<serde_json::Value>(row.json.as_ref().unwrap()).unwrap(),
-            "{kind} json of {input}"
+            "{kind:?} json of {input}"
         );
-        assert_eq!(from_json(kind, &json), value, "{kind} rereads {json}");
+        assert_eq!(from_json(kind, &json), value, "{kind:?} rereads {json}");
 
         let mut nbt = Vec::new();
         mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).unwrap();
         assert_eq!(
             nbt_tree(&nbt),
             nbt_tree(&hex(row.nbt.as_ref().unwrap())),
-            "{kind} nbt of {input}"
+            "{kind:?} nbt of {input}"
         );
         assert_eq!(
             hash_ops::hash(&value).unwrap(),
             row.hash.unwrap(),
-            "{kind} hash of {input}"
+            "{kind:?} hash of {input}"
         );
 
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&lookup, &value), bytes, "{kind} wire of {input}");
+        assert_eq!(wire(&lookup, &value), bytes, "{kind:?} wire of {input}");
         assert_eq!(
             decode(&lookup, kind, &bytes),
             value,
-            "{kind} wire decode of {input}"
+            "{kind:?} wire decode of {input}"
         );
         checked += 1;
     }
@@ -118,14 +119,14 @@ fn transient_values_match_the_vanilla_wire() {
     for row in golden().values {
         let Some(text) = &row.value else { continue };
         let kind = kind(&row.kind);
-        assert!(!kind.is_persistent(), "{kind}");
+        assert!(!kind.is_persistent(), "{kind:?}");
         let value = transient_value(kind, text);
         let bytes = hex(&row.wire);
-        assert_eq!(wire(&lookup, &value), bytes, "{kind} wire of {text}");
+        assert_eq!(wire(&lookup, &value), bytes, "{kind:?} wire of {text}");
         assert_eq!(
             decode(&lookup, kind, &bytes),
             value,
-            "{kind} wire decode of {text}"
+            "{kind:?} wire decode of {text}"
         );
         checked += 1;
     }
@@ -140,12 +141,12 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
         let mut d = serde_json::Deserializer::from_str(&row.input);
         let error = ItemComponentValue::deserialize_value(kind, &mut d)
             .err()
-            .unwrap_or_else(|| panic!("{kind} accepted {}", row.input));
+            .unwrap_or_else(|| panic!("{kind:?} accepted {}", row.input));
         if row.error.starts_with("Value must") {
             let message = error.to_string();
             assert!(
                 message.starts_with(&row.error),
-                "{kind} on {}: {error} is not {}",
+                "{kind:?} on {}: {error} is not {}",
                 row.input,
                 row.error
             );
@@ -159,24 +160,24 @@ fn rejected_inputs_are_rejected_with_the_vanilla_range_messages() {
 fn records_read_a_list_no_better_than_vanilla_does() {
     for (kind, tag) in [
         (
-            ItemComponentKind::Enchantable,
+            DataComponentType::Enchantable,
             NbtTag::List(vec![NbtTag::Int(7)]),
         ),
-        (ItemComponentKind::Enchantable, NbtTag::Int(7)),
+        (DataComponentType::Enchantable, NbtTag::Int(7)),
         (
-            ItemComponentKind::VillagerFood,
+            DataComponentType::VillagerFood,
             NbtTag::List(vec![NbtTag::Int(7)]),
         ),
-        (ItemComponentKind::AttackAnimation, NbtTag::List(vec![])),
+        (DataComponentType::AttackAnimation, NbtTag::List(vec![])),
         (
-            ItemComponentKind::AttackAnimation,
+            DataComponentType::AttackAnimation,
             NbtTag::List(vec![NbtTag::String("stab".into()), NbtTag::Int(10)]),
         ),
-        (ItemComponentKind::InteractAnimation, NbtTag::Int(6)),
+        (DataComponentType::InteractAnimation, NbtTag::Int(6)),
     ] {
         assert!(
             ItemComponentValue::deserialize_value(kind, tag.clone()).is_err(),
-            "{kind} read {tag:?}"
+            "{kind:?} read {tag:?}"
         );
     }
 }
@@ -189,10 +190,10 @@ fn wire_values_the_vanilla_constructor_refuses_fail_to_decode() {
         let bytes = hex(&row.wire);
         let error = decode_component_value(kind, &TestLookup::new(), &mut &bytes[..])
             .err()
-            .unwrap_or_else(|| panic!("{kind} decoded {}", row.wire));
+            .unwrap_or_else(|| panic!("{kind:?} decoded {}", row.wire));
         assert!(
             format!("{error:#}").contains(&row.error),
-            "{kind} on {}: {error:#} is not {}",
+            "{kind:?} on {}: {error:#} is not {}",
             row.wire,
             row.error
         );
@@ -246,14 +247,14 @@ fn out_of_range_wire_ids_decode_as_vanilla_does() {
             assert_eq!(
                 json_value(&value),
                 serde_json::from_str::<serde_json::Value>(&row.json).unwrap(),
-                "{kind} from {}",
+                "{kind:?} from {}",
                 row.wire
             );
         } else {
             assert_eq!(
                 value,
                 transient_value(kind, &row.json),
-                "{kind} from {}",
+                "{kind:?} from {}",
                 row.wire
             );
         }

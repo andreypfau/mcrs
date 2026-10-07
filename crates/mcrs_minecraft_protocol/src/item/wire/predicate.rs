@@ -1,17 +1,18 @@
 use std::io::Write;
 
-use anyhow::{bail, ensure};
+use anyhow::ensure;
+use mcrs_minecraft_item::keys::DataComponentPredicateType;
 use mcrs_minecraft_registry::RegistryLookup;
 use serde::de::DeserializeSeed;
 
 use crate::item::component::predicate::*;
 use crate::item::ctx::{DecodeCtx, EncodeCtx, decode_nbt_wire, encode_nbt_wire, read_nbt_wire};
-use crate::item::kind::ItemComponentKind;
 use crate::item::patch::ComponentMap;
 use crate::item::wire::nbt_wire::nbt_wire;
 use crate::item::wire::newtype_ctx_wire;
-use crate::registry::{decode_registry_id, encode_registry_id};
+use crate::registry::static_registry_wire;
 use crate::{Decode, Encode, VarInt};
+use mcrs_minecraft_item::keys::DataComponentType;
 
 newtype_ctx_wire!(
     CanPlaceOn,
@@ -21,6 +22,7 @@ newtype_ctx_wire!(
     StatePropertiesPredicate,
 );
 nbt_wire!(ItemPredicate);
+static_registry_wire!(DataComponentPredicateType, "data component predicate type");
 
 impl EncodeCtx for BlockPredicate {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, mut w: impl Write) -> anyhow::Result<()> {
@@ -87,11 +89,11 @@ impl DecodeCtx<'_> for DataComponentMatchers {
         for _ in 0..partial {
             let entry = match bool::decode(r)? {
                 true => {
-                    let kind = ComponentPredicateType::decode(r)?;
+                    let kind = DataComponentPredicateType::decode(r)?;
                     ComponentPredicateEntry::Typed(decode_predicate_wire(kind, r)?)
                 }
                 false => {
-                    let kind = ItemComponentKind::decode(r)?;
+                    let kind = DataComponentType::decode(r)?;
                     decode_nbt_wire::<UnitMap>(r)?;
                     ComponentPredicateEntry::AnyValue(kind)
                 }
@@ -109,26 +111,10 @@ impl DecodeCtx<'_> for DataComponentMatchers {
     }
 }
 
-impl Encode for ComponentPredicateType {
-    fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        encode_registry_id(*self as u16, w)
-    }
-}
-
-impl Decode<'_> for ComponentPredicateType {
-    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let id = decode_registry_id(r)?;
-        match Self::ALL.get(usize::from(id)) {
-            Some(kind) => Ok(*kind),
-            None => bail!("unknown data component predicate type {id}"),
-        }
-    }
-}
-
 /// One network NBT tag of whatever root type the predicate's codec writes,
 /// read back through that codec.
 fn decode_predicate_wire(
-    kind: ComponentPredicateType,
+    kind: DataComponentPredicateType,
     r: &mut &[u8],
 ) -> anyhow::Result<ComponentPredicate> {
     read_nbt_wire(r, |d| Ok(kind.deserialize(&mut *d)?))

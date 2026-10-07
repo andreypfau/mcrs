@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::OptionalUnsignedInt;
 use crate::item::ctx::nested;
-use crate::item::{DecodeCtx, EncodeCtx, Holder, ItemComponentKind, Template, TrimPattern};
+use crate::item::{DecodeCtx, EncodeCtx, Holder, Template, TrimPattern};
+use crate::registry::static_registry_wire;
 use crate::{Decode as _, Encode as _, VarInt};
+use mcrs_minecraft_item::keys::DataComponentType;
 
 impl EncodeCtx for Ingredient {
     fn encode_ctx(&self, ctx: &dyn RegistryLookup, w: impl Write) -> anyhow::Result<()> {
@@ -36,28 +38,6 @@ impl DecodeCtx<'_> for Ingredient {
     }
 }
 
-macro_rules! static_registry_wire {
-    ($($ty:ty),* $(,)?) => {$(
-        impl crate::Encode for $ty {
-            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
-                crate::VarInt(i32::from(*self as u16)).encode(w)
-            }
-        }
-
-        impl<'a> crate::Decode<'a> for $ty {
-            fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-                let id = crate::VarInt::decode(r)?.0;
-                u16::try_from(id)
-                    .ok()
-                    .and_then(<$ty>::from_protocol_id)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("unexpected enum discriminant {id} in `{}`", stringify!($ty))
-                    })
-            }
-        }
-    )*};
-}
-
 static_registry_wire!(SlotDisplayType, RecipeDisplayType, RecipeBookCategory);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -70,7 +50,7 @@ pub enum SlotDisplay {
     },
     OnlyWithComponent {
         contents: Box<SlotDisplay>,
-        component: ItemComponentKind,
+        component: DataComponentType,
     },
     Item {
         item: ResourceKey<Item>,
@@ -167,7 +147,7 @@ impl DecodeCtx<'_> for SlotDisplay {
                 },
                 SlotDisplayType::OnlyWithComponent => Self::OnlyWithComponent {
                     contents: boxed(r)?,
-                    component: ItemComponentKind::decode(r)?,
+                    component: DataComponentType::decode(r)?,
                 },
                 SlotDisplayType::Item => Self::Item {
                     item: ResourceKey::decode_ctx(ctx, r)?,

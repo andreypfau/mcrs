@@ -4,6 +4,7 @@ use crate::JukeboxSong;
 use crate::TrimMaterial;
 use crate::TrimPattern;
 use crate::enchantment::EnchantmentData;
+use crate::keys::DataComponentPredicateType;
 use crate::keys::Item;
 use crate::keys::MobEffect;
 use crate::keys::Potion;
@@ -25,7 +26,7 @@ use crate::component::common::{
 use crate::component::fireworks::FireworkShape;
 use crate::component::scalar::record_codec;
 use crate::harness::Sample;
-use crate::kind::ItemComponentKind;
+use crate::keys::DataComponentType;
 use crate::patch::ComponentMap;
 use mcrs_minecraft_text::IntoText;
 
@@ -254,7 +255,7 @@ impl PartialEq for ComponentPredicates {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ComponentPredicateEntry {
     Typed(ComponentPredicate),
-    AnyValue(ItemComponentKind),
+    AnyValue(DataComponentType),
 }
 
 impl ComponentPredicateEntry {
@@ -268,8 +269,8 @@ impl ComponentPredicateEntry {
 
     fn id(&self) -> ResourceLocation<&'static str> {
         match self {
-            Self::Typed(predicate) => predicate.kind().id(),
-            Self::AnyValue(kind) => kind.id(),
+            Self::Typed(predicate) => predicate.kind().location(),
+            Self::AnyValue(kind) => kind.location(),
         }
     }
 }
@@ -305,9 +306,9 @@ impl<'de> Deserialize<'de> for ComponentPredicates {
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
                 let mut entries: Vec<ComponentPredicateEntry> = Vec::new();
                 while let Some(key) = map.next_key::<String>()? {
-                    let entry = match ComponentPredicateType::from_id(&key) {
+                    let entry = match DataComponentPredicateType::read(&key) {
                         Some(kind) => ComponentPredicateEntry::Typed(map.next_value_seed(kind)?),
-                        None => match ItemComponentKind::from_id(&key) {
+                        None => match DataComponentType::read(&key) {
                             Some(kind) => {
                                 map.next_value::<UnitMap>()?;
                                 ComponentPredicateEntry::AnyValue(kind)
@@ -348,15 +349,7 @@ impl<'de> Deserialize<'de> for UnitMap {
 }
 
 macro_rules! predicate_types {
-    ($($id:literal $name:literal : $variant:ident($ty:ty)),* $(,)?) => {
-        /// The `data_component_predicate_type` registry in registration
-        /// order, which is the wire id.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        #[repr(u8)]
-        pub enum ComponentPredicateType {
-            $($variant = $id),*
-        }
-
+    ($($variant:ident($ty:ty)),* $(,)?) => {
         /// A predicate as its type's codec reads it.
         #[derive(Clone, Debug, PartialEq)]
         pub enum ComponentPredicate {
@@ -364,9 +357,9 @@ macro_rules! predicate_types {
         }
 
         impl ComponentPredicate {
-            pub fn kind(&self) -> ComponentPredicateType {
+            pub fn kind(&self) -> DataComponentPredicateType {
                 match self {
-                    $(Self::$variant(_) => ComponentPredicateType::$variant),*
+                    $(Self::$variant(_) => DataComponentPredicateType::$variant),*
                 }
             }
         }
@@ -379,7 +372,7 @@ macro_rules! predicate_types {
             }
         }
 
-        impl<'de> DeserializeSeed<'de> for ComponentPredicateType {
+        impl<'de> DeserializeSeed<'de> for DataComponentPredicateType {
             type Value = ComponentPredicate;
 
             fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Self::Value, D::Error> {
@@ -388,41 +381,6 @@ macro_rules! predicate_types {
                 }
             }
         }
-
-        impl ComponentPredicateType {
-            pub const ALL: &'static [Self] = &[$(Self::$variant),*];
-
-            pub const fn id(self) -> ResourceLocation<&'static str> {
-                match self {
-                    $(Self::$variant => ResourceLocation::new_static(concat!("minecraft:", $name))),*
-                }
-            }
-
-            pub fn from_id(id: &str) -> Option<Self> {
-                match id.strip_prefix("minecraft:").unwrap_or(id) {
-                    $($name => Some(Self::$variant),)*
-                    _ => None,
-                }
-            }
-        }
-
-        const _: () = {
-            let mut position = 0;
-            $(
-                assert!($id == position, "a predicate type's wire id must be its position");
-                position += 1;
-            )*
-            let _ = position;
-        };
-
-        const _: () = assert!(
-            mcrs_minecraft_registry::static_rows::rows_match(
-                &[$((concat!("minecraft:", $name), $id)),*],
-                crate::keys::DataComponentPredicateType::ENTRIES,
-                true,
-            ),
-            "the predicate type table must equal the generated data_component_predicate_type names row by row",
-        );
     };
 }
 
@@ -442,21 +400,21 @@ impl<'de> Deserialize<'de> for VillagerVariants {
 }
 
 predicate_types! {
-     0 "damage"                : Damage(DamagePredicate),
-     1 "enchantments"          : Enchantments(EnchantmentsPredicate),
-     2 "stored_enchantments"   : StoredEnchantments(EnchantmentsPredicate),
-     3 "potion_contents"       : PotionContents(PotionsPredicate),
-     4 "custom_data"           : CustomData(NbtPredicate),
-     5 "container"             : Container(ContainerPredicate),
-     6 "bundle_contents"       : BundleContents(ContainerPredicate),
-     7 "firework_explosion"    : FireworkExplosion(FireworkPredicate),
-     8 "fireworks"             : Fireworks(FireworksPredicate),
-     9 "writable_book_content" : WritableBookContent(WritableBookPredicate),
-    10 "written_book_content"  : WrittenBookContent(WrittenBookPredicate),
-    11 "attribute_modifiers"   : AttributeModifiers(AttributeModifiersPredicate),
-    12 "trim"                  : Trim(TrimPredicate),
-    13 "jukebox_playable"      : JukeboxPlayable(JukeboxPlayablePredicate),
-    14 "villager/variant"      : VillagerVariant(VillagerVariants),
+    Damage(DamagePredicate),
+    Enchantments(EnchantmentsPredicate),
+    StoredEnchantments(EnchantmentsPredicate),
+    PotionContents(PotionsPredicate),
+    CustomData(NbtPredicate),
+    Container(ContainerPredicate),
+    BundleContents(ContainerPredicate),
+    FireworkExplosion(FireworkPredicate),
+    Fireworks(FireworksPredicate),
+    WritableBookContent(WritableBookPredicate),
+    WrittenBookContent(WrittenBookPredicate),
+    AttributeModifiers(AttributeModifiersPredicate),
+    Trim(TrimPredicate),
+    JukeboxPlayable(JukeboxPlayablePredicate),
+    VillagerVariant(VillagerVariants),
 }
 
 record_codec! {
@@ -1074,7 +1032,7 @@ fn sample_matchers() -> DataComponentMatchers {
             .into_iter()
             .map(ComponentPredicateEntry::Typed)
             .chain([ComponentPredicateEntry::AnyValue(
-                ItemComponentKind::CustomName,
+                DataComponentType::CustomName,
             )])
             .collect(),
         ),

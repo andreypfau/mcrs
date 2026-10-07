@@ -45,7 +45,7 @@ pub use held::{Held, Holds, SlotTable};
 pub use inventory::{SelectedHotbarSlot, slots};
 #[cfg(feature = "bevy")]
 pub use item_stack::{ItemStack, StackRevision};
-pub use kind::{ItemComponentKind, ItemComponentValue, ItemDataComponent};
+pub use kind::{ItemComponentValue, ItemDataComponent};
 pub use patch::{ComponentMap, ComponentPatch};
 pub use stack::{HashedPatchMap, ItemStackValue, ItemStackWithSlot, ProtoStack, Template};
 #[cfg(feature = "bevy")]
@@ -61,7 +61,7 @@ mod bevy {
     use crate::component::*;
 
     macro_rules! impl_component {
-        ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
             $(impl_component!(@one $ty);)*
         };
         (@one Profile) => {};

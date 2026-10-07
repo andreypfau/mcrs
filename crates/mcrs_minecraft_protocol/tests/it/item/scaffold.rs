@@ -1,11 +1,12 @@
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_core::{ResourceKey, rl};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::component::common::{Folded, entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentMap, ComponentPatch, CreativeSlotLock, CustomData, CustomName, DecodeCtx, EncodeCtx,
-    HashedPatchMap, HashedStack, ItemComponentKind, ItemComponentValue, ItemStackValue, Lore,
-    MaxStackSize, ProtoStack, RawDelimitedStack, RawStack, Template, Unbreakable, hash_ops,
+    HashedPatchMap, HashedStack, ItemComponentValue, ItemStackValue, Lore, MaxStackSize,
+    ProtoStack, RawDelimitedStack, RawStack, Template, Unbreakable, hash_ops,
 };
 use mcrs_minecraft_protocol::text::Text;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
@@ -23,7 +24,7 @@ fn patch() -> ComponentPatch {
     patch.set(stack_size(16));
     patch.set(custom_data());
     patch.set(Lore::new(vec![Text::text("line")]));
-    patch.remove(ItemComponentKind::Damage);
+    patch.remove(DataComponentType::Damage);
     patch
 }
 
@@ -219,8 +220,8 @@ fn a_hashed_slot_writes_the_map_then_the_set() {
         id: Id::from_raw(1),
         count: 3,
         components: HashedPatchMap {
-            added: vec![(ItemComponentKind::MaxStackSize, 0x0102_0304)],
-            removed: vec![ItemComponentKind::Damage],
+            added: vec![(DataComponentType::MaxStackSize, 0x0102_0304)],
+            removed: vec![DataComponentType::Damage],
         },
     };
     let mut wire = Vec::new();
@@ -242,8 +243,8 @@ fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
     assert_eq!(
         HashedPatchMap::decode(&mut &wire[..]).unwrap(),
         HashedPatchMap {
-            added: vec![(ItemComponentKind::MaxStackSize, 2)],
-            removed: vec![ItemComponentKind::Damage],
+            added: vec![(DataComponentType::MaxStackSize, 2)],
+            removed: vec![DataComponentType::Damage],
         }
     );
 }
@@ -252,9 +253,9 @@ fn a_hashed_patch_collapses_repeated_kinds_like_a_hash_map() {
 fn a_hashed_patch_matches_through_hash_ops() {
     let patch = patch();
     let hashed = HashedPatchMap::create(&patch).unwrap();
-    assert_eq!(hashed.removed, vec![ItemComponentKind::Damage]);
+    assert_eq!(hashed.removed, vec![DataComponentType::Damage]);
     let (kind, hash) = hashed.added[0];
-    assert_eq!(kind, ItemComponentKind::MaxStackSize);
+    assert_eq!(kind, DataComponentType::MaxStackSize);
     assert_eq!(hash, hash_ops::hash(&16i32).unwrap());
     assert!(hashed.matches(&patch));
 
@@ -262,7 +263,7 @@ fn a_hashed_patch_matches_through_hash_ops() {
     other.set(stack_size(17));
     assert!(!hashed.matches(&other));
     other.set(stack_size(16));
-    other.remove(ItemComponentKind::RepairCost);
+    other.remove(DataComponentType::RepairCost);
     assert!(!hashed.matches(&other));
     let mut fewer = patch.clone();
     fewer.added.pop();
@@ -345,8 +346,8 @@ fn a_component_map_applies_and_diffs_against_its_prototype() {
     let mut patch = ComponentPatch::EMPTY;
     patch.set(stack_size(64));
     patch.set(custom_data());
-    patch.remove(ItemComponentKind::Lore);
-    patch.remove(ItemComponentKind::Damage);
+    patch.remove(DataComponentType::Lore);
+    patch.remove(DataComponentType::Damage);
     let applied = prototype.apply(&patch);
     assert_eq!(applied.0, vec![stack_size(64).into(), custom_data().into()]);
     let normalised = prototype.diff(&applied);
@@ -354,7 +355,7 @@ fn a_component_map_applies_and_diffs_against_its_prototype() {
         normalised.added,
         vec![ItemComponentValue::CustomData(custom_data())]
     );
-    assert_eq!(normalised.removed, vec![ItemComponentKind::Lore]);
+    assert_eq!(normalised.removed, vec![DataComponentType::Lore]);
     assert_eq!(prototype.diff(&prototype), ComponentPatch::EMPTY);
 
     let json = r#"{"minecraft:max_stack_size":64,"minecraft:lore":[]}"#;
@@ -452,29 +453,29 @@ fn a_holder_set_decoded_without_registries_fails_the_packet() {
 #[test]
 fn a_kind_is_a_var_int_on_the_wire_and_an_id_in_json() {
     let mut wire = Vec::new();
-    ItemComponentKind::CushionColor.encode(&mut wire).unwrap();
+    DataComponentType::CushionColor.encode(&mut wire).unwrap();
     assert_eq!(wire, [121]);
     assert_eq!(
-        ItemComponentKind::decode(&mut &wire[..]).unwrap(),
-        ItemComponentKind::CushionColor
+        DataComponentType::decode(&mut &wire[..]).unwrap(),
+        DataComponentType::CushionColor
     );
     let mut unknown = Vec::new();
     VarInt(122).encode(&mut unknown).unwrap();
-    let error = ItemComponentKind::decode(&mut &unknown[..]).unwrap_err();
+    let error = DataComponentType::decode(&mut &unknown[..]).unwrap_err();
     assert_eq!(error.to_string(), "unknown data component type 122");
     assert_eq!(
-        serde_json::to_string(&ItemComponentKind::WolfVariant).unwrap(),
+        serde_json::to_string(&DataComponentType::WolfVariant).unwrap(),
         r#""minecraft:wolf/variant""#
     );
     assert_eq!(
-        serde_json::from_str::<ItemComponentKind>(r#""wolf/variant""#).unwrap(),
-        ItemComponentKind::WolfVariant
+        serde_json::from_str::<DataComponentType>(r#""wolf/variant""#).unwrap(),
+        DataComponentType::WolfVariant
     );
     assert_eq!(
-        serde_json::from_str::<ItemComponentKind>(r#""nope""#)
+        serde_json::from_str::<DataComponentType>(r#""nope""#)
             .unwrap_err()
             .to_string(),
-        "No component with type: 'minecraft:nope'"
+        "Unknown registry key in ResourceKey[minecraft:root / minecraft:data_component_type]: minecraft:nope"
     );
 }
 
@@ -528,18 +529,18 @@ fn a_patch_compares_as_a_map() {
     let mut forward = ComponentPatch::EMPTY;
     forward.set(stack_size(16));
     forward.set(Unbreakable);
-    forward.remove(ItemComponentKind::Damage);
-    forward.remove(ItemComponentKind::Lore);
+    forward.remove(DataComponentType::Damage);
+    forward.remove(DataComponentType::Lore);
     let mut backward = ComponentPatch::EMPTY;
-    backward.remove(ItemComponentKind::Lore);
-    backward.remove(ItemComponentKind::Damage);
+    backward.remove(DataComponentType::Lore);
+    backward.remove(DataComponentType::Damage);
     backward.set(Unbreakable);
     backward.set(stack_size(16));
     assert_eq!(forward, backward);
     backward.set(stack_size(17));
     assert_ne!(forward, backward);
     backward.set(stack_size(16));
-    backward.remove(ItemComponentKind::CustomName);
+    backward.remove(DataComponentType::CustomName);
     assert_ne!(forward, backward);
 }
 

@@ -4,11 +4,12 @@ use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments, Holder,
-    InteractAnimation, ItemComponentKind, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation,
-    TooltipDisplay, UseEffects,
+    InteractAnimation, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation, TooltipDisplay,
+    UseEffects,
 };
 use mcrs_minecraft_registry::Registry;
 use mcrs_minecraft_registry::static_report::from_report;
@@ -31,9 +32,9 @@ fn files() -> Vec<(String, Vec<u8>)> {
 }
 
 macro_rules! round_tripped_kinds {
-    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
-        fn round_tripped_kinds() -> BTreeSet<ItemComponentKind> {
-            BTreeSet::from([$(ItemComponentKind::$ty),*])
+    ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+        fn round_tripped_kinds() -> BTreeSet<DataComponentType> {
+            BTreeSet::from([$(DataComponentType::$kind),*])
         }
     };
 }
@@ -112,13 +113,13 @@ fn every_prototype_kind_is_round_tripped_by_the_protocol() {
                 kinds.contains(&value.kind()),
                 "{}: {}",
                 entry.identifier,
-                value.kind()
+                value.kind().location()
             );
             assert!(
                 value.kind().is_persistent(),
                 "{}: {}",
                 entry.identifier,
-                value.kind()
+                value.kind().location()
             );
         }
     }

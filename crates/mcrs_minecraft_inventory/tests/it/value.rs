@@ -3,10 +3,11 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, TransactionError};
 use mcrs_minecraft_item::held::SlotTable;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{
     Held, ItemStack, StackError, same_item_same_components, stack_to_slot, stack_to_value,
 };
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
+use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 
 use mcrs_minecraft_world::registries::test_registries;
 
@@ -174,7 +175,7 @@ fn same_item_same_components_compares_subtrees() {
         with_lore,
         items()
     ));
-    remove(&mut world, with_lore, ItemComponentKind::Lore);
+    remove(&mut world, with_lore, DataComponentType::Lore);
     assert!(same_item_same_components(&world, plain, with_lore, items()));
 }
 
@@ -187,7 +188,7 @@ fn a_child_kind_on_an_item_without_one_is_refused() {
     assert!(matches!(
         error,
         mcrs_minecraft_item::StackError::UnsupportedChildKind {
-            kind: ItemComponentKind::BundleContents,
+            kind: DataComponentType::BundleContents,
             ..
         }
     ));

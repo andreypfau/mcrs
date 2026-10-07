@@ -16,7 +16,6 @@ pub mod set;
 pub mod shared;
 pub mod static_key;
 pub mod static_report;
-pub mod static_rows;
 pub mod tags;
 
 pub use bitset::{BitSet, DenseId};

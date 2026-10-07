@@ -2,7 +2,6 @@
 pub mod keys;
 
 use std::collections::BTreeMap;
-use std::fmt;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
@@ -13,228 +12,161 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! particle_types {
-    ($($id:literal $full:literal $bare:literal : $variant:ident $(($payload:ty))?),* $(,)?) => {
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        #[repr(u8)]
-        pub enum ParticleKind {
-            $($variant = $id),*
-        }
-
-        const _: () = {
-            let mut position = 0;
-            $(
-                assert!($id == position, "a particle type's wire id must be its position");
-                position += 1;
-            )*
-            let _ = position;
-        };
-
-        const _: () = assert!(
-            mcrs_minecraft_registry::static_rows::rows_match(
-                &[$(($full, $id)),*],
-                crate::keys::ParticleType::ENTRIES,
-                true,
-            ),
-            "the particle table must equal the generated particle_type names row by row",
-        );
-
-        impl ParticleKind {
-            pub const COUNT: usize = [$($id),*].len();
-            pub const ALL: [ParticleKind; Self::COUNT] = [$(Self::$variant),*];
-
-            pub const fn id(self) -> ResourceLocation<&'static str> {
-                match self {
-                    $(Self::$variant => ResourceLocation::new_static($full)),*
-                }
-            }
-
-            pub fn from_id(id: &str) -> Option<Self> {
-                match id.strip_prefix("minecraft:").unwrap_or(id) {
-                    $($bare => Some(Self::$variant),)*
-                    _ => None,
-                }
-            }
-        }
-
+    ($($variant:ident $(($payload:ty))?),* $(,)?) => {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(tag = "type")]
+        #[serde(remote = "Self")]
         pub enum ParticleOptions {
-            $(
-                #[serde(rename = $full, alias = $bare)]
-                $variant $(($payload))?
-            ),*
+            $($variant $(($payload))?),*
         }
 
-        impl ParticleOptions {
-            pub fn kind(&self) -> ParticleKind {
-                match self {
-                    $(variant_pattern!(Self::$variant $(: $payload)?) => ParticleKind::$variant),*
-                }
+        mcrs_minecraft_registry::dispatch! {
+            ParticleOptions, key = "type", registry = crate::keys::ParticleType,
+            {
+                $($variant => $variant),*
             }
         }
     };
 }
 
-macro_rules! variant_pattern {
-    ($variant:path) => {
-        $variant
-    };
-    ($variant:path : $payload:ty) => {
-        $variant(_)
-    };
-}
-
-/// Calls `$callback!` with every particle type in vanilla registration order,
-/// which is the wire id: `id "namespaced" "bare" : Variant (Payload)?`.
+/// Calls `$callback!` with every particle type's `ParticleType` variant and
+/// its payload, if it has one.
 #[macro_export]
 macro_rules! for_each_particle_type {
     ($callback:ident) => {
         $callback! {
-          0 "minecraft:angry_villager"                  "angry_villager"                  : AngryVillager,
-          1 "minecraft:block"                           "block"                           : Block(BlockParticle),
-          2 "minecraft:block_marker"                    "block_marker"                    : BlockMarker(BlockParticle),
-          3 "minecraft:bubble"                          "bubble"                          : Bubble,
-          4 "minecraft:sulfur_bubbles"                  "sulfur_bubbles"                  : SulfurBubbles,
-          5 "minecraft:noxious_gas"                     "noxious_gas"                     : NoxiousGas,
-          6 "minecraft:noxious_gas_cloud"               "noxious_gas_cloud"               : NoxiousGasCloud,
-          7 "minecraft:geyser"                          "geyser"                          : Geyser(GeyserParticle),
-          8 "minecraft:geyser_base"                     "geyser_base"                     : GeyserBase(GeyserBaseParticle),
-          9 "minecraft:geyser_poof"                     "geyser_poof"                     : GeyserPoof(GeyserBaseParticle),
-         10 "minecraft:geyser_plume"                    "geyser_plume"                    : GeyserPlume(GeyserParticle),
-         11 "minecraft:cloud"                           "cloud"                           : Cloud,
-         12 "minecraft:copper_fire_flame"               "copper_fire_flame"               : CopperFireFlame,
-         13 "minecraft:crit"                            "crit"                            : Crit,
-         14 "minecraft:damage_indicator"                "damage_indicator"                : DamageIndicator,
-         15 "minecraft:dragon_breath"                   "dragon_breath"                   : DragonBreath(PowerParticle),
-         16 "minecraft:dripping_lava"                   "dripping_lava"                   : DrippingLava,
-         17 "minecraft:falling_lava"                    "falling_lava"                    : FallingLava,
-         18 "minecraft:landing_lava"                    "landing_lava"                    : LandingLava,
-         19 "minecraft:dripping_water"                  "dripping_water"                  : DrippingWater,
-         20 "minecraft:falling_water"                   "falling_water"                   : FallingWater,
-         21 "minecraft:dust"                            "dust"                            : Dust(DustParticle),
-         22 "minecraft:dust_color_transition"           "dust_color_transition"           : DustColorTransition(DustColorTransitionParticle),
-         23 "minecraft:effect"                          "effect"                          : Effect(SpellParticle),
-         24 "minecraft:elder_guardian"                  "elder_guardian"                  : ElderGuardian,
-         25 "minecraft:enchanted_hit"                   "enchanted_hit"                   : EnchantedHit,
-         26 "minecraft:enchant"                         "enchant"                         : Enchant,
-         27 "minecraft:end_rod"                         "end_rod"                         : EndRod,
-         28 "minecraft:entity_effect"                   "entity_effect"                   : EntityEffect(ColorParticle),
-         29 "minecraft:explosion_emitter"               "explosion_emitter"               : ExplosionEmitter,
-         30 "minecraft:explosion"                       "explosion"                       : Explosion,
-         31 "minecraft:gust"                            "gust"                            : Gust,
-         32 "minecraft:small_gust"                      "small_gust"                      : SmallGust,
-         33 "minecraft:gust_emitter_large"              "gust_emitter_large"              : GustEmitterLarge,
-         34 "minecraft:gust_emitter_small"              "gust_emitter_small"              : GustEmitterSmall,
-         35 "minecraft:sonic_boom"                      "sonic_boom"                      : SonicBoom,
-         36 "minecraft:falling_dust"                    "falling_dust"                    : FallingDust(BlockParticle),
-         37 "minecraft:firework"                        "firework"                        : Firework,
-         38 "minecraft:fishing"                         "fishing"                         : Fishing,
-         39 "minecraft:flame"                           "flame"                           : Flame,
-         40 "minecraft:infested"                        "infested"                        : Infested,
-         41 "minecraft:cherry_leaves"                   "cherry_leaves"                   : CherryLeaves,
-         42 "minecraft:pale_oak_leaves"                 "pale_oak_leaves"                 : PaleOakLeaves,
-         43 "minecraft:red_poplar_leaves"               "red_poplar_leaves"               : RedPoplarLeaves,
-         44 "minecraft:orange_poplar_leaves"            "orange_poplar_leaves"            : OrangePoplarLeaves,
-         45 "minecraft:yellow_poplar_leaves"            "yellow_poplar_leaves"            : YellowPoplarLeaves,
-         46 "minecraft:tinted_leaves"                   "tinted_leaves"                   : TintedLeaves(ColorParticle),
-         47 "minecraft:sculk_soul"                      "sculk_soul"                      : SculkSoul,
-         48 "minecraft:sculk_charge"                    "sculk_charge"                    : SculkCharge(SculkChargeParticle),
-         49 "minecraft:sculk_charge_pop"                "sculk_charge_pop"                : SculkChargePop,
-         50 "minecraft:soul_fire_flame"                 "soul_fire_flame"                 : SoulFireFlame,
-         51 "minecraft:soul"                            "soul"                            : Soul,
-         52 "minecraft:flash"                           "flash"                           : Flash(ColorParticle),
-         53 "minecraft:happy_villager"                  "happy_villager"                  : HappyVillager,
-         54 "minecraft:composter"                       "composter"                       : Composter,
-         55 "minecraft:heart"                           "heart"                           : Heart,
-         56 "minecraft:instant_effect"                  "instant_effect"                  : InstantEffect(SpellParticle),
-         57 "minecraft:item"                            "item"                            : Item(ItemParticle),
-         58 "minecraft:vibration"                       "vibration"                       : Vibration(VibrationParticle),
-         59 "minecraft:trail"                           "trail"                           : Trail(TrailParticle),
-         60 "minecraft:pause_mob_growth"                "pause_mob_growth"                : PauseMobGrowth,
-         61 "minecraft:reset_mob_growth"                "reset_mob_growth"                : ResetMobGrowth,
-         62 "minecraft:item_slime"                      "item_slime"                      : ItemSlime,
-         63 "minecraft:item_cobweb"                     "item_cobweb"                     : ItemCobweb,
-         64 "minecraft:item_snowball"                   "item_snowball"                   : ItemSnowball,
-         65 "minecraft:large_smoke"                     "large_smoke"                     : LargeSmoke,
-         66 "minecraft:lava"                            "lava"                            : Lava,
-         67 "minecraft:mycelium"                        "mycelium"                        : Mycelium,
-         68 "minecraft:note"                            "note"                            : Note,
-         69 "minecraft:poof"                            "poof"                            : Poof,
-         70 "minecraft:portal"                          "portal"                          : Portal,
-         71 "minecraft:rain"                            "rain"                            : Rain,
-         72 "minecraft:smoke"                           "smoke"                           : Smoke,
-         73 "minecraft:white_smoke"                     "white_smoke"                     : WhiteSmoke,
-         74 "minecraft:sneeze"                          "sneeze"                          : Sneeze,
-         75 "minecraft:spit"                            "spit"                            : Spit,
-         76 "minecraft:squid_ink"                       "squid_ink"                       : SquidInk,
-         77 "minecraft:sweep_attack"                    "sweep_attack"                    : SweepAttack,
-         78 "minecraft:totem_of_undying"                "totem_of_undying"                : TotemOfUndying,
-         79 "minecraft:underwater"                      "underwater"                      : Underwater,
-         80 "minecraft:splash"                          "splash"                          : Splash,
-         81 "minecraft:witch"                           "witch"                           : Witch,
-         82 "minecraft:bubble_pop"                      "bubble_pop"                      : BubblePop,
-         83 "minecraft:current_down"                    "current_down"                    : CurrentDown,
-         84 "minecraft:bubble_column_up"                "bubble_column_up"                : BubbleColumnUp,
-         85 "minecraft:nautilus"                        "nautilus"                        : Nautilus,
-         86 "minecraft:dolphin"                         "dolphin"                         : Dolphin,
-         87 "minecraft:campfire_cosy_smoke"             "campfire_cosy_smoke"             : CampfireCosySmoke,
-         88 "minecraft:campfire_signal_smoke"           "campfire_signal_smoke"           : CampfireSignalSmoke,
-         89 "minecraft:dripping_honey"                  "dripping_honey"                  : DrippingHoney,
-         90 "minecraft:falling_honey"                   "falling_honey"                   : FallingHoney,
-         91 "minecraft:landing_honey"                   "landing_honey"                   : LandingHoney,
-         92 "minecraft:falling_nectar"                  "falling_nectar"                  : FallingNectar,
-         93 "minecraft:falling_spore_blossom"           "falling_spore_blossom"           : FallingSporeBlossom,
-         94 "minecraft:ash"                             "ash"                             : Ash,
-         95 "minecraft:crimson_spore"                   "crimson_spore"                   : CrimsonSpore,
-         96 "minecraft:warped_spore"                    "warped_spore"                    : WarpedSpore,
-         97 "minecraft:spore_blossom_air"               "spore_blossom_air"               : SporeBlossomAir,
-         98 "minecraft:dripping_obsidian_tear"          "dripping_obsidian_tear"          : DrippingObsidianTear,
-         99 "minecraft:falling_obsidian_tear"           "falling_obsidian_tear"           : FallingObsidianTear,
-        100 "minecraft:landing_obsidian_tear"           "landing_obsidian_tear"           : LandingObsidianTear,
-        101 "minecraft:reverse_portal"                  "reverse_portal"                  : ReversePortal,
-        102 "minecraft:white_ash"                       "white_ash"                       : WhiteAsh,
-        103 "minecraft:small_flame"                     "small_flame"                     : SmallFlame,
-        104 "minecraft:snowflake"                       "snowflake"                       : Snowflake,
-        105 "minecraft:dripping_dripstone_lava"         "dripping_dripstone_lava"         : DrippingDripstoneLava,
-        106 "minecraft:falling_dripstone_lava"          "falling_dripstone_lava"          : FallingDripstoneLava,
-        107 "minecraft:dripping_dripstone_water"        "dripping_dripstone_water"        : DrippingDripstoneWater,
-        108 "minecraft:falling_dripstone_water"         "falling_dripstone_water"         : FallingDripstoneWater,
-        109 "minecraft:glow_squid_ink"                  "glow_squid_ink"                  : GlowSquidInk,
-        110 "minecraft:glow"                            "glow"                            : Glow,
-        111 "minecraft:wax_on"                          "wax_on"                          : WaxOn,
-        112 "minecraft:wax_off"                         "wax_off"                         : WaxOff,
-        113 "minecraft:electric_spark"                  "electric_spark"                  : ElectricSpark,
-        114 "minecraft:scrape"                          "scrape"                          : Scrape,
-        115 "minecraft:shriek"                          "shriek"                          : Shriek(ShriekParticle),
-        116 "minecraft:egg_crack"                       "egg_crack"                       : EggCrack,
-        117 "minecraft:dust_plume"                      "dust_plume"                      : DustPlume,
-        118 "minecraft:trial_spawner_detection"         "trial_spawner_detection"         : TrialSpawnerDetection,
-        119 "minecraft:trial_spawner_detection_ominous" "trial_spawner_detection_ominous" : TrialSpawnerDetectionOminous,
-        120 "minecraft:vault_connection"                "vault_connection"                : VaultConnection,
-        121 "minecraft:dust_pillar"                     "dust_pillar"                     : DustPillar(BlockParticle),
-        122 "minecraft:ominous_spawning"                "ominous_spawning"                : OminousSpawning,
-        123 "minecraft:raid_omen"                       "raid_omen"                       : RaidOmen,
-        124 "minecraft:trial_omen"                      "trial_omen"                      : TrialOmen,
-        125 "minecraft:block_crumble"                   "block_crumble"                   : BlockCrumble(BlockParticle),
-        126 "minecraft:firefly"                         "firefly"                         : Firefly,
-        127 "minecraft:sulfur_cube_goo"                 "sulfur_cube_goo"                 : SulfurCubeGoo,
+        AngryVillager,
+        Block(BlockParticle),
+        BlockMarker(BlockParticle),
+        Bubble,
+        SulfurBubbles,
+        NoxiousGas,
+        NoxiousGasCloud,
+        Geyser(GeyserParticle),
+        GeyserBase(GeyserBaseParticle),
+        GeyserPoof(GeyserBaseParticle),
+        GeyserPlume(GeyserParticle),
+        Cloud,
+        CopperFireFlame,
+        Crit,
+        DamageIndicator,
+        DragonBreath(PowerParticle),
+        DrippingLava,
+        FallingLava,
+        LandingLava,
+        DrippingWater,
+        FallingWater,
+        Dust(DustParticle),
+        DustColorTransition(DustColorTransitionParticle),
+        Effect(SpellParticle),
+        ElderGuardian,
+        EnchantedHit,
+        Enchant,
+        EndRod,
+        EntityEffect(ColorParticle),
+        ExplosionEmitter,
+        Explosion,
+        Gust,
+        SmallGust,
+        GustEmitterLarge,
+        GustEmitterSmall,
+        SonicBoom,
+        FallingDust(BlockParticle),
+        Firework,
+        Fishing,
+        Flame,
+        Infested,
+        CherryLeaves,
+        PaleOakLeaves,
+        RedPoplarLeaves,
+        OrangePoplarLeaves,
+        YellowPoplarLeaves,
+        TintedLeaves(ColorParticle),
+        SculkSoul,
+        SculkCharge(SculkChargeParticle),
+        SculkChargePop,
+        SoulFireFlame,
+        Soul,
+        Flash(ColorParticle),
+        HappyVillager,
+        Composter,
+        Heart,
+        InstantEffect(SpellParticle),
+        Item(ItemParticle),
+        Vibration(VibrationParticle),
+        Trail(TrailParticle),
+        PauseMobGrowth,
+        ResetMobGrowth,
+        ItemSlime,
+        ItemCobweb,
+        ItemSnowball,
+        LargeSmoke,
+        Lava,
+        Mycelium,
+        Note,
+        Poof,
+        Portal,
+        Rain,
+        Smoke,
+        WhiteSmoke,
+        Sneeze,
+        Spit,
+        SquidInk,
+        SweepAttack,
+        TotemOfUndying,
+        Underwater,
+        Splash,
+        Witch,
+        BubblePop,
+        CurrentDown,
+        BubbleColumnUp,
+        Nautilus,
+        Dolphin,
+        CampfireCosySmoke,
+        CampfireSignalSmoke,
+        DrippingHoney,
+        FallingHoney,
+        LandingHoney,
+        FallingNectar,
+        FallingSporeBlossom,
+        Ash,
+        CrimsonSpore,
+        WarpedSpore,
+        SporeBlossomAir,
+        DrippingObsidianTear,
+        FallingObsidianTear,
+        LandingObsidianTear,
+        ReversePortal,
+        WhiteAsh,
+        SmallFlame,
+        Snowflake,
+        DrippingDripstoneLava,
+        FallingDripstoneLava,
+        DrippingDripstoneWater,
+        FallingDripstoneWater,
+        GlowSquidInk,
+        Glow,
+        WaxOn,
+        WaxOff,
+        ElectricSpark,
+        Scrape,
+        Shriek(ShriekParticle),
+        EggCrack,
+        DustPlume,
+        TrialSpawnerDetection,
+        TrialSpawnerDetectionOminous,
+        VaultConnection,
+        DustPillar(BlockParticle),
+        OminousSpawning,
+        RaidOmen,
+        TrialOmen,
+        BlockCrumble(BlockParticle),
+        Firefly,
+        SulfurCubeGoo,
         }
     };
 }
 
 for_each_particle_type!(particle_types);
-
-impl ParticleKind {
-    pub fn from_wire_id(id: u16) -> Option<Self> {
-        Self::ALL.get(usize::from(id)).copied()
-    }
-}
-
-impl fmt::Display for ParticleKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.id().as_str())
-    }
-}
 
 /// A bare block id names the block's default state, which is what empty
 /// `properties` mean; any other state is `{id, properties}`. Properties read

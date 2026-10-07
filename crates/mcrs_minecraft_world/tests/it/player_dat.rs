@@ -82,7 +82,7 @@ fn the_vanilla_file_round_trips_through_the_typed_shape_in_scope() {
         dat.inventory[3]
             .stack
             .components
-            .is_removed(mcrs_minecraft_protocol::item::ItemComponentKind::Lore)
+            .is_removed(mcrs_minecraft_item::keys::DataComponentType::Lore)
     );
     assert_eq!(
         dat.equipment.keys().cloned().collect::<Vec<_>>(),

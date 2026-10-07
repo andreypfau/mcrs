@@ -7,8 +7,9 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::codec::Bounded;
 use mcrs_minecraft_inventory::value::spawn_stack;
 use mcrs_minecraft_inventory::{Op, ShulkerBoxes, Slot, Transaction, TransactionError};
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::{Items, SlotTable, StackRevision, stack_to_value};
-use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentKind, ItemStackValue};
+use mcrs_minecraft_protocol::item::{ComponentPatch, ItemStackValue};
 use mcrs_minecraft_world::item::test_corpus;
 use mcrs_minecraft_world::registries::test_registries;
 
@@ -44,7 +45,7 @@ pub fn holder(world: &mut World, slots: usize) -> Entity {
     world.spawn(SlotTable::fixed(slots)).id()
 }
 
-pub fn remove(world: &mut World, stack: Entity, kind: ItemComponentKind) {
+pub fn remove(world: &mut World, stack: Entity, kind: DataComponentType) {
     apply(world, vec![Op::Remove { stack, kind }]).unwrap();
 }
 

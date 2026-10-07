@@ -1,4 +1,5 @@
-use crate::{Damage, ItemComponentKind, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable};
+use crate::keys::DataComponentType;
+use crate::{Damage, ItemComponentValue, MaxDamage, MaxStackSize, Unbreakable};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::EntityRef;
 
@@ -7,7 +8,7 @@ use crate::held::SlotTable;
 use crate::item_stack::ItemStack;
 use crate::value::{child_kind, ops};
 
-fn own_child_kind(entity: EntityRef, items: &Items) -> Option<ItemComponentKind> {
+fn own_child_kind(entity: EntityRef, items: &Items) -> Option<DataComponentType> {
     let entry = items.get(entity.get::<ItemStack>()?.item)?;
     child_kind(entry)
 }
@@ -27,11 +28,11 @@ pub fn is_stackable(entity: EntityRef) -> bool {
         && (!is_damageable(entity) || entity.get::<Damage>().is_none_or(|damage| damage.0.0 == 0))
 }
 
-pub fn component_value(entity: EntityRef, kind: ItemComponentKind) -> Option<ItemComponentValue> {
+pub fn component_value(entity: EntityRef, kind: DataComponentType) -> Option<ItemComponentValue> {
     (ops(kind).read)(entity)
 }
 
-pub fn has_component(entity: EntityRef, items: &Items, kind: ItemComponentKind) -> bool {
+pub fn has_component(entity: EntityRef, items: &Items, kind: DataComponentType) -> bool {
     if Some(kind) == own_child_kind(entity, items) {
         return entity.contains::<SlotTable>();
     }
@@ -40,7 +41,7 @@ pub fn has_component(entity: EntityRef, items: &Items, kind: ItemComponentKind) 
 
 /// Vanilla's `hasNonDefault`: the stack's value for `kind` is not the
 /// prototype's, a tombstone included.
-pub fn has_non_default(entity: EntityRef, items: &Items, kind: ItemComponentKind) -> bool {
+pub fn has_non_default(entity: EntityRef, items: &Items, kind: DataComponentType) -> bool {
     let Some(entry) = entity
         .get::<ItemStack>()
         .and_then(|stack| items.get(stack.item))

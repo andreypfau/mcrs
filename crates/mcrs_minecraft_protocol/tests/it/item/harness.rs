@@ -3,15 +3,14 @@ use mcrs_minecraft_protocol::item::decode_component_value;
 use std::collections::{BTreeMap, HashMap};
 
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::item;
 use mcrs_minecraft_protocol::item::for_each_data_component;
 use mcrs_minecraft_protocol::item::harness::Sample;
 use mcrs_minecraft_protocol::item::harness::{SAMPLE_NAMES, sample_registries};
-use mcrs_minecraft_protocol::item::{
-    ComponentPatch, ItemComponentKind, ItemComponentValue, ItemDataComponent,
-};
+use mcrs_minecraft_protocol::item::{ComponentPatch, ItemComponentValue, ItemDataComponent};
 use mcrs_minecraft_registry::{RegistryLookup, RegistrySet};
 
 pub fn in_samples<T>(run: impl FnOnce() -> T) -> T {
@@ -191,7 +190,7 @@ pub fn json_value(value: &ItemComponentValue) -> serde_json::Value {
     serde_json::from_str(&persistent_json(value)).unwrap()
 }
 
-pub fn from_json(kind: ItemComponentKind, json: &str) -> ItemComponentValue {
+pub fn from_json(kind: DataComponentType, json: &str) -> ItemComponentValue {
     in_samples(|| {
         let mut d = serde_json::Deserializer::from_str(json);
         ItemComponentValue::deserialize_value(kind, &mut d).expect("deserialize_value")
@@ -202,15 +201,15 @@ pub fn wire(lookup: &TestLookup, value: &ItemComponentValue) -> Vec<u8> {
     let mut out = Vec::new();
     value
         .encode_ctx(lookup, &mut out)
-        .unwrap_or_else(|e| panic!("{}: encode {value:?}: {e}", value.kind()));
+        .unwrap_or_else(|e| panic!("{:?}: encode {value:?}: {e}", value.kind()));
     out
 }
 
-pub fn decode(lookup: &TestLookup, kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
+pub fn decode(lookup: &TestLookup, kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
     let mut r = bytes;
     let value = decode_component_value(kind, lookup, &mut r)
-        .unwrap_or_else(|e| panic!("{kind}: decode {bytes:02x?}: {e}"));
-    assert!(r.is_empty(), "{kind}: {} trailing bytes", r.len());
+        .unwrap_or_else(|e| panic!("{kind:?}: decode {bytes:02x?}: {e}"));
+    assert!(r.is_empty(), "{kind:?}: {} trailing bytes", r.len());
     value
 }
 
@@ -231,7 +230,7 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
     assert!(
         !samples.is_empty(),
         "{} is implemented but has no samples",
-        T::KIND.id()
+        T::KIND.location()
     );
     for sample in samples {
         let value: ItemComponentValue = sample.clone().into();
@@ -240,31 +239,31 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
         if kind.is_persistent() {
             let json = persistent_json(&value);
             let back = from_json(kind, &json);
-            assert_eq!(back, value, "{kind}: JSON round trip of {json}");
-            assert_eq!(persistent_json(&back), json, "JSON is stable for {kind}");
+            assert_eq!(back, value, "{kind:?}: JSON round trip of {json}");
+            assert_eq!(persistent_json(&back), json, "JSON is stable for {kind:?}");
 
             let mut nbt = Vec::new();
             mcrs_minecraft_nbt::to_bytes_unnamed(&value, &mut nbt).expect("to nbt");
             let back = from_nbt(kind, &nbt);
-            assert_eq!(back, value, "NBT round trip of {kind}");
+            assert_eq!(back, value, "NBT round trip of {kind:?}");
             check_tag_widths(kind, &nbt, &sample.nbt_tags());
 
             if kind.is_unit() {
-                assert_eq!(json, "{}", "{kind} is a unit kind");
+                assert_eq!(json, "{}", "{kind:?} is a unit kind");
             }
         } else {
             let mut out = Vec::new();
             let mut s = serde_json::Serializer::new(&mut out);
             assert!(
                 value.serialize_value(&mut s).is_err(),
-                "{kind} is transient"
+                "{kind:?} is transient"
             );
             let patch = ComponentPatch {
                 added: vec![value.clone()],
                 removed: vec![],
             };
             assert_eq!(serde_json::to_string(&patch).unwrap(), "{}");
-            let named = format!("{{\"{}\":{{}}}}", kind.id());
+            let named = format!("{{\"{}\":{{}}}}", kind.location());
             let error = serde_json::from_str::<ComponentPatch>(&named).unwrap_err();
             assert!(
                 error.to_string().contains("is not a persistent component"),
@@ -276,7 +275,7 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
         assert_eq!(
             decode(&lookup, kind, &bytes),
             value,
-            "wire round trip of {kind}"
+            "wire round trip of {kind:?}"
         );
         if kind.is_unit() {
             let expected: &[u8] = if kind.is_nbt_wire() {
@@ -284,12 +283,12 @@ fn check_samples_in_scope<T: Sample + ItemDataComponent + Into<ItemComponentValu
             } else {
                 &[]
             };
-            assert_eq!(bytes, expected, "unit wire form of {kind}");
+            assert_eq!(bytes, expected, "unit wire form of {kind:?}");
         }
     }
 }
 
-fn check_tag_widths(kind: ItemComponentKind, bytes: &[u8], expected: &[(&str, u8)]) {
+fn check_tag_widths(kind: DataComponentType, bytes: &[u8], expected: &[(&str, u8)]) {
     let root: NbtTag =
         mcrs_minecraft_nbt::from_bytes_unnamed(&mut std::io::Cursor::new(bytes)).expect("nbt tree");
     for (path, id) in expected {
@@ -298,13 +297,13 @@ fn check_tag_widths(kind: ItemComponentKind, bytes: &[u8], expected: &[(&str, u8
             tag = tag
                 .extract_compound()
                 .and_then(|compound| compound.get(key))
-                .unwrap_or_else(|| panic!("{kind}: no tag at {path}"));
+                .unwrap_or_else(|| panic!("{kind:?}: no tag at {path}"));
         }
-        assert_eq!(tag.get_type_id(), *id, "{kind}: tag id at '{path}'");
+        assert_eq!(tag.get_type_id(), *id, "{kind:?}: tag id at '{path}'");
     }
 }
 
-pub fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
+pub fn from_nbt(kind: DataComponentType, bytes: &[u8]) -> ItemComponentValue {
     in_samples(|| {
         let mut cursor = std::io::Cursor::new(bytes);
         let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
@@ -312,14 +311,14 @@ pub fn from_nbt(kind: ItemComponentKind, bytes: &[u8]) -> ItemComponentValue {
         assert_eq!(
             cursor.position() as usize,
             bytes.len(),
-            "NBT fully read for {kind}"
+            "NBT fully read for {kind:?}"
         );
         value
     })
 }
 
 macro_rules! samples_round_trip {
-    ($($id:literal $name:literal : $ty:ident [$($flag:ident),*]),* $(,)?) => {
+    ($($kind:ident : $ty:ident [$($flag:ident),*]),* $(,)?) => {
         #[test]
         fn every_kinds_samples_round_trip() {
             $(check_samples::<mcrs_minecraft_protocol::item::$ty>();)*

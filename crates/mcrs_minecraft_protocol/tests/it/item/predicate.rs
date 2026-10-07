@@ -1,9 +1,6 @@
+use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_protocol::item::decode_component_value;
-use mcrs_minecraft_protocol::item::{
-    ComponentPredicateType, ItemComponentKind, ItemComponentValue, hash_ops,
-};
-use mcrs_minecraft_registry::RegistryLookup;
-use mcrs_minecraft_registry::static_report::shipped_report;
+use mcrs_minecraft_protocol::item::{ItemComponentValue, hash_ops};
 use serde::Deserialize;
 
 use crate::item::harness::{TestLookup, decode, from_json, hex, in_samples, json_value, wire};
@@ -38,7 +35,7 @@ fn predicates_match_the_vanilla_codecs_in_scope() {
     assert_eq!(cases.len(), 81);
     let lookup = lookup();
     for case in cases {
-        let kind = ItemComponentKind::from_id(&case.kind).unwrap();
+        let kind = DataComponentType::read(&case.kind).unwrap();
         let label = format!("{} {}", case.kind, case.input);
         let value = from_json(kind, &case.input);
         assert_eq!(json_value(&value), case.json, "{label}");
@@ -73,7 +70,7 @@ fn predicate_errors_read_like_vanilla() {
 }
 
 fn predicate_errors_read_like_vanilla_in_scope() {
-    let error = |kind: ItemComponentKind, json: &str| -> String {
+    let error = |kind: DataComponentType, json: &str| -> String {
         let mut d = serde_json::Deserializer::from_str(json);
         ItemComponentValue::deserialize_value(kind, &mut d)
             .err()
@@ -200,7 +197,7 @@ fn predicate_errors_read_like_vanilla_in_scope() {
             "Duplicate key 'minecraft:speed'",
         ),
     ] {
-        let message = error(ItemComponentKind::CanBreak, json);
+        let message = error(DataComponentType::CanBreak, json);
         assert!(message.starts_with(expected), "{json}: {message}");
     }
     for (json, expected) in [
@@ -221,7 +218,7 @@ fn predicate_errors_read_like_vanilla_in_scope() {
             "invalid type: boolean `true`, expected a number",
         ),
     ] {
-        let message = error(ItemComponentKind::Lock, json);
+        let message = error(DataComponentType::Lock, json);
         assert!(message.starts_with(expected), "{json}: {message}");
     }
 }
@@ -244,7 +241,7 @@ fn malformed_predicate_values_are_refused_on_the_wire() {
         let bytes = hex(wire);
         let mut r = &bytes[..];
         let error =
-            decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r).unwrap_err();
+            decode_component_value(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
         assert!(error.to_string().contains(expected), "{wire}: {error}");
     }
 }
@@ -254,7 +251,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
     let mut wire = vec![0x01, 0x00, 0x00, 0x00, 0x00, 65];
     wire.extend(std::iter::repeat_n([0x00, 0x01, 0x0A, 0x00], 65).flatten());
     let mut r = &wire[..];
-    let error = decode_component_value(ItemComponentKind::CanBreak, &lookup(), &mut r).unwrap_err();
+    let error = decode_component_value(DataComponentType::CanBreak, &lookup(), &mut r).unwrap_err();
     assert!(
         error
             .to_string()
@@ -269,7 +266,7 @@ fn the_partial_predicate_list_is_capped_on_the_wire() {
 #[test]
 fn a_double_range_between_the_two_zeros_is_kept() {
     let input = "{\"predicates\":{\"minecraft:attribute_modifiers\":{\"modifiers\":{\"contains\":[{\"amount\":{\"min\":-0.0,\"max\":0.0}}]}}}}";
-    let value = from_json(ItemComponentKind::CanBreak, input);
+    let value = from_json(DataComponentType::CanBreak, input);
     assert_eq!(
         json_value(&value),
         serde_json::from_str::<serde_json::Value>(input).unwrap()
@@ -297,45 +294,33 @@ fn predicate_order_does_not_affect_equality() {
             "{\"nbt\":{\"a\":{\"x\":1,\"y\":2},\"b\":1}}",
         ),
     ] {
-        let a = from_json(ItemComponentKind::CanBreak, a);
-        let b = from_json(ItemComponentKind::CanBreak, b);
+        let a = from_json(DataComponentType::CanBreak, a);
+        let b = from_json(DataComponentType::CanBreak, b);
         assert_eq!(a, b);
         assert_eq!(
-            decode(&lookup, ItemComponentKind::CanBreak, &wire(&lookup, &a)),
+            decode(&lookup, DataComponentType::CanBreak, &wire(&lookup, &a)),
             a
         );
     }
     let a = from_json(
-        ItemComponentKind::CanBreak,
+        DataComponentType::CanBreak,
         "{\"predicates\":{\"minecraft:damage\":{},\"minecraft:trim\":{}}}",
     );
     let b = from_json(
-        ItemComponentKind::CanBreak,
+        DataComponentType::CanBreak,
         "{\"predicates\":{\"minecraft:damage\":{\"damage\":1},\"minecraft:trim\":{}}}",
     );
     assert_ne!(a, b);
 }
 
 #[test]
-fn predicate_type_ids_are_the_registry_protocol_ids() {
-    let report = shipped_report();
-    let entries = report
-        .table("minecraft:data_component_predicate_type")
-        .unwrap();
-    assert_eq!(entries.len(), ComponentPredicateType::ALL.len());
-    for kind in ComponentPredicateType::ALL {
-        assert_eq!(
-            report.id("data_component_predicate_type", &kind.id().into()),
-            Some(*kind as u16),
-            "{kind:?}"
-        );
-        assert_eq!(
-            ComponentPredicateType::from_id(kind.id().as_str()),
-            Some(*kind)
-        );
-        assert_eq!(
-            ComponentPredicateType::from_id(kind.id().path()),
-            Some(*kind)
-        );
-    }
+fn a_predicate_key_reads_with_or_without_its_namespace() {
+    in_samples(|| {
+        let read = |key: &str| {
+            let input =
+                format!("{{\"predicates\":{{\"{key}\":{{\"durability\":{{\"min\":1}}}}}}}}");
+            from_json(DataComponentType::CanBreak, &input)
+        };
+        assert_eq!(read("damage"), read("minecraft:damage"));
+    });
 }

@@ -1,6 +1,5 @@
 use bytes::Buf;
-use mcrs_minecraft_entity::attribute;
-use mcrs_minecraft_entity::keys::VillagerProfession;
+use mcrs_minecraft_entity::keys::{Attribute, VillagerProfession};
 use mcrs_minecraft_registry::RegistrySet;
 use mcrs_minecraft_worldgen_testing::{dump_string, open_dump};
 use std::collections::HashMap;
@@ -66,18 +65,6 @@ fn entity_types_follow_the_registry_order() {
     let table = set.table("minecraft:entity_type").unwrap();
     let actual: Vec<String> = table.names().iter().map(ToString::to_string).collect();
     assert_eq!(actual, census.ids["minecraft:entity_type"]);
-
-    let attributes = set.table("minecraft:attribute").unwrap();
-    assert_eq!(
-        attributes
-            .name(
-                mcrs_minecraft_entity::keys::Attribute::MaxHealth
-                    .id()
-                    .index()
-            )
-            .map(|name| name.as_str()),
-        Some(attribute::MAX_HEALTH.identifier.as_str())
-    );
 }
 
 #[test]
@@ -111,19 +98,12 @@ fn villager_types_and_professions_follow_the_registry_order() {
 #[test]
 fn attributes_match_the_registry_entry_for_entry() {
     let census = read_census();
-    assert_eq!(attribute::ALL.len(), census.attributes.len());
+    assert_eq!(Attribute::ALL.len(), census.attributes.len());
     let order: Vec<String> = census.attributes.iter().map(|a| a.id.clone()).collect();
     assert_eq!(order, census.ids["minecraft:attribute"]);
-    let set = report_set();
-    let attributes = set.table("minecraft:attribute").unwrap();
-    for (index, (ours, theirs)) in attribute::ALL.iter().zip(&census.attributes).enumerate() {
-        assert_eq!(ours.identifier.to_string(), theirs.id);
-        assert_eq!(
-            attributes.number(&theirs.id),
-            Some(index as u16),
-            "{} is numbered differently in the report",
-            theirs.id
-        );
+    for (attribute, theirs) in Attribute::ALL.iter().zip(&census.attributes) {
+        let ours = attribute.definition();
+        assert_eq!(attribute.location().to_string(), theirs.id);
         assert_eq!(
             ours.default.to_bits(),
             theirs.default.to_bits(),
