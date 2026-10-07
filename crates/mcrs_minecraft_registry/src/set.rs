@@ -221,6 +221,10 @@ impl RegistrySet {
         })
     }
 
+    pub fn is_world_registry(&self, registry: &str) -> bool {
+        self.values.origins.contains_key(registry)
+    }
+
     pub fn pack_of(&self, registry: &str, id: usize) -> Option<&str> {
         let pack = *self.values.origins.get(registry)?.get(id)?;
         self.values.packs.get(pack as usize).map(|name| &**name)

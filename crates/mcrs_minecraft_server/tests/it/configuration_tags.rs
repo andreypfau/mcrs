@@ -2,12 +2,6 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_server::configuration::update_tags;
 use mcrs_minecraft_world::registries::test_registries;
 
-const REGISTRIES_WITHOUT_TAGS: &[&str] = &[
-    "minecraft:fluid",
-    "minecraft:game_event",
-    "minecraft:worldgen/biome",
-];
-
 #[test]
 fn the_server_sends_tag_members_in_tag_order() {
     let set = test_registries();
@@ -39,19 +33,110 @@ fn the_server_sends_tag_members_in_tag_order() {
 
     for registry in &packet.registries {
         let name = registry.registry.as_str();
-        let mut names: Vec<&str> = registry.tags.iter().map(|tag| tag.name.as_str()).collect();
-        names.sort_unstable();
-        let mut declared: Vec<&str> = if REGISTRIES_WITHOUT_TAGS.contains(&name) {
-            Vec::new()
-        } else {
-            set.tag_table(name)
-                .unwrap_or_else(|| panic!("{name} has no tag table"))
-                .names()
-                .iter()
-                .map(|tag| tag.as_str())
-                .collect()
-        };
-        declared.sort_unstable();
-        assert_eq!(names, declared, "the tags {name} declares");
+        let table = set
+            .tag_table(name)
+            .unwrap_or_else(|| panic!("{name} has no tag table"));
+        let sent: Vec<&str> = registry.tags.iter().map(|tag| tag.name.as_str()).collect();
+        let declared: Vec<&str> = table.names().iter().map(|tag| tag.as_str()).collect();
+        assert_eq!(sent, declared, "the tags {name} declares, in table order");
+        for (index, group) in registry.tags.iter().enumerate() {
+            let members: Vec<u16> = group.entries.iter().map(|member| member.0).collect();
+            assert_eq!(
+                members,
+                table.members(index),
+                "members of {name} {}",
+                group.name
+            );
+        }
     }
+}
+
+#[test]
+fn every_static_and_synced_registry_with_tags_is_sent_and_no_other() {
+    let set = test_registries();
+    let packet = update_tags(set);
+    let sent: Vec<&str> = packet
+        .registries
+        .iter()
+        .map(|registry| registry.registry.as_str())
+        .collect();
+
+    let mut distinct = sent.clone();
+    distinct.sort_unstable();
+    distinct.dedup();
+    assert_eq!(
+        distinct.len(),
+        sent.len(),
+        "a registry is sent twice: {sent:?}"
+    );
+
+    let synced: Vec<&str> = set
+        .synced()
+        .map(|(table, _)| table.registry().as_str())
+        .collect();
+    let has_tags = |registry: &str| {
+        set.tag_table(registry)
+            .is_some_and(|table| !table.is_empty())
+    };
+
+    let synced_sent: Vec<&str> = sent
+        .iter()
+        .copied()
+        .take_while(|registry| synced.contains(registry))
+        .collect();
+    let expected_synced: Vec<&str> = synced.iter().copied().filter(|r| has_tags(r)).collect();
+    assert_eq!(
+        synced_sent, expected_synced,
+        "synced registries come first, in declaration order"
+    );
+
+    let statics_sent = &sent[synced_sent.len()..];
+    assert!(
+        statics_sent.is_sorted_by(|a, b| a < b),
+        "static registries follow, sorted by name: {statics_sent:?}"
+    );
+    for registry in statics_sent {
+        assert!(
+            !synced.contains(registry) && !set.is_world_registry(registry),
+            "{registry} is neither synced nor static"
+        );
+    }
+
+    for table in set.tables() {
+        let registry = table.registry().as_str();
+        let networked = synced.contains(&registry) || !set.is_world_registry(registry);
+        assert_eq!(
+            sent.contains(&registry),
+            networked && has_tags(registry),
+            "whether {registry} is sent"
+        );
+    }
+
+    for registry in [
+        "minecraft:fluid",
+        "minecraft:game_event",
+        "minecraft:potion",
+    ] {
+        assert!(
+            sent.contains(&registry),
+            "{registry} carries tags and is static"
+        );
+    }
+    assert!(
+        set.tag_table("minecraft:villager_trade")
+            .is_some_and(|table| !table.is_empty())
+            && !sent.contains(&"minecraft:villager_trade"),
+        "a world registry the game does not synchronize is not sent even with tags"
+    );
+
+    let biomes = packet
+        .registries
+        .iter()
+        .find(|registry| registry.registry.as_str() == "minecraft:worldgen/biome")
+        .expect("biome tags are sent");
+    assert!(!biomes.tags.is_empty());
+    assert!(
+        biomes.tags.iter().any(|tag| !tag.entries.is_empty()),
+        "biome tags carry their members"
+    );
 }

@@ -4,7 +4,7 @@ use mcrs_minecraft_core::rl;
 use mcrs_minecraft_core::tag_key::TagKey;
 use mcrs_minecraft_protocol::RegistryId;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
-use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload};
+use mcrs_minecraft_protocol::tags::{tags_from_payload, tags_payload, tags_payload_of};
 use mcrs_minecraft_registry::Registered;
 use mcrs_minecraft_registry::{Registry, TagId, Tags};
 use std::borrow::Cow;
@@ -67,7 +67,14 @@ fn tags_round_trip_through_the_payload_in_tag_order() {
         ],
     );
 
-    let payload = tags_payload(&tags);
+    let payload = tags_payload_of(tags.table());
+    let typed = tags_payload(&tags);
+    assert_eq!(typed.registry.as_str(), payload.registry.as_str());
+    assert_eq!(typed.tags.len(), payload.tags.len());
+    for (typed, untyped) in typed.tags.iter().zip(&payload.tags) {
+        assert_eq!(typed.name.as_str(), untyped.name.as_str());
+        assert_eq!(typed.entries, untyped.entries);
+    }
     assert_eq!(payload.registry.as_str(), "minecraft:test_registry");
     let sent: Vec<(&str, Vec<u16>)> = payload
         .tags
