@@ -7,8 +7,7 @@ use bevy_tasks::futures_lite::StreamExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
-pub const PACKS_ROOT: &str = "mcrs/datapacks";
-pub const VANILLA_PACK: &str = "vanilla";
+pub use mcrs_minecraft_registry::{PACKS_ROOT, VANILLA_PACK};
 
 pub async fn pack_names(reader: &dyn ErasedAssetReader) -> Vec<String> {
     let Ok(mut listing) = reader.read_directory(Path::new(PACKS_ROOT)).await else {

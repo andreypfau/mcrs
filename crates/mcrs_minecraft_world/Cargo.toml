@@ -7,6 +7,30 @@ edition.workspace = true
 [lib]
 doctest = false
 
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+required-features = ["bevy"]
+
+[features]
+default = ["bevy"]
+bevy = [
+    "dep:bevy_app",
+    "dep:bevy_asset",
+    "dep:bevy_ecs",
+    "dep:bevy_platform",
+    "dep:bevy_state",
+    "dep:bevy_tasks",
+    "dep:mcrs_minecraft_assets",
+    "dep:mcrs_minecraft_worldgen",
+    "mcrs_minecraft_block/bevy",
+    "mcrs_minecraft_core/bevy",
+    "mcrs_minecraft_dimension_environment/bevy",
+    "mcrs_minecraft_environment/bevy",
+    "mcrs_minecraft_item/bevy",
+    "mcrs_minecraft_registry/bevy",
+]
+
 [dependencies]
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_loot.workspace = true
@@ -20,29 +44,29 @@ mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
-mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item.workspace = true
 mcrs_minecraft_dimension_environment.workspace = true
 mcrs_minecraft_biome.workspace = true
-mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_assets.workspace = true
-mcrs_minecraft_registry = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_environment.workspace = true
+mcrs_minecraft_assets = { workspace = true, optional = true }
+mcrs_minecraft_registry.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_text.workspace = true
-bevy_app.workspace = true
-bevy_ecs.workspace = true
-bevy_asset.workspace = true
-bevy_state.workspace = true
-bevy_tasks.workspace = true
-bevy_platform.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+bevy_asset = { workspace = true, optional = true }
+bevy_state = { workspace = true, optional = true }
+bevy_tasks = { workspace = true, optional = true }
+bevy_platform = { workspace = true, optional = true }
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
+mcrs_minecraft_worldgen = { workspace = true, optional = true, features = ["fast", "bevy"] }
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_structure.workspace = true
 bevy_math.workspace = true

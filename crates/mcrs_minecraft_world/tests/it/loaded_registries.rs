@@ -21,9 +21,10 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registry::static_report::from_report;
 use mcrs_minecraft_registry::{HolderSet, Pack, PackFile, RegistrySet, TagId, WorldRegistries};
 use mcrs_minecraft_world::enchantment_provider::EnchantmentProvider;
+use mcrs_minecraft_world::packs::{load_from_directory, read_packs_from_directory};
 use mcrs_minecraft_world::registries::{
-    read_packs, reloadable_registries, static_registries as build_static_registries,
-    test_registries, world_registries,
+    load_registries, read_packs, reloadable_registries,
+    static_registries as build_static_registries, test_registries, world_registries,
 };
 use mcrs_minecraft_world::sulfur_cube_archetype::SulfurCubeArchetype;
 use mcrs_minecraft_world::test_types::{TestEnvironment, TestInstance};
@@ -369,7 +370,7 @@ fn packs_follow_vanilla_in_name_order() {
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
 
-    let packs = read_packs(&asset_server, &WORLD, &RegistrySet::new());
+    let packs = read_packs(&asset_server, &WORLD, &RegistrySet::new()).expect("the packs read");
 
     let listed: Vec<_> = packs
         .iter()
@@ -411,6 +412,96 @@ fn packs_follow_vanilla_in_name_order() {
     ))
     .expect("the layered reader reads the pack's file at its virtual path");
     assert_eq!(bytes, pattern("b").as_bytes());
+}
+
+fn contents(set: &RegistrySet) -> BTreeMap<String, Vec<(String, Option<String>)>> {
+    set.tables()
+        .map(|table| {
+            let registry = table.registry().as_str();
+            let entries = table
+                .names()
+                .iter()
+                .enumerate()
+                .map(|(id, name)| {
+                    (
+                        name.to_string(),
+                        set.pack_of(registry, id).map(str::to_owned),
+                    )
+                })
+                .collect();
+            (registry.to_owned(), entries)
+        })
+        .collect()
+}
+
+#[test]
+fn the_plugin_and_the_directory_reader_load_equal_sets() {
+    let mut app = App::new();
+    app.register_asset_source(
+        AssetSourceId::Default,
+        layered_file_source(
+            &AssetPlugin::default().file_path,
+            mcrs_minecraft_worldgen_builtin::asset,
+        ),
+    );
+    app.add_plugins((
+        TaskPoolPlugin::default(),
+        AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        },
+    ));
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let through_assets = load_registries(&asset_server, build_static_registries().unwrap())
+        .unwrap_or_else(|report| panic!("{report}"));
+    let through_directory =
+        load_from_directory(&assets()).unwrap_or_else(|report| panic!("{report}"));
+
+    let (assets, directory) = (contents(&through_assets), contents(&through_directory));
+    assert!(assets.len() > 100, "the corpus loads few registries");
+    assert_eq!(
+        assets.keys().collect::<Vec<_>>(),
+        directory.keys().collect::<Vec<_>>()
+    );
+    for (registry, from_assets) in &assets {
+        assert_eq!(from_assets, &directory[registry], "{registry}");
+    }
+}
+
+#[test]
+fn a_pack_directory_without_a_namespace_has_no_files() {
+    let root = std::env::temp_dir().join(format!("mcrs_empty_pack_{}", std::process::id()));
+    std::fs::create_dir_all(root.join(PACKS_ROOT).join("empty")).unwrap();
+
+    let packs = read_packs_from_directory(&root, &WORLD, &STATICS)
+        .unwrap_or_else(|report| panic!("{report}"));
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let names: Vec<_> = packs.iter().map(|pack| pack.name.as_str()).collect();
+    assert_eq!(names, [VANILLA_PACK, "empty"]);
+    assert!(packs.iter().all(|pack| pack.files.is_empty()));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unreadable_registry_file_is_a_report_entry_naming_its_path() {
+    let root = std::env::temp_dir().join(format!("mcrs_unreadable_pack_{}", std::process::id()));
+    let biomes = root
+        .join(PACKS_ROOT)
+        .join("broken/minecraft/worldgen/biome");
+    std::fs::create_dir_all(&biomes).unwrap();
+    std::os::unix::fs::symlink(root.join("absent.json"), biomes.join("ghost.json")).unwrap();
+
+    let refused = read_packs_from_directory(&root, &WORLD, &STATICS).err();
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let message = refused
+        .expect("a file that does not read is refused")
+        .to_string();
+    assert!(
+        message.contains("broken/minecraft/worldgen/biome/ghost.json"),
+        "{message}"
+    );
 }
 
 fn shipped_file(
@@ -1890,7 +1981,7 @@ pub(crate) fn load_shipped_and(
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     let asset_server = app.world().resource::<AssetServer>().clone();
 
-    let mut packs = read_packs(&asset_server, &WORLD, &STATICS);
+    let mut packs = read_packs(&asset_server, &WORLD, &STATICS).expect("the packs read");
     packs.push(Pack {
         name: "extra".to_owned(),
         files: files

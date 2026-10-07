@@ -26,6 +26,9 @@ type Project = Box<
 
 pub struct SyncedNbt(pub NbtTag);
 
+pub const PACKS_ROOT: &str = "mcrs/datapacks";
+pub const VANILLA_PACK: &str = "vanilla";
+
 pub struct PackFile {
     pub path: String,
     pub bytes: Option<Vec<u8>>,

@@ -8,7 +8,8 @@
 
 use std::sync::LazyLock;
 
-use bevy_ecs::prelude::*;
+#[cfg(feature = "bevy")]
+use bevy_ecs::prelude::Resource;
 use bevy_math::DVec3;
 use mcrs_minecraft_core::ResourceKey;
 use mcrs_minecraft_registry::{Id, Registry, RegistrySet};
@@ -28,7 +29,8 @@ pub use mcrs_minecraft_environment::spatial::{BiomeAttributes, SpatialAttributeI
 /// How much it is raining and thundering, in `[0; 1]`.
 ///
 /// Truth until the reader that supplies it from the save lands.
-#[derive(Resource, Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct Weather {
     pub rain: f32,
     pub thunder: f32,
@@ -152,7 +154,8 @@ impl<'a> DimensionEnvironment<'a> {
 ///
 /// Derived once from the dimension type, the timelines its tag names and the
 /// attribute registry.
-#[derive(Resource, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct EnvironmentAttributes {
     skybox: Skybox,
     clocks: Vec<Id<WorldClock>>,

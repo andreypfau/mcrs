@@ -39,6 +39,8 @@ crates=(
     mcrs_minecraft_worldgen_carver
     mcrs_minecraft_worldgen_structure
     mcrs_minecraft_worldgen
+    mcrs_minecraft_world
+    mcrs_minecraft_dimension_environment
     mcrs_minecraft_light
     mcrs_minecraft_light_color
     mcrs_minecraft_network

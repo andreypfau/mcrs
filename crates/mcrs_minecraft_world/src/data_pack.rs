@@ -71,7 +71,7 @@ fn request_registry<T: Asset, V>(
     let directory = table.registry().path();
     for name in table.names() {
         let path = format!("{}/{directory}/{}.json", name.namespace(), name.path());
-        loaded.handles.push(asset_server.load::<T>(path).untyped());
+        loaded.push(asset_server.load::<T>(path).untyped());
     }
     tracing::info!(
         registry,
@@ -86,7 +86,7 @@ fn request_templates(asset_server: &AssetServer, loaded: &mut LoadedRegistryAsse
     let files = list_registry_files(asset_server, FOLDER_TEMPLATE, "nbt", FILES_TEMPLATE);
     let count = files.len();
     for path in files {
-        loaded.handles.push(
+        loaded.push(
             asset_server
                 .load::<mcrs_minecraft_worldgen::bevy::TemplateAsset>(path)
                 .untyped(),
