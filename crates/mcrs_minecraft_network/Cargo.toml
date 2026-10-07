@@ -49,8 +49,11 @@ web-sys = { version = "0.3", features = [
 
 [features]
 default = ["bevy"]
-bevy = ["dep:bevy_app", "dep:bevy_ecs"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs", "mcrs_minecraft_registry/bevy"]
 telemetry-tracy = []
+
+[dev-dependencies]
+serde.workspace = true
 
 [[test]]
 name = "it"

@@ -8,7 +8,7 @@ use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, item_of, slots};
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, ReceivedRegistries};
+use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::item::{ItemStackValue, RawStack};
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -82,22 +82,22 @@ fn resolve(raw: &RawStack, lookup: &dyn RegistryLookup) -> anyhow::Result<Option
 
 fn receive_inventory_packets(
     event: On<ReceivedPacketEvent>,
-    connections: Query<(&ConnectionState, &ReceivedRegistries)>,
+    connections: Query<&ConnectionState>,
     registries: Res<RegistrySet>,
     mut selected: Query<&mut SelectedHotbarSlot, With<Player>>,
     mut commands: Commands,
 ) {
-    let Ok((ConnectionState::Game, received)) = connections.get(event.entity) else {
+    let Ok(ConnectionState::Game) = connections.get(event.entity) else {
         return;
     };
-    let lookup = received.over(&*registries);
+    let lookup: &RegistrySet = &registries;
     if let Some(packet) = event.decode::<ClientboundContainerSetContent>() {
         let slots: anyhow::Result<Vec<_>> = packet
             .slot_data
             .iter()
-            .map(|raw| resolve(raw, &lookup))
+            .map(|raw| resolve(raw, lookup))
             .collect();
-        let (Ok(slots), Ok(carried)) = (slots, resolve(&packet.carried_item, &lookup)) else {
+        let (Ok(slots), Ok(carried)) = (slots, resolve(&packet.carried_item, lookup)) else {
             warn!(
                 "container_set_content {}: a stack failed to decode",
                 packet.container_id.0
@@ -114,7 +114,7 @@ fn receive_inventory_packets(
             );
         });
     } else if let Some(packet) = event.decode::<ClientboundContainerSetSlot>() {
-        let Ok(item) = resolve(&packet.item, &lookup) else {
+        let Ok(item) = resolve(&packet.item, lookup) else {
             warn!(
                 "container_set_slot {}/{}: the stack failed to decode",
                 packet.container_id.0, packet.slot
@@ -131,7 +131,7 @@ fn receive_inventory_packets(
             );
         });
     } else if let Some(packet) = event.decode::<ClientboundSetCursorItem>() {
-        let Ok(item) = resolve(&packet.contents, &lookup) else {
+        let Ok(item) = resolve(&packet.contents, lookup) else {
             warn!("set_cursor_item: the stack failed to decode");
             return;
         };
@@ -141,7 +141,7 @@ fn receive_inventory_packets(
             }
         });
     } else if let Some(packet) = event.decode::<ClientboundSetPlayerInventory>() {
-        let Ok(item) = resolve(&packet.contents, &lookup) else {
+        let Ok(item) = resolve(&packet.contents, lookup) else {
             warn!(
                 "set_player_inventory {}: the stack failed to decode",
                 packet.slot.0

@@ -247,7 +247,7 @@ macro_rules! for_each_packet_table {
                 "update_attributes" => ClientboundUpdateAttributes<'a>,
                 "update_mob_effect",
                 "update_recipes" => ClientboundUpdateRecipes,
-                "update_tags",
+                "update_tags" => ClientboundUpdateTags<'a>,
                 "projectile_power",
                 "custom_report_details",
                 "server_links",

@@ -536,6 +536,11 @@ pub mod clientbound {
     pub struct ClientboundStartConfiguration;
 
     #[derive(Clone, Debug, Encode, Decode)]
+    pub struct ClientboundUpdateTags<'a> {
+        pub registries: Vec<crate::packets::configuration::clientbound::RegistryTags<'a>>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode)]
     pub struct ClientboundSystemChatPacket {
         pub content: Text,
         pub overlay: bool,

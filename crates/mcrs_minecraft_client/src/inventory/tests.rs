@@ -10,7 +10,6 @@ use mcrs_minecraft_inventory::{MenuLayout, Slot};
 use mcrs_minecraft_item::{
     Held, ItemStack, Items, SelectedHotbarSlot, SlotTable, StackRevision, slots,
 };
-use mcrs_minecraft_network::client::{ReceivedRegistries, ReceivedRegistry, RegistryEntry};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, Instant};
 use mcrs_minecraft_protocol::item::{
@@ -73,13 +72,13 @@ struct Client {
 
 impl Client {
     fn new() -> Self {
-        Self::with(registries().clone(), ReceivedRegistries::default())
+        Self::with(registries().clone())
     }
 
-    fn with(local: RegistrySet, received: ReceivedRegistries) -> Self {
+    fn with(session: RegistrySet) -> Self {
         let mut app = App::new();
         app.insert_resource(items().clone())
-            .insert_resource(local)
+            .insert_resource(session)
             .init_resource::<ButtonInput<KeyCode>>()
             .add_plugins(InventoryPlugin);
         let player = app
@@ -91,10 +90,7 @@ impl Client {
                 ContainerSeqno::default(),
             ))
             .id();
-        let connection = app
-            .world_mut()
-            .spawn((ConnectionState::Game, received))
-            .id();
+        let connection = app.world_mut().spawn(ConnectionState::Game).id();
         app.finish();
         app.cleanup();
         app.update();
@@ -516,25 +512,20 @@ fn a_menu_maps_its_slot_indices_onto_its_own_cells_and_the_player() {
 #[test]
 fn a_registry_the_server_sent_is_numbered_by_the_server() {
     let enchantment = |path: &str| ResourceLocation::minecraft(path).unwrap();
-    let local = RegistrySet::from_tables(
-        registries().tables().cloned().chain([Arc::new(
-            NameTable::new(
-                rl!("minecraft:enchantment").to_arc().into(),
-                ["sharpness", "protection"].map(|path| enchantment(path).into()),
-            )
-            .unwrap(),
-        )]),
-    )
-    .unwrap();
-    let entry = |path: &str| RegistryEntry {
-        id: enchantment(path).to_string(),
-        data: None,
+    let numbered = |paths: [&str; 2]| {
+        RegistrySet::from_tables(
+            registries().tables().cloned().chain([Arc::new(
+                NameTable::new(
+                    rl!("minecraft:enchantment").to_arc().into(),
+                    paths.map(|path| enchantment(path).into()),
+                )
+                .unwrap(),
+            )]),
+        )
+        .unwrap()
     };
-    let mut received = ReceivedRegistries::default();
-    received.push(ReceivedRegistry {
-        registry: "minecraft:enchantment".to_owned(),
-        entries: vec![entry("protection"), entry("sharpness")],
-    });
+    let session = numbered(["protection", "sharpness"]);
+    let otherwise = numbered(["sharpness", "protection"]);
     let mut patch = ComponentPatch::EMPTY;
     patch.set(Enchantments(vec![(
         ResourceKey::from_location(enchantment("protection")),
@@ -543,13 +534,15 @@ fn a_registry_the_server_sent_is_numbered_by_the_server() {
     let sword = registries()
         .id("item", &rl!("minecraft:diamond_sword").to_arc())
         .unwrap();
-    let raw = RawStack::from_stack(
-        &ProtoStack::new(mcrs_minecraft_registry::Id::from_raw(sword), 1, patch),
-        &received.over(registries()),
-    )
-    .unwrap();
+    let stack = ProtoStack::new(mcrs_minecraft_registry::Id::from_raw(sword), 1, patch);
+    let raw = RawStack::from_stack(&stack, &session).unwrap();
+    assert_ne!(
+        raw.0,
+        RawStack::from_stack(&stack, &otherwise).unwrap().0,
+        "the two numberings write the enchantment differently"
+    );
 
-    let mut client = Client::with(local, received);
+    let mut client = Client::with(session);
     let player = client.player;
     client.receive(&ClientboundContainerSetSlot {
         container_id: VarInt(0),

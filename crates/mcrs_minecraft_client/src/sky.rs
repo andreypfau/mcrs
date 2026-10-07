@@ -7,7 +7,7 @@ use bevy::render::render_resource::{
 use bevy::render::{Extract, ExtractSchedule, RenderApp};
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_network::client::JoinedGame;
+use mcrs_minecraft_network::client::CurrentDimension;
 use mcrs_minecraft_registry::{Id, RegistrySet};
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
@@ -21,7 +21,6 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
 use crate::vanilla::{self, VanillaAssets};
-use crate::wire_id::{WireIds, rebuild_wire_ids};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
@@ -71,9 +70,7 @@ impl Plugin for SkyPlugin {
             )
             .add_systems(
                 Update,
-                build_sky_environment
-                    .after(rebuild_wire_ids)
-                    .run_if(in_state(AppState::Playing)),
+                build_sky_environment.run_if(in_state(AppState::Playing)),
             )
             .add_systems(
                 PostUpdate,
@@ -191,8 +188,7 @@ impl SkyEnvironment {
 }
 
 fn build_sky_environment(
-    joined: Single<&JoinedGame, Changed<JoinedGame>>,
-    wire: Option<Res<WireIds>>,
+    current: Single<&CurrentDimension, Changed<CurrentDimension>>,
     registries: Res<RegistrySet>,
     clocks: Res<WorldClocks>,
     weather: Res<Weather>,
@@ -206,26 +202,19 @@ fn build_sky_environment(
         error!("the registry set holds no dimension types to draw a sky from");
         return;
     };
-    let Some(type_id) =
-        wire.and_then(|wire| wire.dimension_types.as_ref()?.get(joined.dimension_type_id))
-    else {
-        error!(
-            dimension = %joined.dimension,
-            dimension_type = joined.dimension_type_id,
-            "the dimension type the server sent is not one the local registries hold; no sky is drawn"
-        );
-        commands.remove_resource::<SkyEnvironment>();
-        return;
+    let CurrentDimension {
+        key: dimension,
+        dimension_type: type_id,
+    } = &**current;
+    let type_id = *type_id;
+    let attributes = match EnvironmentAttributes::of_dimension(&registries, dimension, type_id) {
+        Ok(attributes) => attributes,
+        Err(error) => {
+            error!(%dimension, %error, "no environment to draw a sky from");
+            commands.remove_resource::<SkyEnvironment>();
+            return;
+        }
     };
-    let attributes =
-        match EnvironmentAttributes::of_dimension(&registries, &joined.dimension, type_id) {
-            Ok(attributes) => attributes,
-            Err(error) => {
-                error!(dimension = %joined.dimension, %error, "no environment to draw a sky from");
-                commands.remove_resource::<SkyEnvironment>();
-                return;
-            }
-        };
     let layout = SkyLayout::derive(&attributes);
 
     let mut ticks = Vec::new();
@@ -236,7 +225,7 @@ fn build_sky_environment(
     let clock = dimension_types[type_id].default_clock;
 
     info!(
-        dimension = %joined.dimension,
+        %dimension,
         dimension_type = ?types.name(type_id).map(ToString::to_string),
         skybox = ?statics.key.skybox,
         effects = ?statics.key.effects,
