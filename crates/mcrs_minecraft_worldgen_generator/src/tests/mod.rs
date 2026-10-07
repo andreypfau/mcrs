@@ -305,6 +305,21 @@ pub fn parameter_lists() -> &'static (
     })
 }
 
+pub fn preset_tables() -> &'static crate::multi_noise_biomes::PresetBiomeTables {
+    static TABLES: LazyLock<crate::multi_noise_biomes::PresetBiomeTables> = LazyLock::new(|| {
+        let (names, lists) = parameter_lists();
+        let mut report = mcrs_minecraft_registry::LoadReport::new();
+        crate::multi_noise_biomes::PresetBiomeTables::build(
+            names,
+            lists,
+            corpus_biomes(),
+            &mut report,
+        )
+        .unwrap_or_else(|| panic!("the corpus holds every preset biome: {report}"))
+    });
+    &TABLES
+}
+
 pub fn parameter_list_id(
     name: &str,
 ) -> mcrs_minecraft_registry::Id<mcrs_minecraft_biome::parameter_list::MultiNoiseBiomeSourceParameterList> {
@@ -441,7 +456,6 @@ pub fn generate_region(
 /// the way the shipped Beta biomes do.
 pub fn beta_carver_table(
     source: &mcrs_minecraft_biome::source::BiomeSource,
-    _registry: &Registry<Biome>,
 ) -> crate::modern_carvers::CarverBiomeTable {
     crate::modern_carvers::CarverBiomeTable::beta(source, |_| {
         Arc::from([mcrs_minecraft_worldgen_carver::config::CarverConfig::BetaCave])

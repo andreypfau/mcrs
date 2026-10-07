@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use bevy_app::{App, Last, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_block::definition::Blocks;
@@ -30,9 +31,7 @@ fn insert_heightmap_predicates(
     blocks: Res<Blocks>,
     registries: Res<RegistrySet>,
 ) {
-    let tags = registries
-        .tags::<Block>()
-        .expect("the data pack loader builds the block tags");
+    let tags = registries.loaded_tags::<Block>();
     commands.insert_resource(heightmap_predicates(&blocks, &tags));
 }
 

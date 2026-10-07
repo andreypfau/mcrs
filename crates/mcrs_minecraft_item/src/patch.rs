@@ -84,8 +84,7 @@ impl<'de> DeserializeSeed<'de> for EmptyMapSeed {
 }
 
 fn persistent_kind<E: serde::de::Error>(id: &str) -> Result<DataComponentType, E> {
-    let kind = DataComponentType::read(id)
-        .ok_or_else(|| E::custom(crate::kind::unknown_component_error(id)))?;
+    let kind = DataComponentType::read(id).ok_or_else(|| E::custom(unknown_component_error(id)))?;
     if !kind.is_persistent() {
         return Err(E::custom(format_args!(
             "'{}' is not a persistent component",
@@ -240,4 +239,11 @@ impl<'de> Deserialize<'de> for ComponentMap {
 
         d.deserialize_map(MapVisitor)
     }
+}
+
+/// Vanilla names the parsed identifier, so a bare path is reported with its
+/// default namespace.
+fn unknown_component_error(id: &str) -> String {
+    let namespace = if id.contains(':') { "" } else { "minecraft:" };
+    format!("No component with type: '{namespace}{id}'")
 }

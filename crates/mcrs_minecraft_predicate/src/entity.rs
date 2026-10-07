@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use crate::location::LocationPredicate;
 use crate::player::PlayerPredicate;
 use crate::slots::SlotsPredicate;
-use crate::{is_any_double, is_any_int};
 use mcrs_minecraft_registry::dispatched_map;
 
 dispatched_map! {
@@ -48,34 +47,34 @@ dispatched_map! {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DistancePredicate {
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub x: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub y: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub z: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub horizontal: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub absolute: MinMaxBounds<f64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MovementPredicate {
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub x: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub y: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub z: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub speed: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub horizontal_speed: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub vertical_speed: MinMaxBounds<f64>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub fall_distance: MinMaxBounds<f64>,
 }
 
@@ -136,7 +135,7 @@ pub struct EntityTagPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LightningBoltPredicate {
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub blocks_set_on_fire: MinMaxBounds<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entity_struck: Option<Box<EntityPredicate>>,
@@ -152,7 +151,7 @@ pub struct FishingHookPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CubeMobPredicate {
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub size: MinMaxBounds<i32>,
 }
 

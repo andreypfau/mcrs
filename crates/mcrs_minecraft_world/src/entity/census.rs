@@ -71,7 +71,8 @@ fn entity_types_follow_the_registry_order() {
 fn every_template_entity_kind_is_a_registered_entity_type() {
     let set = report_set();
     let table = set.table("minecraft:entity_type").unwrap();
-    for id in mcrs_minecraft_worldgen_feature::template::EntityKind::IDS {
+    for kind in mcrs_minecraft_worldgen_feature::template::EntityKind::KINDS {
+        let id = kind.as_static_str();
         assert!(table.number(id).is_some(), "{id} is not an entity type");
     }
 }

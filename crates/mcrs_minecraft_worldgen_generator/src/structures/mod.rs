@@ -388,7 +388,7 @@ pub(crate) fn check_block_entity_ids(
         let Some(nbt) = &block.nbt else { continue };
         let id = nbt.get_string("id");
         if id.is_some_and(|id| {
-            GeneratedBlockEntity::IDS.contains(&id)
+            GeneratedBlockEntity::kind_of(id).is_some()
                 || id == BlockEntityType::Jigsaw.as_static_str()
                 || id == BlockEntityType::StructureBlock.as_static_str()
         }) {

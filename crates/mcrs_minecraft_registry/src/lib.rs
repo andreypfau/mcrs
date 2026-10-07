@@ -1,4 +1,3 @@
-pub mod bitset;
 pub mod dispatch;
 pub mod entries;
 pub mod holder;
@@ -18,7 +17,6 @@ pub mod static_key;
 pub mod static_report;
 pub mod tags;
 
-pub use bitset::{BitSet, DenseId};
 pub use entries::Entries;
 pub use holder::*;
 pub use holder_list::HolderList;

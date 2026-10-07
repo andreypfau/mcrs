@@ -135,8 +135,8 @@ fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
         let compound = mcrs_minecraft_nbt::to_nbt_compound(entry).expect("serialises");
         let id = compound.get_string("id").expect("tagged by its id");
         assert!(
-            GeneratedBlockEntity::IDS.contains(&id),
-            "{id} is not in IDS"
+            GeneratedBlockEntity::kind_of(id).is_some(),
+            "{id} is not a generated kind"
         );
     }
 }

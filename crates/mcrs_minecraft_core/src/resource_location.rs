@@ -60,23 +60,16 @@ impl<S: AsRef<str>> ResourceLocation<S> {
 const DEFAULT_NAMESPACE: &str = "minecraft";
 
 const fn valid_namespace(bytes: &[u8]) -> bool {
-    if bytes.len() == 2 && bytes[0] == b'.' && bytes[1] == b'.' {
-        return false;
-    }
-    let mut i = 0;
-    while i < bytes.len() {
-        if !matches!(bytes[i], b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-') {
-            return false;
-        }
-        i += 1;
-    }
-    true
+    !(bytes.len() == 2 && bytes[0] == b'.' && bytes[1] == b'.') && valid(bytes, false)
 }
 
-const fn valid_path(bytes: &[u8]) -> bool {
+const fn valid(bytes: &[u8], slash: bool) -> bool {
     let mut i = 0;
     while i < bytes.len() {
-        if !matches!(bytes[i], b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-' | b'/') {
+        let byte = bytes[i];
+        if !(matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-')
+            || slash && byte == b'/')
+        {
             return false;
         }
         i += 1;
@@ -96,7 +89,7 @@ fn check(namespace: &str, path: &str) -> Result<(), String> {
             u16::MAX
         ));
     }
-    if !valid_path(path.as_bytes()) {
+    if !valid(path.as_bytes(), true) {
         return Err(format!(
             "Non [a-z0-9/._-] character in path of location: {namespace}:{path}"
         ));
@@ -157,7 +150,7 @@ impl ResourceLocation<&'static str> {
                 "invalid character in resource location namespace (allowed: a-z 0-9 _ . -, not \"..\")"
             );
         }
-        if !valid_path(path) {
+        if !valid(path, true) {
             panic!("invalid character in resource location path (allowed: a-z 0-9 _ . - /)");
         }
         ResourceLocation {

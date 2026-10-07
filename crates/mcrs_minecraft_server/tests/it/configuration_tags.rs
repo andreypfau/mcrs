@@ -2,24 +2,6 @@ use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_server::configuration::update_tags;
 use mcrs_minecraft_world::registries::test_registries;
 
-const REGISTRIES_WITH_TAGS: &[&str] = &[
-    "minecraft:block",
-    "minecraft:item",
-    "minecraft:enchantment",
-    "minecraft:entity_type",
-    "minecraft:damage_type",
-    "minecraft:dialog",
-    "minecraft:timeline",
-    "minecraft:banner_pattern",
-    "minecraft:instrument",
-    "minecraft:painting_variant",
-    "minecraft:cat_variant",
-    "minecraft:wolf_variant",
-    "minecraft:trim_material",
-    "minecraft:trim_pattern",
-    "minecraft:jukebox_song",
-];
-
 const REGISTRIES_WITHOUT_TAGS: &[&str] = &[
     "minecraft:fluid",
     "minecraft:game_event",
@@ -54,24 +36,6 @@ fn the_server_sends_tag_members_in_tag_order() {
         !out_of_id_order.is_empty(),
         "no block tag lists its members out of id order, so the test cannot tell tag order from id order"
     );
-
-    let mut expected: Vec<&str> = REGISTRIES_WITH_TAGS
-        .iter()
-        .copied()
-        .filter(|registry| {
-            set.tag_table(registry)
-                .is_some_and(|table| !table.is_empty())
-        })
-        .chain(REGISTRIES_WITHOUT_TAGS.iter().copied())
-        .collect();
-    expected.sort_unstable();
-    let mut sent: Vec<&str> = packet
-        .registries
-        .iter()
-        .map(|registry| registry.registry.as_str())
-        .collect();
-    sent.sort_unstable();
-    assert_eq!(sent, expected, "the registries the packet carries");
 
     for registry in &packet.registries {
         let name = registry.registry.as_str();

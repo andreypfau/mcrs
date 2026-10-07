@@ -140,11 +140,7 @@ fn main() {
         frozen_ocean: biome("minecraft:frozen_ocean"),
         deep_frozen_ocean: biome("minecraft:deep_frozen_ocean"),
     };
-    let surface_states = SurfaceStates {
-        snow_block: corpus().default_state("minecraft:snow_block").0.into(),
-        packed_ice: corpus().default_state("minecraft:packed_ice").0.into(),
-        dirt: corpus().default_state("minecraft:dirt").0.into(),
-    };
+    let surface_states = SurfaceStates::new(corpus());
     let height = HeightContext {
         min_y: router.noise.min_y,
         depth: router.noise.height as i32,

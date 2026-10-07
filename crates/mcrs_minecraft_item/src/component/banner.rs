@@ -2,9 +2,10 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use mcrs_minecraft_core::{ResourceLocation, rl};
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, entry};
+use crate::component::common::Holder;
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
+use crate::harness::entry;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -1,4 +1,3 @@
-use std::fmt;
 use std::sync::Arc;
 
 use mcrs_minecraft_biome::Biome;
@@ -16,35 +15,14 @@ use mcrs_minecraft_worldgen_noise::sample_grid::SampleGrid;
 
 /// Why a biome source has no climate table: a biome the registry does not hold,
 /// an id the palette's byte cannot store, or a source that names no biomes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BiomeTableError {
-    Unknown(UnknownEntry),
-    Narrow(NarrowError),
+    #[error(transparent)]
+    Unknown(#[from] UnknownEntry),
+    #[error(transparent)]
+    Narrow(#[from] NarrowError),
+    #[error("{0}")]
     NoTable(String),
-}
-
-impl fmt::Display for BiomeTableError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BiomeTableError::Unknown(error) => error.fmt(f),
-            BiomeTableError::Narrow(error) => error.fmt(f),
-            BiomeTableError::NoTable(reason) => f.write_str(reason),
-        }
-    }
-}
-
-impl std::error::Error for BiomeTableError {}
-
-impl From<UnknownEntry> for BiomeTableError {
-    fn from(error: UnknownEntry) -> Self {
-        BiomeTableError::Unknown(error)
-    }
-}
-
-impl From<NarrowError> for BiomeTableError {
-    fn from(error: NarrowError) -> Self {
-        BiomeTableError::Narrow(error)
-    }
 }
 
 /// Biome ids over the column's quart cells, widened by one cell in every
@@ -149,14 +127,6 @@ impl MultiNoiseBiomeTable {
     }
 }
 
-fn no_such_list(list: Id<MultiNoiseBiomeSourceParameterList>) -> BiomeTableError {
-    BiomeTableError::NoTable(format!("no parameter list is numbered {}", list.index()))
-}
-
-fn names_nothing() -> BiomeTableError {
-    BiomeTableError::NoTable("a multi-noise source names neither biomes nor a preset".to_owned())
-}
-
 pub struct PresetBiomeTables {
     tables: Entries<MultiNoiseBiomeSourceParameterList, Arc<MultiNoiseBiomeTable>>,
     biomes: Registry<Biome>,
@@ -238,11 +208,15 @@ impl PresetBiomeTables {
         source: &MultiNoiseBiomeSource,
     ) -> Result<Arc<MultiNoiseBiomeTable>, BiomeTableError> {
         match (&source.preset, &source.biomes) {
-            (Some(list), _) => self.get(*list).cloned().ok_or_else(|| no_such_list(*list)),
+            (Some(list), _) => self.get(*list).cloned().ok_or_else(|| {
+                BiomeTableError::NoTable(format!("no parameter list is numbered {}", list.index()))
+            }),
             (None, Some(entries)) => {
                 MultiNoiseBiomeTable::from_entries(&self.biomes, entries).map(Arc::new)
             }
-            (None, None) => Err(names_nothing()),
+            (None, None) => Err(BiomeTableError::NoTable(
+                "a multi-noise source names neither biomes nor a preset".to_owned(),
+            )),
         }
     }
 }

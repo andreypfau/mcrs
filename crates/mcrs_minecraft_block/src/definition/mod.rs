@@ -592,13 +592,9 @@ impl Builder {
 
         // Bedrock knows its air block by identifier and states no component for
         // it; Java's three air blocks are the same fact.
-        let air = [
-            Block::Air,
-            Block::CaveAir,
-            Block::VoidAir,
-        ]
-        .iter()
-        .any(|block| block.as_static_str() == description.identifier.as_str());
+        let air = [Block::Air, Block::CaveAir, Block::VoidAir]
+            .map(Block::id)
+            .contains(&id);
         let mut values = vec![0u8; properties.0.len()];
         for index in 0..state_count {
             let mut rest = index;

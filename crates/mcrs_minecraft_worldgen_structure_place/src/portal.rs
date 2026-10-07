@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, BoundingBox, Direction};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::HolderSet;
@@ -126,15 +126,15 @@ fn processors(
     p: &PortalProperties,
     features_cannot_replace: &HolderSet<Block>,
 ) -> Vec<StructureProcessor> {
-    let block = |name: &str| BlockState::minecraft(name).expect("a hardcoded block name");
-    let replace = |source: &str, probability: Option<f32>, target: &str| ProcessorRule {
+    let block = |block: Block| BlockState::bare(block.location().to_arc());
+    let replace = |source: Block, probability: Option<f32>, target: Block| ProcessorRule {
         input_predicate: match probability {
             Some(probability) => RuleTest::RandomBlockMatch {
-                block: ResourceLocation::minecraft(source).expect("a hardcoded block name"),
+                block: source.location().to_arc(),
                 probability,
             },
             None => RuleTest::BlockMatch {
-                block: ResourceLocation::minecraft(source).expect("a hardcoded block name"),
+                block: source.location().to_arc(),
             },
         },
         location_predicate: RuleTest::AlwaysTrue,
@@ -142,24 +142,24 @@ fn processors(
         output_state: block(target),
         block_entity_modifier: None,
     };
-    let mut rules = vec![replace("gold_block", Some(GOLD_GONE), "air")];
+    let mut rules = vec![replace(Block::GoldBlock, Some(GOLD_GONE), Block::Air)];
     rules.push(if placement == OnOceanFloor {
-        replace("lava", None, "magma_block")
+        replace(Block::Lava, None, Block::MagmaBlock)
     } else if p.cold {
-        replace("lava", None, "netherrack")
+        replace(Block::Lava, None, Block::Netherrack)
     } else {
-        replace("lava", Some(MAGMA_INSTEAD_OF_LAVA), "magma_block")
+        replace(Block::Lava, Some(MAGMA_INSTEAD_OF_LAVA), Block::MagmaBlock)
     });
     if !p.cold {
         rules.push(replace(
-            "netherrack",
+            Block::Netherrack,
             Some(MAGMA_INSTEAD_OF_NETHERRACK),
-            "magma_block",
+            Block::MagmaBlock,
         ));
     }
-    let mut ignored = vec![block("structure_block")];
+    let mut ignored = vec![block(Block::StructureBlock)];
     if !p.air_pocket {
-        ignored.push(block("air"));
+        ignored.push(block(Block::Air));
     }
     let mut chain = vec![
         StructureProcessor::BlockIgnore { blocks: ignored },

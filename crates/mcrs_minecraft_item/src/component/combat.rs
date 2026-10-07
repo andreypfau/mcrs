@@ -5,11 +5,12 @@ use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_sound::keys::sound_event;
 use serde::{Deserialize, Serialize};
 
-use crate::component::common::{Holder, list_set, one_set, serialize_optional_set, tag_set};
+use crate::component::common::{Holder, serialize_optional_set};
 use crate::component::consume::{
     float_default, is_one, is_zero, non_negative_float, one, positive_float, zero,
 };
 use crate::harness::Sample;
+use crate::harness::{list_set, one_set, tag_set};
 use mcrs_minecraft_sound::SoundEvent;
 
 float_default! {

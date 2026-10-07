@@ -15,7 +15,6 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_world.workspace = true
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_keys.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_derive.workspace = true

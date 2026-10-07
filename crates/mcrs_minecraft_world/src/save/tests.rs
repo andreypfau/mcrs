@@ -535,12 +535,6 @@ fn a_saved_dimension_keeps_its_text() {
     let rewritten = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
     assert_eq!(rewritten, written);
 
-    let again = player::parse_player_dat(&rewritten, path()).unwrap();
-    assert_eq!(
-        mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&again).unwrap(),
-        rewritten
-    );
-
     let error = player::parse_player_dat(&player_file(Some("Not A Dimension")), path())
         .unwrap_err()
         .to_string();

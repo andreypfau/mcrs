@@ -20,10 +20,8 @@ use crate::base_height;
 use crate::feature_program::Resolver;
 use crate::features::possible_biomes;
 use crate::heightmap::{HeightmapKinds, heightmap_predicates};
-use crate::multi_noise_biomes::PresetBiomeTables;
 use crate::structures::index::{BiomeLookup, EndBiomes, StructureIndex};
 use crate::structures::live_sets;
-use mcrs_minecraft_registry::LoadReport;
 use mcrs_minecraft_worldgen_structure::frozen::{DimensionStructureTables, StructureKind};
 
 const MAGIC: &[u8; 8] = b"MCSITES1";
@@ -177,16 +175,6 @@ pub(super) fn dimension(id: &str) -> Dimension {
     }
 }
 
-fn preset_tables() -> &'static PresetBiomeTables {
-    static TABLES: LazyLock<PresetBiomeTables> = LazyLock::new(|| {
-        let (names, lists) = crate::tests::parameter_lists();
-        let mut report = LoadReport::new();
-        PresetBiomeTables::build(names, lists, corpus_biomes(), &mut report)
-            .unwrap_or_else(|| panic!("the corpus holds every preset biome: {report}"))
-    });
-    &TABLES
-}
-
 pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     let frozen = frozen_shared();
     let source = &dimension.source;
@@ -200,7 +188,7 @@ pub(super) fn build_index(dimension: &Dimension, seed: i64) -> StructureIndex {
     };
     let biomes = match source {
         BiomeSource::MultiNoise(multi) => {
-            BiomeLookup::MultiNoise(preset_tables().table_of(multi).unwrap())
+            BiomeLookup::MultiNoise(super::preset_tables().table_of(multi).unwrap())
         }
         BiomeSource::TheEnd => BiomeLookup::TheEnd(
             EndBiomes::resolve(

@@ -3,7 +3,7 @@ use std::fmt;
 use anyhow::{Context, ensure};
 use mcrs_minecraft_core::codec::{self, Validate, is_default};
 use mcrs_minecraft_core::{ResourceKey, validated};
-use mcrs_minecraft_registry::{DenseId, Id, RegistryLookup};
+use mcrs_minecraft_registry::{Id, RegistryLookup};
 use serde::de::{Error as _, MapAccess, Visitor, value};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

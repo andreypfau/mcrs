@@ -190,7 +190,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
             generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
             carvers: source
                 .as_deref()
-                .map(|source| Arc::new(super::beta_carver_table(source, &registry))),
+                .map(|source| Arc::new(super::beta_carver_table(source))),
             features: Some(Arc::new(super::beta_populate_program(
                 &registry,
                 router.world_seed as i64,

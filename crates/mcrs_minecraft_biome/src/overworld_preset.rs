@@ -9,7 +9,13 @@
 
 use std::sync::LazyLock;
 
+use mcrs_minecraft_core::ResourceKey;
+
 use super::climate::{Parameter, ParameterList, ParameterPoint};
+use crate::Biome;
+use crate::keys::biome::*;
+
+type BiomeKey = ResourceKey<Biome, &'static str>;
 
 const VALLEY_SIZE: f32 = 0.05;
 const LOW_START: f32 = 0.266_666_68;
@@ -18,187 +24,121 @@ const HIGH_END: f32 = 0.933_333_34;
 const PEAK_START: f32 = 0.566_666_66;
 const PEAK_END: f32 = 0.766_666_7;
 
-const MIDDLE_BIOMES: [[&str; 5]; 5] = [
-    [
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_TAIGA.as_static_str(),
-        crate::keys::biome::TAIGA.as_static_str(),
-    ],
-    [
-        crate::keys::biome::PLAINS.as_static_str(),
-        crate::keys::biome::PLAINS.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::TAIGA.as_static_str(),
-        crate::keys::biome::OLD_GROWTH_SPRUCE_TAIGA.as_static_str(),
-    ],
-    [
-        crate::keys::biome::FLOWER_FOREST.as_static_str(),
-        crate::keys::biome::PLAINS.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::BIRCH_FOREST.as_static_str(),
-        crate::keys::biome::DARK_FOREST.as_static_str(),
-    ],
-    [
-        crate::keys::biome::SAVANNA.as_static_str(),
-        crate::keys::biome::SAVANNA.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::JUNGLE.as_static_str(),
-        crate::keys::biome::JUNGLE.as_static_str(),
-    ],
-    [
-        crate::keys::biome::DESERT.as_static_str(),
-        crate::keys::biome::DESERT.as_static_str(),
-        crate::keys::biome::DESERT.as_static_str(),
-        crate::keys::biome::DESERT.as_static_str(),
-        crate::keys::biome::DESERT.as_static_str(),
-    ],
+const MIDDLE_BIOMES: [[BiomeKey; 5]; 5] = [
+    [SNOWY_PLAINS, SNOWY_PLAINS, SNOWY_PLAINS, SNOWY_TAIGA, TAIGA],
+    [PLAINS, PLAINS, FOREST, TAIGA, OLD_GROWTH_SPRUCE_TAIGA],
+    [FLOWER_FOREST, PLAINS, FOREST, BIRCH_FOREST, DARK_FOREST],
+    [SAVANNA, SAVANNA, FOREST, JUNGLE, JUNGLE],
+    [DESERT, DESERT, DESERT, DESERT, DESERT],
 ];
 
-const MIDDLE_BIOMES_VARIANT: [[Option<&str>; 5]; 5] = [
+const MIDDLE_BIOMES_VARIANT: [[Option<BiomeKey>; 5]; 5] = [
+    [Some(ICE_SPIKES), None, Some(SNOWY_TAIGA), None, None],
     [
-        Some(crate::keys::biome::ICE_SPIKES.as_static_str()),
-        None,
-        Some(crate::keys::biome::SNOWY_TAIGA.as_static_str()),
+        Some(DAPPLED_FOREST),
         None,
         None,
+        None,
+        Some(OLD_GROWTH_PINE_TAIGA),
     ],
     [
-        Some(crate::keys::biome::DAPPLED_FOREST.as_static_str()),
+        Some(SUNFLOWER_PLAINS),
         None,
         None,
-        None,
-        Some(crate::keys::biome::OLD_GROWTH_PINE_TAIGA.as_static_str()),
-    ],
-    [
-        Some(crate::keys::biome::SUNFLOWER_PLAINS.as_static_str()),
-        None,
-        None,
-        Some(crate::keys::biome::OLD_GROWTH_BIRCH_FOREST.as_static_str()),
+        Some(OLD_GROWTH_BIRCH_FOREST),
         None,
     ],
     [
         None,
         None,
-        Some(crate::keys::biome::PLAINS.as_static_str()),
-        Some(crate::keys::biome::SPARSE_JUNGLE.as_static_str()),
-        Some(crate::keys::biome::BAMBOO_JUNGLE.as_static_str()),
+        Some(PLAINS),
+        Some(SPARSE_JUNGLE),
+        Some(BAMBOO_JUNGLE),
     ],
     [None, None, None, None, None],
 ];
 
-const PLATEAU_BIOMES: [[&str; 5]; 5] = [
+const PLATEAU_BIOMES: [[BiomeKey; 5]; 5] = [
     [
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_PLAINS.as_static_str(),
-        crate::keys::biome::SNOWY_TAIGA.as_static_str(),
-        crate::keys::biome::SNOWY_TAIGA.as_static_str(),
+        SNOWY_PLAINS,
+        SNOWY_PLAINS,
+        SNOWY_PLAINS,
+        SNOWY_TAIGA,
+        SNOWY_TAIGA,
     ],
+    [MEADOW, MEADOW, FOREST, TAIGA, OLD_GROWTH_SPRUCE_TAIGA],
+    [MEADOW, MEADOW, MEADOW, MEADOW, PALE_GARDEN],
+    [SAVANNA_PLATEAU, SAVANNA_PLATEAU, FOREST, FOREST, JUNGLE],
     [
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::TAIGA.as_static_str(),
-        crate::keys::biome::OLD_GROWTH_SPRUCE_TAIGA.as_static_str(),
-    ],
-    [
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::MEADOW.as_static_str(),
-        crate::keys::biome::PALE_GARDEN.as_static_str(),
-    ],
-    [
-        crate::keys::biome::SAVANNA_PLATEAU.as_static_str(),
-        crate::keys::biome::SAVANNA_PLATEAU.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::FOREST.as_static_str(),
-        crate::keys::biome::JUNGLE.as_static_str(),
-    ],
-    [
-        crate::keys::biome::BADLANDS.as_static_str(),
-        crate::keys::biome::BADLANDS.as_static_str(),
-        crate::keys::biome::BADLANDS.as_static_str(),
-        crate::keys::biome::WOODED_BADLANDS.as_static_str(),
-        crate::keys::biome::WOODED_BADLANDS.as_static_str(),
+        BADLANDS,
+        BADLANDS,
+        BADLANDS,
+        WOODED_BADLANDS,
+        WOODED_BADLANDS,
     ],
 ];
 
-const PLATEAU_BIOMES_VARIANT: [[Option<&str>; 5]; 5] = [
+const PLATEAU_BIOMES_VARIANT: [[Option<BiomeKey>; 5]; 5] = [
+    [Some(ICE_SPIKES), None, None, None, None],
     [
-        Some(crate::keys::biome::ICE_SPIKES.as_static_str()),
+        Some(CHERRY_GROVE),
         None,
-        None,
-        None,
-        None,
+        Some(MEADOW),
+        Some(MEADOW),
+        Some(OLD_GROWTH_PINE_TAIGA),
     ],
     [
-        Some(crate::keys::biome::CHERRY_GROVE.as_static_str()),
-        None,
-        Some(crate::keys::biome::MEADOW.as_static_str()),
-        Some(crate::keys::biome::MEADOW.as_static_str()),
-        Some(crate::keys::biome::OLD_GROWTH_PINE_TAIGA.as_static_str()),
-    ],
-    [
-        Some(crate::keys::biome::CHERRY_GROVE.as_static_str()),
-        Some(crate::keys::biome::CHERRY_GROVE.as_static_str()),
-        Some(crate::keys::biome::FOREST.as_static_str()),
-        Some(crate::keys::biome::BIRCH_FOREST.as_static_str()),
+        Some(CHERRY_GROVE),
+        Some(CHERRY_GROVE),
+        Some(FOREST),
+        Some(BIRCH_FOREST),
         None,
     ],
     [None, None, None, None, None],
     [
-        Some(crate::keys::biome::ERODED_BADLANDS.as_static_str()),
-        Some(crate::keys::biome::ERODED_BADLANDS.as_static_str()),
+        Some(ERODED_BADLANDS),
+        Some(ERODED_BADLANDS),
         None,
         None,
         None,
     ],
 ];
 
-const SHATTERED_BIOMES: [[Option<&str>; 5]; 5] = [
+const SHATTERED_BIOMES: [[Option<BiomeKey>; 5]; 5] = [
     [
-        Some(crate::keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(WINDSWEPT_GRAVELLY_HILLS),
+        Some(WINDSWEPT_GRAVELLY_HILLS),
+        Some(WINDSWEPT_HILLS),
+        Some(WINDSWEPT_FOREST),
+        Some(WINDSWEPT_FOREST),
     ],
     [
-        Some(crate::keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_GRAVELLY_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(WINDSWEPT_GRAVELLY_HILLS),
+        Some(WINDSWEPT_GRAVELLY_HILLS),
+        Some(WINDSWEPT_HILLS),
+        Some(WINDSWEPT_FOREST),
+        Some(WINDSWEPT_FOREST),
     ],
     [
-        Some(crate::keys::biome::WINDSWEPT_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_HILLS.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
-        Some(crate::keys::biome::WINDSWEPT_FOREST.as_static_str()),
+        Some(WINDSWEPT_HILLS),
+        Some(WINDSWEPT_HILLS),
+        Some(WINDSWEPT_HILLS),
+        Some(WINDSWEPT_FOREST),
+        Some(WINDSWEPT_FOREST),
     ],
     [None, None, None, None, None],
     [None, None, None, None, None],
 ];
 
-const OCEANS: [[&str; 5]; 2] = [
+const OCEANS: [[BiomeKey; 5]; 2] = [
     [
-        crate::keys::biome::DEEP_FROZEN_OCEAN.as_static_str(),
-        crate::keys::biome::DEEP_COLD_OCEAN.as_static_str(),
-        crate::keys::biome::DEEP_OCEAN.as_static_str(),
-        crate::keys::biome::DEEP_LUKEWARM_OCEAN.as_static_str(),
-        crate::keys::biome::WARM_OCEAN.as_static_str(),
+        DEEP_FROZEN_OCEAN,
+        DEEP_COLD_OCEAN,
+        DEEP_OCEAN,
+        DEEP_LUKEWARM_OCEAN,
+        WARM_OCEAN,
     ],
-    [
-        crate::keys::biome::FROZEN_OCEAN.as_static_str(),
-        crate::keys::biome::COLD_OCEAN.as_static_str(),
-        crate::keys::biome::OCEAN.as_static_str(),
-        crate::keys::biome::LUKEWARM_OCEAN.as_static_str(),
-        crate::keys::biome::WARM_OCEAN.as_static_str(),
-    ],
+    [FROZEN_OCEAN, COLD_OCEAN, OCEAN, LUKEWARM_OCEAN, WARM_OCEAN],
 ];
 
 struct Builder {
@@ -272,7 +212,7 @@ impl Builder {
         erosion: Parameter,
         weirdness: Parameter,
         offset: f32,
-        biome: &'static str,
+        biome: BiomeKey,
     ) {
         for depth in [Parameter::point(0.0), Parameter::point(1.0)] {
             self.emit(
@@ -297,7 +237,7 @@ impl Builder {
         erosion: Parameter,
         weirdness: Parameter,
         offset: f32,
-        biome: &'static str,
+        biome: BiomeKey,
     ) {
         self.emit(
             temperature,
@@ -320,7 +260,7 @@ impl Builder {
         erosion: Parameter,
         weirdness: Parameter,
         offset: f32,
-        biome: &'static str,
+        biome: BiomeKey,
     ) {
         self.emit(
             temperature,
@@ -344,7 +284,7 @@ impl Builder {
         depth: Parameter,
         weirdness: Parameter,
         offset: f32,
-        biome: &'static str,
+        biome: BiomeKey,
     ) {
         self.out.push((
             ParameterPoint {
@@ -356,32 +296,32 @@ impl Builder {
                 weirdness,
                 offset: super::climate::quantize_coord(offset),
             },
-            biome,
+            biome.as_static_str(),
         ));
     }
 
-    fn middle(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn middle(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         if weirdness.max < 0 {
             return MIDDLE_BIOMES[t][h];
         }
         MIDDLE_BIOMES_VARIANT[t][h].unwrap_or(MIDDLE_BIOMES[t][h])
     }
 
-    fn badlands(&self, h: usize, weirdness: Parameter) -> &'static str {
+    fn badlands(&self, h: usize, weirdness: Parameter) -> BiomeKey {
         if h < 2 {
             if weirdness.max < 0 {
-                crate::keys::biome::BADLANDS.as_static_str()
+                BADLANDS
             } else {
-                crate::keys::biome::ERODED_BADLANDS.as_static_str()
+                ERODED_BADLANDS
             }
         } else if h < 3 {
-            crate::keys::biome::BADLANDS.as_static_str()
+            BADLANDS
         } else {
-            crate::keys::biome::WOODED_BADLANDS.as_static_str()
+            WOODED_BADLANDS
         }
     }
 
-    fn middle_or_badlands_if_hot(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn middle_or_badlands_if_hot(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         if t == 4 {
             self.badlands(h, weirdness)
         } else {
@@ -394,7 +334,7 @@ impl Builder {
         t: usize,
         h: usize,
         weirdness: Parameter,
-    ) -> &'static str {
+    ) -> BiomeKey {
         if t == 0 {
             self.slope(t, h, weirdness)
         } else {
@@ -407,24 +347,24 @@ impl Builder {
         t: usize,
         h: usize,
         weirdness: Parameter,
-        underlying: &'static str,
-    ) -> &'static str {
+        underlying: BiomeKey,
+    ) -> BiomeKey {
         if t > 1 && h < 4 && weirdness.max >= 0 {
-            crate::keys::biome::WINDSWEPT_SAVANNA.as_static_str()
+            WINDSWEPT_SAVANNA
         } else {
             underlying
         }
     }
 
-    fn beach(&self, t: usize) -> &'static str {
+    fn beach(&self, t: usize) -> BiomeKey {
         match t {
-            0 => crate::keys::biome::SNOWY_BEACH.as_static_str(),
-            4 => crate::keys::biome::DESERT.as_static_str(),
-            _ => crate::keys::biome::BEACH.as_static_str(),
+            0 => SNOWY_BEACH,
+            4 => DESERT,
+            _ => BEACH,
         }
     }
 
-    fn shattered_coast(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn shattered_coast(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         let underlying = if weirdness.max >= 0 {
             self.middle(t, h, weirdness)
         } else {
@@ -433,7 +373,7 @@ impl Builder {
         self.maybe_windswept_savanna(t, h, weirdness, underlying)
     }
 
-    fn plateau(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn plateau(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         if weirdness.max >= 0
             && let Some(variant) = PLATEAU_BIOMES_VARIANT[t][h]
         {
@@ -442,45 +382,37 @@ impl Builder {
         PLATEAU_BIOMES[t][h]
     }
 
-    fn peak(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn peak(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         if t <= 2 {
             if weirdness.max < 0 {
-                crate::keys::biome::JAGGED_PEAKS.as_static_str()
+                JAGGED_PEAKS
             } else {
-                crate::keys::biome::FROZEN_PEAKS.as_static_str()
+                FROZEN_PEAKS
             }
         } else if t == 3 {
-            crate::keys::biome::STONY_PEAKS.as_static_str()
+            STONY_PEAKS
         } else {
             self.badlands(h, weirdness)
         }
     }
 
-    fn slope(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn slope(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         if t >= 3 {
             self.plateau(t, h, weirdness)
         } else if h <= 1 {
-            crate::keys::biome::SNOWY_SLOPES.as_static_str()
+            SNOWY_SLOPES
         } else {
-            crate::keys::biome::GROVE.as_static_str()
+            GROVE
         }
     }
 
-    fn shattered(&self, t: usize, h: usize, weirdness: Parameter) -> &'static str {
+    fn shattered(&self, t: usize, h: usize, weirdness: Parameter) -> BiomeKey {
         SHATTERED_BIOMES[t][h].unwrap_or_else(|| self.middle(t, h, weirdness))
     }
 
     fn add_off_coast_biomes(&mut self) {
         let (full, mushroom) = (self.full_range, self.mushroom_fields);
-        self.surface(
-            full,
-            full,
-            mushroom,
-            full,
-            full,
-            0.0,
-            crate::keys::biome::MUSHROOM_FIELDS.as_static_str(),
-        );
+        self.surface(full, full, mushroom, full, full, 0.0, MUSHROOM_FIELDS);
         for t in 0..5 {
             let temperature = self.temperatures[t];
             let deep = self.deep_ocean;
@@ -761,24 +693,8 @@ impl Builder {
         let temperate = self.temperatures[1].union(self.temperatures[2]);
         let hot = self.temperatures[3].union(self.temperatures[4]);
 
-        self.surface(
-            full,
-            full,
-            coast,
-            e0.union(e2),
-            weirdness,
-            0.0,
-            crate::keys::biome::STONY_SHORE.as_static_str(),
-        );
-        self.surface(
-            temperate,
-            full,
-            near.union(far),
-            e6,
-            weirdness,
-            0.0,
-            crate::keys::biome::SWAMP.as_static_str(),
-        );
+        self.surface(full, full, coast, e0.union(e2), weirdness, 0.0, STONY_SHORE);
+        self.surface(temperate, full, near.union(far), e6, weirdness, 0.0, SWAMP);
         self.surface(
             hot,
             full,
@@ -786,7 +702,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            crate::keys::biome::MANGROVE_SWAMP.as_static_str(),
+            MANGROVE_SWAMP,
         );
 
         for t in 0..5 {
@@ -941,24 +857,8 @@ impl Builder {
         let temperate = self.temperatures[1].union(self.temperatures[2]);
         let hot = self.temperatures[3].union(self.temperatures[4]);
 
-        self.surface(
-            full,
-            full,
-            coast,
-            e0.union(e2),
-            weirdness,
-            0.0,
-            crate::keys::biome::STONY_SHORE.as_static_str(),
-        );
-        self.surface(
-            temperate,
-            full,
-            near.union(far),
-            e6,
-            weirdness,
-            0.0,
-            crate::keys::biome::SWAMP.as_static_str(),
-        );
+        self.surface(full, full, coast, e0.union(e2), weirdness, 0.0, STONY_SHORE);
+        self.surface(temperate, full, near.union(far), e6, weirdness, 0.0, SWAMP);
         self.surface(
             hot,
             full,
@@ -966,7 +866,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            crate::keys::biome::MANGROVE_SWAMP.as_static_str(),
+            MANGROVE_SWAMP,
         );
 
         for t in 0..5 {
@@ -1090,14 +990,14 @@ impl Builder {
         );
         let (e0, e1, e2, _e3, _e4, e5, e6) = self.erosion_septet();
         let cold_shore = if weirdness.max < 0 {
-            crate::keys::biome::STONY_SHORE.as_static_str()
+            STONY_SHORE
         } else {
-            crate::keys::biome::FROZEN_RIVER.as_static_str()
+            FROZEN_RIVER
         };
         let warm_shore = if weirdness.max < 0 {
-            crate::keys::biome::STONY_SHORE.as_static_str()
+            STONY_SHORE
         } else {
-            crate::keys::biome::RIVER.as_static_str()
+            RIVER
         };
 
         self.surface(
@@ -1125,17 +1025,9 @@ impl Builder {
             e0.union(e1),
             weirdness,
             0.0,
-            crate::keys::biome::FROZEN_RIVER.as_static_str(),
+            FROZEN_RIVER,
         );
-        self.surface(
-            unfrozen,
-            full,
-            near,
-            e0.union(e1),
-            weirdness,
-            0.0,
-            crate::keys::biome::RIVER.as_static_str(),
-        );
+        self.surface(unfrozen, full, near, e0.union(e1), weirdness, 0.0, RIVER);
         self.surface(
             frozen,
             full,
@@ -1143,7 +1035,7 @@ impl Builder {
             e2.union(e5),
             weirdness,
             0.0,
-            crate::keys::biome::FROZEN_RIVER.as_static_str(),
+            FROZEN_RIVER,
         );
         self.surface(
             unfrozen,
@@ -1152,26 +1044,10 @@ impl Builder {
             e2.union(e5),
             weirdness,
             0.0,
-            crate::keys::biome::RIVER.as_static_str(),
+            RIVER,
         );
-        self.surface(
-            frozen,
-            full,
-            coast,
-            e6,
-            weirdness,
-            0.0,
-            crate::keys::biome::FROZEN_RIVER.as_static_str(),
-        );
-        self.surface(
-            unfrozen,
-            full,
-            coast,
-            e6,
-            weirdness,
-            0.0,
-            crate::keys::biome::RIVER.as_static_str(),
-        );
+        self.surface(frozen, full, coast, e6, weirdness, 0.0, FROZEN_RIVER);
+        self.surface(unfrozen, full, coast, e6, weirdness, 0.0, RIVER);
         let temperate = self.temperatures[1].union(self.temperatures[2]);
         let hot = self.temperatures[3].union(self.temperatures[4]);
         self.surface(
@@ -1181,7 +1057,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            crate::keys::biome::SWAMP.as_static_str(),
+            SWAMP,
         );
         self.surface(
             hot,
@@ -1190,7 +1066,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            crate::keys::biome::MANGROVE_SWAMP.as_static_str(),
+            MANGROVE_SWAMP,
         );
         self.surface(
             frozen,
@@ -1199,7 +1075,7 @@ impl Builder {
             e6,
             weirdness,
             0.0,
-            crate::keys::biome::FROZEN_RIVER.as_static_str(),
+            FROZEN_RIVER,
         );
 
         for t in 0..5 {
@@ -1231,7 +1107,7 @@ impl Builder {
             full,
             full,
             0.0,
-            crate::keys::biome::DRIPSTONE_CAVES.as_static_str(),
+            DRIPSTONE_CAVES,
         );
         self.underground(
             full,
@@ -1240,7 +1116,7 @@ impl Builder {
             full,
             full,
             0.0,
-            crate::keys::biome::LUSH_CAVES.as_static_str(),
+            LUSH_CAVES,
         );
         self.underground(
             full,
@@ -1249,17 +1125,9 @@ impl Builder {
             e5.union(e6),
             Parameter::span(-1.1, -0.85),
             0.0,
-            crate::keys::biome::SULFUR_CAVES.as_static_str(),
+            SULFUR_CAVES,
         );
-        self.bottom(
-            full,
-            full,
-            full,
-            e0.union(e1),
-            full,
-            0.0,
-            crate::keys::biome::DEEP_DARK.as_static_str(),
-        );
+        self.bottom(full, full, full, e0.union(e1), full, 0.0, DEEP_DARK);
     }
 
     fn erosion_septet(
@@ -1294,7 +1162,7 @@ pub fn overworld_parameter_list() -> &'static ParameterList<&'static str> {
 pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
     static LIST: LazyLock<ParameterList<&'static str>> = LazyLock::new(|| {
         let point = Parameter::point(0.0);
-        let entry = |temperature: Parameter, humidity: Parameter, offset: f32, biome| {
+        let entry = |temperature: Parameter, humidity: Parameter, offset: f32, biome: BiomeKey| {
             (
                 ParameterPoint {
                     temperature,
@@ -1305,39 +1173,34 @@ pub fn nether_parameter_list() -> &'static ParameterList<&'static str> {
                     weirdness: point,
                     offset: super::climate::quantize_coord(offset),
                 },
-                biome,
+                biome.as_static_str(),
             )
         };
         ParameterList::new(vec![
-            entry(
-                point,
-                point,
-                0.0,
-                crate::keys::biome::NETHER_WASTES.as_static_str(),
-            ),
+            entry(point, point, 0.0, NETHER_WASTES),
             entry(
                 Parameter::point(0.0),
                 Parameter::point(-0.5),
                 0.0,
-                crate::keys::biome::SOUL_SAND_VALLEY.as_static_str(),
+                SOUL_SAND_VALLEY,
             ),
             entry(
                 Parameter::point(0.4),
                 Parameter::point(0.0),
                 0.0,
-                crate::keys::biome::CRIMSON_FOREST.as_static_str(),
+                CRIMSON_FOREST,
             ),
             entry(
                 Parameter::point(0.0),
                 Parameter::point(0.5),
                 0.375,
-                crate::keys::biome::WARPED_FOREST.as_static_str(),
+                WARPED_FOREST,
             ),
             entry(
                 Parameter::point(-0.5),
                 Parameter::point(0.0),
                 0.175,
-                crate::keys::biome::BASALT_DELTAS.as_static_str(),
+                BASALT_DELTAS,
             ),
         ])
     });

@@ -7,16 +7,15 @@ use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::recipe::Recipe;
 use mcrs_minecraft_protocol::GameMode;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::entity::EntityPredicate;
 use crate::keys::CustomStat;
-use crate::{is_any_double, is_any_int};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlayerPredicate {
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub level: MinMaxBounds<i32>,
     #[serde(default, skip_serializing_if = "FoodPredicate::is_any")]
     pub food: FoodPredicate,
@@ -37,9 +36,9 @@ pub struct PlayerPredicate {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FoodPredicate {
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub level: MinMaxBounds<i32>,
-    #[serde(default, skip_serializing_if = "is_any_double")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub saturation: MinMaxBounds<f64>,
 }
 
@@ -50,7 +49,8 @@ impl FoodPredicate {
 }
 
 /// The game modes a player may be in; every mode, in order, is no constraint.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct GameModes(pub Vec<GameMode>);
 
 impl GameModes {
@@ -69,18 +69,6 @@ impl GameModes {
 impl Default for GameModes {
     fn default() -> Self {
         GameModes(Self::ANY.to_vec())
-    }
-}
-
-impl Serialize for GameModes {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(s)
-    }
-}
-
-impl<'de> Deserialize<'de> for GameModes {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Vec::<GameMode>::deserialize(d).map(GameModes)
     }
 }
 
@@ -119,7 +107,7 @@ mcrs_minecraft_registry::dispatch! {
 #[serde(deny_unknown_fields)]
 pub struct StatOf<T> {
     pub stat: T,
-    #[serde(default, skip_serializing_if = "is_any_int")]
+    #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub value: MinMaxBounds<i32>,
 }
 

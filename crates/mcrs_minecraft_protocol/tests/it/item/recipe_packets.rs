@@ -9,8 +9,8 @@ use mcrs_minecraft_item::keys::DataComponentType;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_item::keys::RecipeBookCategory;
 use mcrs_minecraft_item::recipe::Ingredient;
-use mcrs_minecraft_protocol::item::component::common::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::ctx::MAX_NESTING;
+use mcrs_minecraft_protocol::item::harness::{entry, list_set, one_set, tag_set};
 use mcrs_minecraft_protocol::item::{
     ComponentPatch, Damage, DecodeCtx, EncodeCtx, Holder, ItemComponentValue, Raw, Template,
     TrimPattern,

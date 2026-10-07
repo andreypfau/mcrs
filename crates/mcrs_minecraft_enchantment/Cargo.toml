@@ -16,9 +16,7 @@ mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_item.workspace = true
-mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_loot.workspace = true
-mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_registry.workspace = true
 serde = { workspace = true, features = ["derive"] }
 

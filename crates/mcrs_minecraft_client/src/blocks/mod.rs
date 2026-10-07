@@ -101,7 +101,6 @@ pub fn extend(
     definitions: &BlockDefinitions,
     ids: &[u16],
     registries: &RegistrySet,
-    biomes: &[String],
 ) {
     if catalog.blocks.len() < definitions.state_count() {
         catalog
@@ -135,7 +134,7 @@ pub fn extend(
         catalog.sprites.len(),
     );
 
-    extend_tints(pack, catalog, registries, biomes);
+    extend_tints(pack, catalog, registries);
 }
 
 #[cfg(test)]

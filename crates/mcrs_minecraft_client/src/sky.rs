@@ -21,7 +21,7 @@ use mcrs_minecraft_environment::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
 use crate::vanilla::{self, VanillaAssets};
-use crate::wire_id::{WireId, WireIds, rebuild_wire_ids};
+use crate::wire_id::{WireIds, rebuild_wire_ids};
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
 
@@ -206,8 +206,7 @@ fn build_sky_environment(
         error!("the registry set holds no dimension types to draw a sky from");
         return;
     };
-    let sent = WireId::<DimensionType>::received(joined.dimension_type_id);
-    let Some(type_id) = wire.and_then(|wire| wire.get(sent)) else {
+    let Some(type_id) = wire.and_then(|wire| wire.dimension_type(joined.dimension_type_id)) else {
         error!(
             dimension = %joined.dimension,
             dimension_type = joined.dimension_type_id,

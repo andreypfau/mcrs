@@ -1,6 +1,6 @@
-use mcrs_minecraft_registry::DenseId;
 use std::sync::OnceLock;
 
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::LightColors;
@@ -10,15 +10,23 @@ use mcrs_minecraft_light_color::item::{
 use mcrs_minecraft_registry::shared::Resolved;
 use mcrs_minecraft_registry::tags::{TagRules, build_tags};
 use mcrs_minecraft_registry::{BlockStateId, Id, LoadReport};
+use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_worldgen_testing::assets_dir;
 use proptest::prelude::*;
 
-use crate::corpus::{asset_server, block_tags, blocks, items, registries};
+use crate::corpus::{asset_server, blocks, items};
 
 fn colours() -> &'static LightColors {
     static COLOURS: OnceLock<LightColors> = OnceLock::new();
     COLOURS.get_or_init(|| {
-        LightColors::load(asset_server(), blocks(), block_tags()).unwrap_or_else(|e| panic!("{e}"))
+        LightColors::load(
+            asset_server(),
+            blocks(),
+            &test_registries()
+                .tags::<Block>()
+                .expect("the load builds the block tags"),
+        )
+        .unwrap_or_else(|e| panic!("{e}"))
     })
 }
 
@@ -26,14 +34,14 @@ fn ids() -> &'static Resolved<LightColorIds> {
     static IDS: OnceLock<Resolved<LightColorIds>> = OnceLock::new();
     IDS.get_or_init(|| {
         let mut report = LoadReport::new();
-        LightColorIds::resolve(registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
+        LightColorIds::resolve(test_registries(), &mut report).unwrap_or_else(|| panic!("{report}"))
     })
 }
 
 fn shipped() -> &'static ItemLights {
     static LIGHTS: OnceLock<ItemLights> = OnceLock::new();
     LIGHTS.get_or_init(|| {
-        ItemLights::load(asset_server(), blocks(), items(), registries(), ids())
+        ItemLights::load(asset_server(), blocks(), items(), test_registries(), ids())
             .unwrap_or_else(|e| panic!("{e}"))
     })
 }
@@ -121,7 +129,7 @@ fn an_unlit_furnace_lamp_and_bulb_stay_dark() {
 }
 
 fn water_sensitive() -> Vec<Id<Item>> {
-    let tags = registries()
+    let tags = test_registries()
         .tags::<Item>()
         .expect("the load builds the item tags");
     let tag = tags
@@ -220,7 +228,7 @@ fn edited(
 }
 
 fn load(files: Vec<(String, Vec<u8>)>) -> Result<ItemLights, ItemLightError> {
-    ItemLights::from_files(files, blocks(), items(), registries(), ids())
+    ItemLights::from_files(files, blocks(), items(), test_registries(), ids())
 }
 
 fn an_item_in_two_files_fails() {
@@ -272,12 +280,14 @@ fn the_shipped_item_map_round_trips_unchanged() {
 }
 
 fn a_missing_water_tag_fails() {
-    let item_names = registries()
+    let item_names = test_registries()
         .table("minecraft:item")
         .expect("the item registry is loaded");
     let (no_tags, problems) = build_tags(item_names, TagRules::World, &[], None);
     assert!(problems.is_empty(), "{problems:?}");
-    let without = registries().clone().with_tags(std::sync::Arc::new(no_tags));
+    let without = test_registries()
+        .clone()
+        .with_tags(std::sync::Arc::new(no_tags));
     let mut report = LoadReport::new();
     assert!(LightColorIds::resolve(&without, &mut report).is_none());
     let text = report.to_string();

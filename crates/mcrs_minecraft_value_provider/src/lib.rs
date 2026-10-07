@@ -135,15 +135,6 @@ enum ConstantOrDispatch<V, D> {
     Dispatched(D),
 }
 
-impl<V, D> ConstantOrDispatch<V, D> {
-    fn split(self) -> Result<V, D> {
-        match self {
-            Self::Bare(value) => Ok(value),
-            Self::Dispatched(dispatched) => Err(dispatched),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum IntProvider {
@@ -154,9 +145,12 @@ pub enum IntProvider {
 
 impl<'de> Deserialize<'de> for IntProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::<i32, DispatchedIntProvider>::deserialize(deserializer)?.split() {
-            Ok(value) | Err(DispatchedIntProvider::Constant { value }) => Ok(Self::Constant(value)),
-            Err(dispatched) => {
+        match ConstantOrDispatch::<i32, DispatchedIntProvider>::deserialize(deserializer)? {
+            ConstantOrDispatch::Bare(value)
+            | ConstantOrDispatch::Dispatched(DispatchedIntProvider::Constant { value }) => {
+                Ok(Self::Constant(value))
+            }
+            ConstantOrDispatch::Dispatched(dispatched) => {
                 span_ordered(dispatched.span()).map_err(D::Error::custom)?;
                 Ok(Self::Dispatched(dispatched))
             }
@@ -429,11 +423,12 @@ pub enum FloatProvider {
 
 impl<'de> Deserialize<'de> for FloatProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::deserialize(deserializer)?.split() {
-            Ok(value) | Err(DispatchedFloatProvider::Constant { value }) => {
+        match ConstantOrDispatch::deserialize(deserializer)? {
+            ConstantOrDispatch::Bare(value)
+            | ConstantOrDispatch::Dispatched(DispatchedFloatProvider::Constant { value }) => {
                 Ok(Self::Constant(value))
             }
-            Err(dispatched) => {
+            ConstantOrDispatch::Dispatched(dispatched) => {
                 // `UniformFloat` alone refuses an empty span.
                 if let DispatchedFloatProvider::Uniform {
                     min_inclusive,
@@ -529,11 +524,12 @@ pub enum HeightProvider {
 
 impl<'de> Deserialize<'de> for HeightProvider {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match ConstantOrDispatch::deserialize(deserializer)?.split() {
-            Ok(value) | Err(DispatchedHeightProvider::Constant { value }) => {
+        match ConstantOrDispatch::deserialize(deserializer)? {
+            ConstantOrDispatch::Bare(value)
+            | ConstantOrDispatch::Dispatched(DispatchedHeightProvider::Constant { value }) => {
                 Ok(Self::Constant(value))
             }
-            Err(dispatched) => Ok(Self::Dispatched(dispatched)),
+            ConstantOrDispatch::Dispatched(dispatched) => Ok(Self::Dispatched(dispatched)),
         }
     }
 }

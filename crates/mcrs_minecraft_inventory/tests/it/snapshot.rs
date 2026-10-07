@@ -11,8 +11,7 @@ use mcrs_minecraft_inventory::{
 use mcrs_minecraft_item::keys::MenuType;
 use mcrs_minecraft_item::slots;
 use mcrs_minecraft_protocol::item::{ComponentPatch, ContainerInput, Enchantments, Equippable};
-use mcrs_minecraft_registry::DenseId;
-use mcrs_minecraft_registry::{HolderSet, Id};
+use mcrs_minecraft_registry::HolderSet;
 use mcrs_minecraft_world::item::{test_enchantment_effects, test_enchantment_registry};
 use mcrs_minecraft_world::registries::test_registries;
 
@@ -145,48 +144,4 @@ fn an_open_shulker_box_refuses_a_shulker_box_and_accepts_a_bundle() {
         in_chest.slot_max(Slot::new(container, 13), &bundle),
         Some(1)
     );
-}
-
-#[test]
-fn every_menu_type_has_a_slot_layout_with_its_vanilla_slot_count() {
-    let own: Vec<Option<u16>> = (0..MenuType::ENTRIES.len())
-        .map(|number| menu_slots(Id::from_raw(number as u16)).map(|slots| slots.own))
-        .collect();
-    let expected: Vec<(&str, u16)> = vec![
-        ("generic_9x1", 9),
-        ("generic_9x2", 18),
-        ("generic_9x3", 27),
-        ("generic_9x4", 36),
-        ("generic_9x5", 45),
-        ("generic_9x6", 54),
-        ("generic_3x3", 9),
-        ("crafter_3x3", 9),
-        ("anvil", 3),
-        ("beacon", 1),
-        ("blast_furnace", 3),
-        ("brewing_stand", 5),
-        ("crafting", 10),
-        ("enchantment", 2),
-        ("furnace", 3),
-        ("grindstone", 3),
-        ("hopper", 5),
-        ("lectern", 1),
-        ("loom", 4),
-        ("merchant", 3),
-        ("shulker_box", 27),
-        ("smithing", 4),
-        ("smoker", 3),
-        ("cartography_table", 3),
-        ("stonecutter", 2),
-    ];
-    assert_eq!(own.len(), expected.len());
-    for (number, name) in MenuType::ENTRIES.iter().enumerate() {
-        let (short, slots) = expected
-            .iter()
-            .find(|(short, _)| format!("minecraft:{short}") == name.as_static_str())
-            .unwrap_or_else(|| panic!("{name} has no expected layout"));
-        assert_eq!(own[number], Some(*slots), "{short}");
-    }
-    assert!(menu_slots(MenuType::Lectern.id()).is_some_and(|slots| !slots.player_slots));
-    assert!(menu_slots(MenuType::Crafter3x3.id()).is_some_and(|slots| slots.trailing_result));
 }

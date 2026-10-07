@@ -38,7 +38,7 @@ use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundSetPassenger
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::{ChainLookup, Id, RegistryLookup, RegistrySet};
+use mcrs_minecraft_registry::{ChainLookup, RegistryLookup, RegistrySet};
 use mcrs_minecraft_world::entity::villager::VillagerData;
 use mcrs_minecraft_worldgen_feature_place::entity::{
     Equipment as GeneratedEquipment, GeneratedEntity, GeneratedKind, ItemStack as GeneratedStack,
@@ -295,29 +295,27 @@ fn registry_id(
 }
 
 fn villager_data(data: &mcrs_minecraft_worldgen_feature::template::VillagerData) -> VillagerData {
+    use mcrs_minecraft_entity::keys::VillagerType;
     VillagerData {
-        kind: registered_type(data.kind.as_str()),
-        profession: registered_profession(data.profession.as_str()),
+        kind: registered(data.kind.as_str(), VillagerType::find, VillagerType::Plains).id(),
+        profession: registered(
+            data.profession.as_str(),
+            VillagerProfession::find,
+            VillagerProfession::None,
+        ),
         level: data.level,
     }
 }
 
-fn registered_type(name: &str) -> Id<mcrs_minecraft_entity::keys::VillagerType> {
-    mcrs_minecraft_entity::keys::VillagerType::find(name)
-        .unwrap_or_else(|| {
-            tracing::warn!(name, "a template villager names a type the registry lacks");
-            mcrs_minecraft_entity::keys::VillagerType::Plains
-        })
-        .id()
-}
-
-fn registered_profession(name: &str) -> VillagerProfession {
-    VillagerProfession::find(name).unwrap_or_else(|| {
+fn registered<K>(name: &str, find: fn(&str) -> Option<K>, fallback: K) -> K {
+    find(name).unwrap_or_else(|| {
+        let registry = std::any::type_name::<K>();
         tracing::warn!(
             name,
-            "a template villager names a profession the registry lacks"
+            registry,
+            "a template villager names an entry the registry lacks"
         );
-        VillagerProfession::None
+        fallback
     })
 }
 

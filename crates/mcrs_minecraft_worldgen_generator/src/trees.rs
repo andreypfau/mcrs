@@ -451,7 +451,7 @@ pub(super) fn compile_provider(
     };
     let typed: &TypedBlockStateProvider = match direct {
         DirectBlockStateProvider::State(state) => {
-            return Ok(StateProvider::Simple(r.resolve(&state.state())?));
+            return Ok(StateProvider::Simple(r.resolve(state)?));
         }
         DirectBlockStateProvider::Typed(typed) => typed,
     };

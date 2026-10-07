@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_app::{App, Plugin};
 use bevy_asset::{Assets, Handle};
@@ -82,26 +83,17 @@ pub(crate) fn build_dimension_structures(
     registries: Res<RegistrySet>,
 ) {
     let Some(sources) = sources else { return };
-    let biomes = registries
-        .registry::<Biome>()
-        .expect("the data pack loader parses minecraft:worldgen/biome");
-    let biome_tags = registries
-        .tags::<Biome>()
-        .expect("the data pack loader builds the biome tags");
-    let structure_registry = registries
-        .registry::<Structure>()
-        .expect("the data pack declares minecraft:worldgen/structure");
-    let structure_tags = registries
-        .tags::<Structure>()
-        .expect("the data pack loader builds the structure tags");
+    let biomes = registries.loaded_registry::<Biome>();
+    let biome_tags = registries.loaded_tags::<Biome>();
+    let structure_registry = registries.loaded_registry::<Structure>();
+    let structure_tags = registries.loaded_tags::<Structure>();
 
-    let sets: BTreeMap<ResourceLocation, StructureSet> =
-        named(&registries, &tables.structure_sets, |set| set)
-            .into_iter()
-            .map(|(id, set)| (id, set.clone()))
-            .collect();
-    let structure_assets = named(&registries, &tables.structures, |asset| asset);
-    let pool_assets = named(&registries, &tables.template_pools, |asset| asset);
+    let sets: BTreeMap<ResourceLocation, StructureSet> = named(&registries, &tables.structure_sets)
+        .into_iter()
+        .map(|(id, set)| (id, set.clone()))
+        .collect();
+    let structure_assets = named(&registries, &tables.structures);
+    let pool_assets = named(&registries, &tables.template_pools);
     let template_handles: BTreeMap<ResourceLocation, Handle<TemplateAsset>> = pool_assets
         .values()
         .map(|asset| &asset.deps)

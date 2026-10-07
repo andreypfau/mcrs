@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 
-use crate::{corpus, release};
+use crate::corpus;
 
 const PREFIX: &str = "data/minecraft/";
 const EXPERIMENTAL_PACKS: &str = "datapacks/";
@@ -68,24 +68,17 @@ impl Datapack {
     pub fn parse(text: &str) -> Result<Self, String> {
         serde_json::from_str(text).map_err(|error| error.to_string())
     }
-
-    pub fn elements(&self) -> BTreeMap<String, bool> {
-        self.registries
-            .iter()
-            .map(|(name, flags)| (name.clone(), flags.elements))
-            .collect()
-    }
 }
 
-pub fn from_jar(jar: &[u8], registries: &BTreeMap<String, bool>) -> Result<Names, String> {
+pub fn from_jar(jar: &[u8], datapack: &Datapack) -> Result<Names, String> {
     let mut directories = HashMap::new();
     let mut names = Names::default();
-    for (registry, elements) in registries {
+    for (registry, flags) in &datapack.registries {
         let path = registry
             .strip_prefix(NAMESPACE)
             .ok_or_else(|| format!("{registry}: not a registry of the minecraft namespace"))?;
         directories.insert(path, registry.as_str());
-        if *elements {
+        if flags.elements {
             names.entries.insert(registry.clone(), BTreeSet::new());
         }
     }
@@ -159,10 +152,6 @@ fn identifier_of(file: &str, text: &str) -> Result<String, String> {
         .map_err(|error| format!("{file}: {error}"))
 }
 
-pub fn render(names: &Names) -> Result<String, String> {
-    release::pretty(names)
-}
-
 pub fn read(path: &Path) -> Result<Names, String> {
     match fs::read_to_string(path) {
         Ok(text) => {
@@ -201,6 +190,7 @@ pub fn diff(old: &Names, new: &Names) -> Vec<Row> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::release;
     use crate::testing::{scratch, zipped};
 
     type Sets = BTreeMap<String, BTreeSet<String>>;
@@ -220,14 +210,25 @@ mod tests {
             .collect()
     }
 
-    fn flags(rows: &[(&str, bool)]) -> BTreeMap<String, bool> {
-        rows.iter()
-            .map(|(name, elements)| ((*name).to_owned(), *elements))
-            .collect()
+    fn datapack(rows: &[(&str, bool)]) -> Datapack {
+        Datapack {
+            others: IgnoredAny,
+            registries: rows
+                .iter()
+                .map(|(name, elements)| {
+                    let flags = Flags {
+                        elements: *elements,
+                        stable: false,
+                        tags: false,
+                    };
+                    ((*name).to_owned(), flags)
+                })
+                .collect(),
+        }
     }
 
     fn names_of(entries: &[(&str, &[u8])], registries: &[(&str, bool)]) -> Result<Names, String> {
-        from_jar(&zipped(entries), &flags(registries))
+        from_jar(&zipped(entries), &datapack(registries))
     }
 
     fn lines(rows: &[Row]) -> Vec<String> {
@@ -432,9 +433,9 @@ mod tests {
 
         let first = names_of(&forward, &registries).unwrap();
         let second = names_of(&backward, &registries).unwrap();
-        let text = render(&first).unwrap();
+        let text = release::pretty(&first).unwrap();
 
-        assert_eq!(text, render(&second).unwrap());
+        assert_eq!(text, release::pretty(&second).unwrap());
         assert!(text.find("minecraft:a").unwrap() < text.find("minecraft:b").unwrap());
         assert!(text.find("minecraft:y").unwrap() < text.find("minecraft:z").unwrap());
         assert!(text.ends_with("}\n"));
@@ -481,10 +482,10 @@ mod tests {
             "minecraft:a":{"elements":true,"stable":true,"tags":false},
             "minecraft:b":{"elements":false,"stable":false,"tags":true}}}"#;
 
-        assert_eq!(
-            Datapack::parse(text).unwrap().elements(),
-            flags(&[("minecraft:a", true), ("minecraft:b", false)])
-        );
+        let jar = zipped(&[("pack.mcmeta", EMPTY)]);
+        let names = from_jar(&jar, &Datapack::parse(text).unwrap()).unwrap();
+
+        assert_eq!(names.entries, sets(&[("minecraft:a", &[])]));
     }
 
     #[test]

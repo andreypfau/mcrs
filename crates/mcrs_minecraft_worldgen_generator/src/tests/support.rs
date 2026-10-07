@@ -121,21 +121,6 @@ use mcrs_minecraft_registry::{Registry, Tags};
 use mcrs_minecraft_worldgen_feature_place::terrain_skin::BiomeClimate;
 use mcrs_minecraft_worldgen_structure::Structure;
 
-pub fn text_ordered_table(
-    registry: &str,
-    names: impl IntoIterator<Item = ResourceLocation<std::sync::Arc<str>>>,
-) -> std::sync::Arc<mcrs_minecraft_registry::NameTable> {
-    let mut names: Vec<_> = names.into_iter().collect();
-    names.sort_by(|a, b| a.as_str().cmp(b.as_str()));
-    std::sync::Arc::new(
-        mcrs_minecraft_registry::NameTable::new(
-            ResourceLocation::read(registry).expect("a registry key"),
-            names,
-        )
-        .expect("a table of distinct names"),
-    )
-}
-
 /// Every block tag of the corpus: what the freeze hands the heightmap table and
 /// the ore rule tests.
 pub fn block_tags() -> &'static Tags<Block> {

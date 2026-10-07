@@ -694,7 +694,10 @@ mod exhaustive {
                 seeded.insert(kind);
             }
         }
-        for id in GeneratedBlockEntity::IDS {
+        for id in GeneratedBlockEntity::KINDS
+            .iter()
+            .map(|kind| kind.as_static_str())
+        {
             assert!(
                 dump.types.iter().any(|t| t == id),
                 "{id} is not a registered block entity type"

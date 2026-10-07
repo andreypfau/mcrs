@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use bevy_app::{
     App, First, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last,
     PluginsState, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, SubApp, Update,
@@ -431,14 +432,12 @@ pub fn spawn_dim_subapp(
             let biome_registry = sub_app
                 .world()
                 .resource::<RegistrySet>()
-                .registry::<Biome>()
-                .expect("the data pack loader parses minecraft:worldgen/biome");
+                .loaded_registry::<Biome>();
             let blocks = sub_app.world().resource::<Blocks>().0.clone();
             let block_tags = sub_app
                 .world()
                 .resource::<RegistrySet>()
-                .tags::<Block>()
-                .expect("the data pack loader builds the block tags");
+                .loaded_tags::<Block>();
             let surface_ids = sub_app.world().resource::<Resolved<SurfaceIds>>().clone();
             let fill_ids = sub_app.world().resource::<Resolved<FillIds>>().clone();
             let preset_tables = sub_app

@@ -84,7 +84,7 @@ fn main() {
 }
 
 fn recapture(args: &[String]) -> Result<(), String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = workspace_root();
     match args {
         [all] if all == "--all" => {
             let failed: Vec<&str> = fixtures::FIXTURES
@@ -114,7 +114,7 @@ fn names_report(args: &[String]) -> Result<(), String> {
     if !args.is_empty() {
         usage();
     }
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = workspace_root();
     let descriptor = &*RELEASE;
     let download = release::Download {
         url: descriptor.jar.url.to_owned(),
@@ -172,7 +172,7 @@ fn usage() -> ! {
 
 fn run(options: &Options) -> Result<(), String> {
     let id = options.id.as_str();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = workspace_root();
     release::refuse_dirty(&status(&root)?, options.allow_dirty)?;
 
     let manifest = get(release::MANIFEST_URL)?;
@@ -223,11 +223,7 @@ fn run(options: &Options) -> Result<(), String> {
 
 fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), String> {
     let stored = root.join(REPORTS);
-    let datapack = stored.join("datapack.json");
-    let text = fs::read_to_string(&datapack).map_err(|error| corpus::io(&datapack, error))?;
-    let datapack_report = names::Datapack::parse(&text)
-        .map_err(|error| format!("{}: {error}", datapack.display()))?;
-    let new = names::from_jar(jar, &datapack_report.elements())?;
+    let new = names::from_jar(jar, &datapack_report(&stored)?)?;
     let old = names::read(&stored.join(NAMES_FILE))?;
     let rows = names::diff(&old, &new);
     let text: String = rows.iter().map(|row| format!("{row}\n")).collect();
@@ -235,7 +231,7 @@ fn write_names(root: &Path, jar: &[u8], diff_out: Option<&Path>) -> Result<(), S
     println!("names diff: {} rows", rows.len());
     print!("{text}");
     write_diff(diff_out, "names.txt", &text)?;
-    write(&stored.join(NAMES_FILE), &names::render(&new)?)?;
+    write(&stored.join(NAMES_FILE), &release::pretty(&new)?)?;
 
     write_keys(root, Some(&new))
 }
@@ -244,12 +240,14 @@ fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+fn datapack_report(stored: &Path) -> Result<names::Datapack, String> {
+    let path = stored.join("datapack.json");
+    let text = fs::read_to_string(&path).map_err(|error| corpus::io(&path, error))?;
+    names::Datapack::parse(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
 fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, String> {
     let stored = root.join(REPORTS);
-    let datapack = stored.join("datapack.json");
-    let text = fs::read_to_string(&datapack).map_err(|error| corpus::io(&datapack, error))?;
-    let datapack_report = names::Datapack::parse(&text)
-        .map_err(|error| format!("{}: {error}", datapack.display()))?;
     let read;
     let names = match names {
         Some(names) => names,
@@ -260,7 +258,13 @@ fn keys_files(root: &Path, names: Option<&names::Names>) -> Result<keys::Files, 
     };
     let registries = registries::read(&stored.join("registries.json"))?;
     let above = keys::above_catalog(root, owners::OWNERS)?;
-    keys::generate(&registries, &datapack_report, names, owners::OWNERS, &above)
+    keys::generate(
+        &registries,
+        &datapack_report(&stored)?,
+        names,
+        owners::OWNERS,
+        &above,
+    )
 }
 
 fn write_keys(root: &Path, names: Option<&names::Names>) -> Result<(), String> {

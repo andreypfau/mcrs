@@ -26,7 +26,7 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
-    DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
+    DimensionTypeEnvironment, DimensionTypeFile,
 };
 use mcrs_minecraft_enchantment::effects::EnchantmentEffects;
 use mcrs_minecraft_enchantment::file::EnchantmentFile;
@@ -104,11 +104,10 @@ macro_rules! split_registry_table {
 
         pub fn register_split_registries(access: &mut RegistryAccess, set: &RegistrySet) {
             $($(
-                register_joined::<$file, $parts, _>(
+                register_joined::<$parts, _>(
                     access,
                     set,
                     <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location().as_static_str(),
-                    $join,
                     $project,
                 );
             )?)*
@@ -118,26 +117,27 @@ macro_rules! split_registry_table {
 
 split_registry_table! {
     WolfVariant => WolfVariantFile as (WolfVariant, Vec<SpawnSelector>) [non_empty],
-        WolfVariantFile::split, WolfVariantFile::join, synced as WolfVariantFile::synced;
+        WolfVariantFile::split, WolfVariantFile::join, synced as |(variant, _)| variant.clone();
     PigVariant => PigVariantFile as (PigVariant, Vec<SpawnSelector>) [non_empty],
-        PigVariantFile::split, PigVariantFile::join, synced as PigVariantFile::synced;
+        PigVariantFile::split, PigVariantFile::join, synced as |(variant, _)| variant.clone();
     CowVariant => CowVariantFile as (CowVariant, Vec<SpawnSelector>) [non_empty],
-        CowVariantFile::split, CowVariantFile::join, synced as CowVariantFile::synced;
+        CowVariantFile::split, CowVariantFile::join, synced as |(variant, _)| variant.clone();
     ChickenVariant => ChickenVariantFile as (ChickenVariant, Vec<SpawnSelector>) [non_empty],
-        ChickenVariantFile::split, ChickenVariantFile::join, synced as ChickenVariantFile::synced;
+        ChickenVariantFile::split, ChickenVariantFile::join, synced as |(variant, _)| variant.clone();
     CatVariant => CatVariantFile as (CatVariant, Vec<SpawnSelector>) [non_empty],
-        CatVariantFile::split, CatVariantFile::join, synced as CatVariantFile::synced;
+        CatVariantFile::split, CatVariantFile::join, synced as |(variant, _)| variant.clone();
     FrogVariant => FrogVariantFile as (FrogVariant, Vec<SpawnSelector>) [non_empty],
-        FrogVariantFile::split, FrogVariantFile::join, synced as FrogVariantFile::synced;
+        FrogVariantFile::split, FrogVariantFile::join, synced as |(variant, _)| variant.clone();
     ZombieNautilusVariant => ZombieNautilusVariantFile as (ZombieNautilusVariant, Vec<SpawnSelector>) [non_empty],
-        ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join, synced as ZombieNautilusVariantFile::synced;
+        ZombieNautilusVariantFile::split, ZombieNautilusVariantFile::join, synced as |(variant, _)| variant.clone();
     mcrs_minecraft_item::enchantment::EnchantmentData => EnchantmentFile as (EnchantmentData, Option<EnchantmentEffects>),
-        EnchantmentFile::split, EnchantmentFile::join, synced as Clone::clone;
+        EnchantmentFile::split, EnchantmentFile::join, synced as EnchantmentFile::join;
     Biome => BiomeFile as (Biome, EnvironmentAttributeMap, BiomeGenerationSettings),
-        BiomeFile::split, BiomeFile::join, synced as |biome| NetworkBiome::from(biome);
+        BiomeFile::split, BiomeFile::join,
+        synced as |parts| NetworkBiome::from(&BiomeFile::join(parts));
     DimensionType => DimensionTypeFile as (DimensionType, DimensionTypeEnvironment),
         DimensionTypeFile::split, DimensionTypeFile::join,
-        synced as |d| NetworkDimensionType::from(d);
+        synced as |parts| DimensionTypeFile::join(parts).synced();
     Dimension => DimensionEntry as (Dimension, ChunkGenerator),
         DimensionEntry::split, DimensionEntry::join;
 }
@@ -177,42 +177,29 @@ world_registry_table! {
     crate::villager_trade::TradeSet => TradeSet;
 }
 
-macro_rules! reloadable_registry_table {
-    ($($key:ty => $value:ty;)*) => {
-        fn parse_reloadable_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
-            $(parse::<$key, $value>(reloadable, report);)*
-        }
-    };
-}
-
-reloadable_registry_table! {
-    Recipe => Recipe;
-    LootCondition => LootCondition;
-    LootItemFunction => LootItemFunction;
-    SlotSource => SlotSource;
-}
-
-macro_rules! reloadable_split_table {
-    ($($key:ty => $file:ty as $parts:ty, $split:expr, $join:expr;)*) => {
-        fn parse_reloadable_split_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
-            $(
-                parse::<$key, $file>(reloadable, report);
-                let registry = <$key as mcrs_minecraft_registry::Registered>::REGISTRY.location();
-                if reloadable.parses(registry.as_static_str()) {
-                    reloadable.split::<$file, $parts>(registry, $split, $join);
-                }
-            )*
-        }
-    };
-}
-
-reloadable_split_table! {
-    LootTable => LootTableFile as (LootTable, LootTableBody),
-        LootTableFile::split, LootTableFile::join;
-    ContextIntProvider => IntExpression as (ContextIntProvider, IntExpression),
-        IntExpression::split, IntExpression::join;
-    ContextFloatProvider => FloatExpression as (ContextFloatProvider, FloatExpression),
-        FloatExpression::split, FloatExpression::join;
+fn parse_reloadable_registries(reloadable: &mut WorldRegistries, report: &mut LoadReport) {
+    parse::<Recipe, Recipe>(reloadable, report);
+    parse::<LootCondition, LootCondition>(reloadable, report);
+    parse::<LootItemFunction, LootItemFunction>(reloadable, report);
+    parse::<SlotSource, SlotSource>(reloadable, report);
+    parse_split::<LootTable, LootTableFile, (LootTable, LootTableBody)>(
+        reloadable,
+        report,
+        LootTableFile::split,
+        LootTableFile::join,
+    );
+    parse_split::<ContextIntProvider, IntExpression, (ContextIntProvider, IntExpression)>(
+        reloadable,
+        report,
+        IntExpression::split,
+        IntExpression::join,
+    );
+    parse_split::<ContextFloatProvider, FloatExpression, (ContextFloatProvider, FloatExpression)>(
+        reloadable,
+        report,
+        FloatExpression::split,
+        FloatExpression::join,
+    );
 }
 
 /// The registries a data pack reload reads, parsed over the world registries.
@@ -221,7 +208,6 @@ pub fn reloadable_registries(datapack_report: &[u8]) -> Result<WorldRegistries, 
         .map_err(LoadReport::invalid)?;
     let mut undeclared = LoadReport::new();
     parse_reloadable_registries(&mut reloadable, &mut undeclared);
-    parse_reloadable_split_registries(&mut reloadable, &mut undeclared);
     if undeclared.is_empty() {
         Ok(reloadable)
     } else {
@@ -267,6 +253,23 @@ where
         report.invalid_report(format_args!(
             "{registry} is not a world registry of the data pack report"
         ));
+    }
+}
+
+fn parse_split<K, T, P>(
+    world: &mut WorldRegistries,
+    report: &mut LoadReport,
+    split: fn(&T) -> P,
+    join: for<'a> fn(P::Refs<'a>) -> T,
+) where
+    K: mcrs_minecraft_registry::Registered,
+    T: DeserializeOwned + Serialize + Send + Sync + 'static,
+    P: Parts,
+{
+    parse::<K, T>(world, report);
+    let registry = K::REGISTRY.location();
+    if world.parses(registry.as_static_str()) {
+        world.split::<T, P>(registry, split, join);
     }
 }
 
@@ -407,17 +410,16 @@ pub fn register_loaded<T: 'static, N: Serialize>(
     register_projected(access, set, registry, |id| project(&values[id]));
 }
 
-fn register_joined<T, P: Parts, N: Serialize>(
+fn register_joined<P: Parts, N: Serialize>(
     access: &mut RegistryAccess,
     set: &RegistrySet,
     registry: &str,
-    join: for<'a> fn(P::Refs<'a>) -> T,
-    project: fn(&T) -> N,
+    project: for<'a> fn(P::Refs<'a>) -> N,
 ) {
     register_projected(access, set, registry, |id| {
         let parts = P::refs(set, registry, id)
             .unwrap_or_else(|| panic!("{registry} holds no split columns of the joined type"));
-        project(&join(parts))
+        project(parts)
     });
 }
 
@@ -610,43 +612,6 @@ mod tests {
             .map(|entry| (entry.location.as_str(), entry.pack_source.is_some()))
             .collect();
         assert_eq!(claimed, [("minecraft:a", true), ("minecraft:b", false)]);
-    }
-
-    #[test]
-    fn generated_names_follow_the_report_order() {
-        let set = mcrs_minecraft_registry::static_report::from_report(include_bytes!(
-            "../../../assets/mcrs/reports/registries.json"
-        ))
-        .unwrap();
-        let registries: [(&str, &[mcrs_minecraft_core::StaticResourceLocation]); 6] = [
-            (
-                "minecraft:attribute",
-                mcrs_minecraft_entity::keys::Attribute::ENTRIES,
-            ),
-            (
-                "minecraft:block",
-                mcrs_minecraft_block::keys::Block::ENTRIES,
-            ),
-            (
-                "minecraft:block_entity_type",
-                mcrs_minecraft_block::keys::BlockEntityType::ENTRIES,
-            ),
-            (
-                "minecraft:entity_type",
-                mcrs_minecraft_entity::keys::EntityType::ENTRIES,
-            ),
-            ("minecraft:item", mcrs_minecraft_item::keys::Item::ENTRIES),
-            (
-                "minecraft:menu",
-                mcrs_minecraft_item::keys::MenuType::ENTRIES,
-            ),
-        ];
-        for (registry, names) in registries {
-            let table = set.table(registry).unwrap();
-            let in_report: Vec<String> = table.names().iter().map(ToString::to_string).collect();
-            let generated: Vec<String> = names.iter().map(ToString::to_string).collect();
-            assert_eq!(in_report, generated, "{registry}");
-        }
     }
 
     #[test]

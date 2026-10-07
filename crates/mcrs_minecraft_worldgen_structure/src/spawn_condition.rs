@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_item::component::common::MinMaxBounds;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_registry::HolderSet;
@@ -27,7 +28,7 @@ pub enum SpawnCondition {
         biomes: HolderSet<mcrs_minecraft_biome::Biome>,
     },
     MoonBrightness {
-        range: DoubleBounds,
+        range: MinMaxBounds<f64>,
     },
 }
 
@@ -37,62 +38,6 @@ mcrs_minecraft_registry::dispatch! {
         Structure => Structure,
         MoonBrightness => MoonBrightness,
         Biome => Biome,
-    }
-}
-
-/// `MinMaxBounds.Doubles`: a bare number is a point, an object holds either
-/// bound or both, and a point writes back as the bare number.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DoubleBounds {
-    pub min: Option<f64>,
-    pub max: Option<f64>,
-}
-
-impl DoubleBounds {
-    pub fn matches(&self, value: f64) -> bool {
-        !self.min.is_some_and(|min| min > value) && !self.max.is_some_and(|max| max < value)
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FullBounds {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    min: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    max: Option<f64>,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum BoundsRepr {
-    Point(f64),
-    Full(FullBounds),
-}
-
-impl<'de> Deserialize<'de> for DoubleBounds {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let (min, max) = match BoundsRepr::deserialize(d)? {
-            BoundsRepr::Point(value) => (Some(value), Some(value)),
-            BoundsRepr::Full(full) => (full.min, full.max),
-        };
-        if let (Some(min), Some(max)) = (min, max)
-            && min > max
-        {
-            return Err(serde::de::Error::custom(format!(
-                "min {min} is above max {max}"
-            )));
-        }
-        Ok(DoubleBounds { min, max })
-    }
-}
-
-impl Serialize for DoubleBounds {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match (self.min, self.max) {
-            (Some(min), Some(max)) if min == max => s.serialize_f64(min),
-            (min, max) => FullBounds { min, max }.serialize(s),
-        }
     }
 }
 
@@ -112,7 +57,7 @@ pub struct SpawnContext {
 pub enum Condition {
     Structure(IdSet),
     Biome(IdSet),
-    MoonBrightness(DoubleBounds),
+    MoonBrightness(MinMaxBounds<f64>),
 }
 
 impl Condition {
@@ -221,7 +166,7 @@ mod tests {
 
     #[test]
     fn a_lower_bound_matches_at_and_above_it() {
-        let at_least: DoubleBounds = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
+        let at_least: MinMaxBounds<f64> = serde_json::from_str(r#"{"min":0.9}"#).unwrap();
         assert!(at_least.matches(1.0) && at_least.matches(0.9) && !at_least.matches(0.8));
     }
 }

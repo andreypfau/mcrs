@@ -1,7 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::bitset::DenseId;
 use crate::holder_set::skipping_sets;
 use crate::id::Id;
 use mcrs_minecraft_core::RegistryValue;

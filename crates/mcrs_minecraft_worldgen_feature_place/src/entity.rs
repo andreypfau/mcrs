@@ -136,44 +136,12 @@ mcrs_minecraft_registry::dispatch! {
 }
 
 impl GeneratedKind {
-    pub const IDS: [&'static str; 14] = [
-        mcrs_minecraft_entity::keys::EntityType::Witch.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Cat.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ElderGuardian.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Drowned.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Chicken.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ZombieNautilus.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Shulker.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ItemFrame.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Evoker.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Vindicator.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Allay.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::Villager.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ZombieVillager.as_static_str(),
-        mcrs_minecraft_entity::keys::EntityType::ChestMinecart.as_static_str(),
-    ];
-
     pub fn id(&self) -> &'static str {
-        match self {
-            GeneratedKind::Witch { .. } => Self::IDS[0],
-            GeneratedKind::Cat { .. } => Self::IDS[1],
-            GeneratedKind::ElderGuardian { .. } => Self::IDS[2],
-            GeneratedKind::Drowned { .. } => Self::IDS[3],
-            GeneratedKind::Chicken { .. } => Self::IDS[4],
-            GeneratedKind::ZombieNautilus { .. } => Self::IDS[5],
-            GeneratedKind::Shulker { .. } => Self::IDS[6],
-            GeneratedKind::ItemFrame { .. } => Self::IDS[7],
-            GeneratedKind::Evoker { .. } => Self::IDS[8],
-            GeneratedKind::Vindicator { .. } => Self::IDS[9],
-            GeneratedKind::Allay { .. } => Self::IDS[10],
-            GeneratedKind::Villager { .. } => Self::IDS[11],
-            GeneratedKind::ZombieVillager { .. } => Self::IDS[12],
-            GeneratedKind::ChestMinecart { .. } => Self::IDS[13],
-        }
+        self.kind().as_static_str()
     }
 }
 
-pub use mcrs_minecraft_item::keys::Item;
+use mcrs_minecraft_item::keys::Item;
 
 /// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1005,7 +973,6 @@ mod tests {
         for entity in all {
             let compound = to_nbt_compound(&entity).unwrap();
             let id = compound.get_string("id").unwrap();
-            assert!(GeneratedKind::IDS.contains(&id), "{id}");
             assert_eq!(entity.kind.id(), id);
             seen.insert(id.to_owned());
             assert_eq!(
@@ -1014,7 +981,7 @@ mod tests {
                 "{id}"
             );
         }
-        assert_eq!(seen.len(), GeneratedKind::IDS.len());
+        assert_eq!(seen.len(), GeneratedKind::KINDS.len());
     }
 
     #[test]

@@ -1,7 +1,5 @@
 //! Bytes written by the vanilla packet stream codecs; `id` lines are the registry
 //! ids the capture session had.
-
-use mcrs_minecraft_registry::DenseId;
 use std::collections::HashMap;
 
 use mcrs_minecraft_core::codec::Bounded as Range;

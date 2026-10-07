@@ -94,8 +94,7 @@ fn merge(
     };
 
     let mut merged = base.clone();
-    for id in registry.ids() {
-        let name = registry.name(id).expect("an id of the registry has a name");
+    for (id, name) in registry.iter() {
         merged.insert(
             ResourceKey::from_location(name.clone()),
             DimensionEntry::join((&dimensions[id], &generators[id])),

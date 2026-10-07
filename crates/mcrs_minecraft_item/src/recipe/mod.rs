@@ -2,6 +2,7 @@ mod ingredient;
 mod pattern;
 
 use std::fmt;
+use std::ops::RangeInclusive;
 
 use crate::component::common::MinMaxBounds;
 use crate::component::predicate::PotionsPredicate;
@@ -200,10 +201,7 @@ pub struct TransmuteRecipe {
 }
 
 impl TransmuteRecipe {
-    const MATERIAL_COUNT: MinMaxBounds<i32> = MinMaxBounds {
-        min: Some(1),
-        max: Some(8),
-    };
+    const MATERIAL_COUNT: RangeInclusive<i32> = 1..=8;
 
     fn default_material_count() -> MinMaxBounds<i32> {
         MinMaxBounds {
@@ -219,38 +217,26 @@ impl TransmuteRecipe {
 
 impl Validate for TransmuteRecipe {
     fn validate(&self) -> Result<(), String> {
-        contained_in(&self.material_count, &Self::MATERIAL_COUNT)
+        contained_in(&self.material_count, Self::MATERIAL_COUNT)
     }
 }
 
 /// The item a transmutation makes, its count and the components it adds; a
 /// bare item id reads as that item alone.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct TransmuteResult {
+    #[serde(rename = "id", default, skip_serializing_if = "Option::is_none")]
     pub item: Option<ResourceKey<Item>>,
-    pub count: codec::Bounded<1, 99, 1>,
-    pub components: ComponentPatch,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TransmuteResultRepr {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    id: Option<ResourceKey<Item>>,
     #[serde(default, skip_serializing_if = "is_default")]
-    count: codec::Bounded<1, 99, 1>,
+    pub count: codec::Bounded<1, 99, 1>,
     #[serde(default, skip_serializing_if = "ComponentPatch::is_empty")]
-    components: ComponentPatch,
+    pub components: ComponentPatch,
 }
 
 impl Serialize for TransmuteResult {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        TransmuteResultRepr {
-            id: self.item.clone(),
-            count: self.count,
-            components: self.components.clone(),
-        }
-        .serialize(s)
+        TransmuteResult::serialize(self, s)
     }
 }
 
@@ -274,13 +260,7 @@ impl<'de> Deserialize<'de> for TransmuteResult {
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<TransmuteResult, A::Error> {
-                let repr =
-                    TransmuteResultRepr::deserialize(value::MapAccessDeserializer::new(map))?;
-                Ok(TransmuteResult {
-                    item: repr.id,
-                    count: repr.count,
-                    components: repr.components,
-                })
+                TransmuteResult::deserialize(value::MapAccessDeserializer::new(map))
             }
         }
 
@@ -314,10 +294,7 @@ pub struct BookCloningRecipe {
 }
 
 impl BookCloningRecipe {
-    const GENERATIONS: MinMaxBounds<i32> = MinMaxBounds {
-        min: Some(0),
-        max: Some(2),
-    };
+    const GENERATIONS: RangeInclusive<i32> = 0..=2;
 
     fn default_generations() -> MinMaxBounds<i32> {
         MinMaxBounds {
@@ -333,7 +310,7 @@ impl BookCloningRecipe {
 
 impl Validate for BookCloningRecipe {
     fn validate(&self) -> Result<(), String> {
-        contained_in(&self.allowed_generations, &Self::GENERATIONS)
+        contained_in(&self.allowed_generations, Self::GENERATIONS)
     }
 }
 
@@ -471,19 +448,16 @@ pub struct PotionIngredient {
     pub potion_contents: Option<PotionsPredicate>,
 }
 
-fn contained_in(bounds: &MinMaxBounds<i32>, allowed: &MinMaxBounds<i32>) -> Result<(), String> {
-    let low = bounds.min.unwrap_or(i32::MIN);
-    let high = bounds.max.unwrap_or(i32::MAX);
-    let (Some(allowed_low), Some(allowed_high)) = (allowed.min, allowed.max) else {
-        return Ok(());
-    };
-    if bounds.min.is_none() || bounds.max.is_none() || low < allowed_low || high > allowed_high {
-        return Err(format!(
-            "Range must be within [{allowed_low}..{allowed_high}], but was {}",
+fn contained_in(bounds: &MinMaxBounds<i32>, allowed: RangeInclusive<i32>) -> Result<(), String> {
+    match (bounds.min, bounds.max) {
+        (Some(low), Some(high)) if allowed.contains(&low) && allowed.contains(&high) => Ok(()),
+        _ => Err(format!(
+            "Range must be within [{}..{}], but was {}",
+            allowed.start(),
+            allowed.end(),
             range_text(bounds)
-        ));
+        )),
     }
-    Ok(())
 }
 
 fn range_text(bounds: &MinMaxBounds<i32>) -> String {

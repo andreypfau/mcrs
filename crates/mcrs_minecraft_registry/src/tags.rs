@@ -5,6 +5,7 @@ use crate::set::{self, ScopeError};
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag_key::TagKey;
+use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -306,34 +307,24 @@ impl<'de> Deserialize<'de> for TagEntry {
                 })
             }
 
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<TagEntry, A::Error> {
-                let mut id = None;
-                let mut required = None;
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "id" => {
-                            if id.is_some() {
-                                return Err(de::Error::duplicate_field("id"));
-                            }
-                            let text = map.next_value::<String>()?;
-                            id = Some(read_reference(&text).map_err(de::Error::custom)?);
-                        }
-                        "required" => {
-                            if required.is_some() {
-                                return Err(de::Error::duplicate_field("required"));
-                            }
-                            required = Some(map.next_value::<bool>()?);
-                        }
-                        _ => {
-                            map.next_value::<IgnoredAny>()?;
-                        }
-                    }
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<TagEntry, A::Error> {
+                #[derive(Deserialize)]
+                struct Object {
+                    id: String,
+                    #[serde(default = "required_by_default")]
+                    required: bool,
                 }
-                let (id, tag) = id.ok_or_else(|| de::Error::missing_field("id"))?;
+
+                fn required_by_default() -> bool {
+                    true
+                }
+
+                let object = Object::deserialize(MapAccessDeserializer::new(map))?;
+                let (id, tag) = read_reference(&object.id).map_err(de::Error::custom)?;
                 Ok(TagEntry {
                     id,
                     tag,
-                    required: required.unwrap_or(true),
+                    required: object.required,
                 })
             }
         }
@@ -412,18 +403,22 @@ pub fn build_tags(
                 .bytes
                 .iter()
                 .all(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r'));
-            if !blank && let Err(error) = serde_json::from_slice::<IgnoredAny>(source.bytes) {
-                skip(&mut problems, error);
-                continue;
-            }
-            let entries = pending.entry(tag).or_default();
             let file = match serde_json::from_slice::<TagFile>(source.bytes) {
                 Ok(file) => file,
                 Err(error) => {
+                    // A shape error can precede a syntax error later in the file, so only a
+                    // file that parses as JSON creates the tag.
+                    if blank
+                        || error.is_data()
+                            && serde_json::from_slice::<IgnoredAny>(source.bytes).is_ok()
+                    {
+                        pending.entry(tag).or_default();
+                    }
                     skip(&mut problems, error);
                     continue;
                 }
             };
+            let entries = pending.entry(tag).or_default();
             if file.replace {
                 entries.clear();
             }
@@ -1015,6 +1010,17 @@ mod tests {
                 ),
                 (Kind::Dropped, "minecraft:needs_lone", &["#minecraft:lone"]),
             ],
+        },
+        Outcome {
+            case: "malformed file whose shape is wrong before its syntax breaks: the tag does not exist",
+            rules: TagRules::Static,
+            tags: &[("minecraft:lone", &[("p", r#"{"values":5,"#)])],
+            members: &[("minecraft:lone", None)],
+            problems: &[(
+                Kind::Skipped,
+                "minecraft:lone",
+                &["tags/minecraft:lone.json"],
+            )],
         },
         Outcome {
             case: "valid JSON the tag codec refuses: the tag exists with no members and a tag that requires it keeps its other members",

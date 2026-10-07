@@ -6,7 +6,7 @@ use mcrs_minecraft_core::TagKey;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_dimension_environment::dimension_type::{
-    DimensionTypeEnvironment, DimensionTypeFile, NetworkDimensionType,
+    DimensionTypeEnvironment, DimensionTypeFile,
 };
 use mcrs_minecraft_dimension_environment::environment::{
     EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator, Weather,
@@ -200,8 +200,7 @@ pub fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds(app
         )
         .unwrap();
 
-        let sent =
-            set.scope(|| serde_json::to_value(NetworkDimensionType::from(dimension_type)).unwrap());
+        let sent = set.scope(|| serde_json::to_value(dimension_type.synced()).unwrap());
         assert_eq!(
             sent.get("timelines").and_then(|v| v.as_str()),
             raw.get("timelines").and_then(|v| v.as_str()),

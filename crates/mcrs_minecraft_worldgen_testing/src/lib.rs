@@ -18,7 +18,6 @@ use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_worldgen_structure::Structure;
 use mcrs_minecraft_worldgen_feature::proto::PlacedFeature;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
-use mcrs_minecraft_block::keys::Block;
 
 pub fn assets_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets")
@@ -183,14 +182,17 @@ fn shipped_names<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Regist
     numbered(folder, shipped_name_list(folder))
 }
 
-fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
-    let roots = std::iter::once(worldgen_dir()).chain(
+fn worldgen_roots() -> impl Iterator<Item = PathBuf> {
+    std::iter::once(worldgen_dir()).chain(
         packs()
             .into_iter()
             .map(|pack| pack.join("minecraft/worldgen")),
-    );
+    )
+}
+
+fn shipped_name_list(folder: &str) -> Vec<ResourceLocation<Arc<str>>> {
     let mut names = Vec::new();
-    for root in roots {
+    for root in worldgen_roots() {
         let base = root.join(folder);
         if base.is_dir() {
             names.extend(json_files(&base).iter().map(|path| id_of(&base, path)));
@@ -299,12 +301,7 @@ fn entries(folder: &str) -> BTreeMap<ResourceLocation, Vec<u8>> {
         builtin::assets(folder)
     };
     let mut shipped: BTreeMap<ResourceLocation, PathBuf> = BTreeMap::new();
-    let roots = std::iter::once(worldgen_dir()).chain(
-        packs()
-            .into_iter()
-            .map(|pack| pack.join("minecraft/worldgen")),
-    );
-    for root in roots {
+    for root in worldgen_roots() {
         let base = root.join(folder);
         if !base.is_dir() {
             continue;
@@ -348,16 +345,8 @@ pub fn with_shipped<R: mcrs_minecraft_registry::Registered>(
 }
 
 fn shipped_registry<R: mcrs_minecraft_registry::Registered>(folder: &str) -> Registry<R> {
-    let root = assets_dir().join("minecraft").join(folder);
-    let names = json_files(&root).into_iter().map(|file| {
-        let relative = file
-            .strip_prefix(&root)
-            .expect("a corpus file is under its folder")
-            .with_extension("");
-        ResourceLocation::minecraft(&relative.to_string_lossy().replace('\\', "/"))
-            .unwrap_or_else(|e| panic!("{folder} holds a file that is no identifier: {e}"))
-    });
-    Registry::<R>::new(R::REGISTRY, names).unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
+    Registry::<R>::new(R::REGISTRY, shipped_ids(folder))
+        .unwrap_or_else(|e| panic!("{folder} does not number: {e}"))
 }
 
 /// What a dimension type names: every registry of the report, with the block
@@ -367,14 +356,8 @@ pub fn dimension_type_set() -> &'static RegistrySet {
     static SET: LazyLock<RegistrySet> = LazyLock::new(|| {
         let report = corpus_set();
         let blocks = report
-            .registry::<Block>()
+            .table(mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
             .expect("the report holds the block registry");
-        let block_names: Vec<_> = blocks
-            .ids()
-            .map(|id| blocks.name(id).expect("a block id has a name").clone())
-            .collect();
-        let blocks = Registry::<Block>::new(mcrs_minecraft_block::keys::BLOCK, block_names)
-            .unwrap_or_else(|e| panic!("the blocks do not number: {e}"));
         let timelines = Registry::<Timeline>::new(mcrs_minecraft_environment::keys::TIMELINE, shipped_ids("timeline"))
             .unwrap_or_else(|e| panic!("the timelines do not number: {e}"));
         let clocks =
@@ -382,19 +365,14 @@ pub fn dimension_type_set() -> &'static RegistrySet {
                 .unwrap_or_else(|e| panic!("the world clocks do not number: {e}"));
         let tables = report
             .tables()
-            .filter(|table| table.registry().as_str() != mcrs_minecraft_block::keys::BLOCK.location().as_static_str())
             .cloned()
-            .chain([
-                Arc::clone(blocks.table()),
-                Arc::clone(timelines.table()),
-                Arc::clone(clocks.table()),
-            ]);
+            .chain([Arc::clone(timelines.table()), Arc::clone(clocks.table())]);
         typed(
             RegistrySet::from_tables(tables).unwrap_or_else(|e| {
                 panic!("the dimension type registries do not join the set: {e}")
             }),
         )
-        .with_tags(shipped_tags(blocks.table(), "block"))
+        .with_tags(shipped_tags(blocks, "block"))
             .with_tags(shipped_tags(timelines.table(), "timeline"))
     });
     &SET

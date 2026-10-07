@@ -1,3 +1,4 @@
+use crate::loaded::Loaded;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -60,12 +61,8 @@ pub(crate) fn build_dimension_routers(
     registries: Res<RegistrySet>,
     structures: Option<Res<DimensionStructures>>,
 ) {
-    let biome_tags = registries
-        .tags::<Biome>()
-        .expect("the data pack loader builds the biome tags");
-    let noise_settings = registries
-        .registry::<NoiseGeneratorSettings>()
-        .expect("the data pack declares minecraft:worldgen/noise_settings");
+    let biome_tags = registries.loaded_tags::<Biome>();
+    let noise_settings = registries.loaded_registry::<NoiseGeneratorSettings>();
 
     let mut routers = DimensionRouters::default();
     for (dimension, entry) in dimensions.iter() {

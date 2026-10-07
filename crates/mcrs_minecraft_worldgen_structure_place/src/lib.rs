@@ -17,17 +17,16 @@ pub mod woodland_mansion;
 use bevy_math::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::{BoundingBox, Mirror, ResourceLocation, Rotation};
+use mcrs_minecraft_core::{BoundingBox, Mirror, Rotation};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed};
-use mcrs_minecraft_worldgen_feature::compile::{
-    BlockResolver, FeatureCompileError, StateQuery, state_of, states_of,
-};
-use mcrs_minecraft_worldgen_feature::placer::{StateMask, WorldGenVolume, WorldStates};
+use mcrs_minecraft_worldgen_feature::compile::{BlockResolver, FeatureCompileError, state_of};
+use mcrs_minecraft_worldgen_feature::placer::{WorldGenVolume, WorldStates};
 use mcrs_minecraft_worldgen_feature::template::FrozenTemplate;
 use mcrs_minecraft_worldgen_feature_place::block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
+pub use mcrs_minecraft_worldgen_feature_place::template::block_mask;
 use mcrs_minecraft_worldgen_feature_place::template::{
     CompiledChain, Placement, SettingsRandom, mirror_state, place_template, rotate_state,
 };
@@ -84,17 +83,6 @@ pub fn state(
             }),
         },
     )
-}
-
-pub fn block_mask(
-    blocks: &dyn BlockResolver,
-    names: &[Block],
-) -> Result<StateMask, FeatureCompileError> {
-    let ids: Vec<ResourceLocation> = names
-        .iter()
-        .map(|block| block.location().to_arc())
-        .collect();
-    states_of(blocks, StateQuery::Names(&ids))
 }
 
 /// `TemplateStructurePiece.postProcess`: the palette drawn from the piece's

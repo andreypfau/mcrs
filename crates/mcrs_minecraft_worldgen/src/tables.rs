@@ -7,7 +7,7 @@ use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry_key::RegistryKey;
 use mcrs_minecraft_registry::shared::SharedResource;
-use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet, UnknownEntry};
+use mcrs_minecraft_registry::{Entries, Id, Registry, RegistrySet};
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use mcrs_minecraft_worldgen_feature::pool::TemplatePool;
@@ -67,21 +67,11 @@ impl Default for WorldgenTables {
 
 #[derive(Debug, Error)]
 pub enum TableError {
-    #[error(transparent)]
-    Unknown(#[from] UnknownEntry),
     #[error("registry {registry} holds {name}, but no value of it loaded")]
     Absent {
         registry: ResourceLocation,
         name: String,
     },
-}
-
-pub fn lookup<'a, R: 'static, T>(
-    registry: &Registry<R>,
-    entries: &'a Entries<R, Option<T>>,
-    name: &str,
-) -> Result<&'a T, TableError> {
-    lookup_id(registry, entries, registry.require_by_name(name)?)
 }
 
 pub fn lookup_id<'a, R: 'static, T>(
@@ -114,17 +104,16 @@ pub fn asset_path<S: AsRef<str>>(
     )
 }
 
-pub fn named<'a, R: 'static, T, V>(
+pub fn named<'a, R: 'static, T>(
     set: &RegistrySet,
     entries: &'a Entries<R, Option<T>>,
-    value: impl Fn(&'a T) -> &'a V,
-) -> BTreeMap<ResourceLocation, &'a V> {
+) -> BTreeMap<ResourceLocation, &'a T> {
     let registry = declared::<R>(set);
     registry
         .ids()
         .filter_map(|id| {
             let name = registry.name(id).expect("an id of the registry has a name");
-            Some((name.clone(), value(entries.get(id)?.as_ref()?)))
+            Some((name.clone(), entries.get(id)?.as_ref()?))
         })
         .collect()
 }

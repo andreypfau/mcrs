@@ -1,4 +1,5 @@
 use crate::WorldSave;
+use crate::loaded::Loaded;
 use crate::world::generate::routers::DimensionBiomeSources;
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::{Commands, ResMut};
@@ -17,7 +18,6 @@ use mcrs_minecraft_worldgen::bevy::NoiseGeneratorSettingsAsset;
 use mcrs_minecraft_worldgen::tables::asset_path;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 use std::env;
-use std::ops::Deref;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -60,8 +60,7 @@ pub(crate) fn bake_dimensions(
         };
         if base.is_empty() {
             base = set
-                .entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()
-                .expect("the data pack loader parses minecraft:worldgen/world_preset")[preset]
+                .loaded_entries::<mcrs_minecraft_world::worldgen::world_preset::WorldPreset, WorldPreset>()[preset]
                 .dimensions
                 .clone();
         }
@@ -91,9 +90,7 @@ pub(crate) fn request_dimension_noise_settings(
     asset_server: Res<AssetServer>,
     mut loaded: ResMut<LoadedRegistryAssets>,
 ) {
-    let settings = set
-        .registry::<NoiseGeneratorSettings>()
-        .expect("the data pack declares minecraft:worldgen/noise_settings");
+    let settings = set.loaded_registry::<NoiseGeneratorSettings>();
     for (_, entry) in dimensions.iter() {
         let ChunkGenerator::Noise(generator) = &entry.generator else {
             continue;
@@ -113,29 +110,33 @@ pub(crate) fn request_dimension_noise_settings(
 /// Every dimension the world spawns, in spawn order. Written once at `Startup`.
 #[derive(Resource, Clone)]
 pub struct DimensionList {
-    entries: Arc<[(ResourceKey<Dimension>, DimensionEntry)]>,
     keys: Arc<[ResourceKey<Dimension>]>,
+    entries: Arc<[DimensionEntry]>,
 }
 
 impl DimensionList {
-    pub fn new(entries: Vec<(ResourceKey<Dimension>, DimensionEntry)>) -> Self {
-        let keys = entries.iter().map(|(key, _)| key.clone()).collect();
+    pub fn new(list: Vec<(ResourceKey<Dimension>, DimensionEntry)>) -> Self {
+        let (keys, entries): (Vec<_>, Vec<_>) = list.into_iter().unzip();
         DimensionList {
+            keys: keys.into(),
             entries: entries.into(),
-            keys,
         }
     }
 
     pub fn keys(&self) -> &Arc<[ResourceKey<Dimension>]> {
         &self.keys
     }
-}
 
-impl Deref for DimensionList {
-    type Target = [(ResourceKey<Dimension>, DimensionEntry)];
+    pub fn iter(&self) -> impl Iterator<Item = (&ResourceKey<Dimension>, &DimensionEntry)> {
+        self.keys.iter().zip(self.entries.iter())
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.entries
+    pub fn len(&self) -> usize {
+        self.keys.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
     }
 }
 

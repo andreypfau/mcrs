@@ -271,10 +271,3 @@ impl DataComponentType {
         self.flags() & flag::nbt_wire != 0
     }
 }
-
-/// Vanilla names the parsed identifier, so a bare path is reported with its
-/// default namespace.
-pub fn unknown_component_error(id: &str) -> String {
-    let namespace = if id.contains(':') { "" } else { "minecraft:" };
-    format!("No component with type: '{namespace}{id}'")
-}

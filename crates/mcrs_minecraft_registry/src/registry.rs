@@ -193,12 +193,12 @@ impl<R> Registry<R> {
         (0..self.len()).filter_map(id_number).map(Id::from_number)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (Id<R>, &ResourceLocation<Arc<str>>)> {
+        self.ids().zip(self.table.names())
+    }
+
     pub fn narrow<N: TryFrom<u16>>(&self, id: Id<R>) -> Result<N, crate::id::NarrowError> {
-        N::try_from(id.number()).map_err(|_| crate::id::NarrowError {
-            registry: self.table.registry().to_string(),
-            id: id.number(),
-            bits: (std::mem::size_of::<N>() * 8) as u32,
-        })
+        id.narrow_in(|| self.table.registry().to_string())
     }
 }
 

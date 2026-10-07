@@ -1,54 +1,13 @@
-use std::fmt;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
-use serde::de::{Error as _, MapAccess, Visitor};
-use serde::ser::SerializeMap;
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::unique_map::UniqueMap;
+
 /// The item each slot range must hold, in the order read.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct SlotsPredicate(pub Vec<(SlotRange, ItemPredicate)>);
-
-impl Serialize for SlotsPredicate {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut map = s.serialize_map(Some(self.0.len()))?;
-        for (range, predicate) in &self.0 {
-            map.serialize_entry(range.name(), predicate)?;
-        }
-        map.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for SlotsPredicate {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct SlotsVisitor;
-
-        impl<'de> Visitor<'de> for SlotsVisitor {
-            type Value = SlotsPredicate;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a map of slot ranges to item predicates")
-            }
-
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<SlotsPredicate, A::Error> {
-                let mut entries: Vec<(SlotRange, ItemPredicate)> = Vec::new();
-                while let Some(range) = map.next_key::<SlotRange>()? {
-                    if entries.iter().any(|(seen, _)| *seen == range) {
-                        return Err(A::Error::custom(format_args!(
-                            "Duplicate key '{}'",
-                            range.name()
-                        )));
-                    }
-                    entries.push((range, map.next_value()?));
-                }
-                Ok(SlotsPredicate(entries))
-            }
-        }
-
-        d.deserialize_map(SlotsVisitor)
-    }
-}
+pub type SlotsPredicate = UniqueMap<SlotRange, ItemPredicate>;
 
 /// One of the named slot ranges of an entity: a single slot such as
 /// `weapon.mainhand`, or a group such as `container.*`.

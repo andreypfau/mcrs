@@ -4,8 +4,9 @@ use mcrs_minecraft_core::registry_key::RegistryValue;
 use serde::{Deserialize, Serialize};
 
 use crate::Text;
-use crate::component::common::{Holder, HolderWireOnly, entry};
+use crate::component::common::{Holder, HolderWireOnly};
 use crate::harness::Sample;
+use crate::harness::entry;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

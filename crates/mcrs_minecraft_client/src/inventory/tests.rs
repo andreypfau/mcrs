@@ -1,4 +1,3 @@
-use mcrs_minecraft_registry::DenseId;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 

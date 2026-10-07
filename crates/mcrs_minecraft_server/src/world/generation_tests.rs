@@ -804,11 +804,8 @@ fn a_fixed_source_stores_the_ids_the_loader_numbered_its_biomes_with() {
         .registry::<Biome>()
         .expect("the loader parses the biomes");
     let ids: std::collections::HashMap<String, u16> = registry
-        .ids()
-        .map(|id| {
-            let name = registry.name(id).expect("an id of the registry has a name");
-            (name.to_string(), id.number())
-        })
+        .iter()
+        .map(|(id, name)| (name.to_string(), id.number()))
         .collect();
     let (router, material) = overworld_material_router(2, &ids);
     let source = test_registries()

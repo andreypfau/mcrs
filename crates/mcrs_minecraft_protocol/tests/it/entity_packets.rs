@@ -11,7 +11,6 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol::{ByteAngle, Decode, Encode, LpVec3, ProtoStack, RegistryId, VarInt};
-use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::{BlockStateId, Id, NoRegistries};
 use uuid::Uuid;
 

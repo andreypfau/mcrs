@@ -1,4 +1,3 @@
-use mcrs_minecraft_registry::DenseId;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

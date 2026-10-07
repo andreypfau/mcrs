@@ -38,8 +38,8 @@ impl BlockState {
 #[serde(deny_unknown_fields)]
 struct StatedBlockState {
     id: ResourceLocation,
-    #[serde(default)]
-    properties: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    properties: Option<BTreeMap<String, String>>,
 }
 
 impl<'de> Deserialize<'de> for BlockState {
@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for BlockState {
             Form::Bare(name) => Ok(BlockState::bare(name)),
             Form::Stated(state) => Ok(BlockState {
                 name: state.id,
-                properties: Some(state.properties),
+                properties: state.properties,
             }),
         }
     }
@@ -58,13 +58,22 @@ impl Serialize for BlockState {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match &self.properties {
             None => self.name.serialize(serializer),
-            Some(properties) => StatedBlockState {
-                id: self.name.clone(),
-                properties: properties.clone(),
-            }
-            .serialize(serializer),
+            Some(_) => serialize_stated(self, serializer),
         }
     }
+}
+
+/// The object form even for a block named alone, where a bare id would read
+/// back as something else.
+pub(crate) fn serialize_stated<S: serde::Serializer>(
+    state: &BlockState,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    StatedBlockState {
+        id: state.name.clone(),
+        properties: state.properties.clone(),
+    }
+    .serialize(serializer)
 }
 
 #[derive(Deserialize)]
@@ -98,5 +107,12 @@ mod tests {
             serde_json::to_string(&state).unwrap(),
             r#"{"id":"minecraft:water","properties":{"level":"0"}}"#
         );
+    }
+
+    #[test]
+    fn a_provider_state_named_alone_keeps_its_object_form() {
+        let json = r#"{"id":"minecraft:stone"}"#;
+        let provider: crate::provider::BlockStateProvider = serde_json::from_str(json).unwrap();
+        assert_eq!(serde_json::to_string(&provider).unwrap(), json);
     }
 }

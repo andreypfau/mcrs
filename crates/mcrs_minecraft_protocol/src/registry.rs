@@ -44,25 +44,6 @@ macro_rules! static_registry_wire {
             }
         }
     };
-    ($($ty:ty),* $(,)?) => {$(
-        impl crate::Encode for $ty {
-            fn encode(&self, w: impl std::io::Write) -> anyhow::Result<()> {
-                crate::registry::encode_registry_id(*self as u16, w)
-            }
-        }
-
-        impl<'a> crate::Decode<'a> for $ty {
-            fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-                let id = <crate::VarInt as crate::Decode>::decode(r)?.0;
-                u16::try_from(id)
-                    .ok()
-                    .and_then(<$ty>::from_protocol_id)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("unexpected enum discriminant {id} in `{}`", stringify!($ty))
-                    })
-            }
-        }
-    )*};
 }
 
 pub(crate) use static_registry_wire;

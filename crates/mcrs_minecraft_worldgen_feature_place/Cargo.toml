@@ -22,7 +22,6 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_random.workspace = true
 mcrs_minecraft_registry.workspace = true
-mcrs_minecraft_worldgen_density.workspace = true
 mcrs_minecraft_worldgen_feature.workspace = true
 mcrs_minecraft_worldgen_noise.workspace = true
 mcrs_minecraft_worldgen_surface.workspace = true

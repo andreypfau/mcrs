@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_core::codec::{PositiveInt, float_value, int_value};
-use mcrs_minecraft_core::{BlockPos, ResourceKey, ResourceLocation};
+use mcrs_minecraft_core::{BlockPos, ResourceKey};
 use mcrs_minecraft_item::Template;
 use mcrs_minecraft_item::component::{ArgbInt, RgbInt};
 use serde::de::Error as _;
@@ -351,11 +351,6 @@ pub enum PositionSource {
     Entity { entity_id: i32, y_offset: f32 },
 }
 
-impl PositionSource {
-    pub const BLOCK_TYPE: ResourceLocation<&'static str> =
-        ResourceLocation::new_static("minecraft:block");
-}
-
 #[derive(Deserialize)]
 #[serde(remote = "Self")]
 enum PositionSourceRepr {
@@ -381,7 +376,10 @@ impl Serialize for PositionSource {
         };
         let mut map = s.serialize_map(Some(2))?;
         map.serialize_entry("pos", &[pos.x, pos.y, pos.z])?;
-        map.serialize_entry("type", Self::BLOCK_TYPE.as_str())?;
+        map.serialize_entry(
+            "type",
+            crate::keys::PositionSourceType::Block.as_static_str(),
+        )?;
         map.end()
     }
 }

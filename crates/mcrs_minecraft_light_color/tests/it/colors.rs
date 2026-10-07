@@ -1,11 +1,13 @@
 use mcrs_minecraft_block::definition::BlockEntry;
+use mcrs_minecraft_block::keys::Block;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_light_color::asset::LightColorFile;
 use mcrs_minecraft_light_color::colors::{LightColorError, LightColors, LightType};
 use mcrs_minecraft_registry::BlockStateId;
+use mcrs_minecraft_world::registries::test_registries;
 use mcrs_minecraft_worldgen_testing::{assets_dir, json_files};
 
-use crate::corpus::{asset_server, block_tags, blocks};
+use crate::corpus::{asset_server, blocks};
 
 fn block(id: &str) -> &'static BlockEntry {
     blocks()
@@ -21,7 +23,13 @@ fn load(files: &[(&str, &str)]) -> Result<LightColors, LightColorError> {
     let files = files
         .iter()
         .map(|(path, text)| (path.to_string(), text.as_bytes().to_vec()));
-    LightColors::from_files(files, blocks(), block_tags())
+    LightColors::from_files(
+        files,
+        blocks(),
+        &test_registries()
+            .tags::<Block>()
+            .expect("the load builds the block tags"),
+    )
 }
 
 fn file(entries: &[&str]) -> String {
@@ -44,8 +52,14 @@ fn light_colours_load_against_the_block_corpus() {
 }
 
 fn shipped_colours_are_uniform_per_block_and_only_on_emitters() {
-    let colours =
-        LightColors::load(asset_server(), blocks(), block_tags()).unwrap_or_else(|e| panic!("{e}"));
+    let colours = LightColors::load(
+        asset_server(),
+        blocks(),
+        &test_registries()
+            .tags::<Block>()
+            .expect("the load builds the block tags"),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     let mut coloured = 0;
     for block in blocks().blocks() {
         let id = block.identifier.as_str();
@@ -126,6 +140,11 @@ fn every_shipped_file_round_trips_unchanged() {
         let text: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         let parsed: LightColorFile = serde_json::from_value(text.clone()).unwrap();
-        assert_eq!(serde_json::to_value(&parsed).unwrap(), text, "{}", path.display());
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            text,
+            "{}",
+            path.display()
+        );
     }
 }

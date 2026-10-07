@@ -1,7 +1,6 @@
 use mcrs_minecraft_item::keys::Item;
 use mcrs_minecraft_protocol::item::{HashedPatchMap, HashedStack};
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
-use mcrs_minecraft_registry::DenseId;
 use mcrs_minecraft_registry::Id;
 
 #[test]

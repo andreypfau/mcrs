@@ -346,8 +346,8 @@ fn a_region_of_one_column_is_not_kept(router: &NoiseRouter) {
 #[test]
 #[should_panic(expected = "a Beta table carves one column at a time")]
 fn a_beta_table_refuses_a_region() {
-    let (source, registry) = build_beta_biome_source();
-    super::beta_carver_table(&source, &registry).with_region(4, 8);
+    let (source, _) = build_beta_biome_source();
+    super::beta_carver_table(&source).with_region(4, 8);
 }
 
 fn overworld_context(seed: u64) -> FillContext {

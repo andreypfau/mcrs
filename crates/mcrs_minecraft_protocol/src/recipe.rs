@@ -38,7 +38,9 @@ impl DecodeCtx<'_> for Ingredient {
     }
 }
 
-static_registry_wire!(SlotDisplayType, RecipeDisplayType, RecipeBookCategory);
+static_registry_wire!(SlotDisplayType, "slot display type");
+static_registry_wire!(RecipeDisplayType, "recipe display type");
+static_registry_wire!(RecipeBookCategory, "recipe book category");
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self", deny_unknown_fields)]

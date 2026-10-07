@@ -2,6 +2,7 @@ pub mod condition;
 pub mod context;
 pub mod entry;
 
+use crate::loaded::Loaded;
 use bevy_app::{App, Plugin, PostStartup};
 use bevy_ecs::prelude::{Commands, Res};
 use bevy_ecs::resource::Resource;
@@ -26,15 +27,14 @@ pub struct LootRegistries {
 
 impl LootRegistries {
     pub fn from_set(registries: &RegistrySet) -> Self {
-        const LOADED: &str = "the data pack loader parses loot tables, predicates and enchantments";
         let loot = LootRegistries {
-            tables: registries.registry().expect(LOADED),
-            bodies: registries.entries().expect(LOADED),
-            predicate_names: registries.registry().expect(LOADED),
-            predicates: registries.entries().expect(LOADED),
-            predicate_tags: registries.tags().expect(LOADED),
-            enchantments: registries.registry().expect(LOADED),
-            enchantment_tags: registries.tags().expect(LOADED),
+            tables: registries.loaded_registry(),
+            bodies: registries.loaded_entries(),
+            predicate_names: registries.loaded_registry(),
+            predicates: registries.loaded_entries(),
+            predicate_tags: registries.loaded_tags(),
+            enchantments: registries.loaded_registry(),
+            enchantment_tags: registries.loaded_tags(),
         };
         if let Some(id) = loot.self_referring_predicate() {
             panic!(

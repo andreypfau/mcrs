@@ -673,19 +673,13 @@ mod tests {
     fn a_disconnect_packet_ends_the_session() {
         let runtime = Runtime::new().unwrap();
         let (mut app, inbound, entity) = client_app(&runtime);
-        let mut body = Vec::new();
-        ClientboundDisconnect {
-            reason: Text::text("the server is restarting"),
-        }
-        .encode(&mut body)
-        .unwrap();
-        runtime
-            .block_on(inbound.send(crate::ReceivedPacket {
-                timestamp: crate::Instant::now(),
-                id: ClientboundDisconnect::ID,
-                payload: body.into(),
-            }))
-            .unwrap();
+        deliver(
+            &runtime,
+            &inbound,
+            &ClientboundDisconnect {
+                reason: Text::text("the server is restarting"),
+            },
+        );
         app.update();
         assert_eq!(app.should_exit(), Some(AppExit::Success));
         assert!(app.world().get_entity(entity).is_err());

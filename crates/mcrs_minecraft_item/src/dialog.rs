@@ -121,20 +121,9 @@ mcrs_minecraft_registry::dispatch! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
 pub struct InputKey(String);
-
-impl InputKey {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl Serialize for InputKey {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&self.0)
-    }
-}
 
 impl<'de> Deserialize<'de> for InputKey {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -327,14 +316,9 @@ mcrs_minecraft_registry::dispatch! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct CommandTemplate(String);
-
-impl CommandTemplate {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 
 fn check_template(input: &str) -> Result<(), String> {
     let mut start = 0;
@@ -358,12 +342,6 @@ fn check_template(input: &str) -> Result<(), String> {
         return Err("No variables in macro".into());
     }
     Ok(())
-}
-
-impl Serialize for CommandTemplate {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&self.0)
-    }
 }
 
 impl<'de> Deserialize<'de> for CommandTemplate {
@@ -512,14 +490,8 @@ fn is_ok_button(button: &ActionButton) -> bool {
     *button == ok_button()
 }
 
-trait Specific {
-    fn check(&self) -> Result<(), String> {
-        Ok(())
-    }
-}
-
 macro_rules! dialog_type {
-    ($name:ident { $($field:tt)* }) => {
+    ($name:ident { $($field:tt)* } $(check($this:ident) $check:block)?) => {
         validated!($name);
 
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -549,7 +521,8 @@ macro_rules! dialog_type {
                             .into(),
                     );
                 }
-                Specific::check(self)
+                $(let $this = self; $check)?
+                Ok(())
             }
         }
     };
@@ -560,14 +533,10 @@ dialog_type!(Notice {
     pub action: ActionButton,
 });
 
-impl Specific for Notice {}
-
 dialog_type!(Confirmation {
     pub yes: ActionButton,
     pub no: ActionButton,
 });
-
-impl Specific for Confirmation {}
 
 dialog_type!(MultiAction {
     pub actions: Vec<ActionButton>,
@@ -575,16 +544,11 @@ dialog_type!(MultiAction {
     pub exit_action: Option<ActionButton>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub columns: Columns,
-});
-
-impl Specific for MultiAction {
-    fn check(&self) -> Result<(), String> {
-        if self.actions.is_empty() {
-            return Err("List must have contents".into());
-        }
-        Ok(())
+} check(dialog) {
+    if dialog.actions.is_empty() {
+        return Err("List must have contents".into());
     }
-}
+});
 
 dialog_type!(ServerLinks {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -594,8 +558,6 @@ dialog_type!(ServerLinks {
     #[serde(default, skip_serializing_if = "is_default")]
     pub button_width: ButtonWidth,
 });
-
-impl Specific for ServerLinks {}
 
 // chisle: a dialog list names registered dialogs and tags only; the game also takes a dialog
 // written inline in the list, which is refused here until a holder set that holds inline entries
@@ -609,8 +571,6 @@ dialog_type!(DialogList {
     #[serde(default, skip_serializing_if = "is_default")]
     pub button_width: ButtonWidth,
 });
-
-impl Specific for DialogList {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(remote = "Self")]
